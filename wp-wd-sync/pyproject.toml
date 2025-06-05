@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "wp-wd-sync"
+version = "0.1.0"
+description = "A tool to extract birth information from Wikipedia pages linked to Wikidata items"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+authors = [
+    { name = "OpenSanctions", email = "tech@opensanctions.org" }
+]
+dependencies = [
+    "click>=8.0.0",
+    "wikitextparser>=0.6.0",
+    "pydantic>=2.0.0",
+    "requests>=2.31.0",
+    "wikidata>=0.6.0",
+]
+
+[project.scripts]
+wp-wd-sync = "wp_wd_sync.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["wp_wd_sync"] 
