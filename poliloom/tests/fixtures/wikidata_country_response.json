@@ -1,0 +1,18 @@
+{
+  "entities": {
+    "Q30": {
+      "claims": {
+        "P297": [
+          {
+            "mainsnak": {
+              "datavalue": {
+                "type": "string",
+                "value": "US"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -4,7 +4,7 @@ This document outlines the requirements and design for the API and Command Line 
 
 ## **1\. Project Goals and Scope**
 
-The API/CLI project is responsible for:
+This API and CLI project is responsible for:
 
 - Populating a local database with politician data from Wikidata and Wikipedia.
 - Extracting new properties (e.g., date of birth, birthplace) and political positions from web sources using Large Language Models (LLMs).
@@ -24,6 +24,8 @@ The API/CLI project is responsible for:
 - **Production Database:** PostgreSQL
 - **LLM Integration:** OpenAI API (for structured data extraction)
 - **External APIs:** Wikidata API, MediaWiki OAuth
+
+**important** use the `uv` tool for running python commands and managing dependencies
 
 ## **3\. Database Schema**
 
@@ -190,3 +192,45 @@ The CLI will provide direct interaction for data management and enrichment tasks
 - **Conflicting Information:** Develop a clear strategy for handling conflicting data between sources. This might involve flagging conflicts for manual review or implementing a confidence scoring system.
 - **Archiving Web Sources:** A decision needs to be made on whether to archive web sources (e.g., using a web archiving service or local storage) to ensure data provenance, or simply store URLs. For the initial proof of concept, storing URLs is sufficient.
 - **Tool Run Frequency:** The design should support both infrequent, large-scale data imports and potentially more frequent, targeted enrichment runs.
+
+## **7. Minimal Testing Implementation**
+
+Implement essential testing using pytest with mocking for external APIs. Focus on the core data pipeline: import → extract → confirm.
+
+### **7.1. Test Structure**
+
+```
+tests/
+├── conftest.py              # Fixtures and test DB setup
+├── test_models.py           # Database models and relationships
+├── test_import.py           # Wikidata import with mocked responses
+├── test_extraction.py       # LLM extraction with mocked OpenAI
+├── test_api.py              # FastAPI endpoints
+└── test_cli.py              # CLI commands
+```
+
+Keep fixtures in `tests/fixtures/`
+
+### **7.2. Required Test Coverage**
+
+- **Database Models**: Relationships, date handling, CRUD operations
+- **Wikidata Import**: Mock SPARQL responses, entity creation, error handling
+- **LLM Extraction**: Mock OpenAI responses, property/position extraction, conflict detection
+- **API Endpoints**: Both endpoints with auth mocking, error responses, pagination
+- **CLI Commands**: Both commands with success/failure cases
+
+### **7.3. Key Fixtures (conftest.py)**
+
+- In-memory SQLite test database
+- Sample politician data
+- Mock Wikidata SPARQL responses
+- Mock OpenAI structured extraction responses
+- Sample Wikipedia content
+
+### **7.4. Testing Commands**
+
+```bash
+pytest --cov=poliloom --cov-fail-under=70
+```
+
+**Priority**: Test the main data flow thoroughly. Mock all external APIs (Wikidata, OpenAI, MediaWiki OAuth). Handle incomplete dates, conflicting data, and API failures.

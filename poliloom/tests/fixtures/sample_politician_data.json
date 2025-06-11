@@ -1,0 +1,26 @@
+{
+  "wikidata_id": "Q123456",
+  "name": "John Doe",
+  "description": "American politician",
+  "country": "US",
+  "is_deceased": false,
+  "properties": {
+    "BirthDate": "1970-01-15",
+    "BirthPlace": "New York City"
+  },
+  "positions": [
+    {
+      "wikidata_id": "Q30185",
+      "name": "mayor",
+      "start_date": "2020",
+      "end_date": "2024"
+    }
+  ],
+  "wikipedia_links": [
+    {
+      "language": "en",
+      "title": "John Doe",
+      "url": "https://en.wikipedia.org/wiki/John_Doe"
+    }
+  ]
+}

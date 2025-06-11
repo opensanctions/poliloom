@@ -141,7 +141,12 @@ class WikidataClient:
     def _extract_date_claim(self, claims: List[Dict[str, Any]]) -> Optional[str]:
         """Extract date from Wikidata claim."""
         for claim in claims:
-            datavalue = claim.get('mainsnak', {}).get('datavalue', {})
+            # Handle both main claims (with mainsnak) and qualifier claims (direct structure)
+            if 'mainsnak' in claim:
+                datavalue = claim.get('mainsnak', {}).get('datavalue', {})
+            else:
+                datavalue = claim.get('datavalue', {})
+                
             if datavalue.get('type') == 'time':
                 time_value = datavalue.get('value', {}).get('time', '')
                 # Convert from Wikidata format (+1970-01-15T00:00:00Z) to simpler format
