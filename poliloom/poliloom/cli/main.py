@@ -3,6 +3,7 @@
 import click
 import logging
 from ..services.import_service import ImportService
+from ..services.enrichment_service import EnrichmentService
 
 # Configure logging
 logging.basicConfig(
@@ -42,6 +43,31 @@ def import_wikidata(wikidata_id):
     
     finally:
         import_service.close()
+
+
+@main.command('enrich-wikipedia')
+@click.option('--id', 'wikidata_id', required=True, help='Wikidata ID of politician to enrich (e.g., Q123456)')
+def enrich_wikipedia(wikidata_id):
+    """Enrich a politician entity by extracting data from its linked Wikipedia articles."""
+    click.echo(f"Enriching politician with Wikidata ID: {wikidata_id}")
+    
+    enrichment_service = EnrichmentService()
+    
+    try:
+        success = enrichment_service.enrich_politician_from_wikipedia(wikidata_id)
+        
+        if success:
+            click.echo(f"✅ Successfully enriched politician data from Wikipedia sources")
+        else:
+            click.echo("❌ Failed to enrich politician. Check the logs for details.")
+            exit(1)
+    
+    except Exception as e:
+        click.echo(f"❌ Error enriching politician: {e}")
+        exit(1)
+    
+    finally:
+        enrichment_service.close()
 
 
 if __name__ == '__main__':

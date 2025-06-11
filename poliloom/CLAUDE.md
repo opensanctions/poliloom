@@ -173,9 +173,9 @@ The CLI will provide direct interaction for data management and enrichment tasks
 - poliloom import-wikidata \--id \<wikidata_id\>
   - **Description:** Imports a single politician entity from Wikidata based on its Wikidata ID.
   - **Functionality:** Queries Wikidata for the specified ID, extracts available properties and positions, and populates the local database. Fetches associated Wikipedia links.
-- poliloom enrich-wikipedia \--id \<politician_id\>
+- poliloom enrich-wikipedia \--id \<wikidata_id\>
   - **Description:** Enriches a single politician entity in the local database by extracting data from its linked Wikipedia articles.
-  - **Functionality:** Fetches the Wikipedia content for the specified politician_id, feeds it to the LLM for property and position extraction, and stores the new is_new=True data in the database.
+  - **Functionality:** Fetches the Wikipedia content for the politician with the specified Wikidata ID, feeds it to the LLM for property and position extraction, and stores the new is_extracted=True data in the database.
 
 ## **5\. External Integrations**
 
