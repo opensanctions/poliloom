@@ -66,7 +66,7 @@ class Source(Base, UUIDMixin, TimestampMixin):
 
     # Relationships
     politicians = relationship("Politician", secondary=politician_source_table, back_populates="sources")
-    properties = relationship("Property", secondary=property_source_table, back_populates="properties")
+    properties = relationship("Property", secondary=property_source_table, back_populates="sources")
     positions_held = relationship("HoldsPosition", secondary=holdsposition_source_table, back_populates="sources")
 
 
