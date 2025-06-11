@@ -15,6 +15,7 @@ The API/CLI project is responsible for:
 ## **2\. Technology Stack**
 
 - **Programming Language:** Python
+- **Environment management:** uv
 - **CLI Framework:** Click
 - **Web Framework:** FastAPI (for API endpoints)
 - **Database ORM:** SQLAlchemy
