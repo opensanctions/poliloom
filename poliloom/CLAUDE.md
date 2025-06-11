@@ -34,7 +34,6 @@ The database will reproduce a subset of the Wikidata politician data model to st
 - **Politician**
   - id (Primary Key, e.g., Wikidata ID, internal UUID)
   - name (String)
-  - country (String, ISO 3166-1 alpha-2 code where possible)
   - wikidata_id (String, Wikidata QID)
   - is_deceased (Boolean, consideration for filtering)
 - **Source**
@@ -44,7 +43,7 @@ The database will reproduce a subset of the Wikidata politician data model to st
 - **Property**
   - id (Primary Key, internal UUID)
   - politician_id (Foreign Key to Politician.id)
-  - type (String, e.g., 'BirthDate', 'BirthPlace')
+  - type (String, e.g., 'BirthDate', 'BirthPlace', 'Citizenship')
   - value (String, for the extracted property value)
   - is_extracted (Boolean, True if newly extracted and unconfirmed)
   - confirmed_by (String, ID of user who confirmed, Null if unconfirmed)
@@ -72,6 +71,7 @@ The database will reproduce a subset of the Wikidata politician data model to st
 
 - **Incomplete Dates:** The schema should accommodate incomplete birth dates and position held dates (e.g., '1962', 'JUN 1982'). Store these as strings.
 - **Multilingual Names:** The Politician entity will store names as strings. Handling multilingual variations in names during extraction and matching will be crucial.
+- **Citizenships:** Politician citizenships are stored as Property records with type='Citizenship'. Multiple citizenships are supported by creating multiple Property records.
 - **Conflict Resolution:** conflict_resolved fields will be used to flag when discrepancies between extracted data and existing Wikidata values have been addressed.
 
 ## **4\. Core Functionality**

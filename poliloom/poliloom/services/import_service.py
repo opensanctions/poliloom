@@ -45,8 +45,8 @@ class ImportService:
             # Create politician record
             politician = self._create_politician(db, politician_data)
             
-            # Create property records
-            self._create_properties(db, politician, politician_data.get('properties', {}))
+            # Create property records (including citizenships)
+            self._create_properties(db, politician, politician_data.get('properties', []))
             
             # Create position records
             self._create_positions(db, politician, politician_data.get('positions', []))
@@ -69,7 +69,6 @@ class ImportService:
         """Create a politician record."""
         politician = Politician(
             name=data['name'],
-            country=data.get('country'),
             wikidata_id=data['wikidata_id'],
             is_deceased=data.get('is_deceased', False)
         )
@@ -77,17 +76,18 @@ class ImportService:
         db.flush()  # Get the ID
         return politician
     
-    def _create_properties(self, db: Session, politician: Politician, properties: Dict[str, str]):
+    def _create_properties(self, db: Session, politician: Politician, properties: list):
         """Create property records for the politician."""
-        for prop_type, value in properties.items():
-            if value:  # Only create if there's a value
+        for prop_data in properties:
+            if prop_data.get('value'):  # Only create if there's a value
                 prop = Property(
                     politician_id=politician.id,
-                    type=prop_type,
-                    value=value,
+                    type=prop_data['type'],
+                    value=prop_data['value'],
                     is_extracted=False  # From Wikidata, so considered confirmed
                 )
                 db.add(prop)
+    
     
     def _create_positions(self, db: Session, politician: Politician, positions: list):
         """Create position and holds_position records."""
@@ -102,7 +102,7 @@ class ImportService:
                 position = Position(
                     name=pos_data['name'],
                     wikidata_id=pos_data['wikidata_id'],
-                    country=politician.country  # Assume same country as politician
+                    country=pos_data.get('country')  # Use position's country from data
                 )
                 db.add(position)
                 db.flush()  # Get the ID

@@ -47,7 +47,6 @@ class Politician(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "politicians"
 
     name = Column(String, nullable=False)
-    country = Column(String)  # ISO 3166-1 alpha-2 code where possible
     wikidata_id = Column(String, unique=True, index=True)
     is_deceased = Column(Boolean, default=False)
 

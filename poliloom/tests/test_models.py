@@ -16,7 +16,6 @@ class TestPolitician:
         """Test basic politician creation."""
         politician = Politician(
             name="Jane Smith",
-            country="CA",
             wikidata_id="Q789012",
             is_deceased=True
         )
@@ -26,7 +25,6 @@ class TestPolitician:
 
         assert politician.id is not None
         assert politician.name == "Jane Smith"
-        assert politician.country == "CA"
         assert politician.wikidata_id == "Q789012"
         assert politician.is_deceased is True
         assert politician.created_at is not None
@@ -36,7 +34,6 @@ class TestPolitician:
         """Test that wikidata_id must be unique."""
         duplicate_politician = Politician(
             name="Different Name",
-            country="FR",
             wikidata_id=sample_politician.wikidata_id  # Same wikidata_id
         )
         test_session.add(duplicate_politician)
@@ -52,7 +49,6 @@ class TestPolitician:
         test_session.refresh(politician)
 
         assert politician.is_deceased is False
-        assert politician.country is None
         assert politician.wikidata_id is None
 
     def test_politician_cascade_delete_properties(self, test_session, sample_politician):

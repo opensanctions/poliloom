@@ -2,12 +2,21 @@
   "wikidata_id": "Q123456",
   "name": "John Doe",
   "description": "American politician",
-  "country": "US",
   "is_deceased": false,
-  "properties": {
-    "BirthDate": "1970-01-15",
-    "BirthPlace": "New York City"
-  },
+  "properties": [
+    {
+      "type": "BirthDate",
+      "value": "1970-01-15"
+    },
+    {
+      "type": "BirthPlace",
+      "value": "New York City"
+    },
+    {
+      "type": "Citizenship",
+      "value": "United States of America"
+    }
+  ],
   "positions": [
     {
       "wikidata_id": "Q30185",

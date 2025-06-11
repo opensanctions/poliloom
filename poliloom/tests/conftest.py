@@ -32,7 +32,6 @@ def sample_politician(test_session):
     """Create a sample politician for testing."""
     politician = Politician(
         name="John Doe",
-        country="US",
         wikidata_id="Q123456",
         is_deceased=False
     )

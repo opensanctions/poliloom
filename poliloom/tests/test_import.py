@@ -52,29 +52,43 @@ class TestWikidataClient:
                                          mock_country_response):
         """Test successful politician data retrieval."""
         with patch.object(wikidata_client.session, 'get') as mock_get:
-            # Configure mock responses for different API calls in correct order:
-            # 1. Main entity, 2. Birth place, 3. Country, 4. Position
-            mock_responses = [
-                Mock(json=lambda: mock_politician_response),  # Main entity
-                Mock(json=lambda: mock_place_response),       # Birth place (Q60)
-                Mock(json=lambda: mock_country_response),     # Country (Q30)
-                Mock(json=lambda: mock_position_response),    # Position (Q30185)
-            ]
+            # Create a function that returns appropriate responses based on the request
+            def mock_api_call(*args, **kwargs):
+                url = args[0] if args else ""
+                params = kwargs.get('params', {})
+                entity_ids = params.get('ids', '')
+                
+                mock_response = Mock()
+                mock_response.raise_for_status = Mock()
+                
+                if entity_ids == "Q123456":
+                    mock_response.json.return_value = mock_politician_response
+                elif entity_ids == "Q60":
+                    mock_response.json.return_value = mock_place_response
+                elif entity_ids == "Q30":
+                    mock_response.json.return_value = mock_country_response
+                elif entity_ids == "Q30185":
+                    mock_response.json.return_value = mock_position_response
+                else:
+                    # Default response for any other entities
+                    mock_response.json.return_value = {"entities": {}}
+                
+                return mock_response
             
-            for response in mock_responses:
-                response.raise_for_status = Mock()
-            
-            mock_get.side_effect = mock_responses
+            mock_get.side_effect = mock_api_call
             
             result = wikidata_client.get_politician_by_id("Q123456")
             
             assert result is not None
             assert result['wikidata_id'] == 'Q123456'
             assert result['name'] == 'John Doe'
-            assert result['country'] == 'US'
             assert result['is_deceased'] is False
-            assert result['properties']['BirthDate'] == '1970-01-15'
-            assert result['properties']['BirthPlace'] == 'New York City'
+            
+            # Check properties structure
+            prop_dict = {prop['type']: prop['value'] for prop in result['properties']}
+            assert prop_dict.get('BirthDate') == '1970-01-15'
+            assert prop_dict.get('BirthPlace') == 'New York City'
+            assert 'Citizenship' in prop_dict
             assert len(result['positions']) == 1
             assert result['positions'][0]['name'] == 'mayor'
             assert result['positions'][0]['start_date'] == '2020'
@@ -200,15 +214,15 @@ class TestImportService:
         politician = test_session.query(Politician).filter_by(wikidata_id="Q123456").first()
         assert politician is not None
         assert politician.name == "John Doe"
-        assert politician.country == "US"
         assert politician.is_deceased is False
         
-        # Verify properties were created
+        # Verify properties were created (including citizenships)
         properties = test_session.query(Property).filter_by(politician_id=politician.id).all()
-        assert len(properties) == 2
+        assert len(properties) == 3  # BirthDate, BirthPlace, Citizenship
         prop_types = {prop.type: prop.value for prop in properties}
         assert prop_types['BirthDate'] == '1970-01-15'
         assert prop_types['BirthPlace'] == 'New York City'
+        assert prop_types['Citizenship'] == 'United States of America'
         
         # Verify position was created
         position = test_session.query(Position).filter_by(wikidata_id="Q30185").first()
@@ -295,17 +309,16 @@ class TestImportService:
         
         assert politician.name == "John Doe"
         assert politician.wikidata_id == "Q123456"
-        assert politician.country is None
         assert politician.is_deceased is False
     
     def test_create_properties_skips_empty_values(self, import_service, test_session, 
                                                 sample_politician):
         """Test that empty property values are skipped."""
-        properties = {
-            'BirthDate': '1970-01-15',
-            'BirthPlace': '',  # Empty value
-            'DeathDate': None  # None value
-        }
+        properties = [
+            {'type': 'BirthDate', 'value': '1970-01-15'},
+            {'type': 'BirthPlace', 'value': ''},  # Empty value
+            {'type': 'DeathDate', 'value': None}  # None value
+        ]
         
         import_service._create_properties(test_session, sample_politician, properties)
         test_session.flush()
@@ -317,6 +330,30 @@ class TestImportService:
         assert len(created_props) == 1
         assert created_props[0].type == 'BirthDate'
         assert created_props[0].value == '1970-01-15'
+    
+    def test_create_multiple_citizenships(self, import_service, test_session, sample_politician):
+        """Test that multiple citizenships are created as separate properties."""
+        properties = [
+            {'type': 'Citizenship', 'value': 'United States of America'},
+            {'type': 'Citizenship', 'value': 'Canada'},
+            {'type': 'BirthDate', 'value': '1970-01-15'}
+        ]
+        
+        import_service._create_properties(test_session, sample_politician, properties)
+        test_session.flush()
+        
+        created_props = test_session.query(Property).filter_by(
+            politician_id=sample_politician.id
+        ).all()
+        
+        assert len(created_props) == 3
+        
+        # Check citizenship properties
+        citizenship_props = [prop for prop in created_props if prop.type == 'Citizenship']
+        assert len(citizenship_props) == 2
+        citizenship_values = {prop.value for prop in citizenship_props}
+        assert 'United States of America' in citizenship_values
+        assert 'Canada' in citizenship_values
     
     def test_create_positions_reuses_existing(self, import_service, test_session, 
                                             sample_politician, sample_position):
