@@ -187,22 +187,18 @@ class WikidataClient:
         return None
 
     def _extract_all_citizenship_claims(self, claims: List[Dict[str, Any]]) -> List[str]:
-        """Extract all citizenship values from claims."""
+        """Extract all citizenship values from claims as country codes."""
         citizenships = []
         for claim in claims:
             datavalue = claim.get("mainsnak", {}).get("datavalue", {})
             if datavalue.get("type") == "wikibase-entityid":
                 entity_id = datavalue.get("value", {}).get("id")
                 if entity_id:
-                    # Get country name first, fallback to country code
-                    country_name = self._get_entity_label(entity_id)
-                    if country_name:
-                        citizenships.append(country_name)
-                    else:
-                        # Fallback to country code if name not available
-                        country_code = self._get_country_code(entity_id)
-                        if country_code:
-                            citizenships.append(country_code)
+                    # Always use country code for citizenship properties
+                    country_code = self._get_country_code(entity_id)
+                    if country_code:
+                        citizenships.append(country_code)
+                    # Skip citizenship properties where country code can't be found
         return citizenships
 
     def _extract_country_claim(self, claims: List[Dict[str, Any]]) -> List[str]:

@@ -222,7 +222,7 @@ class TestImportService:
         prop_types = {prop.type: prop.value for prop in properties}
         assert prop_types['BirthDate'] == '1970-01-15'
         assert prop_types['BirthPlace'] == 'New York City'
-        assert prop_types['Citizenship'] == 'United States of America'
+        assert prop_types['Citizenship'] == 'US'
         
         # Verify position was created
         position = test_session.query(Position).filter_by(wikidata_id="Q30185").first()
@@ -334,8 +334,8 @@ class TestImportService:
     def test_create_multiple_citizenships(self, import_service, test_session, sample_politician):
         """Test that multiple citizenships are created as separate properties."""
         properties = [
-            {'type': 'Citizenship', 'value': 'United States of America'},
-            {'type': 'Citizenship', 'value': 'Canada'},
+            {'type': 'Citizenship', 'value': 'US'},
+            {'type': 'Citizenship', 'value': 'CA'},
             {'type': 'BirthDate', 'value': '1970-01-15'}
         ]
         
@@ -352,8 +352,8 @@ class TestImportService:
         citizenship_props = [prop for prop in created_props if prop.type == 'Citizenship']
         assert len(citizenship_props) == 2
         citizenship_values = {prop.value for prop in citizenship_props}
-        assert 'United States of America' in citizenship_values
-        assert 'Canada' in citizenship_values
+        assert 'US' in citizenship_values
+        assert 'CA' in citizenship_values
     
     def test_create_positions_reuses_existing(self, import_service, test_session, 
                                             sample_politician, sample_position):
