@@ -85,15 +85,28 @@ class Property(Base, UUIDMixin, TimestampMixin):
     sources = relationship("Source", secondary=property_source_table, back_populates="properties")
 
 
+class Country(Base, UUIDMixin, TimestampMixin):
+    """Country entity for storing country information."""
+    __tablename__ = "countries"
+
+    name = Column(String, nullable=False)  # Country name in English
+    iso_code = Column(String, unique=True, index=True)  # ISO 3166-1 alpha-2 code
+    wikidata_id = Column(String, unique=True, index=True)
+
+    # Relationships
+    positions = relationship("Position", back_populates="country", cascade="all, delete-orphan")
+
+
 class Position(Base, UUIDMixin, TimestampMixin):
     """Position entity for political positions."""
     __tablename__ = "positions"
 
     name = Column(String, nullable=False)
-    country = Column(String)  # ISO 3166-1 alpha-2 code where possible
+    country_id = Column(String, ForeignKey('countries.id'), nullable=True)  # Nullable for supranational positions
     wikidata_id = Column(String, unique=True, index=True)
 
     # Relationships
+    country = relationship("Country", back_populates="positions")
     held_by = relationship("HoldsPosition", back_populates="position", cascade="all, delete-orphan")
 
 

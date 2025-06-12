@@ -48,10 +48,15 @@ The database will reproduce a subset of the Wikidata politician data model to st
   - is_extracted (Boolean, True if newly extracted and unconfirmed)
   - confirmed_by (String, ID of user who confirmed, Null if unconfirmed)
   - confirmed_at (Datetime, Null if unconfirmed)
+- **Country**
+  - id (Primary Key, internal UUID)
+  - name (String, country name in English)
+  - iso_code (String, ISO 3166-1 alpha-2 code)
+  - wikidata_id (String, Wikidata QID for the country)
 - **Position**
   - id (Primary Key, e.g., Wikidata QID, internal UUID)
   - name (String, name of the position)
-  - country (String, ISO 3166-1 alpha-2 code where possible)
+  - country_id (Foreign Key to Country.id, nullable for supranational positions)
   - wikidata_id (String, Wikidata QID for the position)
 - **HoldsPosition** (Many-to-many relationship entity)
   - id (Primary Key, internal UUID)
@@ -85,6 +90,9 @@ This module is responsible for initially populating the local database with poli
   - Implement pagination for large queries.
   - Fetch associated properties and positions directly from Wikidata for initial comparison.
   - Identify and store Wikidata IDs and English/local language Wikipedia URLs.
+- **Country Data Population:**
+  - Load all countries from Wikidata to populate the local Country table with names, ISO codes, and Wikidata IDs.
+  - This reduces the need for repeated Wikidata queries when looking up country labels and ISO tags during processing.
 - **Wikipedia Linkage:**
   - Connect Wikidata entities to their corresponding English and local language Wikipedia articles.
   - Prioritize existing links from Wikidata.
@@ -170,6 +178,9 @@ The API will expose endpoints for the GUI to manage confirmation workflows. Auth
 
 The CLI will provide direct interaction for data management and enrichment tasks.
 
+- poliloom import-countries
+  - **Description:** Imports all countries from Wikidata to populate the local Country table.
+  - **Functionality:** Queries Wikidata for all country entities, extracts their names, ISO codes, and Wikidata IDs, and populates the local database. This should be run before importing politicians to ensure country references are available.
 - poliloom import-wikidata \--id \<wikidata_id\>
   - **Description:** Imports a single politician entity from Wikidata based on its Wikidata ID.
   - **Functionality:** Queries Wikidata for the specified ID, extracts available properties and positions, and populates the local database. Fetches associated Wikipedia links.
