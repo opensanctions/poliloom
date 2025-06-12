@@ -95,6 +95,10 @@ This module is responsible for initially populating the local database with poli
 - **Country Data Handling:**
   - Countries are created on-demand when referenced during politician import or data extraction.
   - Use pycountry library to resolve ISO codes to country names and validate country data.
+- **Position Data Handling:**
+  - During politician import, only link politicians to positions that already exist in the database.
+  - Do not create new Position entities during politician import - positions should be imported separately or through dedicated position import functionality.
+  - This ensures we only work with positions that have been explicitly imported and are known to the system.
 - **Wikipedia Linkage:**
   - Connect Wikidata entities to their corresponding English and local language Wikipedia articles.
   - Prioritize existing links from Wikidata.
@@ -182,7 +186,7 @@ The CLI will provide direct interaction for data management and enrichment tasks
 
 - poliloom import-wikidata \--id \<wikidata_id\>
   - **Description:** Imports a single politician entity from Wikidata based on its Wikidata ID.
-  - **Functionality:** Queries Wikidata for the specified ID, extracts available properties and positions, and populates the local database. Fetches associated Wikipedia links.
+  - **Functionality:** Queries Wikidata for the specified ID, extracts available properties, and populates the local database. For positions, only links the politician to positions that already exist in the database - does not create new Position entities. Fetches associated Wikipedia links.
 - poliloom enrich-wikipedia \--id \<wikidata_id\>
   - **Description:** Enriches a single politician entity in the local database by extracting data from its linked Wikipedia articles.
   - **Functionality:** Fetches the Wikipedia content for the politician with the specified Wikidata ID, feeds it to the LLM for property and position extraction, and stores the new is_extracted=True data in the database.

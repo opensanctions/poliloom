@@ -53,20 +53,15 @@ class TestImportService:
         assert prop_types['BirthPlace'] == 'New York City'
         assert prop_types['Citizenship'] == 'US'
         
-        # Verify position was created
+        # Verify position was NOT created (new behavior - only link to existing positions)
         position = test_session.query(Position).filter_by(wikidata_id="Q30185").first()
-        assert position is not None
-        assert position.name == "mayor"
+        assert position is None  # Position should not be created
         
-        # Verify holds_position relationship was created
+        # Verify no holds_position relationship was created since position doesn't exist
         holds_position = test_session.query(HoldsPosition).filter_by(
-            politician_id=politician.id,
-            position_id=position.id
+            politician_id=politician.id
         ).first()
-        assert holds_position is not None
-        assert holds_position.start_date == "2020"
-        assert holds_position.end_date == "2024"
-        assert holds_position.is_extracted is False  # From Wikidata, so confirmed
+        assert holds_position is None  # No relationship should exist
         
         # Verify source was created
         source = test_session.query(Source).filter_by(
@@ -184,9 +179,9 @@ class TestImportService:
         assert 'US' in citizenship_values
         assert 'CA' in citizenship_values
     
-    def test_create_positions_reuses_existing(self, import_service, test_session, 
+    def test_link_to_existing_positions_only(self, import_service, test_session, 
                                             sample_politician, sample_position):
-        """Test that existing positions are reused."""
+        """Test that politicians are only linked to existing positions."""
         positions = [
             {
                 'wikidata_id': sample_position.wikidata_id,
@@ -196,10 +191,10 @@ class TestImportService:
             }
         ]
         
-        import_service._create_positions(test_session, sample_politician, positions)
+        import_service._link_to_existing_positions(test_session, sample_politician, positions)
         test_session.flush()
         
-        # Verify only one position exists
+        # Verify only one position exists (the pre-existing one)
         all_positions = test_session.query(Position).all()
         assert len(all_positions) == 1
         assert all_positions[0].id == sample_position.id
@@ -211,9 +206,14 @@ class TestImportService:
         ).first()
         assert holds_position is not None
     
-    def test_holds_position_dates_are_set(self, import_service, test_session, 
+    def test_holds_position_dates_with_existing_position(self, import_service, test_session, 
                                         sample_politician_data, mock_wikidata_client):
-        """Test that HoldsPosition start_date and end_date are properly set from Wikidata."""
+        """Test that HoldsPosition dates are set when linking to existing positions."""
+        # First create the position that the politician data references
+        position = Position(name="mayor", wikidata_id="Q30185")
+        test_session.add(position)
+        test_session.flush()
+        
         mock_wikidata_client.get_politician_by_id.return_value = sample_politician_data
         
         with patch('poliloom.services.import_service.SessionLocal', return_value=test_session):

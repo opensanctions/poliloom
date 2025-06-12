@@ -23,6 +23,7 @@ class ImportService:
     def import_politician_by_id(self, wikidata_id: str) -> Optional[str]:
         """
         Import a politician from Wikidata by their ID.
+        Only links politician to positions that already exist in the database.
         
         Returns:
             The politician's database ID if successful, None otherwise.
@@ -50,8 +51,8 @@ class ImportService:
             # Create property records (including citizenships)
             self._create_properties(db, politician, politician_data.get('properties', []))
             
-            # Create position records
-            self._create_positions(db, politician, politician_data.get('positions', []))
+            # Link to existing positions only
+            self._link_to_existing_positions(db, politician, politician_data.get('positions', []))
             
             # Create source records for Wikipedia links
             self._create_sources(db, politician, politician_data.get('wikipedia_links', []))
@@ -95,36 +96,27 @@ class ImportService:
                 db.add(prop)
     
     
-    def _create_positions(self, db: Session, politician: Politician, positions: list):
-        """Create position and holds_position records."""
+    def _link_to_existing_positions(self, db: Session, politician: Politician, positions: list):
+        """Link politician to existing positions only - do not create new positions."""
         for pos_data in positions:
             # Check if position already exists
             position = db.query(Position).filter_by(
                 wikidata_id=pos_data['wikidata_id']
             ).first()
             
-            if not position:
-                # Create new position
-                position = Position(
-                    name=pos_data['name'],
-                    wikidata_id=pos_data['wikidata_id']
+            if position:
+                # Only create holds_position relationship if position exists
+                holds_position = HoldsPosition(
+                    politician_id=politician.id,
+                    position_id=position.id,
+                    start_date=pos_data.get('start_date'),
+                    end_date=pos_data.get('end_date'),
+                    is_extracted=False  # From Wikidata, so considered confirmed
                 )
-                db.add(position)
-                db.flush()  # Get the ID
-                
-                # Link position to countries if specified
-                if pos_data.get('country_codes'):
-                    self._link_position_to_countries(db, position, pos_data['country_codes'])
-            
-            # Create holds_position relationship
-            holds_position = HoldsPosition(
-                politician_id=politician.id,
-                position_id=position.id,
-                start_date=pos_data.get('start_date'),
-                end_date=pos_data.get('end_date'),
-                is_extracted=False  # From Wikidata, so considered confirmed
-            )
-            db.add(holds_position)
+                db.add(holds_position)
+                logger.debug(f"Linked politician {politician.name} to existing position {position.name}")
+            else:
+                logger.debug(f"Position {pos_data['name']} ({pos_data['wikidata_id']}) not found in database - skipping")
     
     def _get_or_create_country(self, db: Session, country_code: str) -> Optional[Country]:
         """Get existing country or create it on-demand from country code."""
