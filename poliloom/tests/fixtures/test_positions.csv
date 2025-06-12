@@ -1,0 +1,11 @@
+"id","entity_id","caption","is_pep","countries","topics","dataset","created_at","modified_at","modified_by","deleted_at"
+1013671,"Q89279295","Position",FALSE,"[""es""]","[]","wd_categories","2025-06-11 22:28:20",,,
+1013514,"Q110118256","Mayor of Hongseong",,"[""kr""]","[]","wd_peps","2025-06-11 13:15:18",,,
+1013513,"Q134765401","Mayor of Jeongeup",TRUE,"[""kr""]","[]","wd_peps","2025-06-11 13:15:18",,,
+1013512,"Q134765299","Mayor of Iksan",FALSE,"[""kr""]","[]","wd_peps","2025-06-11 13:15:18",,,
+1013511,"Q134765105","Mayor of Gunsan",,"[""us""]","[]","wd_peps","2025-06-11 13:15:18",,,
+1013510,"Q134758719","Mayor of Sinan",TRUE,"[]","[]","wd_peps","2025-06-11 13:15:18",,,
+1013509,"Q134758625","Mayor of Jindo",,"[""us"", ""ca""]","[]","wd_peps","2025-06-11 13:15:18",,,
+1013508,"Q134758519","Mayor of Wando",TRUE,"","[]","wd_peps","2025-06-11 13:15:18",,,
+1013507,"Q134758429","","","[""us""]","[]","wd_peps","2025-06-11 13:15:18",,,
+,"Q134758330","Invalid Row Missing Entity","TRUE","[""us""]","[]","wd_peps","2025-06-11 13:15:18",,,

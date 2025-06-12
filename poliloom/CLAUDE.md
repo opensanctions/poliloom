@@ -211,6 +211,7 @@ Implement essential testing using pytest with mocking for external APIs. Focus o
 ### **7.0. Testing Scope**
 
 **What We Test:**
+
 - **Core Business Logic**: All service layer methods (import, extraction, enrichment)
 - **Database Models**: Entity relationships, constraints, cascade behavior, data integrity
 - **External API Integration**: Wikidata SPARQL queries and entity API calls (mocked)
@@ -218,6 +219,7 @@ Implement essential testing using pytest with mocking for external APIs. Focus o
 - **Error Handling**: Network failures, malformed data, database errors, edge cases
 
 **What We Don't Test:**
+
 - **CLI Interface**: Thin wrappers over service methods with minimal business logic
 - **Database Migrations**: Alembic migrations are considered infrastructure
 - **Logging and Metrics**: Non-critical for core functionality validation
@@ -240,11 +242,5 @@ This focused approach ensures robust testing of critical data pipeline component
 - Mock Wikidata SPARQL responses (politicians and countries)
 - Mock OpenAI structured extraction responses
 - Sample Wikipedia content
-
-### **7.3. Testing Commands**
-
-```bash
-pytest --cov=poliloom --cov-fail-under=70
-```
 
 **Priority**: Test the main data flow thoroughly. Mock all external APIs (Wikidata, OpenAI, MediaWiki OAuth). Handle incomplete dates, conflicting data, and API failures.
