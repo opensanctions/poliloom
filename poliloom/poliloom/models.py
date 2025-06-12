@@ -60,6 +60,7 @@ class Politician(Base, UUIDMixin, TimestampMixin):
     # Relationships
     properties = relationship("Property", back_populates="politician", cascade="all, delete-orphan")
     positions_held = relationship("HoldsPosition", back_populates="politician", cascade="all, delete-orphan")
+    citizenships = relationship("HasCitizenship", back_populates="politician", cascade="all, delete-orphan")
     sources = relationship("Source", secondary=politician_source_table, back_populates="politicians")
 
 
@@ -102,6 +103,7 @@ class Country(Base, UUIDMixin, TimestampMixin):
 
     # Relationships
     positions = relationship("Position", secondary=position_country_table, back_populates="countries")
+    citizens = relationship("HasCitizenship", back_populates="country", cascade="all, delete-orphan")
 
 
 class Position(Base, UUIDMixin, TimestampMixin):
@@ -132,3 +134,15 @@ class HoldsPosition(Base, UUIDMixin, TimestampMixin):
     politician = relationship("Politician", back_populates="positions_held")
     position = relationship("Position", back_populates="held_by")
     sources = relationship("Source", secondary=holdsposition_source_table, back_populates="positions_held")
+
+
+class HasCitizenship(Base, UUIDMixin, TimestampMixin):
+    """HasCitizenship entity for politician-country citizenship relationships."""
+    __tablename__ = "has_citizenship"
+
+    politician_id = Column(String, ForeignKey('politicians.id'), nullable=False)
+    country_id = Column(String, ForeignKey('countries.id'), nullable=False)
+
+    # Relationships
+    politician = relationship("Politician", back_populates="citizenships")
+    country = relationship("Country", back_populates="citizens")

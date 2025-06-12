@@ -149,12 +149,12 @@ class WikidataClient:
         if birth_place:
             properties.append({"type": "BirthPlace", "value": birth_place})
         
-        # Citizenships (as country codes)
+        # Citizenships (as country codes) - extract separately
+        citizenships = []
         citizenship_codes_str = result.get("citizenshipCodes", {}).get("value", "")
         if citizenship_codes_str:
             citizenship_codes = [code.strip() for code in citizenship_codes_str.split(",") if code.strip()]
-            for code in citizenship_codes:
-                properties.append({"type": "Citizenship", "value": code})
+            citizenships = citizenship_codes
         
         # Positions held
         positions = []
@@ -209,6 +209,7 @@ class WikidataClient:
             "description": description,
             "is_deceased": is_deceased,
             "properties": properties,
+            "citizenships": citizenships,
             "positions": positions,
             "wikipedia_links": wikipedia_links,
         }
@@ -302,10 +303,8 @@ class WikidataClient:
         if death_date:
             properties.append({"type": "DeathDate", "value": death_date})
 
-        # Citizenship (P27) - can have multiple values
+        # Citizenship (P27) - can have multiple values, extract separately
         citizenships = self._extract_all_citizenship_claims(claims.get("P27", []))
-        for citizenship in citizenships:
-            properties.append({"type": "Citizenship", "value": citizenship})
 
         # Extract positions held
         positions = self._extract_positions(claims.get("P39", []))
@@ -319,6 +318,7 @@ class WikidataClient:
             "description": description,
             "is_deceased": is_deceased,
             "properties": properties,
+            "citizenships": citizenships,
             "positions": positions,
             "wikipedia_links": wikipedia_links,
         }

@@ -71,7 +71,10 @@ class TestWikidataClient:
             prop_dict = {prop['type']: prop['value'] for prop in result['properties']}
             assert prop_dict.get('BirthDate') == '1970-01-15'
             assert prop_dict.get('BirthPlace') == 'New York City'
-            assert prop_dict.get('Citizenship') == 'US'
+            
+            # Check citizenships are returned separately
+            assert 'citizenships' in result
+            assert 'US' in result['citizenships']
             assert len(result['positions']) == 1
             assert result['positions'][0]['name'] == 'mayor'
             assert result['positions'][0]['start_date'] == '2020-01-01'

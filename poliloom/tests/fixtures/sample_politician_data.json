@@ -11,11 +11,10 @@
     {
       "type": "BirthPlace",
       "value": "New York City"
-    },
-    {
-      "type": "Citizenship",
-      "value": "US"
     }
+  ],
+  "citizenships": [
+    "US"
   ],
   "positions": [
     {

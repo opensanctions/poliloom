@@ -7,7 +7,7 @@ import logging
 import csv
 import json
 
-from ..models import Politician, Property, Position, HoldsPosition, Source, Country, position_country_table
+from ..models import Politician, Property, Position, HoldsPosition, Source, Country, HasCitizenship, position_country_table
 from ..database import SessionLocal
 from .wikidata import WikidataClient
 
@@ -48,8 +48,11 @@ class ImportService:
             # Create politician record
             politician = self._create_politician(db, politician_data)
             
-            # Create property records (including citizenships)
+            # Create property records
             self._create_properties(db, politician, politician_data.get('properties', []))
+            
+            # Create citizenship records
+            self._create_citizenships(db, politician, politician_data.get('citizenships', []))
             
             # Link to existing positions only
             self._link_to_existing_positions(db, politician, politician_data.get('positions', []))
@@ -83,10 +86,6 @@ class ImportService:
         """Create property records for the politician."""
         for prop_data in properties:
             if prop_data.get('value'):  # Only create if there's a value
-                # For citizenship properties, ensure the country exists
-                if prop_data['type'] == 'Citizenship':
-                    self._get_or_create_country(db, prop_data['value'])
-                
                 prop = Property(
                     politician_id=politician.id,
                     type=prop_data['type'],
@@ -94,6 +93,26 @@ class ImportService:
                     is_extracted=False  # From Wikidata, so considered confirmed
                 )
                 db.add(prop)
+    
+    def _create_citizenships(self, db: Session, politician: Politician, citizenships: list):
+        """Create citizenship records for the politician."""
+        for country_code in citizenships:
+            if country_code:  # Only create if there's a value
+                # Get or create the country
+                country = self._get_or_create_country(db, country_code)
+                if country:
+                    # Check if citizenship relationship already exists
+                    existing_citizenship = db.query(HasCitizenship).filter_by(
+                        politician_id=politician.id,
+                        country_id=country.id
+                    ).first()
+                    
+                    if not existing_citizenship:
+                        citizenship = HasCitizenship(
+                            politician_id=politician.id,
+                            country_id=country.id
+                        )
+                        db.add(citizenship)
     
     
     def _link_to_existing_positions(self, db: Session, politician: Politician, positions: list):

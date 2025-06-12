@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 from poliloom.services.import_service import ImportService
 from poliloom.services.wikidata import WikidataClient
-from poliloom.models import Politician, Property, Position, HoldsPosition, Source
+from poliloom.models import Politician, Property, Position, HoldsPosition, Source, Country, HasCitizenship
 from .conftest import load_json_fixture
 
 
@@ -45,13 +45,18 @@ class TestImportService:
         assert politician.name == "John Doe"
         assert politician.is_deceased is False
         
-        # Verify properties were created (including citizenships)
+        # Verify properties were created (excluding citizenships)
         properties = test_session.query(Property).filter_by(politician_id=politician.id).all()
-        assert len(properties) == 3  # BirthDate, BirthPlace, Citizenship
+        assert len(properties) == 2  # BirthDate, BirthPlace (citizenship is now separate)
         prop_types = {prop.type: prop.value for prop in properties}
         assert prop_types['BirthDate'] == '1970-01-15'
         assert prop_types['BirthPlace'] == 'New York City'
-        assert prop_types['Citizenship'] == 'US'
+        
+        # Verify citizenship was created as HasCitizenship relationship
+        citizenships = test_session.query(HasCitizenship).filter_by(politician_id=politician.id).all()
+        assert len(citizenships) == 1
+        citizenship = citizenships[0]
+        assert citizenship.country.iso_code == 'US'
         
         # Verify position was NOT created (new behavior - only link to existing positions)
         position = test_session.query(Position).filter_by(wikidata_id="Q30185").first()
@@ -156,28 +161,33 @@ class TestImportService:
         assert created_props[0].value == '1970-01-15'
     
     def test_create_multiple_citizenships(self, import_service, test_session, sample_politician):
-        """Test that multiple citizenships are created as separate properties."""
+        """Test that multiple citizenships are created as separate HasCitizenship relationships."""
         properties = [
-            {'type': 'Citizenship', 'value': 'US'},
-            {'type': 'Citizenship', 'value': 'CA'},
             {'type': 'BirthDate', 'value': '1970-01-15'}
         ]
+        citizenships = ['US', 'CA']
         
+        # Create properties
         import_service._create_properties(test_session, sample_politician, properties)
+        # Create citizenship relationships
+        import_service._create_citizenships(test_session, sample_politician, citizenships)
         test_session.flush()
         
+        # Check that properties were created
         created_props = test_session.query(Property).filter_by(
             politician_id=sample_politician.id
         ).all()
+        assert len(created_props) == 1  # Only BirthDate
+        assert created_props[0].type == 'BirthDate'
         
-        assert len(created_props) == 3
-        
-        # Check citizenship properties
-        citizenship_props = [prop for prop in created_props if prop.type == 'Citizenship']
-        assert len(citizenship_props) == 2
-        citizenship_values = {prop.value for prop in citizenship_props}
-        assert 'US' in citizenship_values
-        assert 'CA' in citizenship_values
+        # Check citizenship relationships
+        citizenships = test_session.query(HasCitizenship).filter_by(
+            politician_id=sample_politician.id
+        ).all()
+        assert len(citizenships) == 2
+        citizenship_countries = {c.country.iso_code for c in citizenships}
+        assert 'US' in citizenship_countries
+        assert 'CA' in citizenship_countries
     
     def test_link_to_existing_positions_only(self, import_service, test_session, 
                                             sample_politician, sample_position):
@@ -236,3 +246,112 @@ class TestImportService:
         assert holds_position.end_date == "2024", f"Expected '2024', got '{holds_position.end_date}'"
         assert holds_position.start_date is not None, "start_date should not be NULL"
         assert holds_position.end_date is not None, "end_date should not be NULL"
+    
+    def test_create_citizenships_with_new_country(self, import_service, test_session, sample_politician):
+        """Test that citizenships are created with new countries as needed."""
+        citizenships = ['FR']  # France - new country
+        
+        import_service._create_citizenships(test_session, sample_politician, citizenships)
+        test_session.flush()
+        
+        # Verify country was created
+        country = test_session.query(Country).filter_by(iso_code='FR').first()
+        assert country is not None
+        # Note: Country name depends on whether pycountry is available
+        # If not available, it falls back to the country code
+        assert country.name in ['France', 'FR']  # pycountry lookup or fallback
+        
+        # Verify citizenship relationship was created
+        citizenship = test_session.query(HasCitizenship).filter_by(
+            politician_id=sample_politician.id,
+            country_id=country.id
+        ).first()
+        assert citizenship is not None
+    
+    def test_create_citizenships_with_existing_country(self, import_service, test_session, sample_politician):
+        """Test that citizenships reuse existing countries."""
+        # Create existing country
+        existing_country = Country(name="United States", iso_code="US")
+        test_session.add(existing_country)
+        test_session.flush()
+        
+        citizenships = ['US']
+        
+        import_service._create_citizenships(test_session, sample_politician, citizenships)
+        test_session.flush()
+        
+        # Verify no new country was created
+        countries = test_session.query(Country).filter_by(iso_code='US').all()
+        assert len(countries) == 1
+        assert countries[0].id == existing_country.id
+        
+        # Verify citizenship relationship was created
+        citizenship = test_session.query(HasCitizenship).filter_by(
+            politician_id=sample_politician.id,
+            country_id=existing_country.id
+        ).first()
+        assert citizenship is not None
+    
+    def test_create_citizenships_prevents_duplicates(self, import_service, test_session, sample_politician):
+        """Test that duplicate citizenship relationships are not created."""
+        # Create country and existing citizenship
+        country = Country(name="Canada", iso_code="CA")
+        test_session.add(country)
+        test_session.flush()
+        
+        existing_citizenship = HasCitizenship(
+            politician_id=sample_politician.id,
+            country_id=country.id
+        )
+        test_session.add(existing_citizenship)
+        test_session.flush()
+        
+        citizenships = ['CA']  # Same citizenship again
+        
+        import_service._create_citizenships(test_session, sample_politician, citizenships)
+        test_session.flush()
+        
+        # Verify no duplicate was created
+        citizenships = test_session.query(HasCitizenship).filter_by(
+            politician_id=sample_politician.id,
+            country_id=country.id
+        ).all()
+        assert len(citizenships) == 1
+        assert citizenships[0].id == existing_citizenship.id
+    
+    def test_get_or_create_country_with_pycountry(self, import_service, test_session):
+        """Test country creation with pycountry lookup if available."""
+        country = import_service._get_or_create_country(test_session, 'DE')
+        test_session.flush()
+        
+        assert country is not None
+        assert country.iso_code == 'DE'
+        # Country name depends on whether pycountry is available
+        assert country.name in ['Germany', 'DE']  # From pycountry or fallback
+        assert country.wikidata_id is None
+    
+    def test_get_or_create_country_fallback_without_pycountry(self, import_service, test_session):
+        """Test country creation fallback when pycountry is not available."""
+        # Test with an unknown country code to verify fallback behavior
+        country = import_service._get_or_create_country(test_session, 'XX')
+        test_session.flush()
+        
+        assert country is not None
+        assert country.iso_code == 'XX'
+        assert country.name == 'XX'  # Should fallback to country code when pycountry unavailable
+    
+    def test_get_or_create_country_returns_existing(self, import_service, test_session):
+        """Test that existing countries are returned instead of creating duplicates."""
+        # Create existing country
+        existing = Country(name="Japan", iso_code="JP")
+        test_session.add(existing)
+        test_session.flush()
+        
+        country = import_service._get_or_create_country(test_session, 'jp')  # lowercase
+        
+        assert country.id == existing.id
+        assert country.iso_code == 'JP'
+        
+        # Verify no duplicate was created
+        countries = test_session.query(Country).filter_by(iso_code='JP').all()
+        assert len(countries) == 1
