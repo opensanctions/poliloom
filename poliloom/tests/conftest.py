@@ -1,11 +1,19 @@
 """Test configuration and fixtures for PoliLoom tests."""
 import pytest
+import json
+from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 
-from poliloom.database import get_db
 from poliloom.models import Base, Politician, Source, Property, Position, HoldsPosition, Country
+
+
+def load_json_fixture(filename):
+    """Load a JSON fixture file."""
+    fixtures_dir = Path(__file__).parent / "fixtures"
+    with open(fixtures_dir / filename, 'r') as f:
+        return json.load(f)
 
 
 @pytest.fixture

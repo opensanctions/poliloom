@@ -4,8 +4,7 @@ from datetime import datetime
 from sqlalchemy.exc import IntegrityError
 
 from poliloom.models import (
-    Politician, Source, Property, Position, HoldsPosition, Country,
-    politician_source_table, property_source_table, holdsposition_source_table
+    Politician, Source, Property, Position, HoldsPosition, Country
 )
 
 
