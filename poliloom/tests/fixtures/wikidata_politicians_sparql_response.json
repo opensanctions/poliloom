@@ -1,0 +1,37 @@
+{
+  "head": {
+    "vars": ["politician", "politicianLabel", "country"]
+  },
+  "results": {
+    "bindings": [
+      {
+        "politician": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q123456"
+        },
+        "politicianLabel": {
+          "type": "literal",
+          "value": "John Doe"
+        },
+        "country": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q30"
+        }
+      },
+      {
+        "politician": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q789012"
+        },
+        "politicianLabel": {
+          "type": "literal",
+          "value": "Jane Smith"
+        },
+        "country": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q16"
+        }
+      }
+    ]
+  }
+}

@@ -508,9 +508,13 @@ class TestCountryImport:
         import_service = ImportService()
         mock_wikidata_client = Mock(spec=WikidataClient)
         
+        # Store the wikidata_id and name before the session is mocked
+        existing_wikidata_id = sample_country.wikidata_id
+        existing_name = sample_country.name
+        
         # Mock data that includes existing country
         countries_data = [
-            {'wikidata_id': sample_country.wikidata_id, 'name': 'Updated Name', 'iso_code': 'US'},
+            {'wikidata_id': existing_wikidata_id, 'name': 'Updated Name', 'iso_code': 'US'},
             {'wikidata_id': 'Q16', 'name': 'Canada', 'iso_code': 'CA'}
         ]
         mock_wikidata_client.get_all_countries.return_value = countries_data
@@ -527,8 +531,8 @@ class TestCountryImport:
         assert len(countries) == 2
         
         # Verify existing country wasn't updated
-        existing = test_session.query(Country).filter_by(wikidata_id=sample_country.wikidata_id).first()
-        assert existing.name == sample_country.name  # Original name, not "Updated Name"
+        existing = test_session.query(Country).filter_by(wikidata_id=existing_wikidata_id).first()
+        assert existing.name == existing_name  # Original name, not "Updated Name"
     
     def test_import_all_countries_wikidata_error(self, test_session):
         """Test handling of Wikidata client errors."""
