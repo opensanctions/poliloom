@@ -17,48 +17,222 @@ class WikidataClient:
         self.session = httpx.Client(timeout=30.0)
 
     def get_politician_by_id(self, wikidata_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch politician data from Wikidata by ID."""
+        """Fetch politician data from Wikidata by ID using SPARQL for efficient country code retrieval."""
         # Remove Q prefix if present
         entity_id = wikidata_id.upper()
         if not entity_id.startswith("Q"):
             entity_id = f"Q{entity_id}"
 
         try:
-            # Get entity data from Wikidata API
-            response = self.session.get(
-                self.API_ENDPOINT,
-                params={
-                    "action": "wbgetentities",
-                    "ids": entity_id,
-                    "format": "json",
-                    "languages": "en",
-                    "props": "labels|descriptions|claims|sitelinks",
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-
-            if "entities" not in data or entity_id not in data["entities"]:
-                logger.warning(f"Entity {entity_id} not found in Wikidata")
+            # Use SPARQL to get comprehensive politician data including country codes
+            sparql_data = self._get_politician_sparql_data(entity_id)
+            if not sparql_data:
+                logger.warning(f"Entity {entity_id} not found or not a politician in Wikidata")
                 return None
 
-            entity = data["entities"][entity_id]
-
-            # Check if this is a person (instance of human - Q5)
-            if not self._is_human(entity):
-                logger.warning(f"Entity {entity_id} is not a human")
-                return None
-
-            # Check if this person has politician-related occupations/positions
-            if not self._is_politician(entity):
-                logger.warning(f"Entity {entity_id} is not identified as a politician")
-                return None
-
-            return self._parse_politician_data(entity)
+            return sparql_data
 
         except httpx.RequestError as e:
             logger.error(f"Error fetching data for {entity_id}: {e}")
             return None
+
+    def _get_politician_sparql_data(self, entity_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch comprehensive politician data using SPARQL including country codes."""
+        sparql_query = f"""
+        SELECT ?person ?personLabel ?personDescription 
+               ?birthDate ?deathDate ?birthPlace ?birthPlaceLabel
+               (GROUP_CONCAT(DISTINCT ?citizenshipCode; separator=",") AS ?citizenshipCodes)
+               (GROUP_CONCAT(DISTINCT ?positionId; separator=",") AS ?positionIds)
+               (GROUP_CONCAT(DISTINCT ?positionLabel; separator="|") AS ?positionLabels)
+               (GROUP_CONCAT(DISTINCT ?startDate; separator=",") AS ?startDates)
+               (GROUP_CONCAT(DISTINCT ?endDate; separator=",") AS ?endDates)
+               (GROUP_CONCAT(DISTINCT ?sitelink; separator=",") AS ?sitelinks)
+               (GROUP_CONCAT(DISTINCT ?siteLang; separator=",") AS ?siteLangs)
+        WHERE {{
+          BIND(wd:{entity_id} AS ?person)
+          
+          ?person wdt:P31 wd:Q5 .
+          {{
+            ?person wdt:P106 wd:Q82955 .
+          }} UNION {{
+            ?person wdt:P39 ?anyPosition .
+          }}
+          
+          OPTIONAL {{ ?person wdt:P569 ?birthDate . }}
+          OPTIONAL {{ ?person wdt:P570 ?deathDate . }}
+          OPTIONAL {{ 
+            ?person wdt:P19 ?birthPlace . 
+            ?birthPlace rdfs:label ?birthPlaceLabel .
+            FILTER(LANG(?birthPlaceLabel) = "en")
+          }}
+          
+          OPTIONAL {{
+            ?person wdt:P27 ?citizenship .
+            ?citizenship wdt:P297 ?citizenshipCode .
+          }}
+          
+          OPTIONAL {{
+            ?person p:P39 ?posStatement .
+            ?posStatement ps:P39 ?position .
+            BIND(STRAFTER(STR(?position), "http://www.wikidata.org/entity/") AS ?positionId)
+            ?position rdfs:label ?positionLabel .
+            FILTER(LANG(?positionLabel) = "en")
+            
+            OPTIONAL {{ ?posStatement pq:P580 ?startDate . }}
+            OPTIONAL {{ ?posStatement pq:P582 ?endDate . }}
+          }}
+          
+          OPTIONAL {{
+            ?sitelink schema:about ?person .
+            ?sitelink schema:isPartOf ?site .
+            ?site wikibase:wikiGroup "wikipedia" .
+            BIND(REPLACE(STR(?site), "https://([^.]+)\\\\.wikipedia\\\\.org/", "$1") AS ?siteLang)
+          }}
+          
+          SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en" . }}
+        }} GROUP BY ?person ?personLabel ?personDescription ?birthDate ?deathDate ?birthPlace ?birthPlaceLabel
+        """
+        
+        try:
+            response = self.session.get(
+                self.SPARQL_ENDPOINT,
+                params={
+                    "query": sparql_query,
+                    "format": "json"
+                },
+                headers={
+                    "User-Agent": "PoliLoom/1.0 (https://github.com/user/poliloom)"
+                }
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            results = data.get("results", {}).get("bindings", [])
+            if not results:
+                return None
+                
+            result = results[0]  # Should only be one result for specific entity
+            
+            return self._parse_sparql_politician_data(result)
+            
+        except httpx.RequestError as e:
+            logger.error(f"Error fetching SPARQL data for {entity_id}: {e}")
+            return None
+
+    def _parse_sparql_politician_data(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse politician data from SPARQL result."""
+        # Basic info
+        name = result.get("personLabel", {}).get("value", "")
+        description = result.get("personDescription", {}).get("value", "")
+        
+        # Extract properties
+        properties = []
+        
+        # Birth date
+        birth_date = result.get("birthDate", {}).get("value")
+        if birth_date:
+            # Parse date format and precision from SPARQL result
+            formatted_date = self._format_sparql_date(birth_date)
+            if formatted_date:
+                properties.append({"type": "BirthDate", "value": formatted_date})
+        
+        # Death date
+        death_date = result.get("deathDate", {}).get("value")
+        is_deceased = death_date is not None
+        if death_date:
+            formatted_date = self._format_sparql_date(death_date)
+            if formatted_date:
+                properties.append({"type": "DeathDate", "value": formatted_date})
+        
+        # Birth place
+        birth_place = result.get("birthPlaceLabel", {}).get("value")
+        if birth_place:
+            properties.append({"type": "BirthPlace", "value": birth_place})
+        
+        # Citizenships (as country codes)
+        citizenship_codes_str = result.get("citizenshipCodes", {}).get("value", "")
+        if citizenship_codes_str:
+            citizenship_codes = [code.strip() for code in citizenship_codes_str.split(",") if code.strip()]
+            for code in citizenship_codes:
+                properties.append({"type": "Citizenship", "value": code})
+        
+        # Positions held
+        positions = []
+        position_ids_str = result.get("positionIds", {}).get("value", "")
+        position_labels_str = result.get("positionLabels", {}).get("value", "")
+        start_dates_str = result.get("startDates", {}).get("value", "")
+        end_dates_str = result.get("endDates", {}).get("value", "")
+        
+        if position_ids_str and position_labels_str:
+            position_ids = [id.strip() for id in position_ids_str.split(",") if id.strip()]
+            position_labels = [label.strip() for label in position_labels_str.split("|") if label.strip()]
+            start_dates = [date.strip() for date in start_dates_str.split(",")] if start_dates_str else []
+            end_dates = [date.strip() for date in end_dates_str.split(",")] if end_dates_str else []
+            
+            for i, (pos_id, pos_label) in enumerate(zip(position_ids, position_labels)):
+                start_date = self._format_sparql_date(start_dates[i]) if i < len(start_dates) and start_dates[i] else None
+                end_date = self._format_sparql_date(end_dates[i]) if i < len(end_dates) and end_dates[i] else None
+                
+                positions.append({
+                    "wikidata_id": pos_id,
+                    "name": pos_label,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                })
+        
+        # Wikipedia links
+        wikipedia_links = []
+        sitelinks_str = result.get("sitelinks", {}).get("value", "")
+        site_langs_str = result.get("siteLangs", {}).get("value", "")
+        
+        if sitelinks_str and site_langs_str:
+            sitelinks = [link.strip() for link in sitelinks_str.split(",") if link.strip()]
+            site_langs = [lang.strip() for lang in site_langs_str.split(",") if lang.strip()]
+            
+            for sitelink, lang in zip(sitelinks, site_langs):
+                # Extract title from Wikipedia URL
+                title = sitelink.split("/wiki/")[-1] if "/wiki/" in sitelink else ""
+                if title:
+                    wikipedia_links.append({
+                        "language": lang,
+                        "title": title.replace("_", " "),
+                        "url": sitelink
+                    })
+        
+        # Get entity ID from result
+        person_uri = result.get("person", {}).get("value", "")
+        wikidata_id = person_uri.split("/")[-1] if person_uri else ""
+        
+        return {
+            "wikidata_id": wikidata_id,
+            "name": name,
+            "description": description,
+            "is_deceased": is_deceased,
+            "properties": properties,
+            "positions": positions,
+            "wikipedia_links": wikipedia_links,
+        }
+
+    def _format_sparql_date(self, date_str: str) -> Optional[str]:
+        """Format date from SPARQL result to consistent format."""
+        if not date_str:
+            return None
+        
+        # SPARQL dates come in ISO format, extract the date part
+        if "T" in date_str:
+            date_part = date_str.split("T")[0]
+        else:
+            date_part = date_str
+        
+        # Handle different precisions based on the date format
+        if len(date_part) >= 10:  # YYYY-MM-DD
+            return date_part[:10]
+        elif len(date_part) >= 7:  # YYYY-MM
+            return date_part[:7]
+        elif len(date_part) >= 4:  # YYYY
+            return date_part[:4]
+        
+        return None
 
     def _is_human(self, entity: Dict[str, Any]) -> bool:
         """Check if entity is an instance of human (Q5)."""
