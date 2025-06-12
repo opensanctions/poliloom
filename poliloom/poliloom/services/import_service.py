@@ -201,6 +201,58 @@ class ImportService:
         finally:
             db.close()
     
+    def import_all_positions(self) -> int:
+        """
+        Import all political positions from Wikidata.
+        
+        Returns:
+            Number of positions imported.
+        """
+        # Fetch all positions from Wikidata
+        positions_data = self.wikidata_client.get_all_positions()
+        if not positions_data:
+            logger.error("Could not fetch positions data from Wikidata")
+            return 0
+        
+        db = SessionLocal()
+        try:
+            imported_count = 0
+            
+            for position_data in positions_data:
+                # Check if position already exists
+                existing = db.query(Position).filter_by(
+                    wikidata_id=position_data['wikidata_id']
+                ).first()
+                
+                if existing:
+                    logger.debug(f"Position {position_data['name']} already exists")
+                    continue
+                
+                # Create position record
+                position = Position(
+                    name=position_data['name'],
+                    wikidata_id=position_data['wikidata_id'],
+                    country_id=None  # Will be determined when positions are used
+                )
+                db.add(position)
+                imported_count += 1
+                
+                # Commit in batches to avoid memory issues
+                if imported_count % 100 == 0:
+                    db.commit()
+                    logger.info(f"Imported {imported_count} positions so far...")
+            
+            db.commit()
+            logger.info(f"Successfully imported {imported_count} positions")
+            return imported_count
+            
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error importing positions: {e}")
+            return 0
+        finally:
+            db.close()
+    
     def close(self):
         """Close the Wikidata client."""
         self.wikidata_client.close()

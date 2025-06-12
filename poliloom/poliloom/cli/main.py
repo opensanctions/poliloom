@@ -69,6 +69,30 @@ def import_countries():
         import_service.close()
 
 
+@main.command('import-positions')
+def import_positions():
+    """Import all political positions from Wikidata to populate the local Position table."""
+    click.echo("Importing all political positions from Wikidata...")
+    
+    import_service = ImportService()
+    
+    try:
+        count = import_service.import_all_positions()
+        
+        if count > 0:
+            click.echo(f"✅ Successfully imported {count} political positions")
+        else:
+            click.echo("❌ Failed to import positions. Check the logs for details.")
+            exit(1)
+    
+    except Exception as e:
+        click.echo(f"❌ Error importing positions: {e}")
+        exit(1)
+    
+    finally:
+        import_service.close()
+
+
 @main.command('enrich-wikipedia')
 @click.option('--id', 'wikidata_id', required=True, help='Wikidata ID of politician to enrich (e.g., Q123456)')
 def enrich_wikipedia(wikidata_id):
@@ -81,7 +105,7 @@ def enrich_wikipedia(wikidata_id):
         success = enrichment_service.enrich_politician_from_wikipedia(wikidata_id)
         
         if success:
-            click.echo(f"✅ Successfully enriched politician data from Wikipedia sources")
+            click.echo("✅ Successfully enriched politician data from Wikipedia sources")
         else:
             click.echo("❌ Failed to enrich politician. Check the logs for details.")
             exit(1)

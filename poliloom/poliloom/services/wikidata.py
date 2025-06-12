@@ -356,6 +356,47 @@ class WikidataClient:
             logger.error(f"Error fetching countries from Wikidata: {e}")
             return []
 
+    def get_all_positions(self) -> List[Dict[str, Any]]:
+        """Fetch all political positions from Wikidata using SPARQL."""
+        sparql_query = """
+        SELECT DISTINCT ?position ?positionLabel WHERE {
+          ?position wdt:P31/wdt:P279* wd:Q294414 . # elected or appointed political position
+          SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
+        }
+        """
+        
+        try:
+            response = self.session.get(
+                self.SPARQL_ENDPOINT,
+                params={
+                    "query": sparql_query,
+                    "format": "json"
+                },
+                headers={
+                    "User-Agent": "PoliLoom/1.0 (https://github.com/user/poliloom)"
+                }
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            positions = []
+            for result in data.get("results", {}).get("bindings", []):
+                position_uri = result.get("position", {}).get("value", "")
+                position_id = position_uri.split("/")[-1] if position_uri else None
+                
+                if position_id:
+                    positions.append({
+                        "wikidata_id": position_id,
+                        "name": result.get("positionLabel", {}).get("value", "")
+                    })
+            
+            logger.info(f"Fetched {len(positions)} political positions from Wikidata")
+            return positions
+            
+        except httpx.RequestError as e:
+            logger.error(f"Error fetching positions from Wikidata: {e}")
+            return []
+
     def close(self):
         """Close the HTTP session."""
         self.session.close()

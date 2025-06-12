@@ -1,7 +1,7 @@
 """Service for enriching politician data from Wikipedia using LLM extraction."""
 
 import os
-from typing import Dict, List, Optional, Any
+from typing import List, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
 import httpx
@@ -10,7 +10,7 @@ import logging
 from openai import OpenAI
 from pydantic import BaseModel
 
-from ..models import Politician, Property, Position, HoldsPosition, Source
+from ..models import Politician, Property, Position, HoldsPosition
 from ..database import SessionLocal
 
 logger = logging.getLogger(__name__)
