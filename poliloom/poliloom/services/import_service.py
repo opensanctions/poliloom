@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 import logging
 
-from ..models import Politician, Property, Position, HoldsPosition, Source
+from ..models import Politician, Property, Position, HoldsPosition, Source, Country
 from ..database import SessionLocal
 from .wikidata import WikidataClient
 
@@ -99,10 +99,19 @@ class ImportService:
             
             if not position:
                 # Create new position
+                # Find country if specified
+                country_id = None
+                if pos_data.get('country'):
+                    country = db.query(Country).filter_by(
+                        iso_code=pos_data['country']
+                    ).first()
+                    if country:
+                        country_id = country.id
+                
                 position = Position(
                     name=pos_data['name'],
                     wikidata_id=pos_data['wikidata_id'],
-                    country=pos_data.get('country')  # Use position's country from data
+                    country_id=country_id
                 )
                 db.add(position)
                 db.flush()  # Get the ID
@@ -139,6 +148,58 @@ class ImportService:
                 # Source already exists, skip
                 db.rollback()
                 continue
+    
+    def import_all_countries(self) -> int:
+        """
+        Import all countries from Wikidata.
+        
+        Returns:
+            Number of countries imported.
+        """
+        # Fetch all countries from Wikidata
+        countries_data = self.wikidata_client.get_all_countries()
+        if not countries_data:
+            logger.error("Could not fetch countries data from Wikidata")
+            return 0
+        
+        db = SessionLocal()
+        try:
+            imported_count = 0
+            
+            for country_data in countries_data:
+                # Check if country already exists
+                existing = db.query(Country).filter_by(
+                    wikidata_id=country_data['wikidata_id']
+                ).first()
+                
+                if existing:
+                    logger.debug(f"Country {country_data['name']} already exists")
+                    continue
+                
+                # Create country record
+                country = Country(
+                    name=country_data['name'],
+                    iso_code=country_data.get('iso_code'),
+                    wikidata_id=country_data['wikidata_id']
+                )
+                db.add(country)
+                imported_count += 1
+                
+                # Commit in batches to avoid memory issues
+                if imported_count % 100 == 0:
+                    db.commit()
+                    logger.info(f"Imported {imported_count} countries so far...")
+            
+            db.commit()
+            logger.info(f"Successfully imported {imported_count} countries")
+            return imported_count
+            
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error importing countries: {e}")
+            return 0
+        finally:
+            db.close()
     
     def close(self):
         """Close the Wikidata client."""

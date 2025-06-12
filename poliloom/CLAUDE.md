@@ -208,21 +208,7 @@ The CLI will provide direct interaction for data management and enrichment tasks
 
 Implement essential testing using pytest with mocking for external APIs. Focus on the core data pipeline: import → extract → confirm.
 
-### **7.1. Test Structure**
-
-```
-tests/
-├── conftest.py              # Fixtures and test DB setup
-├── test_models.py           # Database models and relationships
-├── test_import.py           # Wikidata import with mocked responses
-├── test_extraction.py       # LLM extraction with mocked OpenAI
-├── test_api.py              # FastAPI endpoints
-└── test_cli.py              # CLI commands
-```
-
-Keep fixtures in `tests/fixtures/`
-
-### **7.2. Required Test Coverage**
+### **7.1. Required Test Coverage**
 
 - **Database Models**: Relationships, date handling, CRUD operations
 - **Wikidata Import**: Mock SPARQL responses, entity creation, error handling
@@ -230,7 +216,7 @@ Keep fixtures in `tests/fixtures/`
 - **API Endpoints**: Both endpoints with auth mocking, error responses, pagination
 - **CLI Commands**: Both commands with success/failure cases
 
-### **7.3. Key Fixtures (conftest.py)**
+### **7.2. Key Fixtures (conftest.py)**
 
 - In-memory SQLite test database
 - Sample politician data
@@ -238,7 +224,7 @@ Keep fixtures in `tests/fixtures/`
 - Mock OpenAI structured extraction responses
 - Sample Wikipedia content
 
-### **7.4. Testing Commands**
+### **7.3. Testing Commands**
 
 ```bash
 pytest --cov=poliloom --cov-fail-under=70
