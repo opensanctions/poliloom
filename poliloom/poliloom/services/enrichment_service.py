@@ -70,16 +70,23 @@ class EnrichmentService:
                 logger.warning(f"No Wikipedia sources found for politician {politician.name}")
                 return False
             
-            # Process each Wikipedia source
+            # Process only English Wikipedia source
             extracted_data = []
+            english_source = None
             for source in politician.sources:
-                if 'wikipedia.org' in source.url:
-                    logger.info(f"Processing Wikipedia source: {source.url}")
-                    content = self._fetch_wikipedia_content(source.url)
-                    if content:
-                        data = self._extract_data_with_llm(content, politician.name, politician.country)
-                        if data:
-                            extracted_data.append((source, data))
+                if 'en.wikipedia.org' in source.url:
+                    english_source = source
+                    break
+            
+            if english_source:
+                logger.info(f"Processing English Wikipedia source: {english_source.url}")
+                content = self._fetch_wikipedia_content(english_source.url)
+                if content:
+                    data = self._extract_data_with_llm(content, politician.name, politician.country)
+                    if data:
+                        extracted_data.append((english_source, data))
+            else:
+                logger.warning(f"No English Wikipedia source found for politician {politician.name}")
             
             if not extracted_data:
                 logger.warning(f"No data extracted from Wikipedia sources for {politician.name}")
