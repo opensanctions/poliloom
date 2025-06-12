@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy.exc import IntegrityError
 
 from poliloom.models import (
-    Politician, Source, Property, Position, HoldsPosition,
+    Politician, Source, Property, Position, HoldsPosition, Country,
     politician_source_table, property_source_table, holdsposition_source_table
 )
 
@@ -178,14 +178,109 @@ class TestProperty:
         assert prop in sample_politician.properties
 
 
+class TestCountry:
+    """Test cases for the Country model."""
+
+    def test_country_creation(self, test_session):
+        """Test basic country creation."""
+        country = Country(
+            name="Germany",
+            iso_code="DE",
+            wikidata_id="Q183"
+        )
+        test_session.add(country)
+        test_session.commit()
+        test_session.refresh(country)
+
+        assert country.id is not None
+        assert country.name == "Germany"
+        assert country.iso_code == "DE"
+        assert country.wikidata_id == "Q183"
+        assert country.created_at is not None
+        assert country.updated_at is not None
+
+    def test_country_unique_iso_code(self, test_session, sample_country):
+        """Test that iso_code must be unique."""
+        duplicate_country = Country(
+            name="Different Country",
+            iso_code=sample_country.iso_code,  # Same ISO code
+            wikidata_id="Q999"
+        )
+        test_session.add(duplicate_country)
+        
+        with pytest.raises(IntegrityError):
+            test_session.commit()
+
+    def test_country_unique_wikidata_id(self, test_session, sample_country):
+        """Test that wikidata_id must be unique."""
+        duplicate_country = Country(
+            name="Different Country",
+            iso_code="XX",
+            wikidata_id=sample_country.wikidata_id  # Same wikidata_id
+        )
+        test_session.add(duplicate_country)
+        
+        with pytest.raises(IntegrityError):
+            test_session.commit()
+
+    def test_country_optional_iso_code(self, test_session):
+        """Test that iso_code is optional."""
+        country = Country(
+            name="Some Territory",
+            wikidata_id="Q12345"
+        )
+        test_session.add(country)
+        test_session.commit()
+        test_session.refresh(country)
+
+        assert country.iso_code is None
+        assert country.name == "Some Territory"
+
+    def test_country_cascade_delete_positions(self, test_session, sample_country):
+        """Test that deleting a country cascades to positions."""
+        position = Position(
+            name="Prime Minister",
+            country_id=sample_country.id,
+            wikidata_id="Q14212"
+        )
+        test_session.add(position)
+        test_session.commit()
+
+        # Delete country should cascade to positions
+        test_session.delete(sample_country)
+        test_session.commit()
+
+        # Position should be deleted
+        assert test_session.query(Position).filter_by(country_id=sample_country.id).first() is None
+
+    def test_country_position_relationship(self, test_session, sample_country):
+        """Test country-position relationship."""
+        position = Position(
+            name="President",
+            country_id=sample_country.id,
+            wikidata_id="Q11696"
+        )
+        test_session.add(position)
+        test_session.commit()
+        test_session.refresh(position)
+
+        # Test forward relationship
+        assert position.country.id == sample_country.id
+        assert position.country.name == sample_country.name
+
+        # Test reverse relationship
+        assert len(sample_country.positions) >= 1
+        assert position in sample_country.positions
+
+
 class TestPosition:
     """Test cases for the Position model."""
 
-    def test_position_creation(self, test_session):
+    def test_position_creation(self, test_session, sample_country):
         """Test basic position creation."""
         position = Position(
             name="Senator",
-            country="US",
+            country_id=sample_country.id,
             wikidata_id="Q4416090"
         )
         test_session.add(position)
@@ -194,14 +289,14 @@ class TestPosition:
 
         assert position.id is not None
         assert position.name == "Senator"
-        assert position.country == "US"
+        assert position.country_id == sample_country.id
         assert position.wikidata_id == "Q4416090"
 
     def test_position_unique_wikidata_id(self, test_session, sample_position):
         """Test that position wikidata_id must be unique."""
         duplicate_position = Position(
             name="Different Position",
-            country="CA",
+            country_id=None,
             wikidata_id=sample_position.wikidata_id  # Same wikidata_id
         )
         test_session.add(duplicate_position)

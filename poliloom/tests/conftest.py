@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 
 from poliloom.database import get_db
-from poliloom.models import Base, Politician, Source, Property, Position, HoldsPosition
+from poliloom.models import Base, Politician, Source, Property, Position, HoldsPosition, Country
 
 
 @pytest.fixture
@@ -55,11 +55,25 @@ def sample_source(test_session):
 
 
 @pytest.fixture
-def sample_position(test_session):
+def sample_country(test_session):
+    """Create a sample country for testing."""
+    country = Country(
+        name="United States",
+        iso_code="US",
+        wikidata_id="Q30"
+    )
+    test_session.add(country)
+    test_session.commit()
+    test_session.refresh(country)
+    return country
+
+
+@pytest.fixture
+def sample_position(test_session, sample_country):
     """Create a sample position for testing."""
     position = Position(
         name="Mayor",
-        country="US",
+        country_id=sample_country.id,
         wikidata_id="Q30185"
     )
     test_session.add(position)
@@ -103,6 +117,17 @@ def sample_holds_position(test_session, sample_politician, sample_position, samp
     test_session.commit()
     test_session.refresh(holds_pos)
     return holds_pos
+
+
+@pytest.fixture
+def mock_wikidata_countries_response():
+    """Mock Wikidata SPARQL response for countries."""
+    import json
+    import os
+    
+    fixture_path = os.path.join(os.path.dirname(__file__), 'fixtures', 'wikidata_countries_sparql_response.json')
+    with open(fixture_path, 'r') as f:
+        return json.load(f)
 
 
 @pytest.fixture
