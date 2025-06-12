@@ -45,29 +45,6 @@ def import_wikidata(wikidata_id):
         import_service.close()
 
 
-@main.command('import-countries')
-def import_countries():
-    """Import all countries from Wikidata to populate the local Country table."""
-    click.echo("Importing all countries from Wikidata...")
-    
-    import_service = ImportService()
-    
-    try:
-        count = import_service.import_all_countries()
-        
-        if count > 0:
-            click.echo(f"✅ Successfully imported {count} countries")
-        else:
-            click.echo("❌ Failed to import countries. Check the logs for details.")
-            exit(1)
-    
-    except Exception as e:
-        click.echo(f"❌ Error importing countries: {e}")
-        exit(1)
-    
-    finally:
-        import_service.close()
-
 
 @main.command('import-positions')
 def import_positions():

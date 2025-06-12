@@ -82,6 +82,10 @@ class ImportService:
         """Create property records for the politician."""
         for prop_data in properties:
             if prop_data.get('value'):  # Only create if there's a value
+                # For citizenship properties, ensure the country exists
+                if prop_data['type'] == 'Citizenship':
+                    self._get_or_create_country(db, prop_data['value'])
+                
                 prop = Property(
                     politician_id=politician.id,
                     type=prop_data['type'],
@@ -122,14 +126,47 @@ class ImportService:
             )
             db.add(holds_position)
     
+    def _get_or_create_country(self, db: Session, country_code: str) -> Optional[Country]:
+        """Get existing country or create it on-demand from country code."""
+        if not country_code:
+            return None
+            
+        country_code = country_code.upper()
+        
+        # Check if country already exists
+        country = db.query(Country).filter_by(iso_code=country_code).first()
+        if country:
+            return country
+        
+        # Create new country with basic info
+        # For now, we'll use the country code as the name placeholder
+        # In a production system, you might want to use a country name lookup library
+        try:
+            import pycountry
+            country_info = pycountry.countries.get(alpha_2=country_code)
+            country_name = country_info.name if country_info else country_code
+        except ImportError:
+            # Fallback if pycountry is not available
+            country_name = country_code
+        
+        country = Country(
+            name=country_name,
+            iso_code=country_code,
+            wikidata_id=None  # Will be populated later if needed
+        )
+        db.add(country)
+        db.flush()  # Get the ID
+        logger.info(f"Created country on-demand: {country_name} ({country_code})")
+        return country
+
     def _link_position_to_countries(self, db: Session, position: Position, country_codes: list):
         """Link a position to multiple countries via the association table."""
         for country_code in country_codes:
             if not country_code:
                 continue
                 
-            # Find country by ISO code
-            country = db.query(Country).filter_by(iso_code=country_code.upper()).first()
+            # Get or create country
+            country = self._get_or_create_country(db, country_code)
             if country and country not in position.countries:
                 position.countries.append(country)
     
@@ -156,57 +193,6 @@ class ImportService:
                 db.rollback()
                 continue
     
-    def import_all_countries(self) -> int:
-        """
-        Import all countries from Wikidata.
-        
-        Returns:
-            Number of countries imported.
-        """
-        # Fetch all countries from Wikidata
-        countries_data = self.wikidata_client.get_all_countries()
-        if not countries_data:
-            logger.error("Could not fetch countries data from Wikidata")
-            return 0
-        
-        db = SessionLocal()
-        try:
-            imported_count = 0
-            
-            for country_data in countries_data:
-                # Check if country already exists
-                existing = db.query(Country).filter_by(
-                    wikidata_id=country_data['wikidata_id']
-                ).first()
-                
-                if existing:
-                    logger.debug(f"Country {country_data['name']} already exists")
-                    continue
-                
-                # Create country record
-                country = Country(
-                    name=country_data['name'],
-                    iso_code=country_data.get('iso_code'),
-                    wikidata_id=country_data['wikidata_id']
-                )
-                db.add(country)
-                imported_count += 1
-                
-                # Commit in batches to avoid memory issues
-                if imported_count % 100 == 0:
-                    db.commit()
-                    logger.info(f"Imported {imported_count} countries so far...")
-            
-            db.commit()
-            logger.info(f"Successfully imported {imported_count} countries")
-            return imported_count
-            
-        except Exception as e:
-            db.rollback()
-            logger.error(f"Error importing countries: {e}")
-            return 0
-        finally:
-            db.close()
     
     def import_all_positions(self) -> int:
         """

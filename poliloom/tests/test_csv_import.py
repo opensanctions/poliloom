@@ -158,22 +158,26 @@ class TestCSVImport:
         existing = test_session.query(Position).filter_by(wikidata_id='Q110118256').first()
         assert existing.name == "Existing Mayor"  # Original name preserved
     
-    def test_import_positions_handles_unknown_country(self, test_session, test_csv_file):
-        """Test handling of positions with unknown country codes."""
+    def test_import_positions_creates_unknown_countries(self, test_session, test_csv_file):
+        """Test that positions with unknown country codes create countries on-demand."""
         import_service = ImportService()
         
-        # Don't add any countries to the database
+        # Don't add any countries to the database initially
         
         with patch('poliloom.services.import_service.SessionLocal', return_value=test_session):
             result = import_service.import_positions_from_csv(str(test_csv_file))
         
-        # Should still import positions but with no countries linked
+        # Should import positions and create countries on-demand
         assert result == 7
         
-        # Check that all positions have no countries linked
-        positions = test_session.query(Position).all()
-        for position in positions:
-            assert len(position.countries) == 0
+        # Check that countries were created for positions that reference them
+        from poliloom.models import Country
+        countries = test_session.query(Country).all()
+        assert len(countries) > 0  # Countries should have been created on-demand
+        
+        # Check that positions with countries are properly linked
+        positions_with_countries = test_session.query(Position).filter(Position.countries.any()).all()
+        assert len(positions_with_countries) > 0
     
     def test_import_positions_file_not_found(self, test_session):
         """Test handling of non-existent CSV file."""

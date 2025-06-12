@@ -487,48 +487,6 @@ class WikidataClient:
             logger.warning(f"Could not fetch country code for entity {entity_id}")
         return None
 
-    def get_all_countries(self) -> List[Dict[str, Any]]:
-        """Fetch all countries from Wikidata using SPARQL."""
-        sparql_query = """
-        SELECT ?country ?countryLabel ?iso_code WHERE {
-          ?country wdt:P31 wd:Q6256 .  # instance of country
-          OPTIONAL { ?country wdt:P297 ?iso_code . }  # ISO 3166-1 alpha-2 code
-          SERVICE wikibase:label { bd:serviceParam wikibase:language "en" . }
-        }
-        """
-        
-        try:
-            response = self.session.get(
-                self.SPARQL_ENDPOINT,
-                params={
-                    "query": sparql_query,
-                    "format": "json"
-                },
-                headers={
-                    "User-Agent": "PoliLoom/1.0 (https://github.com/user/poliloom)"
-                }
-            )
-            response.raise_for_status()
-            data = response.json()
-            
-            countries = []
-            for result in data.get("results", {}).get("bindings", []):
-                country_uri = result.get("country", {}).get("value", "")
-                country_id = country_uri.split("/")[-1] if country_uri else None
-                
-                if country_id:
-                    countries.append({
-                        "wikidata_id": country_id,
-                        "name": result.get("countryLabel", {}).get("value", ""),
-                        "iso_code": result.get("iso_code", {}).get("value", None)
-                    })
-            
-            logger.info(f"Fetched {len(countries)} countries from Wikidata")
-            return countries
-            
-        except httpx.RequestError as e:
-            logger.error(f"Error fetching countries from Wikidata: {e}")
-            return []
 
     def get_all_positions(self) -> List[Dict[str, Any]]:
         """Fetch all political positions from Wikidata using SPARQL."""

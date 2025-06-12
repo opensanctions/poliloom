@@ -50,7 +50,6 @@ The database will reproduce a subset of the Wikidata politician data model to st
   - confirmed_at (Datetime, Null if unconfirmed)
 - **Country**
   - id (Primary Key, internal UUID)
-  - name (String, country name in English)
   - iso_code (String, ISO 3166-1 alpha-2 code)
   - wikidata_id (String, Wikidata QID for the country)
 - **Position**
@@ -93,9 +92,9 @@ This module is responsible for initially populating the local database with poli
   - Implement pagination for large queries.
   - Fetch associated properties and positions directly from Wikidata for initial comparison.
   - Identify and store Wikidata IDs and English/local language Wikipedia URLs.
-- **Country Data Population:**
-  - Load all countries from Wikidata to populate the local Country table with names, ISO codes, and Wikidata IDs.
-  - This reduces the need for repeated Wikidata queries when looking up country labels and ISO tags during processing.
+- **Country Data Handling:**
+  - Countries are created on-demand when referenced during politician import or data extraction.
+  - Use pycountry library to resolve ISO codes to country names and validate country data.
 - **Wikipedia Linkage:**
   - Connect Wikidata entities to their corresponding English and local language Wikipedia articles.
   - Prioritize existing links from Wikidata.
@@ -181,9 +180,6 @@ The API will expose endpoints for the GUI to manage confirmation workflows. Auth
 
 The CLI will provide direct interaction for data management and enrichment tasks.
 
-- poliloom import-countries
-  - **Description:** Imports all countries from Wikidata to populate the local Country table.
-  - **Functionality:** Queries Wikidata for all country entities, extracts their names, ISO codes, and Wikidata IDs, and populates the local database. This should be run before importing politicians to ensure country references are available.
 - poliloom import-wikidata \--id \<wikidata_id\>
   - **Description:** Imports a single politician entity from Wikidata based on its Wikidata ID.
   - **Functionality:** Queries Wikidata for the specified ID, extracts available properties and positions, and populates the local database. Fetches associated Wikipedia links.
@@ -234,7 +230,7 @@ This focused approach ensures robust testing of critical data pipeline component
 ### **7.1. Required Test Coverage**
 
 - **Database Models**: Relationships, date handling, CRUD operations, Country model
-- **Wikidata Import**: Mock SPARQL responses, entity creation, error handling, country import
+- **Wikidata Import**: Mock SPARQL responses, entity creation, error handling
 - **LLM Extraction**: Mock OpenAI responses, property/position extraction, conflict detection
 - **API Endpoints**: Both endpoints with auth mocking, error responses, pagination
 
@@ -242,7 +238,7 @@ This focused approach ensures robust testing of critical data pipeline component
 
 - In-memory SQLite test database
 - Sample politician and country data
-- Mock Wikidata SPARQL responses (politicians and countries)
+- Mock Wikidata SPARQL responses (politicians)
 - Mock OpenAI structured extraction responses
 - Sample Wikipedia content
 
