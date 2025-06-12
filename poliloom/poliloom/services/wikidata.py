@@ -359,10 +359,15 @@ class WikidataClient:
     def get_all_positions(self) -> List[Dict[str, Any]]:
         """Fetch all political positions from Wikidata using SPARQL."""
         sparql_query = """
-        SELECT DISTINCT ?position ?positionLabel WHERE {
+        SELECT DISTINCT ?position ?positionLabel 
+               (GROUP_CONCAT(DISTINCT ?countryCode; separator=",") AS ?countryCodes) WHERE {
           ?position wdt:P31/wdt:P279* wd:Q294414 . # elected or appointed political position
+          OPTIONAL {
+            ?position wdt:P17 ?country . # country property
+            ?country wdt:P297 ?countryCode . # ISO code
+          }
           SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
-        }
+        } GROUP BY ?position ?positionLabel
         """
         
         try:
@@ -385,9 +390,14 @@ class WikidataClient:
                 position_id = position_uri.split("/")[-1] if position_uri else None
                 
                 if position_id:
+                    # Parse country codes
+                    country_codes_str = result.get("countryCodes", {}).get("value", "")
+                    country_codes = [code.strip() for code in country_codes_str.split(",") if code.strip()] if country_codes_str else []
+                    
                     positions.append({
                         "wikidata_id": position_id,
-                        "name": result.get("positionLabel", {}).get("value", "")
+                        "name": result.get("positionLabel", {}).get("value", ""),
+                        "country_codes": country_codes
                     })
             
             logger.info(f"Fetched {len(positions)} political positions from Wikidata")

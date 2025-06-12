@@ -236,36 +236,43 @@ class TestCountry:
         assert country.name == "Some Territory"
 
     def test_country_cascade_delete_positions(self, test_session, sample_country):
-        """Test that deleting a country cascades to positions."""
+        """Test that deleting a country removes position-country associations."""
         position = Position(
             name="Prime Minister",
-            country_id=sample_country.id,
             wikidata_id="Q14212"
         )
+        position.countries.append(sample_country)
         test_session.add(position)
         test_session.commit()
 
-        # Delete country should cascade to positions
+        # Verify the association exists
+        assert len(position.countries) == 1
+        assert position.countries[0].id == sample_country.id
+
+        # Delete country should remove the association but not the position
         test_session.delete(sample_country)
         test_session.commit()
+        test_session.refresh(position)
 
-        # Position should be deleted
-        assert test_session.query(Position).filter_by(country_id=sample_country.id).first() is None
+        # Position should still exist but have no countries
+        assert test_session.query(Position).filter_by(wikidata_id="Q14212").first() is not None
+        assert len(position.countries) == 0
 
     def test_country_position_relationship(self, test_session, sample_country):
-        """Test country-position relationship."""
+        """Test country-position many-to-many relationship."""
         position = Position(
             name="President",
-            country_id=sample_country.id,
             wikidata_id="Q11696"
         )
+        position.countries.append(sample_country)
         test_session.add(position)
         test_session.commit()
         test_session.refresh(position)
 
         # Test forward relationship
-        assert position.country.id == sample_country.id
-        assert position.country.name == sample_country.name
+        assert len(position.countries) == 1
+        assert position.countries[0].id == sample_country.id
+        assert position.countries[0].name == sample_country.name
 
         # Test reverse relationship
         assert len(sample_country.positions) >= 1
@@ -279,23 +286,23 @@ class TestPosition:
         """Test basic position creation."""
         position = Position(
             name="Senator",
-            country_id=sample_country.id,
             wikidata_id="Q4416090"
         )
+        position.countries.append(sample_country)
         test_session.add(position)
         test_session.commit()
         test_session.refresh(position)
 
         assert position.id is not None
         assert position.name == "Senator"
-        assert position.country_id == sample_country.id
+        assert len(position.countries) == 1
+        assert position.countries[0].id == sample_country.id
         assert position.wikidata_id == "Q4416090"
 
     def test_position_unique_wikidata_id(self, test_session, sample_position):
         """Test that position wikidata_id must be unique."""
         duplicate_position = Position(
             name="Different Position",
-            country_id=None,
             wikidata_id=sample_position.wikidata_id  # Same wikidata_id
         )
         test_session.add(duplicate_position)

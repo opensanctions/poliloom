@@ -7,7 +7,7 @@ import logging
 import csv
 import json
 
-from ..models import Politician, Property, Position, HoldsPosition, Source, Country
+from ..models import Politician, Property, Position, HoldsPosition, Source, Country, position_country_table
 from ..database import SessionLocal
 from .wikidata import WikidataClient
 
@@ -101,22 +101,16 @@ class ImportService:
             
             if not position:
                 # Create new position
-                # Find country if specified
-                country_id = None
-                if pos_data.get('country'):
-                    country = db.query(Country).filter_by(
-                        iso_code=pos_data['country']
-                    ).first()
-                    if country:
-                        country_id = country.id
-                
                 position = Position(
                     name=pos_data['name'],
-                    wikidata_id=pos_data['wikidata_id'],
-                    country_id=country_id
+                    wikidata_id=pos_data['wikidata_id']
                 )
                 db.add(position)
                 db.flush()  # Get the ID
+                
+                # Link position to countries if specified
+                if pos_data.get('country_codes'):
+                    self._link_position_to_countries(db, position, pos_data['country_codes'])
             
             # Create holds_position relationship
             holds_position = HoldsPosition(
@@ -127,6 +121,17 @@ class ImportService:
                 is_extracted=False  # From Wikidata, so considered confirmed
             )
             db.add(holds_position)
+    
+    def _link_position_to_countries(self, db: Session, position: Position, country_codes: list):
+        """Link a position to multiple countries via the association table."""
+        for country_code in country_codes:
+            if not country_code:
+                continue
+                
+            # Find country by ISO code
+            country = db.query(Country).filter_by(iso_code=country_code.upper()).first()
+            if country and country not in position.countries:
+                position.countries.append(country)
     
     def _create_sources(self, db: Session, politician: Politician, wikipedia_links: list):
         """Create source records for Wikipedia links."""
@@ -233,10 +238,15 @@ class ImportService:
                 # Create position record
                 position = Position(
                     name=position_data['name'],
-                    wikidata_id=position_data['wikidata_id'],
-                    country_id=None  # Will be determined when positions are used
+                    wikidata_id=position_data['wikidata_id']
                 )
                 db.add(position)
+                db.flush()  # Get the ID for country linking
+                
+                # Link position to countries if specified
+                if position_data.get('country_codes'):
+                    self._link_position_to_countries(db, position, position_data['country_codes'])
+                
                 imported_count += 1
                 
                 # Commit in batches to avoid memory issues
@@ -301,30 +311,27 @@ class ImportService:
                         continue
                     
                     # Parse countries from JSON array string
-                    country_id = None
+                    country_codes = []
                     if countries_str and countries_str != '[]':
                         try:
                             countries_list = json.loads(countries_str)
-                            if countries_list and len(countries_list) > 0:
-                                # Use the first country in the list
-                                iso_code = countries_list[0]
-                                country = db.query(Country).filter_by(
-                                    iso_code=iso_code.upper()
-                                ).first()
-                                if country:
-                                    country_id = country.id
-                                else:
-                                    logger.debug(f"Country with ISO code {iso_code} not found for position {caption}")
+                            if countries_list:
+                                country_codes = [code.upper() for code in countries_list if code]
                         except (json.JSONDecodeError, ValueError) as e:
                             logger.debug(f"Could not parse countries JSON for position {caption}: {e}")
                     
                     # Create position record
                     position = Position(
                         name=caption,
-                        wikidata_id=entity_id,
-                        country_id=country_id
+                        wikidata_id=entity_id
                     )
                     db.add(position)
+                    db.flush()  # Get the ID for country linking
+                    
+                    # Link position to countries if specified
+                    if country_codes:
+                        self._link_position_to_countries(db, position, country_codes)
+                    
                     imported_count += 1
                     
                     # Commit in batches to avoid memory issues

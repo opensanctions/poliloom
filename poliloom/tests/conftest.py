@@ -81,9 +81,9 @@ def sample_position(test_session, sample_country):
     """Create a sample position for testing."""
     position = Position(
         name="Mayor",
-        country_id=sample_country.id,
         wikidata_id="Q30185"
     )
+    position.countries.append(sample_country)
     test_session.add(position)
     test_session.commit()
     test_session.refresh(position)

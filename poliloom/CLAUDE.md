@@ -56,8 +56,11 @@ The database will reproduce a subset of the Wikidata politician data model to st
 - **Position**
   - id (Primary Key, e.g., Wikidata QID, internal UUID)
   - name (String, name of the position)
-  - country_id (Foreign Key to Country.id, nullable for supranational positions)
   - wikidata_id (String, Wikidata QID for the position)
+- **PositionCountry** (Many-to-many relationship entity)
+  - id (Primary Key, internal UUID)
+  - position_id (Foreign Key to Position.id)
+  - country_id (Foreign Key to Country.id)
 - **HoldsPosition** (Many-to-many relationship entity)
   - id (Primary Key, internal UUID)
   - politician_id (Foreign Key to Politician.id)

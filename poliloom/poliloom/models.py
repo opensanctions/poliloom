@@ -41,6 +41,13 @@ holdsposition_source_table = Table(
     Column('source_id', String, ForeignKey('sources.id'), primary_key=True)
 )
 
+position_country_table = Table(
+    'position_country',
+    Base.metadata,
+    Column('position_id', String, ForeignKey('positions.id'), primary_key=True),
+    Column('country_id', String, ForeignKey('countries.id'), primary_key=True)
+)
+
 
 class Politician(Base, UUIDMixin, TimestampMixin):
     """Politician entity."""
@@ -94,7 +101,7 @@ class Country(Base, UUIDMixin, TimestampMixin):
     wikidata_id = Column(String, unique=True, index=True)
 
     # Relationships
-    positions = relationship("Position", back_populates="country", cascade="all, delete-orphan")
+    positions = relationship("Position", secondary=position_country_table, back_populates="countries")
 
 
 class Position(Base, UUIDMixin, TimestampMixin):
@@ -102,11 +109,10 @@ class Position(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "positions"
 
     name = Column(String, nullable=False)
-    country_id = Column(String, ForeignKey('countries.id'), nullable=True)  # Nullable for supranational positions
     wikidata_id = Column(String, unique=True, index=True)
 
     # Relationships
-    country = relationship("Country", back_populates="positions")
+    countries = relationship("Country", secondary=position_country_table, back_populates="positions")
     held_by = relationship("HoldsPosition", back_populates="position", cascade="all, delete-orphan")
 
 
