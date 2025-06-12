@@ -208,19 +208,36 @@ The CLI will provide direct interaction for data management and enrichment tasks
 
 Implement essential testing using pytest with mocking for external APIs. Focus on the core data pipeline: import → extract → confirm.
 
+### **7.0. Testing Scope**
+
+**What We Test:**
+- **Core Business Logic**: All service layer methods (import, extraction, enrichment)
+- **Database Models**: Entity relationships, constraints, cascade behavior, data integrity
+- **External API Integration**: Wikidata SPARQL queries and entity API calls (mocked)
+- **Data Processing**: Property extraction, position handling, country import, date parsing
+- **Error Handling**: Network failures, malformed data, database errors, edge cases
+
+**What We Don't Test:**
+- **CLI Interface**: Thin wrappers over service methods with minimal business logic
+- **Database Migrations**: Alembic migrations are considered infrastructure
+- **Logging and Metrics**: Non-critical for core functionality validation
+- **Performance/Load Testing**: Beyond scope of minimal implementation
+- **End-to-End Integration**: Real API calls to external services
+
+This focused approach ensures robust testing of critical data pipeline components while maintaining development velocity.
+
 ### **7.1. Required Test Coverage**
 
-- **Database Models**: Relationships, date handling, CRUD operations
-- **Wikidata Import**: Mock SPARQL responses, entity creation, error handling
+- **Database Models**: Relationships, date handling, CRUD operations, Country model
+- **Wikidata Import**: Mock SPARQL responses, entity creation, error handling, country import
 - **LLM Extraction**: Mock OpenAI responses, property/position extraction, conflict detection
 - **API Endpoints**: Both endpoints with auth mocking, error responses, pagination
-- **CLI Commands**: Both commands with success/failure cases
 
 ### **7.2. Key Fixtures (conftest.py)**
 
 - In-memory SQLite test database
-- Sample politician data
-- Mock Wikidata SPARQL responses
+- Sample politician and country data
+- Mock Wikidata SPARQL responses (politicians and countries)
 - Mock OpenAI structured extraction responses
 - Sample Wikipedia content
 
