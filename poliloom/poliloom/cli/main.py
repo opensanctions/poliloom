@@ -93,6 +93,31 @@ def import_positions():
         import_service.close()
 
 
+@main.command('import-positions-extra')
+@click.option('--file', 'csv_file', required=True, help='Path to CSV file containing positions data')
+def import_positions_extra(csv_file):
+    """Import political positions from a custom CSV file."""
+    click.echo(f"Importing political positions from CSV file: {csv_file}")
+    
+    import_service = ImportService()
+    
+    try:
+        count = import_service.import_positions_from_csv(csv_file)
+        
+        if count > 0:
+            click.echo(f"✅ Successfully imported {count} political positions from CSV")
+        else:
+            click.echo("❌ Failed to import positions from CSV. Check the logs for details.")
+            exit(1)
+    
+    except Exception as e:
+        click.echo(f"❌ Error importing positions from CSV: {e}")
+        exit(1)
+    
+    finally:
+        import_service.close()
+
+
 @main.command('enrich-wikipedia')
 @click.option('--id', 'wikidata_id', required=True, help='Wikidata ID of politician to enrich (e.g., Q123456)')
 def enrich_wikipedia(wikidata_id):

@@ -4,6 +4,8 @@ from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 import logging
+import csv
+import json
 
 from ..models import Politician, Property, Position, HoldsPosition, Source, Country
 from ..database import SessionLocal
@@ -249,6 +251,94 @@ class ImportService:
         except Exception as e:
             db.rollback()
             logger.error(f"Error importing positions: {e}")
+            return 0
+        finally:
+            db.close()
+    
+    def import_positions_from_csv(self, csv_file_path: str) -> int:
+        """
+        Import positions from a CSV file.
+        
+        Expected CSV format:
+        "id","entity_id","caption","is_pep","countries","topics","dataset","created_at","modified_at","modified_by","deleted_at"
+        
+        Args:
+            csv_file_path: Path to the CSV file
+            
+        Returns:
+            Number of positions imported.
+        """
+        db = SessionLocal()
+        try:
+            imported_count = 0
+            
+            with open(csv_file_path, 'r', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                
+                for row in reader:
+                    entity_id = row.get('entity_id', '').strip()
+                    caption = row.get('caption', '').strip()
+                    countries_str = row.get('countries', '').strip()
+                    is_pep = row.get('is_pep', '').strip()
+                    
+                    # Skip rows without required fields
+                    if not entity_id or not caption:
+                        logger.debug(f"Skipping row with missing entity_id or caption: {row}")
+                        continue
+                    
+                    # Skip positions with is_pep = FALSE
+                    if is_pep == "FALSE":
+                        logger.debug(f"Skipping position {caption} with is_pep=FALSE")
+                        continue
+                    
+                    # Check if position already exists
+                    existing = db.query(Position).filter_by(
+                        wikidata_id=entity_id
+                    ).first()
+                    
+                    if existing:
+                        logger.debug(f"Position {caption} ({entity_id}) already exists")
+                        continue
+                    
+                    # Parse countries from JSON array string
+                    country_id = None
+                    if countries_str and countries_str != '[]':
+                        try:
+                            countries_list = json.loads(countries_str)
+                            if countries_list and len(countries_list) > 0:
+                                # Use the first country in the list
+                                iso_code = countries_list[0]
+                                country = db.query(Country).filter_by(
+                                    iso_code=iso_code.upper()
+                                ).first()
+                                if country:
+                                    country_id = country.id
+                                else:
+                                    logger.debug(f"Country with ISO code {iso_code} not found for position {caption}")
+                        except (json.JSONDecodeError, ValueError) as e:
+                            logger.debug(f"Could not parse countries JSON for position {caption}: {e}")
+                    
+                    # Create position record
+                    position = Position(
+                        name=caption,
+                        wikidata_id=entity_id,
+                        country_id=country_id
+                    )
+                    db.add(position)
+                    imported_count += 1
+                    
+                    # Commit in batches to avoid memory issues
+                    if imported_count % 100 == 0:
+                        db.commit()
+                        logger.info(f"Imported {imported_count} positions so far...")
+            
+            db.commit()
+            logger.info(f"Successfully imported {imported_count} positions from CSV")
+            return imported_count
+            
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error importing positions from CSV: {e}")
             return 0
         finally:
             db.close()
