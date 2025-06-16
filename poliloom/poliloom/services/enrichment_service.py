@@ -82,8 +82,15 @@ class EnrichmentService:
                 logger.info(f"Processing English Wikipedia source: {english_source.url}")
                 content = self._fetch_wikipedia_content(english_source.url)
                 if content:
-                    data = self._extract_data_with_llm(content, politician.name, politician.country)
+                    # Get politician's primary country from citizenships
+                    primary_country = None
+                    if politician.citizenships:
+                        primary_country = politician.citizenships[0].country.name
+                    
+                    data = self._extract_data_with_llm(content, politician.name, primary_country)
                     if data:
+                        # Log what the LLM proposed
+                        self._log_extraction_results(politician.name, data)
                         extracted_data.append((english_source, data))
             else:
                 logger.warning(f"No English Wikipedia source found for politician {politician.name}")
@@ -184,6 +191,34 @@ Country: {country or 'Unknown'}"""
             logger.error(f"Error extracting data with LLM: {e}")
             return None
     
+    def _log_extraction_results(self, politician_name: str, data: ExtractionResult) -> None:
+        """Log what the LLM extracted from Wikipedia."""
+        logger.info(f"LLM extracted data for {politician_name}:")
+        
+        if data.properties:
+            logger.info(f"  Properties ({len(data.properties)}):")
+            for prop in data.properties:
+                logger.info(f"    {prop.type}: {prop.value}")
+        else:
+            logger.info("  No properties extracted")
+        
+        if data.positions:
+            logger.info(f"  Positions ({len(data.positions)}):")
+            for pos in data.positions:
+                date_info = ""
+                if pos.start_date:
+                    date_info = f" ({pos.start_date}"
+                    if pos.end_date:
+                        date_info += f" - {pos.end_date})"
+                    else:
+                        date_info += " - present)"
+                elif pos.end_date:
+                    date_info = f" (until {pos.end_date})"
+                
+                logger.info(f"    {pos.name}{date_info}")
+        else:
+            logger.info("  No positions extracted")
+    
     def _store_extracted_data(self, db: Session, politician: Politician, extracted_data: List[tuple]) -> bool:
         """Store extracted data in the database."""
         try:
@@ -213,21 +248,20 @@ Country: {country or 'Unknown'}"""
                             
                             # Link to source
                             new_property.sources.append(source)
+                            logger.info(f"Added new property: {prop_data.type} = '{prop_data.value}' for {politician.name}")
                 
                 # Store positions
                 for pos_data in data.positions:
                     if pos_data.name:
-                        # Try to find existing position by name and country
+                        # Try to find existing position by name
                         position = db.query(Position).filter_by(
-                            name=pos_data.name,
-                            country=politician.country
+                            name=pos_data.name
                         ).first()
                         
                         if not position:
                             # Create new position
                             position = Position(
-                                name=pos_data.name,
-                                country=politician.country
+                                name=pos_data.name
                             )
                             db.add(position)
                             db.flush()
@@ -253,6 +287,19 @@ Country: {country or 'Unknown'}"""
                             
                             # Link to source
                             holds_position.sources.append(source)
+                            
+                            # Format date range for logging
+                            date_range = ""
+                            if pos_data.start_date:
+                                date_range = f" ({pos_data.start_date}"
+                                if pos_data.end_date:
+                                    date_range += f" - {pos_data.end_date})"
+                                else:
+                                    date_range += " - present)"
+                            elif pos_data.end_date:
+                                date_range = f" (until {pos_data.end_date})"
+                            
+                            logger.info(f"Added new position: '{pos_data.name}'{date_range} for {politician.name}")
             
             return True
             
