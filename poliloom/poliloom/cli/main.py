@@ -2,6 +2,7 @@
 
 import click
 import logging
+import uvicorn
 from ..services.import_service import ImportService
 from ..services.enrichment_service import EnrichmentService
 
@@ -118,6 +119,27 @@ def enrich_wikipedia(wikidata_id):
     
     finally:
         enrichment_service.close()
+
+
+@main.command('serve')
+@click.option('--host', default='0.0.0.0', help='Host to bind the server to')
+@click.option('--port', default=8000, help='Port to bind the server to')
+@click.option('--reload', is_flag=True, help='Enable auto-reload for development')
+def serve(host, port, reload):
+    """Start the FastAPI web server."""
+    from ..api.app import app
+    
+    click.echo(f"Starting PoliLoom API server on http://{host}:{port}")
+    if reload:
+        click.echo("Auto-reload enabled for development")
+    
+    uvicorn.run(
+        "poliloom.api.app:app",
+        host=host,
+        port=port,
+        reload=reload,
+        log_level="info"
+    )
 
 
 if __name__ == '__main__':
