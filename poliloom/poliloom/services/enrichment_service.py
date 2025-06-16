@@ -3,6 +3,7 @@
 import os
 from typing import List, Optional
 from datetime import datetime
+from enum import Enum
 from sqlalchemy.orm import Session
 import httpx
 from bs4 import BeautifulSoup
@@ -16,9 +17,16 @@ from ..database import SessionLocal
 logger = logging.getLogger(__name__)
 
 
+class PropertyType(str, Enum):
+    """Allowed property types for extraction."""
+    BIRTH_DATE = "BirthDate"
+    BIRTH_PLACE = "BirthPlace"
+    DEATH_DATE = "DeathDate"
+
+
 class ExtractedProperty(BaseModel):
     """Schema for extracted property data."""
-    type: str
+    type: PropertyType
     value: str
 
 
@@ -154,17 +162,16 @@ class EnrichmentService:
         try:
             system_prompt = """You are a data extraction assistant. Extract politician information from Wikipedia article text.
 
-For properties, extract:
+For properties, extract ONLY these three types:
 - BirthDate: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
 - BirthPlace: City, Country format
-- DeathDate: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates  
-- Education: Institution names
-- Spouse: Spouse names
+- DeathDate: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
 
 For positions, extract political offices, government roles, elected positions with start/end dates in YYYY-MM-DD, YYYY-MM, or YYYY format.
 
 Rules:
 - Only extract information explicitly stated in the text
+- For properties, ONLY extract BirthDate, BirthPlace, and DeathDate - ignore all other personal information
 - Use partial dates if full dates aren't available
 - Leave end_date null if position is current or unknown"""
 
