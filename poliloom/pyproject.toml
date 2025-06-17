@@ -15,6 +15,8 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "openai>=1.0.0",
     "beautifulsoup4>=4.12.0",
+    "python-jose[cryptography]>=3.3.0",
+    "mwoauth>=0.3.7",
 ]
 
 [project.optional-dependencies]
@@ -39,3 +41,12 @@ target-version = ['py312']
 [tool.ruff]
 line-length = 88
 target-version = "py312"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.0",
+    "pytest-asyncio>=1.0.0",
+]
