@@ -115,8 +115,13 @@ class SQLiteVectorBackend(VectorSearchBackend):
     
     def setup_vector_column(self, table_class: Type, column_name: str, dimensions: int):
         """Add JSON column for SQLite vector storage."""
-        from sqlalchemy import JSON
-        setattr(table_class, column_name, JSON)
+        from sqlalchemy import JSON, Column
+        # Add column to the table class
+        column = Column(JSON)
+        setattr(table_class, column_name, column)
+        # Also add to table metadata if it doesn't exist
+        if hasattr(table_class, '__table__') and column_name not in table_class.__table__.columns:
+            table_class.__table__.append_column(column)
     
     def find_similar(self, session: Session, table_class: Type, vector_column: str, 
                     query_vector: List[float], top_k: int = 10, 

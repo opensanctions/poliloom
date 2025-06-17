@@ -363,6 +363,200 @@ class TestPosition:
         assert test_session.query(Politician).filter_by(id=sample_politician.id).first() is not None
 
 
+class TestPositionVectorSimilarity:
+    """Test cases for Position vector similarity search functionality."""
+
+    def test_generate_embedding_with_default_name(self, test_session):
+        """Test that generate_embedding uses position name by default."""
+        position = Position(name="Prime Minister", wikidata_id="Q14212")
+        embedding = position.generate_embedding()
+        
+        assert isinstance(embedding, list)
+        assert len(embedding) == 384  # Expected dimension for all-MiniLM-L6-v2
+        assert all(isinstance(val, (int, float)) for val in embedding)
+
+    def test_generate_embedding_with_custom_text(self, test_session):
+        """Test that generate_embedding works with custom text."""
+        position = Position(name="Mayor", wikidata_id="Q30185")
+        custom_text = "Chief Executive Officer of City"
+        embedding = position.generate_embedding(custom_text)
+        
+        assert isinstance(embedding, list)
+        assert len(embedding) == 384
+        assert all(isinstance(val, (int, float)) for val in embedding)
+        
+        # Different text should produce different embeddings
+        name_embedding = position.generate_embedding()
+        assert embedding != name_embedding
+
+    def test_auto_embedding_on_insert(self, test_session):
+        """Test that embedding is automatically generated when position is inserted."""
+        position = Position(name="Secretary of State", wikidata_id="Q3112749")
+        test_session.add(position)
+        test_session.commit()
+        test_session.refresh(position)
+        
+        # Should have embedding after insert
+        assert hasattr(position, 'embedding')
+        embedding = getattr(position, 'embedding', None)
+        assert embedding is not None
+        assert isinstance(embedding, list)
+        assert len(embedding) == 384
+        assert all(isinstance(val, (int, float)) for val in embedding)
+
+    def test_auto_embedding_on_name_update(self, test_session):
+        """Test that embedding is automatically updated when position name changes."""
+        position = Position(name="Minister", wikidata_id="Q83307")
+        test_session.add(position)
+        test_session.commit()
+        test_session.refresh(position)
+        
+        # Get initial embedding
+        initial_embedding = getattr(position, 'embedding', None)
+        assert initial_embedding is not None
+        
+        # Update name
+        position.name = "Prime Minister"
+        test_session.commit()
+        test_session.refresh(position)
+        
+        # Embedding should be updated
+        updated_embedding = getattr(position, 'embedding', None)
+        assert updated_embedding is not None
+        assert isinstance(updated_embedding, list)
+        assert len(updated_embedding) == 384
+        assert updated_embedding != initial_embedding
+
+    def test_find_similar_basic(self, test_session, sample_country):
+        """Test basic similarity search functionality."""
+        # Create test positions
+        positions = [
+            Position(name="President", wikidata_id="Q11696"),
+            Position(name="Prime Minister", wikidata_id="Q14212"),
+            Position(name="Mayor", wikidata_id="Q30185"),
+            Position(name="Governor", wikidata_id="Q889821")
+        ]
+        
+        for pos in positions:
+            pos.countries.append(sample_country)
+            test_session.add(pos)
+        test_session.commit()
+        
+        # Embeddings are automatically generated on insert
+        
+        # Search for similar positions
+        similar_positions = Position.find_similar(test_session, "Chief Executive", top_k=2)
+        
+        assert isinstance(similar_positions, list)
+        assert len(similar_positions) <= 2
+        # All results should be (Position, similarity_score) tuples
+        for item in similar_positions:
+            assert isinstance(item, tuple)
+            assert len(item) == 2
+            pos, score = item
+            assert isinstance(pos, Position)
+            assert isinstance(score, float)
+
+    def test_find_similar_with_country_filter(self, test_session):
+        """Test similarity search with country filtering."""
+        # Create countries
+        us_country = Country(name="United States", iso_code="US", wikidata_id="Q30")
+        uk_country = Country(name="United Kingdom", iso_code="GB", wikidata_id="Q145")
+        test_session.add_all([us_country, uk_country])
+        test_session.commit()
+        
+        # Create positions with different countries
+        us_positions = [
+            Position(name="US President", wikidata_id="Q11696"),
+            Position(name="US Governor", wikidata_id="Q889821")
+        ]
+        uk_positions = [
+            Position(name="UK Prime Minister", wikidata_id="Q14212"),
+            Position(name="UK Minister", wikidata_id="Q83307")
+        ]
+        
+        for pos in us_positions:
+            pos.countries.append(us_country)
+            test_session.add(pos)
+        for pos in uk_positions:
+            pos.countries.append(uk_country)
+            test_session.add(pos)
+        test_session.commit()
+        
+        # Embeddings are automatically generated on insert
+        
+        # Search with US country filter
+        us_results = Position.find_similar(
+            test_session, "Executive Leader", top_k=5, country_filter="US"
+        )
+        
+        # Results should only include US positions
+        for item in us_results:
+            pos, score = item
+            assert us_country in pos.countries
+            assert uk_country not in pos.countries
+
+    def test_find_similar_with_invalid_country_filter(self, test_session):
+        """Test similarity search with invalid country code returns empty list."""
+        # Create a position
+        position = Position(name="President", wikidata_id="Q11696")
+        test_session.add(position)
+        test_session.commit()
+        
+        # Embedding is automatically generated on insert
+        
+        # Search with invalid country code
+        results = Position.find_similar(
+            test_session, "Leader", top_k=5, country_filter="XX"
+        )
+        
+        assert results == []
+
+    def test_find_similar_no_matches(self, test_session):
+        """Test similarity search returns limited results based on top_k parameter."""
+        # Create positions with very different names
+        positions = [
+            Position(name="XYZ123ABC", wikidata_id="Q99901"),
+            Position(name="DEF456GHI", wikidata_id="Q99902")
+        ]
+        
+        for pos in positions:
+            test_session.add(pos)
+        test_session.commit()
+        
+        # Embeddings are automatically generated on insert
+        
+        # Search with top_k=0 should return empty list
+        results = Position.find_similar(test_session, "Completely Different Query String", top_k=0)
+        assert results == []
+        
+        # Search with top_k=1 should return at most 1 result
+        results = Position.find_similar(test_session, "Another Different Query", top_k=1)
+        assert len(results) <= 1
+
+    def test_embedding_deterministic_for_same_text(self, test_session):
+        """Test that same text produces same embedding."""
+        position1 = Position(name="Test Position", wikidata_id="Q1")
+        position2 = Position(name="Test Position", wikidata_id="Q2") 
+        
+        embedding1 = position1.generate_embedding()
+        embedding2 = position2.generate_embedding()
+        
+        # Same text should produce same embedding
+        assert embedding1 == embedding2
+
+    def test_embedding_different_for_different_text(self, test_session):
+        """Test that different text produces different embeddings."""
+        position1 = Position(name="President", wikidata_id="Q1")
+        position2 = Position(name="Secretary", wikidata_id="Q2")
+        
+        embedding1 = position1.generate_embedding()
+        embedding2 = position2.generate_embedding()
+        
+        # Different text should produce different embeddings
+        assert embedding1 != embedding2
+
+
 class TestHoldsPosition:
     """Test cases for the HoldsPosition model."""
 

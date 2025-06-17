@@ -1,6 +1,6 @@
 """Database models for the PoliLoom project."""
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Table
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Table, event
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from uuid import uuid4
@@ -143,16 +143,6 @@ class Position(Base, UUIDMixin, TimestampMixin):
                 dummy_embedding.append(val)
             return dummy_embedding
 
-    def update_embedding(self, session, text=None):
-        """Update this position's embedding."""
-        self.embedding = self.generate_embedding(text)
-        session.add(self)
-        session.commit()
-        
-        # Invalidate cache for SQLite backend
-        if hasattr(vector_backend, 'invalidate_cache'):
-            vector_backend.invalidate_cache(Position, 'embedding')
-
     @classmethod
     def find_similar(cls, session, query_text, top_k=10, country_filter=None):
         """Find positions similar to the query text."""
@@ -176,23 +166,14 @@ class Position(Base, UUIDMixin, TimestampMixin):
             session, cls, 'embedding', query_embedding, top_k, filters
         )
 
-    @classmethod
-    def bulk_generate_embeddings(cls, session, batch_size=100, force_refresh=False):
-        """Generate embeddings for all positions."""
-        query = session.query(cls)
-        if not force_refresh:
-            query = query.filter(cls.embedding.is_(None))
-        
-        total = query.count()
-        processed = 0
-        
-        for offset in range(0, total, batch_size):
-            batch = query.offset(offset).limit(batch_size).all()
-            for position in batch:
-                position.update_embedding(session)
-                processed += 1
-        
-        return processed
+
+# Event listener to automatically generate embeddings when position name is set
+@event.listens_for(Position, 'before_insert')
+@event.listens_for(Position, 'before_update')
+def auto_generate_position_embedding(mapper, connection, target):
+    """Automatically generate embedding when position name is set or changed."""
+    if target.name:
+        target.embedding = target.generate_embedding()
 
 
 class HoldsPosition(Base, UUIDMixin, TimestampMixin):

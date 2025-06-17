@@ -5,8 +5,38 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
+from unittest.mock import patch
 
 from poliloom.models import Base, Politician, Source, Property, Position, HoldsPosition, Country
+
+
+class MockSentenceTransformer:
+    """Mock SentenceTransformer for tests."""
+    def __init__(self, model_name):
+        self.model_name = model_name
+    
+    def encode(self, text, convert_to_tensor=False):
+        """Mock embedding generation."""
+        import hashlib
+        import numpy as np
+        # Create a deterministic embedding based on text hash
+        text_hash = hashlib.md5(text.encode()).digest()
+        # Convert hash to numbers for embedding
+        dummy_embedding = []
+        for i in range(384):
+            # Use hash bytes cyclically to generate 384 dimensions
+            byte_val = text_hash[i % len(text_hash)]
+            # Normalize to [-1, 1] range
+            val = (byte_val / 127.5) - 1.0
+            dummy_embedding.append(val)
+        return np.array(dummy_embedding)
+
+
+@pytest.fixture(autouse=True)
+def mock_sentence_transformers():
+    """Mock sentence transformers to avoid downloading models in tests."""
+    with patch('sentence_transformers.SentenceTransformer', MockSentenceTransformer):
+        yield
 
 
 def load_json_fixture(filename):
