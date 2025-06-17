@@ -4,6 +4,7 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
+from .vector_search import setup_vector_extensions
 
 load_dotenv()
 
@@ -15,6 +16,9 @@ engine = create_engine(
         {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
     ),
 )
+
+# Setup vector extensions (pgvector for PostgreSQL)
+setup_vector_extensions(engine)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

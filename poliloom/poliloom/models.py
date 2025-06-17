@@ -4,8 +4,12 @@ from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Table
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from uuid import uuid4
+from .vector_search import get_vector_backend
 
 Base = declarative_base()
+
+# Initialize vector backend
+vector_backend = get_vector_backend()
 
 
 class TimestampMixin:
@@ -117,6 +121,79 @@ class Position(Base, UUIDMixin, TimestampMixin):
     countries = relationship("Country", secondary=position_country_table, back_populates="positions")
     held_by = relationship("HoldsPosition", back_populates="position", cascade="all, delete-orphan")
 
+    def generate_embedding(self, text=None):
+        """Generate embedding for this position."""
+        if text is None:
+            text = self.name
+        
+        try:
+            from sentence_transformers import SentenceTransformer
+            model = SentenceTransformer('all-MiniLM-L6-v2')
+            embedding = model.encode(text, convert_to_tensor=False)
+            return embedding.tolist() if hasattr(embedding, 'tolist') else list(embedding)
+        except ImportError:
+            # Fallback to dummy embedding for development
+            import hashlib
+            import struct
+            text_hash = hashlib.md5(text.encode()).digest()
+            dummy_embedding = []
+            for i in range(0, 384):
+                byte_idx = (i * 4) % len(text_hash)
+                val = struct.unpack('f', text_hash[byte_idx:byte_idx+4] * 4)[0]
+                dummy_embedding.append(val)
+            return dummy_embedding
+
+    def update_embedding(self, session, text=None):
+        """Update this position's embedding."""
+        self.embedding = self.generate_embedding(text)
+        session.add(self)
+        session.commit()
+        
+        # Invalidate cache for SQLite backend
+        if hasattr(vector_backend, 'invalidate_cache'):
+            vector_backend.invalidate_cache(Position, 'embedding')
+
+    @classmethod
+    def find_similar(cls, session, query_text, top_k=10, country_filter=None):
+        """Find positions similar to the query text."""
+        # Generate embedding for query
+        dummy_position = cls(name=query_text)
+        query_embedding = dummy_position.generate_embedding()
+        
+        # Build filters
+        filters = None
+        if country_filter:
+            country = session.query(Country).filter(
+                Country.iso_code == country_filter.upper()
+            ).first()
+            if country:
+                filters = cls.countries.contains(country)
+            else:
+                return []
+        
+        # Use vector backend to find similar positions
+        return vector_backend.find_similar(
+            session, cls, 'embedding', query_embedding, top_k, filters
+        )
+
+    @classmethod
+    def bulk_generate_embeddings(cls, session, batch_size=100, force_refresh=False):
+        """Generate embeddings for all positions."""
+        query = session.query(cls)
+        if not force_refresh:
+            query = query.filter(cls.embedding.is_(None))
+        
+        total = query.count()
+        processed = 0
+        
+        for offset in range(0, total, batch_size):
+            batch = query.offset(offset).limit(batch_size).all()
+            for position in batch:
+                position.update_embedding(session)
+                processed += 1
+        
+        return processed
+
 
 class HoldsPosition(Base, UUIDMixin, TimestampMixin):
     """HoldsPosition entity for politician-position relationships."""
@@ -146,3 +223,8 @@ class HasCitizenship(Base, UUIDMixin, TimestampMixin):
     # Relationships
     politician = relationship("Politician", back_populates="citizenships")
     country = relationship("Country", back_populates="citizens")
+
+
+# Setup vector columns for similarity search
+# Using 384 dimensions for sentence-transformers/all-MiniLM-L6-v2 embeddings
+vector_backend.setup_vector_column(Position, 'embedding', dimensions=384)

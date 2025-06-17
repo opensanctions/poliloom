@@ -204,38 +204,53 @@ class EnrichmentService:
             logger.error(f"Error fetching Wikipedia content from {url}: {e}")
             return None
 
-    def _get_allowed_positions_for_politician(
-        self, db: Session, politician: Politician
+    def _get_relevant_positions_for_content(
+        self, db: Session, content: str, politician: Politician, max_positions: int = None
     ) -> List[str]:
-        """Get list of position names that are allowed for this politician's citizenship countries."""
+        """Get list of position names that are relevant to the Wikipedia content and politician's citizenships."""
         if not politician.citizenships:
             return []
 
+        # Get max positions from environment variable or use default
+        if max_positions is None:
+            max_positions = int(os.getenv('MAX_LLM_POSITIONS', '100'))
+
         # Get all countries this politician has citizenship in
-        country_ids = [
-            citizenship.country_id for citizenship in politician.citizenships
-        ]
-
-        # Query positions that are associated with these countries
-        positions = (
-            db.query(Position)
-            .join(Position.countries)
-            .filter(Country.id.in_(country_ids))
-            .all()
-        )
-
-        return [position.name for position in positions]
+        citizenship_countries = [citizenship.country.iso_code for citizenship in politician.citizenships]
+        
+        # Find relevant positions for each citizenship country and combine results
+        all_relevant_positions = []
+        positions_per_country = max(max_positions // len(citizenship_countries), 10)
+        
+        for country_code in citizenship_countries:
+            # Use vector similarity to find relevant positions based on content
+            similar_positions = Position.find_similar(
+                db, content, top_k=positions_per_country, country_filter=country_code
+            )
+            all_relevant_positions.extend([position.name for position, similarity in similar_positions])
+        
+        # Remove duplicates while preserving order, then limit to max_positions
+        seen = set()
+        unique_positions = []
+        for pos_name in all_relevant_positions:
+            if pos_name not in seen:
+                seen.add(pos_name)
+                unique_positions.append(pos_name)
+                if len(unique_positions) >= max_positions:
+                    break
+        
+        return unique_positions
 
     def _extract_data_with_llm(
         self, content: str, politician_name: str, country: str, politician: Politician
     ) -> Optional[ExtractionResult]:
         """Extract structured data from Wikipedia content using OpenAI structured output."""
         try:
-            # Get allowed positions for this politician
+            # Get relevant positions for this politician based on content
             db = SessionLocal()
             try:
-                allowed_positions = self._get_allowed_positions_for_politician(
-                    db, politician
+                allowed_positions = self._get_relevant_positions_for_content(
+                    db, content, politician
                 )
             finally:
                 db.close()
