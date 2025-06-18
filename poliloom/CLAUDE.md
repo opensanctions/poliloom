@@ -23,6 +23,7 @@ This API and CLI project is responsible for:
 - **Development Database:** SQLite
 - **Production Database:** PostgreSQL
 - **LLM Integration:** OpenAI API (for structured data extraction)
+- **Vector Search:** SentenceTransformers ('all-MiniLM-L6-v2') for embeddings, pgvector (PostgreSQL) or in-memory search (SQLite)
 - **External APIs:** Wikidata API, MediaWiki OAuth
 
 **important** use the `uv` tool for running python commands and managing dependencies
@@ -56,6 +57,7 @@ The database will reproduce a subset of the Wikidata politician data model to st
   - id (Primary Key, e.g., Wikidata QID, internal UUID)
   - name (String, name of the position)
   - wikidata_id (String, Wikidata QID for the position)
+  - embedding (Vector, 384-dimensional embedding for semantic similarity search)
 - **PositionCountry** (Many-to-many relationship entity)
   - id (Primary Key, internal UUID)
   - position_id (Foreign Key to Position.id)
@@ -122,7 +124,12 @@ This module extracts new properties and positions from web sources using LLMs.
 - **LLM Integration:**
   - Feed relevant page content to OpenAI's structured data API.
   - Define precise JSON schemas for Property and HoldsPosition extraction, ensuring alignment with the database schema.
-  - **Position Extraction Enhancement:** Before extracting positions, query Wikidata for political positions relevant to the politician's country to reduce LLM token usage and improve accuracy.
+  - **Position Extraction Enhancement:** Use semantic similarity search to identify relevant positions before LLM extraction:
+    - Generate embeddings for all positions using SentenceTransformers ('all-MiniLM-L6-v2' model)
+    - Filter positions by politician's citizenship countries
+    - Perform vector similarity search between Wikipedia content and position names
+    - Dynamically build Pydantic schemas constraining LLM to only relevant positions
+    - This reduces LLM token usage and improves extraction accuracy
 - **Similarity Search for Unlinked Entities:**
   - For random web pages, after extraction, perform a similarity search against existing Politician entities in the local database (e.g., based on name, country, birth date, birthplace) to find potential matches.
   - Establish a similarity score threshold to decide whether to propose an update or create a new entity.
@@ -193,7 +200,7 @@ The CLI will provide direct interaction for data management and enrichment tasks
   - **Functionality:** Queries Wikidata for the specified ID, extracts available properties, and populates the local database. For positions, only links the politician to positions that already exist in the database - does not create new Position entities. Fetches associated Wikipedia links.
 - poliloom enrich-wikipedia \--id \<wikidata_id\>
   - **Description:** Enriches a single politician entity in the local database by extracting data from its linked Wikipedia articles.
-  - **Functionality:** Fetches the Wikipedia content for the politician with the specified Wikidata ID, feeds it to the LLM for property and position extraction, and stores the new is_extracted=True data in the database.
+  - **Functionality:** Fetches the Wikipedia content for the politician with the specified Wikidata ID, uses vector similarity search to identify relevant positions based on the politician's citizenships and Wikipedia content, dynamically constrains the LLM to relevant positions only, then extracts properties and positions storing new is_extracted=True data in the database.
 
 ## **5\. External Integrations**
 
