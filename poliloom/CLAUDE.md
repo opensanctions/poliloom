@@ -195,23 +195,15 @@ The API will expose endpoints for the GUI to manage confirmation workflows. Auth
 
 The CLI provides direct interaction for data management and enrichment tasks.
 
-- **poliloom import-wikidata --id \<wikidata_id\>**
+- **poliloom politicians import --id \<wikidata_id\>**
   - **Description:** Imports a single politician entity from Wikidata based on its Wikidata ID.
   - **Functionality:** Queries Wikidata for the specified ID, extracts available properties, and populates the local database. For positions, only links the politician to positions that already exist in the database - does not create new Position entities. Fetches associated Wikipedia links.
 
-- **poliloom import-positions**
-  - **Description:** Import all political positions from Wikidata to populate the local Position table.
-  - **Functionality:** Queries Wikidata for all political positions and imports them into the local database with embeddings for similarity search.
-
-- **poliloom import-positions-extra --file \<csv_file\>**
-  - **Description:** Import political positions from a custom CSV file.
-  - **Functionality:** Allows importing additional positions from a CSV file to supplement the Wikidata position data.
-
-- **poliloom enrich-wikipedia --id \<wikidata_id\>**
+- **poliloom politicians enrich --id \<wikidata_id\>**
   - **Description:** Enriches a single politician entity in the local database by extracting data from its linked Wikipedia articles.
   - **Functionality:** Fetches the Wikipedia content for the politician with the specified Wikidata ID, uses vector similarity search to identify relevant positions based on the politician's citizenships and Wikipedia content, dynamically constrains the LLM to relevant positions only, then extracts properties and positions storing new is_extracted=True data in the database.
 
-- **poliloom show --id \<wikidata_id\>**
+- **poliloom politicians show --id \<wikidata_id\>**
   - **Description:** Display comprehensive information about a politician, distinguishing between imported and generated data.
   - **Functionality:** Shows all available data for a politician including:
     - Basic information (name, Wikidata ID, citizenship)
@@ -220,6 +212,14 @@ The CLI provides direct interaction for data management and enrichment tasks.
     - Source URLs for extracted data
     - Confirmation status (confirmed, pending, discarded)
     - Clear visual distinction between Wikidata-sourced and LLM-extracted information
+
+- **poliloom positions import**
+  - **Description:** Import all political positions from Wikidata to populate the local Position table.
+  - **Functionality:** Queries Wikidata for all political positions and imports them into the local database with embeddings for similarity search.
+
+- **poliloom positions import-csv --file \<csv_file\>**
+  - **Description:** Import political positions from a custom CSV file.
+  - **Functionality:** Allows importing additional positions from a CSV file to supplement the Wikidata position data.
 
 - **poliloom serve [--host HOST] [--port PORT] [--reload]**
   - **Description:** Start the FastAPI web server.
