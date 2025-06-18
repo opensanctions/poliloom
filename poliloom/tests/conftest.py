@@ -16,9 +16,24 @@ class MockSentenceTransformer:
         self.model_name = model_name
     
     def encode(self, text, convert_to_tensor=False):
-        """Mock embedding generation."""
+        """Mock embedding generation for single text or batch of texts."""
         import hashlib
         import numpy as np
+        
+        # Handle batch processing (list of texts)
+        if isinstance(text, list):
+            embeddings = []
+            for single_text in text:
+                embedding = self._generate_single_embedding(single_text)
+                embeddings.append(embedding)
+            return np.array(embeddings)
+        else:
+            # Handle single text
+            return self._generate_single_embedding(text)
+    
+    def _generate_single_embedding(self, text):
+        """Generate a single embedding for text."""
+        import hashlib
         # Create a deterministic embedding based on text hash
         text_hash = hashlib.md5(text.encode()).digest()
         # Convert hash to numbers for embedding
@@ -29,7 +44,7 @@ class MockSentenceTransformer:
             # Normalize to [-1, 1] range
             val = (byte_val / 127.5) - 1.0
             dummy_embedding.append(val)
-        return np.array(dummy_embedding)
+        return dummy_embedding
 
 
 @pytest.fixture(autouse=True)

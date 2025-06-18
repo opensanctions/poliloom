@@ -389,34 +389,46 @@ class TestPositionVectorSimilarity:
         name_embedding = position.generate_embedding()
         assert embedding != name_embedding
 
-    def test_auto_embedding_on_insert(self, test_session):
-        """Test that embedding is automatically generated when position is inserted."""
+    def test_manual_embedding_generation(self, test_session):
+        """Test that embedding can be manually generated for a position."""
         position = Position(name="Secretary of State", wikidata_id="Q3112749")
         test_session.add(position)
         test_session.commit()
         test_session.refresh(position)
         
-        # Should have embedding after insert
-        assert hasattr(position, 'embedding')
+        # Should not have embedding initially
+        embedding = getattr(position, 'embedding', None)
+        assert embedding is None
+        
+        # Generate embedding manually
+        position.embedding = position.generate_embedding()
+        test_session.commit()
+        test_session.refresh(position)
+        
+        # Should have embedding after manual generation
         embedding = getattr(position, 'embedding', None)
         assert embedding is not None
         assert isinstance(embedding, list)
         assert len(embedding) == 384
         assert all(isinstance(val, (int, float)) for val in embedding)
 
-    def test_auto_embedding_on_name_update(self, test_session):
-        """Test that embedding is automatically updated when position name changes."""
+    def test_embedding_update_on_name_change(self, test_session):
+        """Test that embedding can be updated when position name changes."""
         position = Position(name="Minister", wikidata_id="Q83307")
         test_session.add(position)
         test_session.commit()
         test_session.refresh(position)
         
-        # Get initial embedding
+        # Generate initial embedding
+        position.embedding = position.generate_embedding()
+        test_session.commit()
+        test_session.refresh(position)
         initial_embedding = getattr(position, 'embedding', None)
         assert initial_embedding is not None
         
-        # Update name
+        # Update name and regenerate embedding
         position.name = "Prime Minister"
+        position.embedding = position.generate_embedding()
         test_session.commit()
         test_session.refresh(position)
         

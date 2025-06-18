@@ -7,7 +7,7 @@ import logging
 import csv
 import json
 
-from ..models import Politician, Property, Position, HoldsPosition, Source, Country, HasCitizenship, position_country_table
+from ..models import Politician, Property, Position, HoldsPosition, Source, Country, HasCitizenship, position_country_table, _get_embedding_model
 from ..database import SessionLocal
 from .wikidata import WikidataClient
 
@@ -221,6 +221,7 @@ class ImportService:
         db = SessionLocal()
         try:
             imported_count = 0
+            batch_positions = []
             
             for position_data in positions_data:
                 # Check if position already exists
@@ -244,12 +245,20 @@ class ImportService:
                 if position_data.get('country_codes'):
                     self._link_position_to_countries(db, position, position_data['country_codes'])
                 
+                batch_positions.append(position)
                 imported_count += 1
                 
-                # Commit in batches to avoid memory issues
+                # Process in batches to avoid memory issues
                 if imported_count % 100 == 0:
+                    # Generate embeddings for this batch
+                    self._update_position_embeddings(db, batch_positions)
                     db.commit()
                     logger.info(f"Imported {imported_count} positions so far...")
+                    batch_positions = []  # Reset batch
+            
+            # Process remaining positions
+            if batch_positions:
+                self._update_position_embeddings(db, batch_positions)
             
             db.commit()
             logger.info(f"Successfully imported {imported_count} positions")
@@ -278,6 +287,7 @@ class ImportService:
         db = SessionLocal()
         try:
             imported_count = 0
+            batch_positions = []
             
             with open(csv_file_path, 'r', encoding='utf-8') as csvfile:
                 reader = csv.DictReader(csvfile)
@@ -329,12 +339,20 @@ class ImportService:
                     if country_codes:
                         self._link_position_to_countries(db, position, country_codes)
                     
+                    batch_positions.append(position)
                     imported_count += 1
                     
-                    # Commit in batches to avoid memory issues
+                    # Process in batches to avoid memory issues
                     if imported_count % 100 == 0:
+                        # Generate embeddings for this batch
+                        self._update_position_embeddings(db, batch_positions)
                         db.commit()
                         logger.info(f"Imported {imported_count} positions so far...")
+                        batch_positions = []  # Reset batch
+            
+            # Process remaining positions
+            if batch_positions:
+                self._update_position_embeddings(db, batch_positions)
             
             db.commit()
             logger.info(f"Successfully imported {imported_count} positions from CSV")
@@ -347,6 +365,35 @@ class ImportService:
         finally:
             db.close()
     
+    def _generate_batch_embeddings(self, texts: list) -> list:
+        """Generate embeddings for a batch of texts."""
+        if not texts:
+            return []
+        
+        model = _get_embedding_model()
+        embeddings = model.encode(texts, convert_to_tensor=False)
+        
+        # Convert to list format
+        return [emb.tolist() if hasattr(emb, 'tolist') else list(emb) for emb in embeddings]
+    
+    def _update_position_embeddings(self, db: Session, positions: list):
+        """Update embeddings for a batch of positions."""
+        if not positions:
+            return
+        
+        # Extract position names for batch embedding
+        position_names = [pos.name for pos in positions]
+        logger.info(f"Generating embeddings for {len(position_names)} positions...")
+        
+        # Generate embeddings in batch
+        embeddings = self._generate_batch_embeddings(position_names)
+        
+        # Update positions with their embeddings
+        for position, embedding in zip(positions, embeddings):
+            position.embedding = embedding
+        
+        logger.info(f"Successfully generated embeddings for {len(positions)} positions")
+
     def close(self):
         """Close the Wikidata client."""
         self.wikidata_client.close()

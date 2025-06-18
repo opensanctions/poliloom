@@ -10,6 +10,35 @@ Base = declarative_base()
 # Initialize vector backend
 vector_backend = get_vector_backend()
 
+# Global cached embedding model
+_embedding_model = None
+
+
+def _get_embedding_model():
+    """Get or create the cached SentenceTransformer model."""
+    global _embedding_model
+    if _embedding_model is None:
+        import logging
+        import os
+        logger = logging.getLogger(__name__)
+        pid = os.getpid()
+        logger.info(f"Loading SentenceTransformer model in process {pid} (should only happen once per process)...")
+        
+        # Suppress sentence-transformers logging during model loading
+        st_logger = logging.getLogger('sentence_transformers')
+        original_level = st_logger.level
+        st_logger.setLevel(logging.WARNING)
+        
+        try:
+            from sentence_transformers import SentenceTransformer
+            _embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+        finally:
+            # Restore original logging level
+            st_logger.setLevel(original_level)
+        
+        logger.info(f"SentenceTransformer model loaded and cached successfully in process {pid}")
+    return _embedding_model
+
 
 class TimestampMixin:
     """Mixin for adding timestamp fields."""
@@ -125,22 +154,9 @@ class Position(Base, UUIDMixin, TimestampMixin):
         if text is None:
             text = self.name
         
-        try:
-            from sentence_transformers import SentenceTransformer
-            model = SentenceTransformer('all-MiniLM-L6-v2')
-            embedding = model.encode(text, convert_to_tensor=False)
-            return embedding.tolist() if hasattr(embedding, 'tolist') else list(embedding)
-        except ImportError:
-            # Fallback to dummy embedding for development
-            import hashlib
-            import struct
-            text_hash = hashlib.md5(text.encode()).digest()
-            dummy_embedding = []
-            for i in range(0, 384):
-                byte_idx = (i * 4) % len(text_hash)
-                val = struct.unpack('f', text_hash[byte_idx:byte_idx+4] * 4)[0]
-                dummy_embedding.append(val)
-            return dummy_embedding
+        model = _get_embedding_model()
+        embedding = model.encode(text, convert_to_tensor=False)
+        return embedding.tolist() if hasattr(embedding, 'tolist') else list(embedding)
 
     @classmethod
     def find_similar(cls, session, query_text, top_k=10, country_filter=None):
@@ -166,13 +182,6 @@ class Position(Base, UUIDMixin, TimestampMixin):
         )
 
 
-# Event listener to automatically generate embeddings when position name is set
-@event.listens_for(Position, 'before_insert')
-@event.listens_for(Position, 'before_update')
-def auto_generate_position_embedding(mapper, connection, target):
-    """Automatically generate embedding when position name is set or changed."""
-    if target.name:
-        target.embedding = target.generate_embedding()
 
 
 class HoldsPosition(Base, UUIDMixin, TimestampMixin):
