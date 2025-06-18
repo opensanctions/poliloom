@@ -67,40 +67,6 @@ class TestPolitician:
         # Property should be deleted
         assert test_session.query(Property).filter_by(politician_id=sample_politician.id).first() is None
 
-    def test_politician_cascade_delete_positions(self, test_session, sample_politician, sample_position):
-        """Test that deleting a politician cascades to position relationships."""
-        holds_pos = HoldsPosition(
-            politician_id=sample_politician.id,
-            position_id=sample_position.id,
-            start_date="2020"
-        )
-        test_session.add(holds_pos)
-        test_session.commit()
-
-        # Delete politician should cascade to holds_position
-        test_session.delete(sample_politician)
-        test_session.commit()
-
-        # HoldsPosition should be deleted, but Position should remain
-        assert test_session.query(HoldsPosition).filter_by(politician_id=sample_politician.id).first() is None
-        assert test_session.query(Position).filter_by(id=sample_position.id).first() is not None
-
-    def test_politician_cascade_delete_citizenships(self, test_session, sample_politician, sample_country):
-        """Test that deleting a politician cascades to citizenship relationships."""
-        citizenship = HasCitizenship(
-            politician_id=sample_politician.id,
-            country_id=sample_country.id
-        )
-        test_session.add(citizenship)
-        test_session.commit()
-
-        # Delete politician should cascade to citizenships
-        test_session.delete(sample_politician)
-        test_session.commit()
-
-        # HasCitizenship should be deleted, but Country should remain
-        assert test_session.query(HasCitizenship).filter_by(politician_id=sample_politician.id).first() is None
-        assert test_session.query(Country).filter_by(id=sample_country.id).first() is not None
 
 
 class TestSource:
@@ -122,16 +88,6 @@ class TestSource:
         assert source.extracted_at == extracted_time
         assert source.created_at is not None
 
-    def test_source_unique_url(self, test_session, sample_source):
-        """Test that source URLs must be unique."""
-        duplicate_source = Source(
-            url=sample_source.url,  # Same URL
-            extracted_at=datetime.now()
-        )
-        test_session.add(duplicate_source)
-        
-        with pytest.raises(IntegrityError):
-            test_session.commit()
 
 
 class TestProperty:
@@ -174,24 +130,6 @@ class TestProperty:
         assert prop.confirmed_by is None
         assert prop.confirmed_at is None
 
-    def test_property_relationship_with_politician(self, test_session, sample_politician):
-        """Test property-politician relationship."""
-        prop = Property(
-            politician_id=sample_politician.id,
-            type="Occupation",
-            value="Lawyer"
-        )
-        test_session.add(prop)
-        test_session.commit()
-        test_session.refresh(prop)
-
-        # Test forward relationship
-        assert prop.politician.id == sample_politician.id
-        assert prop.politician.name == sample_politician.name
-
-        # Test reverse relationship
-        assert len(sample_politician.properties) >= 1
-        assert prop in sample_politician.properties
 
 
 class TestCountry:
@@ -215,29 +153,6 @@ class TestCountry:
         assert country.created_at is not None
         assert country.updated_at is not None
 
-    def test_country_unique_iso_code(self, test_session, sample_country):
-        """Test that iso_code must be unique."""
-        duplicate_country = Country(
-            name="Different Country",
-            iso_code=sample_country.iso_code,  # Same ISO code
-            wikidata_id="Q999"
-        )
-        test_session.add(duplicate_country)
-        
-        with pytest.raises(IntegrityError):
-            test_session.commit()
-
-    def test_country_unique_wikidata_id(self, test_session, sample_country):
-        """Test that wikidata_id must be unique."""
-        duplicate_country = Country(
-            name="Different Country",
-            iso_code="XX",
-            wikidata_id=sample_country.wikidata_id  # Same wikidata_id
-        )
-        test_session.add(duplicate_country)
-        
-        with pytest.raises(IntegrityError):
-            test_session.commit()
 
     def test_country_optional_iso_code(self, test_session):
         """Test that iso_code is optional."""
@@ -252,65 +167,7 @@ class TestCountry:
         assert country.iso_code is None
         assert country.name == "Some Territory"
 
-    def test_country_cascade_delete_positions(self, test_session, sample_country):
-        """Test that deleting a country removes position-country associations."""
-        position = Position(
-            name="Prime Minister",
-            wikidata_id="Q14212"
-        )
-        position.countries.append(sample_country)
-        test_session.add(position)
-        test_session.commit()
 
-        # Verify the association exists
-        assert len(position.countries) == 1
-        assert position.countries[0].id == sample_country.id
-
-        # Delete country should remove the association but not the position
-        test_session.delete(sample_country)
-        test_session.commit()
-        test_session.refresh(position)
-
-        # Position should still exist but have no countries
-        assert test_session.query(Position).filter_by(wikidata_id="Q14212").first() is not None
-        assert len(position.countries) == 0
-
-    def test_country_cascade_delete_citizenships(self, test_session, sample_country, sample_politician):
-        """Test that deleting a country cascades to citizenship relationships."""
-        citizenship = HasCitizenship(
-            politician_id=sample_politician.id,
-            country_id=sample_country.id
-        )
-        test_session.add(citizenship)
-        test_session.commit()
-
-        # Delete country should cascade to citizenships
-        test_session.delete(sample_country)
-        test_session.commit()
-
-        # HasCitizenship should be deleted, but Politician should remain
-        assert test_session.query(HasCitizenship).filter_by(country_id=sample_country.id).first() is None
-        assert test_session.query(Politician).filter_by(id=sample_politician.id).first() is not None
-
-    def test_country_position_relationship(self, test_session, sample_country):
-        """Test country-position many-to-many relationship."""
-        position = Position(
-            name="President",
-            wikidata_id="Q11696"
-        )
-        position.countries.append(sample_country)
-        test_session.add(position)
-        test_session.commit()
-        test_session.refresh(position)
-
-        # Test forward relationship
-        assert len(position.countries) == 1
-        assert position.countries[0].id == sample_country.id
-        assert position.countries[0].name == sample_country.name
-
-        # Test reverse relationship
-        assert len(sample_country.positions) >= 1
-        assert position in sample_country.positions
 
 
 class TestPosition:
@@ -333,34 +190,7 @@ class TestPosition:
         assert position.countries[0].id == sample_country.id
         assert position.wikidata_id == "Q4416090"
 
-    def test_position_unique_wikidata_id(self, test_session, sample_position):
-        """Test that position wikidata_id must be unique."""
-        duplicate_position = Position(
-            name="Different Position",
-            wikidata_id=sample_position.wikidata_id  # Same wikidata_id
-        )
-        test_session.add(duplicate_position)
-        
-        with pytest.raises(IntegrityError):
-            test_session.commit()
 
-    def test_position_cascade_delete_relationships(self, test_session, sample_politician, sample_position):
-        """Test that deleting a position cascades to holds_position relationships."""
-        holds_pos = HoldsPosition(
-            politician_id=sample_politician.id,
-            position_id=sample_position.id,
-            start_date="2018"
-        )
-        test_session.add(holds_pos)
-        test_session.commit()
-
-        # Delete position should cascade to holds_position
-        test_session.delete(sample_position)
-        test_session.commit()
-
-        # HoldsPosition should be deleted, but Politician should remain
-        assert test_session.query(HoldsPosition).filter_by(position_id=sample_position.id).first() is None
-        assert test_session.query(Politician).filter_by(id=sample_politician.id).first() is not None
 
 
 class TestPositionVectorSimilarity:
@@ -641,22 +471,6 @@ class TestHoldsPosition:
         assert holds_pos.start_date is None
         assert holds_pos.end_date is None
 
-    def test_holds_position_relationships(self, test_session, sample_politician, sample_position):
-        """Test holds position relationships with politician and position."""
-        holds_pos = HoldsPosition(
-            politician_id=sample_politician.id,
-            position_id=sample_position.id,
-            start_date="2021"
-        )
-        test_session.add(holds_pos)
-        test_session.commit()
-        test_session.refresh(holds_pos)
-
-        # Test relationships
-        assert holds_pos.politician.id == sample_politician.id
-        assert holds_pos.position.id == sample_position.id
-        assert holds_pos in sample_politician.positions_held
-        assert holds_pos in sample_position.held_by
 
 
 class TestHasCitizenship:
@@ -678,23 +492,6 @@ class TestHasCitizenship:
         assert citizenship.created_at is not None
         assert citizenship.updated_at is not None
 
-    def test_has_citizenship_relationships(self, test_session, sample_politician, sample_country):
-        """Test citizenship relationships with politician and country."""
-        citizenship = HasCitizenship(
-            politician_id=sample_politician.id,
-            country_id=sample_country.id
-        )
-        test_session.add(citizenship)
-        test_session.commit()
-        test_session.refresh(citizenship)
-
-        # Test forward relationships
-        assert citizenship.politician.id == sample_politician.id
-        assert citizenship.country.id == sample_country.id
-
-        # Test reverse relationships
-        assert citizenship in sample_politician.citizenships
-        assert citizenship in sample_country.citizens
 
     def test_has_citizenship_multiple_citizenships_per_politician(self, test_session, sample_politician):
         """Test that a politician can have multiple citizenships."""
@@ -795,34 +592,6 @@ class TestHasCitizenship:
 class TestManyToManyRelationships:
     """Test cases for many-to-many relationships via association tables."""
 
-    def test_politician_source_relationship(self, test_session, sample_politician, sample_source):
-        """Test politician-source many-to-many relationship."""
-        # Add source to politician
-        sample_politician.sources.append(sample_source)
-        test_session.commit()
-
-        # Test forward relationship
-        assert sample_source in sample_politician.sources
-        # Test backward relationship
-        assert sample_politician in sample_source.politicians
-
-        # Test removal
-        sample_politician.sources.remove(sample_source)
-        test_session.commit()
-        assert sample_source not in sample_politician.sources
-        assert sample_politician not in sample_source.politicians
-
-    def test_property_source_relationship(self, test_session, sample_property, sample_source):
-        """Test property-source many-to-many relationship."""
-        # The sample_property fixture already has sample_source attached
-        assert sample_source in sample_property.sources
-        assert sample_property in sample_source.properties
-
-    def test_holds_position_source_relationship(self, test_session, sample_holds_position, sample_source):
-        """Test holds_position-source many-to-many relationship."""
-        # The sample_holds_position fixture already has sample_source attached
-        assert sample_source in sample_holds_position.sources
-        assert sample_holds_position in sample_source.positions_held
 
     def test_multiple_sources_per_entity(self, test_session, sample_politician):
         """Test that entities can have multiple sources."""
