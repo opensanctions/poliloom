@@ -36,3 +36,20 @@ class UnconfirmedPoliticianResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ConfirmationRequest(BaseModel):
+    """Schema for confirmation request body."""
+    confirmed_properties: List[str] = []
+    discarded_properties: List[str] = []
+    confirmed_positions: List[str] = []
+    discarded_positions: List[str] = []
+
+
+class ConfirmationResponse(BaseModel):
+    """Schema for confirmation response."""
+    success: bool
+    message: str
+    confirmed_count: int
+    discarded_count: int
+    errors: List[str] = []
