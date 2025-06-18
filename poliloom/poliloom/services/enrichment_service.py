@@ -41,15 +41,20 @@ class ExtractedPosition(BaseModel):
     end_date: Optional[str] = None
 
 
-class ExtractionResult(BaseModel):
-    """Schema for LLM extraction result."""
+class PropertyExtractionResult(BaseModel):
+    """Schema for property-only LLM extraction result."""
 
     properties: List[ExtractedProperty]
+
+
+class PositionExtractionResult(BaseModel):
+    """Schema for position-only LLM extraction result."""
+
     positions: List[ExtractedPosition]
 
 
-def create_dynamic_pydantic_models(allowed_positions: List[str]):
-    """Create dynamic Pydantic models that restrict positions to allowed values."""
+def create_dynamic_position_model(allowed_positions: List[str]):
+    """Create dynamic Pydantic model that restricts positions to allowed values."""
 
     # Create dynamic position name type
     if allowed_positions:
@@ -66,14 +71,13 @@ def create_dynamic_pydantic_models(allowed_positions: List[str]):
         end_date=(Optional[str], None),
     )
 
-    # Create dynamic ExtractionResult model
-    DynamicExtractionResult = create_model(
-        "DynamicExtractionResult",
-        properties=(List[ExtractedProperty], []),
+    # Create dynamic PositionExtractionResult model
+    DynamicPositionExtractionResult = create_model(
+        "DynamicPositionExtractionResult",
         positions=(List[DynamicExtractedPosition], []),
     )
 
-    return DynamicExtractionResult
+    return DynamicPositionExtractionResult
 
 
 class EnrichmentService:
@@ -205,15 +209,11 @@ class EnrichmentService:
             return None
 
     def _get_relevant_positions_for_content(
-        self, db: Session, content: str, politician: Politician, max_positions: int = None
+        self, db: Session, content: str, politician: Politician, max_positions: int = 100
     ) -> List[str]:
         """Get list of position names that are relevant to the Wikipedia content and politician's citizenships."""
         if not politician.citizenships:
             return []
-
-        # Get max positions from environment variable or use default
-        if max_positions is None:
-            max_positions = int(os.getenv('MAX_LLM_POSITIONS', '100'))
 
         # Get all countries this politician has citizenship in
         citizenship_countries = [citizenship.country.iso_code for citizenship in politician.citizenships]
@@ -243,8 +243,79 @@ class EnrichmentService:
 
     def _extract_data_with_llm(
         self, content: str, politician_name: str, country: str, politician: Politician
-    ) -> Optional[ExtractionResult]:
-        """Extract structured data from Wikipedia content using OpenAI structured output."""
+    ) -> Optional[dict]:
+        """Extract structured data from Wikipedia content using separate OpenAI calls for properties and positions."""
+        try:
+            # Extract properties first
+            properties = self._extract_properties_with_llm(content, politician_name, country)
+            
+            # Extract positions second
+            positions = self._extract_positions_with_llm(content, politician_name, country, politician)
+            
+            return {
+                'properties': properties or [],
+                'positions': positions or []
+            }
+
+        except Exception as e:
+            logger.error(f"Error extracting data with LLM: {e}")
+            return None
+            
+    def _extract_properties_with_llm(
+        self, content: str, politician_name: str, country: str
+    ) -> Optional[List[ExtractedProperty]]:
+        """Extract properties from Wikipedia content using OpenAI structured output."""
+        try:
+            system_prompt = """You are a data extraction assistant. Extract ONLY personal properties from Wikipedia article text.
+
+Extract ONLY these three property types:
+- BirthDate: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
+- BirthPlace: City, Country format
+- DeathDate: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
+
+Rules:
+- Only extract information explicitly stated in the text
+- ONLY extract BirthDate, BirthPlace, and DeathDate - ignore all other personal information
+- Use partial dates if full dates aren't available
+- Be precise and only extract what is clearly stated"""
+
+            user_prompt = f"""Extract personal properties about {politician_name} from this Wikipedia article text:
+
+{content}
+
+Politician name: {politician_name}
+Country: {country or 'Unknown'}"""
+
+            logger.debug(f"Extracting properties for {politician_name}")
+
+            response = self.openai_client.beta.chat.completions.parse(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format=PropertyExtractionResult,
+                temperature=0.1,
+            )
+
+            message = response.choices[0].message
+
+            if message.parsed is None:
+                logger.error("OpenAI property extraction returned None for parsed data")
+                logger.error(f"Response content: {message.content}")
+                logger.error(f"Response refusal: {getattr(message, 'refusal', None)}")
+                return None
+
+            return message.parsed.properties
+
+        except Exception as e:
+            logger.error(f"Error extracting properties with LLM: {e}")
+            return None
+            
+    def _extract_positions_with_llm(
+        self, content: str, politician_name: str, country: str, politician: Politician
+    ) -> Optional[List[ExtractedPosition]]:
+        """Extract positions from Wikipedia content using OpenAI structured output."""
         try:
             # Get relevant positions for this politician based on content
             db = SessionLocal()
@@ -256,35 +327,30 @@ class EnrichmentService:
                 db.close()
 
             # Create dynamic Pydantic model with position constraints
-            DynamicExtractionResult = create_dynamic_pydantic_models(allowed_positions)
+            DynamicPositionExtractionResult = create_dynamic_position_model(allowed_positions)
             logger.debug(
                 f"Allowed positions for {politician_name}: {allowed_positions}"
             )
 
-            system_prompt = """You are a data extraction assistant. Extract politician information from Wikipedia article text.
+            system_prompt = """You are a data extraction assistant. Extract ONLY political positions from Wikipedia article text.
 
-For properties, extract ONLY these three types:
-- BirthDate: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
-- BirthPlace: City, Country format
-- DeathDate: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
-
-For positions, extract political offices, government roles, elected positions with start/end dates in YYYY-MM-DD, YYYY-MM, or YYYY format.
+Extract political offices, government roles, elected positions with start/end dates in YYYY-MM-DD, YYYY-MM, or YYYY format.
 
 Rules:
 - Only extract information explicitly stated in the text
-- For properties, ONLY extract BirthDate, BirthPlace, and DeathDate - ignore all other personal information
 - Use partial dates if full dates aren't available
 - Leave end_date null if position is current or unknown
-- Only extract positions that are relevant to the politician's country of citizenship"""
+- Only extract positions that are relevant to the politician's country of citizenship
+- Focus on formal political positions, not informal roles or titles"""
 
-            user_prompt = f"""Extract information about {politician_name} from this Wikipedia article text:
+            user_prompt = f"""Extract political positions held by {politician_name} from this Wikipedia article text:
 
 {content}
 
 Politician name: {politician_name}
 Country: {country or 'Unknown'}"""
 
-            logger.debug("Sending request to OpenAI with schema constraint")
+            logger.debug(f"Extracting positions for {politician_name}")
 
             response = self.openai_client.beta.chat.completions.parse(
                 model="gpt-4o",
@@ -292,28 +358,21 @@ Country: {country or 'Unknown'}"""
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                response_format=DynamicExtractionResult,
+                response_format=DynamicPositionExtractionResult,
                 temperature=0.1,
             )
 
-            # Use the parsed response from OpenAI's structured output
             message = response.choices[0].message
 
             if message.parsed is None:
-                logger.error("OpenAI structured output returned None for parsed data")
+                logger.error("OpenAI position extraction returned None for parsed data")
                 logger.error(f"Response content: {message.content}")
                 logger.error(f"Response refusal: {getattr(message, 'refusal', None)}")
                 return None
 
-            # Convert the dynamic model to our standard models
-            dynamic_result = message.parsed
-
-            # Convert properties (already ExtractedProperty objects)
-            properties = dynamic_result.properties
-
             # Convert positions from dynamic model to standard ExtractedPosition
             positions = []
-            for pos in dynamic_result.positions:
+            for pos in message.parsed.positions:
                 positions.append(
                     ExtractedPosition(
                         name=pos.name,
@@ -322,28 +381,30 @@ Country: {country or 'Unknown'}"""
                     )
                 )
 
-            return ExtractionResult(properties=properties, positions=positions)
+            return positions
 
         except Exception as e:
-            logger.error(f"Error extracting data with LLM: {e}")
+            logger.error(f"Error extracting positions with LLM: {e}")
             return None
 
     def _log_extraction_results(
-        self, politician_name: str, data: ExtractionResult
+        self, politician_name: str, data: dict
     ) -> None:
         """Log what the LLM extracted from Wikipedia."""
         logger.info(f"LLM extracted data for {politician_name}:")
 
-        if data.properties:
-            logger.info(f"  Properties ({len(data.properties)}):")
-            for prop in data.properties:
+        properties = data.get('properties', [])
+        if properties:
+            logger.info(f"  Properties ({len(properties)}):")
+            for prop in properties:
                 logger.info(f"    {prop.type}: {prop.value}")
         else:
             logger.info("  No properties extracted")
 
-        if data.positions:
-            logger.info(f"  Positions ({len(data.positions)}):")
-            for pos in data.positions:
+        positions = data.get('positions', [])
+        if positions:
+            logger.info(f"  Positions ({len(positions)}):")
+            for pos in positions:
                 date_info = ""
                 if pos.start_date:
                     date_info = f" ({pos.start_date}"
@@ -368,7 +429,7 @@ Country: {country or 'Unknown'}"""
                 source.extracted_at = datetime.utcnow()
 
                 # Store properties
-                for prop_data in data.properties:
+                for prop_data in data.get('properties', []):
                     if prop_data.value:
                         # Check if similar property already exists
                         existing_prop = (
@@ -398,7 +459,7 @@ Country: {country or 'Unknown'}"""
                             )
 
                 # Store positions - only link to existing positions
-                for pos_data in data.positions:
+                for pos_data in data.get('positions', []):
                     if pos_data.name:
                         # Only find existing positions, don't create new ones
                         position = (
