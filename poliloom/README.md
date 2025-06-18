@@ -11,15 +11,18 @@ This project helps identify and extract missing or incomplete information about 
 ### Current Functionality
 
 - **Wikidata Import**: Import politician data directly from Wikidata by ID
+- **Political Positions**: Import and manage political positions from Wikidata or CSV files
+- **Data Enrichment**: Extract additional properties from Wikipedia articles using LLMs
+- **Vector Search**: Semantic similarity search for positions using SentenceTransformers
 - **Data Storage**: Local database storage using SQLAlchemy with SQLite (dev) or PostgreSQL (prod)
 - **Data Validation**: Automatic validation that entities are human and politician-related
 - **Duplicate Handling**: Prevents duplicate imports of the same politician
+- **FastAPI Server**: Web server with API endpoints for confirmation workflows
+- **MediaWiki OAuth**: Authentication system for user validation
 
 ### Planned Features
 
-- **Wikipedia Enrichment**: Extract additional properties from Wikipedia articles
 - **Web Source Processing**: Process random web pages for politician information
-- **Confirmation Workflow**: API endpoints for human validation of extracted data
 - **Wikidata Updates**: Push confirmed data back to Wikidata
 
 ## Installation
@@ -42,36 +45,88 @@ uv run alembic upgrade head
 
 ### CLI Commands
 
-#### Import from Wikidata
+#### Politicians Commands
+
+**Import from Wikidata**
 
 Import a politician's data from Wikidata using their entity ID:
 
 ```bash
 # Import Joe Biden (Q6279)
-uv run poliloom import-wikidata --id Q6279
+uv run poliloom politicians import --id Q6279
 
 # Import with verbose logging
-uv run poliloom -v import-wikidata --id Q6279
+uv run poliloom -v politicians import --id Q6279
 ```
 
-The command will:
+**Enrich politician data**
 
-1. Fetch the politician's data from Wikidata
-2. Validate they are a human and politician
-3. Extract properties (birth date, birth place, etc.)
-4. Extract political positions and their dates
-5. Store everything in the local database
-6. Link to Wikipedia sources
+Extract additional data from Wikipedia using LLMs:
+
+```bash
+# Enrich Joe Biden's data from Wikipedia
+uv run poliloom politicians enrich --id Q6279
+```
+
+**Display politician information**
+
+Show comprehensive information about a politician:
+
+```bash
+# Show all data for Joe Biden
+uv run poliloom politicians show --id Q6279
+```
+
+#### Positions Commands
+
+**Import political positions from Wikidata**
+
+```bash
+# Import all political positions from Wikidata
+uv run poliloom positions import
+```
+
+**Import positions from CSV**
+
+```bash
+# Import positions from a custom CSV file
+uv run poliloom positions import-csv --file positions.csv
+```
+
+#### Server Commands
+
+**Start the FastAPI web server**
+
+```bash
+# Start server on default host/port
+uv run poliloom serve
+
+# Start with custom host and port
+uv run poliloom serve --host 0.0.0.0 --port 8080
+
+# Start in development mode with auto-reload
+uv run poliloom serve --reload
+```
 
 ### Database Schema
 
 The project uses a relational database with the following main entities:
 
-- **Politician**: Core politician information (name, country, Wikidata ID)
-- **Property**: Individual properties like birth date, birth place
-- **Position**: Political positions (President, Senator, etc.)
-- **HoldsPosition**: Relationship between politicians and positions with dates
+- **Politician**: Core politician information (name, Wikidata ID)
+- **Property**: Individual properties like birth date, birth place with confirmation status
+- **Position**: Political positions (President, Senator, etc.) with embeddings for similarity search
+- **HoldsPosition**: Relationship between politicians and positions with dates and confirmation status
+- **Country**: Countries with ISO codes and Wikidata IDs
+- **HasCitizenship**: Many-to-many relationship between politicians and countries
+- **PositionCountry**: Many-to-many relationship between positions and countries
 - **Source**: Web sources where data was extracted from
+
+The schema supports:
+- Incomplete dates (stored as strings)
+- Multilingual names
+- Multiple citizenships
+- Confirmation workflows with user tracking
+- Vector embeddings for semantic search
 
 ## Development
 
@@ -109,14 +164,43 @@ uv run ruff check .
 The project uses environment variables for configuration:
 
 - `DATABASE_URL`: Database connection string (default: `sqlite:///./poliloom.db`)
+- `OPENAI_API_KEY`: OpenAI API key for LLM-based data extraction
+- MediaWiki OAuth settings for authentication (see CLAUDE.md for details)
+
+### API Endpoints
+
+The FastAPI server provides the following endpoints:
+
+- **GET /politicians/unconfirmed**: Retrieve politicians with unconfirmed extracted data
+- **POST /politicians/{politician_id}/confirm**: Confirm or discard extracted properties and positions
+
+### Testing
+
+The project includes comprehensive testing using pytest:
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run tests with coverage
+uv run pytest --cov=poliloom
+```
+
+Tests cover:
+- Database models and relationships
+- Wikidata import functionality (with mocked API calls)
+- LLM extraction (with mocked OpenAI responses)
+- API endpoints with authentication
+- Error handling and edge cases
 
 ## Architecture
 
-- **CLI**: Click-based command-line interface
-- **API**: FastAPI-based REST API (planned)
+- **CLI**: Click-based command-line interface with structured subcommands
+- **API**: FastAPI-based REST API with MediaWiki OAuth authentication
 - **Database**: SQLAlchemy ORM with Alembic migrations
-- **External APIs**: Wikidata API, OpenAI API (planned)
-- **Authentication**: MediaWiki OAuth (planned)
+- **Vector Search**: SentenceTransformers with 'all-MiniLM-L6-v2' model for position similarity
+- **External APIs**: Wikidata API, OpenAI API for structured data extraction
+- **Authentication**: MediaWiki OAuth for user validation
 
 ## Contributing
 
