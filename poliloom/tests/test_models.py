@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from poliloom.models import (
     Politician, Source, Property, Position, HoldsPosition, Country, HasCitizenship
 )
+from poliloom.embeddings import generate_embedding
 
 
 class TestPolitician:
@@ -199,7 +200,7 @@ class TestPositionVectorSimilarity:
     def test_generate_embedding_with_default_name(self, test_session):
         """Test that generate_embedding uses position name by default."""
         position = Position(name="Prime Minister", wikidata_id="Q14212")
-        embedding = position.generate_embedding()
+        embedding = generate_embedding(position.name)
         
         assert isinstance(embedding, list)
         assert len(embedding) == 384  # Expected dimension for all-MiniLM-L6-v2
@@ -209,14 +210,14 @@ class TestPositionVectorSimilarity:
         """Test that generate_embedding works with custom text."""
         position = Position(name="Mayor", wikidata_id="Q30185")
         custom_text = "Chief Executive Officer of City"
-        embedding = position.generate_embedding(custom_text)
+        embedding = generate_embedding(custom_text)
         
         assert isinstance(embedding, list)
         assert len(embedding) == 384
         assert all(isinstance(val, (int, float)) for val in embedding)
         
         # Different text should produce different embeddings
-        name_embedding = position.generate_embedding()
+        name_embedding = generate_embedding(position.name)
         assert embedding != name_embedding
 
     def test_manual_embedding_generation(self, test_session):
@@ -231,7 +232,7 @@ class TestPositionVectorSimilarity:
         assert embedding is None
         
         # Generate embedding manually
-        position.embedding = position.generate_embedding()
+        position.embedding = generate_embedding(position.name)
         test_session.commit()
         test_session.refresh(position)
         
@@ -250,7 +251,7 @@ class TestPositionVectorSimilarity:
         test_session.refresh(position)
         
         # Generate initial embedding
-        position.embedding = position.generate_embedding()
+        position.embedding = generate_embedding(position.name)
         test_session.commit()
         test_session.refresh(position)
         initial_embedding = getattr(position, 'embedding', None)
@@ -258,7 +259,7 @@ class TestPositionVectorSimilarity:
         
         # Update name and regenerate embedding
         position.name = "Prime Minister"
-        position.embedding = position.generate_embedding()
+        position.embedding = generate_embedding(position.name)
         test_session.commit()
         test_session.refresh(position)
         
@@ -381,8 +382,8 @@ class TestPositionVectorSimilarity:
         position1 = Position(name="Test Position", wikidata_id="Q1")
         position2 = Position(name="Test Position", wikidata_id="Q2") 
         
-        embedding1 = position1.generate_embedding()
-        embedding2 = position2.generate_embedding()
+        embedding1 = generate_embedding(position1.name)
+        embedding2 = generate_embedding(position2.name)
         
         # Same text should produce same embedding
         assert embedding1 == embedding2
@@ -392,8 +393,8 @@ class TestPositionVectorSimilarity:
         position1 = Position(name="President", wikidata_id="Q1")
         position2 = Position(name="Secretary", wikidata_id="Q2")
         
-        embedding1 = position1.generate_embedding()
-        embedding2 = position2.generate_embedding()
+        embedding1 = generate_embedding(position1.name)
+        embedding2 = generate_embedding(position2.name)
         
         # Different text should produce different embeddings
         assert embedding1 != embedding2

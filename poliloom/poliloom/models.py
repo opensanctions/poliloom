@@ -4,40 +4,13 @@ from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Table, eve
 from sqlalchemy.orm import relationship, declarative_base
 from uuid import uuid4
 from .vector_search import get_vector_backend
+from .embeddings import generate_embedding
 
 Base = declarative_base()
 
 # Initialize vector backend
 vector_backend = get_vector_backend()
 
-# Global cached embedding model
-_embedding_model = None
-
-
-def _get_embedding_model():
-    """Get or create the cached SentenceTransformer model."""
-    global _embedding_model
-    if _embedding_model is None:
-        import logging
-        import os
-        logger = logging.getLogger(__name__)
-        pid = os.getpid()
-        logger.info(f"Loading SentenceTransformer model in process {pid} (should only happen once per process)...")
-        
-        # Suppress sentence-transformers logging during model loading
-        st_logger = logging.getLogger('sentence_transformers')
-        original_level = st_logger.level
-        st_logger.setLevel(logging.WARNING)
-        
-        try:
-            from sentence_transformers import SentenceTransformer
-            _embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-        finally:
-            # Restore original logging level
-            st_logger.setLevel(original_level)
-        
-        logger.info(f"SentenceTransformer model loaded and cached successfully in process {pid}")
-    return _embedding_model
 
 
 class TimestampMixin:
@@ -149,21 +122,12 @@ class Position(Base, UUIDMixin, TimestampMixin):
     countries = relationship("Country", secondary=position_country_table, back_populates="positions")
     held_by = relationship("HoldsPosition", back_populates="position", cascade="all, delete-orphan")
 
-    def generate_embedding(self, text=None):
-        """Generate embedding for this position."""
-        if text is None:
-            text = self.name
-        
-        model = _get_embedding_model()
-        embedding = model.encode(text, convert_to_tensor=False)
-        return embedding.tolist() if hasattr(embedding, 'tolist') else list(embedding)
 
     @classmethod
     def find_similar(cls, session, query_text, top_k=10, country_filter=None):
         """Find positions similar to the query text."""
         # Generate embedding for query
-        dummy_position = cls(name=query_text)
-        query_embedding = dummy_position.generate_embedding()
+        query_embedding = generate_embedding(query_text)
         
         # Build filters
         filters = None
