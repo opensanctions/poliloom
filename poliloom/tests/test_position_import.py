@@ -186,10 +186,10 @@ class TestPositionImport:
         import_service = ImportService()
         mock_wikidata_client = Mock(spec=WikidataClient)
         
-        # Create 250 positions to test batch committing (batch size is 100)
+        # Create 2500 positions to test batch committing (batch size is 1000)
         positions_data = [
             {'wikidata_id': f'Q{i}', 'name': f'Position {i}'}
-            for i in range(1, 251)
+            for i in range(1, 2501)
         ]
         mock_wikidata_client.get_all_positions.return_value = positions_data
         import_service.wikidata_client = mock_wikidata_client
@@ -207,11 +207,11 @@ class TestPositionImport:
             with patch.object(test_session, 'commit', side_effect=count_commits):
                 result = import_service.import_all_positions()
         
-        assert result == 250
+        assert result == 2500
         
-        # Should commit 3 times: after 100, after 200, and final commit
+        # Should commit 3 times: after 1000, after 2000, and final commit
         assert commit_count >= 3
         
         # Verify all positions were created
         positions = test_session.query(Position).all()
-        assert len(positions) == 250
+        assert len(positions) == 2500

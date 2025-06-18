@@ -74,7 +74,7 @@ class TestCSVImport:
         import_service = ImportService()
         
         with patch('poliloom.services.import_service.SessionLocal', return_value=test_session):
-            result = import_service.import_positions_from_csv(str(test_csv_file))
+            import_service.import_positions_from_csv(str(test_csv_file))
         
         # Should not import positions with is_pep=FALSE
         filtered_positions = ['Q89279295', 'Q134765299']  # These have is_pep=FALSE
@@ -88,7 +88,7 @@ class TestCSVImport:
         import_service = ImportService()
         
         with patch('poliloom.services.import_service.SessionLocal', return_value=test_session):
-            result = import_service.import_positions_from_csv(str(test_csv_file))
+            import_service.import_positions_from_csv(str(test_csv_file))
         
         # Check position with empty countries array
         position_empty_countries = test_session.query(Position).filter_by(wikidata_id='Q134758719').first()
@@ -105,7 +105,7 @@ class TestCSVImport:
         import_service = ImportService()
         
         with patch('poliloom.services.import_service.SessionLocal', return_value=test_session):
-            result = import_service.import_positions_from_csv(str(test_csv_file))
+            import_service.import_positions_from_csv(str(test_csv_file))
         
         # Check position with multiple countries - should link to both (US and CA)
         position_multi_countries = test_session.query(Position).filter_by(wikidata_id='Q134758625').first()
@@ -123,7 +123,7 @@ class TestCSVImport:
         import_service = ImportService()
         
         with patch('poliloom.services.import_service.SessionLocal', return_value=test_session):
-            result = import_service.import_positions_from_csv(str(test_csv_file))
+            import_service.import_positions_from_csv(str(test_csv_file))
         
         # Should skip row with empty caption only - Q134758330 has valid entity_id and caption
         invalid_positions = ['Q134758429']  # Empty caption only

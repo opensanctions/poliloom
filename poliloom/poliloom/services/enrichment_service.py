@@ -1,7 +1,7 @@
 """Service for enriching politician data from Wikipedia using LLM extraction."""
 
 import os
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from datetime import datetime
 from enum import Enum
 from sqlalchemy.orm import Session
@@ -12,7 +12,7 @@ from openai import OpenAI
 from pydantic import BaseModel, create_model
 from typing import Literal
 
-from ..models import Politician, Property, Position, HoldsPosition, Country
+from ..models import Politician, Property, Position, HoldsPosition
 from ..database import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -284,7 +284,7 @@ Rules:
 Politician name: {politician_name}
 Country: {country or 'Unknown'}"""
 
-            logger.debug(f"Sending request to OpenAI with schema constraint")
+            logger.debug("Sending request to OpenAI with schema constraint")
 
             response = self.openai_client.beta.chat.completions.parse(
                 model="gpt-4o",

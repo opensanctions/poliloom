@@ -17,7 +17,6 @@ class MockSentenceTransformer:
     
     def encode(self, text, convert_to_tensor=False):
         """Mock embedding generation for single text or batch of texts."""
-        import hashlib
         import numpy as np
         
         # Handle batch processing (list of texts)

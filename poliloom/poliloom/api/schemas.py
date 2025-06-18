@@ -1,7 +1,6 @@
 """Pydantic schemas for API responses."""
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import datetime
 
 
 class UnconfirmedPropertyResponse(BaseModel):

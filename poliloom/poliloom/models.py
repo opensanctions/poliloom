@@ -1,6 +1,6 @@
 """Database models for the PoliLoom project."""
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Table, event
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Table
 from sqlalchemy.orm import relationship, declarative_base
 from uuid import uuid4
 from .vector_search import get_vector_backend

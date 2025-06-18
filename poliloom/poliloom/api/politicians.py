@@ -31,8 +31,8 @@ async def get_unconfirmed_politicians(
             selectinload(Politician.positions_held).selectinload(HoldsPosition.sources)
         )
         .where(
-            (Politician.properties.any(Property.is_extracted == True)) |
-            (Politician.positions_held.any(HoldsPosition.is_extracted == True))
+            (Politician.properties.any(Property.is_extracted)) |
+            (Politician.positions_held.any(HoldsPosition.is_extracted))
         )
         .offset(offset)
         .limit(limit)

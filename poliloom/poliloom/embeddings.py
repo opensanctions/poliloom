@@ -1,7 +1,7 @@
 """Embedding functionality for the PoliLoom project."""
 import logging
 import os
-from typing import List, Union
+from typing import List
 
 # Global cached embedding model
 _embedding_model = None

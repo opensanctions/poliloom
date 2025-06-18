@@ -3,7 +3,7 @@
 import os
 import json
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Any, Optional, Type
+from typing import List, Tuple, Any, Type
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -50,7 +50,7 @@ class PostgresVectorBackend(VectorSearchBackend):
                     filters=None) -> List[Tuple[Any, float]]:
         """Find similar entities using pgvector cosine similarity."""
         try:
-            from pgvector.sqlalchemy import Vector
+            from pgvector.sqlalchemy import Vector  # noqa: F401
         except ImportError:
             raise ImportError("pgvector package is required for PostgreSQL vector search")
         

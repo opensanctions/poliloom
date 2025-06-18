@@ -55,6 +55,7 @@ uv run poliloom -v import-wikidata --id Q6279
 ```
 
 The command will:
+
 1. Fetch the politician's data from Wikidata
 2. Validate they are a human and politician
 3. Extract properties (birth date, birth place, etc.)
@@ -91,6 +92,7 @@ uv run alembic upgrade head
 ### Code Quality
 
 The project uses:
+
 - **Black** for code formatting
 - **Ruff** for linting
 
@@ -123,7 +125,3 @@ The project uses environment variables for configuration:
 3. Make your changes
 4. Ensure tests pass and code is properly formatted
 5. Submit a pull request
-
-## License
-
-[License information to be added]

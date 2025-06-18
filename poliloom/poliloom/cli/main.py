@@ -127,7 +127,6 @@ def enrich_wikipedia(wikidata_id):
 @click.option('--reload', is_flag=True, help='Enable auto-reload for development')
 def serve(host, port, reload):
     """Start the FastAPI web server."""
-    from ..api.app import app
     
     click.echo(f"Starting PoliLoom API server on http://{host}:{port}")
     if reload:

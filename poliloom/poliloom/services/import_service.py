@@ -15,7 +15,6 @@ from ..models import (
     Source,
     Country,
     HasCitizenship,
-    position_country_table,
 )
 from ..embeddings import generate_batch_embeddings
 from ..database import SessionLocal
