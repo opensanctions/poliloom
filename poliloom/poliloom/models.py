@@ -1,8 +1,7 @@
 """Database models for the PoliLoom project."""
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Table, event
-from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship, declarative_base
 from uuid import uuid4
 from .vector_search import get_vector_backend
 
@@ -14,8 +13,8 @@ vector_backend = get_vector_backend()
 
 class TimestampMixin:
     """Mixin for adding timestamp fields."""
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class UUIDMixin:

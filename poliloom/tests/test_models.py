@@ -1,6 +1,6 @@
 """Tests for database models."""
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
 
 from poliloom.models import (
@@ -833,14 +833,17 @@ class TestTimestampBehavior:
 
     def test_created_at_set_on_creation(self, test_session):
         """Test that created_at is set when entity is created."""
-        before_create = datetime.utcnow()
+        before_create = datetime.now(timezone.utc)
         politician = Politician(name="Timestamp Test")
         test_session.add(politician)
         test_session.commit()
         test_session.refresh(politician)
-        after_create = datetime.utcnow()
+        after_create = datetime.now(timezone.utc)
 
-        assert before_create <= politician.created_at <= after_create
+        # Convert to naive UTC for comparison since SQLAlchemy returns naive datetimes
+        before_create_naive = before_create.replace(tzinfo=None)
+        after_create_naive = after_create.replace(tzinfo=None)
+        assert before_create_naive <= politician.created_at <= after_create_naive
         # Allow for microsecond differences between created_at and updated_at
         time_diff = abs((politician.created_at - politician.updated_at).total_seconds())
         assert time_diff < 0.001  # Less than 1 millisecond difference
