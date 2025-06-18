@@ -39,6 +39,7 @@ class ExtractedPosition(BaseModel):
     name: str
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    proof: str
 
 
 class PropertyExtractionResult(BaseModel):
@@ -69,6 +70,7 @@ def create_dynamic_position_model(allowed_positions: List[str]):
         name=(PositionNameType, ...),
         start_date=(Optional[str], None),
         end_date=(Optional[str], None),
+        proof=(str, ...),
     )
 
     # Create dynamic PositionExtractionResult model
@@ -341,7 +343,9 @@ Rules:
 - Use partial dates if full dates aren't available
 - Leave end_date null if position is current or unknown
 - Only extract positions that are relevant to the politician's country of citizenship
-- Focus on formal political positions, not informal roles or titles"""
+- Focus on formal political positions, not informal roles or titles
+- For each position, provide a 'proof' field containing the exact quote from the Wikipedia text that supports this position
+- The proof should be the specific sentence or phrase that mentions the position"""
 
             user_prompt = f"""Extract political positions held by {politician_name} from this Wikipedia article text:
 
@@ -378,6 +382,7 @@ Country: {country or 'Unknown'}"""
                         name=pos.name,
                         start_date=pos.start_date,
                         end_date=pos.end_date,
+                        proof=pos.proof,
                     )
                 )
 
@@ -416,6 +421,7 @@ Country: {country or 'Unknown'}"""
                     date_info = f" (until {pos.end_date})"
 
                 logger.info(f"    {pos.name}{date_info}")
+                logger.info(f"      Proof: {pos.proof}")
         else:
             logger.info("  No positions extracted")
 
