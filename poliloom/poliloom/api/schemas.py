@@ -1,6 +1,6 @@
 """Pydantic schemas for API responses."""
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class UnconfirmedPropertyResponse(BaseModel):
@@ -10,8 +10,7 @@ class UnconfirmedPropertyResponse(BaseModel):
     value: str
     source_urls: List[str]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UnconfirmedPositionResponse(BaseModel):
@@ -22,8 +21,7 @@ class UnconfirmedPositionResponse(BaseModel):
     end_date: Optional[str] = None
     source_urls: List[str]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UnconfirmedPoliticianResponse(BaseModel):
@@ -34,8 +32,7 @@ class UnconfirmedPoliticianResponse(BaseModel):
     unconfirmed_properties: List[UnconfirmedPropertyResponse]
     unconfirmed_positions: List[UnconfirmedPositionResponse]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ConfirmationRequest(BaseModel):
