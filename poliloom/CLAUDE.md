@@ -129,7 +129,7 @@ This module extracts new properties and positions from web sources using LLMs.
     - **Stage 2 - Wikidata Position Mapping:** For each extracted position:
       - Check for exact matches against existing Wikidata positions in the database
       - If no exact match, generate embeddings using SentenceTransformers ('all-MiniLM-L6-v2' model)
-      - Perform vector similarity search to find the 500 most similar Wikidata positions
+      - Perform vector similarity search to find the 100 most similar Wikidata positions
       - Use OpenAI structured data API to map the extracted position to the correct Wikidata position or None
       - This avoids the noise issues of full-article similarity search while respecting API limitations
 - **Similarity Search for Unlinked Entities:**

@@ -14,6 +14,7 @@ from typing import Literal
 
 from ..models import Politician, Property, Position, HoldsPosition
 from ..database import SessionLocal
+from ..embeddings import generate_embedding
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,21 @@ class ExtractedPosition(BaseModel):
     proof: str
 
 
+class FreeFormExtractedPosition(BaseModel):
+    """Schema for free-form position extraction (Stage 1)."""
+
+    name: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    proof: str
+
+
+class PositionMappingResult(BaseModel):
+    """Schema for position mapping result (Stage 2)."""
+
+    wikidata_position_name: Optional[str] = None  # None if no match found
+
+
 class PropertyExtractionResult(BaseModel):
     """Schema for property-only LLM extraction result."""
 
@@ -52,6 +68,12 @@ class PositionExtractionResult(BaseModel):
     """Schema for position-only LLM extraction result."""
 
     positions: List[ExtractedPosition]
+
+
+class FreeFormPositionExtractionResult(BaseModel):
+    """Schema for free-form position extraction result (Stage 1)."""
+
+    positions: List[FreeFormExtractedPosition]
 
 
 def create_dynamic_position_model(allowed_positions: List[str]):
@@ -80,6 +102,26 @@ def create_dynamic_position_model(allowed_positions: List[str]):
     )
 
     return DynamicPositionExtractionResult
+
+
+def create_dynamic_mapping_model(allowed_positions: List[str]):
+    """Create dynamic Pydantic model for position mapping with None option."""
+
+    # Create union type with positions + None
+    if allowed_positions:
+        # Filter out None values and add None as separate option
+        position_names = [pos for pos in allowed_positions if pos is not None]
+        PositionNameType = Optional[Literal[tuple(position_names)]]
+    else:
+        PositionNameType = Optional[str]  # Fallback
+
+    # Create dynamic PositionMappingResult model
+    DynamicPositionMappingResult = create_model(
+        "DynamicPositionMappingResult",
+        wikidata_position_name=(PositionNameType, None),
+    )
+
+    return DynamicPositionMappingResult
 
 
 class EnrichmentService:
@@ -210,38 +252,110 @@ class EnrichmentService:
             logger.error(f"Error fetching Wikipedia content from {url}: {e}")
             return None
 
-    def _get_relevant_positions_for_content(
-        self, db: Session, content: str, politician: Politician, max_positions: int = 100
+    def _find_exact_position_match(
+        self, db: Session, position_name: str
+    ) -> Optional[Position]:
+        """Find exact match for position name in database."""
+        # Try exact match (case-insensitive)
+        exact_match = (
+            db.query(Position).filter(Position.name.ilike(position_name)).first()
+        )
+
+        return exact_match
+
+    def _get_similar_positions_for_mapping(
+        self,
+        db: Session,
+        position_name: str,
+        politician: Politician,
+        max_positions: int = 100,
     ) -> List[str]:
-        """Get list of position names that are relevant to the Wikipedia content and politician's citizenships."""
+        """Get similar positions for mapping a single extracted position to Wikidata."""
         if not politician.citizenships:
             return []
 
         # Get all countries this politician has citizenship in
-        citizenship_countries = [citizenship.country.iso_code for citizenship in politician.citizenships]
-        
-        # Find relevant positions for each citizenship country and combine results
-        all_relevant_positions = []
-        positions_per_country = max(max_positions // len(citizenship_countries), 10)
-        
+        citizenship_countries = [
+            citizenship.country.iso_code for citizenship in politician.citizenships
+        ]
+
+        # Find similar positions for this specific position name
+        all_similar_positions = []
+        positions_per_country = max(max_positions // len(citizenship_countries), 50)
+
         for country_code in citizenship_countries:
-            # Use vector similarity to find relevant positions based on content
+            # Use vector similarity based on the position name itself
             similar_positions = Position.find_similar(
-                db, content, top_k=positions_per_country, country_filter=country_code
+                db,
+                position_name,
+                top_k=positions_per_country,
+                country_filter=country_code,
             )
-            all_relevant_positions.extend([position.name for position, similarity in similar_positions])
-        
+            all_similar_positions.extend(
+                [position.name for position, similarity in similar_positions]
+            )
+
         # Remove duplicates while preserving order, then limit to max_positions
         seen = set()
         unique_positions = []
-        for pos_name in all_relevant_positions:
+        for pos_name in all_similar_positions:
             if pos_name not in seen:
                 seen.add(pos_name)
                 unique_positions.append(pos_name)
                 if len(unique_positions) >= max_positions:
                     break
-        
+
         return unique_positions
+
+    def _llm_map_to_wikidata_position(
+        self, extracted_position: str, candidate_positions: List[str], proof_text: str
+    ) -> Optional[str]:
+        """Use LLM to map extracted position to correct Wikidata position."""
+        try:
+            # Create dynamic model with candidate positions
+            DynamicPositionMappingResult = create_dynamic_mapping_model(
+                candidate_positions
+            )
+
+            system_prompt = """You are a position mapping assistant. Given an extracted political position and a list of candidate Wikidata positions, select the most accurate match.
+
+Rules:
+- Choose the Wikidata position that best matches the extracted position
+- Consider the context provided in the proof text
+- If no candidate position is a good match, return None
+- Be precise - only match if you're confident the positions refer to the same role"""
+
+            user_prompt = f"""Map this extracted position to the correct Wikidata position:
+
+Extracted Position: "{extracted_position}"
+Proof Context: "{proof_text}"
+
+Candidate Wikidata Positions:
+{chr(10).join([f"- {pos}" for pos in candidate_positions])}
+
+Select the best match or None if no good match exists."""
+
+            response = self.openai_client.beta.chat.completions.parse(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format=DynamicPositionMappingResult,
+                temperature=0.1,
+            )
+
+            message = response.choices[0].message
+
+            if message.parsed is None:
+                logger.error("OpenAI position mapping returned None")
+                return None
+
+            return message.parsed.wikidata_position_name
+
+        except Exception as e:
+            logger.error(f"Error mapping position with LLM: {e}")
+            return None
 
     def _extract_data_with_llm(
         self, content: str, politician_name: str, country: str, politician: Politician
@@ -249,20 +363,21 @@ class EnrichmentService:
         """Extract structured data from Wikipedia content using separate OpenAI calls for properties and positions."""
         try:
             # Extract properties first
-            properties = self._extract_properties_with_llm(content, politician_name, country)
-            
+            properties = self._extract_properties_with_llm(
+                content, politician_name, country
+            )
+
             # Extract positions second
-            positions = self._extract_positions_with_llm(content, politician_name, country, politician)
-            
-            return {
-                'properties': properties or [],
-                'positions': positions or []
-            }
+            positions = self._extract_positions_with_llm(
+                content, politician_name, country, politician
+            )
+
+            return {"properties": properties or [], "positions": positions or []}
 
         except Exception as e:
             logger.error(f"Error extracting data with LLM: {e}")
             return None
-            
+
     def _extract_properties_with_llm(
         self, content: str, politician_name: str, country: str
     ) -> Optional[List[ExtractedProperty]]:
@@ -313,48 +428,74 @@ Country: {country or 'Unknown'}"""
         except Exception as e:
             logger.error(f"Error extracting properties with LLM: {e}")
             return None
-            
+
     def _extract_positions_with_llm(
         self, content: str, politician_name: str, country: str, politician: Politician
     ) -> Optional[List[ExtractedPosition]]:
-        """Extract positions from Wikipedia content using OpenAI structured output."""
+        """Extract positions using two-stage approach: free-form extraction + Wikidata mapping."""
         try:
-            # Get relevant positions for this politician based on content
+            # Stage 1: Free-form position extraction
+            free_form_positions = self._extract_positions_free_form(
+                content, politician_name, country
+            )
+
+            if not free_form_positions:
+                logger.warning(
+                    f"No free-form positions extracted for {politician_name}"
+                )
+                return []
+
+            # Stage 2: Map each position to Wikidata
+            mapped_positions = []
             db = SessionLocal()
             try:
-                allowed_positions = self._get_relevant_positions_for_content(
-                    db, content, politician
-                )
+                for free_pos in free_form_positions:
+                    mapped_pos = self._map_position_to_wikidata(
+                        db, free_pos, politician
+                    )
+                    if mapped_pos:
+                        mapped_positions.append(mapped_pos)
             finally:
                 db.close()
 
-            # Create dynamic Pydantic model with position constraints
-            DynamicPositionExtractionResult = create_dynamic_position_model(allowed_positions)
-            logger.debug(
-                f"Allowed positions for {politician_name}: {allowed_positions}"
+            logger.info(
+                f"Mapped {len(mapped_positions)} out of {len(free_form_positions)} "
+                f"extracted positions for {politician_name}"
             )
 
-            system_prompt = """You are a data extraction assistant. Extract ONLY political positions from Wikipedia article text.
+            return mapped_positions
 
-Extract political offices, government roles, elected positions with start/end dates in YYYY-MM-DD, YYYY-MM, or YYYY format.
+        except Exception as e:
+            logger.error(f"Error extracting positions with two-stage approach: {e}")
+            return None
+
+    def _extract_positions_free_form(
+        self, content: str, politician_name: str, country: str
+    ) -> Optional[List[FreeFormExtractedPosition]]:
+        """Stage 1: Extract positions in free-form without constraints."""
+        try:
+            system_prompt = """You are a data extraction assistant. Extract ALL political positions from Wikipedia article text.
+
+Extract any political offices, government roles, elected positions, or political appointments mentioned in the text. Use natural language descriptions as they appear in the text.
 
 Rules:
-- Only extract information explicitly stated in the text
-- Use partial dates if full dates aren't available
-- Leave end_date null if position is current or unknown
-- Only extract positions that are relevant to the politician's country of citizenship
-- Focus on formal political positions, not informal roles or titles
-- For each position, provide a 'proof' field containing the exact quote from the Wikipedia text that supports this position
-- The proof should be the specific sentence or phrase that mentions the position"""
+- Extract ALL political positions mentioned in the text, even if informal
+- Use the exact position names as they appear in Wikipedia 
+- Include start/end dates in YYYY-MM-DD, YYYY-MM, or YYYY format if available
+- Leave end_date null if position is current or dates are unknown
+- For each position, provide a 'proof' field with the exact quote that mentions this position
+- Do not worry about exact Wikidata position names - extract naturally"""
 
-            user_prompt = f"""Extract political positions held by {politician_name} from this Wikipedia article text:
+            user_prompt = f"""Extract ALL political positions held by {politician_name} from this Wikipedia article:
 
 {content}
 
 Politician name: {politician_name}
 Country: {country or 'Unknown'}"""
 
-            logger.debug(f"Extracting positions for {politician_name}")
+            logger.debug(
+                f"Stage 1: Free-form position extraction for {politician_name}"
+            )
 
             response = self.openai_client.beta.chat.completions.parse(
                 model="gpt-4o",
@@ -362,43 +503,94 @@ Country: {country or 'Unknown'}"""
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                response_format=DynamicPositionExtractionResult,
+                response_format=FreeFormPositionExtractionResult,
                 temperature=0.1,
             )
 
             message = response.choices[0].message
 
             if message.parsed is None:
-                logger.error("OpenAI position extraction returned None for parsed data")
+                logger.error("OpenAI free-form position extraction returned None")
                 logger.error(f"Response content: {message.content}")
                 logger.error(f"Response refusal: {getattr(message, 'refusal', None)}")
                 return None
 
-            # Convert positions from dynamic model to standard ExtractedPosition
-            positions = []
-            for pos in message.parsed.positions:
-                positions.append(
-                    ExtractedPosition(
-                        name=pos.name,
-                        start_date=pos.start_date,
-                        end_date=pos.end_date,
-                        proof=pos.proof,
-                    )
-                )
+            logger.info(
+                f"Stage 1: Extracted {len(message.parsed.positions)} free-form positions "
+                f"for {politician_name}"
+            )
 
-            return positions
+            return message.parsed.positions
 
         except Exception as e:
-            logger.error(f"Error extracting positions with LLM: {e}")
+            logger.error(f"Error in Stage 1 free-form position extraction: {e}")
             return None
 
-    def _log_extraction_results(
-        self, politician_name: str, data: dict
-    ) -> None:
+    def _map_position_to_wikidata(
+        self, db: Session, free_pos: FreeFormExtractedPosition, politician: Politician
+    ) -> Optional[ExtractedPosition]:
+        """Stage 2: Map a free-form position to Wikidata position or return None."""
+        try:
+            # First check for exact match
+            exact_match = self._find_exact_position_match(db, free_pos.name)
+            if exact_match:
+                logger.debug(
+                    f"Exact match found: '{free_pos.name}' -> '{exact_match.name}'"
+                )
+                return ExtractedPosition(
+                    name=exact_match.name,
+                    start_date=free_pos.start_date,
+                    end_date=free_pos.end_date,
+                    proof=free_pos.proof,
+                )
+
+            # No exact match - use similarity search + LLM mapping
+            similar_positions = self._get_similar_positions_for_mapping(
+                db, free_pos.name, politician
+            )
+
+            if not similar_positions:
+                logger.debug(f"No similar positions found for '{free_pos.name}'")
+                return None
+
+            # Use LLM to map to correct Wikidata position
+            mapped_position_name = self._llm_map_to_wikidata_position(
+                free_pos.name, similar_positions, free_pos.proof
+            )
+
+            if not mapped_position_name:
+                logger.debug(
+                    f"LLM could not map '{free_pos.name}' to Wikidata position"
+                )
+                return None
+
+            # Verify the mapped position exists in our database
+            final_position = (
+                db.query(Position).filter_by(name=mapped_position_name).first()
+            )
+            if not final_position:
+                logger.warning(
+                    f"LLM mapped to non-existent position: '{mapped_position_name}'"
+                )
+                return None
+
+            logger.debug(f"LLM mapped '{free_pos.name}' -> '{mapped_position_name}'")
+            return ExtractedPosition(
+                name=final_position.name,
+                start_date=free_pos.start_date,
+                end_date=free_pos.end_date,
+                proof=free_pos.proof,
+            )
+
+        except Exception as e:
+            logger.error(f"Error mapping position '{free_pos.name}' to Wikidata: {e}")
+            return None
+
+    def _log_extraction_results(self, politician_name: str, data: dict) -> None:
         """Log what the LLM extracted from Wikipedia."""
         logger.info(f"LLM extracted data for {politician_name}:")
 
-        properties = data.get('properties', [])
+        properties = data.get("properties", [])
         if properties:
             logger.info(f"  Properties ({len(properties)}):")
             for prop in properties:
@@ -406,7 +598,7 @@ Country: {country or 'Unknown'}"""
         else:
             logger.info("  No properties extracted")
 
-        positions = data.get('positions', [])
+        positions = data.get("positions", [])
         if positions:
             logger.info(f"  Positions ({len(positions)}):")
             for pos in positions:
@@ -435,7 +627,7 @@ Country: {country or 'Unknown'}"""
                 source.extracted_at = datetime.utcnow()
 
                 # Store properties
-                for prop_data in data.get('properties', []):
+                for prop_data in data.get("properties", []):
                     if prop_data.value:
                         # Check if similar property already exists
                         existing_prop = (
@@ -465,7 +657,7 @@ Country: {country or 'Unknown'}"""
                             )
 
                 # Store positions - only link to existing positions
-                for pos_data in data.get('positions', []):
+                for pos_data in data.get("positions", []):
                     if pos_data.name:
                         # Only find existing positions, don't create new ones
                         position = (
