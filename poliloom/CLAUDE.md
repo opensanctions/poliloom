@@ -124,12 +124,14 @@ This module extracts new properties and positions from web sources using LLMs.
 - **LLM Integration:**
   - Feed relevant page content to OpenAI's structured data API.
   - Define precise JSON schemas for Property and HoldsPosition extraction, ensuring alignment with the database schema.
-  - **Position Extraction Enhancement:** Use semantic similarity search to identify relevant positions before LLM extraction:
-    - Generate embeddings for all positions using SentenceTransformers ('all-MiniLM-L6-v2' model)
-    - Filter positions by politician's citizenship countries
-    - Perform vector similarity search between Wikipedia content and position names
-    - Dynamically build Pydantic schemas constraining LLM to only relevant positions
-    - This reduces LLM token usage and improves extraction accuracy
+  - **Two-Stage Position Extraction Strategy:** Due to OpenAI structured outputs API limitations (500 enum maximum) and countries having tens of thousands of positions (e.g., France: 78K+), use a refined two-stage approach:
+    - **Stage 1 - Free-form Position Extraction:** Prompt the LLM to extract arbitrary political positions from Wikipedia content without constraints, allowing it to return natural language position descriptions
+    - **Stage 2 - Wikidata Position Mapping:** For each extracted position:
+      - Check for exact matches against existing Wikidata positions in the database
+      - If no exact match, generate embeddings using SentenceTransformers ('all-MiniLM-L6-v2' model)
+      - Perform vector similarity search to find the 500 most similar Wikidata positions
+      - Use OpenAI structured data API to map the extracted position to the correct Wikidata position or None
+      - This avoids the noise issues of full-article similarity search while respecting API limitations
 - **Similarity Search for Unlinked Entities:**
   - For random web pages, after extraction, perform a similarity search against existing Politician entities in the local database (e.g., based on name, country, birth date, birthplace) to find potential matches.
   - Establish a similarity score threshold to decide whether to propose an update or create a new entity.
@@ -193,37 +195,28 @@ The API will expose endpoints for the GUI to manage confirmation workflows. Auth
 
 ### **4.4. CLI Commands**
 
-The CLI provides direct interaction for data management and enrichment tasks.
-
 - **poliloom politicians import --id \<wikidata_id\>**
-  - **Description:** Imports a single politician entity from Wikidata based on its Wikidata ID.
-  - **Functionality:** Queries Wikidata for the specified ID, extracts available properties, and populates the local database. For positions, only links the politician to positions that already exist in the database - does not create new Position entities. Fetches associated Wikipedia links.
+
+  - Imports a single politician entity from Wikidata based on its Wikidata ID.
 
 - **poliloom politicians enrich --id \<wikidata_id\>**
-  - **Description:** Enriches a single politician entity in the local database by extracting data from its linked Wikipedia articles.
-  - **Functionality:** Fetches the Wikipedia content for the politician with the specified Wikidata ID, uses vector similarity search to identify relevant positions based on the politician's citizenships and Wikipedia content, dynamically constrains the LLM to relevant positions only, then extracts properties and positions storing new is_extracted=True data in the database.
+
+  - Enriches a single politician entity by extracting data from its linked Wikipedia articles using LLMs.
 
 - **poliloom politicians show --id \<wikidata_id\>**
-  - **Description:** Display comprehensive information about a politician, distinguishing between imported and generated data.
-  - **Functionality:** Shows all available data for a politician including:
-    - Basic information (name, Wikidata ID, citizenship)
-    - Properties imported from Wikidata vs. properties extracted from web sources
-    - Political positions held (imported vs. extracted)
-    - Source URLs for extracted data
-    - Confirmation status (confirmed, pending, discarded)
-    - Clear visual distinction between Wikidata-sourced and LLM-extracted information
+
+  - Display comprehensive information about a politician, distinguishing between imported and extracted data.
 
 - **poliloom positions import**
-  - **Description:** Import all political positions from Wikidata to populate the local Position table.
-  - **Functionality:** Queries Wikidata for all political positions and imports them into the local database with embeddings for similarity search.
+
+  - Import all political positions from Wikidata to populate the local Position table.
 
 - **poliloom positions import-csv --file \<csv_file\>**
-  - **Description:** Import political positions from a custom CSV file.
-  - **Functionality:** Allows importing additional positions from a CSV file to supplement the Wikidata position data.
+
+  - Import political positions from a custom CSV file.
 
 - **poliloom serve [--host HOST] [--port PORT] [--reload]**
-  - **Description:** Start the FastAPI web server.
-  - **Functionality:** Launches the API server for the GUI interface. Supports development mode with auto-reload.
+  - Start the FastAPI web server.
 
 ## **5\. External Integrations**
 
