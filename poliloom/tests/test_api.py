@@ -58,15 +58,15 @@ class TestAPIAuthentication:
         # Mock successful OAuth verification
         mock_user = User(username='testuser', user_id=12345, email='test@example.com')
         mock_oauth_handler = Mock()
-        mock_oauth_handler.verify_access_token = AsyncMock(return_value=mock_user)
+        mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=mock_user)
         mock_get_oauth_handler.return_value = mock_oauth_handler
         
-        headers = {"Authorization": "Bearer valid_token:valid_secret"}
+        headers = {"Authorization": "Bearer valid_jwt_token"}
         response = client.get("/politicians/unconfirmed", headers=headers)
         
         # Should not be 403 (auth should pass, but may fail on DB or other issues)
         assert response.status_code != 403
-        mock_oauth_handler.verify_access_token.assert_called_once_with('valid_token', 'valid_secret')
+        mock_oauth_handler.verify_jwt_token.assert_called_once_with('valid_jwt_token')
 
 
 class TestAPIEndpointsStructure:

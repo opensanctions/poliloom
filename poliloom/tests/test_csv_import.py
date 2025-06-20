@@ -240,12 +240,12 @@ class TestCSVImport:
         assert len(positions) == 0
     
     def test_import_positions_batch_commit(self, test_session, sample_countries):
-        """Test that positions are committed in batches of 100."""
+        """Test that positions are committed in batches of 1000."""
         import_service = ImportService()
         
-        # Create a CSV with 250 positions
+        # Create a CSV with 1250 positions to test batching
         csv_content = '"id","entity_id","caption","is_pep","countries","topics","dataset","created_at","modified_at","modified_by","deleted_at"\n'
-        for i in range(1, 251):
+        for i in range(1, 1251):
             csv_content += f'{i},"Q{i}","Position {i}",TRUE,"[\\"us\\"]","[]","test","2025-01-01 00:00:00",,,\n'
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
@@ -266,14 +266,14 @@ class TestCSVImport:
                     with patch.object(test_session, 'commit', side_effect=count_commits):
                         result = import_service.import_positions_from_csv(f.name)
                 
-                assert result == 250
+                assert result == 1250
                 
-                # Should commit 3 times: after 100, after 200, and final commit
-                assert commit_count >= 3
+                # Should commit 2 times: after 1000 and final commit
+                assert commit_count >= 2
                 
                 # Verify all positions were created
                 positions = test_session.query(Position).all()
-                assert len(positions) == 250
+                assert len(positions) == 1250
             
             finally:
                 os.unlink(f.name)

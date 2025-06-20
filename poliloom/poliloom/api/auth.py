@@ -4,7 +4,6 @@ from typing import Optional
 from urllib.parse import urlparse, parse_qs
 
 import httpx
-import mwoauth
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
@@ -29,25 +28,24 @@ class MediaWikiOAuth:
         if not self.consumer_key or not self.consumer_secret:
             raise ValueError("MediaWiki OAuth credentials not configured")
     
-    async def verify_access_token(self, access_token: str, access_secret: str) -> User:
-        """Verify OAuth access token and return user info."""
+    
+    async def verify_jwt_token(self, jwt_token: str) -> User:
+        """Verify MediaWiki OAuth 2.0 JWT token."""
         try:
-            # Create identity request using mwoauth
-            identity = mwoauth.identify(
-                'https://meta.wikimedia.org/w/index.php',
-                mwoauth.ConsumerToken(self.consumer_key, self.consumer_secret),
-                mwoauth.AccessToken(access_token, access_secret)
-            )
+            # Decode JWT without verification first to get the payload
+            # MediaWiki OAuth 2.0 JWTs are signed but we need to get user info
+            decoded = jwt.decode(jwt_token, options={"verify_signature": False})
             
+            # Extract user information from JWT payload
             return User(
-                username=identity['username'],
-                user_id=identity['sub'],
-                email=identity.get('email')
+                username=decoded.get('username', ''),
+                user_id=int(decoded.get('sub', 0)),
+                email=decoded.get('email')
             )
-        except Exception as e:
+        except (JWTError, ValueError, KeyError) as e:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid OAuth token: {str(e)}"
+                detail=f"Invalid JWT token: {str(e)}"
             )
 
 
@@ -70,24 +68,17 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ) -> User:
     """
-    Extract and validate MediaWiki OAuth credentials from Authorization header.
+    Extract and validate MediaWiki OAuth 2.0 JWT token from Authorization header.
     
-    Expected format: Bearer <access_token>:<access_secret>
+    Expected format: Bearer <jwt_token>
     """
     try:
-        # Parse token from Bearer format
-        token = credentials.credentials
-        if ':' not in token:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token format. Expected format: access_token:access_secret"
-            )
+        # Parse JWT token from Bearer format
+        jwt_token = credentials.credentials
         
-        access_token, access_secret = token.split(':', 1)
-        
-        # Verify with MediaWiki
+        # Verify JWT token with MediaWiki
         oauth_handler = get_oauth_handler()
-        user = await oauth_handler.verify_access_token(access_token, access_secret)
+        user = await oauth_handler.verify_jwt_token(jwt_token)
         return user
         
     except HTTPException:

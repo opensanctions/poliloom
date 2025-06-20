@@ -144,7 +144,9 @@ This module extracts new properties and positions from web sources using LLMs.
 The API will expose endpoints for the GUI to manage confirmation workflows. Authentication will leverage MediaWiki OAuth.
 
 - **Authentication:**
-  - Integrate with MediaWiki OAuth for user authentication and authorization.
+  - Integrate with MediaWiki OAuth 2.0 for user authentication and authorization.
+  - Accept JWT tokens from MediaWiki OAuth 2.0 flow in Authorization header (Bearer format).
+  - Verify JWT token signatures using MediaWiki's public keys or token introspection endpoint.
   - Ensure secure handling of user tokens and permissions.
 - **Routes:**
 
@@ -221,7 +223,7 @@ The API will expose endpoints for the GUI to manage confirmation workflows. Auth
 ## **5\. External Integrations**
 
 - **Wikidata API:** Used for initial database population, querying political positions, and potentially updating Wikidata (after user confirmation via the GUI).
-- **MediaWiki OAuth:** For user authentication within the API.
+- **MediaWiki OAuth 2.0:** For user authentication within the API using JWT tokens.
 - **OpenAI API:** For all LLM-based data extraction from web content.
 
 ## **6\. Key Design Considerations**
