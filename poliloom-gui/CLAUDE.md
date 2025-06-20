@@ -50,6 +50,12 @@ The GUI communicates with the PoliLoom API backend:
 
 **Authentication**: All API calls include MediaWiki OAuth tokens in Authorization headers.
 
+**OpenAPI Documentation**: The complete API specification is available at `http://localhost:8000/openapi.json` when the backend server is running. To fetch it using curl:
+
+```bash
+curl http://localhost:8000/openapi.json
+```
+
 ## Data Types
 
 ### Politician Object
