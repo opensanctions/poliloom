@@ -383,7 +383,7 @@ class ImportService:
                     imported_count += 1
 
                     # Process in batches to avoid memory issues
-                    if imported_count % 100 == 0:
+                    if imported_count % 1000 == 0:
                         # Generate embeddings for this batch
                         self._update_position_embeddings(db, batch_positions)
                         db.commit()
