@@ -1,11 +1,45 @@
 "use client"
 
 import { useSession } from "next-auth/react"
+import { useState, useEffect } from "react"
 import { Header } from "@/components/Header"
+import { PoliticianConfirmation } from "@/components/PoliticianConfirmation"
 import { handleSignIn } from "@/lib/actions"
+import { fetchUnconfirmedPolitician } from "@/lib/api"
+import { Politician } from "@/types"
 
 export default function Home() {
   const { data: session, status } = useSession()
+  const [politician, setPolitician] = useState<Politician | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadPolitician = async () => {
+    if (!session?.accessToken) return
+
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await fetchUnconfirmedPolitician(session.accessToken)
+      setPolitician(data)
+    } catch (error) {
+      console.error('Error fetching politician:', error)
+      setError('Failed to load politician data. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (status === 'authenticated' && session?.accessToken) {
+      loadPolitician()
+    }
+  }, [status, session?.accessToken])
+
+  const handleNext = () => {
+    setPolitician(null)
+    loadPolitician()
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -42,26 +76,37 @@ export default function Home() {
           
           {status === "authenticated" && (
             <div className="space-y-6">
-              <div className="bg-green-50 border border-green-200 rounded-md p-4">
-                <p className="text-green-800">
-                  ✅ You're signed in as {session?.user?.name || session?.user?.email}
-                </p>
-              </div>
+              {loading && (
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                  <p className="text-blue-800">Loading politician data...</p>
+                </div>
+              )}
               
-              <div className="bg-white shadow rounded-lg p-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                  Ready to confirm politician data
-                </h2>
-                <p className="text-gray-600 mb-4">
-                  The confirmation interface will be available here once politician data is loaded from the API.
-                </p>
-                <button
-                  className="px-4 py-2 bg-gray-300 text-gray-500 rounded-md cursor-not-allowed"
-                  disabled
-                >
-                  Start Confirming (Coming Soon)
-                </button>
-              </div>
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                  <p className="text-red-800">{error}</p>
+                  <button
+                    onClick={loadPolitician}
+                    className="mt-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              )}
+              
+              {politician && session?.accessToken && (
+                <PoliticianConfirmation
+                  politician={politician}
+                  accessToken={session.accessToken}
+                  onNext={handleNext}
+                />
+              )}
+              
+              {!loading && !error && !politician && (
+                <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
+                  <p className="text-gray-600">No politicians available for confirmation at this time.</p>
+                </div>
+              )}
             </div>
           )}
         </div>
