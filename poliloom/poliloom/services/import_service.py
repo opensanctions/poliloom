@@ -410,71 +410,87 @@ class ImportService:
         """Generate embeddings for a batch of texts."""
         return generate_batch_embeddings(texts)
 
-    def _update_position_embeddings(self, db: Session, positions: list):
-        """Update embeddings for a batch of positions."""
-        if not positions:
+    def _update_embeddings(self, db: Session, entities: list, entity_type: str):
+        """Update embeddings for a batch of entities (positions or locations)."""
+        if not entities:
             return
 
-        # Extract position names for batch embedding
-        position_names = [pos.name for pos in positions]
-        logger.info(f"Generating embeddings for {len(position_names)} positions...")
+        # Extract entity names for batch embedding
+        entity_names = [entity.name for entity in entities]
+        logger.info(f"Generating embeddings for {len(entity_names)} {entity_type}...")
 
         # Generate embeddings in batch
-        embeddings = self._generate_batch_embeddings(position_names)
+        embeddings = self._generate_batch_embeddings(entity_names)
 
-        # Update positions with their embeddings
-        for position, embedding in zip(positions, embeddings):
-            position.embedding = embedding
+        # Update entities with their embeddings
+        for entity, embedding in zip(entities, embeddings):
+            entity.embedding = embedding
 
-        logger.info(f"Successfully generated embeddings for {len(positions)} positions")
+        logger.info(f"Successfully generated embeddings for {len(entities)} {entity_type}")
+
+    def _update_position_embeddings(self, db: Session, positions: list):
+        """Update embeddings for a batch of positions."""
+        self._update_embeddings(db, positions, "positions")
 
     def import_all_locations(self) -> int:
         """
-        Import all geographic locations from Wikidata.
+        Import all geographic locations from Wikidata using pagination.
 
         Returns:
             Number of locations imported.
         """
-        # Fetch all locations from Wikidata
-        locations_data = self.wikidata_client.get_all_locations()
-        if not locations_data:
-            logger.error("Could not fetch locations data from Wikidata")
-            return 0
-
         db = SessionLocal()
         try:
             imported_count = 0
             batch_locations = []
+            offset = 0
+            page_size = 10000
+            
+            while True:
+                # Fetch locations from Wikidata in batches
+                locations_data = self.wikidata_client.get_all_locations(limit=page_size, offset=offset)
+                
+                if not locations_data:
+                    logger.info(f"No more locations to fetch at offset {offset}")
+                    break
 
-            for location_data in locations_data:
-                # Check if location already exists
-                existing = (
-                    db.query(Location)
-                    .filter_by(wikidata_id=location_data["wikidata_id"])
-                    .first()
-                )
+                for location_data in locations_data:
+                    # Check if location already exists
+                    existing = (
+                        db.query(Location)
+                        .filter_by(wikidata_id=location_data["wikidata_id"])
+                        .first()
+                    )
 
-                if existing:
-                    logger.debug(f"Location {location_data['name']} already exists")
-                    continue
+                    if existing:
+                        logger.debug(f"Location {location_data['name']} already exists")
+                        continue
 
-                # Create location record
-                location = Location(
-                    name=location_data["name"], 
-                    wikidata_id=location_data["wikidata_id"]
-                )
-                db.add(location)
+                    # Create location record
+                    location = Location(
+                        name=location_data["name"], 
+                        wikidata_id=location_data["wikidata_id"]
+                    )
+                    db.add(location)
 
-                batch_locations.append(location)
-                imported_count += 1
+                    batch_locations.append(location)
+                    imported_count += 1
 
-                # Process in batches to avoid memory issues
-                if imported_count % 1000 == 0:
-                    # Generate embeddings for this batch
-                    self._update_location_embeddings(db, batch_locations)
-                    db.commit()
-                    logger.info(f"Imported {imported_count} locations so far...")
-                    batch_locations = []  # Reset batch
+                    # Process in batches to avoid memory issues
+                    if imported_count % 1000 == 0:
+                        # Generate embeddings for this batch
+                        self._update_location_embeddings(db, batch_locations)
+                        db.commit()
+                        logger.info(f"Imported {imported_count} locations so far...")
+                        batch_locations = []  # Reset batch
+
+                # If we got fewer results than the page size, we're done
+                if len(locations_data) < page_size:
+                    logger.info(f"Reached end of results with {len(locations_data)} locations in final batch")
+                    break
+                
+                offset += page_size
+                logger.info(f"Moving to next page with offset {offset}")
 
             # Process remaining locations
             if batch_locations:
@@ -493,22 +509,7 @@ class ImportService:
 
     def _update_location_embeddings(self, db: Session, locations: List[Location]) -> None:
         """Update location embeddings for similarity search."""
-        if not locations:
-            return
-
-        # Extract location names for embedding generation
-        location_names = [location.name for location in locations]
-        
-        logger.info(f"Generating embeddings for {len(location_names)} locations...")
-
-        # Generate embeddings in batch
-        embeddings = self._generate_batch_embeddings(location_names)
-
-        # Update locations with their embeddings
-        for location, embedding in zip(locations, embeddings):
-            location.embedding = embedding
-
-        logger.info(f"Successfully generated embeddings for {len(locations)} locations")
+        self._update_embeddings(db, locations, "locations")
 
     def close(self):
         """Close the Wikidata client."""

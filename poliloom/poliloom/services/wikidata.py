@@ -570,16 +570,18 @@ class WikidataClient:
             logger.error(f"Error fetching positions from Wikidata: {e}")
             return []
 
-    def get_all_locations(self) -> List[Dict[str, Any]]:
-        """Fetch all geographic locations from Wikidata using SPARQL."""
-        sparql_query = """
-        SELECT DISTINCT ?place ?placeLabel WHERE {
+    def get_all_locations(self, limit: int = 10000, offset: int = 0) -> List[Dict[str, Any]]:
+        """Fetch all geographic locations from Wikidata using SPARQL with pagination."""
+        sparql_query = f"""
+        SELECT DISTINCT ?place ?placeLabel WHERE {{
           ?place wdt:P31/wdt:P279* ?type .
-          VALUES ?type { 
+          VALUES ?type {{ 
             wd:Q2221906    # geographic location
-          }
-          SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
-        }
+          }}
+          SERVICE wikibase:label {{ bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }}
+        }}
+        LIMIT {limit}
+        OFFSET {offset}
         """
 
         try:
@@ -606,7 +608,7 @@ class WikidataClient:
                         }
                     )
 
-            logger.info(f"Fetched {len(locations)} geographic locations from Wikidata")
+            logger.info(f"Fetched {len(locations)} geographic locations from Wikidata (offset: {offset})")
             return locations
 
         except httpx.RequestError as e:
