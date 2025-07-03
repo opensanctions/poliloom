@@ -44,7 +44,7 @@ The database will reproduce a subset of the Wikidata politician data model to st
 - **Property**
   - id (Primary Key, internal UUID)
   - politician_id (Foreign Key to Politician.id)
-  - type (String, e.g., 'BirthDate', 'BirthPlace')
+  - type (String, e.g., 'BirthDate')
   - value (String, for the extracted property value)
   - is_extracted (Boolean, True if newly extracted and unconfirmed)
   - confirmed_by (String, ID of user who confirmed, Null if unconfirmed)
@@ -53,6 +53,11 @@ The database will reproduce a subset of the Wikidata politician data model to st
   - id (Primary Key, internal UUID)
   - iso_code (String, ISO 3166-1 alpha-2 code)
   - wikidata_id (String, Wikidata QID for the country)
+- **Location**
+  - id (Primary Key, internal UUID)
+  - name (String, name of the location)
+  - wikidata_id (String, Wikidata QID for the location)
+  - embedding (Vector, 384-dimensional embedding for semantic similarity search)
 - **Position**
   - id (Primary Key, e.g., Wikidata QID, internal UUID)
   - name (String, name of the position)
@@ -75,10 +80,18 @@ The database will reproduce a subset of the Wikidata politician data model to st
   - id (Primary Key, internal UUID)
   - politician_id (Foreign Key to Politician.id)
   - country_id (Foreign Key to Country.id)
+- **BornAt** (Many-to-many relationship entity)
+  - id (Primary Key, internal UUID)
+  - politician_id (Foreign Key to Politician.id)
+  - location_id (Foreign Key to Location.id)
+  - is_extracted (Boolean, True if newly extracted and unconfirmed)
+  - confirmed_by (String, ID of user who confirmed, Null if unconfirmed)
+  - confirmed_at (Datetime, Null if unconfirmed)
 - **Association Tables:**
   - politician_source (for Politician to Source many-to-many)
   - property_source (for Property to Source many-to-many)
   - holdsposition_source (for HoldsPosition to Source many-to-many)
+  - bornat_source (for BornAt to Source many-to-many)
 
 **Schema Considerations:**
 
@@ -105,6 +118,10 @@ This module is responsible for initially populating the local database with poli
   - During politician import, only link politicians to positions that already exist in the database.
   - Do not create new Position entities during politician import - positions should be imported separately or through dedicated position import functionality.
   - This ensures we only work with positions that have been explicitly imported and are known to the system.
+- **Location Data Handling:**
+  - During politician import, only link politicians to locations (birthplaces) that already exist in the database.
+  - Do not create new Location entities during politician import - locations should be imported separately or through dedicated location import functionality.
+  - This ensures we only work with locations that have been explicitly imported and are known to the system.
 - **Wikipedia Linkage:**
   - Connect Wikidata entities to their corresponding English and local language Wikipedia articles.
   - Prioritize existing links from Wikidata.
@@ -132,6 +149,13 @@ This module extracts new properties and positions from web sources using LLMs.
       - Perform vector similarity search to find the 100 most similar Wikidata positions
       - Use OpenAI structured data API to map the extracted position to the correct Wikidata position or None
       - This avoids the noise issues of full-article similarity search while respecting API limitations
+  - **Two-Stage Birthplace Extraction Strategy:** Similar to positions, use a two-stage approach for birthplace extraction:
+    - **Stage 1 - Free-form Birthplace Extraction:** Prompt the LLM to extract birthplace information from Wikipedia content without constraints, allowing it to return natural language location descriptions
+    - **Stage 2 - Wikidata Location Mapping:** For each extracted birthplace:
+      - Check for exact matches against existing Wikidata locations in the database
+      - If no exact match, generate embeddings using SentenceTransformers ('all-MiniLM-L6-v2' model)
+      - Perform vector similarity search to find the 100 most similar Wikidata locations
+      - Use OpenAI structured data API to map the extracted birthplace to the correct Wikidata location or None
 - **Similarity Search for Unlinked Entities:**
   - For random web pages, after extraction, perform a similarity search against existing Politician entities in the local database (e.g., based on name, country, birth date, birthplace) to find potential matches.
   - Establish a similarity score threshold to decide whether to propose an update or create a new entity.
@@ -164,8 +188,10 @@ The API will expose endpoints for the GUI to manage confirmation workflows. Auth
        "name": "John Doe",  
        "country": "US",  
        "unconfirmed_properties": \[  
-       {"type": "BirthDate", "value": "1970-01-15", "source_url": "http://example.com/source1"},  
-       {"type": "BirthPlace", "value": "New York, USA", "source_url": "http://example.com/source1"}  
+       {"type": "BirthDate", "value": "1970-01-15", "source_url": "http://example.com/source1"}  
+       \],
+       "unconfirmed_birthplaces": \[  
+       {"location_name": "New York, USA", "source_url": "http://example.com/source1"}  
        \],  
        "unconfirmed_positions": \[  
        {"position_name": "Mayor", "start_date": "2020", "end_date": "2024", "source_url": "http://example.com/source2"}  
@@ -183,6 +209,8 @@ The API will expose endpoints for the GUI to manage confirmation workflows. Auth
       - discarded_properties (Array of Strings): List of Property.ids that the user marks as incorrect/to be discarded.
       - confirmed_positions (Array of Strings): List of HoldsPosition.ids that the user confirms as correct.
       - discarded_positions (Array of Strings): List of HoldsPosition.ids that the user marks as incorrect/to be discarded.
+      - confirmed_birthplaces (Array of Strings): List of BornAt.ids that the user confirms as correct.
+      - discarded_birthplaces (Array of Strings): List of BornAt.ids that the user marks as incorrect/to be discarded.
     - **Logic:**
       - For confirmed IDs: Update is_new to False, set confirmed_by and confirmed_at. Trigger an update to Wikidata if applicable.
       - For discarded IDs: Mark as discarded (e.g., set is_new to False and add a status field like discarded or soft-delete).
@@ -192,7 +220,9 @@ The API will expose endpoints for the GUI to manage confirmation workflows. Auth
        "confirmed_properties": \["prop_id_1", "prop_id_2"\],  
        "discarded_properties": \["prop_id_3"\],  
        "confirmed_positions": \["pos_id_1"\],  
-       "discarded_positions": \[\]  
+       "discarded_positions": \[\],  
+       "confirmed_birthplaces": \["birth_id_1"\],  
+       "discarded_birthplaces": \[\]  
       }
 
 ### **4.4. CLI Commands**
@@ -217,12 +247,16 @@ The API will expose endpoints for the GUI to manage confirmation workflows. Auth
 
   - Import political positions from a custom CSV file.
 
+- **poliloom locations import**
+
+  - Import all geographic locations from Wikidata to populate the local Location table.
+
 - **poliloom serve [--host HOST] [--port PORT] [--reload]**
   - Start the FastAPI web server.
 
 ## **5\. External Integrations**
 
-- **Wikidata API:** Used for initial database population, querying political positions, and potentially updating Wikidata (after user confirmation via the GUI).
+- **Wikidata API:** Used for initial database population, querying political positions and geographic locations, and potentially updating Wikidata (after user confirmation via the GUI).
 - **MediaWiki OAuth 2.0:** For user authentication within the API using JWT tokens.
 - **OpenAI API:** For all LLM-based data extraction from web content.
 
