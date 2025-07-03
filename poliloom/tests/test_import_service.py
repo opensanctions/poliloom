@@ -47,10 +47,9 @@ class TestImportService:
         
         # Verify properties were created (excluding citizenships)
         properties = test_session.query(Property).filter_by(politician_id=politician.id).all()
-        assert len(properties) == 2  # BirthDate, BirthPlace (citizenship is now separate)
+        assert len(properties) == 1  # Only BirthDate (BirthPlace is now handled separately, citizenship is separate relationship)
         prop_types = {prop.type: prop.value for prop in properties}
         assert prop_types['BirthDate'] == '1970-01-15'
-        assert prop_types['BirthPlace'] == 'New York City'
         
         # Verify citizenship was created as HasCitizenship relationship
         citizenships = test_session.query(HasCitizenship).filter_by(politician_id=politician.id).all()
@@ -145,8 +144,8 @@ class TestImportService:
         """Test that empty property values are skipped."""
         properties = [
             {'type': 'BirthDate', 'value': '1970-01-15'},
-            {'type': 'BirthPlace', 'value': ''},  # Empty value
-            {'type': 'DeathDate', 'value': None}  # None value
+            {'type': 'DeathDate', 'value': ''},  # Empty value
+            {'type': 'BirthDate', 'value': None}  # None value (duplicate type for testing)
         ]
         
         import_service._create_properties(test_session, sample_politician, properties)

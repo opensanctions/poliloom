@@ -70,7 +70,6 @@ class TestWikidataClient:
             # Check properties structure
             prop_dict = {prop['type']: prop['value'] for prop in result['properties']}
             assert prop_dict.get('BirthDate') == '1970-01-15'
-            assert prop_dict.get('BirthPlace') == 'New York City'
             
             # Check citizenships are returned separately
             assert 'citizenships' in result

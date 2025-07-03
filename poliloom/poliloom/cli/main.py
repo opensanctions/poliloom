@@ -32,6 +32,12 @@ def positions():
     pass
 
 
+@main.group()
+def locations():
+    """Commands for managing geographic locations."""
+    pass
+
+
 @politicians.command("import")
 @click.option("--id", "wikidata_id", required=True, help="Wikidata ID (e.g., Q123456)")
 def politicians_import(wikidata_id):
@@ -299,6 +305,30 @@ def positions_import_csv(csv_file):
 
     except Exception as e:
         click.echo(f"❌ Error importing positions from CSV: {e}")
+        exit(1)
+
+    finally:
+        import_service.close()
+
+
+@locations.command("import")
+def locations_import():
+    """Import all geographic locations from Wikidata to populate the local Location table."""
+    click.echo("Importing all geographic locations from Wikidata...")
+
+    import_service = ImportService()
+
+    try:
+        count = import_service.import_all_locations()
+
+        if count > 0:
+            click.echo(f"✅ Successfully imported {count} geographic locations")
+        else:
+            click.echo("❌ Failed to import locations. Check the logs for details.")
+            exit(1)
+
+    except Exception as e:
+        click.echo(f"❌ Error importing locations: {e}")
         exit(1)
 
     finally:

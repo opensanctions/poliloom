@@ -27,7 +27,9 @@ class WikidataClient:
             # Use SPARQL to get comprehensive politician data including country codes
             sparql_data = self._get_politician_sparql_data(entity_id)
             if not sparql_data:
-                logger.warning(f"Entity {entity_id} not found or not a politician in Wikidata")
+                logger.warning(
+                    f"Entity {entity_id} not found or not a politician in Wikidata"
+                )
                 return None
 
             return sparql_data
@@ -92,29 +94,26 @@ class WikidataClient:
           SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en" . }}
         }} GROUP BY ?person ?personLabel ?personDescription ?birthDate ?deathDate ?birthPlace ?birthPlaceLabel
         """
-        
+
         try:
             response = self.session.get(
                 self.SPARQL_ENDPOINT,
-                params={
-                    "query": sparql_query,
-                    "format": "json"
-                },
+                params={"query": sparql_query, "format": "json"},
                 headers={
                     "User-Agent": "PoliLoom/1.0 (https://github.com/user/poliloom)"
-                }
+                },
             )
             response.raise_for_status()
             data = response.json()
-            
+
             results = data.get("results", {}).get("bindings", [])
             if not results:
                 return None
-                
+
             result = results[0]  # Should only be one result for specific entity
-            
+
             return self._parse_sparql_politician_data(result)
-            
+
         except httpx.RequestError as e:
             logger.error(f"Error fetching SPARQL data for {entity_id}: {e}")
             return None
@@ -124,10 +123,10 @@ class WikidataClient:
         # Basic info
         name = result.get("personLabel", {}).get("value", "")
         description = result.get("personDescription", {}).get("value", "")
-        
+
         # Extract properties
         properties = []
-        
+
         # Birth date
         birth_date = result.get("birthDate", {}).get("value")
         if birth_date:
@@ -135,7 +134,7 @@ class WikidataClient:
             formatted_date = self._format_sparql_date(birth_date)
             if formatted_date:
                 properties.append({"type": "BirthDate", "value": formatted_date})
-        
+
         # Death date
         death_date = result.get("deathDate", {}).get("value")
         is_deceased = death_date is not None
@@ -143,66 +142,95 @@ class WikidataClient:
             formatted_date = self._format_sparql_date(death_date)
             if formatted_date:
                 properties.append({"type": "DeathDate", "value": formatted_date})
-        
-        # Birth place
-        birth_place = result.get("birthPlaceLabel", {}).get("value")
-        if birth_place:
-            properties.append({"type": "BirthPlace", "value": birth_place})
-        
+
         # Citizenships (as country codes) - extract separately
         citizenships = []
         citizenship_codes_str = result.get("citizenshipCodes", {}).get("value", "")
         if citizenship_codes_str:
-            citizenship_codes = [code.strip() for code in citizenship_codes_str.split(",") if code.strip()]
+            citizenship_codes = [
+                code.strip()
+                for code in citizenship_codes_str.split(",")
+                if code.strip()
+            ]
             citizenships = citizenship_codes
-        
+
         # Positions held
         positions = []
         position_ids_str = result.get("positionIds", {}).get("value", "")
         position_labels_str = result.get("positionLabels", {}).get("value", "")
         start_dates_str = result.get("startDates", {}).get("value", "")
         end_dates_str = result.get("endDates", {}).get("value", "")
-        
+
         if position_ids_str and position_labels_str:
-            position_ids = [id.strip() for id in position_ids_str.split(",") if id.strip()]
-            position_labels = [label.strip() for label in position_labels_str.split("|") if label.strip()]
-            start_dates = [date.strip() for date in start_dates_str.split(",")] if start_dates_str else []
-            end_dates = [date.strip() for date in end_dates_str.split(",")] if end_dates_str else []
-            
+            position_ids = [
+                id.strip() for id in position_ids_str.split(",") if id.strip()
+            ]
+            position_labels = [
+                label.strip()
+                for label in position_labels_str.split("|")
+                if label.strip()
+            ]
+            start_dates = (
+                [date.strip() for date in start_dates_str.split(",")]
+                if start_dates_str
+                else []
+            )
+            end_dates = (
+                [date.strip() for date in end_dates_str.split(",")]
+                if end_dates_str
+                else []
+            )
+
             for i, (pos_id, pos_label) in enumerate(zip(position_ids, position_labels)):
-                start_date = self._format_sparql_date(start_dates[i]) if i < len(start_dates) and start_dates[i] else None
-                end_date = self._format_sparql_date(end_dates[i]) if i < len(end_dates) and end_dates[i] else None
-                
-                positions.append({
-                    "wikidata_id": pos_id,
-                    "name": pos_label,
-                    "start_date": start_date,
-                    "end_date": end_date,
-                })
-        
+                start_date = (
+                    self._format_sparql_date(start_dates[i])
+                    if i < len(start_dates) and start_dates[i]
+                    else None
+                )
+                end_date = (
+                    self._format_sparql_date(end_dates[i])
+                    if i < len(end_dates) and end_dates[i]
+                    else None
+                )
+
+                positions.append(
+                    {
+                        "wikidata_id": pos_id,
+                        "name": pos_label,
+                        "start_date": start_date,
+                        "end_date": end_date,
+                    }
+                )
+
         # Wikipedia links
         wikipedia_links = []
         sitelinks_str = result.get("sitelinks", {}).get("value", "")
         site_langs_str = result.get("siteLangs", {}).get("value", "")
-        
+
         if sitelinks_str and site_langs_str:
-            sitelinks = [link.strip() for link in sitelinks_str.split(",") if link.strip()]
-            site_langs = [lang.strip() for lang in site_langs_str.split(",") if lang.strip()]
-            
+            sitelinks = [
+                link.strip() for link in sitelinks_str.split(",") if link.strip()
+            ]
+            site_langs = [
+                lang.strip() for lang in site_langs_str.split(",") if lang.strip()
+            ]
+
             for sitelink, lang in zip(sitelinks, site_langs):
                 # Extract title from Wikipedia URL
                 title = sitelink.split("/wiki/")[-1] if "/wiki/" in sitelink else ""
                 if title:
-                    wikipedia_links.append({
-                        "language": lang,
-                        "title": title.replace("_", " "),
-                        "url": sitelink
-                    })
-        
+                    wikipedia_links.append(
+                        {
+                            "language": lang,
+                            "title": title.replace("_", " "),
+                            "url": sitelink,
+                        }
+                    )
+
         # Get entity ID from result
         person_uri = result.get("person", {}).get("value", "")
         wikidata_id = person_uri.split("/")[-1] if person_uri else ""
-        
+
         return {
             "wikidata_id": wikidata_id,
             "name": name,
@@ -218,13 +246,13 @@ class WikidataClient:
         """Format date from SPARQL result to consistent format."""
         if not date_str:
             return None
-        
+
         # SPARQL dates come in ISO format, extract the date part
         if "T" in date_str:
             date_part = date_str.split("T")[0]
         else:
             date_part = date_str
-        
+
         # Handle different precisions based on the date format
         if len(date_part) >= 10:  # YYYY-MM-DD
             return date_part[:10]
@@ -232,7 +260,7 @@ class WikidataClient:
             return date_part[:7]
         elif len(date_part) >= 4:  # YYYY
             return date_part[:4]
-        
+
         return None
 
     def _is_human(self, entity: Dict[str, Any]) -> bool:
@@ -291,11 +319,6 @@ class WikidataClient:
         birth_date = self._extract_date_claim(claims.get("P569", []))
         if birth_date:
             properties.append({"type": "BirthDate", "value": birth_date})
-
-        # Birth place (P19) - single value
-        birth_place = self._extract_place_claim(claims.get("P19", []))
-        if birth_place:
-            properties.append({"type": "BirthPlace", "value": birth_place})
 
         # Death date (P570) - single value
         death_date = self._extract_date_claim(claims.get("P570", []))
@@ -360,7 +383,9 @@ class WikidataClient:
                         return place_name
         return None
 
-    def _extract_all_citizenship_claims(self, claims: List[Dict[str, Any]]) -> List[str]:
+    def _extract_all_citizenship_claims(
+        self, claims: List[Dict[str, Any]]
+    ) -> List[str]:
         """Extract all citizenship values from claims as country codes."""
         citizenships = []
         for claim in claims:
@@ -487,7 +512,6 @@ class WikidataClient:
             logger.warning(f"Could not fetch country code for entity {entity_id}")
         return None
 
-
     def get_all_positions(self) -> List[Dict[str, Any]]:
         """Fetch all political positions from Wikidata using SPARQL."""
         sparql_query = """
@@ -501,42 +525,92 @@ class WikidataClient:
           SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
         } GROUP BY ?position ?positionLabel
         """
-        
+
         try:
             response = self.session.get(
                 self.SPARQL_ENDPOINT,
-                params={
-                    "query": sparql_query,
-                    "format": "json"
-                },
+                params={"query": sparql_query, "format": "json"},
                 headers={
                     "User-Agent": "PoliLoom/1.0 (https://github.com/user/poliloom)"
-                }
+                },
             )
             response.raise_for_status()
             data = response.json()
-            
+
             positions = []
             for result in data.get("results", {}).get("bindings", []):
                 position_uri = result.get("position", {}).get("value", "")
                 position_id = position_uri.split("/")[-1] if position_uri else None
-                
+
                 if position_id:
                     # Parse country codes
                     country_codes_str = result.get("countryCodes", {}).get("value", "")
-                    country_codes = [code.strip() for code in country_codes_str.split(",") if code.strip()] if country_codes_str else []
-                    
-                    positions.append({
-                        "wikidata_id": position_id,
-                        "name": result.get("positionLabel", {}).get("value", ""),
-                        "country_codes": country_codes
-                    })
-            
+                    country_codes = (
+                        [
+                            code.strip()
+                            for code in country_codes_str.split(",")
+                            if code.strip()
+                        ]
+                        if country_codes_str
+                        else []
+                    )
+
+                    positions.append(
+                        {
+                            "wikidata_id": position_id,
+                            "name": result.get("positionLabel", {}).get("value", ""),
+                            "country_codes": country_codes,
+                        }
+                    )
+
             logger.info(f"Fetched {len(positions)} political positions from Wikidata")
             return positions
-            
+
         except httpx.RequestError as e:
             logger.error(f"Error fetching positions from Wikidata: {e}")
+            return []
+
+    def get_all_locations(self) -> List[Dict[str, Any]]:
+        """Fetch all geographic locations from Wikidata using SPARQL."""
+        sparql_query = """
+        SELECT DISTINCT ?place ?placeLabel WHERE {
+          ?place wdt:P31/wdt:P279* ?type .
+          VALUES ?type { 
+            wd:Q2221906    # geographic location
+          }
+          SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
+        }
+        """
+
+        try:
+            response = self.session.get(
+                self.SPARQL_ENDPOINT,
+                params={"query": sparql_query, "format": "json"},
+                headers={
+                    "User-Agent": "PoliLoom/1.0 (https://github.com/user/poliloom)"
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            locations = []
+            for result in data.get("results", {}).get("bindings", []):
+                place_uri = result.get("place", {}).get("value", "")
+                place_id = place_uri.split("/")[-1] if place_uri else None
+
+                if place_id:
+                    locations.append(
+                        {
+                            "wikidata_id": place_id,
+                            "name": result.get("placeLabel", {}).get("value", ""),
+                        }
+                    )
+
+            logger.info(f"Fetched {len(locations)} geographic locations from Wikidata")
+            return locations
+
+        except httpx.RequestError as e:
+            logger.error(f"Error fetching locations from Wikidata: {e}")
             return []
 
     def close(self):

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
 
 from poliloom.models import (
-    Politician, Source, Property, Position, HoldsPosition, Country, HasCitizenship
+    Politician, Source, Property, Position, HoldsPosition, Country, HasCitizenship, Location, BornAt
 )
 from poliloom.embeddings import generate_embedding
 
@@ -55,8 +55,8 @@ class TestPolitician:
         """Test that deleting a politician cascades to properties."""
         prop = Property(
             politician_id=sample_politician.id,
-            type="BirthPlace",
-            value="New York"
+            type="BirthDate",
+            value="1980-01-01"
         )
         test_session.add(prop)
         test_session.commit()
@@ -676,3 +676,186 @@ class TestUUIDBehavior:
 
         ids = [p.id for p in politicians]
         assert len(set(ids)) == len(ids)  # All IDs should be unique
+
+
+class TestLocation:
+    """Test cases for the Location model."""
+
+    def test_location_creation(self, test_session):
+        """Test basic location creation."""
+        location = Location(
+            name="New York City",
+            wikidata_id="Q60"
+        )
+        test_session.add(location)
+        test_session.commit()
+        test_session.refresh(location)
+
+        assert location.name == "New York City"
+        assert location.wikidata_id == "Q60"
+        assert location.id is not None
+        assert location.created_at is not None
+        assert location.updated_at is not None
+
+    def test_location_unique_wikidata_id(self, test_session):
+        """Test that Wikidata ID must be unique."""
+        location1 = Location(name="New York City", wikidata_id="Q60")
+        location2 = Location(name="NYC", wikidata_id="Q60")
+        
+        test_session.add(location1)
+        test_session.commit()
+        
+        test_session.add(location2)
+        with pytest.raises(IntegrityError):
+            test_session.commit()
+
+    def test_location_find_similar(self, test_session):
+        """Test location similarity search functionality."""
+        # Create test locations with embeddings
+        locations_data = [
+            ("New York City", "Q60"),
+            ("Los Angeles", "Q65"),
+            ("Chicago", "Q1297")
+        ]
+        
+        locations = []
+        for name, wikidata_id in locations_data:
+            location = Location(name=name, wikidata_id=wikidata_id)
+            location.embedding = generate_embedding(name)
+            locations.append(location)
+        
+        test_session.add_all(locations)
+        test_session.commit()
+        
+        # Test similarity search (just verify it works and returns correct format)
+        similar = Location.find_similar(test_session, "New York", top_k=2)
+        assert len(similar) <= 2  # Should return at most 2 results
+        if len(similar) > 0:
+            # Verify we get tuples with (entity, similarity_score) format
+            assert len(similar[0]) == 2
+            assert hasattr(similar[0][0], 'name')
+            assert isinstance(similar[0][1], float)
+
+
+class TestBornAt:
+    """Test cases for the BornAt relationship model."""
+
+    def test_born_at_creation(self, test_session, sample_politician):
+        """Test basic BornAt relationship creation."""
+        location = Location(name="Paris", wikidata_id="Q90")
+        test_session.add(location)
+        test_session.flush()
+
+        born_at = BornAt(
+            politician_id=sample_politician.id,
+            location_id=location.id,
+            is_extracted=True
+        )
+        test_session.add(born_at)
+        test_session.commit()
+        test_session.refresh(born_at)
+
+        assert born_at.politician_id == sample_politician.id
+        assert born_at.location_id == location.id
+        assert born_at.is_extracted is True
+        assert born_at.confirmed_by is None
+        assert born_at.confirmed_at is None
+        assert born_at.id is not None
+
+    def test_born_at_default_values(self, test_session, sample_politician):
+        """Test BornAt model default values."""
+        location = Location(name="London", wikidata_id="Q84")
+        test_session.add(location)
+        test_session.flush()
+
+        born_at = BornAt(
+            politician_id=sample_politician.id,
+            location_id=location.id
+        )
+        test_session.add(born_at)
+        test_session.commit()
+        test_session.refresh(born_at)
+
+        assert born_at.is_extracted is True  # Default value
+        assert born_at.confirmed_by is None
+        assert born_at.confirmed_at is None
+
+    def test_born_at_confirmation(self, test_session, sample_politician):
+        """Test BornAt confirmation workflow."""
+        location = Location(name="Berlin", wikidata_id="Q64")
+        test_session.add(location)
+        test_session.flush()
+
+        born_at = BornAt(
+            politician_id=sample_politician.id,
+            location_id=location.id,
+            is_extracted=True
+        )
+        test_session.add(born_at)
+        test_session.commit()
+
+        # Confirm the relationship
+        confirmation_time = datetime.now(timezone.utc)
+        born_at.confirmed_by = "user123"
+        born_at.confirmed_at = confirmation_time
+        born_at.is_extracted = False
+        test_session.commit()
+        test_session.refresh(born_at)
+
+        assert born_at.confirmed_by == "user123"
+        # Compare datetime without microseconds and timezone due to database storage differences
+        assert born_at.confirmed_at.replace(microsecond=0, tzinfo=None) == confirmation_time.replace(microsecond=0, tzinfo=None)
+        assert born_at.is_extracted is False
+
+    def test_born_at_relationships(self, test_session, sample_politician):
+        """Test BornAt model relationships."""
+        location = Location(name="Tokyo", wikidata_id="Q1490")
+        test_session.add(location)
+        test_session.flush()
+
+        born_at = BornAt(
+            politician_id=sample_politician.id,
+            location_id=location.id
+        )
+        test_session.add(born_at)
+        test_session.commit()
+
+        # Test politician relationship
+        assert born_at.politician.id == sample_politician.id
+        assert born_at.politician.name == sample_politician.name
+
+        # Test location relationship
+        assert born_at.location.id == location.id
+        assert born_at.location.name == "Tokyo"
+
+        # Test reverse relationships
+        assert len(sample_politician.birthplaces) == 1
+        assert sample_politician.birthplaces[0].id == born_at.id
+        assert len(location.born_here) == 1
+        assert location.born_here[0].id == born_at.id
+
+    def test_born_at_cascade_delete(self, test_session, sample_politician):
+        """Test that deleting a politician cascades to BornAt relationships."""
+        location = Location(name="Rome", wikidata_id="Q220")
+        test_session.add(location)
+        test_session.flush()
+
+        born_at = BornAt(
+            politician_id=sample_politician.id,
+            location_id=location.id
+        )
+        test_session.add(born_at)
+        test_session.commit()
+        born_at_id = born_at.id
+
+        # Delete politician should cascade to BornAt
+        test_session.delete(sample_politician)
+        test_session.commit()
+
+        # BornAt should be deleted
+        deleted_born_at = test_session.query(BornAt).filter_by(id=born_at_id).first()
+        assert deleted_born_at is None
+
+        # Location should still exist
+        existing_location = test_session.query(Location).filter_by(id=location.id).first()
+        assert existing_location is not None

@@ -1,6 +1,6 @@
 """Service for importing politician data into the database."""
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 import logging
@@ -15,6 +15,7 @@ from ..models import (
     Source,
     Country,
     HasCitizenship,
+    Location,
 )
 from ..embeddings import generate_batch_embeddings
 from ..database import SessionLocal
@@ -426,6 +427,88 @@ class ImportService:
             position.embedding = embedding
 
         logger.info(f"Successfully generated embeddings for {len(positions)} positions")
+
+    def import_all_locations(self) -> int:
+        """
+        Import all geographic locations from Wikidata.
+
+        Returns:
+            Number of locations imported.
+        """
+        # Fetch all locations from Wikidata
+        locations_data = self.wikidata_client.get_all_locations()
+        if not locations_data:
+            logger.error("Could not fetch locations data from Wikidata")
+            return 0
+
+        db = SessionLocal()
+        try:
+            imported_count = 0
+            batch_locations = []
+
+            for location_data in locations_data:
+                # Check if location already exists
+                existing = (
+                    db.query(Location)
+                    .filter_by(wikidata_id=location_data["wikidata_id"])
+                    .first()
+                )
+
+                if existing:
+                    logger.debug(f"Location {location_data['name']} already exists")
+                    continue
+
+                # Create location record
+                location = Location(
+                    name=location_data["name"], 
+                    wikidata_id=location_data["wikidata_id"]
+                )
+                db.add(location)
+
+                batch_locations.append(location)
+                imported_count += 1
+
+                # Process in batches to avoid memory issues
+                if imported_count % 1000 == 0:
+                    # Generate embeddings for this batch
+                    self._update_location_embeddings(db, batch_locations)
+                    db.commit()
+                    logger.info(f"Imported {imported_count} locations so far...")
+                    batch_locations = []  # Reset batch
+
+            # Process remaining locations
+            if batch_locations:
+                self._update_location_embeddings(db, batch_locations)
+
+            db.commit()
+            logger.info(f"Successfully imported {imported_count} locations")
+            return imported_count
+
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error importing locations: {e}")
+            return 0
+        finally:
+            db.close()
+
+    def _update_location_embeddings(self, db: Session, locations: List[Location]) -> None:
+        """Update location embeddings for similarity search."""
+        if not locations:
+            return
+
+        # Extract location names for embedding generation
+        location_names = [location.name for location in locations]
+        
+        logger.info(f"Generating embeddings for {len(location_names)} locations...")
+
+        # Generate embeddings in batch
+        embeddings = self._generate_batch_embeddings(location_names)
+
+        # Update locations with their embeddings
+        for location, embedding in zip(locations, embeddings):
+            location.embedding = embedding
+
+        logger.info(f"Successfully generated embeddings for {len(locations)} locations")
 
     def close(self):
         """Close the Wikidata client."""
