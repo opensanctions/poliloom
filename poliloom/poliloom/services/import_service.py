@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 import logging
 import csv
 import json
+import time
 
 from ..models import (
     Politician,
@@ -274,17 +275,24 @@ class ImportService:
                 position = Position(
                     name=position_data["name"], wikidata_id=position_data["wikidata_id"]
                 )
-                db.add(position)
-                db.flush()  # Get the ID for country linking
+                
+                try:
+                    db.add(position)
+                    db.flush()  # Get the ID for country linking and check constraints
+                    
+                    # Link position to countries if specified
+                    if position_data.get("country_codes"):
+                        self._link_position_to_countries(
+                            db, position, position_data["country_codes"]
+                        )
 
-                # Link position to countries if specified
-                if position_data.get("country_codes"):
-                    self._link_position_to_countries(
-                        db, position, position_data["country_codes"]
-                    )
-
-                batch_positions.append(position)
-                imported_count += 1
+                    batch_positions.append(position)
+                    imported_count += 1
+                except IntegrityError:
+                    # Position already exists (race condition), skip
+                    db.rollback()
+                    logger.debug(f"Position {position_data['name']} already exists (caught during flush)")
+                    continue
 
                 # Process in batches to avoid memory issues
                 if imported_count % 1000 == 0:
@@ -447,6 +455,10 @@ class ImportService:
             page_size = 10000
             
             while True:
+                # Add small delay between requests to be respectful to Wikidata
+                if offset > 0:
+                    time.sleep(0.5)  # 500ms delay between batches
+                
                 # Fetch locations from Wikidata in batches
                 locations_data = self.wikidata_client.get_all_locations(limit=page_size, offset=offset)
                 
@@ -471,10 +483,17 @@ class ImportService:
                         name=location_data["name"], 
                         wikidata_id=location_data["wikidata_id"]
                     )
-                    db.add(location)
-
-                    batch_locations.append(location)
-                    imported_count += 1
+                    
+                    try:
+                        db.add(location)
+                        db.flush()  # Force database check immediately
+                        batch_locations.append(location)
+                        imported_count += 1
+                    except IntegrityError:
+                        # Location already exists (race condition), skip
+                        db.rollback()
+                        logger.debug(f"Location {location_data['name']} already exists (caught during flush)")
+                        continue
 
                     # Process in batches to avoid memory issues
                     if imported_count % 1000 == 0:

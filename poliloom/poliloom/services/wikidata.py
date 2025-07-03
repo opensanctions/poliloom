@@ -3,6 +3,8 @@
 import httpx
 from typing import Dict, List, Optional, Any
 import logging
+import time
+from random import uniform
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +16,8 @@ class WikidataClient:
     API_ENDPOINT = "https://www.wikidata.org/w/api.php"
 
     def __init__(self):
-        self.session = httpx.Client(timeout=30.0)
+        # Use longer timeout for SPARQL queries which can be slow
+        self.session = httpx.Client(timeout=60.0)
 
     def get_politician_by_id(self, wikidata_id: str) -> Optional[Dict[str, Any]]:
         """Fetch politician data from Wikidata by ID using SPARQL for efficient country code retrieval."""
@@ -34,7 +37,7 @@ class WikidataClient:
 
             return sparql_data
 
-        except httpx.RequestError as e:
+        except (httpx.RequestError, httpx.TimeoutException) as e:
             logger.error(f"Error fetching data for {entity_id}: {e}")
             return None
 
@@ -584,36 +587,46 @@ class WikidataClient:
         OFFSET {offset}
         """
 
-        try:
-            response = self.session.get(
-                self.SPARQL_ENDPOINT,
-                params={"query": sparql_query, "format": "json"},
-                headers={
-                    "User-Agent": "PoliLoom/1.0 (https://github.com/user/poliloom)"
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Add small delay between requests to be respectful
+                if attempt > 0:
+                    delay = uniform(1.0, 3.0) * (2 ** attempt)  # Exponential backoff
+                    logger.info(f"Retrying locations query after {delay:.1f}s delay (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(delay)
+                
+                response = self.session.get(
+                    self.SPARQL_ENDPOINT,
+                    params={"query": sparql_query, "format": "json"},
+                    headers={
+                        "User-Agent": "PoliLoom/1.0 (https://github.com/user/poliloom)"
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
 
-            locations = []
-            for result in data.get("results", {}).get("bindings", []):
-                place_uri = result.get("place", {}).get("value", "")
-                place_id = place_uri.split("/")[-1] if place_uri else None
+                locations = []
+                for result in data.get("results", {}).get("bindings", []):
+                    place_uri = result.get("place", {}).get("value", "")
+                    place_id = place_uri.split("/")[-1] if place_uri else None
 
-                if place_id:
-                    locations.append(
-                        {
-                            "wikidata_id": place_id,
-                            "name": result.get("placeLabel", {}).get("value", ""),
-                        }
-                    )
+                    if place_id:
+                        locations.append(
+                            {
+                                "wikidata_id": place_id,
+                                "name": result.get("placeLabel", {}).get("value", ""),
+                            }
+                        )
 
-            logger.info(f"Fetched {len(locations)} geographic locations from Wikidata (offset: {offset})")
-            return locations
+                logger.info(f"Fetched {len(locations)} geographic locations from Wikidata (offset: {offset})")
+                return locations
 
-        except httpx.RequestError as e:
-            logger.error(f"Error fetching locations from Wikidata: {e}")
-            return []
+            except (httpx.RequestError, httpx.TimeoutException) as e:
+                logger.warning(f"Locations query attempt {attempt + 1} failed: {e}")
+                if attempt == max_retries - 1:
+                    logger.error(f"All {max_retries} attempts failed for locations query")
+                    return []
 
     def close(self):
         """Close the HTTP session."""
