@@ -334,16 +334,26 @@ class EnrichmentService:
         positions_per_country = max(max_positions // len(citizenship_countries), 50)
 
         for country_code in citizenship_countries:
-            # Use vector similarity based on the position name itself
-            similar_positions = Position.find_similar(
-                db,
-                position_name,
-                top_k=positions_per_country,
-                country_filter=country_code,
-            )
-            all_similar_positions.extend(
-                [position.name for position, similarity in similar_positions]
-            )
+            # Get country entity
+            country = db.query(Country).filter(
+                Country.iso_code == country_code.upper()
+            ).first()
+            if not country:
+                continue
+
+            # Generate embedding for the position name
+            from ..embeddings import generate_embedding
+            query_embedding = generate_embedding(position_name)
+            
+            # Query similar positions using pgvector
+            positions = db.query(Position).filter(
+                Position.embedding.isnot(None),
+                Position.countries.contains(country)
+            ).order_by(
+                Position.embedding.cosine_distance(query_embedding)
+            ).limit(positions_per_country).all()
+            
+            all_similar_positions.extend([position.name for position in positions])
 
         # Remove duplicates while preserving order, then limit to max_positions
         seen = set()
@@ -755,12 +765,18 @@ Country: {country or 'Unknown'}"""
         self, db: Session, location_name: str, max_locations: int = 100
     ) -> List[str]:
         """Get similar locations for mapping a single extracted birthplace to Wikidata."""
-        # Find similar locations based on the location name itself
-        similar_locations = Location.find_similar(
-            db, location_name, top_k=max_locations
-        )
+        # Generate embedding for the location name
+        from ..embeddings import generate_embedding
+        query_embedding = generate_embedding(location_name)
+        
+        # Query similar locations using pgvector
+        locations = db.query(Location).filter(
+            Location.embedding.isnot(None)
+        ).order_by(
+            Location.embedding.cosine_distance(query_embedding)
+        ).limit(max_locations).all()
 
-        return [location.name for location, similarity in similar_locations]
+        return [location.name for location in locations]
 
     def _llm_map_to_wikidata_location(
         self, extracted_location: str, candidate_locations: List[str], proof_text: str

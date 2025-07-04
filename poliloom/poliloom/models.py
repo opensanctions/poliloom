@@ -128,29 +128,6 @@ class Location(Base, UUIDMixin, TimestampMixin):
     # Relationships
     born_here = relationship("BornAt", back_populates="location", cascade="all, delete-orphan")
 
-    @classmethod
-    def find_similar(cls, session, query_text, top_k=10):
-        """Find locations similar to the query text."""
-        # Generate embedding for query
-        query_embedding = generate_embedding(query_text)
-        
-        # Query similar locations using pgvector
-        results = session.query(cls).filter(
-            cls.embedding.isnot(None)
-        ).order_by(
-            cls.embedding.cosine_distance(query_embedding)
-        ).limit(top_k).all()
-        
-        # Calculate similarity scores and return as (entity, score) tuples
-        similarities = []
-        for location in results:
-            distance = session.query(
-                cls.embedding.cosine_distance(query_embedding)
-            ).filter(cls.id == location.id).scalar()
-            similarity = 1 - distance if distance is not None else 0.0
-            similarities.append((location, float(similarity)))
-        
-        return similarities
 
 
 class Position(Base, UUIDMixin, TimestampMixin):
@@ -165,40 +142,6 @@ class Position(Base, UUIDMixin, TimestampMixin):
     countries = relationship("Country", secondary=position_country_table, back_populates="positions")
     held_by = relationship("HoldsPosition", back_populates="position", cascade="all, delete-orphan")
 
-    @classmethod
-    def find_similar(cls, session, query_text, top_k=10, country_filter=None):
-        """Find positions similar to the query text."""
-        # Generate embedding for query
-        query_embedding = generate_embedding(query_text)
-        
-        # Build base query
-        query = session.query(cls).filter(cls.embedding.isnot(None))
-        
-        # Apply country filter if provided
-        if country_filter:
-            country = session.query(Country).filter(
-                Country.iso_code == country_filter.upper()
-            ).first()
-            if country:
-                query = query.filter(cls.countries.contains(country))
-            else:
-                return []
-        
-        # Order by similarity and limit results
-        results = query.order_by(
-            cls.embedding.cosine_distance(query_embedding)
-        ).limit(top_k).all()
-        
-        # Calculate similarity scores and return as (entity, score) tuples
-        similarities = []
-        for position in results:
-            distance = session.query(
-                cls.embedding.cosine_distance(query_embedding)
-            ).filter(cls.id == position.id).scalar()
-            similarity = 1 - distance if distance is not None else 0.0
-            similarities.append((position, float(similarity)))
-        
-        return similarities
 
 
 

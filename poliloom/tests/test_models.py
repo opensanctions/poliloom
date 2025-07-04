@@ -9,26 +9,69 @@ from poliloom.models import (
 from poliloom.embeddings import generate_embedding
 
 
+class TestHelpers:
+    """Helper methods for common test patterns."""
+    
+    @staticmethod
+    def assert_basic_model_fields(model, expected_fields):
+        """Assert that model has expected basic fields."""
+        assert model.id is not None
+        assert model.created_at is not None
+        assert model.updated_at is not None
+        for field, value in expected_fields.items():
+            assert getattr(model, field) == value
+    
+    @staticmethod
+    def create_and_commit(session, *entities):
+        """Create entities and commit them to the session."""
+        session.add_all(entities)
+        session.commit()
+        for entity in entities:
+            session.refresh(entity)
+        return entities if len(entities) > 1 else entities[0]
+    
+    @staticmethod
+    def create_position_with_embedding(name, wikidata_id):
+        """Create a Position with embedding."""
+        position = Position(name=name, wikidata_id=wikidata_id)
+        position.embedding = generate_embedding(name)
+        return position
+    
+    @staticmethod
+    def create_location_with_embedding(name, wikidata_id):
+        """Create a Location with embedding."""
+        location = Location(name=name, wikidata_id=wikidata_id)
+        location.embedding = generate_embedding(name)
+        return location
+    
+    @staticmethod
+    def similarity_search(session, model_class, query_text, limit=5, country_filter=None):
+        """Perform similarity search on model with embeddings."""
+        query_embedding = generate_embedding(query_text)
+        query = session.query(model_class).filter(model_class.embedding.isnot(None))
+        
+        if country_filter and hasattr(model_class, 'countries'):
+            query = query.filter(model_class.countries.contains(country_filter))
+        
+        return query.order_by(
+            model_class.embedding.cosine_distance(query_embedding)
+        ).limit(limit).all()
+
+
 class TestPolitician:
     """Test cases for the Politician model."""
 
     def test_politician_creation(self, test_session):
         """Test basic politician creation."""
-        politician = Politician(
-            name="Jane Smith",
-            wikidata_id="Q789012",
-            is_deceased=True
+        politician = TestHelpers.create_and_commit(
+            test_session,
+            Politician(name="Jane Smith", wikidata_id="Q789012", is_deceased=True)
         )
-        test_session.add(politician)
-        test_session.commit()
-        test_session.refresh(politician)
-
-        assert politician.id is not None
-        assert politician.name == "Jane Smith"
-        assert politician.wikidata_id == "Q789012"
-        assert politician.is_deceased is True
-        assert politician.created_at is not None
-        assert politician.updated_at is not None
+        TestHelpers.assert_basic_model_fields(politician, {
+            "name": "Jane Smith",
+            "wikidata_id": "Q789012",
+            "is_deceased": True
+        })
 
     def test_politician_unique_wikidata_id(self, test_session, sample_politician):
         """Test that wikidata_id must be unique."""
@@ -43,13 +86,15 @@ class TestPolitician:
 
     def test_politician_default_values(self, test_session):
         """Test default values for politician fields."""
-        politician = Politician(name="Test Person")
-        test_session.add(politician)
-        test_session.commit()
-        test_session.refresh(politician)
-
-        assert politician.is_deceased is False
-        assert politician.wikidata_id is None
+        politician = TestHelpers.create_and_commit(
+            test_session,
+            Politician(name="Test Person")
+        )
+        TestHelpers.assert_basic_model_fields(politician, {
+            "name": "Test Person",
+            "is_deceased": False,
+            "wikidata_id": None
+        })
 
     def test_politician_cascade_delete_properties(self, test_session, sample_politician):
         """Test that deleting a politician cascades to properties."""
@@ -76,18 +121,14 @@ class TestSource:
     def test_source_creation(self, test_session):
         """Test basic source creation."""
         extracted_time = datetime(2024, 2, 1, 14, 30, 0)
-        source = Source(
-            url="https://example.com/test-page",
-            extracted_at=extracted_time
+        source = TestHelpers.create_and_commit(
+            test_session,
+            Source(url="https://example.com/test-page", extracted_at=extracted_time)
         )
-        test_session.add(source)
-        test_session.commit()
-        test_session.refresh(source)
-
-        assert source.id is not None
-        assert source.url == "https://example.com/test-page"
-        assert source.extracted_at == extracted_time
-        assert source.created_at is not None
+        TestHelpers.assert_basic_model_fields(source, {
+            "url": "https://example.com/test-page",
+            "extracted_at": extracted_time
+        })
 
 
 
@@ -96,40 +137,41 @@ class TestProperty:
 
     def test_property_creation(self, test_session, sample_politician):
         """Test basic property creation."""
-        prop = Property(
-            politician_id=sample_politician.id,
-            type="Education",
-            value="Harvard University",
-            is_extracted=False,
-            confirmed_by="user123",
-            confirmed_at=datetime(2024, 1, 20, 9, 0, 0)
+        confirmed_at = datetime(2024, 1, 20, 9, 0, 0)
+        prop = TestHelpers.create_and_commit(
+            test_session,
+            Property(
+                politician_id=sample_politician.id,
+                type="Education",
+                value="Harvard University",
+                is_extracted=False,
+                confirmed_by="user123",
+                confirmed_at=confirmed_at
+            )
         )
-        test_session.add(prop)
-        test_session.commit()
-        test_session.refresh(prop)
-
-        assert prop.id is not None
-        assert prop.politician_id == sample_politician.id
-        assert prop.type == "Education"
-        assert prop.value == "Harvard University"
-        assert prop.is_extracted is False
-        assert prop.confirmed_by == "user123"
-        assert prop.confirmed_at is not None
+        TestHelpers.assert_basic_model_fields(prop, {
+            "politician_id": sample_politician.id,
+            "type": "Education",
+            "value": "Harvard University",
+            "is_extracted": False,
+            "confirmed_by": "user123"
+        })
+        assert prop.confirmed_at == confirmed_at
 
     def test_property_default_values(self, test_session, sample_politician):
         """Test default values for property fields."""
-        prop = Property(
-            politician_id=sample_politician.id,
-            type="BirthDate",
-            value="1980"
+        prop = TestHelpers.create_and_commit(
+            test_session,
+            Property(politician_id=sample_politician.id, type="BirthDate", value="1980")
         )
-        test_session.add(prop)
-        test_session.commit()
-        test_session.refresh(prop)
-
-        assert prop.is_extracted is True
-        assert prop.confirmed_by is None
-        assert prop.confirmed_at is None
+        TestHelpers.assert_basic_model_fields(prop, {
+            "politician_id": sample_politician.id,
+            "type": "BirthDate",
+            "value": "1980",
+            "is_extracted": True,
+            "confirmed_by": None,
+            "confirmed_at": None
+        })
 
 
 
@@ -138,35 +180,28 @@ class TestCountry:
 
     def test_country_creation(self, test_session):
         """Test basic country creation."""
-        country = Country(
-            name="Germany",
-            iso_code="DE",
-            wikidata_id="Q183"
+        country = TestHelpers.create_and_commit(
+            test_session,
+            Country(name="Germany", iso_code="DE", wikidata_id="Q183")
         )
-        test_session.add(country)
-        test_session.commit()
-        test_session.refresh(country)
-
-        assert country.id is not None
-        assert country.name == "Germany"
-        assert country.iso_code == "DE"
-        assert country.wikidata_id == "Q183"
-        assert country.created_at is not None
-        assert country.updated_at is not None
+        TestHelpers.assert_basic_model_fields(country, {
+            "name": "Germany",
+            "iso_code": "DE",
+            "wikidata_id": "Q183"
+        })
 
 
     def test_country_optional_iso_code(self, test_session):
         """Test that iso_code is optional."""
-        country = Country(
-            name="Some Territory",
-            wikidata_id="Q12345"
+        country = TestHelpers.create_and_commit(
+            test_session,
+            Country(name="Some Territory", wikidata_id="Q12345")
         )
-        test_session.add(country)
-        test_session.commit()
-        test_session.refresh(country)
-
-        assert country.iso_code is None
-        assert country.name == "Some Territory"
+        TestHelpers.assert_basic_model_fields(country, {
+            "name": "Some Territory",
+            "wikidata_id": "Q12345",
+            "iso_code": None
+        })
 
 
 
@@ -176,20 +211,16 @@ class TestPosition:
 
     def test_position_creation(self, test_session, sample_country):
         """Test basic position creation."""
-        position = Position(
-            name="Senator",
-            wikidata_id="Q4416090"
-        )
+        position = Position(name="Senator", wikidata_id="Q4416090")
         position.countries.append(sample_country)
-        test_session.add(position)
-        test_session.commit()
-        test_session.refresh(position)
-
-        assert position.id is not None
-        assert position.name == "Senator"
+        position = TestHelpers.create_and_commit(test_session, position)
+        
+        TestHelpers.assert_basic_model_fields(position, {
+            "name": "Senator",
+            "wikidata_id": "Q4416090"
+        })
         assert len(position.countries) == 1
         assert position.countries[0].id == sample_country.id
-        assert position.wikidata_id == "Q4416090"
 
 
 
@@ -197,216 +228,102 @@ class TestPosition:
 class TestPositionVectorSimilarity:
     """Test cases for Position vector similarity search functionality."""
 
-    def test_generate_embedding_with_default_name(self, test_session):
-        """Test that generate_embedding uses position name by default."""
-        position = Position(name="Prime Minister", wikidata_id="Q14212")
-        embedding = generate_embedding(position.name)
-        
-        assert isinstance(embedding, list)
-        assert len(embedding) == 384  # Expected dimension for all-MiniLM-L6-v2
-        assert all(isinstance(val, (int, float)) for val in embedding)
-
-    def test_generate_embedding_with_custom_text(self, test_session):
-        """Test that generate_embedding works with custom text."""
-        position = Position(name="Mayor", wikidata_id="Q30185")
-        custom_text = "Chief Executive Officer of City"
-        embedding = generate_embedding(custom_text)
-        
+    def test_embedding_generation_and_properties(self, test_session):
+        """Test embedding generation with various properties."""
+        # Test basic embedding generation
+        embedding = generate_embedding("Prime Minister")
         assert isinstance(embedding, list)
         assert len(embedding) == 384
         assert all(isinstance(val, (int, float)) for val in embedding)
         
-        # Different text should produce different embeddings
-        name_embedding = generate_embedding(position.name)
-        assert embedding != name_embedding
+        # Test deterministic behavior
+        embedding2 = generate_embedding("Prime Minister")
+        assert embedding == embedding2
+        
+        # Test different text produces different embeddings
+        different_embedding = generate_embedding("Mayor")
+        assert embedding != different_embedding
 
-    def test_manual_embedding_generation(self, test_session):
-        """Test that embedding can be manually generated for a position."""
-        position = Position(name="Secretary of State", wikidata_id="Q3112749")
-        test_session.add(position)
-        test_session.commit()
-        test_session.refresh(position)
+    def test_position_embedding_workflow(self, test_session):
+        """Test complete embedding workflow for positions."""
+        position = TestHelpers.create_and_commit(
+            test_session,
+            Position(name="Secretary of State", wikidata_id="Q3112749")
+        )
         
         # Should not have embedding initially
-        embedding = getattr(position, 'embedding', None)
-        assert embedding is None
+        assert getattr(position, 'embedding', None) is None
         
         # Generate embedding manually
         position.embedding = generate_embedding(position.name)
         test_session.commit()
         test_session.refresh(position)
         
-        # Should have embedding after manual generation
+        # Verify embedding exists and has correct properties
         embedding = getattr(position, 'embedding', None)
         assert embedding is not None
-        # pgvector returns numpy arrays from database
         import numpy as np
         assert isinstance(embedding, (list, np.ndarray))
         assert len(embedding) == 384
-        assert all(isinstance(val, (int, float, np.floating)) for val in embedding)
-
-    def test_embedding_update_on_name_change(self, test_session):
-        """Test that embedding can be updated when position name changes."""
-        position = Position(name="Minister", wikidata_id="Q83307")
-        test_session.add(position)
-        test_session.commit()
-        test_session.refresh(position)
         
-        # Generate initial embedding
-        position.embedding = generate_embedding(position.name)
-        test_session.commit()
-        test_session.refresh(position)
-        initial_embedding = getattr(position, 'embedding', None)
-        assert initial_embedding is not None
-        
-        # Update name and regenerate embedding
+        # Test embedding update on name change
+        original_embedding = embedding.tolist() if isinstance(embedding, np.ndarray) else embedding
         position.name = "Prime Minister"
         position.embedding = generate_embedding(position.name)
         test_session.commit()
         test_session.refresh(position)
         
-        # Embedding should be updated
         updated_embedding = getattr(position, 'embedding', None)
-        assert updated_embedding is not None
-        # pgvector returns numpy arrays from database
-        import numpy as np
-        assert isinstance(updated_embedding, (list, np.ndarray))
-        assert len(updated_embedding) == 384
-        # Convert to lists for comparison if needed
-        if isinstance(initial_embedding, np.ndarray):
-            initial_embedding = initial_embedding.tolist()
-        if isinstance(updated_embedding, np.ndarray):
-            updated_embedding = updated_embedding.tolist()
-        assert updated_embedding != initial_embedding
+        updated_embedding = updated_embedding.tolist() if isinstance(updated_embedding, np.ndarray) else updated_embedding
+        assert updated_embedding != original_embedding
 
-    def test_find_similar_basic(self, test_session, sample_country):
-        """Test basic similarity search functionality."""
-        # Create test positions
-        positions = [
-            Position(name="President", wikidata_id="Q11696"),
-            Position(name="Prime Minister", wikidata_id="Q14212"),
-            Position(name="Mayor", wikidata_id="Q30185"),
-            Position(name="Governor", wikidata_id="Q889821")
-        ]
+    def test_similarity_search_functionality(self, test_session):
+        """Test similarity search with various scenarios."""
+        # Create test countries
+        us_country, uk_country = TestHelpers.create_and_commit(
+            test_session,
+            Country(name="United States", iso_code="US", wikidata_id="Q30"),
+            Country(name="United Kingdom", iso_code="GB", wikidata_id="Q145")
+        )
         
-        for pos in positions:
-            pos.countries.append(sample_country)
-            test_session.add(pos)
-        test_session.commit()
-        
-        # Embeddings are automatically generated on insert
-        
-        # Search for similar positions
-        similar_positions = Position.find_similar(test_session, "Chief Executive", top_k=2)
-        
-        assert isinstance(similar_positions, list)
-        assert len(similar_positions) <= 2
-        # All results should be (Position, similarity_score) tuples
-        for item in similar_positions:
-            assert isinstance(item, tuple)
-            assert len(item) == 2
-            pos, score = item
-            assert isinstance(pos, Position)
-            assert isinstance(score, float)
-
-    def test_find_similar_with_country_filter(self, test_session):
-        """Test similarity search with country filtering."""
-        # Create countries
-        us_country = Country(name="United States", iso_code="US", wikidata_id="Q30")
-        uk_country = Country(name="United Kingdom", iso_code="GB", wikidata_id="Q145")
-        test_session.add_all([us_country, uk_country])
-        test_session.commit()
-        
-        # Create positions with different countries
+        # Create positions with embeddings
         us_positions = [
-            Position(name="US President", wikidata_id="Q11696"),
-            Position(name="US Governor", wikidata_id="Q889821")
+            TestHelpers.create_position_with_embedding("US President", "Q11696"),
+            TestHelpers.create_position_with_embedding("US Governor", "Q889821")
         ]
         uk_positions = [
-            Position(name="UK Prime Minister", wikidata_id="Q14212"),
-            Position(name="UK Minister", wikidata_id="Q83307")
+            TestHelpers.create_position_with_embedding("UK Prime Minister", "Q14212"),
+            TestHelpers.create_position_with_embedding("UK Minister", "Q83307")
         ]
         
+        # Assign countries and save
         for pos in us_positions:
             pos.countries.append(us_country)
-            test_session.add(pos)
         for pos in uk_positions:
             pos.countries.append(uk_country)
-            test_session.add(pos)
-        test_session.commit()
         
-        # Embeddings are automatically generated on insert
+        all_positions = us_positions + uk_positions
+        TestHelpers.create_and_commit(test_session, *all_positions)
         
-        # Search with US country filter
-        us_results = Position.find_similar(
-            test_session, "Executive Leader", top_k=5, country_filter="US"
+        # Test basic similarity search
+        results = TestHelpers.similarity_search(test_session, Position, "Chief Executive", limit=2)
+        assert len(results) <= 2
+        assert all(isinstance(pos, Position) for pos in results)
+        
+        # Test country filtering
+        us_results = TestHelpers.similarity_search(
+            test_session, Position, "Executive Leader", limit=5, country_filter=us_country
         )
-        
-        # Results should only include US positions
-        for item in us_results:
-            pos, score = item
+        for pos in us_results:
             assert us_country in pos.countries
             assert uk_country not in pos.countries
-
-    def test_find_similar_with_invalid_country_filter(self, test_session):
-        """Test similarity search with invalid country code returns empty list."""
-        # Create a position
-        position = Position(name="President", wikidata_id="Q11696")
-        test_session.add(position)
-        test_session.commit()
         
-        # Embedding is automatically generated on insert
+        # Test limit behavior
+        no_results = TestHelpers.similarity_search(test_session, Position, "Query", limit=0)
+        assert no_results == []
         
-        # Search with invalid country code
-        results = Position.find_similar(
-            test_session, "Leader", top_k=5, country_filter="XX"
-        )
-        
-        assert results == []
-
-    def test_find_similar_no_matches(self, test_session):
-        """Test similarity search returns limited results based on top_k parameter."""
-        # Create positions with very different names
-        positions = [
-            Position(name="XYZ123ABC", wikidata_id="Q99901"),
-            Position(name="DEF456GHI", wikidata_id="Q99902")
-        ]
-        
-        for pos in positions:
-            test_session.add(pos)
-        test_session.commit()
-        
-        # Embeddings are automatically generated on insert
-        
-        # Search with top_k=0 should return empty list
-        results = Position.find_similar(test_session, "Completely Different Query String", top_k=0)
-        assert results == []
-        
-        # Search with top_k=1 should return at most 1 result
-        results = Position.find_similar(test_session, "Another Different Query", top_k=1)
-        assert len(results) <= 1
-
-    def test_embedding_deterministic_for_same_text(self, test_session):
-        """Test that same text produces same embedding."""
-        position1 = Position(name="Test Position", wikidata_id="Q1")
-        position2 = Position(name="Test Position", wikidata_id="Q2") 
-        
-        embedding1 = generate_embedding(position1.name)
-        embedding2 = generate_embedding(position2.name)
-        
-        # Same text should produce same embedding
-        assert embedding1 == embedding2
-
-    def test_embedding_different_for_different_text(self, test_session):
-        """Test that different text produces different embeddings."""
-        position1 = Position(name="President", wikidata_id="Q1")
-        position2 = Position(name="Secretary", wikidata_id="Q2")
-        
-        embedding1 = generate_embedding(position1.name)
-        embedding2 = generate_embedding(position2.name)
-        
-        # Different text should produce different embeddings
-        assert embedding1 != embedding2
+        one_result = TestHelpers.similarity_search(test_session, Position, "Query", limit=1)
+        assert len(one_result) <= 1
 
 
 class TestHoldsPosition:
@@ -414,27 +331,28 @@ class TestHoldsPosition:
 
     def test_holds_position_creation(self, test_session, sample_politician, sample_position):
         """Test basic holds position creation."""
-        holds_pos = HoldsPosition(
-            politician_id=sample_politician.id,
-            position_id=sample_position.id,
-            start_date="2019-01",
-            end_date="2023-12-31",
-            is_extracted=False,
-            confirmed_by="admin",
-            confirmed_at=datetime(2024, 1, 25, 16, 45, 0)
+        confirmed_at = datetime(2024, 1, 25, 16, 45, 0)
+        holds_pos = TestHelpers.create_and_commit(
+            test_session,
+            HoldsPosition(
+                politician_id=sample_politician.id,
+                position_id=sample_position.id,
+                start_date="2019-01",
+                end_date="2023-12-31",
+                is_extracted=False,
+                confirmed_by="admin",
+                confirmed_at=confirmed_at
+            )
         )
-        test_session.add(holds_pos)
-        test_session.commit()
-        test_session.refresh(holds_pos)
-
-        assert holds_pos.id is not None
-        assert holds_pos.politician_id == sample_politician.id
-        assert holds_pos.position_id == sample_position.id
-        assert holds_pos.start_date == "2019-01"
-        assert holds_pos.end_date == "2023-12-31"
-        assert holds_pos.is_extracted is False
-        assert holds_pos.confirmed_by == "admin"
-        assert holds_pos.confirmed_at is not None
+        TestHelpers.assert_basic_model_fields(holds_pos, {
+            "politician_id": sample_politician.id,
+            "position_id": sample_position.id,
+            "start_date": "2019-01",
+            "end_date": "2023-12-31",
+            "is_extracted": False,
+            "confirmed_by": "admin"
+        })
+        assert holds_pos.confirmed_at == confirmed_at
 
     def test_holds_position_incomplete_dates(self, test_session, sample_politician, sample_position):
         """Test handling of incomplete dates in HoldsPosition."""
@@ -467,19 +385,19 @@ class TestHoldsPosition:
 
     def test_holds_position_default_values(self, test_session, sample_politician, sample_position):
         """Test default values for holds position fields."""
-        holds_pos = HoldsPosition(
-            politician_id=sample_politician.id,
-            position_id=sample_position.id
+        holds_pos = TestHelpers.create_and_commit(
+            test_session,
+            HoldsPosition(politician_id=sample_politician.id, position_id=sample_position.id)
         )
-        test_session.add(holds_pos)
-        test_session.commit()
-        test_session.refresh(holds_pos)
-
-        assert holds_pos.is_extracted is True
-        assert holds_pos.confirmed_by is None
-        assert holds_pos.confirmed_at is None
-        assert holds_pos.start_date is None
-        assert holds_pos.end_date is None
+        TestHelpers.assert_basic_model_fields(holds_pos, {
+            "politician_id": sample_politician.id,
+            "position_id": sample_position.id,
+            "is_extracted": True,
+            "confirmed_by": None,
+            "confirmed_at": None,
+            "start_date": None,
+            "end_date": None
+        })
 
 
 
@@ -488,40 +406,31 @@ class TestHasCitizenship:
 
     def test_has_citizenship_creation(self, test_session, sample_politician, sample_country):
         """Test basic citizenship relationship creation."""
-        citizenship = HasCitizenship(
-            politician_id=sample_politician.id,
-            country_id=sample_country.id
+        citizenship = TestHelpers.create_and_commit(
+            test_session,
+            HasCitizenship(politician_id=sample_politician.id, country_id=sample_country.id)
         )
-        test_session.add(citizenship)
-        test_session.commit()
-        test_session.refresh(citizenship)
-
-        assert citizenship.id is not None
-        assert citizenship.politician_id == sample_politician.id
-        assert citizenship.country_id == sample_country.id
-        assert citizenship.created_at is not None
-        assert citizenship.updated_at is not None
+        TestHelpers.assert_basic_model_fields(citizenship, {
+            "politician_id": sample_politician.id,
+            "country_id": sample_country.id
+        })
 
 
     def test_has_citizenship_multiple_citizenships_per_politician(self, test_session, sample_politician):
         """Test that a politician can have multiple citizenships."""
         # Create two countries
-        country1 = Country(name="United States", iso_code="US")
-        country2 = Country(name="Canada", iso_code="CA")
-        test_session.add_all([country1, country2])
-        test_session.flush()
+        country1, country2 = TestHelpers.create_and_commit(
+            test_session,
+            Country(name="United States", iso_code="US"),
+            Country(name="Canada", iso_code="CA")
+        )
 
         # Create two citizenships for the same politician
-        citizenship1 = HasCitizenship(
-            politician_id=sample_politician.id,
-            country_id=country1.id
+        TestHelpers.create_and_commit(
+            test_session,
+            HasCitizenship(politician_id=sample_politician.id, country_id=country1.id),
+            HasCitizenship(politician_id=sample_politician.id, country_id=country2.id)
         )
-        citizenship2 = HasCitizenship(
-            politician_id=sample_politician.id,
-            country_id=country2.id
-        )
-        test_session.add_all([citizenship1, citizenship2])
-        test_session.commit()
 
         # Verify both citizenships exist
         citizenships = test_session.query(HasCitizenship).filter_by(
@@ -538,22 +447,18 @@ class TestHasCitizenship:
     def test_has_citizenship_multiple_politicians_per_country(self, test_session, sample_country):
         """Test that a country can have multiple citizen politicians."""
         # Create two politicians
-        politician1 = Politician(name="Alice Smith", wikidata_id="Q111")
-        politician2 = Politician(name="Bob Jones", wikidata_id="Q222")
-        test_session.add_all([politician1, politician2])
-        test_session.flush()
+        politician1, politician2 = TestHelpers.create_and_commit(
+            test_session,
+            Politician(name="Alice Smith", wikidata_id="Q111"),
+            Politician(name="Bob Jones", wikidata_id="Q222")
+        )
 
         # Create two citizenships for the same country
-        citizenship1 = HasCitizenship(
-            politician_id=politician1.id,
-            country_id=sample_country.id
+        TestHelpers.create_and_commit(
+            test_session,
+            HasCitizenship(politician_id=politician1.id, country_id=sample_country.id),
+            HasCitizenship(politician_id=politician2.id, country_id=sample_country.id)
         )
-        citizenship2 = HasCitizenship(
-            politician_id=politician2.id,
-            country_id=sample_country.id
-        )
-        test_session.add_all([citizenship1, citizenship2])
-        test_session.commit()
 
         # Verify both citizenships exist
         citizenships = test_session.query(HasCitizenship).filter_by(
@@ -692,19 +597,14 @@ class TestLocation:
 
     def test_location_creation(self, test_session):
         """Test basic location creation."""
-        location = Location(
-            name="New York City",
-            wikidata_id="Q60"
+        location = TestHelpers.create_and_commit(
+            test_session,
+            Location(name="New York City", wikidata_id="Q60")
         )
-        test_session.add(location)
-        test_session.commit()
-        test_session.refresh(location)
-
-        assert location.name == "New York City"
-        assert location.wikidata_id == "Q60"
-        assert location.id is not None
-        assert location.created_at is not None
-        assert location.updated_at is not None
+        TestHelpers.assert_basic_model_fields(location, {
+            "name": "New York City",
+            "wikidata_id": "Q60"
+        })
 
     def test_location_unique_wikidata_id(self, test_session):
         """Test that Wikidata ID must be unique."""
@@ -721,29 +621,20 @@ class TestLocation:
     def test_location_find_similar(self, test_session):
         """Test location similarity search functionality."""
         # Create test locations with embeddings
-        locations_data = [
-            ("New York City", "Q60"),
-            ("Los Angeles", "Q65"),
-            ("Chicago", "Q1297")
+        locations = [
+            TestHelpers.create_location_with_embedding("New York City", "Q60"),
+            TestHelpers.create_location_with_embedding("Los Angeles", "Q65"),
+            TestHelpers.create_location_with_embedding("Chicago", "Q1297")
         ]
         
-        locations = []
-        for name, wikidata_id in locations_data:
-            location = Location(name=name, wikidata_id=wikidata_id)
-            location.embedding = generate_embedding(name)
-            locations.append(location)
+        TestHelpers.create_and_commit(test_session, *locations)
         
-        test_session.add_all(locations)
-        test_session.commit()
-        
-        # Test similarity search (just verify it works and returns correct format)
-        similar = Location.find_similar(test_session, "New York", top_k=2)
-        assert len(similar) <= 2  # Should return at most 2 results
+        # Test similarity search
+        similar = TestHelpers.similarity_search(test_session, Location, "New York", limit=2)
+        assert len(similar) <= 2
         if len(similar) > 0:
-            # Verify we get tuples with (entity, similarity_score) format
-            assert len(similar[0]) == 2
-            assert hasattr(similar[0][0], 'name')
-            assert isinstance(similar[0][1], float)
+            assert isinstance(similar[0], Location)
+            assert hasattr(similar[0], 'name')
 
 
 class TestBornAt:
@@ -751,57 +642,53 @@ class TestBornAt:
 
     def test_born_at_creation(self, test_session, sample_politician):
         """Test basic BornAt relationship creation."""
-        location = Location(name="Paris", wikidata_id="Q90")
-        test_session.add(location)
-        test_session.flush()
-
-        born_at = BornAt(
-            politician_id=sample_politician.id,
-            location_id=location.id,
-            is_extracted=True
+        location = TestHelpers.create_and_commit(
+            test_session,
+            Location(name="Paris", wikidata_id="Q90")
         )
-        test_session.add(born_at)
-        test_session.commit()
-        test_session.refresh(born_at)
 
-        assert born_at.politician_id == sample_politician.id
-        assert born_at.location_id == location.id
-        assert born_at.is_extracted is True
-        assert born_at.confirmed_by is None
-        assert born_at.confirmed_at is None
-        assert born_at.id is not None
+        born_at = TestHelpers.create_and_commit(
+            test_session,
+            BornAt(politician_id=sample_politician.id, location_id=location.id, is_extracted=True)
+        )
+        TestHelpers.assert_basic_model_fields(born_at, {
+            "politician_id": sample_politician.id,
+            "location_id": location.id,
+            "is_extracted": True,
+            "confirmed_by": None,
+            "confirmed_at": None
+        })
 
     def test_born_at_default_values(self, test_session, sample_politician):
         """Test BornAt model default values."""
-        location = Location(name="London", wikidata_id="Q84")
-        test_session.add(location)
-        test_session.flush()
-
-        born_at = BornAt(
-            politician_id=sample_politician.id,
-            location_id=location.id
+        location = TestHelpers.create_and_commit(
+            test_session,
+            Location(name="London", wikidata_id="Q84")
         )
-        test_session.add(born_at)
-        test_session.commit()
-        test_session.refresh(born_at)
 
-        assert born_at.is_extracted is True  # Default value
-        assert born_at.confirmed_by is None
-        assert born_at.confirmed_at is None
+        born_at = TestHelpers.create_and_commit(
+            test_session,
+            BornAt(politician_id=sample_politician.id, location_id=location.id)
+        )
+        TestHelpers.assert_basic_model_fields(born_at, {
+            "politician_id": sample_politician.id,
+            "location_id": location.id,
+            "is_extracted": True,
+            "confirmed_by": None,
+            "confirmed_at": None
+        })
 
     def test_born_at_confirmation(self, test_session, sample_politician):
         """Test BornAt confirmation workflow."""
-        location = Location(name="Berlin", wikidata_id="Q64")
-        test_session.add(location)
-        test_session.flush()
-
-        born_at = BornAt(
-            politician_id=sample_politician.id,
-            location_id=location.id,
-            is_extracted=True
+        location = TestHelpers.create_and_commit(
+            test_session,
+            Location(name="Berlin", wikidata_id="Q64")
         )
-        test_session.add(born_at)
-        test_session.commit()
+
+        born_at = TestHelpers.create_and_commit(
+            test_session,
+            BornAt(politician_id=sample_politician.id, location_id=location.id, is_extracted=True)
+        )
 
         # Confirm the relationship
         confirmation_time = datetime.now(timezone.utc)
@@ -818,16 +705,15 @@ class TestBornAt:
 
     def test_born_at_relationships(self, test_session, sample_politician):
         """Test BornAt model relationships."""
-        location = Location(name="Tokyo", wikidata_id="Q1490")
-        test_session.add(location)
-        test_session.flush()
-
-        born_at = BornAt(
-            politician_id=sample_politician.id,
-            location_id=location.id
+        location = TestHelpers.create_and_commit(
+            test_session,
+            Location(name="Tokyo", wikidata_id="Q1490")
         )
-        test_session.add(born_at)
-        test_session.commit()
+
+        born_at = TestHelpers.create_and_commit(
+            test_session,
+            BornAt(politician_id=sample_politician.id, location_id=location.id)
+        )
 
         # Test politician relationship
         assert born_at.politician.id == sample_politician.id
@@ -845,16 +731,15 @@ class TestBornAt:
 
     def test_born_at_cascade_delete(self, test_session, sample_politician):
         """Test that deleting a politician cascades to BornAt relationships."""
-        location = Location(name="Rome", wikidata_id="Q220")
-        test_session.add(location)
-        test_session.flush()
-
-        born_at = BornAt(
-            politician_id=sample_politician.id,
-            location_id=location.id
+        location = TestHelpers.create_and_commit(
+            test_session,
+            Location(name="Rome", wikidata_id="Q220")
         )
-        test_session.add(born_at)
-        test_session.commit()
+
+        born_at = TestHelpers.create_and_commit(
+            test_session,
+            BornAt(politician_id=sample_politician.id, location_id=location.id)
+        )
         born_at_id = born_at.id
 
         # Delete politician should cascade to BornAt

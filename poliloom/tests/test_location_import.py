@@ -221,11 +221,18 @@ class TestLocationImport:
                 import_service = ImportService()
                 import_service.import_all_locations()
 
-                # Test similarity search (just verify it works and returns correct format)
-                similar = Location.find_similar(test_session, "New York", top_k=2)
+                # Test similarity search using direct query
+                from poliloom.embeddings import generate_embedding
+                query_embedding = generate_embedding("New York")
+                
+                similar = test_session.query(Location).filter(
+                    Location.embedding.isnot(None)
+                ).order_by(
+                    Location.embedding.cosine_distance(query_embedding)
+                ).limit(2).all()
+                
                 assert len(similar) <= 2  # Should return at most 2 results
                 if len(similar) > 0:
-                    # Verify we get tuples with (entity, similarity_score) format
-                    assert len(similar[0]) == 2
-                    assert hasattr(similar[0][0], 'name')
-                    assert isinstance(similar[0][1], float)
+                    # Verify we get Location objects
+                    assert isinstance(similar[0], Location)
+                    assert hasattr(similar[0], 'name')
