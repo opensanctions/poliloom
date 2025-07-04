@@ -45,30 +45,42 @@ The database reproduces a subset of the Wikidata politician data model to store 
 
 ### **4.1. Data Import / Database Population**
 
-This module is responsible for initially populating the local database with politician data.
+This module is responsible for initially populating the local database with politician data using Wikidata dump processing instead of API calls.
 
-- **Wikidata Querying:**
-  - Utilize SPARQL queries to fetch Politician entities from Wikidata, primarily by occupation (Q82955) and position held (Q39486).
-  - Implement pagination for large queries.
-  - Fetch associated properties and positions directly from Wikidata for initial comparison.
-  - Identify and store Wikidata IDs and English/local language Wikipedia URLs.
+- **Wikidata Dump Processing:**
+  - Process the complete Wikidata dump file (latest-all.json.gz) directly without decompression to disk
+  - Stream compressed file line-by-line for memory efficiency and minimal disk space usage
+  - Extract politicians by filtering entities with occupation (Q82955) or position held (Q39486) properties
+  - Support both local compressed files and direct streaming from Wikidata dump URLs
+  - Process entities in batches for efficient database insertion
+  - **REFACTOR:** Remove existing SPARQL-based politician import logic and replace with dump processing
+- **Entity Extraction Strategy:**
+  - Identify politicians through occupation properties (P106) and position held properties (P39)
+  - Extract basic politician data: name, birth date, birth place, political positions with dates
+  - Handle incomplete dates and multilingual names from dump data
+  - Extract Wikipedia article links (sitelinks) for subsequent enrichment
+  - **REFACTOR:** Replace existing entity fetching with dump-based extraction
 - **Country Data Handling:**
-  - Countries are created on-demand when referenced during politician import or data extraction.
-  - Use pycountry library to resolve ISO codes to country names and validate country data.
+  - Countries are created on-demand when referenced during politician import or data extraction
+  - Use pycountry library to resolve ISO codes to country names and validate country data
+  - **REFACTOR:** Update country creation to work with dump-extracted data
 - **Position Data Handling:**
-  - During politician import, only link politicians to positions that already exist in the database.
-  - Do not create new Position entities during politician import - positions should be imported separately or through dedicated position import functionality.
-  - This ensures we only work with positions that have been explicitly imported and are known to the system.
+  - Extract all political positions from the dump during processing
+  - Create Position entities directly from dump data with embeddings for similarity search
+  - Link politicians to positions during the same processing run
+  - **REFACTOR:** Replace position import functionality to work with dump data
 - **Location Data Handling:**
-  - During politician import, only link politicians to locations (birthplaces) that already exist in the database.
-  - Do not create new Location entities during politician import - locations should be imported separately or through dedicated location import functionality.
-  - This ensures we only work with locations that have been explicitly imported and are known to the system.
+  - Extract all geographic locations from the dump during processing
+  - Create Location entities directly from dump data with embeddings for similarity search
+  - Link politicians to birthplaces during the same processing run
+  - **REFACTOR:** Replace location import functionality to work with dump data
 - **Wikipedia Linkage:**
-  - Connect Wikidata entities to their corresponding English and local language Wikipedia articles.
-  - Prioritize existing links from Wikidata.
-  - Handle cases where Wikidata entities lack Wikipedia links or Wikipedia articles lack Wikidata entries.
+  - Extract Wikipedia article links directly from entity sitelinks in the dump
+  - Prioritize English and local language versions
+  - Store links for subsequent enrichment processing
 - **Deceased People Filtering (Optional/Configurable):**
-  - Provide a mechanism to filter out deceased politicians, possibly through Wikidata property (P570: date of death) or rule-based filtering on Wikipedia categories/keywords.
+  - Filter out deceased politicians using date of death property (P570) from dump data
+  - Support configurable filtering during dump processing
 
 ### **4.2. Data Extraction / Enrichment**
 
@@ -111,6 +123,7 @@ The API will expose endpoints for the GUI to manage confirmation workflows. Auth
   - Accept JWT tokens from MediaWiki OAuth 2.0 flow in Authorization header (Bearer format).
   - Verify JWT token signatures using MediaWiki's public keys or token introspection endpoint.
   - Ensure secure handling of user tokens and permissions.
+- **Routes:**
 
 - **OpenAPI Documentation**: The complete API specification is available at `http://localhost:8000/openapi.json` when the backend server is running. To fetch it using curl:
 
@@ -120,9 +133,22 @@ curl http://localhost:8000/openapi.json
 
 ### **4.4. CLI Commands**
 
-- **poliloom politicians import --id \<wikidata_id\>**
+- **poliloom dump download [--output PATH] [--url URL]**
 
-  - Imports a single politician entity from Wikidata based on its Wikidata ID.
+  - Download the latest Wikidata dump to disk for offline processing
+  - **--output**: Local path to save the dump file (default: ./latest-all.json.gz)
+  - **--url**: Custom dump URL (default: https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.gz)
+  - Shows download progress and verifies file integrity
+  - **REFACTOR:** New command to support offline processing workflow
+
+- **poliloom dump process [--file FILE] [--url URL] [--batch-size SIZE]**
+
+  - Process Wikidata dump to extract politicians, positions, and locations
+  - **--file**: Process local compressed dump file (recommended for multiple runs)
+  - **--url**: Stream directly from Wikidata dump URL (single-use, requires stable internet)
+  - **--batch-size**: Number of entities to process in each database batch (default: 100)
+  - **Behavior**: Exactly one of --file or --url must be specified
+  - **REFACTOR:** Replace individual import commands with unified dump processing
 
 - **poliloom politicians enrich --id \<wikidata_id\>**
 
@@ -132,43 +158,35 @@ curl http://localhost:8000/openapi.json
 
   - Display comprehensive information about a politician, distinguishing between imported and extracted data.
 
-- **poliloom positions import**
-
-  - Import all political positions from Wikidata to populate the local Position table.
-
-- **poliloom positions import-csv --file \<csv_file\>**
-
-  - Import political positions from a custom CSV file.
-
-- **poliloom positions embed**
-
-  - Generate embeddings for all positions that don't have embeddings yet. Uses GPU if available.
-
-- **poliloom locations import**
-
-  - Import all geographic locations from Wikidata to populate the local Location table.
-
-- **poliloom locations embed**
-
-  - Generate embeddings for all locations that don't have embeddings yet. Uses GPU if available.
-
 - **poliloom serve [--host HOST] [--port PORT] [--reload]**
   - Start the FastAPI web server.
 
-- **poliloom database truncate [--all] [--table TABLE] [--yes]**
-  - Truncate database tables while preserving schema.
+**Recommended Workflow:**
+1. `poliloom dump download` - Download dump to disk (one-time, ~100GB)
+2. `poliloom dump process --file latest-all.json.gz` - Process from disk (can be repeated)
+
+**Alternative (Direct Stream):**
+- `poliloom dump process --url https://dumps.wikimedia.org/...` - Process directly from URL
+
+**Deprecated Commands (to be removed):**
+- **~~poliloom politicians import~~** - **REFACTOR:** Remove, replaced by dump processing
+- **~~poliloom positions import~~** - **REFACTOR:** Remove, replaced by dump processing  
+- **~~poliloom positions import-csv~~** - **REFACTOR:** Remove, replaced by dump processing
+- **~~poliloom locations import~~** - **REFACTOR:** Remove, replaced by dump processing
 
 ## **5\. External Integrations**
 
-- **Wikidata API:** Used for initial database population, querying political positions and geographic locations, and potentially updating Wikidata (after user confirmation via the GUI).
-- **MediaWiki OAuth 2.0:** For user authentication within the API using JWT tokens.
-- **OpenAI API:** For all LLM-based data extraction from web content.
+- **Wikidata Dumps:** Primary data source via compressed dump files (latest-all.json.gz) for bulk entity extraction
+- **Wikidata API:** **REFACTOR:** Minimize usage, only for updating Wikidata after user confirmation via GUI
+- **MediaWiki OAuth 2.0:** For user authentication within the API using JWT tokens
+- **OpenAI API:** For all LLM-based data extraction from web content
+- **Wikipedia API:** For fetching article content during enrichment process
 
 ## **6\. Key Design Considerations**
 
 - **Data Validation:** Implement robust data validation for all incoming data, especially from LLM extraction, before storing in the database.
 - **Error Handling:** Implement comprehensive error handling and logging for all API calls and CLI operations.
-- **Performance:** Optimize database queries and LLM interactions for performance, especially during bulk operations. Consider caching strategies where appropriate. Embedding generation is performed separately from import operations using dedicated commands that leverage GPU acceleration when available.
+- **Performance:** Optimize database queries and LLM interactions for performance, especially during bulk operations. Consider caching strategies where appropriate.
 - **Scalability:** Design the API to be scalable for future increases in data volume and user load.
 - **Conflicting Information:** Develop a clear strategy for handling conflicting data between sources. This might involve flagging conflicts for manual review or implementing a confidence scoring system.
 - **Archiving Web Sources:** A decision needs to be made on whether to archive web sources (e.g., using a web archiving service or local storage) to ensure data provenance, or simply store URLs. For the initial proof of concept, storing URLs is sufficient.
@@ -201,19 +219,21 @@ This focused approach ensures robust testing of critical data pipeline component
 ### **7.1. Required Test Coverage**
 
 - **Database Models**: Relationships, date handling, CRUD operations, Country model
-- **Wikidata Import**: Mock SPARQL responses, entity creation, error handling
+- **Wikidata Dump Processing**: Mock dump file content, entity extraction, batch processing, error handling
 - **LLM Extraction**: Mock OpenAI responses, property/position extraction, conflict detection
 - **API Endpoints**: Both endpoints with auth mocking, error responses, pagination
+- **REFACTOR**: Update existing Wikidata import tests to use dump processing instead of SPARQL
 
 ### **7.2. Key Fixtures (conftest.py)**
 
 - PostgreSQL test database (using docker-compose for CI/CD)
 - Sample politician and country data
-- Mock Wikidata SPARQL responses (politicians)
+- Mock Wikidata dump file content (compressed JSON entities)
 - Mock OpenAI structured extraction responses
 - Sample Wikipedia content
+- **REFACTOR**: Replace Wikidata SPARQL response mocks with dump processing mocks
 
-**Priority**: Test the main data flow thoroughly. Mock all external APIs (Wikidata, OpenAI, MediaWiki OAuth). Handle incomplete dates, conflicting data, and API failures.
+**Priority**: Test the main data flow thoroughly. Mock dump file processing, OpenAI API, and MediaWiki OAuth. Handle incomplete dates, conflicting data, and processing failures.
 
 ### **7.3. Development Environment**
 
@@ -221,4 +241,3 @@ This focused approach ensures robust testing of critical data pipeline component
 - **Database Setup:** Single PostgreSQL instance for both development and testing
 - **Vector Extensions:** pgvector extension enabled for semantic similarity search
 - **Simplified Architecture:** Removal of SQLite/PostgreSQL dual support reduces complexity and ensures consistent behavior across environments
-- **Code Quality:** Pre-commit hooks automatically run `ruff check --fix` and `ruff format` before commits to ensure consistent code style and catch linting issues
