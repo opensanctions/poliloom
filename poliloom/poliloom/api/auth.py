@@ -1,9 +1,7 @@
 """MediaWiki OAuth authentication for API routes."""
 import os
 from typing import Optional
-from urllib.parse import urlparse, parse_qs
 
-import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt

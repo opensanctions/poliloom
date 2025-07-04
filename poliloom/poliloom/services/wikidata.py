@@ -1,12 +1,41 @@
 """Wikidata API client for fetching politician data."""
 
 import httpx
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Callable
 import logging
 import time
 from random import uniform
+from functools import wraps
 
 logger = logging.getLogger(__name__)
+
+
+def with_retry(max_retries: int = 10, base_delay: float = 2.0, max_delay: float = 5.0, return_on_failure=None):
+    """Decorator for adding retry logic with exponential backoff."""
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    if attempt > 0:
+                        # Enhanced exponential backoff with jitter
+                        delay = uniform(base_delay, max_delay) * (2 ** attempt)
+                        operation_name = getattr(func, '__name__', 'operation')
+                        logger.info(f"Retrying {operation_name} after {delay:.1f}s delay (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(delay)
+                    
+                    return func(*args, **kwargs)
+                except (httpx.RequestError, httpx.TimeoutException, httpx.HTTPStatusError) as e:
+                    operation_name = getattr(func, '__name__', 'operation')
+                    logger.warning(f"{operation_name} attempt {attempt + 1} failed: {e}")
+                    if attempt == max_retries - 1:
+                        logger.error(f"All {max_retries} attempts failed for {operation_name}")
+                        if return_on_failure is not None:
+                            return return_on_failure
+                        raise
+            return None
+        return wrapper
+    return decorator
 
 
 class WikidataClient:
@@ -17,7 +46,36 @@ class WikidataClient:
 
     def __init__(self):
         # Use longer timeout for SPARQL queries which can be slow
-        self.session = httpx.Client(timeout=60.0)
+        self.session = httpx.Client(timeout=120.0)
+    
+    def _execute_sparql_query(self, query: str) -> Optional[Dict[str, Any]]:
+        """Execute a SPARQL query with common error handling."""
+        response = self.session.get(
+            self.SPARQL_ENDPOINT,
+            params={"query": query, "format": "json"},
+            headers={"User-Agent": "PoliLoom/1.0 (https://github.com/user/poliloom)"}
+        )
+        response.raise_for_status()
+        return response.json()
+    
+    def _get_entity_data(self, entity_id: str, props: str = "labels") -> Optional[Dict[str, Any]]:
+        """Generic method to fetch entity data from Wikidata API."""
+        response = self.session.get(
+            self.API_ENDPOINT,
+            params={
+                "action": "wbgetentities",
+                "ids": entity_id,
+                "format": "json",
+                "languages": "en",
+                "props": props,
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        if "entities" in data and entity_id in data["entities"]:
+            return data["entities"][entity_id]
+        return None
 
     def get_politician_by_id(self, wikidata_id: str) -> Optional[Dict[str, Any]]:
         """Fetch politician data from Wikidata by ID using SPARQL for efficient country code retrieval."""
@@ -99,15 +157,9 @@ class WikidataClient:
         """
 
         try:
-            response = self.session.get(
-                self.SPARQL_ENDPOINT,
-                params={"query": sparql_query, "format": "json"},
-                headers={
-                    "User-Agent": "PoliLoom/1.0 (https://github.com/user/poliloom)"
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
+            data = self._execute_sparql_query(sparql_query)
+            if not data:
+                return None
 
             results = data.get("results", {}).get("bindings", [])
             if not results:
@@ -117,7 +169,7 @@ class WikidataClient:
 
             return self._parse_sparql_politician_data(result)
 
-        except httpx.RequestError as e:
+        except (httpx.RequestError, httpx.TimeoutException, httpx.HTTPStatusError) as e:
             logger.error(f"Error fetching SPARQL data for {entity_id}: {e}")
             return None
 
@@ -463,58 +515,35 @@ class WikidataClient:
     def _get_entity_label(self, entity_id: str) -> Optional[str]:
         """Get the English label for a Wikidata entity."""
         try:
-            response = self.session.get(
-                self.API_ENDPOINT,
-                params={
-                    "action": "wbgetentities",
-                    "ids": entity_id,
-                    "format": "json",
-                    "languages": "en",
-                    "props": "labels",
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-
-            if "entities" in data and entity_id in data["entities"]:
+            entity_data = self._get_entity_data(entity_id, "labels")
+            if entity_data:
                 return (
-                    data["entities"][entity_id]
+                    entity_data
                     .get("labels", {})
                     .get("en", {})
                     .get("value")
                 )
-        except httpx.RequestError:
+        except (httpx.RequestError, httpx.TimeoutException, httpx.HTTPStatusError):
             logger.warning(f"Could not fetch label for entity {entity_id}")
         return None
 
     def _get_country_code(self, entity_id: str) -> Optional[str]:
         """Get ISO country code for a country entity."""
         try:
-            response = self.session.get(
-                self.API_ENDPOINT,
-                params={
-                    "action": "wbgetentities",
-                    "ids": entity_id,
-                    "format": "json",
-                    "languages": "en",
-                    "props": "claims",
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-
-            if "entities" in data and entity_id in data["entities"]:
-                claims = data["entities"][entity_id].get("claims", {})
+            entity_data = self._get_entity_data(entity_id, "claims")
+            if entity_data:
+                claims = entity_data.get("claims", {})
                 # ISO 3166-1 alpha-2 code (P297)
                 iso_codes = claims.get("P297", [])
                 for claim in iso_codes:
                     datavalue = claim.get("mainsnak", {}).get("datavalue", {})
                     if datavalue.get("type") == "string":
                         return datavalue.get("value")
-        except httpx.RequestError:
+        except (httpx.RequestError, httpx.TimeoutException, httpx.HTTPStatusError):
             logger.warning(f"Could not fetch country code for entity {entity_id}")
         return None
 
+    @with_retry(max_retries=10, return_on_failure=[])
     def get_all_positions(self) -> List[Dict[str, Any]]:
         """Fetch all political positions from Wikidata using SPARQL."""
         sparql_query = """
@@ -529,50 +558,40 @@ class WikidataClient:
         } GROUP BY ?position ?positionLabel
         """
 
-        try:
-            response = self.session.get(
-                self.SPARQL_ENDPOINT,
-                params={"query": sparql_query, "format": "json"},
-                headers={
-                    "User-Agent": "PoliLoom/1.0 (https://github.com/user/poliloom)"
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-
-            positions = []
-            for result in data.get("results", {}).get("bindings", []):
-                position_uri = result.get("position", {}).get("value", "")
-                position_id = position_uri.split("/")[-1] if position_uri else None
-
-                if position_id:
-                    # Parse country codes
-                    country_codes_str = result.get("countryCodes", {}).get("value", "")
-                    country_codes = (
-                        [
-                            code.strip()
-                            for code in country_codes_str.split(",")
-                            if code.strip()
-                        ]
-                        if country_codes_str
-                        else []
-                    )
-
-                    positions.append(
-                        {
-                            "wikidata_id": position_id,
-                            "name": result.get("positionLabel", {}).get("value", ""),
-                            "country_codes": country_codes,
-                        }
-                    )
-
-            logger.info(f"Fetched {len(positions)} political positions from Wikidata")
-            return positions
-
-        except httpx.RequestError as e:
-            logger.error(f"Error fetching positions from Wikidata: {e}")
+        data = self._execute_sparql_query(sparql_query)
+        if not data:
             return []
 
+        positions = []
+        for result in data.get("results", {}).get("bindings", []):
+            position_uri = result.get("position", {}).get("value", "")
+            position_id = position_uri.split("/")[-1] if position_uri else None
+
+            if position_id:
+                # Parse country codes
+                country_codes_str = result.get("countryCodes", {}).get("value", "")
+                country_codes = (
+                    [
+                        code.strip()
+                        for code in country_codes_str.split(",")
+                        if code.strip()
+                    ]
+                    if country_codes_str
+                    else []
+                )
+
+                positions.append(
+                    {
+                        "wikidata_id": position_id,
+                        "name": result.get("positionLabel", {}).get("value", ""),
+                        "country_codes": country_codes,
+                    }
+                )
+
+        logger.info(f"Fetched {len(positions)} political positions from Wikidata")
+        return positions
+
+    @with_retry(max_retries=10, return_on_failure=[])
     def get_all_locations(self, limit: int = 10000, offset: int = 0) -> List[Dict[str, Any]]:
         """Fetch all geographic locations from Wikidata using SPARQL with pagination."""
         sparql_query = f"""
@@ -587,46 +606,25 @@ class WikidataClient:
         OFFSET {offset}
         """
 
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                # Add small delay between requests to be respectful
-                if attempt > 0:
-                    delay = uniform(1.0, 3.0) * (2 ** attempt)  # Exponential backoff
-                    logger.info(f"Retrying locations query after {delay:.1f}s delay (attempt {attempt + 1}/{max_retries})")
-                    time.sleep(delay)
-                
-                response = self.session.get(
-                    self.SPARQL_ENDPOINT,
-                    params={"query": sparql_query, "format": "json"},
-                    headers={
-                        "User-Agent": "PoliLoom/1.0 (https://github.com/user/poliloom)"
-                    },
+        data = self._execute_sparql_query(sparql_query)
+        if not data:
+            return []
+
+        locations = []
+        for result in data.get("results", {}).get("bindings", []):
+            place_uri = result.get("place", {}).get("value", "")
+            place_id = place_uri.split("/")[-1] if place_uri else None
+
+            if place_id:
+                locations.append(
+                    {
+                        "wikidata_id": place_id,
+                        "name": result.get("placeLabel", {}).get("value", ""),
+                    }
                 )
-                response.raise_for_status()
-                data = response.json()
 
-                locations = []
-                for result in data.get("results", {}).get("bindings", []):
-                    place_uri = result.get("place", {}).get("value", "")
-                    place_id = place_uri.split("/")[-1] if place_uri else None
-
-                    if place_id:
-                        locations.append(
-                            {
-                                "wikidata_id": place_id,
-                                "name": result.get("placeLabel", {}).get("value", ""),
-                            }
-                        )
-
-                logger.info(f"Fetched {len(locations)} geographic locations from Wikidata (offset: {offset})")
-                return locations
-
-            except (httpx.RequestError, httpx.TimeoutException) as e:
-                logger.warning(f"Locations query attempt {attempt + 1} failed: {e}")
-                if attempt == max_retries - 1:
-                    logger.error(f"All {max_retries} attempts failed for locations query")
-                    return []
+        logger.info(f"Fetched {len(locations)} geographic locations from Wikidata (offset: {offset})")
+        return locations
 
     def close(self):
         """Close the HTTP session."""

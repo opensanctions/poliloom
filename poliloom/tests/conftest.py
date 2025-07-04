@@ -7,7 +7,9 @@ from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 from unittest.mock import patch
 
-from poliloom.models import Base, Politician, Source, Property, Position, HoldsPosition, Country
+from poliloom.models import (
+    Base, Politician, Source, Property, Position, HoldsPosition, Country
+)
 
 
 class MockSentenceTransformer:
@@ -63,7 +65,14 @@ def load_json_fixture(filename):
 @pytest.fixture
 def test_engine():
     """Create an in-memory SQLite database for testing."""
-    engine = create_engine("sqlite:///:memory:", echo=False)
+    # Import all models to ensure they're registered with Base
+    import poliloom.models  # noqa: F401
+    
+    engine = create_engine(
+        "sqlite:///:memory:", 
+        echo=False,
+        connect_args={"check_same_thread": False}
+    )
     Base.metadata.create_all(engine)
     return engine
 

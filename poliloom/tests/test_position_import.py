@@ -56,7 +56,8 @@ class TestPositionImport:
         """Test handling of network errors when fetching positions."""
         wikidata_client = WikidataClient()
         
-        with patch.object(wikidata_client.session, 'get') as mock_get:
+        with patch.object(wikidata_client.session, 'get') as mock_get, \
+             patch('time.sleep'):
             mock_get.side_effect = httpx.RequestError("Network error")
             
             result = wikidata_client.get_all_positions()

@@ -70,8 +70,27 @@ class TestLocationImport:
 
     def test_get_all_locations_network_error(self):
         """Test handling of network errors when fetching locations."""
-        with patch('httpx.Client.get') as mock_get:
+        with patch('httpx.Client.get') as mock_get, \
+             patch('time.sleep'):
             mock_get.side_effect = httpx.RequestError("Network error")
+
+            client = WikidataClient()
+            result = client.get_all_locations()
+
+            assert result == []
+
+    def test_get_all_locations_http_status_error(self):
+        """Test handling of HTTP status errors (like 504 Gateway Timeout) when fetching locations."""
+        with patch('httpx.Client.get') as mock_get, \
+             patch('time.sleep'):
+            # Create a mock response that will raise HTTPStatusError on raise_for_status()
+            mock_response = Mock()
+            mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+                message="504 Gateway Timeout",
+                request=Mock(),
+                response=Mock()
+            )
+            mock_get.return_value = mock_response
 
             client = WikidataClient()
             result = client.get_all_locations()

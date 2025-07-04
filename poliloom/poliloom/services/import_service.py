@@ -414,9 +414,6 @@ class ImportService:
         finally:
             db.close()
 
-    def _generate_batch_embeddings(self, texts: list) -> list:
-        """Generate embeddings for a batch of texts."""
-        return generate_batch_embeddings(texts)
 
     def _update_embeddings(self, db: Session, entities: list, entity_type: str):
         """Update embeddings for a batch of entities (positions or locations)."""
@@ -428,7 +425,7 @@ class ImportService:
         logger.info(f"Generating embeddings for {len(entity_names)} {entity_type}...")
 
         # Generate embeddings in batch
-        embeddings = self._generate_batch_embeddings(entity_names)
+        embeddings = generate_batch_embeddings(entity_names)
 
         # Update entities with their embeddings
         for entity, embedding in zip(entities, embeddings):

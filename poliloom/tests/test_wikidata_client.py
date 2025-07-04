@@ -104,6 +104,22 @@ class TestWikidataClient:
             
             assert result is None
     
+    def test_get_politician_by_id_http_status_error(self, wikidata_client):
+        """Test handling of HTTP status errors like 504 Gateway Timeout."""
+        with patch.object(wikidata_client.session, 'get') as mock_get:
+            # Create a mock response that will raise HTTPStatusError on raise_for_status()
+            mock_response = Mock()
+            mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+                message="504 Gateway Timeout",
+                request=Mock(),
+                response=Mock()
+            )
+            mock_get.return_value = mock_response
+            
+            result = wikidata_client.get_politician_by_id("Q123456")
+            
+            assert result is None
+    
     def test_extract_incomplete_dates(self, wikidata_client):
         """Test extraction of incomplete dates with different precisions."""
         # Test year precision

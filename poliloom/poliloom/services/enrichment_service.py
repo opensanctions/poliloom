@@ -14,7 +14,6 @@ from typing import Literal
 
 from ..models import Politician, Property, Position, HoldsPosition
 from ..database import SessionLocal
-from ..embeddings import generate_embedding
 
 logger = logging.getLogger(__name__)
 
