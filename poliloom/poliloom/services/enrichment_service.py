@@ -12,7 +12,7 @@ from openai import OpenAI
 from pydantic import BaseModel, create_model
 from typing import Literal
 
-from ..models import Politician, Property, Position, HoldsPosition, Location, BornAt
+from ..models import Politician, Property, Position, HoldsPosition, Location, BornAt, Country
 from ..database import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -382,6 +382,7 @@ class EnrichmentService:
 Rules:
 - Choose the Wikidata position that best matches the extracted position
 - Consider the context provided in the proof text
+- PREFER country-specific positions over generic ones (e.g., "Minister of Foreign Affairs (Myanmar)" over "Minister of Foreign Affairs")
 - If no candidate position is a good match, return None
 - Be precise - only match if you're confident the positions refer to the same role"""
 
@@ -597,22 +598,9 @@ Country: {country or 'Unknown'}"""
     def _map_position_to_wikidata(
         self, db: Session, free_pos: FreeFormExtractedPosition, politician: Politician
     ) -> Optional[ExtractedPosition]:
-        """Stage 2: Map a free-form position to Wikidata position or return None."""
+        """Stage 2: Map a free-form position to Wikidata position using similarity search + LLM mapping."""
         try:
-            # First check for exact match
-            exact_match = self._find_exact_position_match(db, free_pos.name)
-            if exact_match:
-                logger.debug(
-                    f"Exact match found: '{free_pos.name}' -> '{exact_match.name}'"
-                )
-                return ExtractedPosition(
-                    name=exact_match.name,
-                    start_date=free_pos.start_date,
-                    end_date=free_pos.end_date,
-                    proof=free_pos.proof,
-                )
-
-            # No exact match - use similarity search + LLM mapping
+            # Use similarity search + LLM mapping
             similar_positions = self._get_similar_positions_for_mapping(
                 db, free_pos.name, politician
             )
@@ -832,20 +820,9 @@ Select the best match or None if no good match exists."""
     def _map_birthplace_to_wikidata(
         self, db: Session, free_birth: FreeFormExtractedBirthplace, politician: Politician
     ) -> Optional[ExtractedBirthplace]:
-        """Stage 2: Map a free-form birthplace to Wikidata location or return None."""
+        """Stage 2: Map a free-form birthplace to Wikidata location using similarity search + LLM mapping."""
         try:
-            # First check for exact match
-            exact_match = self._find_exact_location_match(db, free_birth.location_name)
-            if exact_match:
-                logger.debug(
-                    f"Exact match found: '{free_birth.location_name}' -> '{exact_match.name}'"
-                )
-                return ExtractedBirthplace(
-                    location_name=exact_match.name,
-                    proof=free_birth.proof,
-                )
-
-            # No exact match - use similarity search + LLM mapping
+            # Use similarity search + LLM mapping
             similar_locations = self._get_similar_locations_for_mapping(
                 db, free_birth.location_name
             )

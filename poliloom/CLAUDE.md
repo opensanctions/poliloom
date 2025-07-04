@@ -85,16 +85,14 @@ This module extracts new properties and positions from web sources using LLMs.
   - **Two-Stage Position Extraction Strategy:** Due to OpenAI structured outputs API limitations (500 enum maximum) and countries having tens of thousands of positions (e.g., France: 78K+), use a refined two-stage approach:
     - **Stage 1 - Free-form Position Extraction:** Prompt the LLM to extract arbitrary political positions from Wikipedia content without constraints, allowing it to return natural language position descriptions
     - **Stage 2 - Wikidata Position Mapping:** For each extracted position:
-      - Check for exact matches against existing Wikidata positions in the database
-      - If no exact match, generate embeddings using SentenceTransformers ('all-MiniLM-L6-v2' model)
+      - Generate embeddings using SentenceTransformers ('all-MiniLM-L6-v2' model)
       - Perform vector similarity search to find the 100 most similar Wikidata positions
-      - Use OpenAI structured data API to map the extracted position to the correct Wikidata position or None
+      - Use OpenAI structured data API to map the extracted position to the correct Wikidata position or None, with preference for country-specific positions over generic ones
       - This avoids the noise issues of full-article similarity search while respecting API limitations
   - **Two-Stage Birthplace Extraction Strategy:** Similar to positions, use a two-stage approach for birthplace extraction:
     - **Stage 1 - Free-form Birthplace Extraction:** Prompt the LLM to extract birthplace information from Wikipedia content without constraints, allowing it to return natural language location descriptions
     - **Stage 2 - Wikidata Location Mapping:** For each extracted birthplace:
-      - Check for exact matches against existing Wikidata locations in the database
-      - If no exact match, generate embeddings using SentenceTransformers ('all-MiniLM-L6-v2' model)
+      - Generate embeddings using SentenceTransformers ('all-MiniLM-L6-v2' model)
       - Perform vector similarity search to find the 100 most similar Wikidata locations
       - Use OpenAI structured data API to map the extracted birthplace to the correct Wikidata location or None
 - **Similarity Search for Unlinked Entities:**
