@@ -10,8 +10,14 @@ from functools import wraps
 logger = logging.getLogger(__name__)
 
 
-def with_retry(max_retries: int = 10, base_delay: float = 2.0, max_delay: float = 5.0, return_on_failure=None):
+def with_retry(
+    max_retries: int = 10,
+    base_delay: float = 2.0,
+    max_delay: float = 5.0,
+    return_on_failure=None,
+):
     """Decorator for adding retry logic with exponential backoff."""
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -19,22 +25,34 @@ def with_retry(max_retries: int = 10, base_delay: float = 2.0, max_delay: float 
                 try:
                     if attempt > 0:
                         # Enhanced exponential backoff with jitter
-                        delay = uniform(base_delay, max_delay) * (2 ** attempt)
-                        operation_name = getattr(func, '__name__', 'operation')
-                        logger.info(f"Retrying {operation_name} after {delay:.1f}s delay (attempt {attempt + 1}/{max_retries})")
+                        delay = uniform(base_delay, max_delay) * (2**attempt)
+                        operation_name = getattr(func, "__name__", "operation")
+                        logger.info(
+                            f"Retrying {operation_name} after {delay:.1f}s delay (attempt {attempt + 1}/{max_retries})"
+                        )
                         time.sleep(delay)
-                    
+
                     return func(*args, **kwargs)
-                except (httpx.RequestError, httpx.TimeoutException, httpx.HTTPStatusError) as e:
-                    operation_name = getattr(func, '__name__', 'operation')
-                    logger.warning(f"{operation_name} attempt {attempt + 1} failed: {e}")
+                except (
+                    httpx.RequestError,
+                    httpx.TimeoutException,
+                    httpx.HTTPStatusError,
+                ) as e:
+                    operation_name = getattr(func, "__name__", "operation")
+                    logger.warning(
+                        f"{operation_name} attempt {attempt + 1} failed: {e}"
+                    )
                     if attempt == max_retries - 1:
-                        logger.error(f"All {max_retries} attempts failed for {operation_name}")
+                        logger.error(
+                            f"All {max_retries} attempts failed for {operation_name}"
+                        )
                         if return_on_failure is not None:
                             return return_on_failure
                         raise
             return None
+
         return wrapper
+
     return decorator
 
 
@@ -47,18 +65,20 @@ class WikidataClient:
     def __init__(self):
         # Use longer timeout for SPARQL queries which can be slow
         self.session = httpx.Client(timeout=120.0)
-    
+
     def _execute_sparql_query(self, query: str) -> Optional[Dict[str, Any]]:
         """Execute a SPARQL query with common error handling."""
         response = self.session.get(
             self.SPARQL_ENDPOINT,
             params={"query": query, "format": "json"},
-            headers={"User-Agent": "PoliLoom/1.0 (https://github.com/user/poliloom)"}
+            headers={"User-Agent": "PoliLoom/1.0 (https://github.com/user/poliloom)"},
         )
         response.raise_for_status()
         return response.json()
-    
-    def _get_entity_data(self, entity_id: str, props: str = "labels") -> Optional[Dict[str, Any]]:
+
+    def _get_entity_data(
+        self, entity_id: str, props: str = "labels"
+    ) -> Optional[Dict[str, Any]]:
         """Generic method to fetch entity data from Wikidata API."""
         response = self.session.get(
             self.API_ENDPOINT,
@@ -72,7 +92,7 @@ class WikidataClient:
         )
         response.raise_for_status()
         data = response.json()
-        
+
         if "entities" in data and entity_id in data["entities"]:
             return data["entities"][entity_id]
         return None
@@ -288,10 +308,7 @@ class WikidataClient:
         birthplace_label = result.get("birthPlaceLabel", {}).get("value")
         if birthplace_uri and birthplace_label:
             birthplace_id = birthplace_uri.split("/")[-1] if birthplace_uri else ""
-            birthplace = {
-                "wikidata_id": birthplace_id,
-                "name": birthplace_label
-            }
+            birthplace = {"wikidata_id": birthplace_id, "name": birthplace_label}
 
         # Get entity ID from result
         person_uri = result.get("person", {}).get("value", "")
@@ -529,12 +546,7 @@ class WikidataClient:
         try:
             entity_data = self._get_entity_data(entity_id, "labels")
             if entity_data:
-                return (
-                    entity_data
-                    .get("labels", {})
-                    .get("en", {})
-                    .get("value")
-                )
+                return entity_data.get("labels", {}).get("en", {}).get("value")
         except (httpx.RequestError, httpx.TimeoutException, httpx.HTTPStatusError):
             logger.warning(f"Could not fetch label for entity {entity_id}")
         return None
@@ -604,7 +616,9 @@ class WikidataClient:
         return positions
 
     @with_retry(max_retries=10, return_on_failure=[])
-    def get_all_locations(self, limit: int = 10000, offset: int = 0) -> List[Dict[str, Any]]:
+    def get_all_locations(
+        self, limit: int = 10000, offset: int = 0
+    ) -> List[Dict[str, Any]]:
         """Fetch all geographic locations from Wikidata using SPARQL with pagination."""
         sparql_query = f"""
         SELECT DISTINCT ?place ?placeLabel WHERE {{
@@ -635,7 +649,9 @@ class WikidataClient:
                     }
                 )
 
-        logger.info(f"Fetched {len(locations)} geographic locations from Wikidata (offset: {offset})")
+        logger.info(
+            f"Fetched {len(locations)} geographic locations from Wikidata (offset: {offset})"
+        )
         return locations
 
     def close(self):

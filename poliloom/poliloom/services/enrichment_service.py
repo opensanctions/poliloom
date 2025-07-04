@@ -2,7 +2,7 @@
 
 import os
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from sqlalchemy.orm import Session
 import httpx
@@ -12,7 +12,15 @@ from openai import OpenAI
 from pydantic import BaseModel, create_model
 from typing import Literal
 
-from ..models import Politician, Property, Position, HoldsPosition, Location, BornAt, Country
+from ..models import (
+    Politician,
+    Property,
+    Position,
+    HoldsPosition,
+    Location,
+    BornAt,
+    Country,
+)
 from ..database import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -335,24 +343,30 @@ class EnrichmentService:
 
         for country_code in citizenship_countries:
             # Get country entity
-            country = db.query(Country).filter(
-                Country.iso_code == country_code.upper()
-            ).first()
+            country = (
+                db.query(Country)
+                .filter(Country.iso_code == country_code.upper())
+                .first()
+            )
             if not country:
                 continue
 
             # Generate embedding for the position name
             from ..embeddings import generate_embedding
+
             query_embedding = generate_embedding(position_name)
-            
+
             # Query similar positions using pgvector
-            positions = db.query(Position).filter(
-                Position.embedding.isnot(None),
-                Position.countries.contains(country)
-            ).order_by(
-                Position.embedding.cosine_distance(query_embedding)
-            ).limit(positions_per_country).all()
-            
+            positions = (
+                db.query(Position)
+                .filter(
+                    Position.embedding.isnot(None), Position.countries.contains(country)
+                )
+                .order_by(Position.embedding.cosine_distance(query_embedding))
+                .limit(positions_per_country)
+                .all()
+            )
+
             all_similar_positions.extend([position.name for position in positions])
 
         # Remove duplicates while preserving order, then limit to max_positions
@@ -653,9 +667,7 @@ Country: {country or 'Unknown'}"""
             )
 
             if not free_form_birthplaces:
-                logger.info(
-                    f"No free-form birthplaces extracted for {politician_name}"
-                )
+                logger.info(f"No free-form birthplaces extracted for {politician_name}")
                 return []
 
             # Stage 2: Map each birthplace to Wikidata
@@ -755,14 +767,17 @@ Country: {country or 'Unknown'}"""
         """Get similar locations for mapping a single extracted birthplace to Wikidata."""
         # Generate embedding for the location name
         from ..embeddings import generate_embedding
+
         query_embedding = generate_embedding(location_name)
-        
+
         # Query similar locations using pgvector
-        locations = db.query(Location).filter(
-            Location.embedding.isnot(None)
-        ).order_by(
-            Location.embedding.cosine_distance(query_embedding)
-        ).limit(max_locations).all()
+        locations = (
+            db.query(Location)
+            .filter(Location.embedding.isnot(None))
+            .order_by(Location.embedding.cosine_distance(query_embedding))
+            .limit(max_locations)
+            .all()
+        )
 
         return [location.name for location in locations]
 
@@ -818,7 +833,10 @@ Select the best match or None if no good match exists."""
             return None
 
     def _map_birthplace_to_wikidata(
-        self, db: Session, free_birth: FreeFormExtractedBirthplace, politician: Politician
+        self,
+        db: Session,
+        free_birth: FreeFormExtractedBirthplace,
+        politician: Politician,
     ) -> Optional[ExtractedBirthplace]:
         """Stage 2: Map a free-form birthplace to Wikidata location using similarity search + LLM mapping."""
         try:
@@ -828,7 +846,9 @@ Select the best match or None if no good match exists."""
             )
 
             if not similar_locations:
-                logger.debug(f"No similar locations found for '{free_birth.location_name}'")
+                logger.debug(
+                    f"No similar locations found for '{free_birth.location_name}'"
+                )
                 return None
 
             # Use LLM to map to correct Wikidata location
@@ -852,14 +872,18 @@ Select the best match or None if no good match exists."""
                 )
                 return None
 
-            logger.debug(f"LLM mapped '{free_birth.location_name}' -> '{mapped_location_name}'")
+            logger.debug(
+                f"LLM mapped '{free_birth.location_name}' -> '{mapped_location_name}'"
+            )
             return ExtractedBirthplace(
                 location_name=final_location.name,
                 proof=free_birth.proof,
             )
 
         except Exception as e:
-            logger.error(f"Error mapping birthplace '{free_birth.location_name}' to Wikidata: {e}")
+            logger.error(
+                f"Error mapping birthplace '{free_birth.location_name}' to Wikidata: {e}"
+            )
             return None
 
     def _log_extraction_results(self, politician_name: str, data: dict) -> None:
@@ -909,7 +933,7 @@ Select the best match or None if no good match exists."""
         try:
             for source, data in extracted_data:
                 # Update source extraction timestamp
-                source.extracted_at = datetime.utcnow()
+                source.extracted_at = datetime.now(timezone.utc)
 
                 # Store properties
                 for prop_data in data.get("properties", []):
@@ -1001,7 +1025,9 @@ Select the best match or None if no good match exists."""
                     if birth_data.location_name:
                         # Only find existing locations, don't create new ones
                         location = (
-                            db.query(Location).filter_by(name=birth_data.location_name).first()
+                            db.query(Location)
+                            .filter_by(name=birth_data.location_name)
+                            .first()
                         )
 
                         if not location:

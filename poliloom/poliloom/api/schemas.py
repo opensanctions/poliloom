@@ -1,10 +1,12 @@
 """Pydantic schemas for API responses."""
+
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict
 
 
 class UnconfirmedPropertyResponse(BaseModel):
     """Schema for unconfirmed property data."""
+
     id: str
     type: str
     value: str
@@ -15,6 +17,7 @@ class UnconfirmedPropertyResponse(BaseModel):
 
 class UnconfirmedPositionResponse(BaseModel):
     """Schema for unconfirmed position data."""
+
     id: str
     position_name: str
     start_date: Optional[str] = None
@@ -26,6 +29,7 @@ class UnconfirmedPositionResponse(BaseModel):
 
 class UnconfirmedBirthplaceResponse(BaseModel):
     """Schema for unconfirmed birthplace data."""
+
     id: str
     location_name: str
     location_wikidata_id: Optional[str] = None
@@ -36,6 +40,7 @@ class UnconfirmedBirthplaceResponse(BaseModel):
 
 class UnconfirmedPoliticianResponse(BaseModel):
     """Schema for politician with unconfirmed data."""
+
     id: str
     name: str
     wikidata_id: Optional[str] = None
@@ -48,6 +53,7 @@ class UnconfirmedPoliticianResponse(BaseModel):
 
 class ConfirmationRequest(BaseModel):
     """Schema for confirmation request body."""
+
     confirmed_properties: List[str] = []
     discarded_properties: List[str] = []
     confirmed_positions: List[str] = []
@@ -58,6 +64,7 @@ class ConfirmationRequest(BaseModel):
 
 class ConfirmationResponse(BaseModel):
     """Schema for confirmation response."""
+
     success: bool
     message: str
     confirmed_count: int

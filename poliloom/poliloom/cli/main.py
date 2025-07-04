@@ -53,10 +53,10 @@ def database_truncate(all, table, yes):
     from ..database import SessionLocal, engine
     from ..models import Base
     from sqlalchemy import text
-    
+
     # Get all table names from metadata
     all_tables = [t.name for t in Base.metadata.sorted_tables]
-    
+
     # Determine which tables to truncate
     if all:
         tables_to_truncate = all_tables
@@ -72,39 +72,39 @@ def database_truncate(all, table, yes):
         click.echo("❌ Please specify --all or --table <name> to truncate")
         click.echo(f"Available tables: {', '.join(all_tables)}")
         exit(1)
-    
+
     # Show what will be truncated
     click.echo("⚠️  WARNING: This will DELETE ALL DATA from the following tables:")
     for t in tables_to_truncate:
         click.echo(f"  • {t}")
-    
+
     # Confirm unless --yes was provided
     if not yes:
         if not click.confirm("\nAre you sure you want to proceed?"):
             click.echo("❌ Truncate operation cancelled")
             exit(0)
-    
+
     session = None
     try:
         session = SessionLocal()
-        
+
         # Disable foreign key checks temporarily
         with engine.connect() as conn:
             conn.execute(text("SET session_replication_role = 'replica';"))
             conn.commit()
-            
+
             # Truncate tables in reverse dependency order
             for table_name in reversed(tables_to_truncate):
                 click.echo(f"Truncating {table_name}...")
                 conn.execute(text(f"TRUNCATE TABLE {table_name} CASCADE;"))
                 conn.commit()
-            
+
             # Re-enable foreign key checks
             conn.execute(text("SET session_replication_role = 'origin';"))
             conn.commit()
-        
+
         click.echo("✅ Successfully truncated all specified tables")
-        
+
     except Exception as e:
         click.echo(f"❌ Error truncating tables: {e}")
         exit(1)
@@ -220,7 +220,9 @@ def politicians_show(wikidata_id):
         click.echo(f"🏛️  POLITICIAN: {politician.name}")
         click.echo("=" * 80)
         click.echo(f"Wikidata ID: {politician.wikidata_id}")
-        click.echo(f"Wikidata Link: https://www.wikidata.org/wiki/{politician.wikidata_id}")
+        click.echo(
+            f"Wikidata Link: https://www.wikidata.org/wiki/{politician.wikidata_id}"
+        )
         click.echo(f"Database ID: {politician.id}")
         click.echo(f"Deceased: {'Yes' if politician.is_deceased else 'No'}")
         click.echo(f"Created: {politician.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -275,8 +277,12 @@ def politicians_show(wikidata_id):
             click.echo("-" * 40)
 
             # Separate imported vs extracted birthplaces
-            imported_birthplaces = [b for b in politician.birthplaces if not b.is_extracted]
-            extracted_birthplaces = [b for b in politician.birthplaces if b.is_extracted]
+            imported_birthplaces = [
+                b for b in politician.birthplaces if not b.is_extracted
+            ]
+            extracted_birthplaces = [
+                b for b in politician.birthplaces if b.is_extracted
+            ]
 
             if imported_birthplaces:
                 click.echo("  📥 IMPORTED FROM WIKIDATA:")
@@ -428,43 +434,41 @@ def positions_import_csv(csv_file):
 def positions_embed():
     """Generate embeddings for all positions that don't have embeddings yet."""
     click.echo("Generating embeddings for positions without embeddings...")
-    
+
     from ..database import SessionLocal
     from ..models import Position
     from ..embeddings import generate_embeddings
-    
+
     session = None
     try:
         session = SessionLocal()
-        
+
         # Get all positions without embeddings
         positions_without_embeddings = (
-            session.query(Position)
-            .filter(Position.embedding.is_(None))
-            .all()
+            session.query(Position).filter(Position.embedding.is_(None)).all()
         )
-        
+
         if not positions_without_embeddings:
             click.echo("✅ All positions already have embeddings")
             return
-        
+
         count = len(positions_without_embeddings)
         click.echo(f"Found {count} positions without embeddings")
-        
+
         # Extract names for batch processing
         names = [pos.name for pos in positions_without_embeddings]
-        
+
         # Generate embeddings
         click.echo("Generating embeddings...")
         embeddings = generate_embeddings(names)
-        
+
         # Update positions with embeddings
         for position, embedding in zip(positions_without_embeddings, embeddings):
             position.embedding = embedding
-        
+
         session.commit()
         click.echo(f"✅ Successfully generated embeddings for {count} positions")
-        
+
     except Exception as e:
         if session:
             session.rollback()
@@ -503,43 +507,41 @@ def locations_import():
 def locations_embed():
     """Generate embeddings for all locations that don't have embeddings yet."""
     click.echo("Generating embeddings for locations without embeddings...")
-    
+
     from ..database import SessionLocal
     from ..models import Location
     from ..embeddings import generate_embeddings
-    
+
     session = None
     try:
         session = SessionLocal()
-        
+
         # Get all locations without embeddings
         locations_without_embeddings = (
-            session.query(Location)
-            .filter(Location.embedding.is_(None))
-            .all()
+            session.query(Location).filter(Location.embedding.is_(None)).all()
         )
-        
+
         if not locations_without_embeddings:
             click.echo("✅ All locations already have embeddings")
             return
-        
+
         count = len(locations_without_embeddings)
         click.echo(f"Found {count} locations without embeddings")
-        
+
         # Extract names for batch processing
         names = [loc.name for loc in locations_without_embeddings]
-        
+
         # Generate embeddings
         click.echo("Generating embeddings...")
         embeddings = generate_embeddings(names)
-        
+
         # Update locations with embeddings
         for location, embedding in zip(locations_without_embeddings, embeddings):
             location.embedding = embedding
-        
+
         session.commit()
         click.echo(f"✅ Successfully generated embeddings for {count} locations")
-        
+
     except Exception as e:
         if session:
             session.rollback()

@@ -175,7 +175,10 @@ class ImportService:
                 )
 
     def _link_to_existing_birthplace(
-        self, db: Session, politician: Politician, birthplace_data: Optional[Dict[str, Any]]
+        self,
+        db: Session,
+        politician: Politician,
+        birthplace_data: Optional[Dict[str, Any]],
     ):
         """Link politician to existing birthplace location only - do not create new locations."""
         if not birthplace_data:
@@ -309,11 +312,11 @@ class ImportService:
                 position = Position(
                     name=position_data["name"], wikidata_id=position_data["wikidata_id"]
                 )
-                
+
                 try:
                     db.add(position)
                     db.flush()  # Get the ID for country linking and check constraints
-                    
+
                     # Link position to countries if specified
                     if position_data.get("country_codes"):
                         self._link_position_to_countries(
@@ -324,7 +327,9 @@ class ImportService:
                 except IntegrityError:
                     # Position already exists (race condition), skip
                     db.rollback()
-                    logger.debug(f"Position {position_data['name']} already exists (caught during flush)")
+                    logger.debug(
+                        f"Position {position_data['name']} already exists (caught during flush)"
+                    )
                     continue
 
                 # Process in batches to avoid memory issues
@@ -435,8 +440,6 @@ class ImportService:
         finally:
             db.close()
 
-
-
     def import_all_locations(self) -> int:
         """
         Import all geographic locations from Wikidata using pagination.
@@ -449,15 +452,17 @@ class ImportService:
             imported_count = 0
             offset = 0
             page_size = 10000
-            
+
             while True:
                 # Add small delay between requests to be respectful to Wikidata
                 if offset > 0:
                     time.sleep(0.5)  # 500ms delay between batches
-                
+
                 # Fetch locations from Wikidata in batches
-                locations_data = self.wikidata_client.get_all_locations(limit=page_size, offset=offset)
-                
+                locations_data = self.wikidata_client.get_all_locations(
+                    limit=page_size, offset=offset
+                )
+
                 if not locations_data:
                     logger.info(f"No more locations to fetch at offset {offset}")
                     break
@@ -476,10 +481,10 @@ class ImportService:
 
                     # Create location record
                     location = Location(
-                        name=location_data["name"], 
-                        wikidata_id=location_data["wikidata_id"]
+                        name=location_data["name"],
+                        wikidata_id=location_data["wikidata_id"],
                     )
-                    
+
                     try:
                         db.add(location)
                         db.flush()  # Force database check immediately
@@ -487,7 +492,9 @@ class ImportService:
                     except IntegrityError:
                         # Location already exists (race condition), skip
                         db.rollback()
-                        logger.debug(f"Location {location_data['name']} already exists (caught during flush)")
+                        logger.debug(
+                            f"Location {location_data['name']} already exists (caught during flush)"
+                        )
                         continue
 
                     # Process in batches to avoid memory issues
@@ -497,9 +504,11 @@ class ImportService:
 
                 # If we got fewer results than the page size, we're done
                 if len(locations_data) < page_size:
-                    logger.info(f"Reached end of results with {len(locations_data)} locations in final batch")
+                    logger.info(
+                        f"Reached end of results with {len(locations_data)} locations in final batch"
+                    )
                     break
-                
+
                 offset += page_size
                 logger.info(f"Moving to next page with offset {offset}")
 
@@ -515,7 +524,6 @@ class ImportService:
             return 0
         finally:
             db.close()
-
 
     def close(self):
         """Close the Wikidata client."""

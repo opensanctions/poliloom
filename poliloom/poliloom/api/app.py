@@ -1,4 +1,5 @@
 """FastAPI application setup for PoliLoom."""
+
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,7 +8,7 @@ from .politicians import router as politicians_router
 app = FastAPI(
     title="PoliLoom API",
     description="API for extracting politician metadata from Wikipedia and web sources to enrich Wikidata",
-    version="0.1.0"
+    version="0.1.0",
 )
 
 # Configure CORS
@@ -21,6 +22,7 @@ app.add_middleware(
 )
 
 app.include_router(politicians_router, prefix="/politicians", tags=["politicians"])
+
 
 @app.get("/")
 async def root():
