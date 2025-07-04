@@ -29,68 +29,9 @@ This API and CLI project is responsible for:
 
 ## **3\. Database Schema**
 
-The database will reproduce a subset of the Wikidata politician data model to store extracted information. The core entities and their relationships are as follows:
+The database reproduces a subset of the Wikidata politician data model to store extracted information. 
 
-- **Politician**
-  - id (Primary Key, e.g., Wikidata ID, internal UUID)
-  - name (String)
-  - wikidata_id (String, Wikidata QID)
-  - is_deceased (Boolean, consideration for filtering)
-- **Source**
-  - id (Primary Key, e.g., URL hash, internal UUID)
-  - url (String, URL of the source page)
-  - extracted_at (Datetime)
-- **Property**
-  - id (Primary Key, internal UUID)
-  - politician_id (Foreign Key to Politician.id)
-  - type (String, e.g., 'BirthDate')
-  - value (String, for the extracted property value)
-  - is_extracted (Boolean, True if newly extracted and unconfirmed)
-  - confirmed_by (String, ID of user who confirmed, Null if unconfirmed)
-  - confirmed_at (Datetime, Null if unconfirmed)
-- **Country**
-  - id (Primary Key, internal UUID)
-  - iso_code (String, ISO 3166-1 alpha-2 code)
-  - wikidata_id (String, Wikidata QID for the country)
-- **Location**
-  - id (Primary Key, internal UUID)
-  - name (String, name of the location)
-  - wikidata_id (String, Wikidata QID for the location)
-  - embedding (Vector, 384-dimensional embedding for semantic similarity search)
-- **Position**
-  - id (Primary Key, e.g., Wikidata QID, internal UUID)
-  - name (String, name of the position)
-  - wikidata_id (String, Wikidata QID for the position)
-  - embedding (Vector, 384-dimensional embedding for semantic similarity search)
-- **PositionCountry** (Many-to-many relationship entity)
-  - id (Primary Key, internal UUID)
-  - position_id (Foreign Key to Position.id)
-  - country_id (Foreign Key to Country.id)
-- **HoldsPosition** (Many-to-many relationship entity)
-  - id (Primary Key, internal UUID)
-  - politician_id (Foreign Key to Politician.id)
-  - position_id (Foreign Key to Position.id)
-  - start_date (String, e.g., 'YYYY-MM-DD', 'YYYY-MM', 'YYYY', allowing for incomplete dates)
-  - end_date (String, e.g., 'YYYY-MM-DD', 'YYYY-MM', 'YYYY', allowing for incomplete dates)
-  - is_extracted (Boolean, True if newly extracted and unconfirmed)
-  - confirmed_by (String, ID of user who confirmed, Null if unconfirmed)
-  - confirmed_at (Datetime, Null if unconfirmed)
-- **HasCitizenship** (Many-to-many relationship entity)
-  - id (Primary Key, internal UUID)
-  - politician_id (Foreign Key to Politician.id)
-  - country_id (Foreign Key to Country.id)
-- **BornAt** (Many-to-many relationship entity)
-  - id (Primary Key, internal UUID)
-  - politician_id (Foreign Key to Politician.id)
-  - location_id (Foreign Key to Location.id)
-  - is_extracted (Boolean, True if newly extracted and unconfirmed)
-  - confirmed_by (String, ID of user who confirmed, Null if unconfirmed)
-  - confirmed_at (Datetime, Null if unconfirmed)
-- **Association Tables:**
-  - politician_source (for Politician to Source many-to-many)
-  - property_source (for Property to Source many-to-many)
-  - holdsposition_source (for HoldsPosition to Source many-to-many)
-  - bornat_source (for BornAt to Source many-to-many)
+**To view the current database schema, run:** `PGPASSWORD=postgres pg_dump -h localhost -p 5432 -U postgres -d poliloom --schema-only`
 
 **Schema Considerations:**
 
@@ -172,58 +113,12 @@ The API will expose endpoints for the GUI to manage confirmation workflows. Auth
   - Accept JWT tokens from MediaWiki OAuth 2.0 flow in Authorization header (Bearer format).
   - Verify JWT token signatures using MediaWiki's public keys or token introspection endpoint.
   - Ensure secure handling of user tokens and permissions.
-- **Routes:**
 
-  - GET /politicians/unconfirmed
+- **OpenAPI Documentation**: The complete API specification is available at `http://localhost:8000/openapi.json` when the backend server is running. To fetch it using curl:
 
-    - **Description:** Retrieves a list of Politician entities that have Property or HoldsPosition records marked as is_new=True (i.e., unconfirmed by a user).
-    - **Parameters:**
-      - limit (Optional, Integer): Maximum number of politicians to return.
-      - offset (Optional, Integer): Offset for pagination.
-    - **Response:** JSON array of Politician objects, each including their unconfirmed Property and HoldsPosition data.
-    - **Example Response (Simplified):**  
-      \[  
-       {  
-       "id": "politician_id_123",  
-       "name": "John Doe",  
-       "country": "US",  
-       "unconfirmed_properties": \[  
-       {"type": "BirthDate", "value": "1970-01-15", "source_url": "http://example.com/source1"}  
-       \],
-       "unconfirmed_birthplaces": \[  
-       {"location_name": "New York, USA", "source_url": "http://example.com/source1"}  
-       \],  
-       "unconfirmed_positions": \[  
-       {"position_name": "Mayor", "start_date": "2020", "end_date": "2024", "source_url": "http://example.com/source2"}  
-       \]  
-       },  
-       ...  
-      \]
-
-  - POST /politicians/{politician_id}/confirm
-    - **Description:** Allows a user to confirm the correctness of extracted properties and positions for a given politician. It also handles discarding specific properties/positions.
-    - **Parameters:**
-      - politician_id (Path Parameter, String): The ID of the politician being confirmed.
-    - **Request Body (JSON):**
-      - confirmed_properties (Array of Strings): List of Property.ids that the user confirms as correct.
-      - discarded_properties (Array of Strings): List of Property.ids that the user marks as incorrect/to be discarded.
-      - confirmed_positions (Array of Strings): List of HoldsPosition.ids that the user confirms as correct.
-      - discarded_positions (Array of Strings): List of HoldsPosition.ids that the user marks as incorrect/to be discarded.
-      - confirmed_birthplaces (Array of Strings): List of BornAt.ids that the user confirms as correct.
-      - discarded_birthplaces (Array of Strings): List of BornAt.ids that the user marks as incorrect/to be discarded.
-    - **Logic:**
-      - For confirmed IDs: Update is_new to False, set confirmed_by and confirmed_at. Trigger an update to Wikidata if applicable.
-      - For discarded IDs: Mark as discarded (e.g., set is_new to False and add a status field like discarded or soft-delete).
-    - **Response:** JSON object indicating success or failure.
-    - **Example Request Body:**  
-      {  
-       "confirmed_properties": \["prop_id_1", "prop_id_2"\],  
-       "discarded_properties": \["prop_id_3"\],  
-       "confirmed_positions": \["pos_id_1"\],  
-       "discarded_positions": \[\],  
-       "confirmed_birthplaces": \["birth_id_1"\],  
-       "discarded_birthplaces": \[\]  
-      }
+```bash
+curl http://localhost:8000/openapi.json
+```
 
 ### **4.4. CLI Commands**
 
