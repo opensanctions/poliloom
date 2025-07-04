@@ -1,8 +1,7 @@
 """Tests for EnrichmentService core functionality."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime
+from unittest.mock import Mock, patch
 
 from poliloom.services.enrichment_service import (
     EnrichmentService,
@@ -11,10 +10,8 @@ from poliloom.services.enrichment_service import (
     PropertyType,
     FreeFormPositionExtractionResult,
     FreeFormExtractedPosition,
-    PositionMappingResult,
     FreeFormBirthplaceExtractionResult,
     FreeFormExtractedBirthplace,
-    BirthplaceMappingResult,
 )
 from poliloom.models import (
     Politician,
@@ -22,7 +19,6 @@ from poliloom.models import (
     Position,
     HoldsPosition,
     Source,
-    Country,
     HasCitizenship,
     Location,
     BornAt,

@@ -1,6 +1,6 @@
 """Service for importing politician data into the database."""
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 import logging

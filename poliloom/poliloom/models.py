@@ -5,7 +5,6 @@ from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Table
 from sqlalchemy.orm import relationship, declarative_base
 from uuid import uuid4
 from pgvector.sqlalchemy import Vector
-from .embeddings import generate_embedding
 
 Base = declarative_base()
 
