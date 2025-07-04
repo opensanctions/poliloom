@@ -22,7 +22,13 @@ def get_embedding_model():
         
         try:
             from sentence_transformers import SentenceTransformer
-            _embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+            import torch
+            
+            # Use GPU if available
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            logger.info(f"Using device: {device}")
+            
+            _embedding_model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
         finally:
             # Restore original logging level
             st_logger.setLevel(original_level)
@@ -38,8 +44,8 @@ def generate_embedding(text: str) -> List[float]:
     return embedding.tolist() if hasattr(embedding, 'tolist') else list(embedding)
 
 
-def generate_batch_embeddings(texts: List[str]) -> List[List[float]]:
-    """Generate embeddings for a batch of texts."""
+def generate_embeddings(texts: List[str]) -> List[List[float]]:
+    """Generate embeddings for multiple texts."""
     if not texts:
         return []
     

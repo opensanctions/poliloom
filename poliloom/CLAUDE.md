@@ -98,6 +98,7 @@ The database will reproduce a subset of the Wikidata politician data model to st
 - **Multilingual Names:** The Politician entity will store names as strings. Handling multilingual variations in names during extraction and matching will be crucial.
 - **Citizenships:** Politician citizenships are stored as HasCitizenship records linking politicians to countries. Multiple citizenships are supported by creating multiple HasCitizenship records. Citizenships are only imported from Wikidata and do not require user confirmation.
 - **Conflict Resolution:** conflict_resolved fields will be used to flag when discrepancies between extracted data and existing Wikidata values have been addressed.
+- **Embedding Workflow:** Position and Location entities have optional embedding fields that are initially NULL during import. Embeddings are generated separately using dedicated CLI commands (`poliloom positions embed` and `poliloom locations embed`) that process all entities without embeddings in batch for optimal performance.
 
 ## **4\. Core Functionality**
 
@@ -246,9 +247,17 @@ The API will expose endpoints for the GUI to manage confirmation workflows. Auth
 
   - Import political positions from a custom CSV file.
 
+- **poliloom positions embed**
+
+  - Generate embeddings for all positions that don't have embeddings yet. Uses GPU if available.
+
 - **poliloom locations import**
 
   - Import all geographic locations from Wikidata to populate the local Location table.
+
+- **poliloom locations embed**
+
+  - Generate embeddings for all locations that don't have embeddings yet. Uses GPU if available.
 
 - **poliloom serve [--host HOST] [--port PORT] [--reload]**
   - Start the FastAPI web server.
@@ -266,7 +275,7 @@ The API will expose endpoints for the GUI to manage confirmation workflows. Auth
 
 - **Data Validation:** Implement robust data validation for all incoming data, especially from LLM extraction, before storing in the database.
 - **Error Handling:** Implement comprehensive error handling and logging for all API calls and CLI operations.
-- **Performance:** Optimize database queries and LLM interactions for performance, especially during bulk operations. Consider caching strategies where appropriate.
+- **Performance:** Optimize database queries and LLM interactions for performance, especially during bulk operations. Consider caching strategies where appropriate. Embedding generation is performed separately from import operations using dedicated commands that leverage GPU acceleration when available.
 - **Scalability:** Design the API to be scalable for future increases in data volume and user load.
 - **Conflicting Information:** Develop a clear strategy for handling conflicting data between sources. This might involve flagging conflicts for manual review or implementing a confidence scoring system.
 - **Archiving Web Sources:** A decision needs to be made on whether to archive web sources (e.g., using a web archiving service or local storage) to ensure data provenance, or simply store URLs. For the initial proof of concept, storing URLs is sufficient.

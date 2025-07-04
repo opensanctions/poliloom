@@ -424,6 +424,57 @@ def positions_import_csv(csv_file):
         import_service.close()
 
 
+@positions.command("embed")
+def positions_embed():
+    """Generate embeddings for all positions that don't have embeddings yet."""
+    click.echo("Generating embeddings for positions without embeddings...")
+    
+    from ..database import SessionLocal
+    from ..models import Position
+    from ..embeddings import generate_embeddings
+    
+    session = None
+    try:
+        session = SessionLocal()
+        
+        # Get all positions without embeddings
+        positions_without_embeddings = (
+            session.query(Position)
+            .filter(Position.embedding.is_(None))
+            .all()
+        )
+        
+        if not positions_without_embeddings:
+            click.echo("✅ All positions already have embeddings")
+            return
+        
+        count = len(positions_without_embeddings)
+        click.echo(f"Found {count} positions without embeddings")
+        
+        # Extract names for batch processing
+        names = [pos.name for pos in positions_without_embeddings]
+        
+        # Generate embeddings
+        click.echo("Generating embeddings...")
+        embeddings = generate_embeddings(names)
+        
+        # Update positions with embeddings
+        for position, embedding in zip(positions_without_embeddings, embeddings):
+            position.embedding = embedding
+        
+        session.commit()
+        click.echo(f"✅ Successfully generated embeddings for {count} positions")
+        
+    except Exception as e:
+        if session:
+            session.rollback()
+        click.echo(f"❌ Error generating embeddings: {e}")
+        exit(1)
+    finally:
+        if session:
+            session.close()
+
+
 @locations.command("import")
 def locations_import():
     """Import all geographic locations from Wikidata to populate the local Location table."""
@@ -446,6 +497,57 @@ def locations_import():
 
     finally:
         import_service.close()
+
+
+@locations.command("embed")
+def locations_embed():
+    """Generate embeddings for all locations that don't have embeddings yet."""
+    click.echo("Generating embeddings for locations without embeddings...")
+    
+    from ..database import SessionLocal
+    from ..models import Location
+    from ..embeddings import generate_embeddings
+    
+    session = None
+    try:
+        session = SessionLocal()
+        
+        # Get all locations without embeddings
+        locations_without_embeddings = (
+            session.query(Location)
+            .filter(Location.embedding.is_(None))
+            .all()
+        )
+        
+        if not locations_without_embeddings:
+            click.echo("✅ All locations already have embeddings")
+            return
+        
+        count = len(locations_without_embeddings)
+        click.echo(f"Found {count} locations without embeddings")
+        
+        # Extract names for batch processing
+        names = [loc.name for loc in locations_without_embeddings]
+        
+        # Generate embeddings
+        click.echo("Generating embeddings...")
+        embeddings = generate_embeddings(names)
+        
+        # Update locations with embeddings
+        for location, embedding in zip(locations_without_embeddings, embeddings):
+            location.embedding = embedding
+        
+        session.commit()
+        click.echo(f"✅ Successfully generated embeddings for {count} locations")
+        
+    except Exception as e:
+        if session:
+            session.rollback()
+        click.echo(f"❌ Error generating embeddings: {e}")
+        exit(1)
+    finally:
+        if session:
+            session.close()
 
 
 @main.command("serve")

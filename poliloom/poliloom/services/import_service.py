@@ -19,7 +19,6 @@ from ..models import (
     Location,
     BornAt,
 )
-from ..embeddings import generate_batch_embeddings
 from ..database import SessionLocal
 from .wikidata import WikidataClient
 
@@ -293,7 +292,6 @@ class ImportService:
         db = SessionLocal()
         try:
             imported_count = 0
-            batch_positions = []
 
             for position_data in positions_data:
                 # Check if position already exists
@@ -322,7 +320,6 @@ class ImportService:
                             db, position, position_data["country_codes"]
                         )
 
-                    batch_positions.append(position)
                     imported_count += 1
                 except IntegrityError:
                     # Position already exists (race condition), skip
@@ -332,15 +329,10 @@ class ImportService:
 
                 # Process in batches to avoid memory issues
                 if imported_count % 1000 == 0:
-                    # Generate embeddings for this batch
-                    self._update_position_embeddings(db, batch_positions)
                     db.commit()
                     logger.info(f"Imported {imported_count} positions so far...")
-                    batch_positions = []  # Reset batch
 
-            # Process remaining positions
-            if batch_positions:
-                self._update_position_embeddings(db, batch_positions)
+            # Commit remaining positions
 
             db.commit()
             logger.info(f"Successfully imported {imported_count} positions")
@@ -369,7 +361,6 @@ class ImportService:
         db = SessionLocal()
         try:
             imported_count = 0
-            batch_positions = []
 
             with open(csv_file_path, "r", encoding="utf-8") as csvfile:
                 reader = csv.DictReader(csvfile)
@@ -424,20 +415,14 @@ class ImportService:
                     if country_codes:
                         self._link_position_to_countries(db, position, country_codes)
 
-                    batch_positions.append(position)
                     imported_count += 1
 
                     # Process in batches to avoid memory issues
                     if imported_count % 1000 == 0:
-                        # Generate embeddings for this batch
-                        self._update_position_embeddings(db, batch_positions)
                         db.commit()
                         logger.info(f"Imported {imported_count} positions so far...")
-                        batch_positions = []  # Reset batch
 
-            # Process remaining positions
-            if batch_positions:
-                self._update_position_embeddings(db, batch_positions)
+            # Commit remaining positions
 
             db.commit()
             logger.info(f"Successfully imported {imported_count} positions from CSV")
@@ -451,27 +436,6 @@ class ImportService:
             db.close()
 
 
-    def _update_embeddings(self, db: Session, entities: list, entity_type: str):
-        """Update embeddings for a batch of entities (positions or locations)."""
-        if not entities:
-            return
-
-        # Extract entity names for batch embedding
-        entity_names = [entity.name for entity in entities]
-        logger.info(f"Generating embeddings for {len(entity_names)} {entity_type}...")
-
-        # Generate embeddings in batch
-        embeddings = generate_batch_embeddings(entity_names)
-
-        # Update entities with their embeddings
-        for entity, embedding in zip(entities, embeddings):
-            entity.embedding = embedding
-
-        logger.info(f"Successfully generated embeddings for {len(entities)} {entity_type}")
-
-    def _update_position_embeddings(self, db: Session, positions: list):
-        """Update embeddings for a batch of positions."""
-        self._update_embeddings(db, positions, "positions")
 
     def import_all_locations(self) -> int:
         """
@@ -483,7 +447,6 @@ class ImportService:
         db = SessionLocal()
         try:
             imported_count = 0
-            batch_locations = []
             offset = 0
             page_size = 10000
             
@@ -520,7 +483,6 @@ class ImportService:
                     try:
                         db.add(location)
                         db.flush()  # Force database check immediately
-                        batch_locations.append(location)
                         imported_count += 1
                     except IntegrityError:
                         # Location already exists (race condition), skip
@@ -530,11 +492,8 @@ class ImportService:
 
                     # Process in batches to avoid memory issues
                     if imported_count % 1000 == 0:
-                        # Generate embeddings for this batch
-                        self._update_location_embeddings(db, batch_locations)
                         db.commit()
                         logger.info(f"Imported {imported_count} locations so far...")
-                        batch_locations = []  # Reset batch
 
                 # If we got fewer results than the page size, we're done
                 if len(locations_data) < page_size:
@@ -544,9 +503,7 @@ class ImportService:
                 offset += page_size
                 logger.info(f"Moving to next page with offset {offset}")
 
-            # Process remaining locations
-            if batch_locations:
-                self._update_location_embeddings(db, batch_locations)
+            # Commit remaining locations
 
             db.commit()
             logger.info(f"Successfully imported {imported_count} locations")
@@ -559,9 +516,6 @@ class ImportService:
         finally:
             db.close()
 
-    def _update_location_embeddings(self, db: Session, locations: List[Location]) -> None:
-        """Update location embeddings for similarity search."""
-        self._update_embeddings(db, locations, "locations")
 
     def close(self):
         """Close the Wikidata client."""

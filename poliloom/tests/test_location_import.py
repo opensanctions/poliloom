@@ -116,9 +116,9 @@ class TestLocationImport:
                 assert "Q65" in wikidata_ids
                 assert "Q90" in wikidata_ids
 
-                # Verify embeddings were generated
+                # Verify embeddings are initially None (not generated during import)
                 for location in locations:
-                    assert location.embedding is not None
+                    assert location.embedding is None
 
     def test_import_all_locations_skip_existing(self, test_session, sample_locations_data):
         """Test that import skips existing locations."""
@@ -187,52 +187,75 @@ class TestLocationImport:
                 locations = test_session.query(Location).all()
                 assert len(locations) == 50
 
-    def test_location_embeddings_generation(self, test_session):
-        """Test that location embeddings are properly generated."""
-        locations_data = [
-            {"wikidata_id": "Q60", "name": "New York City"},
-            {"wikidata_id": "Q65", "name": "Los Angeles"}
-        ]
+    def test_location_embeddings_generation_command(self, test_session):
+        """Test that location embeddings are properly generated using the embed command."""
+        # First create locations without embeddings
+        location1 = Location(name="New York City", wikidata_id="Q60")
+        location2 = Location(name="Los Angeles", wikidata_id="Q65")
+        test_session.add(location1)
+        test_session.add(location2)
+        test_session.commit()
 
-        with patch.object(WikidataClient, 'get_all_locations', return_value=locations_data):
-            # Patch SessionLocal to use the test session
-            with patch('poliloom.services.import_service.SessionLocal', return_value=test_session):
-                import_service = ImportService()
-                count = import_service.import_all_locations()
+        # Verify embeddings are initially None
+        locations = test_session.query(Location).all()
+        for location in locations:
+            assert location.embedding is None
 
-                assert count == 2
+        # Now generate embeddings
+        from poliloom.embeddings import generate_embeddings
+        
+        locations_without_embeddings = (
+            test_session.query(Location)
+            .filter(Location.embedding.is_(None))
+            .all()
+        )
+        
+        names = [loc.name for loc in locations_without_embeddings]
+        embeddings = generate_embeddings(names)
+        
+        for location, embedding in zip(locations_without_embeddings, embeddings):
+            location.embedding = embedding
+        
+        test_session.commit()
 
-                locations = test_session.query(Location).all()
-                for location in locations:
-                    assert location.embedding is not None
-                    assert len(location.embedding) == 384  # Dimension of all-MiniLM-L6-v2 model
+        # Verify embeddings were generated
+        locations = test_session.query(Location).all()
+        for location in locations:
+            assert location.embedding is not None
+            assert len(location.embedding) == 384  # Dimension of all-MiniLM-L6-v2 model
 
-    def test_location_find_similar_after_import(self, test_session):
-        """Test that location similarity search works after import."""
-        locations_data = [
-            {"wikidata_id": "Q60", "name": "New York City"},
-            {"wikidata_id": "Q65", "name": "Los Angeles"},
-            {"wikidata_id": "Q1297", "name": "Chicago"}
-        ]
+    def test_location_find_similar_after_embed(self, test_session):
+        """Test that location similarity search works after embedding generation."""
+        # Create locations without embeddings
+        location1 = Location(name="New York City", wikidata_id="Q60")
+        location2 = Location(name="Los Angeles", wikidata_id="Q65")
+        location3 = Location(name="Chicago", wikidata_id="Q1297")
+        test_session.add_all([location1, location2, location3])
+        test_session.commit()
 
-        with patch.object(WikidataClient, 'get_all_locations', return_value=locations_data):
-            # Patch SessionLocal to use the test session
-            with patch('poliloom.services.import_service.SessionLocal', return_value=test_session):
-                import_service = ImportService()
-                import_service.import_all_locations()
+        # Generate embeddings for all locations
+        from poliloom.embeddings import generate_embeddings, generate_embedding
+        
+        locations = test_session.query(Location).all()
+        names = [loc.name for loc in locations]
+        embeddings = generate_embeddings(names)
+        
+        for location, embedding in zip(locations, embeddings):
+            location.embedding = embedding
+        
+        test_session.commit()
 
-                # Test similarity search using direct query
-                from poliloom.embeddings import generate_embedding
-                query_embedding = generate_embedding("New York")
-                
-                similar = test_session.query(Location).filter(
-                    Location.embedding.isnot(None)
-                ).order_by(
-                    Location.embedding.cosine_distance(query_embedding)
-                ).limit(2).all()
-                
-                assert len(similar) <= 2  # Should return at most 2 results
-                if len(similar) > 0:
-                    # Verify we get Location objects
-                    assert isinstance(similar[0], Location)
-                    assert hasattr(similar[0], 'name')
+        # Test similarity search using direct query
+        query_embedding = generate_embedding("New York")
+        
+        similar = test_session.query(Location).filter(
+            Location.embedding.isnot(None)
+        ).order_by(
+            Location.embedding.cosine_distance(query_embedding)
+        ).limit(2).all()
+        
+        assert len(similar) <= 2  # Should return at most 2 results
+        if len(similar) > 0:
+            # Verify we get Location objects
+            assert isinstance(similar[0], Location)
+            assert hasattr(similar[0], 'name')
