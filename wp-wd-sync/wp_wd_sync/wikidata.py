@@ -1,16 +1,21 @@
 """Functions for interacting with the Wikidata API."""
+
 from typing import Any, Dict, Optional, List
 import requests
 from pydantic import BaseModel, Field
 
+
 class Sitelink(BaseModel):
     site: str
     title: str
+
     class Config:
         extra = "ignore"
 
+
 class Item(BaseModel):
     """A Wikidata item with its properties and sitelinks."""
+
     id: str
     labels: Dict[str, Dict[str, str]] = Field(default_factory=dict)
     descriptions: Dict[str, Dict[str, str]] = Field(default_factory=dict)
@@ -21,13 +26,13 @@ class Item(BaseModel):
     @classmethod
     def fetch(cls, qid: str) -> "Item":
         """Fetch a Wikidata item by its QID.
-        
+
         Args:
             qid: The Wikidata item ID (e.g., "Q12345")
-            
+
         Returns:
             An Item instance with the fetched data
-            
+
         Raises:
             requests.RequestException: If the API request fails
             ValueError: If the response indicates an error
@@ -41,15 +46,15 @@ class Item(BaseModel):
 
         response = requests.get(WIKIDATA_API, params=params)
         response.raise_for_status()
-        
+
         data = response.json()
-        
+
         if "error" in data:
             raise ValueError(f"Wikidata API error: {data['error']['info']}")
-        
+
         if "entities" not in data or qid not in data["entities"]:
             raise ValueError(f"No data found for Wikidata item {qid}")
-        
+
         entity_data = data["entities"][qid]
         # Remove the id field from entity_data since we're passing it separately
         entity_data.pop("id", None)
@@ -66,4 +71,4 @@ class Item(BaseModel):
         return label.get("value") if label else None
 
 
-WIKIDATA_API = "https://www.wikidata.org/w/api.php" 
+WIKIDATA_API = "https://www.wikidata.org/w/api.php"
