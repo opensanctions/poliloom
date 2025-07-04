@@ -51,7 +51,12 @@ class TestMediaWikiOAuth:
         assert user.email == 'test@example.com'
         
         # Verify jwt.decode was called with correct parameters
-        mock_jwt_decode.assert_called_once_with('test_jwt_token', options={"verify_signature": False})
+        mock_jwt_decode.assert_called_once_with(
+            'test_jwt_token', 
+            key="", 
+            audience='test_key',
+            options={"verify_signature": False, "verify_nbf": False}
+        )
     
     @patch.dict('os.environ', {
         'MEDIAWIKI_CONSUMER_KEY': 'test_key',

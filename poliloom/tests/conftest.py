@@ -14,8 +14,9 @@ from poliloom.models import (
 
 class MockSentenceTransformer:
     """Mock SentenceTransformer for tests."""
-    def __init__(self, model_name):
+    def __init__(self, model_name, device=None):
         self.model_name = model_name
+        self.device = device
     
     def encode(self, text, convert_to_tensor=False):
         """Mock embedding generation for single text or batch of texts."""
