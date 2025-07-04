@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Politician, Property, Position, ConfirmationRequest } from '@/types';
+import { Politician, Property, Position, Birthplace, ConfirmationRequest } from '@/types';
 import { confirmPolitician } from '@/lib/api';
 
 interface PoliticianConfirmationProps {
@@ -15,6 +15,8 @@ export function PoliticianConfirmation({ politician, accessToken, onNext }: Poli
   const [discardedProperties, setDiscardedProperties] = useState<Set<string>>(new Set());
   const [confirmedPositions, setConfirmedPositions] = useState<Set<string>>(new Set());
   const [discardedPositions, setDiscardedPositions] = useState<Set<string>>(new Set());
+  const [confirmedBirthplaces, setConfirmedBirthplaces] = useState<Set<string>>(new Set());
+  const [discardedBirthplaces, setDiscardedBirthplaces] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handlePropertyAction = (propertyId: string, action: 'confirm' | 'discard') => {
@@ -53,6 +55,24 @@ export function PoliticianConfirmation({ politician, accessToken, onNext }: Poli
     }
   };
 
+  const handleBirthplaceAction = (birthplaceId: string, action: 'confirm' | 'discard') => {
+    if (action === 'confirm') {
+      setConfirmedBirthplaces(prev => new Set(prev).add(birthplaceId));
+      setDiscardedBirthplaces(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(birthplaceId);
+        return newSet;
+      });
+    } else {
+      setDiscardedBirthplaces(prev => new Set(prev).add(birthplaceId));
+      setConfirmedBirthplaces(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(birthplaceId);
+        return newSet;
+      });
+    }
+  };
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
@@ -61,6 +81,8 @@ export function PoliticianConfirmation({ politician, accessToken, onNext }: Poli
         discarded_properties: Array.from(discardedProperties),
         confirmed_positions: Array.from(confirmedPositions),
         discarded_positions: Array.from(discardedPositions),
+        confirmed_birthplaces: Array.from(confirmedBirthplaces),
+        discarded_birthplaces: Array.from(discardedBirthplaces),
       };
 
       await confirmPolitician(politician.id, confirmationData, accessToken);
@@ -77,7 +99,9 @@ export function PoliticianConfirmation({ politician, accessToken, onNext }: Poli
     <div className="max-w-4xl mx-auto bg-white shadow-lg rounded-lg p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">{politician.name}</h1>
-        <p className="text-gray-600">Country: {politician.country}</p>
+        {politician.wikidata_id && (
+          <p className="text-gray-600">Wikidata ID: {politician.wikidata_id}</p>
+        )}
       </div>
 
       {politician.unconfirmed_properties.length > 0 && (
@@ -114,6 +138,23 @@ export function PoliticianConfirmation({ politician, accessToken, onNext }: Poli
         </div>
       )}
 
+      {politician.unconfirmed_birthplaces.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Birthplaces</h2>
+          <div className="space-y-4">
+            {politician.unconfirmed_birthplaces.map((birthplace) => (
+              <BirthplaceItem
+                key={birthplace.id}
+                birthplace={birthplace}
+                isConfirmed={confirmedBirthplaces.has(birthplace.id)}
+                isDiscarded={discardedBirthplaces.has(birthplace.id)}
+                onAction={(action) => handleBirthplaceAction(birthplace.id, action)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-end">
         <button
           onClick={handleSubmit}
@@ -141,14 +182,19 @@ function PropertyItem({ property, isConfirmed, isDiscarded, onAction }: Property
         <div className="flex-1">
           <h3 className="font-medium text-gray-900">{property.type}</h3>
           <p className="text-gray-700 mt-1">{property.value}</p>
-          <a
-            href={property.source_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800 text-sm mt-2 inline-block"
-          >
-            View Source →
-          </a>
+          <div className="mt-2">
+            {property.source_urls.map((url, index) => (
+              <a
+                key={index}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 text-sm inline-block mr-3"
+              >
+                Source {index + 1} →
+              </a>
+            ))}
+          </div>
         </div>
         <div className="flex space-x-2 ml-4">
           <button
@@ -191,16 +237,78 @@ function PositionItem({ position, isConfirmed, isDiscarded, onAction }: Position
         <div className="flex-1">
           <h3 className="font-medium text-gray-900">{position.position_name}</h3>
           <p className="text-gray-700 mt-1">
-            {position.start_date} - {position.end_date}
+            {position.start_date || 'Unknown'} - {position.end_date || 'Present'}
           </p>
-          <a
-            href={position.source_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800 text-sm mt-2 inline-block"
+          <div className="mt-2">
+            {position.source_urls.map((url, index) => (
+              <a
+                key={index}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 text-sm inline-block mr-3"
+              >
+                Source {index + 1} →
+              </a>
+            ))}
+          </div>
+        </div>
+        <div className="flex space-x-2 ml-4">
+          <button
+            onClick={() => onAction('confirm')}
+            className={`px-3 py-1 rounded text-sm font-medium ${
+              isConfirmed
+                ? 'bg-green-100 text-green-800 border border-green-300'
+                : 'bg-gray-100 text-gray-700 hover:bg-green-50 hover:text-green-700'
+            }`}
           >
-            View Source →
-          </a>
+            ✓ Confirm
+          </button>
+          <button
+            onClick={() => onAction('discard')}
+            className={`px-3 py-1 rounded text-sm font-medium ${
+              isDiscarded
+                ? 'bg-red-100 text-red-800 border border-red-300'
+                : 'bg-gray-100 text-gray-700 hover:bg-red-50 hover:text-red-700'
+            }`}
+          >
+            ✗ Discard
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface BirthplaceItemProps {
+  birthplace: Birthplace;
+  isConfirmed: boolean;
+  isDiscarded: boolean;
+  onAction: (action: 'confirm' | 'discard') => void;
+}
+
+function BirthplaceItem({ birthplace, isConfirmed, isDiscarded, onAction }: BirthplaceItemProps) {
+  return (
+    <div className="border border-gray-200 rounded-lg p-4">
+      <div className="flex justify-between items-start">
+        <div className="flex-1">
+          <h3 className="font-medium text-gray-900">{birthplace.location_name}</h3>
+          {birthplace.location_wikidata_id && (
+            <p className="text-gray-600 text-sm mt-1">Wikidata: {birthplace.location_wikidata_id}</p>
+          )}
+          <div className="mt-2">
+            {birthplace.source_urls.map((url, index) => (
+              <a
+                key={index}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 text-sm inline-block mr-3"
+              >
+                Source {index + 1} →
+              </a>
+            ))}
+          </div>
         </div>
         <div className="flex space-x-2 ml-4">
           <button
