@@ -484,7 +484,7 @@ Rules:
 {content}
 
 Politician name: {politician_name}
-Country: {country or 'Unknown'}"""
+Country: {country or "Unknown"}"""
 
             logger.debug(f"Extracting properties for {politician_name}")
 
@@ -574,7 +574,7 @@ Rules:
 {content}
 
 Politician name: {politician_name}
-Country: {country or 'Unknown'}"""
+Country: {country or "Unknown"}"""
 
             logger.debug(
                 f"Stage 1: Free-form position extraction for {politician_name}"
@@ -715,7 +715,7 @@ Rules:
 {content}
 
 Politician name: {politician_name}
-Country: {country or 'Unknown'}"""
+Country: {country or "Unknown"}"""
 
             logger.debug(
                 f"Stage 1: Free-form birthplace extraction for {politician_name}"

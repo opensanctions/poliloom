@@ -98,9 +98,9 @@ class TestCSVImport:
             position = (
                 test_session.query(Position).filter_by(wikidata_id=wikidata_id).first()
             )
-            assert (
-                position is None
-            ), f"Position {wikidata_id} should have been filtered out"
+            assert position is None, (
+                f"Position {wikidata_id} should have been filtered out"
+            )
 
     def test_import_positions_handles_empty_countries(
         self, test_session, test_csv_file, sample_countries
@@ -169,17 +169,17 @@ class TestCSVImport:
             position = (
                 test_session.query(Position).filter_by(wikidata_id=wikidata_id).first()
             )
-            assert (
-                position is None
-            ), f"Invalid position {wikidata_id} should have been skipped"
+            assert position is None, (
+                f"Invalid position {wikidata_id} should have been skipped"
+            )
 
         # Q134758330 should be imported as it has valid entity_id and caption
         valid_position = (
             test_session.query(Position).filter_by(wikidata_id="Q134758330").first()
         )
-        assert (
-            valid_position is not None
-        ), "Position Q134758330 should have been imported"
+        assert valid_position is not None, (
+            "Position Q134758330 should have been imported"
+        )
 
     def test_import_positions_skips_existing(
         self, test_session, test_csv_file, sample_countries
@@ -189,7 +189,8 @@ class TestCSVImport:
 
         # Create existing position
         existing_position = Position(
-            name="Existing Mayor", wikidata_id="Q110118256"  # Same as one in CSV
+            name="Existing Mayor",
+            wikidata_id="Q110118256",  # Same as one in CSV
         )
         test_session.add(existing_position)
         test_session.commit()

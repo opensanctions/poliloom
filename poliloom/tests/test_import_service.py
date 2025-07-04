@@ -304,12 +304,12 @@ class TestImportService:
         assert holds_position is not None
 
         # Verify dates are set correctly
-        assert (
-            holds_position.start_date == "2020"
-        ), f"Expected '2020', got '{holds_position.start_date}'"
-        assert (
-            holds_position.end_date == "2024"
-        ), f"Expected '2024', got '{holds_position.end_date}'"
+        assert holds_position.start_date == "2020", (
+            f"Expected '2020', got '{holds_position.start_date}'"
+        )
+        assert holds_position.end_date == "2024", (
+            f"Expected '2024', got '{holds_position.end_date}'"
+        )
         assert holds_position.start_date is not None, "start_date should not be NULL"
         assert holds_position.end_date is not None, "end_date should not be NULL"
 

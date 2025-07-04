@@ -221,3 +221,4 @@ This focused approach ensures robust testing of critical data pipeline component
 - **Database Setup:** Single PostgreSQL instance for both development and testing
 - **Vector Extensions:** pgvector extension enabled for semantic similarity search
 - **Simplified Architecture:** Removal of SQLite/PostgreSQL dual support reduces complexity and ensures consistent behavior across environments
+- **Code Quality:** Pre-commit hooks automatically run `ruff check --fix` and `ruff format` before commits to ensure consistent code style and catch linting issues

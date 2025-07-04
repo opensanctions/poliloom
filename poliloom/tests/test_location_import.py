@@ -176,7 +176,7 @@ class TestLocationImport:
         large_dataset = []
         for i in range(50):  # Use smaller number for testing
             large_dataset.append(
-                {"wikidata_id": f"Q{i+100000}", "name": f"Location {i+1}"}
+                {"wikidata_id": f"Q{i + 100000}", "name": f"Location {i + 1}"}
             )
 
         with patch.object(
