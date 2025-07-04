@@ -38,6 +38,81 @@ def locations():
     pass
 
 
+@main.group()
+def database():
+    """Commands for database operations."""
+    pass
+
+
+@database.command("truncate")
+@click.option("--all", is_flag=True, help="Truncate all tables")
+@click.option("--table", multiple=True, help="Specific table(s) to truncate")
+@click.option("--yes", is_flag=True, help="Skip confirmation prompt")
+def database_truncate(all, table, yes):
+    """Truncate database tables while preserving schema."""
+    from ..database import SessionLocal, engine
+    from ..models import Base
+    from sqlalchemy import text
+    
+    # Get all table names from metadata
+    all_tables = [t.name for t in Base.metadata.sorted_tables]
+    
+    # Determine which tables to truncate
+    if all:
+        tables_to_truncate = all_tables
+    elif table:
+        # Validate table names
+        invalid_tables = [t for t in table if t not in all_tables]
+        if invalid_tables:
+            click.echo(f"❌ Invalid table names: {', '.join(invalid_tables)}")
+            click.echo(f"Available tables: {', '.join(all_tables)}")
+            exit(1)
+        tables_to_truncate = list(table)
+    else:
+        click.echo("❌ Please specify --all or --table <name> to truncate")
+        click.echo(f"Available tables: {', '.join(all_tables)}")
+        exit(1)
+    
+    # Show what will be truncated
+    click.echo("⚠️  WARNING: This will DELETE ALL DATA from the following tables:")
+    for t in tables_to_truncate:
+        click.echo(f"  • {t}")
+    
+    # Confirm unless --yes was provided
+    if not yes:
+        if not click.confirm("\nAre you sure you want to proceed?"):
+            click.echo("❌ Truncate operation cancelled")
+            exit(0)
+    
+    session = None
+    try:
+        session = SessionLocal()
+        
+        # Disable foreign key checks temporarily
+        with engine.connect() as conn:
+            conn.execute(text("SET session_replication_role = 'replica';"))
+            conn.commit()
+            
+            # Truncate tables in reverse dependency order
+            for table_name in reversed(tables_to_truncate):
+                click.echo(f"Truncating {table_name}...")
+                conn.execute(text(f"TRUNCATE TABLE {table_name} CASCADE;"))
+                conn.commit()
+            
+            # Re-enable foreign key checks
+            conn.execute(text("SET session_replication_role = 'origin';"))
+            conn.commit()
+        
+        click.echo("✅ Successfully truncated all specified tables")
+        
+    except Exception as e:
+        click.echo(f"❌ Error truncating tables: {e}")
+        exit(1)
+    finally:
+        if session:
+            session.close()
+
+
 @politicians.command("import")
 @click.option("--id", "wikidata_id", required=True, help="Wikidata ID (e.g., Q123456)")
 def politicians_import(wikidata_id):

@@ -253,6 +253,9 @@ The API will expose endpoints for the GUI to manage confirmation workflows. Auth
 - **poliloom serve [--host HOST] [--port PORT] [--reload]**
   - Start the FastAPI web server.
 
+- **poliloom database truncate [--all] [--table TABLE] [--yes]**
+  - Truncate database tables while preserving schema.
+
 ## **5\. External Integrations**
 
 - **Wikidata API:** Used for initial database population, querying political positions and geographic locations, and potentially updating Wikidata (after user confirmation via the GUI).

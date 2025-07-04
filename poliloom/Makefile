@@ -4,7 +4,7 @@
 pgadmin:
 	docker run -d \
 		--name poliloom-pgadmin \
-		-p 8080:80 \
+		-p 9000:80 \
 		-e PGADMIN_DEFAULT_EMAIL=admin@example.com \
 		-e PGADMIN_DEFAULT_PASSWORD=admin \
 		-v $(PWD)/pgadmin-servers.json:/pgadmin4/servers.json \
