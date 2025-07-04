@@ -239,9 +239,11 @@ class TestPositionVectorSimilarity:
         # Should have embedding after manual generation
         embedding = getattr(position, 'embedding', None)
         assert embedding is not None
-        assert isinstance(embedding, list)
+        # pgvector returns numpy arrays from database
+        import numpy as np
+        assert isinstance(embedding, (list, np.ndarray))
         assert len(embedding) == 384
-        assert all(isinstance(val, (int, float)) for val in embedding)
+        assert all(isinstance(val, (int, float, np.floating)) for val in embedding)
 
     def test_embedding_update_on_name_change(self, test_session):
         """Test that embedding can be updated when position name changes."""
@@ -266,8 +268,15 @@ class TestPositionVectorSimilarity:
         # Embedding should be updated
         updated_embedding = getattr(position, 'embedding', None)
         assert updated_embedding is not None
-        assert isinstance(updated_embedding, list)
+        # pgvector returns numpy arrays from database
+        import numpy as np
+        assert isinstance(updated_embedding, (list, np.ndarray))
         assert len(updated_embedding) == 384
+        # Convert to lists for comparison if needed
+        if isinstance(initial_embedding, np.ndarray):
+            initial_embedding = initial_embedding.tolist()
+        if isinstance(updated_embedding, np.ndarray):
+            updated_embedding = updated_embedding.tolist()
         assert updated_embedding != initial_embedding
 
     def test_find_similar_basic(self, test_session, sample_country):

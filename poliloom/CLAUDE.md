@@ -20,10 +20,9 @@ This API and CLI project is responsible for:
 - **Web Framework:** FastAPI (for API endpoints)
 - **Database ORM:** SQLAlchemy
 - **Database Migrations:** Alembic
-- **Development Database:** SQLite
-- **Production Database:** PostgreSQL
+- **Database:** PostgreSQL (development and production)
 - **LLM Integration:** OpenAI API (for structured data extraction)
-- **Vector Search:** SentenceTransformers ('all-MiniLM-L6-v2') for embeddings, pgvector (PostgreSQL) or in-memory search (SQLite)
+- **Vector Search:** SentenceTransformers ('all-MiniLM-L6-v2') for embeddings, pgvector extension
 - **External APIs:** Wikidata API, MediaWiki OAuth
 
 **important** use the `uv` tool for running python commands and managing dependencies
@@ -303,10 +302,17 @@ This focused approach ensures robust testing of critical data pipeline component
 
 ### **7.2. Key Fixtures (conftest.py)**
 
-- In-memory SQLite test database
+- PostgreSQL test database (using docker-compose for CI/CD)
 - Sample politician and country data
 - Mock Wikidata SPARQL responses (politicians)
 - Mock OpenAI structured extraction responses
 - Sample Wikipedia content
 
 **Priority**: Test the main data flow thoroughly. Mock all external APIs (Wikidata, OpenAI, MediaWiki OAuth). Handle incomplete dates, conflicting data, and API failures.
+
+### **7.3. Development Environment**
+
+- **Docker Compose:** Used for running PostgreSQL locally during development
+- **Database Setup:** Single PostgreSQL instance for both development and testing
+- **Vector Extensions:** pgvector extension enabled for semantic similarity search
+- **Simplified Architecture:** Removal of SQLite/PostgreSQL dual support reduces complexity and ensures consistent behavior across environments

@@ -64,17 +64,29 @@ def load_json_fixture(filename):
 
 @pytest.fixture
 def test_engine():
-    """Create an in-memory SQLite database for testing."""
+    """Create a PostgreSQL test database for testing."""
     # Import all models to ensure they're registered with Base
     import poliloom.models  # noqa: F401
+    from sqlalchemy import text
     
+    # Use test database connection (hardcoded to match docker-compose.yml)
     engine = create_engine(
-        "sqlite:///:memory:", 
-        echo=False,
-        connect_args={"check_same_thread": False}
+        "postgresql://postgres:postgres@localhost:5433/poliloom_test",
+        echo=False
     )
+    
+    # Setup pgvector extension
+    with engine.connect() as conn:
+        conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector'))
+        conn.commit()
+    
+    # Create all tables
     Base.metadata.create_all(engine)
-    return engine
+    
+    yield engine
+    
+    # Clean up after test
+    Base.metadata.drop_all(engine)
 
 
 @pytest.fixture

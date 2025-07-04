@@ -14,7 +14,7 @@ This project helps identify and extract missing or incomplete information about 
 - **Political Positions**: Import and manage political positions from Wikidata or CSV files
 - **Data Enrichment**: Extract additional properties from Wikipedia articles using LLMs
 - **Vector Search**: Semantic similarity search for positions using SentenceTransformers
-- **Data Storage**: Local database storage using SQLAlchemy with SQLite (dev) or PostgreSQL (prod)
+- **Data Storage**: Local database storage using SQLAlchemy with PostgreSQL
 - **Data Validation**: Automatic validation that entities are human and politician-related
 - **Duplicate Handling**: Prevents duplicate imports of the same politician
 - **FastAPI Server**: Web server with API endpoints for confirmation workflows
@@ -36,6 +36,9 @@ cd poliloom
 
 # Install dependencies
 uv sync
+
+# Start PostgreSQL using Docker Compose
+docker-compose up -d postgres
 
 # Set up the database
 uv run alembic upgrade head
@@ -163,7 +166,7 @@ uv run ruff check .
 
 The project uses environment variables for configuration:
 
-- `DATABASE_URL`: Database connection string (default: `sqlite:///./poliloom.db`)
+- `DATABASE_URL`: Database connection string (default: `postgresql://postgres:postgres@localhost:5432/poliloom`)
 - `OPENAI_API_KEY`: OpenAI API key for LLM-based data extraction
 - MediaWiki OAuth settings for authentication (see CLAUDE.md for details)
 
@@ -176,9 +179,12 @@ The FastAPI server provides the following endpoints:
 
 ### Testing
 
-The project includes comprehensive testing using pytest:
+The project includes comprehensive testing using pytest with PostgreSQL:
 
 ```bash
+# Start test database
+docker-compose up -d postgres_test
+
 # Run all tests
 uv run pytest
 
@@ -198,7 +204,7 @@ Tests cover:
 - **CLI**: Click-based command-line interface with structured subcommands
 - **API**: FastAPI-based REST API with MediaWiki OAuth authentication
 - **Database**: SQLAlchemy ORM with Alembic migrations
-- **Vector Search**: SentenceTransformers with 'all-MiniLM-L6-v2' model for position similarity
+- **Vector Search**: SentenceTransformers with 'all-MiniLM-L6-v2' model and pgvector for position similarity
 - **External APIs**: Wikidata API, OpenAI API for structured data extraction
 - **Authentication**: MediaWiki OAuth for user validation
 

@@ -1,24 +1,21 @@
 """Database configuration and session management."""
 
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
-from .vector_search import setup_vector_extensions
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./poliloom.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/poliloom")
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args=(
-        {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-    ),
-)
+engine = create_engine(DATABASE_URL)
 
-# Setup vector extensions (pgvector for PostgreSQL)
-setup_vector_extensions(engine)
+# Setup pgvector extension (only for PostgreSQL)
+if DATABASE_URL.startswith('postgresql'):
+    with engine.connect() as conn:
+        conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector'))
+        conn.commit()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

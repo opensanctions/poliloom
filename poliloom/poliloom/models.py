@@ -3,13 +3,10 @@ from datetime import datetime, timezone
 from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Table
 from sqlalchemy.orm import relationship, declarative_base
 from uuid import uuid4
-from .vector_search import get_vector_backend
+from pgvector.sqlalchemy import Vector
 from .embeddings import generate_embedding
 
 Base = declarative_base()
-
-# Initialize vector backend
-vector_backend = get_vector_backend()
 
 
 
@@ -126,6 +123,7 @@ class Location(Base, UUIDMixin, TimestampMixin):
 
     name = Column(String, nullable=False)
     wikidata_id = Column(String, unique=True, index=True)
+    embedding = Column(Vector(384), nullable=True)
 
     # Relationships
     born_here = relationship("BornAt", back_populates="location", cascade="all, delete-orphan")
@@ -136,10 +134,23 @@ class Location(Base, UUIDMixin, TimestampMixin):
         # Generate embedding for query
         query_embedding = generate_embedding(query_text)
         
-        # Use vector backend to find similar locations
-        return vector_backend.find_similar(
-            session, cls, 'embedding', query_embedding, top_k
-        )
+        # Query similar locations using pgvector
+        results = session.query(cls).filter(
+            cls.embedding.isnot(None)
+        ).order_by(
+            cls.embedding.cosine_distance(query_embedding)
+        ).limit(top_k).all()
+        
+        # Calculate similarity scores and return as (entity, score) tuples
+        similarities = []
+        for location in results:
+            distance = session.query(
+                cls.embedding.cosine_distance(query_embedding)
+            ).filter(cls.id == location.id).scalar()
+            similarity = 1 - distance if distance is not None else 0.0
+            similarities.append((location, float(similarity)))
+        
+        return similarities
 
 
 class Position(Base, UUIDMixin, TimestampMixin):
@@ -148,11 +159,11 @@ class Position(Base, UUIDMixin, TimestampMixin):
 
     name = Column(String, nullable=False)
     wikidata_id = Column(String, unique=True, index=True)
+    embedding = Column(Vector(384), nullable=True)
 
     # Relationships
     countries = relationship("Country", secondary=position_country_table, back_populates="positions")
     held_by = relationship("HoldsPosition", back_populates="position", cascade="all, delete-orphan")
-
 
     @classmethod
     def find_similar(cls, session, query_text, top_k=10, country_filter=None):
@@ -160,21 +171,34 @@ class Position(Base, UUIDMixin, TimestampMixin):
         # Generate embedding for query
         query_embedding = generate_embedding(query_text)
         
-        # Build filters
-        filters = None
+        # Build base query
+        query = session.query(cls).filter(cls.embedding.isnot(None))
+        
+        # Apply country filter if provided
         if country_filter:
             country = session.query(Country).filter(
                 Country.iso_code == country_filter.upper()
             ).first()
             if country:
-                filters = cls.countries.contains(country)
+                query = query.filter(cls.countries.contains(country))
             else:
                 return []
         
-        # Use vector backend to find similar positions
-        return vector_backend.find_similar(
-            session, cls, 'embedding', query_embedding, top_k, filters
-        )
+        # Order by similarity and limit results
+        results = query.order_by(
+            cls.embedding.cosine_distance(query_embedding)
+        ).limit(top_k).all()
+        
+        # Calculate similarity scores and return as (entity, score) tuples
+        similarities = []
+        for position in results:
+            distance = session.query(
+                cls.embedding.cosine_distance(query_embedding)
+            ).filter(cls.id == position.id).scalar()
+            similarity = 1 - distance if distance is not None else 0.0
+            similarities.append((position, float(similarity)))
+        
+        return similarities
 
 
 
@@ -225,7 +249,4 @@ class HasCitizenship(Base, UUIDMixin, TimestampMixin):
     country = relationship("Country", back_populates="citizens")
 
 
-# Setup vector columns for similarity search
-# Using 384 dimensions for sentence-transformers/all-MiniLM-L6-v2 embeddings
-vector_backend.setup_vector_column(Position, 'embedding', dimensions=384)
-vector_backend.setup_vector_column(Location, 'embedding', dimensions=384)
+# Vector columns are now defined directly in the model classes using pgvector.Vector(384)
