@@ -6,11 +6,12 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select
 
 from ..database import get_db
-from ..models import Politician, Property, HoldsPosition
+from ..models import Politician, Property, HoldsPosition, BornAt
 from .schemas import (
     UnconfirmedPoliticianResponse, 
     UnconfirmedPropertyResponse, 
     UnconfirmedPositionResponse,
+    UnconfirmedBirthplaceResponse,
     ConfirmationRequest,
     ConfirmationResponse
 )
@@ -37,11 +38,14 @@ async def get_unconfirmed_politicians(
         .options(
             selectinload(Politician.properties),
             selectinload(Politician.positions_held).selectinload(HoldsPosition.position),
-            selectinload(Politician.positions_held).selectinload(HoldsPosition.sources)
+            selectinload(Politician.positions_held).selectinload(HoldsPosition.sources),
+            selectinload(Politician.birthplaces).selectinload(BornAt.location),
+            selectinload(Politician.birthplaces).selectinload(BornAt.sources)
         )
         .where(
             (Politician.properties.any(Property.is_extracted)) |
-            (Politician.positions_held.any(HoldsPosition.is_extracted))
+            (Politician.positions_held.any(HoldsPosition.is_extracted)) |
+            (Politician.birthplaces.any(BornAt.is_extracted))
         )
         .offset(offset)
         .limit(limit)
@@ -63,8 +67,14 @@ async def get_unconfirmed_politicians(
             if pos.is_extracted and pos.confirmed_at is None
         ]
         
+        # Filter unconfirmed birthplaces
+        unconfirmed_birthplaces = [
+            birthplace for birthplace in politician.birthplaces 
+            if birthplace.is_extracted and birthplace.confirmed_at is None
+        ]
+        
         # Only include politicians that actually have unconfirmed data
-        if unconfirmed_properties or unconfirmed_positions:
+        if unconfirmed_properties or unconfirmed_positions or unconfirmed_birthplaces:
             politician_response = UnconfirmedPoliticianResponse(
                 id=politician.id,
                 name=politician.name,
@@ -87,6 +97,15 @@ async def get_unconfirmed_politicians(
                         source_urls=[source.url for source in pos.sources]
                     )
                     for pos in unconfirmed_positions
+                ],
+                unconfirmed_birthplaces=[
+                    UnconfirmedBirthplaceResponse(
+                        id=birthplace.id,
+                        location_name=birthplace.location.name,
+                        location_wikidata_id=birthplace.location.wikidata_id,
+                        source_urls=[source.url for source in birthplace.sources]
+                    )
+                    for birthplace in unconfirmed_birthplaces
                 ]
             )
             result.append(politician_response)
@@ -175,6 +194,35 @@ async def confirm_politician_data(
         
         # Mark as discarded by removing from database
         db.delete(pos)
+        discarded_count += 1
+    
+    # Process confirmed birthplaces
+    for birthplace_id in confirmation.confirmed_birthplaces:
+        birthplace = db.get(BornAt, birthplace_id)
+        if not birthplace:
+            errors.append(f"Birthplace {birthplace_id} not found")
+            continue
+        if birthplace.politician_id != politician_id:
+            errors.append(f"Birthplace {birthplace_id} does not belong to politician {politician_id}")
+            continue
+        
+        birthplace.is_extracted = False
+        birthplace.confirmed_by = current_user.username
+        birthplace.confirmed_at = datetime.utcnow()
+        confirmed_count += 1
+    
+    # Process discarded birthplaces
+    for birthplace_id in confirmation.discarded_birthplaces:
+        birthplace = db.get(BornAt, birthplace_id)
+        if not birthplace:
+            errors.append(f"Birthplace {birthplace_id} not found")
+            continue
+        if birthplace.politician_id != politician_id:
+            errors.append(f"Birthplace {birthplace_id} does not belong to politician {politician_id}")
+            continue
+        
+        # Mark as discarded by removing from database
+        db.delete(birthplace)
         discarded_count += 1
     
     try:

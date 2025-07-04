@@ -109,7 +109,7 @@ def politicians_show(wikidata_id):
     click.echo(f"Showing information for politician with Wikidata ID: {wikidata_id}")
 
     from ..database import SessionLocal
-    from ..models import Politician, Property, HoldsPosition, HasCitizenship
+    from ..models import Politician, Property, HoldsPosition, HasCitizenship, BornAt
     from sqlalchemy.orm import joinedload
 
     session = None
@@ -126,6 +126,8 @@ def politicians_show(wikidata_id):
                 ),
                 joinedload(Politician.positions_held).joinedload(HoldsPosition.sources),
                 joinedload(Politician.citizenships).joinedload(HasCitizenship.country),
+                joinedload(Politician.birthplaces).joinedload(BornAt.location),
+                joinedload(Politician.birthplaces).joinedload(BornAt.sources),
                 joinedload(Politician.sources),
             )
             .first()
@@ -189,6 +191,42 @@ def politicians_show(wikidata_id):
                     # Show sources
                     if prop.sources:
                         for source in prop.sources:
+                            click.echo(f"      📖 Source: {source.url}")
+
+        # Display birthplaces
+        if politician.birthplaces:
+            click.echo()
+            click.echo("📍 BIRTHPLACES:")
+            click.echo("-" * 40)
+
+            # Separate imported vs extracted birthplaces
+            imported_birthplaces = [b for b in politician.birthplaces if not b.is_extracted]
+            extracted_birthplaces = [b for b in politician.birthplaces if b.is_extracted]
+
+            if imported_birthplaces:
+                click.echo("  📥 IMPORTED FROM WIKIDATA:")
+                for birthplace in imported_birthplaces:
+                    location_info = f"{birthplace.location.name}"
+                    if birthplace.location.wikidata_id:
+                        location_info += f" [{birthplace.location.wikidata_id}]"
+                    click.echo(f"    • {location_info}")
+
+            if extracted_birthplaces:
+                click.echo("  🤖 EXTRACTED FROM WEB SOURCES:")
+                for birthplace in extracted_birthplaces:
+                    status = "✅ CONFIRMED" if birthplace.confirmed_by else "⏳ PENDING"
+                    if birthplace.confirmed_by:
+                        status += f" by {birthplace.confirmed_by} on {birthplace.confirmed_at.strftime('%Y-%m-%d')}"
+
+                    location_info = f"{birthplace.location.name}"
+                    if birthplace.location.wikidata_id:
+                        location_info += f" [{birthplace.location.wikidata_id}]"
+
+                    click.echo(f"    • {location_info} [{status}]")
+
+                    # Show sources
+                    if birthplace.sources:
+                        for source in birthplace.sources:
                             click.echo(f"      📖 Source: {source.url}")
 
         # Display positions

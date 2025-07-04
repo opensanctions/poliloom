@@ -282,6 +282,17 @@ class WikidataClient:
                         }
                     )
 
+        # Birthplace
+        birthplace = None
+        birthplace_uri = result.get("birthPlace", {}).get("value")
+        birthplace_label = result.get("birthPlaceLabel", {}).get("value")
+        if birthplace_uri and birthplace_label:
+            birthplace_id = birthplace_uri.split("/")[-1] if birthplace_uri else ""
+            birthplace = {
+                "wikidata_id": birthplace_id,
+                "name": birthplace_label
+            }
+
         # Get entity ID from result
         person_uri = result.get("person", {}).get("value", "")
         wikidata_id = person_uri.split("/")[-1] if person_uri else ""
@@ -295,6 +306,7 @@ class WikidataClient:
             "citizenships": citizenships,
             "positions": positions,
             "wikipedia_links": wikipedia_links,
+            "birthplace": birthplace,
         }
 
     def _format_sparql_date(self, date_str: str) -> Optional[str]:

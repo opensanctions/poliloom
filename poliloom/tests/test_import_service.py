@@ -47,7 +47,7 @@ class TestImportService:
         
         # Verify properties were created (excluding citizenships)
         properties = test_session.query(Property).filter_by(politician_id=politician.id).all()
-        assert len(properties) == 1  # Only BirthDate (BirthPlace is now handled separately, citizenship is separate relationship)
+        assert len(properties) == 1  # Only BirthDate (birthplace uses BornAt relationship, citizenship uses HasCitizenship)
         prop_types = {prop.type: prop.value for prop in properties}
         assert prop_types['BirthDate'] == '1970-01-15'
         

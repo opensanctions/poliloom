@@ -24,6 +24,16 @@ class UnconfirmedPositionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UnconfirmedBirthplaceResponse(BaseModel):
+    """Schema for unconfirmed birthplace data."""
+    id: str
+    location_name: str
+    location_wikidata_id: Optional[str] = None
+    source_urls: List[str]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UnconfirmedPoliticianResponse(BaseModel):
     """Schema for politician with unconfirmed data."""
     id: str
@@ -31,6 +41,7 @@ class UnconfirmedPoliticianResponse(BaseModel):
     wikidata_id: Optional[str] = None
     unconfirmed_properties: List[UnconfirmedPropertyResponse]
     unconfirmed_positions: List[UnconfirmedPositionResponse]
+    unconfirmed_birthplaces: List[UnconfirmedBirthplaceResponse]
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -41,6 +52,8 @@ class ConfirmationRequest(BaseModel):
     discarded_properties: List[str] = []
     confirmed_positions: List[str] = []
     discarded_positions: List[str] = []
+    confirmed_birthplaces: List[str] = []
+    discarded_birthplaces: List[str] = []
 
 
 class ConfirmationResponse(BaseModel):

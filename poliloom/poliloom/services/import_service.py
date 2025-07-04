@@ -17,6 +17,7 @@ from ..models import (
     Country,
     HasCitizenship,
     Location,
+    BornAt,
 )
 from ..embeddings import generate_batch_embeddings
 from ..database import SessionLocal
@@ -74,6 +75,11 @@ class ImportService:
             # Link to existing positions only
             self._link_to_existing_positions(
                 db, politician, politician_data.get("positions", [])
+            )
+
+            # Link to existing birthplace location only
+            self._link_to_existing_birthplace(
+                db, politician, politician_data.get("birthplace")
             )
 
             # Create source records for Wikipedia links
@@ -168,6 +174,36 @@ class ImportService:
                 logger.debug(
                     f"Position {pos_data['name']} ({pos_data['wikidata_id']}) not found in database - skipping"
                 )
+
+    def _link_to_existing_birthplace(
+        self, db: Session, politician: Politician, birthplace_data: Optional[Dict[str, Any]]
+    ):
+        """Link politician to existing birthplace location only - do not create new locations."""
+        if not birthplace_data:
+            return
+
+        # Check if location already exists
+        location = (
+            db.query(Location)
+            .filter_by(wikidata_id=birthplace_data["wikidata_id"])
+            .first()
+        )
+
+        if location:
+            # Only create born_at relationship if location exists
+            born_at = BornAt(
+                politician_id=politician.id,
+                location_id=location.id,
+                is_extracted=False,  # From Wikidata, so considered confirmed
+            )
+            db.add(born_at)
+            logger.debug(
+                f"Linked politician {politician.name} to birthplace {location.name}"
+            )
+        else:
+            logger.debug(
+                f"Birthplace {birthplace_data['name']} ({birthplace_data['wikidata_id']}) not found in database - skipping"
+            )
 
     def _get_or_create_country(
         self, db: Session, country_code: str

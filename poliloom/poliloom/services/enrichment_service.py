@@ -12,7 +12,7 @@ from openai import OpenAI
 from pydantic import BaseModel, create_model
 from typing import Literal
 
-from ..models import Politician, Property, Position, HoldsPosition
+from ..models import Politician, Property, Position, HoldsPosition, Location, BornAt
 from ..database import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,6 @@ class PropertyType(str, Enum):
     """Allowed property types for extraction."""
 
     BIRTH_DATE = "BirthDate"
-    BIRTH_PLACE = "BirthPlace"
     DEATH_DATE = "DeathDate"
 
 
@@ -75,6 +74,38 @@ class FreeFormPositionExtractionResult(BaseModel):
     positions: List[FreeFormExtractedPosition]
 
 
+class ExtractedBirthplace(BaseModel):
+    """Schema for extracted birthplace data."""
+
+    location_name: str
+    proof: str
+
+
+class FreeFormExtractedBirthplace(BaseModel):
+    """Schema for free-form birthplace extraction (Stage 1)."""
+
+    location_name: str
+    proof: str
+
+
+class BirthplaceMappingResult(BaseModel):
+    """Schema for birthplace mapping result (Stage 2)."""
+
+    wikidata_location_name: Optional[str] = None  # None if no match found
+
+
+class BirthplaceExtractionResult(BaseModel):
+    """Schema for birthplace-only LLM extraction result."""
+
+    birthplaces: List[ExtractedBirthplace]
+
+
+class FreeFormBirthplaceExtractionResult(BaseModel):
+    """Schema for free-form birthplace extraction result (Stage 1)."""
+
+    birthplaces: List[FreeFormExtractedBirthplace]
+
+
 def create_dynamic_position_model(allowed_positions: List[str]):
     """Create dynamic Pydantic model that restricts positions to allowed values."""
 
@@ -121,6 +152,26 @@ def create_dynamic_mapping_model(allowed_positions: List[str]):
     )
 
     return DynamicPositionMappingResult
+
+
+def create_dynamic_birthplace_mapping_model(allowed_locations: List[str]):
+    """Create dynamic Pydantic model for birthplace mapping with None option."""
+
+    # Create union type with locations + None
+    if allowed_locations:
+        # Filter out None values and add None as separate option
+        location_names = [loc for loc in allowed_locations if loc is not None]
+        LocationNameType = Optional[Literal[tuple(location_names)]]
+    else:
+        LocationNameType = Optional[str]  # Fallback
+
+    # Create dynamic BirthplaceMappingResult model
+    DynamicBirthplaceMappingResult = create_model(
+        "DynamicBirthplaceMappingResult",
+        wikidata_location_name=(LocationNameType, None),
+    )
+
+    return DynamicBirthplaceMappingResult
 
 
 class EnrichmentService:
@@ -359,7 +410,7 @@ Select the best match or None if no good match exists."""
     def _extract_data_with_llm(
         self, content: str, politician_name: str, country: str, politician: Politician
     ) -> Optional[dict]:
-        """Extract structured data from Wikipedia content using separate OpenAI calls for properties and positions."""
+        """Extract structured data from Wikipedia content using separate OpenAI calls for properties, positions, and birthplaces."""
         try:
             # Extract properties first
             properties = self._extract_properties_with_llm(
@@ -371,7 +422,16 @@ Select the best match or None if no good match exists."""
                 content, politician_name, country, politician
             )
 
-            return {"properties": properties or [], "positions": positions or []}
+            # Extract birthplaces third
+            birthplaces = self._extract_birthplaces_with_llm(
+                content, politician_name, country, politician
+            )
+
+            return {
+                "properties": properties or [],
+                "positions": positions or [],
+                "birthplaces": birthplaces or [],
+            }
 
         except Exception as e:
             logger.error(f"Error extracting data with LLM: {e}")
@@ -384,14 +444,13 @@ Select the best match or None if no good match exists."""
         try:
             system_prompt = """You are a data extraction assistant. Extract ONLY personal properties from Wikipedia article text.
 
-Extract ONLY these three property types:
+Extract ONLY these two property types:
 - BirthDate: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
-- BirthPlace: City, Country format
 - DeathDate: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
 
 Rules:
 - Only extract information explicitly stated in the text
-- ONLY extract BirthDate, BirthPlace, and DeathDate - ignore all other personal information
+- ONLY extract BirthDate and DeathDate - ignore all other personal information
 - Use partial dates if full dates aren't available
 - Be precise and only extract what is clearly stated"""
 
@@ -585,6 +644,231 @@ Country: {country or 'Unknown'}"""
             logger.error(f"Error mapping position '{free_pos.name}' to Wikidata: {e}")
             return None
 
+    def _extract_birthplaces_with_llm(
+        self, content: str, politician_name: str, country: str, politician: Politician
+    ) -> Optional[List[ExtractedBirthplace]]:
+        """Extract birthplaces using two-stage approach: free-form extraction + Wikidata mapping."""
+        try:
+            # Stage 1: Free-form birthplace extraction
+            free_form_birthplaces = self._extract_birthplaces_free_form(
+                content, politician_name, country
+            )
+
+            if not free_form_birthplaces:
+                logger.info(
+                    f"No free-form birthplaces extracted for {politician_name}"
+                )
+                return []
+
+            # Stage 2: Map each birthplace to Wikidata
+            mapped_birthplaces = []
+            db = SessionLocal()
+            try:
+                for free_birth in free_form_birthplaces:
+                    mapped_birth = self._map_birthplace_to_wikidata(
+                        db, free_birth, politician
+                    )
+                    if mapped_birth:
+                        mapped_birthplaces.append(mapped_birth)
+            finally:
+                db.close()
+
+            logger.info(
+                f"Mapped {len(mapped_birthplaces)} out of {len(free_form_birthplaces)} "
+                f"extracted birthplaces for {politician_name}"
+            )
+
+            return mapped_birthplaces
+
+        except Exception as e:
+            logger.error(f"Error extracting birthplaces with two-stage approach: {e}")
+            return None
+
+    def _extract_birthplaces_free_form(
+        self, content: str, politician_name: str, country: str
+    ) -> Optional[List[FreeFormExtractedBirthplace]]:
+        """Stage 1: Extract birthplaces in free-form without constraints."""
+        try:
+            system_prompt = """You are a data extraction assistant. Extract birthplace information from Wikipedia article text.
+
+Extract the birthplace of the politician mentioned in the text. Use natural language descriptions as they appear in the text.
+
+Rules:
+- Extract the birthplace location as mentioned in the Wikipedia article
+- Include city, town, village, or region names as they appear
+- For each birthplace, provide a 'proof' field with the exact quote that mentions this birthplace
+- Only extract birthplace information explicitly stated in the text
+- Do not worry about exact Wikidata location names - extract naturally"""
+
+            user_prompt = f"""Extract the birthplace of {politician_name} from this Wikipedia article:
+
+{content}
+
+Politician name: {politician_name}
+Country: {country or 'Unknown'}"""
+
+            logger.debug(
+                f"Stage 1: Free-form birthplace extraction for {politician_name}"
+            )
+
+            response = self.openai_client.beta.chat.completions.parse(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format=FreeFormBirthplaceExtractionResult,
+                temperature=0.1,
+            )
+
+            message = response.choices[0].message
+
+            if message.parsed is None:
+                logger.error("OpenAI free-form birthplace extraction returned None")
+                logger.error(f"Response content: {message.content}")
+                logger.error(f"Response refusal: {getattr(message, 'refusal', None)}")
+                return None
+
+            logger.info(
+                f"Stage 1: Extracted {len(message.parsed.birthplaces)} free-form birthplaces "
+                f"for {politician_name}"
+            )
+
+            return message.parsed.birthplaces
+
+        except Exception as e:
+            logger.error(f"Error in Stage 1 free-form birthplace extraction: {e}")
+            return None
+
+    def _find_exact_location_match(
+        self, db: Session, location_name: str
+    ) -> Optional[Location]:
+        """Find exact match for location name in database."""
+        # Try exact match (case-insensitive)
+        exact_match = (
+            db.query(Location).filter(Location.name.ilike(location_name)).first()
+        )
+
+        return exact_match
+
+    def _get_similar_locations_for_mapping(
+        self, db: Session, location_name: str, max_locations: int = 100
+    ) -> List[str]:
+        """Get similar locations for mapping a single extracted birthplace to Wikidata."""
+        # Find similar locations based on the location name itself
+        similar_locations = Location.find_similar(
+            db, location_name, top_k=max_locations
+        )
+
+        return [location.name for location, similarity in similar_locations]
+
+    def _llm_map_to_wikidata_location(
+        self, extracted_location: str, candidate_locations: List[str], proof_text: str
+    ) -> Optional[str]:
+        """Use LLM to map extracted birthplace to correct Wikidata location."""
+        try:
+            # Create dynamic model with candidate locations
+            DynamicBirthplaceMappingResult = create_dynamic_birthplace_mapping_model(
+                candidate_locations
+            )
+
+            system_prompt = """You are a location mapping assistant. Given an extracted birthplace and a list of candidate Wikidata locations, select the most accurate match.
+
+Rules:
+- Choose the Wikidata location that best matches the extracted birthplace
+- Consider the context provided in the proof text
+- If no candidate location is a good match, return None
+- Be precise - only match if you're confident the locations refer to the same place
+- Consider that birthplaces can be cities, towns, villages, regions, or even countries"""
+
+            user_prompt = f"""Map this extracted birthplace to the correct Wikidata location:
+
+Extracted Birthplace: "{extracted_location}"
+Proof Context: "{proof_text}"
+
+Candidate Wikidata Locations:
+{chr(10).join([f"- {loc}" for loc in candidate_locations])}
+
+Select the best match or None if no good match exists."""
+
+            response = self.openai_client.beta.chat.completions.parse(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format=DynamicBirthplaceMappingResult,
+                temperature=0.1,
+            )
+
+            message = response.choices[0].message
+
+            if message.parsed is None:
+                logger.error("OpenAI birthplace mapping returned None")
+                return None
+
+            return message.parsed.wikidata_location_name
+
+        except Exception as e:
+            logger.error(f"Error mapping birthplace with LLM: {e}")
+            return None
+
+    def _map_birthplace_to_wikidata(
+        self, db: Session, free_birth: FreeFormExtractedBirthplace, politician: Politician
+    ) -> Optional[ExtractedBirthplace]:
+        """Stage 2: Map a free-form birthplace to Wikidata location or return None."""
+        try:
+            # First check for exact match
+            exact_match = self._find_exact_location_match(db, free_birth.location_name)
+            if exact_match:
+                logger.debug(
+                    f"Exact match found: '{free_birth.location_name}' -> '{exact_match.name}'"
+                )
+                return ExtractedBirthplace(
+                    location_name=exact_match.name,
+                    proof=free_birth.proof,
+                )
+
+            # No exact match - use similarity search + LLM mapping
+            similar_locations = self._get_similar_locations_for_mapping(
+                db, free_birth.location_name
+            )
+
+            if not similar_locations:
+                logger.debug(f"No similar locations found for '{free_birth.location_name}'")
+                return None
+
+            # Use LLM to map to correct Wikidata location
+            mapped_location_name = self._llm_map_to_wikidata_location(
+                free_birth.location_name, similar_locations, free_birth.proof
+            )
+
+            if not mapped_location_name:
+                logger.debug(
+                    f"LLM could not map '{free_birth.location_name}' to Wikidata location"
+                )
+                return None
+
+            # Verify the mapped location exists in our database
+            final_location = (
+                db.query(Location).filter_by(name=mapped_location_name).first()
+            )
+            if not final_location:
+                logger.warning(
+                    f"LLM mapped to non-existent location: '{mapped_location_name}'"
+                )
+                return None
+
+            logger.debug(f"LLM mapped '{free_birth.location_name}' -> '{mapped_location_name}'")
+            return ExtractedBirthplace(
+                location_name=final_location.name,
+                proof=free_birth.proof,
+            )
+
+        except Exception as e:
+            logger.error(f"Error mapping birthplace '{free_birth.location_name}' to Wikidata: {e}")
+            return None
+
     def _log_extraction_results(self, politician_name: str, data: dict) -> None:
         """Log what the LLM extracted from Wikipedia."""
         logger.info(f"LLM extracted data for {politician_name}:")
@@ -615,6 +899,15 @@ Country: {country or 'Unknown'}"""
                 logger.info(f"      Proof: {pos.proof}")
         else:
             logger.info("  No positions extracted")
+
+        birthplaces = data.get("birthplaces", [])
+        if birthplaces:
+            logger.info(f"  Birthplaces ({len(birthplaces)}):")
+            for birth in birthplaces:
+                logger.info(f"    {birth.location_name}")
+                logger.info(f"      Proof: {birth.proof}")
+        else:
+            logger.info("  No birthplaces extracted")
 
     def _store_extracted_data(
         self, db: Session, politician: Politician, extracted_data: List[tuple]
@@ -708,6 +1001,46 @@ Country: {country or 'Unknown'}"""
 
                             logger.info(
                                 f"Added new position: '{pos_data.name}'{date_range} for {politician.name}"
+                            )
+
+                # Store birthplaces - only link to existing locations
+                for birth_data in data.get("birthplaces", []):
+                    if birth_data.location_name:
+                        # Only find existing locations, don't create new ones
+                        location = (
+                            db.query(Location).filter_by(name=birth_data.location_name).first()
+                        )
+
+                        if not location:
+                            logger.warning(
+                                f"Location '{birth_data.location_name}' not found in database for {politician.name} - skipping"
+                            )
+                            continue
+
+                        # Check if this birthplace relationship already exists
+                        existing_birth = (
+                            db.query(BornAt)
+                            .filter_by(
+                                politician_id=politician.id,
+                                location_id=location.id,
+                            )
+                            .first()
+                        )
+
+                        if not existing_birth:
+                            born_at = BornAt(
+                                politician_id=politician.id,
+                                location_id=location.id,
+                                is_extracted=True,  # Newly extracted, needs confirmation
+                            )
+                            db.add(born_at)
+                            db.flush()
+
+                            # Link to source
+                            born_at.sources.append(source)
+
+                            logger.info(
+                                f"Added new birthplace: '{birth_data.location_name}' for {politician.name}"
                             )
 
             return True
