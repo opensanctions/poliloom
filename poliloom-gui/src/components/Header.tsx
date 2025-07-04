@@ -2,6 +2,7 @@
 
 import { useSession, signOut } from "next-auth/react"
 import Link from "next/link"
+import { handleSignIn } from "@/lib/actions"
 
 export function Header() {
   const { data: session, status } = useSession()
@@ -36,12 +37,14 @@ export function Header() {
             )}
             
             {status === "unauthenticated" && (
-              <Link
-                href="/auth/login"
-                className="text-sm text-indigo-600 hover:text-indigo-500 font-medium"
-              >
-                Sign in
-              </Link>
+              <form action={handleSignIn}>
+                <button
+                  type="submit"
+                  className="text-sm text-indigo-600 hover:text-indigo-500 font-medium"
+                >
+                  Sign in
+                </button>
+              </form>
             )}
           </div>
         </div>
