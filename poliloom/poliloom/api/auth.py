@@ -32,7 +32,15 @@ class MediaWikiOAuth:
         try:
             # Decode JWT without verification first to get the payload
             # MediaWiki OAuth 2.0 JWTs are signed but we need to get user info
-            decoded = jwt.decode(jwt_token, options={"verify_signature": False})
+            decoded = jwt.decode(
+                jwt_token, 
+                key="", 
+                audience=self.consumer_key,
+                options={
+                    "verify_signature": False,
+                    "verify_nbf": False
+                }
+            )
             
             # Extract user information from JWT payload
             return User(
