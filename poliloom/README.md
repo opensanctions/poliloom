@@ -12,8 +12,9 @@ This project helps identify and extract missing or incomplete information about 
 
 - **Wikidata Import**: Import politician data directly from Wikidata by ID
 - **Political Positions**: Import and manage political positions from Wikidata or CSV files
-- **Data Enrichment**: Extract additional properties from Wikipedia articles using LLMs
-- **Vector Search**: Semantic similarity search for positions using SentenceTransformers
+- **Data Enrichment**: Extract additional properties from Wikipedia articles using LLMs with two-stage extraction strategy
+- **Vector Search**: Semantic similarity search for positions and locations using SentenceTransformers with pgvector
+- **GPU Acceleration**: Embedding generation leverages GPU when available for improved performance
 - **Data Storage**: Local database storage using SQLAlchemy with PostgreSQL
 - **Data Validation**: Automatic validation that entities are human and politician-related
 - **Duplicate Handling**: Prevents duplicate imports of the same politician
@@ -96,6 +97,44 @@ uv run poliloom positions import
 uv run poliloom positions import-csv --file positions.csv
 ```
 
+**Generate embeddings for positions**
+
+```bash
+# Generate embeddings for all positions without embeddings (uses GPU if available)
+uv run poliloom positions embed
+```
+
+#### Locations Commands
+
+**Import geographic locations from Wikidata**
+
+```bash
+# Import all geographic locations from Wikidata
+uv run poliloom locations import
+```
+
+**Generate embeddings for locations**
+
+```bash
+# Generate embeddings for all locations without embeddings (uses GPU if available)
+uv run poliloom locations embed
+```
+
+#### Database Commands
+
+**Truncate database tables**
+
+```bash
+# Truncate all tables (with confirmation)
+uv run poliloom database truncate --all
+
+# Truncate specific table
+uv run poliloom database truncate --table politicians
+
+# Skip confirmation prompt
+uv run poliloom database truncate --all --yes
+```
+
 #### Server Commands
 
 **Start the FastAPI web server**
@@ -118,6 +157,7 @@ The project uses a relational database with the following main entities:
 - **Politician**: Core politician information (name, Wikidata ID)
 - **Property**: Individual properties like birth date, birth place with confirmation status
 - **Position**: Political positions (President, Senator, etc.) with embeddings for similarity search
+- **Location**: Geographic locations (cities, regions, countries) with embeddings for similarity search
 - **HoldsPosition**: Relationship between politicians and positions with dates and confirmation status
 - **Country**: Countries with ISO codes and Wikidata IDs
 - **HasCitizenship**: Many-to-many relationship between politicians and countries
@@ -129,7 +169,8 @@ The schema supports:
 - Multilingual names
 - Multiple citizenships
 - Confirmation workflows with user tracking
-- Vector embeddings for semantic search
+- Vector embeddings for semantic search (generated separately from import using dedicated commands)
+- Two-stage extraction strategy for positions and birthplaces to handle large datasets efficiently
 
 ## Development
 
@@ -149,17 +190,15 @@ uv run alembic upgrade head
 
 ### Code Quality
 
-The project uses:
-
-- **Black** for code formatting
-- **Ruff** for linting
+The project uses **Ruff** for both linting and code formatting with pre-commit hooks:
 
 ```bash
-# Format code
-uv run black .
+# Lint and format code (runs automatically via pre-commit)
+uv run ruff check --fix .
+uv run ruff format .
 
-# Lint code
-uv run ruff check .
+# Install pre-commit hooks (runs ruff automatically on commit)
+uv run pre-commit install
 ```
 
 ## Configuration
