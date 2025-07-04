@@ -1,0 +1,22 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "PoliLoom Development",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "poliloom",
+      "Username": "postgres",
+      "SSLMode": "prefer"
+    },
+    "2": {
+      "Name": "PoliLoom Test",
+      "Group": "Servers",
+      "Host": "postgres_test",
+      "Port": 5432,
+      "MaintenanceDB": "poliloom_test",
+      "Username": "postgres",
+      "SSLMode": "prefer"
+    }
+  }
+}
