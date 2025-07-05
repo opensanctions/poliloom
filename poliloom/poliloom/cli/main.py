@@ -3,9 +3,6 @@
 import click
 import logging
 import uvicorn
-import httpx
-from pathlib import Path
-from tqdm import tqdm
 from ..services.import_service import ImportService
 from ..services.enrichment_service import EnrichmentService
 
@@ -114,89 +111,6 @@ def database_truncate(all, table, yes):
     finally:
         if session:
             session.close()
-
-
-@main.group()
-def dump():
-    """Commands for managing Wikidata dumps."""
-    pass
-
-
-@dump.command("download")
-@click.option(
-    "--output",
-    default="./latest-all.json.gz",
-    help="Local path to save the dump file (default: ./latest-all.json.gz)",
-)
-@click.option(
-    "--url",
-    default="https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.gz",
-    help="Custom dump URL (default: https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.gz)",
-)
-def dump_download(output, url):
-    """Download the latest Wikidata dump to disk for offline processing."""
-    click.echo(f"Downloading Wikidata dump from: {url}")
-    click.echo(f"Output path: {output}")
-    
-    # Create output directory if it doesn't exist
-    output_path = Path(output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    try:
-        # Check if file already exists
-        if output_path.exists():
-            if not click.confirm(f"File {output} already exists. Overwrite?"):
-                click.echo("Download cancelled.")
-                return
-        
-        # Simple download with httpx and tqdm for progress tracking
-        click.echo("Starting download...")
-        
-        with httpx.stream("GET", url, timeout=300) as response:
-            response.raise_for_status()
-            
-            total_size = int(response.headers.get('content-length', 0))
-            
-            if total_size > 0:
-                click.echo(f"Total file size: {total_size / (1024**3):.2f} GB")
-            
-            with open(output_path, 'wb') as f:
-                with tqdm(
-                    total=total_size,
-                    unit='B',
-                    unit_scale=True,
-                    unit_divisor=1024,
-                    desc="Downloading"
-                ) as pbar:
-                    for chunk in response.iter_bytes(chunk_size=1024*1024):  # 1MB chunks
-                        f.write(chunk)
-                        pbar.update(len(chunk))
-        
-        # Verify file was downloaded successfully
-        if output_path.exists() and output_path.stat().st_size > 0:
-            file_size = output_path.stat().st_size
-            click.echo(f"✅ Successfully downloaded {file_size / (1024**3):.2f} GB to {output}")
-        else:
-            click.echo("❌ Download failed - file is empty or missing")
-            if output_path.exists():
-                output_path.unlink()  # Remove empty file
-            exit(1)
-            
-    except httpx.RequestError as e:
-        click.echo(f"❌ Download failed: {e}")
-        if output_path.exists():
-            output_path.unlink()  # Remove partial file
-        exit(1)
-    except KeyboardInterrupt:
-        click.echo("\n❌ Download cancelled by user")
-        if output_path.exists():
-            output_path.unlink()  # Remove partial file
-        exit(1)
-    except Exception as e:
-        click.echo(f"❌ Unexpected error: {e}")
-        if output_path.exists():
-            output_path.unlink()  # Remove partial file
-        exit(1)
 
 
 @politicians.command("import")

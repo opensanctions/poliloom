@@ -1,4 +1,4 @@
-.PHONY: pgadmin start-pgadmin stop-pgadmin
+.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump
 
 # Start pgAdmin4 container for database inspection
 pgadmin:
@@ -18,3 +18,10 @@ start-pgadmin: pgadmin
 stop-pgadmin:
 	docker stop poliloom-pgadmin || true
 	docker rm poliloom-pgadmin || true
+
+# Download the latest Wikidata dump (bzip2 compressed)
+download-wikidata-dump:
+	@echo "Downloading latest Wikidata dump (bzip2)..."
+	@echo "This is a large file (~100GB compressed) and may take several hours."
+	curl -L -o latest-all.json.bz2 https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.bz2
+	@echo "Download complete: latest-all.json.bz2"
