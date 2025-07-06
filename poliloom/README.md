@@ -35,6 +35,11 @@ This project uses [uv](https://docs.astral.sh/uv/) for dependency management:
 git clone <repository-url>
 cd poliloom
 
+# Install system dependencies
+# For parallel bzip2 decompression (required for Wikidata dump processing):
+# On Ubuntu/Debian: sudo apt-get install lbzip2
+# On macOS: brew install lbzip2
+
 # Install dependencies
 uv sync
 
