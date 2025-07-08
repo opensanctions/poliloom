@@ -436,6 +436,17 @@
               }
             }
           }
+        ],
+        "P17": [
+          {
+            "mainsnak": {
+              "datavalue": {
+                "value": {
+                  "id": "Q30"
+                }
+              }
+            }
+          }
         ]
       }
     },
@@ -455,6 +466,17 @@
               "datavalue": {
                 "value": {
                   "id": "Q2221906"
+                }
+              }
+            }
+          }
+        ],
+        "P17": [
+          {
+            "mainsnak": {
+              "datavalue": {
+                "value": {
+                  "id": "Q30"
                 }
               }
             }

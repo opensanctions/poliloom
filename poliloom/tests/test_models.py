@@ -55,14 +55,11 @@ class TestHelpers:
 
     @staticmethod
     def similarity_search(
-        session, model_class, query_text, limit=5, country_filter=None
+        session, model_class, query_text, limit=5
     ):
         """Perform similarity search on model with embeddings."""
         query_embedding = generate_embedding(query_text)
         query = session.query(model_class).filter(model_class.embedding.isnot(None))
-
-        if country_filter and hasattr(model_class, "countries"):
-            query = query.filter(model_class.countries.contains(country_filter))
 
         return (
             query.order_by(model_class.embedding.cosine_distance(query_embedding))
@@ -221,17 +218,14 @@ class TestCountry:
 class TestPosition:
     """Test cases for the Position model."""
 
-    def test_position_creation(self, test_session, sample_country):
+    def test_position_creation(self, test_session):
         """Test basic position creation."""
         position = Position(name="Senator", wikidata_id="Q4416090")
-        position.countries.append(sample_country)
         position = TestHelpers.create_and_commit(test_session, position)
 
         TestHelpers.assert_basic_model_fields(
             position, {"name": "Senator", "wikidata_id": "Q4416090"}
         )
-        assert len(position.countries) == 1
-        assert position.countries[0].id == sample_country.id
 
 
 class TestPositionVectorSimilarity:
@@ -294,31 +288,15 @@ class TestPositionVectorSimilarity:
 
     def test_similarity_search_functionality(self, test_session):
         """Test similarity search with various scenarios."""
-        # Create test countries
-        us_country, uk_country = TestHelpers.create_and_commit(
-            test_session,
-            Country(name="United States", iso_code="US", wikidata_id="Q30"),
-            Country(name="United Kingdom", iso_code="GB", wikidata_id="Q145"),
-        )
-
         # Create positions with embeddings
-        us_positions = [
+        positions = [
             TestHelpers.create_position_with_embedding("US President", "Q11696"),
             TestHelpers.create_position_with_embedding("US Governor", "Q889821"),
-        ]
-        uk_positions = [
             TestHelpers.create_position_with_embedding("UK Prime Minister", "Q14212"),
             TestHelpers.create_position_with_embedding("UK Minister", "Q83307"),
         ]
 
-        # Assign countries and save
-        for pos in us_positions:
-            pos.countries.append(us_country)
-        for pos in uk_positions:
-            pos.countries.append(uk_country)
-
-        all_positions = us_positions + uk_positions
-        TestHelpers.create_and_commit(test_session, *all_positions)
+        TestHelpers.create_and_commit(test_session, *positions)
 
         # Test basic similarity search
         results = TestHelpers.similarity_search(
@@ -326,18 +304,6 @@ class TestPositionVectorSimilarity:
         )
         assert len(results) <= 2
         assert all(isinstance(pos, Position) for pos in results)
-
-        # Test country filtering
-        us_results = TestHelpers.similarity_search(
-            test_session,
-            Position,
-            "Executive Leader",
-            limit=5,
-            country_filter=us_country,
-        )
-        for pos in us_results:
-            assert us_country in pos.countries
-            assert uk_country not in pos.countries
 
         # Test limit behavior
         no_results = TestHelpers.similarity_search(

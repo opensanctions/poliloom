@@ -78,14 +78,13 @@ class TestEnrichmentService:
         return enrichment_data["wikipedia_content_examples"]["test_politician_article"]
 
     @pytest.fixture
-    def sample_position(self, test_session, sample_country):
+    def sample_position(self, test_session):
         """Create a sample position with embedding."""
         position = Position(
             name="Mayor of Springfield",
             wikidata_id="Q30185",
             embedding=[0.1] * 384,  # Mock embedding
         )
-        position.countries.append(sample_country)
         test_session.add(position)
         test_session.commit()
         test_session.refresh(position)

@@ -100,25 +100,21 @@ class TestPositionImport:
         president = test_session.query(Position).filter_by(wikidata_id="Q11696").first()
         assert president is not None
         assert president.name == "President of the United States"
-        assert len(president.countries) == 0  # Should have no countries initially
 
         # Check Representative position
         rep = test_session.query(Position).filter_by(wikidata_id="Q13218630").first()
         assert rep is not None
         assert rep.name == "United States representative"
-        assert len(rep.countries) == 0
 
         # Check Senator position
         senator = test_session.query(Position).filter_by(wikidata_id="Q4416090").first()
         assert senator is not None
         assert senator.name == "United States senator"
-        assert len(senator.countries) == 0
 
         # Check Minister position
         minister = test_session.query(Position).filter_by(wikidata_id="Q83307").first()
         assert minister is not None
         assert minister.name == "minister"
-        assert len(minister.countries) == 0
 
     def test_import_all_positions_skip_existing(self, test_session, sample_position):
         """Test that existing positions are skipped during import."""

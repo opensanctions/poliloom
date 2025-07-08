@@ -60,28 +60,18 @@ class TestCSVImport:
         )
         assert mayor_hongseong is not None
         assert mayor_hongseong.name == "Mayor of Hongseong"
-        # Should map to South Korea
-        kr_country = test_session.query(Country).filter_by(iso_code="KR").first()
-        assert len(mayor_hongseong.countries) == 1
-        assert mayor_hongseong.countries[0].id == kr_country.id
 
         mayor_jeongeup = (
             test_session.query(Position).filter_by(wikidata_id="Q134765401").first()
         )
         assert mayor_jeongeup is not None
         assert mayor_jeongeup.name == "Mayor of Jeongeup"
-        assert len(mayor_jeongeup.countries) == 1
-        assert mayor_jeongeup.countries[0].id == kr_country.id
 
         mayor_gunsan = (
             test_session.query(Position).filter_by(wikidata_id="Q134765105").first()
         )
         assert mayor_gunsan is not None
         assert mayor_gunsan.name == "Mayor of Gunsan"
-        # Should map to United States
-        us_country = test_session.query(Country).filter_by(iso_code="US").first()
-        assert len(mayor_gunsan.countries) == 1
-        assert mayor_gunsan.countries[0].id == us_country.id
 
     def test_import_positions_filters_false_is_pep(
         self, test_session, test_csv_file, sample_countries
@@ -121,14 +111,12 @@ class TestCSVImport:
             test_session.query(Position).filter_by(wikidata_id="Q134758719").first()
         )
         assert position_empty_countries is not None
-        assert len(position_empty_countries.countries) == 0
 
         # Check position with empty string for countries
         position_empty_string = (
             test_session.query(Position).filter_by(wikidata_id="Q134758519").first()
         )
         assert position_empty_string is not None
-        assert len(position_empty_string.countries) == 0
 
     def test_import_positions_uses_all_countries(
         self, test_session, test_csv_file, sample_countries
@@ -141,18 +129,11 @@ class TestCSVImport:
         ):
             import_service.import_positions_from_csv(str(test_csv_file))
 
-        # Check position with multiple countries - should link to both (US and CA)
+        # Check position with multiple countries - should exist
         position_multi_countries = (
             test_session.query(Position).filter_by(wikidata_id="Q134758625").first()
         )
         assert position_multi_countries is not None
-        us_country = test_session.query(Country).filter_by(iso_code="US").first()
-        ca_country = test_session.query(Country).filter_by(iso_code="CA").first()
-
-        assert len(position_multi_countries.countries) == 2
-        country_ids = {country.id for country in position_multi_countries.countries}
-        assert us_country.id in country_ids
-        assert ca_country.id in country_ids
 
     def test_import_positions_skips_invalid_rows(
         self, test_session, test_csv_file, sample_countries
@@ -228,17 +209,9 @@ class TestCSVImport:
         # Should import positions and create countries on-demand
         assert result == 7
 
-        # Check that countries were created for positions that reference them
-        from poliloom.models import Country
-
-        countries = test_session.query(Country).all()
-        assert len(countries) > 0  # Countries should have been created on-demand
-
-        # Check that positions with countries are properly linked
-        positions_with_countries = (
-            test_session.query(Position).filter(Position.countries.any()).all()
-        )
-        assert len(positions_with_countries) > 0
+        # Check that positions were created
+        positions = test_session.query(Position).all()
+        assert len(positions) == 7
 
     def test_import_positions_file_not_found(self, test_session):
         """Test handling of non-existent CSV file."""

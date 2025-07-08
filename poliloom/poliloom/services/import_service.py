@@ -243,18 +243,6 @@ class ImportService:
         logger.info(f"Created country on-demand: {country_name} ({country_code})")
         return country
 
-    def _link_position_to_countries(
-        self, db: Session, position: Position, country_codes: list
-    ):
-        """Link a position to multiple countries via the association table."""
-        for country_code in country_codes:
-            if not country_code:
-                continue
-
-            # Get or create country
-            country = self._get_or_create_country(db, country_code)
-            if country and country not in position.countries:
-                position.countries.append(country)
 
     def _create_sources(
         self, db: Session, politician: Politician, wikipedia_links: list
@@ -315,13 +303,8 @@ class ImportService:
 
                 try:
                     db.add(position)
-                    db.flush()  # Get the ID for country linking and check constraints
+                    db.flush()  # Get the ID and check constraints
 
-                    # Link position to countries if specified
-                    if position_data.get("country_codes"):
-                        self._link_position_to_countries(
-                            db, position, position_data["country_codes"]
-                        )
 
                     imported_count += 1
                 except IntegrityError:
@@ -373,7 +356,6 @@ class ImportService:
                 for row in reader:
                     entity_id = row.get("entity_id", "").strip()
                     caption = row.get("caption", "").strip()
-                    countries_str = row.get("countries", "").strip()
                     is_pep = row.get("is_pep", "").strip()
 
                     # Skip rows without required fields
@@ -397,28 +379,12 @@ class ImportService:
                         logger.debug(f"Position {caption} ({entity_id}) already exists")
                         continue
 
-                    # Parse countries from JSON array string
-                    country_codes = []
-                    if countries_str and countries_str != "[]":
-                        try:
-                            countries_list = json.loads(countries_str)
-                            if countries_list:
-                                country_codes = [
-                                    code.upper() for code in countries_list if code
-                                ]
-                        except (json.JSONDecodeError, ValueError) as e:
-                            logger.debug(
-                                f"Could not parse countries JSON for position {caption}: {e}"
-                            )
 
                     # Create position record
                     position = Position(name=caption, wikidata_id=entity_id)
                     db.add(position)
-                    db.flush()  # Get the ID for country linking
+                    db.flush()  # Get the ID
 
-                    # Link position to countries if specified
-                    if country_codes:
-                        self._link_position_to_countries(db, position, country_codes)
 
                     imported_count += 1
 

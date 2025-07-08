@@ -60,12 +60,6 @@ bornat_source_table = Table(
     Column("source_id", String, ForeignKey("sources.id"), primary_key=True),
 )
 
-position_country_table = Table(
-    "position_country",
-    Base.metadata,
-    Column("position_id", String, ForeignKey("positions.id"), primary_key=True),
-    Column("country_id", String, ForeignKey("countries.id"), primary_key=True),
-)
 
 
 class Politician(Base, UUIDMixin, TimestampMixin):
@@ -149,9 +143,6 @@ class Country(Base, UUIDMixin, TimestampMixin):
     wikidata_id = Column(String, unique=True, index=True)
 
     # Relationships
-    positions = relationship(
-        "Position", secondary=position_country_table, back_populates="countries"
-    )
     citizens = relationship(
         "HasCitizenship", back_populates="country", cascade="all, delete-orphan"
     )
@@ -182,9 +173,6 @@ class Position(Base, UUIDMixin, TimestampMixin):
     embedding = Column(Vector(384), nullable=True)
 
     # Relationships
-    countries = relationship(
-        "Country", secondary=position_country_table, back_populates="positions"
-    )
     held_by = relationship(
         "HoldsPosition", back_populates="position", cascade="all, delete-orphan"
     )

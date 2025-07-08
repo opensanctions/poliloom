@@ -435,6 +435,21 @@ MALFORMED_JSON_LINE,
         # Test with no name
         assert processor._extract_position_data(position_examples["position_no_name"]) is None
     
+    def test_extract_position_data_basic(self, processor):
+        """Test basic position data extraction."""
+        # Test position without country claims
+        position_no_country = {
+            "id": "Q999",
+            "type": "item",
+            "labels": {"en": {"language": "en", "value": "Test Position"}},
+            "claims": {"P279": [{"mainsnak": {"datavalue": {"value": {"id": "Q294414"}}}}]}
+        }
+        
+        data = processor._extract_position_data(position_no_country)
+        assert data is not None
+        assert data["wikidata_id"] == "Q999"
+        assert data["name"] == "Test Position"
+    
     def test_extract_location_data(self, processor):
         """Test location data extraction."""
         # Load test data from fixture
@@ -448,6 +463,21 @@ MALFORMED_JSON_LINE,
         
         # Test with no name
         assert processor._extract_location_data(location_examples["location_no_name"]) is None
+    
+    def test_extract_location_data_basic(self, processor):
+        """Test basic location data extraction."""
+        # Test location without country claims
+        location_no_country = {
+            "id": "Q888",
+            "type": "item",
+            "labels": {"en": {"language": "en", "value": "Test Location"}},
+            "claims": {"P279": [{"mainsnak": {"datavalue": {"value": {"id": "Q2221906"}}}}]}
+        }
+        
+        data = processor._extract_location_data(location_no_country)
+        assert data is not None
+        assert data["wikidata_id"] == "Q888"
+        assert data["name"] == "Test Location"
     
     def test_extract_country_data(self, processor):
         """Test country data extraction."""
@@ -506,6 +536,39 @@ MALFORMED_JSON_LINE,
             assert all(hasattr(obj, 'name') for obj in added_objects)
             assert all(hasattr(obj, 'embedding') for obj in added_objects)
     
+    def test_insert_positions_batch_basic(self, processor):
+        """Test basic batch insertion of positions."""
+        from unittest.mock import MagicMock, Mock
+        
+        # Mock the SessionLocal where it's imported inside the method
+        with patch('poliloom.database.SessionLocal') as mock_session_local, \
+             patch('poliloom.models.Position') as mock_position:
+            mock_session = MagicMock()
+            mock_session_local.return_value = mock_session
+            mock_session.query.return_value.filter.return_value.all.return_value = []
+            
+            # Make Position behave like a class
+            mock_position.side_effect = lambda **kwargs: Mock(**kwargs)
+            
+            positions = [
+                {"wikidata_id": "Q1", "name": "Mayor"},
+                {"wikidata_id": "Q2", "name": "President"}
+            ]
+            
+            processor._insert_positions_batch(positions)
+            
+            # Verify session methods were called
+            assert mock_session.add_all.called
+            assert mock_session.commit.called
+            assert mock_session.close.called
+            
+            # Check Position objects were created
+            added_objects = mock_session.add_all.call_args[0][0]
+            assert len(added_objects) == 2
+            assert all(hasattr(obj, 'wikidata_id') for obj in added_objects)
+            assert all(hasattr(obj, 'name') for obj in added_objects)
+            assert all(hasattr(obj, 'embedding') for obj in added_objects)
+    
     def test_insert_locations_batch(self, processor):
         """Test batch insertion of locations."""
         from unittest.mock import MagicMock
@@ -522,6 +585,40 @@ MALFORMED_JSON_LINE,
             ]
             
             processor._insert_locations_batch(locations)
+            
+            # Verify session methods were called
+            assert mock_session.add_all.called
+            assert mock_session.commit.called
+            assert mock_session.close.called
+            
+            # Check Location objects were created
+            added_objects = mock_session.add_all.call_args[0][0]
+            assert len(added_objects) == 2
+            assert all(hasattr(obj, 'wikidata_id') for obj in added_objects)
+            assert all(hasattr(obj, 'name') for obj in added_objects)
+            assert all(hasattr(obj, 'embedding') for obj in added_objects)
+    
+    def test_insert_locations_batch_basic(self, processor):
+        """Test basic batch insertion of locations."""
+        from unittest.mock import MagicMock, Mock
+        
+        # Mock the SessionLocal where it's imported inside the method
+        with patch('poliloom.database.SessionLocal') as mock_session_local, \
+             patch('poliloom.models.Location') as mock_location:
+            mock_session = MagicMock()
+            mock_session_local.return_value = mock_session
+            mock_session.query.return_value.filter.return_value.all.return_value = []
+            
+            # Make Location behave like a class
+            mock_location.side_effect = lambda **kwargs: Mock(**kwargs)
+            
+            locations = [
+                {"wikidata_id": "Q84", "name": "London"},
+                {"wikidata_id": "Q90", "name": "Paris"}
+            ]
+            
+            processor._insert_locations_batch(locations)
+            
             
             # Verify session methods were called
             assert mock_session.add_all.called
@@ -644,6 +741,10 @@ MALFORMED_JSON_LINE,
                         assert "Q294414" in position_ids  # public office
                         assert "Q30185" in position_ids   # Mayor
                         
+                        # Check that Mayor data is present
+                        mayor_data = next(p for p in positions_data if p["wikidata_id"] == "Q30185")
+                        assert mayor_data["name"] == "Mayor"
+                        
                         locations_data = []
                         for call in mock_insert_locations.call_args_list:
                             locations_data.extend(call[0][0])
@@ -651,6 +752,10 @@ MALFORMED_JSON_LINE,
                         location_ids = {l["wikidata_id"] for l in locations_data}
                         assert "Q2221906" in location_ids  # geographic location
                         assert "Q515" in location_ids      # city
+                        
+                        # Check that city data is present
+                        city_data = next(l for l in locations_data if l["wikidata_id"] == "Q515")
+                        assert city_data["name"] == "city"
                         
                         countries_data = []
                         for call in mock_insert_countries.call_args_list:

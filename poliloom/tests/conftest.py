@@ -145,10 +145,9 @@ def sample_country(test_session):
 
 
 @pytest.fixture
-def sample_position(test_session, sample_country):
+def sample_position(test_session):
     """Create a sample position for testing."""
     position = Position(name="Mayor", wikidata_id="Q30185")
-    position.countries.append(sample_country)
     test_session.add(position)
     test_session.commit()
     test_session.refresh(position)

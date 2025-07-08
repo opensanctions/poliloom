@@ -560,7 +560,6 @@ class WikidataDumpProcessor:
                 
                 session.add_all(position_objects)
                 session.commit()
-                
                 logger.info(f"Inserted {len(new_positions)} new positions")
             else:
                 logger.info("No new positions to insert in this batch")
@@ -608,7 +607,6 @@ class WikidataDumpProcessor:
                 
                 session.add_all(location_objects)
                 session.commit()
-                
                 logger.info(f"Inserted {len(new_locations)} new locations")
             else:
                 logger.info("No new locations to insert in this batch")

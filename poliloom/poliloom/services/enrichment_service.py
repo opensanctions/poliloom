@@ -329,57 +329,21 @@ class EnrichmentService:
         max_positions: int = 100,
     ) -> List[str]:
         """Get similar positions for mapping a single extracted position to Wikidata."""
-        if not politician.citizenships:
-            return []
+        # Generate embedding for the position name
+        from ..embeddings import generate_embedding
 
-        # Get all countries this politician has citizenship in
-        citizenship_countries = [
-            citizenship.country.iso_code for citizenship in politician.citizenships
-        ]
+        query_embedding = generate_embedding(position_name)
 
-        # Find similar positions for this specific position name
-        all_similar_positions = []
-        positions_per_country = max(max_positions // len(citizenship_countries), 50)
+        # Query similar positions using pgvector (no country filtering)
+        positions = (
+            db.query(Position)
+            .filter(Position.embedding.isnot(None))
+            .order_by(Position.embedding.cosine_distance(query_embedding))
+            .limit(max_positions)
+            .all()
+        )
 
-        for country_code in citizenship_countries:
-            # Get country entity
-            country = (
-                db.query(Country)
-                .filter(Country.iso_code == country_code.upper())
-                .first()
-            )
-            if not country:
-                continue
-
-            # Generate embedding for the position name
-            from ..embeddings import generate_embedding
-
-            query_embedding = generate_embedding(position_name)
-
-            # Query similar positions using pgvector
-            positions = (
-                db.query(Position)
-                .filter(
-                    Position.embedding.isnot(None), Position.countries.contains(country)
-                )
-                .order_by(Position.embedding.cosine_distance(query_embedding))
-                .limit(positions_per_country)
-                .all()
-            )
-
-            all_similar_positions.extend([position.name for position in positions])
-
-        # Remove duplicates while preserving order, then limit to max_positions
-        seen = set()
-        unique_positions = []
-        for pos_name in all_similar_positions:
-            if pos_name not in seen:
-                seen.add(pos_name)
-                unique_positions.append(pos_name)
-                if len(unique_positions) >= max_positions:
-                    break
-
-        return unique_positions
+        return [position.name for position in positions]
 
     def _llm_map_to_wikidata_position(
         self, extracted_position: str, candidate_positions: List[str], proof_text: str
