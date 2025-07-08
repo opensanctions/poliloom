@@ -2,6 +2,7 @@
 
 import pytest
 from datetime import datetime, timezone
+from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 
 from poliloom.models import (
@@ -54,9 +55,7 @@ class TestHelpers:
         return location
 
     @staticmethod
-    def similarity_search(
-        session, model_class, query_text, limit=5
-    ):
+    def similarity_search(session, model_class, query_text, limit=5):
         """Perform similarity search on model with embeddings."""
         query_embedding = generate_embedding(query_text)
         query = session.query(model_class).filter(model_class.embedding.isnot(None))
@@ -590,8 +589,8 @@ class TestUUIDBehavior:
         test_session.refresh(politician)
 
         assert politician.id is not None
-        assert isinstance(politician.id, str)
-        assert len(politician.id) == 36  # Standard UUID string length
+        assert isinstance(politician.id, UUID)
+        assert len(str(politician.id)) == 36  # Standard UUID string length
 
     def test_uuid_uniqueness(self, test_session):
         """Test that generated UUIDs are unique."""

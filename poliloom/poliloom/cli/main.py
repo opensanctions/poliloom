@@ -604,7 +604,7 @@ def dump_build_hierarchy(dump_file, num_workers):
         click.echo(
             f"  • Locations: {len(trees['locations'])} descendants of Q2221906 (geographic location)"
         )
-        click.echo("Complete subclass tree saved to complete_subclass_tree.json")
+        click.echo("Complete hierarchy saved to complete_hierarchy.json")
 
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
@@ -628,18 +628,18 @@ def dump_build_hierarchy(dump_file, num_workers):
     help="Output file to save the descendants (default: print to console)",
 )
 def dump_query_tree(root_qid, output_file):
-    """Extract descendants of any entity from the complete subclass tree."""
+    """Extract descendants of any entity from the complete hierarchy (subclass + instance)."""
     from ..services.dump_processor import WikidataDumpProcessor
     import os
 
     processor = WikidataDumpProcessor()
 
     try:
-        # Check if complete tree exists
-        if not os.path.exists("complete_subclass_tree.json"):
-            click.echo("❌ Complete subclass tree not found!")
+        # Check if complete hierarchy exists
+        if not os.path.exists("complete_hierarchy.json"):
+            click.echo("❌ Complete hierarchy not found!")
             click.echo(
-                "Run 'poliloom dump build-hierarchy' first to generate the complete tree."
+                "Run 'poliloom dump build-hierarchy' first to generate the complete hierarchy."
             )
             exit(1)
 
@@ -648,12 +648,12 @@ def dump_query_tree(root_qid, output_file):
         descendants = processor.get_descendants_from_complete_tree(root_qid)
 
         if descendants is None:
-            click.echo("❌ Failed to load complete subclass tree")
+            click.echo("❌ Failed to load complete hierarchy")
             exit(1)
 
         if not descendants:
             click.echo(
-                f"⚠️  No descendants found for {root_qid} (entity may not exist or have no subclasses)"
+                f"⚠️  No descendants found for {root_qid} (entity may not exist or have no subclasses/instances)"
             )
             return
 
@@ -725,8 +725,8 @@ def dump_import(dump_file, batch_size, num_workers):
         exit(1)
 
     # Check if hierarchy trees exist
-    if not os.path.exists("complete_subclass_tree.json"):
-        click.echo("❌ Complete subclass tree not found!")
+    if not os.path.exists("complete_hierarchy.json"):
+        click.echo("❌ Complete hierarchy not found!")
         click.echo(
             "Run 'poliloom dump build-hierarchy' first to generate the hierarchy trees."
         )

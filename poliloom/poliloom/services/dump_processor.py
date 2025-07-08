@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import multiprocessing as mp
-from typing import Dict, Set, Optional, Iterator, Any
+from typing import Dict, Set, Optional, Iterator, Any, Tuple
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -67,8 +67,8 @@ class WikidataDumpProcessor:
         """
         Build hierarchy trees for positions and locations from Wikidata dump.
 
-        Uses parallel processing with Producer-Consumer pattern to extract all P279
-        (subclass of) relationships and build complete descendant trees.
+        Uses parallel processing to extract all P279 (subclass of) and P31 (instance of)
+        relationships and build complete descendant trees.
 
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
@@ -84,12 +84,29 @@ class WikidataDumpProcessor:
 
         logger.info(f"Using parallel processing with {num_workers} workers")
 
-        return self._build_hierarchy_trees_parallel(dump_file_path, num_workers)
+        subclass_relations, instance_relations = self._build_hierarchy_trees_parallel(
+            dump_file_path, num_workers
+        )
+
+        # Extract specific trees from the complete hierarchy
+        position_descendants = self._get_all_descendants(
+            self.position_root, subclass_relations, instance_relations
+        )
+        location_descendants = self._get_all_descendants(
+            self.location_root, subclass_relations, instance_relations
+        )
+
+        return {"positions": position_descendants, "locations": location_descendants}
 
     def _build_hierarchy_trees_parallel(
         self, dump_file_path: str, num_workers: int
-    ) -> Dict[str, Set[str]]:
-        """Parallel implementation using chunk-based file reading."""
+    ) -> Tuple[Dict[str, Set[str]], Dict[str, Set[str]]]:
+        """
+        Parallel implementation using chunk-based file reading.
+
+        Returns:
+            Tuple of (subclass_relations, instance_relations)
+        """
 
         # Split file into chunks for parallel processing
         logger.info("Calculating file chunks for parallel processing...")
@@ -129,25 +146,29 @@ class WikidataDumpProcessor:
 
         # Merge results from all chunks
         subclass_relations = defaultdict(set)
+        instance_relations = defaultdict(set)
         total_entities = 0
 
-        for chunk_relations, chunk_count in chunk_results:
+        for chunk_subclass, chunk_instance, chunk_count in chunk_results:
             total_entities += chunk_count
-            for parent_id, children in chunk_relations.items():
+            for parent_id, children in chunk_subclass.items():
                 subclass_relations[parent_id].update(children)
+            for class_id, instances in chunk_instance.items():
+                instance_relations[class_id].update(instances)
 
         logger.info(f"Processed {total_entities} total entities")
         logger.info(f"Found {len(subclass_relations)} entities with subclasses")
+        logger.info(f"Found {len(instance_relations)} entities with instances")
 
-        # Save complete subclass tree for future use
-        self.save_complete_subclass_tree(subclass_relations)
+        # Save complete hierarchy trees for future use
+        self.save_complete_hierarchy_trees(subclass_relations, instance_relations)
 
         # Extract specific trees from the complete tree for convenience
         position_descendants = self._get_all_descendants(
-            self.position_root, subclass_relations
+            self.position_root, subclass_relations, instance_relations
         )
         location_descendants = self._get_all_descendants(
-            self.location_root, subclass_relations
+            self.location_root, subclass_relations, instance_relations
         )
 
         logger.info(
@@ -157,7 +178,7 @@ class WikidataDumpProcessor:
             f"Found {len(location_descendants)} location descendants of {self.location_root}"
         )
 
-        return {"positions": position_descendants, "locations": location_descendants}
+        return subclass_relations, instance_relations
 
     def _calculate_file_chunks(self, dump_file_path: str, num_workers: int) -> list:
         """
@@ -215,13 +236,14 @@ class WikidataDumpProcessor:
         Process a specific byte range of the dump file.
 
         Each worker independently reads and parses its assigned chunk.
-        Returns subclass relationships found in this chunk.
+        Returns both subclass (P279) and instance (P31) relationships found in this chunk.
         """
         # Simple interrupt flag without signal handlers to avoid cascading issues
         interrupted = False
 
         try:
             subclass_relations = defaultdict(set)
+            instance_relations = defaultdict(set)
             entity_count = 0
 
             with open(dump_file_path, "rb") as f:
@@ -256,7 +278,7 @@ class WikidataDumpProcessor:
                                 f"Worker {worker_id}: processed {entity_count} entities"
                             )
 
-                        # Extract P279 relationships
+                        # Extract P279 (subclass of) relationships
                         entity_id = entity.get("id", "")
                         claims = entity.get("claims", {})
 
@@ -267,6 +289,15 @@ class WikidataDumpProcessor:
                                     "id"
                                 ]
                                 subclass_relations[parent_id].add(entity_id)
+                            except (KeyError, TypeError):
+                                continue
+
+                        # Extract P31 (instance of) relationships
+                        instance_claims = claims.get("P31", [])
+                        for claim in instance_claims:
+                            try:
+                                class_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                                instance_relations[class_id].add(entity_id)
                             except (KeyError, TypeError):
                                 continue
 
@@ -286,14 +317,14 @@ class WikidataDumpProcessor:
                     f"Worker {worker_id}: finished processing {entity_count} entities"
                 )
 
-            return dict(subclass_relations), entity_count
+            return dict(subclass_relations), dict(instance_relations), entity_count
 
         except KeyboardInterrupt:
             logger.info(f"Worker {worker_id}: interrupted, returning partial results")
-            return dict(subclass_relations), entity_count
+            return dict(subclass_relations), dict(instance_relations), entity_count
         except Exception as e:
             logger.error(f"Worker {worker_id}: error processing chunk: {e}")
-            return {}, 0
+            return {}, {}, 0
 
     def _stream_dump_entities(self, dump_file_path: str) -> Iterator[Dict[str, Any]]:
         """
@@ -332,127 +363,173 @@ class WikidataDumpProcessor:
                     continue
 
     def _get_all_descendants(
-        self, root_id: str, subclass_relations: Dict[str, Set[str]]
+        self,
+        root_id: str,
+        subclass_relations: Dict[str, Set[str]],
+        instance_relations: Dict[str, Set[str]],
     ) -> Set[str]:
         """
-        Get all descendants of a root entity using BFS.
+        Get all descendants of a root entity using BFS, including both subclasses and instances.
 
         Args:
             root_id: The root entity QID
-            subclass_relations: Dict mapping parent QIDs to sets of child QIDs
+            subclass_relations: Dict mapping parent QIDs to sets of child QIDs (P279)
+            instance_relations: Dict mapping class QIDs to sets of instance QIDs (P31)
 
         Returns:
-            Set of all descendant QIDs (including the root)
+            Set of all descendant QIDs (including the root, its subclasses, and all instances)
         """
         descendants = {root_id}
         queue = [root_id]
 
         while queue:
             current = queue.pop(0)
-            children = subclass_relations.get(current, set())
 
-            for child in children:
-                if child not in descendants:
-                    descendants.add(child)
-                    queue.append(child)
+            # Get direct subclasses
+            subclasses = subclass_relations.get(current, set())
+            for subclass in subclasses:
+                if subclass not in descendants:
+                    descendants.add(subclass)
+                    queue.append(subclass)
+
+            # Get instances of the current class
+            instances = instance_relations.get(current, set())
+            for instance in instances:
+                if instance not in descendants:
+                    descendants.add(instance)
+                    # Note: instances typically don't have subclasses, so we don't add them to queue
 
         return descendants
 
-    def save_complete_subclass_tree(
-        self, subclass_relations: Dict[str, Set[str]], output_dir: str = "."
+    def save_complete_hierarchy_trees(
+        self,
+        subclass_relations: Dict[str, Set[str]],
+        instance_relations: Dict[str, Set[str]],
+        output_dir: str = ".",
     ) -> None:
         """
-        Save the complete subclass tree (all P279 relationships) to JSON file.
+        Save the complete hierarchy (P279 subclass and P31 instance relationships) to JSON file.
 
-        This creates a comprehensive reference of all subclass relationships in Wikidata,
+        This creates a comprehensive reference of all hierarchical relationships in Wikidata,
         enabling extraction of any entity type hierarchy without re-processing the dump.
 
         Args:
-            subclass_relations: Dictionary mapping parent QIDs to sets of child QIDs
+            subclass_relations: Dictionary mapping parent QIDs to sets of child QIDs (P279)
+            instance_relations: Dictionary mapping class QIDs to sets of instance QIDs (P31)
             output_dir: Directory to save the JSON file
         """
-        complete_tree_file = os.path.join(output_dir, "complete_subclass_tree.json")
+        hierarchy_file = os.path.join(output_dir, "complete_hierarchy.json")
 
-        # Convert sets to sorted lists for JSON serialization and consistency
-        json_tree = {}
+        # Convert sets to sorted lists for JSON serialization
+        hierarchy_data = {
+            "subclass_of": {},  # P279 relationships
+            "instance_of": {},  # P31 relationships
+        }
+
+        # Process subclass relations
         for parent_id, children in subclass_relations.items():
-            if children:  # Only include entities that have subclasses
-                json_tree[parent_id] = sorted(list(children))
+            if children:
+                hierarchy_data["subclass_of"][parent_id] = sorted(list(children))
 
-        # Sort by parent QID for consistent output
-        sorted_tree = dict(sorted(json_tree.items()))
+        # Process instance relations
+        for class_id, instances in instance_relations.items():
+            if instances:
+                hierarchy_data["instance_of"][class_id] = sorted(list(instances))
 
-        with open(complete_tree_file, "w", encoding="utf-8") as f:
-            json.dump(sorted_tree, f, indent=2, ensure_ascii=False)
+        # Sort keys for consistent output
+        hierarchy_data["subclass_of"] = dict(
+            sorted(hierarchy_data["subclass_of"].items())
+        )
+        hierarchy_data["instance_of"] = dict(
+            sorted(hierarchy_data["instance_of"].items())
+        )
+
+        with open(hierarchy_file, "w", encoding="utf-8") as f:
+            json.dump(hierarchy_data, f, indent=2, ensure_ascii=False)
 
         # Calculate and log file size
-        file_size = os.path.getsize(complete_tree_file)
+        file_size = os.path.getsize(hierarchy_file)
         file_size_mb = file_size / (1024 * 1024)
 
-        logger.info(f"Saved complete subclass tree to {complete_tree_file}")
+        logger.info(f"Saved complete hierarchy to {hierarchy_file}")
         logger.info(
-            f"Complete tree contains {len(sorted_tree)} entities with subclasses"
+            f"Hierarchy contains {len(hierarchy_data['subclass_of'])} entities with subclasses"
+        )
+        logger.info(
+            f"Hierarchy contains {len(hierarchy_data['instance_of'])} entities with instances"
         )
         logger.info(f"File size: {file_size_mb:.1f} MB ({file_size:,} bytes)")
 
-    def load_complete_subclass_tree(
+    def load_complete_hierarchy(
         self, tree_dir: str = "."
-    ) -> Optional[Dict[str, Set[str]]]:
+    ) -> Optional[Tuple[Dict[str, Set[str]], Dict[str, Set[str]]]]:
         """
-        Load the complete subclass tree from JSON file.
+        Load the complete hierarchy from JSON file.
 
         Args:
-            tree_dir: Directory containing the complete subclass tree file
+            tree_dir: Directory containing the complete hierarchy file
 
         Returns:
-            Dictionary mapping parent QIDs to sets of child QIDs, or None if file doesn't exist
+            Tuple of (subclass_relations, instance_relations), or None if file doesn't exist
         """
-        tree_file = os.path.join(tree_dir, "complete_subclass_tree.json")
+        hierarchy_file = os.path.join(tree_dir, "complete_hierarchy.json")
 
-        if not os.path.exists(tree_file):
-            logger.warning(f"Complete subclass tree file not found: {tree_file}")
+        if not os.path.exists(hierarchy_file):
+            logger.warning(f"Complete hierarchy file not found: {hierarchy_file}")
             return None
 
         try:
-            with open(tree_file, "r", encoding="utf-8") as f:
-                json_tree = json.load(f)
+            with open(hierarchy_file, "r", encoding="utf-8") as f:
+                hierarchy_data = json.load(f)
 
             # Convert lists back to sets
             subclass_relations = {}
-            for parent_id, children in json_tree.items():
+            for parent_id, children in hierarchy_data.get("subclass_of", {}).items():
                 subclass_relations[parent_id] = set(children)
 
-            logger.info(f"Loaded complete subclass tree from {tree_file}")
+            instance_relations = {}
+            for class_id, instances in hierarchy_data.get("instance_of", {}).items():
+                instance_relations[class_id] = set(instances)
+
+            logger.info(f"Loaded complete hierarchy from {hierarchy_file}")
             logger.info(
-                f"Tree contains {len(subclass_relations)} entities with subclasses"
+                f"Hierarchy contains {len(subclass_relations)} entities with subclasses"
+            )
+            logger.info(
+                f"Hierarchy contains {len(instance_relations)} entities with instances"
             )
 
-            return subclass_relations
+            return subclass_relations, instance_relations
 
         except (json.JSONDecodeError, IOError) as e:
-            logger.error(f"Failed to load complete subclass tree: {e}")
+            logger.error(f"Failed to load complete hierarchy: {e}")
             return None
 
     def get_descendants_from_complete_tree(
         self, root_qid: str, tree_dir: str = "."
     ) -> Optional[Set[str]]:
         """
-        Extract descendants of any entity from the complete subclass tree.
+        Extract descendants of any entity from the complete hierarchy.
 
         This allows querying any entity type without re-processing the dump.
+        Uses both P279 (subclass of) and P31 (instance of) relationships.
 
         Args:
             root_qid: The root entity QID (e.g., "Q515" for city)
-            tree_dir: Directory containing the complete subclass tree file
+            tree_dir: Directory containing the complete hierarchy file
 
         Returns:
-            Set of all descendant QIDs (including the root), or None if tree not found
+            Set of all descendant QIDs (including the root, subclasses, and instances),
+            or None if hierarchy not found
         """
-        complete_tree = self.load_complete_subclass_tree(tree_dir)
-        if complete_tree is None:
+        hierarchy = self.load_complete_hierarchy(tree_dir)
+        if hierarchy is None:
             return None
 
-        descendants = self._get_all_descendants(root_qid, complete_tree)
+        subclass_relations, instance_relations = hierarchy
+        descendants = self._get_all_descendants(
+            root_qid, subclass_relations, instance_relations
+        )
 
         logger.info(f"Found {len(descendants)} descendants of {root_qid}")
         return descendants
@@ -475,18 +552,20 @@ class WikidataDumpProcessor:
             Dictionary with counts of extracted entities
         """
         # Load the hierarchy trees
-        complete_tree = self.load_complete_subclass_tree()
-        if complete_tree is None:
+        hierarchy = self.load_complete_hierarchy()
+        if hierarchy is None:
             raise ValueError(
-                "Complete subclass tree not found. Run 'poliloom dump build-trees' first."
+                "Complete hierarchy not found. Run 'poliloom dump build-hierarchy' first."
             )
+
+        subclass_relations, instance_relations = hierarchy
 
         # Get descendant sets for filtering
         position_descendants = self._get_all_descendants(
-            self.position_root, complete_tree
+            self.position_root, subclass_relations, instance_relations
         )
         location_descendants = self._get_all_descendants(
-            self.location_root, complete_tree
+            self.location_root, subclass_relations, instance_relations
         )
 
         logger.info(
