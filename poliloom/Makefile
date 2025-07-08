@@ -21,10 +21,12 @@ stop-pgadmin:
 
 # Download the latest Wikidata dump (bzip2 compressed)
 download-wikidata-dump:
-	@echo "Downloading latest Wikidata dump (bzip2)..."
-	@echo "This is a large file (~100GB compressed) and may take several hours."
-	curl -L -o latest-all.json.bz2 https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.bz2
-	@echo "Download complete: latest-all.json.bz2"
+	@if [ -f .env ]; then export $$(grep -v '^#' .env | xargs); fi; \
+	OUTPUT_PATH=$${WIKIDATA_DUMP_BZ2_PATH:-./latest-all.json.bz2}; \
+	echo "Downloading latest Wikidata dump (bzip2)..."; \
+	echo "This is a large file (~100GB compressed) and may take several hours."; \
+	curl -L -o "$$OUTPUT_PATH" https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.bz2; \
+	echo "Download complete: $$OUTPUT_PATH"
 
 # Extract Wikidata dump using parallel decompression
 extract-wikidata-dump:

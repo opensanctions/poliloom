@@ -39,7 +39,7 @@ The database reproduces a subset of the Wikidata politician data model to store 
 - **Multilingual Names:** The Politician entity will store names as strings. Handling multilingual variations in names during extraction and matching will be crucial.
 - **Citizenships:** Politician citizenships are stored as HasCitizenship records linking politicians to countries. Multiple citizenships are supported by creating multiple HasCitizenship records. Citizenships are only imported from Wikidata and do not require user confirmation.
 - **Conflict Resolution:** conflict_resolved fields will be used to flag when discrepancies between extracted data and existing Wikidata values have been addressed.
-- **Embedding Workflow:** Position and Location entities have optional embedding fields that are initially NULL during import. Embeddings are generated separately using dedicated CLI commands (`poliloom positions embed` and `poliloom locations embed`) that process all entities without embeddings in batch for optimal performance.
+- **Embedding Workflow:** Position and Location entities have optional embedding fields that are initially NULL during import. Embeddings are generated separately in batch processing for all entities without embeddings to ensure optimal performance.
 
 ## **4\. Core Functionality**
 
@@ -133,21 +133,12 @@ curl http://localhost:8000/openapi.json
 
 ### **4.4. CLI Commands**
 
-- **poliloom dump download [--output PATH] [--url URL]**
+- **poliloom dump import [--file FILE] [--batch-size SIZE]**
 
-  - Download the latest Wikidata dump to disk for offline processing
-  - **--output**: Local path to save the dump file (default: ./latest-all.json.gz)
-  - **--url**: Custom dump URL (default: https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.gz)
-  - Shows download progress and verifies file integrity
-  - **REFACTOR:** New command to support offline processing workflow
-
-- **poliloom dump process [--file FILE] [--url URL] [--batch-size SIZE]**
-
-  - Process Wikidata dump to extract politicians, positions, and locations
-  - **--file**: Process local compressed dump file (recommended for multiple runs)
-  - **--url**: Stream directly from Wikidata dump URL (single-use, requires stable internet)
+  - Import politicians, positions, and locations from a Wikidata dump file
+  - **--file**: Path to the extracted JSON dump file (default: ./latest-all.json from WIKIDATA_DUMP_JSON_PATH env var)
   - **--batch-size**: Number of entities to process in each database batch (default: 100)
-  - **Behavior**: Exactly one of --file or --url must be specified
+  - Processes the dump line-by-line for memory efficiency
   - **REFACTOR:** Replace individual import commands with unified dump processing
 
 - **poliloom politicians enrich --id \<wikidata_id\>**
@@ -158,15 +149,28 @@ curl http://localhost:8000/openapi.json
 
   - Display comprehensive information about a politician, distinguishing between imported and extracted data.
 
+- **poliloom positions embed**
+
+  - Generate embeddings for all Position entities that don't have embeddings yet
+  - Processes positions in batches for optimal performance
+
+- **poliloom locations embed**
+
+  - Generate embeddings for all Location entities that don't have embeddings yet
+  - Processes locations in batches for optimal performance
+
 - **poliloom serve [--host HOST] [--port PORT] [--reload]**
   - Start the FastAPI web server.
 
 **Recommended Workflow:**
-1. `poliloom dump download` - Download dump to disk (one-time, ~100GB)
-2. `poliloom dump process --file latest-all.json.gz` - Process from disk (can be repeated)
+1. `make download-wikidata-dump` - Download compressed dump (one-time, ~100GB compressed)
+2. `make extract-wikidata-dump` - Extract to JSON (requires lbzip2, ~1TB uncompressed)
+3. `poliloom dump import` - Import data to database (can be repeated)
 
-**Alternative (Direct Stream):**
-- `poliloom dump process --url https://dumps.wikimedia.org/...` - Process directly from URL
+**Dump Management:**
+- **Download**: Use `make download-wikidata-dump` to fetch the latest compressed dump
+- **Extract**: Use `make extract-wikidata-dump` for parallel decompression with lbzip2
+- **Paths**: Configure paths via .env file (WIKIDATA_DUMP_BZ2_PATH, WIKIDATA_DUMP_JSON_PATH)
 
 **Deprecated Commands (to be removed):**
 - **~~poliloom politicians import~~** - **REFACTOR:** Remove, replaced by dump processing
