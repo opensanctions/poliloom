@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 import logging
 import csv
-import json
 import time
 
 from ..models import (
@@ -128,8 +127,8 @@ class ImportService:
         """Create citizenship records for the politician."""
         for country_code in citizenships:
             if country_code:  # Only create if there's a value
-                # Get or create the country
-                country = self._get_or_create_country(db, country_code)
+                # Get existing country (only link to existing countries)
+                country = self._get_existing_country(db, country_code)
                 if country:
                     # Check if citizenship relationship already exists
                     existing_citizenship = (
@@ -207,10 +206,10 @@ class ImportService:
                 f"Birthplace {birthplace_data['name']} ({birthplace_data['wikidata_id']}) not found in database - skipping"
             )
 
-    def _get_or_create_country(
+    def _get_existing_country(
         self, db: Session, country_code: str
     ) -> Optional[Country]:
-        """Get existing country or create it on-demand from country code."""
+        """Get existing country by country code, return None if not found."""
         if not country_code:
             return None
 
@@ -218,31 +217,7 @@ class ImportService:
 
         # Check if country already exists
         country = db.query(Country).filter_by(iso_code=country_code).first()
-        if country:
-            return country
-
-        # Create new country with basic info
-        # For now, we'll use the country code as the name placeholder
-        # In a production system, you might want to use a country name lookup library
-        try:
-            import pycountry
-
-            country_info = pycountry.countries.get(alpha_2=country_code)
-            country_name = country_info.name if country_info else country_code
-        except ImportError:
-            # Fallback if pycountry is not available
-            country_name = country_code
-
-        country = Country(
-            name=country_name,
-            iso_code=country_code,
-            wikidata_id=None,  # Will be populated later if needed
-        )
-        db.add(country)
-        db.flush()  # Get the ID
-        logger.info(f"Created country on-demand: {country_name} ({country_code})")
         return country
-
 
     def _create_sources(
         self, db: Session, politician: Politician, wikipedia_links: list
@@ -304,7 +279,6 @@ class ImportService:
                 try:
                     db.add(position)
                     db.flush()  # Get the ID and check constraints
-
 
                     imported_count += 1
                 except IntegrityError:
@@ -379,12 +353,10 @@ class ImportService:
                         logger.debug(f"Position {caption} ({entity_id}) already exists")
                         continue
 
-
                     # Create position record
                     position = Position(name=caption, wikidata_id=entity_id)
                     db.add(position)
                     db.flush()  # Get the ID
-
 
                     imported_count += 1
 

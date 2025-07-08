@@ -37,7 +37,7 @@ The database reproduces a subset of the Wikidata politician data model to store 
 
 - **Incomplete Dates:** The schema should accommodate incomplete birth dates and position held dates (e.g., '1962', 'JUN 1982'). Store these as strings.
 - **Multilingual Names:** The Politician entity will store names as strings. Handling multilingual variations in names during extraction and matching will be crucial.
-- **Citizenships:** Politician citizenships are stored as HasCitizenship records linking politicians to countries. Multiple citizenships are supported by creating multiple HasCitizenship records. Citizenships are only imported from Wikidata and do not require user confirmation.
+- **Citizenships:** Politician citizenships are stored as HasCitizenship records linking politicians to countries. Multiple citizenships are supported by creating multiple HasCitizenship records. Citizenships are only imported from Wikidata and do not require user confirmation. Citizenship relationships are only created when the referenced country already exists in the database.
 - **Conflict Resolution:** conflict_resolved fields will be used to flag when discrepancies between extracted data and existing Wikidata values have been addressed.
 - **Embedding Workflow:** Position and Location entities have optional embedding fields that are initially NULL during import. Embeddings are generated separately in batch processing for all entities without embeddings to ensure optimal performance.
 
@@ -62,8 +62,9 @@ This module is responsible for initially populating the local database with poli
   - Extract Wikipedia article links (sitelinks) for subsequent enrichment
   - **REFACTOR:** Replace existing entity fetching with dump-based extraction
 - **Country Data Handling:**
-  - Countries are created on-demand when referenced during politician import or data extraction
-  - Use pycountry library to resolve ISO codes to country names and validate country data
+  - Countries are only linked to existing entities (no on-demand creation)
+  - Citizenship relationships are only created when the referenced country already exists in the database
+  - This aligns with the existing pattern for positions and locations that only link to existing entities
   - **REFACTOR:** Update country creation to work with dump-extracted data
 - **Position Data Handling:**
   - Use cached position hierarchy tree (descendants of Q294414) to identify all political positions during dump processing

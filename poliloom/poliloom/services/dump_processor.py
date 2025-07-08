@@ -6,6 +6,7 @@ import os
 import multiprocessing as mp
 from typing import Dict, Set, Optional, Iterator, Any
 from collections import defaultdict
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -871,45 +872,42 @@ class WikidataDumpProcessor:
             session.close()
 
     def _insert_countries_batch(self, countries: list) -> None:
-        """Insert a batch of countries into the database."""
+        """Insert a batch of countries into the database using ON CONFLICT."""
         if not countries:
             return
 
         from ..database import SessionLocal
         from ..models import Country
+        from sqlalchemy.dialects.postgresql import insert
 
         session = SessionLocal()
         try:
-            # Check for existing countries to avoid duplicates
-            existing_wikidata_ids = {
-                result[0]
-                for result in session.query(Country.wikidata_id)
-                .filter(Country.wikidata_id.in_([c["wikidata_id"] for c in countries]))
-                .all()
-            }
-
-            # Filter out duplicates
-            new_countries = [
-                c for c in countries if c["wikidata_id"] not in existing_wikidata_ids
+            # Prepare data for bulk insert
+            country_data = [
+                {
+                    "wikidata_id": c["wikidata_id"],
+                    "name": c["name"],
+                    "iso_code": c["iso_code"],
+                    "created_at": datetime.now(timezone.utc),
+                    "updated_at": datetime.now(timezone.utc),
+                }
+                for c in countries
             ]
 
-            if new_countries:
-                # Create Country objects
-                country_objects = [
-                    Country(
-                        wikidata_id=c["wikidata_id"],
-                        name=c["name"],
-                        iso_code=c["iso_code"],
-                    )
-                    for c in new_countries
-                ]
+            # Use PostgreSQL's ON CONFLICT to handle duplicates
+            # We need to handle both wikidata_id and iso_code constraints
+            # Since PostgreSQL doesn't support multiple ON CONFLICT clauses,
+            # we'll use a more robust approach with ON CONFLICT DO NOTHING
+            stmt = insert(Country).values(country_data)
+            stmt = stmt.on_conflict_do_nothing()
 
-                session.add_all(country_objects)
-                session.commit()
+            result = session.execute(stmt)
+            session.commit()
 
-                logger.info(f"Inserted {len(new_countries)} new countries")
-            else:
-                logger.info("No new countries to insert in this batch")
+            inserted_count = result.rowcount
+            logger.info(
+                f"Inserted {inserted_count} new countries (skipped {len(countries) - inserted_count} duplicates)"
+            )
 
         except Exception as e:
             session.rollback()

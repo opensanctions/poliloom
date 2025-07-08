@@ -43,6 +43,11 @@ class TestImportService:
         """Test successful politician import."""
         mock_wikidata_client.get_politician_by_id.return_value = sample_politician_data
 
+        # Create US country first (since we only link to existing countries)
+        us_country = Country(name="United States", iso_code="US")
+        test_session.add(us_country)
+        test_session.flush()
+
         with patch(
             "poliloom.services.import_service.SessionLocal", return_value=test_session
         ):
@@ -208,9 +213,15 @@ class TestImportService:
     def test_create_multiple_citizenships(
         self, import_service, test_session, sample_politician
     ):
-        """Test that multiple citizenships are created as separate HasCitizenship relationships."""
+        """Test that multiple citizenships are created as separate HasCitizenship relationships for existing countries."""
         properties = [{"type": "BirthDate", "value": "1970-01-15"}]
         citizenships = ["US", "CA"]
+
+        # Create the countries first (since we only link to existing countries)
+        us_country = Country(name="United States", iso_code="US")
+        ca_country = Country(name="Canada", iso_code="CA")
+        test_session.add_all([us_country, ca_country])
+        test_session.flush()
 
         # Create properties
         import_service._create_properties(test_session, sample_politician, properties)
@@ -313,31 +324,28 @@ class TestImportService:
         assert holds_position.start_date is not None, "start_date should not be NULL"
         assert holds_position.end_date is not None, "end_date should not be NULL"
 
-    def test_create_citizenships_with_new_country(
+    def test_create_citizenships_with_nonexistent_country(
         self, import_service, test_session, sample_politician
     ):
-        """Test that citizenships are created with new countries as needed."""
-        citizenships = ["FR"]  # France - new country
+        """Test that citizenships are not created for nonexistent countries."""
+        citizenships = ["FR"]  # France - nonexistent country
 
         import_service._create_citizenships(
             test_session, sample_politician, citizenships
         )
         test_session.flush()
 
-        # Verify country was created
+        # Verify no country was created
         country = test_session.query(Country).filter_by(iso_code="FR").first()
-        assert country is not None
-        # Note: Country name depends on whether pycountry is available
-        # If not available, it falls back to the country code
-        assert country.name in ["France", "FR"]  # pycountry lookup or fallback
+        assert country is None
 
-        # Verify citizenship relationship was created
-        citizenship = (
+        # Verify no citizenship relationship was created
+        citizenships = (
             test_session.query(HasCitizenship)
-            .filter_by(politician_id=sample_politician.id, country_id=country.id)
-            .first()
+            .filter_by(politician_id=sample_politician.id)
+            .all()
         )
-        assert citizenship is not None
+        assert len(citizenships) == 0
 
     def test_create_citizenships_with_existing_country(
         self, import_service, test_session, sample_politician
@@ -401,39 +409,33 @@ class TestImportService:
         assert len(citizenships) == 1
         assert citizenships[0].id == existing_citizenship.id
 
-    def test_get_or_create_country_with_pycountry(self, import_service, test_session):
-        """Test country creation with pycountry lookup if available."""
-        country = import_service._get_or_create_country(test_session, "DE")
-        test_session.flush()
-
-        assert country is not None
-        assert country.iso_code == "DE"
-        # Country name depends on whether pycountry is available
-        assert country.name in ["Germany", "DE"]  # From pycountry or fallback
-        assert country.wikidata_id is None
-
-    def test_get_or_create_country_fallback_without_pycountry(
+    def test_get_existing_country_returns_none_for_nonexistent(
         self, import_service, test_session
     ):
-        """Test country creation fallback when pycountry is not available."""
-        # Test with an unknown country code to verify fallback behavior
-        country = import_service._get_or_create_country(test_session, "XX")
-        test_session.flush()
+        """Test that nonexistent countries return None instead of being created."""
+        country = import_service._get_existing_country(test_session, "DE")
 
-        assert country is not None
-        assert country.iso_code == "XX"
-        assert (
-            country.name == "XX"
-        )  # Should fallback to country code when pycountry unavailable
+        assert country is None
 
-    def test_get_or_create_country_returns_existing(self, import_service, test_session):
-        """Test that existing countries are returned instead of creating duplicates."""
+        # Verify no country was created
+        countries = test_session.query(Country).filter_by(iso_code="DE").all()
+        assert len(countries) == 0
+
+    def test_get_existing_country_handles_empty_input(
+        self, import_service, test_session
+    ):
+        """Test that empty or None country codes return None."""
+        assert import_service._get_existing_country(test_session, "") is None
+        assert import_service._get_existing_country(test_session, None) is None
+
+    def test_get_existing_country_returns_existing(self, import_service, test_session):
+        """Test that existing countries are returned correctly."""
         # Create existing country
         existing = Country(name="Japan", iso_code="JP")
         test_session.add(existing)
         test_session.flush()
 
-        country = import_service._get_or_create_country(test_session, "jp")  # lowercase
+        country = import_service._get_existing_country(test_session, "jp")  # lowercase
 
         assert country.id == existing.id
         assert country.iso_code == "JP"
