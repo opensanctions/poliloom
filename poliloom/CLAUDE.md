@@ -139,7 +139,7 @@ curl http://localhost:8000/openapi.json
 
 ### **4.4. CLI Commands**
 
-- **poliloom dump build-trees [--file FILE] [--workers NUM]**
+- **poliloom dump build-hierarchy [--file FILE] [--workers NUM]**
 
   - Build hierarchy trees for positions and locations from Wikidata dump
   - **--file**: Path to the extracted JSON dump file (default: ./latest-all.json from WIKIDATA_DUMP_JSON_PATH env var)
@@ -159,14 +159,14 @@ curl http://localhost:8000/openapi.json
   - **--output**: Optional output file to save descendants (default: print to console)
   - Enables querying any entity type without re-processing the dump
   - Examples: organizations (Q43229), events (Q1656682), software (Q7397), etc.
-  - Requires `complete_subclass_tree.json` from `poliloom dump build-trees`
+  - Requires `complete_subclass_tree.json` from `poliloom dump build-hierarchy`
 
 - **poliloom dump import [--file FILE] [--batch-size SIZE]**
 
   - Import politicians, positions, and locations from a Wikidata dump file
   - **--file**: Path to the extracted JSON dump file (default: ./latest-all.json from WIKIDATA_DUMP_JSON_PATH env var)
   - **--batch-size**: Number of entities to process in each database batch (default: 100)
-  - Requires hierarchy trees to be built first using `dump build-trees`
+  - Requires hierarchy trees to be built first using `dump build-hierarchy`
   - Processes the dump line-by-line for memory efficiency
   - **REFACTOR:** Replace individual import commands with unified dump processing
 
@@ -195,7 +195,7 @@ curl http://localhost:8000/openapi.json
 
 1. `make download-wikidata-dump` - Download compressed dump (one-time, ~100GB compressed)
 2. `make extract-wikidata-dump` - Extract to JSON (requires lbzip2, ~1TB uncompressed)
-3. `poliloom dump build-trees` - Build hierarchy trees for positions and locations (one-time per dump)
+3. `poliloom dump build-hierarchy` - Build hierarchy trees for positions and locations (one-time per dump)
 4. `poliloom dump import` - Import data to database (can be repeated)
 
 **Dump Management:**

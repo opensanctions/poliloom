@@ -558,7 +558,7 @@ def locations_embed():
             session.close()
 
 
-@dump.command("build-trees")
+@dump.command("build-hierarchy")
 @click.option(
     "--file",
     "dump_file",
@@ -572,7 +572,7 @@ def locations_embed():
     type=int,
     help="Number of worker processes (default: CPU count)",
 )
-def dump_build_trees(dump_file, num_workers):
+def dump_build_hierarchy(dump_file, num_workers):
     """Build hierarchy trees for positions and locations from Wikidata dump."""
     click.echo(f"Building hierarchy trees from dump file: {dump_file}")
 
@@ -639,7 +639,7 @@ def dump_query_tree(root_qid, output_file):
         if not os.path.exists("complete_subclass_tree.json"):
             click.echo("❌ Complete subclass tree not found!")
             click.echo(
-                "Run 'poliloom dump build-trees' first to generate the complete tree."
+                "Run 'poliloom dump build-hierarchy' first to generate the complete tree."
             )
             exit(1)
 
@@ -728,7 +728,7 @@ def dump_import(dump_file, batch_size, num_workers):
     if not os.path.exists("complete_subclass_tree.json"):
         click.echo("❌ Complete subclass tree not found!")
         click.echo(
-            "Run 'poliloom dump build-trees' first to generate the hierarchy trees."
+            "Run 'poliloom dump build-hierarchy' first to generate the hierarchy trees."
         )
         exit(1)
 
