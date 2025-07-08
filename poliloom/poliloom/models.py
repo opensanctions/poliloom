@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Table
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, declarative_base
 from uuid import uuid4
 from pgvector.sqlalchemy import Vector
@@ -23,50 +24,54 @@ class TimestampMixin:
     )
 
 
-class UUIDMixin:
-    """Mixin for adding UUID primary key."""
-
-    id = Column(String, primary_key=True, default=lambda: str(uuid4()))
-
-
 # Association tables for many-to-many relationships
 politician_source_table = Table(
     "politician_source",
     Base.metadata,
-    Column("politician_id", String, ForeignKey("politicians.id"), primary_key=True),
-    Column("source_id", String, ForeignKey("sources.id"), primary_key=True),
+    Column(
+        "politician_id",
+        UUID(as_uuid=True),
+        ForeignKey("politicians.id"),
+        primary_key=True,
+    ),
+    Column("source_id", UUID(as_uuid=True), ForeignKey("sources.id"), primary_key=True),
 )
 
 property_source_table = Table(
     "property_source",
     Base.metadata,
-    Column("property_id", String, ForeignKey("properties.id"), primary_key=True),
-    Column("source_id", String, ForeignKey("sources.id"), primary_key=True),
+    Column(
+        "property_id", UUID(as_uuid=True), ForeignKey("properties.id"), primary_key=True
+    ),
+    Column("source_id", UUID(as_uuid=True), ForeignKey("sources.id"), primary_key=True),
 )
 
 holdsposition_source_table = Table(
     "holdsposition_source",
     Base.metadata,
     Column(
-        "holdsposition_id", String, ForeignKey("holds_position.id"), primary_key=True
+        "holdsposition_id",
+        UUID(as_uuid=True),
+        ForeignKey("holds_position.id"),
+        primary_key=True,
     ),
-    Column("source_id", String, ForeignKey("sources.id"), primary_key=True),
+    Column("source_id", UUID(as_uuid=True), ForeignKey("sources.id"), primary_key=True),
 )
 
 bornat_source_table = Table(
     "bornat_source",
     Base.metadata,
-    Column("bornat_id", String, ForeignKey("born_at.id"), primary_key=True),
-    Column("source_id", String, ForeignKey("sources.id"), primary_key=True),
+    Column("bornat_id", UUID(as_uuid=True), ForeignKey("born_at.id"), primary_key=True),
+    Column("source_id", UUID(as_uuid=True), ForeignKey("sources.id"), primary_key=True),
 )
 
 
-
-class Politician(Base, UUIDMixin, TimestampMixin):
+class Politician(Base, TimestampMixin):
     """Politician entity."""
 
     __tablename__ = "politicians"
 
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     name = Column(String, nullable=False)
     wikidata_id = Column(String, unique=True, index=True)
     is_deceased = Column(Boolean, default=False)
@@ -89,11 +94,12 @@ class Politician(Base, UUIDMixin, TimestampMixin):
     )
 
 
-class Source(Base, UUIDMixin, TimestampMixin):
+class Source(Base, TimestampMixin):
     """Source entity for tracking where data was extracted from."""
 
     __tablename__ = "sources"
 
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     url = Column(String, nullable=False, unique=True)
     extracted_at = Column(DateTime)
 
@@ -112,12 +118,15 @@ class Source(Base, UUIDMixin, TimestampMixin):
     )
 
 
-class Property(Base, UUIDMixin, TimestampMixin):
+class Property(Base, TimestampMixin):
     """Property entity for storing extracted politician properties."""
 
     __tablename__ = "properties"
 
-    politician_id = Column(String, ForeignKey("politicians.id"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    politician_id = Column(
+        UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
+    )
     type = Column(String, nullable=False)  # e.g., 'BirthDate'
     value = Column(String, nullable=False)
     is_extracted = Column(
@@ -133,11 +142,12 @@ class Property(Base, UUIDMixin, TimestampMixin):
     )
 
 
-class Country(Base, UUIDMixin, TimestampMixin):
+class Country(Base, TimestampMixin):
     """Country entity for storing country information."""
 
     __tablename__ = "countries"
 
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     name = Column(String, nullable=False)  # Country name in English
     iso_code = Column(String, unique=True, index=True)  # ISO 3166-1 alpha-2 code
     wikidata_id = Column(String, unique=True, index=True)
@@ -148,11 +158,12 @@ class Country(Base, UUIDMixin, TimestampMixin):
     )
 
 
-class Location(Base, UUIDMixin, TimestampMixin):
+class Location(Base, TimestampMixin):
     """Location entity for geographic locations."""
 
     __tablename__ = "locations"
 
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     name = Column(String, nullable=False)
     wikidata_id = Column(String, unique=True, index=True)
     embedding = Column(Vector(384), nullable=True)
@@ -163,11 +174,12 @@ class Location(Base, UUIDMixin, TimestampMixin):
     )
 
 
-class Position(Base, UUIDMixin, TimestampMixin):
+class Position(Base, TimestampMixin):
     """Position entity for political positions."""
 
     __tablename__ = "positions"
 
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     name = Column(String, nullable=False)
     wikidata_id = Column(String, unique=True, index=True)
     embedding = Column(Vector(384), nullable=True)
@@ -178,13 +190,16 @@ class Position(Base, UUIDMixin, TimestampMixin):
     )
 
 
-class HoldsPosition(Base, UUIDMixin, TimestampMixin):
+class HoldsPosition(Base, TimestampMixin):
     """HoldsPosition entity for politician-position relationships."""
 
     __tablename__ = "holds_position"
 
-    politician_id = Column(String, ForeignKey("politicians.id"), nullable=False)
-    position_id = Column(String, ForeignKey("positions.id"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    politician_id = Column(
+        UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
+    )
+    position_id = Column(UUID(as_uuid=True), ForeignKey("positions.id"), nullable=False)
     start_date = Column(String)  # Allowing incomplete dates as strings
     end_date = Column(String)  # Allowing incomplete dates as strings
     is_extracted = Column(
@@ -201,13 +216,16 @@ class HoldsPosition(Base, UUIDMixin, TimestampMixin):
     )
 
 
-class BornAt(Base, UUIDMixin, TimestampMixin):
+class BornAt(Base, TimestampMixin):
     """BornAt entity for politician-location birth relationships."""
 
     __tablename__ = "born_at"
 
-    politician_id = Column(String, ForeignKey("politicians.id"), nullable=False)
-    location_id = Column(String, ForeignKey("locations.id"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    politician_id = Column(
+        UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
+    )
+    location_id = Column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=False)
     is_extracted = Column(
         Boolean, default=True
     )  # True if newly extracted and unconfirmed
@@ -222,13 +240,16 @@ class BornAt(Base, UUIDMixin, TimestampMixin):
     )
 
 
-class HasCitizenship(Base, UUIDMixin, TimestampMixin):
+class HasCitizenship(Base, TimestampMixin):
     """HasCitizenship entity for politician-country citizenship relationships."""
 
     __tablename__ = "has_citizenship"
 
-    politician_id = Column(String, ForeignKey("politicians.id"), nullable=False)
-    country_id = Column(String, ForeignKey("countries.id"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    politician_id = Column(
+        UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
+    )
+    country_id = Column(UUID(as_uuid=True), ForeignKey("countries.id"), nullable=False)
 
     # Relationships
     politician = relationship("Politician", back_populates="citizenships")
