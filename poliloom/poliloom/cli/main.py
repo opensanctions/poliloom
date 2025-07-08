@@ -575,30 +575,41 @@ def locations_embed():
 def dump_build_trees(dump_file, num_workers):
     """Build hierarchy trees for positions and locations from Wikidata dump."""
     click.echo(f"Building hierarchy trees from dump file: {dump_file}")
-    
+
     import os
     from ..services.dump_processor import WikidataDumpProcessor
-    
+
     # Check if dump file exists
     if not os.path.exists(dump_file):
         click.echo(f"❌ Dump file not found: {dump_file}")
-        click.echo("Please run 'make download-wikidata-dump' and 'make extract-wikidata-dump' first")
+        click.echo(
+            "Please run 'make download-wikidata-dump' and 'make extract-wikidata-dump' first"
+        )
         exit(1)
-    
+
     processor = WikidataDumpProcessor()
-    
+
     try:
         click.echo("⏳ Extracting P279 (subclass of) relationships...")
         click.echo("This may take a while for the full dump...")
-        
+        click.echo("Press Ctrl+C to interrupt...")
+
         # Build the trees (always parallel)
         trees = processor.build_hierarchy_trees(dump_file, num_workers=num_workers)
-        
-        click.echo(f"✅ Successfully built hierarchy trees:")
-        click.echo(f"  • Positions: {len(trees['positions'])} descendants of Q294414 (public office)")
-        click.echo(f"  • Locations: {len(trees['locations'])} descendants of Q2221906 (geographic location)")
+
+        click.echo("✅ Successfully built hierarchy trees:")
+        click.echo(
+            f"  • Positions: {len(trees['positions'])} descendants of Q294414 (public office)"
+        )
+        click.echo(
+            f"  • Locations: {len(trees['locations'])} descendants of Q2221906 (geographic location)"
+        )
         click.echo("Complete subclass tree saved to complete_subclass_tree.json")
-        
+
+    except KeyboardInterrupt:
+        click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
+        click.echo("❌ Hierarchy tree building was cancelled.")
+        exit(1)
     except Exception as e:
         click.echo(f"❌ Error building hierarchy trees: {e}")
         exit(1)
@@ -620,42 +631,49 @@ def dump_query_tree(root_qid, output_file):
     """Extract descendants of any entity from the complete subclass tree."""
     from ..services.dump_processor import WikidataDumpProcessor
     import os
-    
+
     processor = WikidataDumpProcessor()
-    
+
     try:
         # Check if complete tree exists
         if not os.path.exists("complete_subclass_tree.json"):
             click.echo("❌ Complete subclass tree not found!")
-            click.echo("Run 'poliloom dump build-trees' first to generate the complete tree.")
+            click.echo(
+                "Run 'poliloom dump build-trees' first to generate the complete tree."
+            )
             exit(1)
-        
+
         click.echo(f"🔍 Extracting descendants of {root_qid}...")
-        
+
         descendants = processor.get_descendants_from_complete_tree(root_qid)
-        
+
         if descendants is None:
             click.echo("❌ Failed to load complete subclass tree")
             exit(1)
-        
+
         if not descendants:
-            click.echo(f"⚠️  No descendants found for {root_qid} (entity may not exist or have no subclasses)")
+            click.echo(
+                f"⚠️  No descendants found for {root_qid} (entity may not exist or have no subclasses)"
+            )
             return
-        
+
         # Sort for consistent output
         sorted_descendants = sorted(descendants)
-        
+
         if output_file:
             # Save to file
             import json
-            with open(output_file, 'w') as f:
+
+            with open(output_file, "w") as f:
                 json.dump(sorted_descendants, f, indent=2)
-            click.echo(f"✅ Saved {len(sorted_descendants)} descendants to {output_file}")
+            click.echo(
+                f"✅ Saved {len(sorted_descendants)} descendants to {output_file}"
+            )
         else:
             # Print to console
             click.echo(f"✅ Found {len(sorted_descendants)} descendants of {root_qid}:")
             click.echo()
-            
+
             # Show first 20, then summary if more
             for i, qid in enumerate(sorted_descendants):
                 if i < 20:
@@ -663,7 +681,7 @@ def dump_query_tree(root_qid, output_file):
                 elif i == 20:
                     click.echo(f"  ... and {len(sorted_descendants) - 20} more")
                     break
-    
+
     except Exception as e:
         click.echo(f"❌ Error querying tree: {e}")
         exit(1)
@@ -684,47 +702,67 @@ def dump_query_tree(root_qid, output_file):
     default=100,
     help="Number of entities to process in each database batch (default: 100)",
 )
-def dump_import(dump_file, batch_size):
+@click.option(
+    "--workers",
+    "num_workers",
+    type=int,
+    help="Number of worker processes (default: CPU count)",
+)
+def dump_import(dump_file, batch_size, num_workers):
     """Import positions, locations, and countries from a Wikidata dump file."""
     click.echo(f"Importing entities from dump file: {dump_file}")
     click.echo(f"Using batch size: {batch_size}")
-    
+
     import os
     from ..services.dump_processor import WikidataDumpProcessor
-    
+
     # Check if dump file exists
     if not os.path.exists(dump_file):
         click.echo(f"❌ Dump file not found: {dump_file}")
-        click.echo("Please run 'make download-wikidata-dump' and 'make extract-wikidata-dump' first")
+        click.echo(
+            "Please run 'make download-wikidata-dump' and 'make extract-wikidata-dump' first"
+        )
         exit(1)
-    
+
     # Check if hierarchy trees exist
     if not os.path.exists("complete_subclass_tree.json"):
         click.echo("❌ Complete subclass tree not found!")
-        click.echo("Run 'poliloom dump build-trees' first to generate the hierarchy trees.")
+        click.echo(
+            "Run 'poliloom dump build-trees' first to generate the hierarchy trees."
+        )
         exit(1)
-    
+
     processor = WikidataDumpProcessor()
-    
+
     try:
         click.echo("⏳ Extracting entities from dump...")
         click.echo("This may take a while for the full dump...")
-        
+        click.echo("Press Ctrl+C to interrupt...")
+
         # Extract entities
-        counts = processor.extract_entities_from_dump(dump_file, batch_size=batch_size)
-        
+        counts = processor.extract_entities_from_dump(
+            dump_file, batch_size=batch_size, num_workers=num_workers
+        )
+
         click.echo("✅ Successfully imported entities from dump:")
         click.echo(f"  • Positions: {counts['positions']}")
         click.echo(f"  • Locations: {counts['locations']}")
         click.echo(f"  • Countries: {counts['countries']}")
         click.echo(f"  • Total: {sum(counts.values())}")
-        
+
         # Suggest next steps
         click.echo()
         click.echo("💡 Next steps:")
         click.echo("  • Run 'poliloom positions embed' to generate position embeddings")
         click.echo("  • Run 'poliloom locations embed' to generate location embeddings")
-        
+
+    except KeyboardInterrupt:
+        click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
+        click.echo("❌ Entity import was cancelled.")
+        click.echo(
+            "⚠️  Note: Some entities may have been partially imported to the database."
+        )
+        exit(1)
     except Exception as e:
         click.echo(f"❌ Error importing entities: {e}")
         exit(1)
