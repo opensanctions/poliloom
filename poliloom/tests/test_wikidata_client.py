@@ -122,56 +122,30 @@ class TestWikidataClient:
 
     def test_extract_incomplete_dates(self, wikidata_client):
         """Test extraction of incomplete dates with different precisions."""
+        # Load test data from fixture
+        date_claims = load_json_fixture("wikidata_date_claims.json")
+        expected_results = date_claims["expected_results"]
+        
         # Test year precision
-        year_claim = [
-            {
-                "mainsnak": {
-                    "datavalue": {
-                        "type": "time",
-                        "value": {
-                            "time": "+1970-00-00T00:00:00Z",
-                            "precision": 9,  # year precision
-                        },
-                    }
-                }
-            }
-        ]
-
-        result = wikidata_client._extract_date_claim(year_claim)
-        assert result == "1970"
+        result = wikidata_client._extract_date_claim(date_claims["year_precision_claim"])
+        assert result == expected_results["year_precision"]
 
         # Test month precision
-        month_claim = [
-            {
-                "mainsnak": {
-                    "datavalue": {
-                        "type": "time",
-                        "value": {
-                            "time": "+1970-06-00T00:00:00Z",
-                            "precision": 10,  # month precision
-                        },
-                    }
-                }
-            }
-        ]
-
-        result = wikidata_client._extract_date_claim(month_claim)
-        assert result == "1970-06"
+        result = wikidata_client._extract_date_claim(date_claims["month_precision_claim"])
+        assert result == expected_results["month_precision"]
 
         # Test day precision
-        day_claim = [
-            {
-                "mainsnak": {
-                    "datavalue": {
-                        "type": "time",
-                        "value": {
-                            "time": "+1970-06-15T00:00:00Z",
-                            "precision": 11,  # day precision
-                        },
-                    }
-                }
-            }
-        ]
-
-        result = wikidata_client._extract_date_claim(day_claim)
-        assert result == "1970-06-15"
+        result = wikidata_client._extract_date_claim(date_claims["day_precision_claim"])
+        assert result == expected_results["day_precision"]
+        
+        # Test empty claim
+        result = wikidata_client._extract_date_claim(date_claims["empty_claim"])
+        assert result == expected_results["empty_claim"]
+        
+        # Test malformed claims
+        result = wikidata_client._extract_date_claim(date_claims["malformed_claim_missing_datavalue"])
+        assert result == expected_results["malformed_claims"]
+        
+        # Test multiple claims (should return first valid one)
+        result = wikidata_client._extract_date_claim(date_claims["multiple_claims"])
+        assert result == expected_results["multiple_claims"]

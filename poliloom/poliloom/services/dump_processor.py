@@ -345,3 +345,326 @@ class WikidataDumpProcessor:
         logger.info(f"Found {len(descendants)} descendants of {root_qid}")
         return descendants
     
+    def extract_entities_from_dump(self, dump_file_path: str, batch_size: int = 100) -> Dict[str, int]:
+        """
+        Extract locations, positions, and countries from the Wikidata dump.
+        
+        Args:
+            dump_file_path: Path to the Wikidata JSON dump file
+            batch_size: Number of entities to process in each database batch
+            
+        Returns:
+            Dictionary with counts of extracted entities
+        """
+        # Load the hierarchy trees
+        complete_tree = self.load_complete_subclass_tree()
+        if complete_tree is None:
+            raise ValueError("Complete subclass tree not found. Run 'poliloom dump build-trees' first.")
+        
+        # Get descendant sets for filtering
+        position_descendants = self._get_all_descendants(self.position_root, complete_tree)
+        location_descendants = self._get_all_descendants(self.location_root, complete_tree)
+        
+        logger.info(f"Filtering for {len(position_descendants)} position types and {len(location_descendants)} location types")
+        
+        # Initialize collections for batch processing
+        positions = []
+        locations = []
+        countries = []
+        
+        # Track entity counts
+        counts = {"positions": 0, "locations": 0, "countries": 0}
+        total_processed = 0
+        
+        logger.info("Starting entity extraction from dump...")
+        
+        # Process entities one by one
+        for entity in self._stream_dump_entities(dump_file_path):
+            total_processed += 1
+            
+            if total_processed % 100000 == 0:
+                logger.info(f"Processed {total_processed} entities...")
+            
+            entity_id = entity.get("id", "")
+            if not entity_id:
+                continue
+            
+            # Check if this entity is a position, location, or country
+            is_position = entity_id in position_descendants
+            is_location = entity_id in location_descendants
+            is_country = self._is_country_entity(entity)
+            
+            if is_position:
+                position_data = self._extract_position_data(entity)
+                if position_data:
+                    positions.append(position_data)
+                    counts["positions"] += 1
+            
+            if is_location:
+                location_data = self._extract_location_data(entity)
+                if location_data:
+                    locations.append(location_data)
+                    counts["locations"] += 1
+            
+            if is_country:
+                country_data = self._extract_country_data(entity)
+                if country_data:
+                    countries.append(country_data)
+                    counts["countries"] += 1
+            
+            # Process batches when they reach the batch size
+            if len(positions) >= batch_size:
+                self._insert_positions_batch(positions)
+                positions = []
+            
+            if len(locations) >= batch_size:
+                self._insert_locations_batch(locations)
+                locations = []
+            
+            if len(countries) >= batch_size:
+                self._insert_countries_batch(countries)
+                countries = []
+        
+        # Process remaining entities in final batches
+        if positions:
+            self._insert_positions_batch(positions)
+        if locations:
+            self._insert_locations_batch(locations)
+        if countries:
+            self._insert_countries_batch(countries)
+        
+        logger.info(f"Extraction complete. Total processed: {total_processed}")
+        logger.info(f"Extracted: {counts['positions']} positions, {counts['locations']} locations, {counts['countries']} countries")
+        
+        return counts
+    
+    def _is_country_entity(self, entity: Dict[str, Any]) -> bool:
+        """Check if an entity is a country based on its instance of (P31) properties."""
+        claims = entity.get("claims", {})
+        instance_of_claims = claims.get("P31", [])
+        
+        # Common country instance types
+        country_types = {
+            "Q6256",    # country
+            "Q3624078", # sovereign state
+            "Q3624078", # country
+            "Q20181813", # historic country
+            "Q1520223",  # independent city
+            "Q1489259",  # city-state
+        }
+        
+        for claim in instance_of_claims:
+            try:
+                instance_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                if instance_id in country_types:
+                    return True
+            except (KeyError, TypeError):
+                continue
+        
+        return False
+    
+    def _extract_position_data(self, entity: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Extract position data from a Wikidata entity."""
+        name = self._get_entity_name(entity)
+        if not name:
+            return None
+        
+        return {
+            "wikidata_id": entity["id"],
+            "name": name,
+        }
+    
+    def _extract_location_data(self, entity: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Extract location data from a Wikidata entity."""
+        name = self._get_entity_name(entity)
+        if not name:
+            return None
+        
+        return {
+            "wikidata_id": entity["id"],
+            "name": name,
+        }
+    
+    def _extract_country_data(self, entity: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Extract country data from a Wikidata entity."""
+        name = self._get_entity_name(entity)
+        if not name:
+            return None
+        
+        # Try to get ISO code from claims
+        iso_code = None
+        claims = entity.get("claims", {})
+        
+        # P297 is the property for ISO 3166-1 alpha-2 code
+        iso_claims = claims.get("P297", [])
+        for claim in iso_claims:
+            try:
+                iso_code = claim["mainsnak"]["datavalue"]["value"]
+                break
+            except (KeyError, TypeError):
+                continue
+        
+        return {
+            "wikidata_id": entity["id"],
+            "name": name,
+            "iso_code": iso_code,
+        }
+    
+    def _get_entity_name(self, entity: Dict[str, Any]) -> Optional[str]:
+        """Extract the primary name from a Wikidata entity."""
+        labels = entity.get("labels", {})
+        
+        # Try English first
+        if "en" in labels:
+            return labels["en"]["value"]
+        
+        # Fallback to any available language
+        if labels:
+            return next(iter(labels.values()))["value"]
+        
+        return None
+    
+    def _insert_positions_batch(self, positions: list) -> None:
+        """Insert a batch of positions into the database."""
+        if not positions:
+            return
+        
+        from ..database import SessionLocal
+        from ..models import Position
+        
+        session = SessionLocal()
+        try:
+            # Check for existing positions to avoid duplicates
+            existing_wikidata_ids = {
+                result[0] for result in session.query(Position.wikidata_id).filter(
+                    Position.wikidata_id.in_([p["wikidata_id"] for p in positions])
+                ).all()
+            }
+            
+            # Filter out duplicates
+            new_positions = [
+                p for p in positions 
+                if p["wikidata_id"] not in existing_wikidata_ids
+            ]
+            
+            if new_positions:
+                # Create Position objects
+                position_objects = [
+                    Position(
+                        wikidata_id=p["wikidata_id"],
+                        name=p["name"],
+                        embedding=None  # Will be generated later
+                    )
+                    for p in new_positions
+                ]
+                
+                session.add_all(position_objects)
+                session.commit()
+                
+                logger.info(f"Inserted {len(new_positions)} new positions")
+            else:
+                logger.info("No new positions to insert in this batch")
+                
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error inserting positions batch: {e}")
+            raise
+        finally:
+            session.close()
+    
+    def _insert_locations_batch(self, locations: list) -> None:
+        """Insert a batch of locations into the database."""
+        if not locations:
+            return
+        
+        from ..database import SessionLocal
+        from ..models import Location
+        
+        session = SessionLocal()
+        try:
+            # Check for existing locations to avoid duplicates
+            existing_wikidata_ids = {
+                result[0] for result in session.query(Location.wikidata_id).filter(
+                    Location.wikidata_id.in_([l["wikidata_id"] for l in locations])
+                ).all()
+            }
+            
+            # Filter out duplicates
+            new_locations = [
+                l for l in locations 
+                if l["wikidata_id"] not in existing_wikidata_ids
+            ]
+            
+            if new_locations:
+                # Create Location objects
+                location_objects = [
+                    Location(
+                        wikidata_id=l["wikidata_id"],
+                        name=l["name"],
+                        embedding=None  # Will be generated later
+                    )
+                    for l in new_locations
+                ]
+                
+                session.add_all(location_objects)
+                session.commit()
+                
+                logger.info(f"Inserted {len(new_locations)} new locations")
+            else:
+                logger.info("No new locations to insert in this batch")
+                
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error inserting locations batch: {e}")
+            raise
+        finally:
+            session.close()
+    
+    def _insert_countries_batch(self, countries: list) -> None:
+        """Insert a batch of countries into the database."""
+        if not countries:
+            return
+        
+        from ..database import SessionLocal
+        from ..models import Country
+        
+        session = SessionLocal()
+        try:
+            # Check for existing countries to avoid duplicates
+            existing_wikidata_ids = {
+                result[0] for result in session.query(Country.wikidata_id).filter(
+                    Country.wikidata_id.in_([c["wikidata_id"] for c in countries])
+                ).all()
+            }
+            
+            # Filter out duplicates
+            new_countries = [
+                c for c in countries 
+                if c["wikidata_id"] not in existing_wikidata_ids
+            ]
+            
+            if new_countries:
+                # Create Country objects
+                country_objects = [
+                    Country(
+                        wikidata_id=c["wikidata_id"],
+                        name=c["name"],
+                        iso_code=c["iso_code"]
+                    )
+                    for c in new_countries
+                ]
+                
+                session.add_all(country_objects)
+                session.commit()
+                
+                logger.info(f"Inserted {len(new_countries)} new countries")
+            else:
+                logger.info("No new countries to insert in this batch")
+                
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error inserting countries batch: {e}")
+            raise
+        finally:
+            session.close()
+    

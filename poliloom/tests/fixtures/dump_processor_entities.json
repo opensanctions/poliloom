@@ -1,0 +1,498 @@
+{
+  "sample_dump_entities": [
+    {
+      "id": "Q294414",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "public office"
+        }
+      },
+      "claims": {}
+    },
+    {
+      "id": "Q2221906",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "geographic location"
+        }
+      },
+      "claims": {}
+    },
+    {
+      "id": "Q1001",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "Member of Parliament"
+        }
+      },
+      "claims": {
+        "P279": [
+          {
+            "mainsnak": {
+              "datatype": "wikibase-item",
+              "datavalue": {
+                "type": "wikibase-entityid",
+                "value": {
+                  "id": "Q294414"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "Q1002",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "Mayor"
+        }
+      },
+      "claims": {
+        "P279": [
+          {
+            "mainsnak": {
+              "datatype": "wikibase-item",
+              "datavalue": {
+                "type": "wikibase-entityid",
+                "value": {
+                  "id": "Q294414"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "Q1003",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "President"
+        }
+      },
+      "claims": {
+        "P279": [
+          {
+            "mainsnak": {
+              "datatype": "wikibase-item",
+              "datavalue": {
+                "type": "wikibase-entityid",
+                "value": {
+                  "id": "Q1001"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "Q2001",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "City"
+        }
+      },
+      "claims": {
+        "P279": [
+          {
+            "mainsnak": {
+              "datatype": "wikibase-item",
+              "datavalue": {
+                "type": "wikibase-entityid",
+                "value": {
+                  "id": "Q2221906"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "Q2002",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "Capital"
+        }
+      },
+      "claims": {
+        "P279": [
+          {
+            "mainsnak": {
+              "datatype": "wikibase-item",
+              "datavalue": {
+                "type": "wikibase-entityid",
+                "value": {
+                  "id": "Q2001"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "Q5",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "Human"
+        }
+      },
+      "claims": {}
+    }
+  ],
+  "subclass_relations_example": {
+    "Q1": ["Q2", "Q3"],
+    "Q2": ["Q4", "Q5"],
+    "Q3": ["Q6"],
+    "Q4": ["Q7"],
+    "Q5": [],
+    "Q6": [],
+    "Q7": []
+  },
+  "country_entity_examples": {
+    "standard_country": {
+      "id": "Q30",
+      "claims": {
+        "P31": [
+          {
+            "mainsnak": {
+              "datavalue": {
+                "value": {
+                  "id": "Q6256"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "sovereign_state": {
+      "id": "Q183",
+      "claims": {
+        "P31": [
+          {
+            "mainsnak": {
+              "datavalue": {
+                "value": {
+                  "id": "Q3624078"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "city_entity": {
+      "id": "Q84",
+      "claims": {
+        "P31": [
+          {
+            "mainsnak": {
+              "datavalue": {
+                "value": {
+                  "id": "Q515"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "malformed_entity": {
+      "id": "Q999",
+      "claims": {
+        "P31": [
+          {
+            "mainsnak": {}
+          }
+        ]
+      }
+    }
+  },
+  "entity_name_examples": {
+    "with_english_label": {
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "United States"
+        },
+        "de": {
+          "language": "de",
+          "value": "Vereinigte Staaten"
+        }
+      }
+    },
+    "without_english_label": {
+      "labels": {
+        "de": {
+          "language": "de",
+          "value": "Deutschland"
+        },
+        "fr": {
+          "language": "fr",
+          "value": "Allemagne"
+        }
+      }
+    },
+    "empty_labels": {
+      "labels": {}
+    },
+    "missing_labels": {}
+  },
+  "position_entity_examples": {
+    "mayor": {
+      "id": "Q30185",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "Mayor"
+        }
+      }
+    },
+    "position_no_name": {
+      "id": "Q999",
+      "labels": {}
+    }
+  },
+  "location_entity_examples": {
+    "london": {
+      "id": "Q84",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "London"
+        }
+      }
+    },
+    "location_no_name": {
+      "id": "Q999",
+      "labels": {}
+    }
+  },
+  "country_data_examples": {
+    "with_iso_code": {
+      "id": "Q30",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "United States of America"
+        }
+      },
+      "claims": {
+        "P297": [
+          {
+            "mainsnak": {
+              "datavalue": {
+                "value": "US"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "without_iso_code": {
+      "id": "Q999",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "Test Country"
+        }
+      },
+      "claims": {}
+    },
+    "malformed_iso_claim": {
+      "id": "Q999",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "Test Country"
+        }
+      },
+      "claims": {
+        "P297": [
+          {
+            "mainsnak": {}
+          }
+        ]
+      }
+    }
+  },
+  "complex_p279_relationships": {
+    "position_with_multiple_parents": {
+      "id": "Q1",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "Position A"
+        }
+      },
+      "claims": {
+        "P279": [
+          {
+            "mainsnak": {
+              "datatype": "wikibase-item",
+              "datavalue": {
+                "type": "wikibase-entityid",
+                "value": {
+                  "id": "Q294414"
+                }
+              }
+            }
+          },
+          {
+            "mainsnak": {
+              "datatype": "wikibase-item",
+              "datavalue": {
+                "type": "wikibase-entityid",
+                "value": {
+                  "id": "Q999"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "position_with_malformed_claim": {
+      "id": "Q1",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "Position A"
+        }
+      },
+      "claims": {
+        "P279": [
+          {
+            "mainsnak": {
+              "datatype": "wikibase-item"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "integration_test_entities": [
+    {
+      "id": "Q294414",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "public office"
+        }
+      },
+      "claims": {}
+    },
+    {
+      "id": "Q2221906",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "geographic location"
+        }
+      },
+      "claims": {}
+    },
+    {
+      "id": "Q30185",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "Mayor"
+        }
+      },
+      "claims": {
+        "P279": [
+          {
+            "mainsnak": {
+              "datavalue": {
+                "value": {
+                  "id": "Q294414"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "Q515",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "city"
+        }
+      },
+      "claims": {
+        "P279": [
+          {
+            "mainsnak": {
+              "datavalue": {
+                "value": {
+                  "id": "Q2221906"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "Q30",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "United States"
+        }
+      },
+      "claims": {
+        "P31": [
+          {
+            "mainsnak": {
+              "datavalue": {
+                "value": {
+                  "id": "Q6256"
+                }
+              }
+            }
+          }
+        ],
+        "P297": [
+          {
+            "mainsnak": {
+              "datavalue": {
+                "value": "US"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

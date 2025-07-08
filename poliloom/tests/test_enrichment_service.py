@@ -23,6 +23,7 @@ from poliloom.models import (
     Location,
     BornAt,
 )
+from .conftest import load_json_fixture
 
 
 class TestEnrichmentService:
@@ -73,15 +74,8 @@ class TestEnrichmentService:
     @pytest.fixture
     def sample_wikipedia_content(self):
         """Sample Wikipedia article content."""
-        return """
-        Test Politician (born January 15, 1970) is an American politician 
-        who served as Mayor of Springfield from 2020 to 2024. 
-        He was born in Springfield, Illinois.
-        
-        Political career:
-        Test Politician was first elected as Mayor of Springfield in 2020, 
-        serving until 2024 when he stepped down.
-        """
+        enrichment_data = load_json_fixture("enrichment_test_data.json")
+        return enrichment_data["wikipedia_content_examples"]["test_politician_article"]
 
     @pytest.fixture
     def sample_position(self, test_session, sample_country):
@@ -180,11 +174,18 @@ class TestEnrichmentService:
         self, enrichment_service, mock_openai_client, sample_wikipedia_content
     ):
         """Test property extraction with LLM."""
+        # Load test data from fixture
+        enrichment_data = load_json_fixture("enrichment_test_data.json")
+        openai_response = enrichment_data["openai_responses"]["successful_property_extraction"]
+        
         # Mock OpenAI response
         mock_message = Mock()
         mock_message.parsed = PropertyExtractionResult(
             properties=[
-                ExtractedProperty(type=PropertyType.BIRTH_DATE, value="1970-01-15")
+                ExtractedProperty(
+                    type=PropertyType.BIRTH_DATE, 
+                    value=openai_response["properties"][0]["value"]
+                )
             ]
         )
         mock_response = Mock()
@@ -198,7 +199,7 @@ class TestEnrichmentService:
         assert properties is not None
         assert len(properties) == 1
         assert properties[0].type == PropertyType.BIRTH_DATE
-        assert properties[0].value == "1970-01-15"
+        assert properties[0].value == openai_response["properties"][0]["value"]
 
     def test_extract_properties_with_llm_failure(
         self, enrichment_service, mock_openai_client

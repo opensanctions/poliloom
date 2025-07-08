@@ -8,6 +8,7 @@ from pathlib import Path
 
 from poliloom.services.import_service import ImportService
 from poliloom.models import Position, Country
+from .conftest import load_json_fixture
 
 
 class TestCSVImport:
@@ -21,11 +22,13 @@ class TestCSVImport:
     @pytest.fixture
     def sample_countries(self, test_session):
         """Create sample countries for testing."""
+        # Load test data from fixture
+        position_data = load_json_fixture("position_test_data.json")
+        country_data = position_data["sample_countries"]
+        
         countries = [
-            Country(name="Spain", iso_code="ES", wikidata_id="Q29"),
-            Country(name="South Korea", iso_code="KR", wikidata_id="Q884"),
-            Country(name="United States", iso_code="US", wikidata_id="Q30"),
-            Country(name="Canada", iso_code="CA", wikidata_id="Q16"),
+            Country(name=c["name"], iso_code=c["iso_code"], wikidata_id=c["wikidata_id"])
+            for c in country_data
         ]
         for country in countries:
             test_session.add(country)

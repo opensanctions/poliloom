@@ -669,6 +669,67 @@ def dump_query_tree(root_qid, output_file):
         exit(1)
 
 
+@dump.command("import")
+@click.option(
+    "--file",
+    "dump_file",
+    help="Path to the extracted JSON dump file",
+    envvar="WIKIDATA_DUMP_JSON_PATH",
+    default="./latest-all.json",
+)
+@click.option(
+    "--batch-size",
+    "batch_size",
+    type=int,
+    default=100,
+    help="Number of entities to process in each database batch (default: 100)",
+)
+def dump_import(dump_file, batch_size):
+    """Import positions, locations, and countries from a Wikidata dump file."""
+    click.echo(f"Importing entities from dump file: {dump_file}")
+    click.echo(f"Using batch size: {batch_size}")
+    
+    import os
+    from ..services.dump_processor import WikidataDumpProcessor
+    
+    # Check if dump file exists
+    if not os.path.exists(dump_file):
+        click.echo(f"❌ Dump file not found: {dump_file}")
+        click.echo("Please run 'make download-wikidata-dump' and 'make extract-wikidata-dump' first")
+        exit(1)
+    
+    # Check if hierarchy trees exist
+    if not os.path.exists("complete_subclass_tree.json"):
+        click.echo("❌ Complete subclass tree not found!")
+        click.echo("Run 'poliloom dump build-trees' first to generate the hierarchy trees.")
+        exit(1)
+    
+    processor = WikidataDumpProcessor()
+    
+    try:
+        click.echo("⏳ Extracting entities from dump...")
+        click.echo("This may take a while for the full dump...")
+        
+        # Extract entities
+        counts = processor.extract_entities_from_dump(dump_file, batch_size=batch_size)
+        
+        click.echo("✅ Successfully imported entities from dump:")
+        click.echo(f"  • Positions: {counts['positions']}")
+        click.echo(f"  • Locations: {counts['locations']}")
+        click.echo(f"  • Countries: {counts['countries']}")
+        click.echo(f"  • Total: {sum(counts.values())}")
+        
+        # Suggest next steps
+        click.echo()
+        click.echo("💡 Next steps:")
+        click.echo("  • Run 'poliloom positions embed' to generate position embeddings")
+        click.echo("  • Run 'poliloom locations embed' to generate location embeddings")
+        
+    except Exception as e:
+        click.echo(f"❌ Error importing entities: {e}")
+        exit(1)
+
+
 @main.command("serve")
 @click.option("--host", default="0.0.0.0", help="Host to bind the server to")
 @click.option("--port", default=8000, help="Port to bind the server to")

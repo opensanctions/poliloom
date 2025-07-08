@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from poliloom.api.app import app
 from poliloom.api.auth import User
+from .conftest import load_json_fixture
 
 
 @pytest.fixture
@@ -17,7 +18,9 @@ def client():
 @pytest.fixture
 def mock_user():
     """Create a mock authenticated user."""
-    return User(username="testuser", user_id=12345, email="test@example.com")
+    auth_data = load_json_fixture("auth_test_data.json")
+    test_user = auth_data["test_user"]
+    return User(username=test_user["username"], user_id=test_user["sub"], email=test_user["email"])
 
 
 class TestAPIAuthentication:
@@ -30,12 +33,8 @@ class TestAPIAuthentication:
 
     def test_confirm_politician_requires_auth(self, client):
         """Test that /politicians/{id}/confirm requires authentication."""
-        confirmation_data = {
-            "confirmed_properties": [],
-            "discarded_properties": [],
-            "confirmed_positions": [],
-            "discarded_positions": [],
-        }
+        api_data = load_json_fixture("api_test_data.json")
+        confirmation_data = api_data["confirmation_request_examples"]["empty_confirmation"]
         response = client.post("/politicians/test_id/confirm", json=confirmation_data)
         assert response.status_code == 403  # No auth token provided
 

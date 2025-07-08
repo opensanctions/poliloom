@@ -7,6 +7,7 @@ import httpx
 from poliloom.services.import_service import ImportService
 from poliloom.services.wikidata import WikidataClient
 from poliloom.models import Location
+from .conftest import load_json_fixture
 
 
 class TestLocationImport:
@@ -15,30 +16,17 @@ class TestLocationImport:
     @pytest.fixture
     def sample_locations_data(self):
         """Sample location data from Wikidata."""
-        return [
-            {"wikidata_id": "Q60", "name": "New York City"},
-            {"wikidata_id": "Q65", "name": "Los Angeles"},
-            {"wikidata_id": "Q90", "name": "Paris"},
-        ]
+        location_data = load_json_fixture("location_test_data.json")
+        return location_data["sample_locations"][:3]  # Take first 3 locations
 
     def test_get_all_locations_success(self, sample_locations_data):
         """Test successful fetching of locations from Wikidata."""
+        location_data = load_json_fixture("location_test_data.json")
+        # Use only the first 3 locations to match expected results
+        full_response = location_data["sparql_response_mock"]
         mock_response_data = {
             "results": {
-                "bindings": [
-                    {
-                        "place": {"value": "http://www.wikidata.org/entity/Q60"},
-                        "placeLabel": {"value": "New York City"},
-                    },
-                    {
-                        "place": {"value": "http://www.wikidata.org/entity/Q65"},
-                        "placeLabel": {"value": "Los Angeles"},
-                    },
-                    {
-                        "place": {"value": "http://www.wikidata.org/entity/Q90"},
-                        "placeLabel": {"value": "Paris"},
-                    },
-                ]
+                "bindings": full_response["results"]["bindings"][:3]
             }
         }
 
