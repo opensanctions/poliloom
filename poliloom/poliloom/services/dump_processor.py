@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import multiprocessing as mp
+from multiprocessing import shared_memory
 from typing import Dict, Set, Optional, Iterator, Any, Tuple
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -12,6 +13,10 @@ logger = logging.getLogger(__name__)
 
 # Global variable to store worker-specific database session
 _worker_session = None
+
+# Global variables for shared memory in worker processes
+_shared_position_descendants = None
+_shared_location_descendants = None
 
 
 def _init_worker_db():
@@ -52,6 +57,63 @@ def _get_worker_session():
     if _worker_session is None:
         _init_worker_db()
     return _worker_session()
+
+
+def _create_shared_memory_from_set(
+    data_set: Set[str], name: str
+) -> shared_memory.SharedMemory:
+    """Create shared memory buffer from a set of strings."""
+    # Convert set to JSON string
+    json_data = json.dumps(sorted(list(data_set)))
+    json_bytes = json_data.encode("utf-8")
+
+    # Create shared memory buffer
+    shm = shared_memory.SharedMemory(create=True, size=len(json_bytes), name=name)
+    shm.buf[: len(json_bytes)] = json_bytes
+
+    return shm
+
+
+def _load_set_from_shared_memory(shm_name: str) -> Set[str]:
+    """Load a set from shared memory buffer."""
+    # Attach to existing shared memory
+    shm = shared_memory.SharedMemory(name=shm_name)
+
+    # Read and decode JSON data
+    json_data = bytes(shm.buf).decode("utf-8")
+    data_list = json.loads(json_data)
+
+    # Convert back to set
+    return set(data_list)
+
+
+def _init_worker_hierarchy(position_shm_name: str, location_shm_name: str):
+    """Initialize hierarchy data in worker process from shared memory."""
+    global _shared_position_descendants, _shared_location_descendants
+
+    try:
+        _shared_position_descendants = _load_set_from_shared_memory(position_shm_name)
+        _shared_location_descendants = _load_set_from_shared_memory(location_shm_name)
+
+        logger.info(
+            f"Worker {os.getpid()}: Loaded {len(_shared_position_descendants)} position descendants and {len(_shared_location_descendants)} location descendants from shared memory"
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Worker {os.getpid()}: Failed to load hierarchy from shared memory: {e}"
+        )
+        raise
+
+
+def _get_hierarchy_sets() -> Tuple[Set[str], Set[str]]:
+    """Get hierarchy sets for current worker."""
+    global _shared_position_descendants, _shared_location_descendants
+
+    if _shared_position_descendants is None or _shared_location_descendants is None:
+        raise RuntimeError("Hierarchy data not initialized in worker process")
+
+    return _shared_position_descendants, _shared_location_descendants
 
 
 class WikidataDumpProcessor:
@@ -593,17 +655,38 @@ class WikidataDumpProcessor:
         position_descendants: Set[str],
         location_descendants: Set[str],
     ) -> Dict[str, int]:
-        """Parallel implementation for entity extraction."""
+        """Parallel implementation for entity extraction using shared memory."""
 
         # Split file into chunks for parallel processing
         logger.info("Calculating file chunks for parallel processing...")
         chunks = self._calculate_file_chunks(dump_file_path, num_workers)
         logger.info(f"Split file into {len(chunks)} chunks for {num_workers} workers")
 
+        # Create shared memory buffers for hierarchy data
+        logger.info("Creating shared memory buffers for hierarchy data...")
+        position_shm_name = f"poliloom_positions_{os.getpid()}"
+        location_shm_name = f"poliloom_locations_{os.getpid()}"
+
+        position_shm = _create_shared_memory_from_set(
+            position_descendants, position_shm_name
+        )
+        location_shm = _create_shared_memory_from_set(
+            location_descendants, location_shm_name
+        )
+
+        logger.info(
+            f"Created shared memory buffers: positions={len(position_descendants)} items, locations={len(location_descendants)} items"
+        )
+
         # Process chunks in parallel with proper KeyboardInterrupt handling
         pool = None
         try:
-            pool = mp.Pool(processes=num_workers, initializer=_init_worker_db)
+            # Initialize workers with database and hierarchy data
+            def init_worker():
+                _init_worker_db()
+                _init_worker_hierarchy(position_shm_name, location_shm_name)
+
+            pool = mp.Pool(processes=num_workers, initializer=init_worker)
 
             # Each worker processes its chunk independently
             async_result = pool.starmap_async(
@@ -614,8 +697,6 @@ class WikidataDumpProcessor:
                         start,
                         end,
                         i,
-                        position_descendants,
-                        location_descendants,
                         batch_size,
                     )
                     for i, (start, end) in enumerate(chunks)
@@ -639,6 +720,16 @@ class WikidataDumpProcessor:
                 pool.close()
                 pool.join()
 
+            # Clean up shared memory buffers
+            try:
+                position_shm.close()
+                position_shm.unlink()
+                location_shm.close()
+                location_shm.unlink()
+                logger.info("Cleaned up shared memory buffers")
+            except Exception as e:
+                logger.warning(f"Error cleaning up shared memory: {e}")
+
         # Merge results from all chunks
         total_counts = {"positions": 0, "locations": 0, "countries": 0}
         total_entities = 0
@@ -661,8 +752,6 @@ class WikidataDumpProcessor:
         start_byte: int,
         end_byte: int,
         worker_id: int,
-        position_descendants: Set[str],
-        location_descendants: Set[str],
         batch_size: int,
     ):
         """
@@ -675,6 +764,9 @@ class WikidataDumpProcessor:
         interrupted = False
 
         try:
+            # Get hierarchy data from shared memory
+            position_descendants, location_descendants = _get_hierarchy_sets()
+
             positions = []
             locations = []
             countries = []
