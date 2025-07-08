@@ -129,27 +129,30 @@ MALFORMED_JSON_LINE,
             temp_file = f.name
 
         try:
-            trees = processor.build_hierarchy_trees(temp_file, num_workers=2)
+            with tempfile.TemporaryDirectory() as temp_dir:
+                trees = processor.build_hierarchy_trees(
+                    temp_file, num_workers=2, output_dir=temp_dir
+                )
 
-            # Check position tree
-            assert "positions" in trees
-            positions = trees["positions"]
-            assert "Q294414" in positions  # Root
-            assert "Q1001" in positions  # Member of Parliament
-            assert "Q1002" in positions  # Mayor
-            assert "Q1003" in positions  # President (descendant of Q1001)
-            assert len(positions) == 4
+                # Check position tree
+                assert "positions" in trees
+                positions = trees["positions"]
+                assert "Q294414" in positions  # Root
+                assert "Q1001" in positions  # Member of Parliament
+                assert "Q1002" in positions  # Mayor
+                assert "Q1003" in positions  # President (descendant of Q1001)
+                assert len(positions) == 4
 
-            # Check location tree
-            assert "locations" in trees
-            locations = trees["locations"]
-            assert "Q2221906" in locations  # Root
-            assert "Q2001" in locations  # City
-            assert "Q2002" in locations  # Capital (descendant of Q2001)
-            assert len(locations) == 3
+                # Check location tree
+                assert "locations" in trees
+                locations = trees["locations"]
+                assert "Q2221906" in locations  # Root
+                assert "Q2001" in locations  # City
+                assert "Q2002" in locations  # Capital (descendant of Q2001)
+                assert len(locations) == 3
 
-            # Ensure no overlap between trees
-            assert len(positions & locations) == 0
+                # Ensure no overlap between trees
+                assert len(positions & locations) == 0
 
         finally:
             os.unlink(temp_file)
@@ -163,15 +166,20 @@ MALFORMED_JSON_LINE,
             temp_file = f.name
 
         try:
-            # Run with 1 worker
-            trees_1_worker = processor.build_hierarchy_trees(temp_file, num_workers=1)
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # Run with 1 worker
+                trees_1_worker = processor.build_hierarchy_trees(
+                    temp_file, num_workers=1, output_dir=temp_dir
+                )
 
-            # Run with 2 workers
-            trees_2_workers = processor.build_hierarchy_trees(temp_file, num_workers=2)
+                # Run with 2 workers
+                trees_2_workers = processor.build_hierarchy_trees(
+                    temp_file, num_workers=2, output_dir=temp_dir
+                )
 
-            # Results should be identical
-            assert trees_1_worker["positions"] == trees_2_workers["positions"]
-            assert trees_1_worker["locations"] == trees_2_workers["locations"]
+                # Results should be identical
+                assert trees_1_worker["positions"] == trees_2_workers["positions"]
+                assert trees_1_worker["locations"] == trees_2_workers["locations"]
 
         finally:
             os.unlink(temp_file)
@@ -312,31 +320,24 @@ MALFORMED_JSON_LINE,
 
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
-                # Change working directory for this test
-                original_cwd = os.getcwd()
-                os.chdir(temp_dir)
+                # Build trees with explicit output directory (no chdir needed)
+                processor.build_hierarchy_trees(
+                    temp_file, num_workers=1, output_dir=temp_dir
+                )
 
-                try:
-                    # Build trees (should save complete hierarchy)
-                    processor.build_hierarchy_trees(temp_file, num_workers=1)
+                # Check that complete hierarchy file was created in temp dir
+                hierarchy_file = os.path.join(temp_dir, "complete_hierarchy.json")
+                assert os.path.exists(hierarchy_file)
 
-                    # Check that complete hierarchy file was created
-                    assert os.path.exists("complete_hierarchy.json")
+                # Load and verify complete hierarchy
+                hierarchy = processor.load_complete_hierarchy(temp_dir)
+                assert hierarchy is not None
 
-                    # Load and verify complete hierarchy
-                    hierarchy = processor.load_complete_hierarchy(".")
-                    assert hierarchy is not None
+                subclass_tree, instance_tree = hierarchy
 
-                    subclass_tree, instance_tree = hierarchy
-
-                    # Should contain the relationships from our sample data
-                    assert "Q294414" in subclass_tree  # public office has subclasses
-                    assert (
-                        "Q2221906" in subclass_tree
-                    )  # geographic location has subclasses
-
-                finally:
-                    os.chdir(original_cwd)
+                # Should contain the relationships from our sample data
+                assert "Q294414" in subclass_tree  # public office has subclasses
+                assert "Q2221906" in subclass_tree  # geographic location has subclasses
 
         finally:
             os.unlink(temp_file)
@@ -365,10 +366,11 @@ MALFORMED_JSON_LINE,
             temp_file = f.name
 
         try:
-            trees = processor.build_hierarchy_trees(temp_file)
+            with tempfile.TemporaryDirectory() as temp_dir:
+                trees = processor.build_hierarchy_trees(temp_file, output_dir=temp_dir)
 
-            # Should still include Q1 as descendant of Q294414
-            assert "Q1" in trees["positions"]
+                # Should still include Q1 as descendant of Q294414
+                assert "Q1" in trees["positions"]
 
         finally:
             os.unlink(temp_file)
@@ -418,11 +420,12 @@ MALFORMED_JSON_LINE,
             temp_file = f.name
 
         try:
-            trees = processor.build_hierarchy_trees(temp_file)
+            with tempfile.TemporaryDirectory() as temp_dir:
+                trees = processor.build_hierarchy_trees(temp_file, output_dir=temp_dir)
 
-            # Should handle malformed claim gracefully
-            assert "Q1" not in trees["positions"]  # Malformed claim
-            assert "Q2" in trees["positions"]  # Valid claim
+                # Should handle malformed claim gracefully
+                assert "Q1" not in trees["positions"]  # Malformed claim
+                assert "Q2" in trees["positions"]  # Valid claim
 
         finally:
             os.unlink(temp_file)
@@ -779,40 +782,34 @@ MALFORMED_JSON_LINE,
 
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
-                # Change working directory for this test
-                original_cwd = os.getcwd()
-                os.chdir(temp_dir)
+                # First build the hierarchy trees in temp dir
+                processor.build_hierarchy_trees(
+                    temp_file, num_workers=1, output_dir=temp_dir
+                )
 
-                try:
-                    # First build the hierarchy trees
-                    processor.build_hierarchy_trees(temp_file, num_workers=1)
+                # Mock the database operations at the module level to avoid pickling issues
+                with patch(
+                    "poliloom.services.dump_processor._get_worker_session"
+                ) as mock_get_session:
+                    from unittest.mock import MagicMock
 
-                    # Mock the database operations at the module level to avoid pickling issues
-                    with patch(
-                        "poliloom.services.dump_processor._get_worker_session"
-                    ) as mock_get_session:
-                        from unittest.mock import MagicMock
+                    mock_session = MagicMock()
+                    mock_get_session.return_value = mock_session
+                    mock_session.query.return_value.filter.return_value.all.return_value = []
 
-                        mock_session = MagicMock()
-                        mock_get_session.return_value = mock_session
-                        mock_session.query.return_value.filter.return_value.all.return_value = []
+                    # Extract entities with explicit hierarchy directory
+                    counts = processor.extract_entities_from_dump(
+                        temp_file, batch_size=10, hierarchy_dir=temp_dir
+                    )
 
-                        # Extract entities
-                        counts = processor.extract_entities_from_dump(
-                            temp_file, batch_size=10
-                        )
+                    # Verify counts
+                    assert counts["positions"] == 2  # public office + Mayor
+                    assert counts["locations"] == 2  # geographic location + city
+                    assert counts["countries"] == 1  # United States
 
-                        # Verify counts
-                        assert counts["positions"] == 2  # public office + Mayor
-                        assert counts["locations"] == 2  # geographic location + city
-                        assert counts["countries"] == 1  # United States
-
-                        # This integration test verifies the entity extraction logic
-                        # Database operations are mocked to avoid actual database calls
-                        # The main assertion is that the counts are correct
-
-                finally:
-                    os.chdir(original_cwd)
+                    # This integration test verifies the entity extraction logic
+                    # Database operations are mocked to avoid actual database calls
+                    # The main assertion is that the counts are correct
 
         finally:
             os.unlink(temp_file)

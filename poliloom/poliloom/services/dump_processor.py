@@ -124,7 +124,10 @@ class WikidataDumpProcessor:
         self.location_root = "Q2221906"  # geographic location
 
     def build_hierarchy_trees(
-        self, dump_file_path: str, num_workers: Optional[int] = None
+        self,
+        dump_file_path: str,
+        num_workers: Optional[int] = None,
+        output_dir: str = ".",
     ) -> Dict[str, Set[str]]:
         """
         Build hierarchy trees for positions and locations from Wikidata dump.
@@ -135,6 +138,7 @@ class WikidataDumpProcessor:
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
             num_workers: Number of worker processes (default: CPU count)
+            output_dir: Directory to save the complete hierarchy file (default: current directory)
 
         Returns:
             Dictionary with 'positions' and 'locations' keys containing sets of QIDs
@@ -147,7 +151,7 @@ class WikidataDumpProcessor:
         logger.info(f"Using parallel processing with {num_workers} workers")
 
         subclass_relations, instance_relations = self._build_hierarchy_trees_parallel(
-            dump_file_path, num_workers
+            dump_file_path, num_workers, output_dir
         )
 
         # Extract specific trees from the complete hierarchy
@@ -161,7 +165,7 @@ class WikidataDumpProcessor:
         return {"positions": position_descendants, "locations": location_descendants}
 
     def _build_hierarchy_trees_parallel(
-        self, dump_file_path: str, num_workers: int
+        self, dump_file_path: str, num_workers: int, output_dir: str = "."
     ) -> Tuple[Dict[str, Set[str]], Dict[str, Set[str]]]:
         """
         Parallel implementation using chunk-based file reading.
@@ -223,7 +227,9 @@ class WikidataDumpProcessor:
         logger.info(f"Found {len(instance_relations)} entities with instances")
 
         # Save complete hierarchy trees for future use
-        self.save_complete_hierarchy_trees(subclass_relations, instance_relations)
+        self.save_complete_hierarchy_trees(
+            subclass_relations, instance_relations, output_dir
+        )
 
         # Extract specific trees from the complete tree for convenience
         position_descendants = self._get_all_descendants(
@@ -601,6 +607,7 @@ class WikidataDumpProcessor:
         dump_file_path: str,
         batch_size: int = 100,
         num_workers: Optional[int] = None,
+        hierarchy_dir: str = ".",
     ) -> Dict[str, int]:
         """
         Extract locations, positions, and countries from the Wikidata dump using parallel processing.
@@ -609,12 +616,13 @@ class WikidataDumpProcessor:
             dump_file_path: Path to the Wikidata JSON dump file
             batch_size: Number of entities to process in each database batch
             num_workers: Number of worker processes (default: CPU count)
+            hierarchy_dir: Directory containing the complete hierarchy file (default: current directory)
 
         Returns:
             Dictionary with counts of extracted entities
         """
         # Load the hierarchy trees
-        hierarchy = self.load_complete_hierarchy()
+        hierarchy = self.load_complete_hierarchy(hierarchy_dir)
         if hierarchy is None:
             raise ValueError(
                 "Complete hierarchy not found. Run 'poliloom dump build-hierarchy' first."
