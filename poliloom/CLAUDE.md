@@ -29,7 +29,7 @@ This API and CLI project is responsible for:
 
 ## **3\. Database Schema**
 
-The database reproduces a subset of the Wikidata politician data model to store extracted information. 
+The database reproduces a subset of the Wikidata politician data model to store extracted information.
 
 **To view the current database schema, run:** `PGPASSWORD=postgres pg_dump -h localhost -p 5432 -U postgres -d poliloom --schema-only`
 
@@ -48,13 +48,11 @@ The database reproduces a subset of the Wikidata politician data model to store 
 This module is responsible for initially populating the local database with politician data using Wikidata dump processing instead of API calls.
 
 - **Wikidata Dump Processing:**
-  - Process the complete Wikidata dump file (latest-all.json.gz) directly without decompression to disk
-  - Stream compressed file line-by-line for memory efficiency and minimal disk space usage
+  - Process the complete Wikidata dump file (latest-all.json) directly
   - **Two-Pass Processing Strategy:**
     - **Pass 1 - Build Hierarchy Trees:** Extract all P279 (subclass of) relationships to build complete descendant trees for positions (Q294414 - public office) and locations (Q2221906 - geographic location). Cache trees to JSON files for reuse.
     - **Pass 2 - Extract Entities:** Use cached trees to efficiently filter and extract politicians, positions, and locations in a single pass
   - Extract politicians by filtering entities with occupation (Q82955) or position held (Q39486) properties
-  - Support both local compressed files and direct streaming from Wikidata dump URLs
   - Process entities in batches for efficient database insertion
   - **REFACTOR:** Remove existing SPARQL-based politician import logic and replace with dump processing
 - **Entity Extraction Strategy:**
@@ -194,25 +192,28 @@ curl http://localhost:8000/openapi.json
   - Start the FastAPI web server.
 
 **Recommended Workflow:**
+
 1. `make download-wikidata-dump` - Download compressed dump (one-time, ~100GB compressed)
 2. `make extract-wikidata-dump` - Extract to JSON (requires lbzip2, ~1TB uncompressed)
 3. `poliloom dump build-trees` - Build hierarchy trees for positions and locations (one-time per dump)
 4. `poliloom dump import` - Import data to database (can be repeated)
 
 **Dump Management:**
+
 - **Download**: Use `make download-wikidata-dump` to fetch the latest compressed dump
 - **Extract**: Use `make extract-wikidata-dump` for parallel decompression with lbzip2
 - **Paths**: Configure paths via .env file (WIKIDATA_DUMP_BZ2_PATH, WIKIDATA_DUMP_JSON_PATH)
 
 **Deprecated Commands (to be removed):**
+
 - **~~poliloom politicians import~~** - **REFACTOR:** Remove, replaced by dump processing
-- **~~poliloom positions import~~** - **REFACTOR:** Remove, replaced by dump processing  
+- **~~poliloom positions import~~** - **REFACTOR:** Remove, replaced by dump processing
 - **~~poliloom positions import-csv~~** - **REFACTOR:** Remove, replaced by dump processing
 - **~~poliloom locations import~~** - **REFACTOR:** Remove, replaced by dump processing
 
 ## **5\. External Integrations**
 
-- **Wikidata Dumps:** Primary data source via compressed dump files (latest-all.json.gz) for bulk entity extraction
+- **Wikidata Dumps:** Primary data source via dump files (latest-all.json) for bulk entity extraction
 - **Wikidata API:** **REFACTOR:** Minimize usage, only for updating Wikidata after user confirmation via GUI
 - **MediaWiki OAuth 2.0:** For user authentication within the API using JWT tokens
 - **OpenAI API:** For all LLM-based data extraction from web content
