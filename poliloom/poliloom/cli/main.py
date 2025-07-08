@@ -39,6 +39,12 @@ def locations():
 
 
 @main.group()
+def dump():
+    """Commands for Wikidata dump processing."""
+    pass
+
+
+@main.group()
 def database():
     """Commands for database operations."""
     pass
@@ -550,6 +556,117 @@ def locations_embed():
     finally:
         if session:
             session.close()
+
+
+@dump.command("build-trees")
+@click.option(
+    "--file",
+    "dump_file",
+    help="Path to the extracted JSON dump file",
+    envvar="WIKIDATA_DUMP_JSON_PATH",
+    default="./latest-all.json",
+)
+@click.option(
+    "--workers",
+    "num_workers",
+    type=int,
+    help="Number of worker processes (default: CPU count)",
+)
+def dump_build_trees(dump_file, num_workers):
+    """Build hierarchy trees for positions and locations from Wikidata dump."""
+    click.echo(f"Building hierarchy trees from dump file: {dump_file}")
+    
+    import os
+    from ..services.dump_processor import WikidataDumpProcessor
+    
+    # Check if dump file exists
+    if not os.path.exists(dump_file):
+        click.echo(f"❌ Dump file not found: {dump_file}")
+        click.echo("Please run 'make download-wikidata-dump' and 'make extract-wikidata-dump' first")
+        exit(1)
+    
+    processor = WikidataDumpProcessor()
+    
+    try:
+        click.echo("⏳ Extracting P279 (subclass of) relationships...")
+        click.echo("This may take a while for the full dump...")
+        
+        # Build the trees (always parallel)
+        trees = processor.build_hierarchy_trees(dump_file, num_workers=num_workers)
+        
+        click.echo(f"✅ Successfully built hierarchy trees:")
+        click.echo(f"  • Positions: {len(trees['positions'])} descendants of Q294414 (public office)")
+        click.echo(f"  • Locations: {len(trees['locations'])} descendants of Q2221906 (geographic location)")
+        click.echo("Complete subclass tree saved to complete_subclass_tree.json")
+        
+    except Exception as e:
+        click.echo(f"❌ Error building hierarchy trees: {e}")
+        exit(1)
+
+
+@dump.command("query-tree")
+@click.option(
+    "--root",
+    "root_qid",
+    required=True,
+    help="Root entity QID to extract descendants for (e.g., Q515 for city)",
+)
+@click.option(
+    "--output",
+    "output_file",
+    help="Output file to save the descendants (default: print to console)",
+)
+def dump_query_tree(root_qid, output_file):
+    """Extract descendants of any entity from the complete subclass tree."""
+    from ..services.dump_processor import WikidataDumpProcessor
+    import os
+    
+    processor = WikidataDumpProcessor()
+    
+    try:
+        # Check if complete tree exists
+        if not os.path.exists("complete_subclass_tree.json"):
+            click.echo("❌ Complete subclass tree not found!")
+            click.echo("Run 'poliloom dump build-trees' first to generate the complete tree.")
+            exit(1)
+        
+        click.echo(f"🔍 Extracting descendants of {root_qid}...")
+        
+        descendants = processor.get_descendants_from_complete_tree(root_qid)
+        
+        if descendants is None:
+            click.echo("❌ Failed to load complete subclass tree")
+            exit(1)
+        
+        if not descendants:
+            click.echo(f"⚠️  No descendants found for {root_qid} (entity may not exist or have no subclasses)")
+            return
+        
+        # Sort for consistent output
+        sorted_descendants = sorted(descendants)
+        
+        if output_file:
+            # Save to file
+            import json
+            with open(output_file, 'w') as f:
+                json.dump(sorted_descendants, f, indent=2)
+            click.echo(f"✅ Saved {len(sorted_descendants)} descendants to {output_file}")
+        else:
+            # Print to console
+            click.echo(f"✅ Found {len(sorted_descendants)} descendants of {root_qid}:")
+            click.echo()
+            
+            # Show first 20, then summary if more
+            for i, qid in enumerate(sorted_descendants):
+                if i < 20:
+                    click.echo(f"  • {qid}")
+                elif i == 20:
+                    click.echo(f"  ... and {len(sorted_descendants) - 20} more")
+                    break
+    
+    except Exception as e:
+        click.echo(f"❌ Error querying tree: {e}")
+        exit(1)
 
 
 @main.command("serve")
