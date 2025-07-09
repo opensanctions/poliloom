@@ -741,8 +741,12 @@ class WikidataDumpProcessor:
                             continue
 
                         # Check if this entity is a position, location, or country
-                        is_position = entity_id in position_descendants
-                        is_location = entity_id in location_descendants
+                        is_position = self._is_instance_of_position(
+                            entity, position_descendants
+                        )
+                        is_location = self._is_instance_of_location(
+                            entity, location_descendants
+                        )
                         is_country = self._is_country_entity(entity)
 
                         if is_position:
@@ -827,6 +831,40 @@ class WikidataDumpProcessor:
         except Exception as e:
             logger.error(f"Worker {worker_id}: error processing chunk: {e}")
             return {"positions": 0, "locations": 0, "countries": 0}, 0
+
+    def _is_instance_of_position(
+        self, entity: Dict[str, Any], position_descendants: Set[str]
+    ) -> bool:
+        """Check if an entity is an instance of any position type (P31 instance of position descendants)."""
+        claims = entity.get("claims", {})
+        instance_of_claims = claims.get("P31", [])
+
+        for claim in instance_of_claims:
+            try:
+                instance_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                if instance_id in position_descendants:
+                    return True
+            except (KeyError, TypeError):
+                continue
+
+        return False
+
+    def _is_instance_of_location(
+        self, entity: Dict[str, Any], location_descendants: Set[str]
+    ) -> bool:
+        """Check if an entity is an instance of any location type (P31 instance of location descendants)."""
+        claims = entity.get("claims", {})
+        instance_of_claims = claims.get("P31", [])
+
+        for claim in instance_of_claims:
+            try:
+                instance_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                if instance_id in location_descendants:
+                    return True
+            except (KeyError, TypeError):
+                continue
+
+        return False
 
     def _is_country_entity(self, entity: Dict[str, Any]) -> bool:
         """Check if an entity is a country based on its instance of (P31) properties."""
