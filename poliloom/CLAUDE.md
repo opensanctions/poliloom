@@ -175,6 +175,9 @@ curl http://localhost:8000/openapi.json
   - Generate embeddings for all Location entities that don't have embeddings yet
   - Processes locations in batches for optimal performance
 
+- **poliloom positions import-csv** 
+  - CSV import functionality for positions data
+
 - **poliloom serve [--host HOST] [--port PORT] [--reload]**
   - Start the FastAPI web server.
 
@@ -191,9 +194,6 @@ curl http://localhost:8000/openapi.json
 - **Extract**: Use `make extract-wikidata-dump` for parallel decompression with lbzip2
 - **Paths**: Configure paths via .env file (WIKIDATA_DUMP_BZ2_PATH, WIKIDATA_DUMP_JSON_PATH)
 
-**Legacy Commands (to be cleaned up):**
-
-- **~~poliloom positions import-csv~~** - Legacy CSV import functionality, superseded by dump processing
 
 ## **5\. External Integrations**
 
