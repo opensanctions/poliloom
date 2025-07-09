@@ -392,7 +392,7 @@ class TestEnrichmentService:
         self, enrichment_service, test_session, politician_with_source
     ):
         """Test storing extracted properties."""
-        source = politician_with_source.sources[0]
+        source = politician_with_source.wikipedia_links[0]
         data = {
             "properties": [
                 ExtractedProperty(type=PropertyType.BIRTH_DATE, value="1970-01-15")
@@ -423,7 +423,7 @@ class TestEnrichmentService:
         self, enrichment_service, test_session, politician_with_source, sample_position
     ):
         """Test storing extracted positions."""
-        source = politician_with_source.sources[0]
+        source = politician_with_source.wikipedia_links[0]
         from poliloom.services.enrichment_service import ExtractedPosition
 
         data = {
@@ -462,7 +462,7 @@ class TestEnrichmentService:
         self, enrichment_service, test_session, politician_with_source, sample_location
     ):
         """Test storing extracted birthplaces."""
-        source = politician_with_source.sources[0]
+        source = politician_with_source.wikipedia_links[0]
         from poliloom.services.enrichment_service import ExtractedBirthplace
 
         data = {
@@ -496,7 +496,7 @@ class TestEnrichmentService:
         self, enrichment_service, test_session, politician_with_source
     ):
         """Test that storing skips positions that don't exist in database."""
-        source = politician_with_source.sources[0]
+        source = politician_with_source.wikipedia_links[0]
         from poliloom.services.enrichment_service import ExtractedPosition
 
         data = {
@@ -530,7 +530,7 @@ class TestEnrichmentService:
         self, enrichment_service, test_session, politician_with_source
     ):
         """Test that storing skips locations that don't exist in database."""
-        source = politician_with_source.sources[0]
+        source = politician_with_source.wikipedia_links[0]
         from poliloom.services.enrichment_service import ExtractedBirthplace
 
         data = {
@@ -561,7 +561,7 @@ class TestEnrichmentService:
         self, enrichment_service, test_session, politician_with_source
     ):
         """Test error handling in store_extracted_data."""
-        source = politician_with_source.sources[0]
+        source = politician_with_source.wikipedia_links[0]
 
         # Create invalid data to trigger an error
         data = {

@@ -43,9 +43,8 @@ async def get_unconfirmed_politicians(
             selectinload(Politician.positions_held).selectinload(
                 HoldsPosition.position
             ),
-            selectinload(Politician.positions_held).selectinload(HoldsPosition.sources),
             selectinload(Politician.birthplaces).selectinload(BornAt.location),
-            selectinload(Politician.birthplaces).selectinload(BornAt.sources),
+            selectinload(Politician.wikipedia_links),
         )
         .where(
             (Politician.properties.any(Property.is_extracted))
