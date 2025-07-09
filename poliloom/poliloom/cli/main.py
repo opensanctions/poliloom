@@ -362,7 +362,10 @@ def positions_import_csv(csv_file):
 
 
 @positions.command("embed")
-def positions_embed():
+@click.option(
+    "--batch-size", default=100000, help="Number of positions to process in each batch"
+)
+def positions_embed(batch_size):
     """Generate embeddings for all positions that don't have embeddings yet."""
     click.echo("Generating embeddings for positions without embeddings...")
 
@@ -374,31 +377,56 @@ def positions_embed():
     try:
         session = SessionLocal()
 
-        # Get all positions without embeddings
-        positions_without_embeddings = (
-            session.query(Position).filter(Position.embedding.is_(None)).all()
+        # Get total count of positions without embeddings
+        total_count = (
+            session.query(Position).filter(Position.embedding.is_(None)).count()
         )
 
-        if not positions_without_embeddings:
+        if total_count == 0:
             click.echo("✅ All positions already have embeddings")
             return
 
-        count = len(positions_without_embeddings)
-        click.echo(f"Found {count} positions without embeddings")
+        click.echo(f"Found {total_count} positions without embeddings")
+        click.echo(f"Processing in batches of {batch_size}")
 
-        # Extract names for batch processing
-        names = [pos.name for pos in positions_without_embeddings]
+        processed_count = 0
+        offset = 0
 
-        # Generate embeddings
-        click.echo("Generating embeddings...")
-        embeddings = generate_embeddings(names)
+        while offset < total_count:
+            # Load batch of positions
+            batch_positions = (
+                session.query(Position)
+                .filter(Position.embedding.is_(None))
+                .offset(offset)
+                .limit(batch_size)
+                .all()
+            )
 
-        # Update positions with embeddings
-        for position, embedding in zip(positions_without_embeddings, embeddings):
-            position.embedding = embedding
+            if not batch_positions:
+                break
 
-        session.commit()
-        click.echo(f"✅ Successfully generated embeddings for {count} positions")
+            # Extract names for this batch
+            names = [pos.name for pos in batch_positions]
+
+            # Generate embeddings for this batch
+            embeddings = generate_embeddings(names)
+
+            # Update positions with embeddings
+            for position, embedding in zip(batch_positions, embeddings):
+                position.embedding = embedding
+
+            # Commit this batch
+            session.commit()
+
+            # Update progress
+            batch_size_actual = len(batch_positions)
+            processed_count += batch_size_actual
+            offset += batch_size
+            click.echo(f"Processed {processed_count}/{total_count} positions")
+
+        click.echo(
+            f"✅ Successfully generated embeddings for {processed_count} positions"
+        )
 
     except Exception as e:
         if session:
@@ -435,7 +463,10 @@ def locations_import():
 
 
 @locations.command("embed")
-def locations_embed():
+@click.option(
+    "--batch-size", default=100000, help="Number of locations to process in each batch"
+)
+def locations_embed(batch_size):
     """Generate embeddings for all locations that don't have embeddings yet."""
     click.echo("Generating embeddings for locations without embeddings...")
 
@@ -447,31 +478,56 @@ def locations_embed():
     try:
         session = SessionLocal()
 
-        # Get all locations without embeddings
-        locations_without_embeddings = (
-            session.query(Location).filter(Location.embedding.is_(None)).all()
+        # Get total count of locations without embeddings
+        total_count = (
+            session.query(Location).filter(Location.embedding.is_(None)).count()
         )
 
-        if not locations_without_embeddings:
+        if total_count == 0:
             click.echo("✅ All locations already have embeddings")
             return
 
-        count = len(locations_without_embeddings)
-        click.echo(f"Found {count} locations without embeddings")
+        click.echo(f"Found {total_count} locations without embeddings")
+        click.echo(f"Processing in batches of {batch_size}")
 
-        # Extract names for batch processing
-        names = [loc.name for loc in locations_without_embeddings]
+        processed_count = 0
+        offset = 0
 
-        # Generate embeddings
-        click.echo("Generating embeddings...")
-        embeddings = generate_embeddings(names)
+        while offset < total_count:
+            # Load batch of locations
+            batch_locations = (
+                session.query(Location)
+                .filter(Location.embedding.is_(None))
+                .offset(offset)
+                .limit(batch_size)
+                .all()
+            )
 
-        # Update locations with embeddings
-        for location, embedding in zip(locations_without_embeddings, embeddings):
-            location.embedding = embedding
+            if not batch_locations:
+                break
 
-        session.commit()
-        click.echo(f"✅ Successfully generated embeddings for {count} locations")
+            # Extract names for this batch
+            names = [loc.name for loc in batch_locations]
+
+            # Generate embeddings for this batch
+            embeddings = generate_embeddings(names)
+
+            # Update locations with embeddings
+            for location, embedding in zip(batch_locations, embeddings):
+                location.embedding = embedding
+
+            # Commit this batch
+            session.commit()
+
+            # Update progress
+            batch_size_actual = len(batch_locations)
+            processed_count += batch_size_actual
+            offset += batch_size
+            click.echo(f"Processed {processed_count}/{total_count} locations")
+
+        click.echo(
+            f"✅ Successfully generated embeddings for {processed_count} locations"
+        )
 
     except Exception as e:
         if session:
