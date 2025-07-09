@@ -6,7 +6,7 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from poliloom.models import (
     Base,
@@ -62,6 +62,15 @@ class MockSentenceTransformer:
 def mock_sentence_transformers():
     """Mock sentence transformers to avoid downloading models in tests."""
     with patch("sentence_transformers.SentenceTransformer", MockSentenceTransformer):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def mock_torch():
+    """Mock torch to prevent CUDA initialization in tests."""
+    mock_torch = MagicMock()
+    mock_torch.cuda.is_available.return_value = False
+    with patch("poliloom.embeddings.torch", mock_torch):
         yield
 
 

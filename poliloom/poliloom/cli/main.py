@@ -44,33 +44,6 @@ def dump():
     pass
 
 
-@politicians.command("import")
-@click.option("--id", "wikidata_id", required=True, help="Wikidata ID (e.g., Q123456)")
-def politicians_import(wikidata_id):
-    """Import a single politician entity from Wikidata based on its ID."""
-    click.echo(f"Importing politician from Wikidata ID: {wikidata_id}")
-
-    import_service = ImportService()
-
-    try:
-        politician_id = import_service.import_politician_by_id(wikidata_id)
-
-        if politician_id:
-            click.echo(
-                f"✅ Successfully imported politician with database ID: {politician_id}"
-            )
-        else:
-            click.echo("❌ Failed to import politician. Check the logs for details.")
-            exit(1)
-
-    except Exception as e:
-        click.echo(f"❌ Error importing politician: {e}")
-        exit(1)
-
-    finally:
-        import_service.close()
-
-
 @politicians.command("enrich")
 @click.option(
     "--id",
@@ -305,62 +278,6 @@ def politicians_show(wikidata_id):
             session.close()
 
 
-@positions.command("import")
-def positions_import():
-    """Import all political positions from Wikidata to populate the local Position table."""
-    click.echo("Importing all political positions from Wikidata...")
-
-    import_service = ImportService()
-
-    try:
-        count = import_service.import_all_positions()
-
-        if count > 0:
-            click.echo(f"✅ Successfully imported {count} political positions")
-        else:
-            click.echo("❌ Failed to import positions. Check the logs for details.")
-            exit(1)
-
-    except Exception as e:
-        click.echo(f"❌ Error importing positions: {e}")
-        exit(1)
-
-    finally:
-        import_service.close()
-
-
-@positions.command("import-csv")
-@click.option(
-    "--file",
-    "csv_file",
-    required=True,
-    help="Path to CSV file containing positions data",
-)
-def positions_import_csv(csv_file):
-    """Import political positions from a custom CSV file."""
-    click.echo(f"Importing political positions from CSV file: {csv_file}")
-
-    import_service = ImportService()
-
-    try:
-        count = import_service.import_positions_from_csv(csv_file)
-
-        if count > 0:
-            click.echo(f"✅ Successfully imported {count} political positions from CSV")
-        else:
-            click.echo(
-                "❌ Failed to import positions from CSV. Check the logs for details."
-            )
-            exit(1)
-
-    except Exception as e:
-        click.echo(f"❌ Error importing positions from CSV: {e}")
-        exit(1)
-
-    finally:
-        import_service.close()
-
-
 @positions.command("embed")
 @click.option(
     "--batch-size", default=100000, help="Number of positions to process in each batch"
@@ -438,24 +355,32 @@ def positions_embed(batch_size):
             session.close()
 
 
-@locations.command("import")
-def locations_import():
-    """Import all geographic locations from Wikidata to populate the local Location table."""
-    click.echo("Importing all geographic locations from Wikidata...")
+@positions.command("import-csv")
+@click.option(
+    "--file",
+    "csv_file",
+    required=True,
+    help="Path to CSV file containing positions data",
+)
+def positions_import_csv(csv_file):
+    """Import political positions from a custom CSV file."""
+    click.echo(f"Importing political positions from CSV file: {csv_file}")
 
     import_service = ImportService()
 
     try:
-        count = import_service.import_all_locations()
+        count = import_service.import_positions_from_csv(csv_file)
 
         if count > 0:
-            click.echo(f"✅ Successfully imported {count} geographic locations")
+            click.echo(f"✅ Successfully imported {count} political positions from CSV")
         else:
-            click.echo("❌ Failed to import locations. Check the logs for details.")
+            click.echo(
+                "❌ Failed to import positions from CSV. Check the logs for details."
+            )
             exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Error importing locations: {e}")
+        click.echo(f"❌ Error importing positions from CSV: {e}")
         exit(1)
 
     finally:

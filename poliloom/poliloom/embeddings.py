@@ -3,6 +3,7 @@
 import logging
 import os
 from typing import List
+import torch
 
 # Global cached embedding model
 _embedding_model = None
@@ -25,7 +26,6 @@ def get_embedding_model():
 
         try:
             from sentence_transformers import SentenceTransformer
-            import torch
 
             # Use GPU if available
             device = "cuda" if torch.cuda.is_available() else "cpu"
