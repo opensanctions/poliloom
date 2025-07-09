@@ -5,7 +5,20 @@ import time
 from datetime import datetime, timezone
 from typing import List
 
+from sqlalchemy.exc import DisconnectionError
+from sqlalchemy.dialects.postgresql import insert
 from .worker_manager import get_worker_session
+from ..models import (
+    Position,
+    Location,
+    Country,
+    Politician,
+    Property,
+    HoldsPosition,
+    HasCitizenship,
+    BornAt,
+    Source,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +30,6 @@ class DatabaseInserter:
         """Insert a batch of positions into the database."""
         if not positions:
             return
-
-        from ..models import Position
-        from sqlalchemy.exc import DisconnectionError
 
         max_retries = 3
         for attempt in range(max_retries):
@@ -74,9 +84,6 @@ class DatabaseInserter:
         """Insert a batch of locations into the database."""
         if not locations:
             return
-
-        from ..models import Location
-        from sqlalchemy.exc import DisconnectionError
 
         max_retries = 3
         for attempt in range(max_retries):
@@ -134,10 +141,6 @@ class DatabaseInserter:
         if not countries:
             return
 
-        from ..models import Country
-        from sqlalchemy.dialects.postgresql import insert
-        from sqlalchemy.exc import DisconnectionError
-
         max_retries = 3
         for attempt in range(max_retries):
             session = get_worker_session()
@@ -185,19 +188,6 @@ class DatabaseInserter:
         """Insert a batch of politicians into the database."""
         if not politicians:
             return
-
-        from ..models import (
-            Politician,
-            Property,
-            HoldsPosition,
-            Position,
-            HasCitizenship,
-            Country,
-            BornAt,
-            Location,
-            Source,
-        )
-        from sqlalchemy.exc import DisconnectionError
 
         max_retries = 3
         for attempt in range(max_retries):
