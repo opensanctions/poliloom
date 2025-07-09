@@ -451,6 +451,29 @@
       }
     },
     {
+      "id": "Q100001",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "John Doe's Mayoral Position"
+        }
+      },
+      "claims": {
+        "P31": [
+          {
+            "mainsnak": {
+              "datavalue": {
+                "value": {
+                  "id": "Q30185"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
       "id": "Q515",
       "type": "item",
       "labels": {
@@ -477,6 +500,29 @@
               "datavalue": {
                 "value": {
                   "id": "Q30"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "Q100002",
+      "type": "item",
+      "labels": {
+        "en": {
+          "language": "en",
+          "value": "New York City"
+        }
+      },
+      "claims": {
+        "P31": [
+          {
+            "mainsnak": {
+              "datavalue": {
+                "value": {
+                  "id": "Q515"
                 }
               }
             }

@@ -760,8 +760,10 @@ MALFORMED_JSON_LINE,
                     )
 
                     # Verify counts
-                    assert counts["positions"] == 2  # public office + Mayor
-                    assert counts["locations"] == 2  # geographic location + city
+                    assert (
+                        counts["positions"] == 1
+                    )  # John Doe's Mayoral Position (instance of Mayor)
+                    assert counts["locations"] == 1  # New York City (instance of city)
                     assert counts["countries"] == 1  # United States
 
                     # This integration test verifies the entity extraction logic

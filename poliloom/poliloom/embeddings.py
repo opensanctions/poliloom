@@ -49,13 +49,13 @@ def generate_embedding(text: str) -> List[float]:
     return embedding.tolist() if hasattr(embedding, "tolist") else list(embedding)
 
 
-def generate_embeddings(texts: List[str]) -> List[List[float]]:
-    """Generate embeddings for multiple texts."""
+def generate_embeddings(texts: List[str], batch_size: int = 2048) -> List[List[float]]:
+    """Generate embeddings for multiple texts with configurable batch size."""
     if not texts:
         return []
 
     model = get_embedding_model()
-    embeddings = model.encode(texts, convert_to_tensor=False)
+    embeddings = model.encode(texts, convert_to_tensor=False, batch_size=batch_size)
 
     # Convert to list format
     return [emb.tolist() if hasattr(emb, "tolist") else list(emb) for emb in embeddings]

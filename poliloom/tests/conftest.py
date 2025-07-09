@@ -26,7 +26,7 @@ class MockSentenceTransformer:
         self.model_name = model_name
         self.device = device
 
-    def encode(self, text, convert_to_tensor=False):
+    def encode(self, text, convert_to_tensor=False, batch_size=None):
         """Mock embedding generation for single text or batch of texts."""
         import numpy as np
 
