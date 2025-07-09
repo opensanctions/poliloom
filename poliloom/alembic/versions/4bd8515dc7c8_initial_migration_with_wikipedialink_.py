@@ -1,8 +1,8 @@
-"""Initial migration with all models and UUID types
+"""Initial migration with WikipediaLink model
 
-Revision ID: 0718a0e2d1d8
+Revision ID: 4bd8515dc7c8
 Revises:
-Create Date: 2025-07-08 20:32:18.076618
+Create Date: 2025-07-09 22:16:46.883231
 
 """
 
@@ -10,11 +10,11 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from pgvector.sqlalchemy import Vector
+import pgvector.sqlalchemy
 
 
 # revision identifiers, used by Alembic.
-revision: str = "0718a0e2d1d8"
+revision: str = "4bd8515dc7c8"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -47,7 +47,9 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("wikidata_id", sa.String(), nullable=True),
-        sa.Column("embedding", Vector(384), nullable=True),
+        sa.Column(
+            "embedding", pgvector.sqlalchemy.vector.VECTOR(dim=384), nullable=True
+        ),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
@@ -73,23 +75,15 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("wikidata_id", sa.String(), nullable=True),
-        sa.Column("embedding", Vector(384), nullable=True),
+        sa.Column(
+            "embedding", pgvector.sqlalchemy.vector.VECTOR(dim=384), nullable=True
+        ),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
         op.f("ix_positions_wikidata_id"), "positions", ["wikidata_id"], unique=True
-    )
-    op.create_table(
-        "sources",
-        sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("url", sa.String(), nullable=False),
-        sa.Column("extracted_at", sa.DateTime(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("url"),
     )
     op.create_table(
         "born_at",
@@ -151,20 +145,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
-        "politician_source",
-        sa.Column("politician_id", sa.UUID(), nullable=False),
-        sa.Column("source_id", sa.UUID(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["politician_id"],
-            ["politicians.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["source_id"],
-            ["sources.id"],
-        ),
-        sa.PrimaryKeyConstraint("politician_id", "source_id"),
-    )
-    op.create_table(
         "properties",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("politician_id", sa.UUID(), nullable=False),
@@ -182,46 +162,18 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
-        "bornat_source",
-        sa.Column("bornat_id", sa.UUID(), nullable=False),
-        sa.Column("source_id", sa.UUID(), nullable=False),
+        "wikipedia_links",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("politician_id", sa.UUID(), nullable=False),
+        sa.Column("url", sa.String(), nullable=False),
+        sa.Column("language_code", sa.String(), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(
-            ["bornat_id"],
-            ["born_at.id"],
+            ["politician_id"],
+            ["politicians.id"],
         ),
-        sa.ForeignKeyConstraint(
-            ["source_id"],
-            ["sources.id"],
-        ),
-        sa.PrimaryKeyConstraint("bornat_id", "source_id"),
-    )
-    op.create_table(
-        "holdsposition_source",
-        sa.Column("holdsposition_id", sa.UUID(), nullable=False),
-        sa.Column("source_id", sa.UUID(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["holdsposition_id"],
-            ["holds_position.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["source_id"],
-            ["sources.id"],
-        ),
-        sa.PrimaryKeyConstraint("holdsposition_id", "source_id"),
-    )
-    op.create_table(
-        "property_source",
-        sa.Column("property_id", sa.UUID(), nullable=False),
-        sa.Column("source_id", sa.UUID(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["property_id"],
-            ["properties.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["source_id"],
-            ["sources.id"],
-        ),
-        sa.PrimaryKeyConstraint("property_id", "source_id"),
+        sa.PrimaryKeyConstraint("id"),
     )
     # ### end Alembic commands ###
 
@@ -229,15 +181,11 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_table("property_source")
-    op.drop_table("holdsposition_source")
-    op.drop_table("bornat_source")
+    op.drop_table("wikipedia_links")
     op.drop_table("properties")
-    op.drop_table("politician_source")
     op.drop_table("holds_position")
     op.drop_table("has_citizenship")
     op.drop_table("born_at")
-    op.drop_table("sources")
     op.drop_index(op.f("ix_positions_wikidata_id"), table_name="positions")
     op.drop_table("positions")
     op.drop_index(op.f("ix_politicians_wikidata_id"), table_name="politicians")

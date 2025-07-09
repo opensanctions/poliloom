@@ -2,7 +2,6 @@
 
 import os
 from typing import List, Optional
-from datetime import datetime, timezone
 from enum import Enum
 from sqlalchemy.orm import Session
 import httpx
@@ -19,7 +18,6 @@ from ..models import (
     HoldsPosition,
     Location,
     BornAt,
-    Country,
 )
 from ..database import SessionLocal
 
@@ -213,25 +211,25 @@ class EnrichmentService:
                 logger.error(f"Politician with Wikidata ID {wikidata_id} not found")
                 return False
 
-            if not politician.sources:
+            if not politician.wikipedia_links:
                 logger.warning(
-                    f"No Wikipedia sources found for politician {politician.name}"
+                    f"No Wikipedia links found for politician {politician.name}"
                 )
                 return False
 
             # Process only English Wikipedia source
             extracted_data = []
-            english_source = None
-            for source in politician.sources:
-                if "en.wikipedia.org" in source.url:
-                    english_source = source
+            english_wikipedia_link = None
+            for wikipedia_link in politician.wikipedia_links:
+                if "en.wikipedia.org" in wikipedia_link.url:
+                    english_wikipedia_link = wikipedia_link
                     break
 
-            if english_source:
+            if english_wikipedia_link:
                 logger.info(
-                    f"Processing English Wikipedia source: {english_source.url}"
+                    f"Processing English Wikipedia source: {english_wikipedia_link.url}"
                 )
-                content = self._fetch_wikipedia_content(english_source.url)
+                content = self._fetch_wikipedia_content(english_wikipedia_link.url)
                 if content:
                     # Get politician's primary country from citizenships
                     primary_country = None
@@ -244,7 +242,7 @@ class EnrichmentService:
                     if data:
                         # Log what the LLM proposed
                         self._log_extraction_results(politician.name, data)
-                        extracted_data.append((english_source, data))
+                        extracted_data.append((english_wikipedia_link, data))
             else:
                 logger.warning(
                     f"No English Wikipedia source found for politician {politician.name}"
@@ -895,10 +893,7 @@ Select the best match or None if no good match exists."""
     ) -> bool:
         """Store extracted data in the database."""
         try:
-            for source, data in extracted_data:
-                # Update source extraction timestamp
-                source.extracted_at = datetime.now(timezone.utc)
-
+            for wikipedia_link, data in extracted_data:
                 # Store properties
                 for prop_data in data.get("properties", []):
                     if prop_data.value:
@@ -923,8 +918,6 @@ Select the best match or None if no good match exists."""
                             db.add(new_property)
                             db.flush()  # Get the ID
 
-                            # Link to source
-                            new_property.sources.append(source)
                             logger.info(
                                 f"Added new property: {prop_data.type} = '{prop_data.value}' for {politician.name}"
                             )
@@ -965,9 +958,6 @@ Select the best match or None if no good match exists."""
                             )
                             db.add(holds_position)
                             db.flush()
-
-                            # Link to source
-                            holds_position.sources.append(source)
 
                             # Format date range for logging
                             date_range = ""
@@ -1018,9 +1008,6 @@ Select the best match or None if no good match exists."""
                             )
                             db.add(born_at)
                             db.flush()
-
-                            # Link to source
-                            born_at.sources.append(source)
 
                             logger.info(
                                 f"Added new birthplace: '{birth_data.location_name}' for {politician.name}"

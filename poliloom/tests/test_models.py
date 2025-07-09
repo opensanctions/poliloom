@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 
 from poliloom.models import (
     Politician,
-    Source,
+    WikipediaLink,
     Property,
     Position,
     HoldsPosition,
@@ -125,19 +125,26 @@ class TestPolitician:
         )
 
 
-class TestSource:
-    """Test cases for the Source model."""
+class TestWikipediaLink:
+    """Test cases for the WikipediaLink model."""
 
-    def test_source_creation(self, test_session):
-        """Test basic source creation."""
-        extracted_time = datetime(2024, 2, 1, 14, 30, 0)
-        source = TestHelpers.create_and_commit(
+    def test_wikipedia_link_creation(self, test_session, sample_politician):
+        """Test basic Wikipedia link creation."""
+        wikipedia_link = TestHelpers.create_and_commit(
             test_session,
-            Source(url="https://example.com/test-page", extracted_at=extracted_time),
+            WikipediaLink(
+                politician_id=sample_politician.id,
+                url="https://en.wikipedia.org/wiki/John_Doe",
+                language_code="en",
+            ),
         )
         TestHelpers.assert_basic_model_fields(
-            source,
-            {"url": "https://example.com/test-page", "extracted_at": extracted_time},
+            wikipedia_link,
+            {
+                "politician_id": sample_politician.id,
+                "url": "https://en.wikipedia.org/wiki/John_Doe",
+                "language_code": "en",
+            },
         )
 
 
@@ -521,23 +528,31 @@ class TestHasCitizenship:
             test_session.rollback()
 
 
-class TestManyToManyRelationships:
-    """Test cases for many-to-many relationships via association tables."""
+class TestWikipediaLinkRelationships:
+    """Test cases for Wikipedia link relationships."""
 
-    def test_multiple_sources_per_entity(self, test_session, sample_politician):
-        """Test that entities can have multiple sources."""
-        source1 = Source(url="https://example.com/source1")
-        source2 = Source(url="https://example.com/source2")
-        test_session.add_all([source1, source2])
+    def test_multiple_wikipedia_links_per_politician(
+        self, test_session, sample_politician
+    ):
+        """Test that politicians can have multiple Wikipedia links."""
+        wiki_link1 = WikipediaLink(
+            politician_id=sample_politician.id,
+            url="https://en.wikipedia.org/wiki/John_Doe",
+            language_code="en",
+        )
+        wiki_link2 = WikipediaLink(
+            politician_id=sample_politician.id,
+            url="https://de.wikipedia.org/wiki/John_Doe",
+            language_code="de",
+        )
+        test_session.add_all([wiki_link1, wiki_link2])
         test_session.commit()
 
-        # Add both sources to politician
-        sample_politician.sources.extend([source1, source2])
-        test_session.commit()
-
-        assert len(sample_politician.sources) == 2
-        assert source1 in sample_politician.sources
-        assert source2 in sample_politician.sources
+        # Verify relationship
+        test_session.refresh(sample_politician)
+        assert len(sample_politician.wikipedia_links) == 2
+        assert wiki_link1 in sample_politician.wikipedia_links
+        assert wiki_link2 in sample_politician.wikipedia_links
 
 
 class TestTimestampBehavior:

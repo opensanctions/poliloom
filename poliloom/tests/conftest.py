@@ -5,13 +5,12 @@ import json
 from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime
 from unittest.mock import patch, MagicMock
 
 from poliloom.models import (
     Base,
     Politician,
-    Source,
+    WikipediaLink,
     Property,
     Position,
     HoldsPosition,
@@ -131,16 +130,17 @@ def sample_politician(test_session):
 
 
 @pytest.fixture
-def sample_source(test_session):
-    """Create a sample source for testing."""
-    source = Source(
-        url="https://example.com/john-doe",
-        extracted_at=datetime(2024, 1, 15, 10, 30, 0),
+def sample_wikipedia_link(test_session, sample_politician):
+    """Create a sample Wikipedia link for testing."""
+    wikipedia_link = WikipediaLink(
+        politician_id=sample_politician.id,
+        url="https://en.wikipedia.org/wiki/John_Doe",
+        language_code="en",
     )
-    test_session.add(source)
+    test_session.add(wikipedia_link)
     test_session.commit()
-    test_session.refresh(source)
-    return source
+    test_session.refresh(wikipedia_link)
+    return wikipedia_link
 
 
 @pytest.fixture
@@ -164,7 +164,7 @@ def sample_position(test_session):
 
 
 @pytest.fixture
-def sample_property(test_session, sample_politician, sample_source):
+def sample_property(test_session, sample_politician):
     """Create a sample property for testing."""
     prop = Property(
         politician_id=sample_politician.id,
@@ -174,7 +174,6 @@ def sample_property(test_session, sample_politician, sample_source):
         confirmed_by=None,
         confirmed_at=None,
     )
-    prop.sources.append(sample_source)
     test_session.add(prop)
     test_session.commit()
     test_session.refresh(prop)
@@ -182,9 +181,7 @@ def sample_property(test_session, sample_politician, sample_source):
 
 
 @pytest.fixture
-def sample_holds_position(
-    test_session, sample_politician, sample_position, sample_source
-):
+def sample_holds_position(test_session, sample_politician, sample_position):
     """Create a sample holds position relationship for testing."""
     holds_pos = HoldsPosition(
         politician_id=sample_politician.id,
@@ -195,7 +192,6 @@ def sample_holds_position(
         confirmed_by=None,
         confirmed_at=None,
     )
-    holds_pos.sources.append(sample_source)
     test_session.add(holds_pos)
     test_session.commit()
     test_session.refresh(holds_pos)

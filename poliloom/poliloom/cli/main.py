@@ -88,7 +88,7 @@ def politicians_show(wikidata_id):
     click.echo(f"Showing information for politician with Wikidata ID: {wikidata_id}")
 
     from ..database import SessionLocal
-    from ..models import Politician, Property, HoldsPosition, HasCitizenship, BornAt
+    from ..models import Politician, HoldsPosition, HasCitizenship, BornAt
     from sqlalchemy.orm import joinedload
 
     session = None
@@ -99,15 +99,13 @@ def politicians_show(wikidata_id):
             session.query(Politician)
             .filter(Politician.wikidata_id == wikidata_id)
             .options(
-                joinedload(Politician.properties).joinedload(Property.sources),
+                joinedload(Politician.properties),
                 joinedload(Politician.positions_held).joinedload(
                     HoldsPosition.position
                 ),
-                joinedload(Politician.positions_held).joinedload(HoldsPosition.sources),
                 joinedload(Politician.citizenships).joinedload(HasCitizenship.country),
                 joinedload(Politician.birthplaces).joinedload(BornAt.location),
-                joinedload(Politician.birthplaces).joinedload(BornAt.sources),
-                joinedload(Politician.sources),
+                joinedload(Politician.wikipedia_links),
             )
             .first()
         )
@@ -131,6 +129,14 @@ def politicians_show(wikidata_id):
         click.echo(f"Deceased: {'Yes' if politician.is_deceased else 'No'}")
         click.echo(f"Created: {politician.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
         click.echo(f"Updated: {politician.updated_at.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        # Display Wikipedia links
+        if politician.wikipedia_links:
+            click.echo()
+            click.echo("📖 WIKIPEDIA LINKS:")
+            click.echo("-" * 40)
+            for wiki_link in politician.wikipedia_links:
+                click.echo(f"    • [{wiki_link.language_code.upper()}] {wiki_link.url}")
 
         # Display citizenships
         if politician.citizenships:
@@ -169,11 +175,6 @@ def politicians_show(wikidata_id):
 
                     click.echo(f"    • {prop.type}: {prop.value} [{status}]")
 
-                    # Show sources
-                    if prop.sources:
-                        for source in prop.sources:
-                            click.echo(f"      📖 Source: {source.url}")
-
         # Display birthplaces
         if politician.birthplaces:
             click.echo()
@@ -208,11 +209,6 @@ def politicians_show(wikidata_id):
                         location_info += f" [{birthplace.location.wikidata_id}]"
 
                     click.echo(f"    • {location_info} [{status}]")
-
-                    # Show sources
-                    if birthplace.sources:
-                        for source in birthplace.sources:
-                            click.echo(f"      📖 Source: {source.url}")
 
         # Display positions
         if politician.positions_held:
@@ -261,11 +257,6 @@ def politicians_show(wikidata_id):
                         position_info += f" [{pos.position.wikidata_id}]"
 
                     click.echo(f"    • {position_info} [{status}]")
-
-                    # Show sources
-                    if pos.sources:
-                        for source in pos.sources:
-                            click.echo(f"      📖 Source: {source.url}")
 
         click.echo()
         click.echo("=" * 80)

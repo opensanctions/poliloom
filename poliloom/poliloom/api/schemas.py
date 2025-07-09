@@ -10,7 +10,6 @@ class UnconfirmedPropertyResponse(BaseModel):
     id: str
     type: str
     value: str
-    source_urls: List[str]
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -22,7 +21,6 @@ class UnconfirmedPositionResponse(BaseModel):
     position_name: str
     start_date: Optional[str] = None
     end_date: Optional[str] = None
-    source_urls: List[str]
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -33,7 +31,6 @@ class UnconfirmedBirthplaceResponse(BaseModel):
     id: str
     location_name: str
     location_wikidata_id: Optional[str] = None
-    source_urls: List[str]
 
     model_config = ConfigDict(from_attributes=True)
 

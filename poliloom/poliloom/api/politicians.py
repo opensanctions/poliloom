@@ -92,7 +92,6 @@ async def get_unconfirmed_politicians(
                         id=prop.id,
                         type=prop.type,
                         value=prop.value,
-                        source_urls=[source.url for source in prop.sources],
                     )
                     for prop in unconfirmed_properties
                 ],
@@ -102,7 +101,6 @@ async def get_unconfirmed_politicians(
                         position_name=pos.position.name,
                         start_date=pos.start_date,
                         end_date=pos.end_date,
-                        source_urls=[source.url for source in pos.sources],
                     )
                     for pos in unconfirmed_positions
                 ],
@@ -111,7 +109,6 @@ async def get_unconfirmed_politicians(
                         id=birthplace.id,
                         location_name=birthplace.location.name,
                         location_wikidata_id=birthplace.location.wikidata_id,
-                        source_urls=[source.url for source in birthplace.sources],
                     )
                     for birthplace in unconfirmed_birthplaces
                 ],

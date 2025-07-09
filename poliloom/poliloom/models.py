@@ -1,7 +1,7 @@
 """Database models for the PoliLoom project."""
 
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Table
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, declarative_base
 from uuid import uuid4
@@ -22,48 +22,6 @@ class TimestampMixin:
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
-
-
-# Association tables for many-to-many relationships
-politician_source_table = Table(
-    "politician_source",
-    Base.metadata,
-    Column(
-        "politician_id",
-        UUID(as_uuid=True),
-        ForeignKey("politicians.id"),
-        primary_key=True,
-    ),
-    Column("source_id", UUID(as_uuid=True), ForeignKey("sources.id"), primary_key=True),
-)
-
-property_source_table = Table(
-    "property_source",
-    Base.metadata,
-    Column(
-        "property_id", UUID(as_uuid=True), ForeignKey("properties.id"), primary_key=True
-    ),
-    Column("source_id", UUID(as_uuid=True), ForeignKey("sources.id"), primary_key=True),
-)
-
-holdsposition_source_table = Table(
-    "holdsposition_source",
-    Base.metadata,
-    Column(
-        "holdsposition_id",
-        UUID(as_uuid=True),
-        ForeignKey("holds_position.id"),
-        primary_key=True,
-    ),
-    Column("source_id", UUID(as_uuid=True), ForeignKey("sources.id"), primary_key=True),
-)
-
-bornat_source_table = Table(
-    "bornat_source",
-    Base.metadata,
-    Column("bornat_id", UUID(as_uuid=True), ForeignKey("born_at.id"), primary_key=True),
-    Column("source_id", UUID(as_uuid=True), ForeignKey("sources.id"), primary_key=True),
-)
 
 
 class Politician(Base, TimestampMixin):
@@ -89,33 +47,25 @@ class Politician(Base, TimestampMixin):
     birthplaces = relationship(
         "BornAt", back_populates="politician", cascade="all, delete-orphan"
     )
-    sources = relationship(
-        "Source", secondary=politician_source_table, back_populates="politicians"
+    wikipedia_links = relationship(
+        "WikipediaLink", back_populates="politician", cascade="all, delete-orphan"
     )
 
 
-class Source(Base, TimestampMixin):
-    """Source entity for tracking where data was extracted from."""
+class WikipediaLink(Base, TimestampMixin):
+    """Wikipedia link entity for storing politician Wikipedia article URLs."""
 
-    __tablename__ = "sources"
+    __tablename__ = "wikipedia_links"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    url = Column(String, nullable=False, unique=True)
-    extracted_at = Column(DateTime)
+    politician_id = Column(
+        UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
+    )
+    url = Column(String, nullable=False)
+    language_code = Column(String, nullable=False)  # e.g., 'en', 'de', 'fr'
 
     # Relationships
-    politicians = relationship(
-        "Politician", secondary=politician_source_table, back_populates="sources"
-    )
-    properties = relationship(
-        "Property", secondary=property_source_table, back_populates="sources"
-    )
-    birthplaces = relationship(
-        "BornAt", secondary=bornat_source_table, back_populates="sources"
-    )
-    positions_held = relationship(
-        "HoldsPosition", secondary=holdsposition_source_table, back_populates="sources"
-    )
+    politician = relationship("Politician", back_populates="wikipedia_links")
 
 
 class Property(Base, TimestampMixin):
@@ -137,9 +87,6 @@ class Property(Base, TimestampMixin):
 
     # Relationships
     politician = relationship("Politician", back_populates="properties")
-    sources = relationship(
-        "Source", secondary=property_source_table, back_populates="properties"
-    )
 
 
 class Country(Base, TimestampMixin):
@@ -211,9 +158,6 @@ class HoldsPosition(Base, TimestampMixin):
     # Relationships
     politician = relationship("Politician", back_populates="positions_held")
     position = relationship("Position", back_populates="held_by")
-    sources = relationship(
-        "Source", secondary=holdsposition_source_table, back_populates="positions_held"
-    )
 
 
 class BornAt(Base, TimestampMixin):
@@ -235,9 +179,6 @@ class BornAt(Base, TimestampMixin):
     # Relationships
     politician = relationship("Politician", back_populates="birthplaces")
     location = relationship("Location", back_populates="born_here")
-    sources = relationship(
-        "Source", secondary=bornat_source_table, back_populates="birthplaces"
-    )
 
 
 class HasCitizenship(Base, TimestampMixin):

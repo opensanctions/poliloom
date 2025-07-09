@@ -18,7 +18,7 @@ from poliloom.models import (
     Property,
     Position,
     HoldsPosition,
-    Source,
+    WikipediaLink,
     HasCitizenship,
     Location,
     BornAt,
@@ -62,11 +62,16 @@ class TestEnrichmentService:
         citizenship = HasCitizenship(country=sample_country)
         politician.citizenships.append(citizenship)
 
-        # Add Wikipedia source
-        source = Source(url="https://en.wikipedia.org/wiki/Test_Politician")
-        politician.sources.append(source)
-
+        # Add Wikipedia link
         test_session.add(politician)
+        test_session.flush()  # Get politician ID
+
+        wikipedia_link = WikipediaLink(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            language_code="en",
+        )
+        test_session.add(wikipedia_link)
         test_session.commit()
         test_session.refresh(politician)
         return politician
@@ -175,15 +180,17 @@ class TestEnrichmentService:
         """Test property extraction with LLM."""
         # Load test data from fixture
         enrichment_data = load_json_fixture("enrichment_test_data.json")
-        openai_response = enrichment_data["openai_responses"]["successful_property_extraction"]
-        
+        openai_response = enrichment_data["openai_responses"][
+            "successful_property_extraction"
+        ]
+
         # Mock OpenAI response
         mock_message = Mock()
         mock_message.parsed = PropertyExtractionResult(
             properties=[
                 ExtractedProperty(
-                    type=PropertyType.BIRTH_DATE, 
-                    value=openai_response["properties"][0]["value"]
+                    type=PropertyType.BIRTH_DATE,
+                    value=openai_response["properties"][0]["value"],
                 )
             ]
         )

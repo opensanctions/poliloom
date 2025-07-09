@@ -17,7 +17,7 @@ from ..models import (
     HoldsPosition,
     HasCitizenship,
     BornAt,
-    Source,
+    WikipediaLink,
 )
 
 logger = logging.getLogger(__name__)
@@ -293,17 +293,14 @@ class DatabaseInserter:
                             )
                             session.add(born_at)
 
-                    # Add Wikipedia links as sources
+                    # Add Wikipedia links
                     for wiki_link in politician_data.get("wikipedia_links", []):
-                        # Create source for Wikipedia link
-                        source = Source(
+                        wikipedia_link = WikipediaLink(
+                            politician_id=politician_obj.id,
                             url=wiki_link["url"],
+                            language_code=wiki_link.get("language", "en"),
                         )
-                        session.add(source)
-                        session.flush()  # Get source ID
-
-                        # Associate source with politician
-                        politician_obj.sources.append(source)
+                        session.add(wikipedia_link)
 
                 session.commit()
                 logger.debug(f"Inserted {len(new_politicians)} new politicians")
