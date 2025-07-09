@@ -527,32 +527,6 @@ class WikidataDumpProcessor:
             logger.error(f"Failed to load complete hierarchy: {e}")
             return None
 
-    def get_descendants_from_complete_tree(
-        self, root_qid: str, tree_dir: str = "."
-    ) -> Optional[Set[str]]:
-        """
-        Extract descendants of any entity from the complete hierarchy.
-
-        This allows querying any entity type without re-processing the dump.
-        Uses P279 (subclass of) relationships.
-
-        Args:
-            root_qid: The root entity QID (e.g., "Q515" for city)
-            tree_dir: Directory containing the complete hierarchy file
-
-        Returns:
-            Set of all descendant QIDs (including the root and its subclasses),
-            or None if hierarchy not found
-        """
-        subclass_relations = self.load_complete_hierarchy(tree_dir)
-        if subclass_relations is None:
-            return None
-
-        descendants = self._get_all_descendants(root_qid, subclass_relations)
-
-        logger.info(f"Found {len(descendants)} descendants of {root_qid}")
-        return descendants
-
     def extract_entities_from_dump(
         self,
         dump_file_path: str,

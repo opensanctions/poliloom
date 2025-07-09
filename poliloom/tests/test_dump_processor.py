@@ -271,27 +271,6 @@ MALFORMED_JSON_LINE,
             assert loaded_subclass["Q2"] == {"Q4"}
             assert loaded_subclass["Q5"] == {"Q6", "Q7", "Q8"}
 
-    def test_get_descendants_from_complete_tree(self, processor):
-        """Test extracting descendants from the complete hierarchy."""
-        test_subclass_relations = {"Q1": {"Q2", "Q3"}, "Q2": {"Q4"}, "Q3": {"Q5"}}
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Save complete hierarchy
-            processor.save_complete_hierarchy_trees(test_subclass_relations, temp_dir)
-
-            # Extract descendants of Q1
-            descendants = processor.get_descendants_from_complete_tree("Q1", temp_dir)
-
-            assert descendants is not None
-            expected = {
-                "Q1",
-                "Q2",
-                "Q3",
-                "Q4",
-                "Q5",
-            }  # Q1 + all descendants
-            assert descendants == expected
-
     def test_complete_hierarchy_integration(self, processor, sample_dump_content):
         """Test that complete hierarchy is saved during build_hierarchy_trees."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:

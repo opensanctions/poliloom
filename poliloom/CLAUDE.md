@@ -154,15 +154,6 @@ curl http://localhost:8000/openapi.json
   - **Performance**: Scales linearly with CPU cores - near-linear speedup up to 32+ cores
   - **Scalability**: Each worker processes independent file chunks for optimal resource utilization
 
-- **poliloom dump query-tree --root QID [--output FILE]**
-
-  - Extract descendants of any entity from the complete hierarchy (subclass relationships)
-  - **--root**: Root entity QID to extract descendants for (e.g., Q515 for city, Q5 for human)
-  - **--output**: Optional output file to save descendants (default: print to console)
-  - Enables querying any entity type without re-processing the dump
-  - Examples: organizations (Q43229), events (Q1656682), software (Q7397), etc.
-  - Requires `complete_hierarchy.json` from `poliloom dump build-hierarchy`
-
 - **poliloom dump import [--file FILE] [--batch-size SIZE]**
 
   - Import politicians, positions, and locations from a Wikidata dump file
