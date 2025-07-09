@@ -117,6 +117,179 @@ class EntityExtractor:
             "iso_code": iso_code,
         }
 
+    def is_politician(self, entity: Dict[str, Any]) -> bool:
+        """Check if an entity is a politician based on occupation (P106) or position held (P39)."""
+        claims = entity.get("claims", {})
+
+        # Check if it's a human first (P31 instance of Q5)
+        instance_of_claims = claims.get("P31", [])
+        is_human = False
+        for claim in instance_of_claims:
+            try:
+                instance_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                if instance_id == "Q5":  # human
+                    is_human = True
+                    break
+            except (KeyError, TypeError):
+                continue
+
+        if not is_human:
+            return False
+
+        # Check occupation (P106) for politician (Q82955)
+        occupation_claims = claims.get("P106", [])
+        for claim in occupation_claims:
+            try:
+                occupation_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                if occupation_id == "Q82955":  # politician
+                    return True
+            except (KeyError, TypeError):
+                continue
+
+        # Check if they have any position held (P39)
+        position_claims = claims.get("P39", [])
+        if position_claims:
+            return True
+
+        return False
+
+    def extract_politician_data(
+        self, entity: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """Extract politician data from a Wikidata entity."""
+        name = self.get_entity_name(entity)
+        if not name:
+            return None
+
+        claims = entity.get("claims", {})
+
+        # Basic politician data
+        politician_data = {
+            "wikidata_id": entity["id"],
+            "name": name,
+            "is_deceased": False,
+            "properties": [],
+            "citizenships": [],
+            "positions": [],
+            "wikipedia_links": [],
+            "birthplace": None,
+        }
+
+        # Check if deceased (P570 death date)
+        death_date_claims = claims.get("P570", [])
+        if death_date_claims:
+            politician_data["is_deceased"] = True
+            death_date = self._extract_date_from_claims(death_date_claims)
+            if death_date:
+                politician_data["properties"].append(
+                    {"type": "DeathDate", "value": death_date}
+                )
+
+        # Extract birth date (P569)
+        birth_date_claims = claims.get("P569", [])
+        birth_date = self._extract_date_from_claims(birth_date_claims)
+        if birth_date:
+            politician_data["properties"].append(
+                {"type": "BirthDate", "value": birth_date}
+            )
+
+        # Extract citizenships (P27) - get country codes
+        citizenship_claims = claims.get("P27", [])
+        for claim in citizenship_claims:
+            try:
+                country_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                # We'll need to resolve country codes later in the database
+                politician_data["citizenships"].append(country_id)
+            except (KeyError, TypeError):
+                continue
+
+        # Extract positions held (P39)
+        position_claims = claims.get("P39", [])
+        for claim in position_claims:
+            try:
+                position_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+
+                # Extract start/end dates from qualifiers
+                start_date = None
+                end_date = None
+                qualifiers = claim.get("qualifiers", {})
+
+                # Start time (P580)
+                start_claims = qualifiers.get("P580", [])
+                if start_claims:
+                    start_date = self._extract_date_from_claims(start_claims)
+
+                # End time (P582)
+                end_claims = qualifiers.get("P582", [])
+                if end_claims:
+                    end_date = self._extract_date_from_claims(end_claims)
+
+                politician_data["positions"].append(
+                    {
+                        "wikidata_id": position_id,
+                        "start_date": start_date,
+                        "end_date": end_date,
+                    }
+                )
+            except (KeyError, TypeError):
+                continue
+
+        # Extract birthplace (P19)
+        birthplace_claims = claims.get("P19", [])
+        if birthplace_claims:
+            try:
+                birthplace_id = birthplace_claims[0]["mainsnak"]["datavalue"]["value"][
+                    "id"
+                ]
+                politician_data["birthplace"] = birthplace_id
+            except (KeyError, TypeError):
+                pass
+
+        # Extract Wikipedia links from sitelinks
+        sitelinks = entity.get("sitelinks", {})
+        for site, link_data in sitelinks.items():
+            if site.endswith("wiki"):  # Wikipedia sites
+                lang = site.replace("wiki", "")
+                title = link_data.get("title", "")
+                if title:
+                    url = f"https://{lang}.wikipedia.org/wiki/{title.replace(' ', '_')}"
+                    politician_data["wikipedia_links"].append(
+                        {
+                            "language": lang,
+                            "title": title,
+                            "url": url,
+                        }
+                    )
+
+        return politician_data
+
+    def _extract_date_from_claims(self, claims: list) -> Optional[str]:
+        """Extract date from Wikidata claims."""
+        for claim in claims:
+            try:
+                # Handle both main claims (with mainsnak) and qualifier claims (direct structure)
+                if "mainsnak" in claim:
+                    datavalue = claim.get("mainsnak", {}).get("datavalue", {})
+                else:
+                    datavalue = claim.get("datavalue", {})
+
+                if datavalue.get("type") == "time":
+                    time_value = datavalue.get("value", {}).get("time", "")
+                    # Convert from Wikidata format (+1970-01-15T00:00:00Z) to simpler format
+                    if time_value.startswith("+"):
+                        date_part = time_value[1:].split("T")[0]
+                        # Handle precision - only return what's specified
+                        precision = datavalue.get("value", {}).get("precision", 11)
+                        if precision >= 11:  # day precision
+                            return date_part
+                        elif precision == 10:  # month precision
+                            return date_part[:7]  # YYYY-MM
+                        elif precision == 9:  # year precision
+                            return date_part[:4]  # YYYY
+            except (KeyError, TypeError):
+                continue
+        return None
+
     def get_entity_name(self, entity: Dict[str, Any]) -> Optional[str]:
         """Extract the primary name from a Wikidata entity."""
         labels = entity.get("labels", {})

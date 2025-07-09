@@ -618,7 +618,7 @@ def dump_build_hierarchy(dump_file, num_workers):
     help="Number of worker processes (default: CPU count)",
 )
 def dump_import(dump_file, batch_size, num_workers):
-    """Import positions, locations, and countries from a Wikidata dump file."""
+    """Import positions, locations, countries, and politicians from a Wikidata dump file."""
     click.echo(f"Importing entities from dump file: {dump_file}")
     click.echo(f"Using batch size: {batch_size}")
 
@@ -657,6 +657,7 @@ def dump_import(dump_file, batch_size, num_workers):
         click.echo(f"  • Positions: {counts['positions']}")
         click.echo(f"  • Locations: {counts['locations']}")
         click.echo(f"  • Countries: {counts['countries']}")
+        click.echo(f"  • Politicians: {counts['politicians']}")
         click.echo(f"  • Total: {sum(counts.values())}")
 
         # Suggest next steps

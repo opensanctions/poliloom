@@ -180,3 +180,152 @@ class DatabaseInserter:
                 time.sleep(1)  # Wait before retry
             finally:
                 session.close()
+
+    def insert_politicians_batch(self, politicians: List[dict]) -> None:
+        """Insert a batch of politicians into the database."""
+        if not politicians:
+            return
+
+        from ..models import (
+            Politician,
+            Property,
+            HoldsPosition,
+            Position,
+            HasCitizenship,
+            Country,
+            BornAt,
+            Location,
+            Source,
+        )
+        from sqlalchemy.exc import DisconnectionError
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            session = get_worker_session()
+            try:
+                # Check for existing politicians to avoid duplicates
+                existing_wikidata_ids = {
+                    result[0]
+                    for result in session.query(Politician.wikidata_id)
+                    .filter(
+                        Politician.wikidata_id.in_(
+                            [p["wikidata_id"] for p in politicians]
+                        )
+                    )
+                    .all()
+                }
+
+                # Filter out duplicates
+                new_politicians = [
+                    p
+                    for p in politicians
+                    if p["wikidata_id"] not in existing_wikidata_ids
+                ]
+
+                if not new_politicians:
+                    break  # No new politicians to insert
+
+                # Create politician objects first
+                politician_objects = []
+                for p in new_politicians:
+                    politician = Politician(
+                        wikidata_id=p["wikidata_id"],
+                        name=p["name"],
+                        is_deceased=p.get("is_deceased", False),
+                    )
+                    politician_objects.append(politician)
+
+                # Add politicians to session
+                session.add_all(politician_objects)
+                session.flush()  # Get IDs without committing
+
+                # Now process related data for each politician
+                for politician_obj, politician_data in zip(
+                    politician_objects, new_politicians
+                ):
+                    # Add properties
+                    for prop in politician_data.get("properties", []):
+                        property_obj = Property(
+                            politician_id=politician_obj.id,
+                            type=prop["type"],
+                            value=prop["value"],
+                            is_extracted=False,
+                        )
+                        session.add(property_obj)
+
+                    # Add positions - only link to existing positions
+                    for pos in politician_data.get("positions", []):
+                        position_obj = (
+                            session.query(Position)
+                            .filter_by(wikidata_id=pos["wikidata_id"])
+                            .first()
+                        )
+
+                        if position_obj:
+                            holds_position = HoldsPosition(
+                                politician_id=politician_obj.id,
+                                position_id=position_obj.id,
+                                start_date=pos.get("start_date"),
+                                end_date=pos.get("end_date"),
+                                is_extracted=False,
+                            )
+                            session.add(holds_position)
+
+                    # Add citizenships - only link to existing countries
+                    for citizenship_id in politician_data.get("citizenships", []):
+                        country_obj = (
+                            session.query(Country)
+                            .filter_by(wikidata_id=citizenship_id)
+                            .first()
+                        )
+
+                        if country_obj:
+                            has_citizenship = HasCitizenship(
+                                politician_id=politician_obj.id,
+                                country_id=country_obj.id,
+                            )
+                            session.add(has_citizenship)
+
+                    # Add birthplace - only link to existing locations
+                    birthplace_id = politician_data.get("birthplace")
+                    if birthplace_id:
+                        location_obj = (
+                            session.query(Location)
+                            .filter_by(wikidata_id=birthplace_id)
+                            .first()
+                        )
+
+                        if location_obj:
+                            born_at = BornAt(
+                                politician_id=politician_obj.id,
+                                location_id=location_obj.id,
+                                is_extracted=False,
+                            )
+                            session.add(born_at)
+
+                    # Add Wikipedia links as sources
+                    for wiki_link in politician_data.get("wikipedia_links", []):
+                        # Create source for Wikipedia link
+                        source = Source(
+                            url=wiki_link["url"],
+                        )
+                        session.add(source)
+                        session.flush()  # Get source ID
+
+                        # Associate source with politician
+                        politician_obj.sources.append(source)
+
+                session.commit()
+                logger.debug(f"Inserted {len(new_politicians)} new politicians")
+                break  # Success, exit retry loop
+
+            except (DisconnectionError, Exception) as e:
+                session.rollback()
+                logger.error(
+                    f"Error inserting politicians batch (attempt {attempt + 1}): {e}"
+                )
+                if attempt == max_retries - 1:
+                    raise
+                time.sleep(1)  # Wait before retry
+            finally:
+                session.close()

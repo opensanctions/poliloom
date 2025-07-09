@@ -335,7 +335,12 @@ class WikidataDumpProcessor:
                 logger.warning(f"Error cleaning up memory-mapped files: {e}")
 
         # Merge results from all chunks
-        total_counts = {"positions": 0, "locations": 0, "countries": 0}
+        total_counts = {
+            "positions": 0,
+            "locations": 0,
+            "countries": 0,
+            "politicians": 0,
+        }
         total_entities = 0
 
         for counts, chunk_count in chunk_results:
@@ -345,7 +350,7 @@ class WikidataDumpProcessor:
 
         logger.info(f"Extraction complete. Total processed: {total_entities}")
         logger.info(
-            f"Extracted: {total_counts['positions']} positions, {total_counts['locations']} locations, {total_counts['countries']} countries"
+            f"Extracted: {total_counts['positions']} positions, {total_counts['locations']} locations, {total_counts['countries']} countries, {total_counts['politicians']} politicians"
         )
 
         return total_counts
@@ -374,7 +379,8 @@ class WikidataDumpProcessor:
             positions = []
             locations = []
             countries = []
-            counts = {"positions": 0, "locations": 0, "countries": 0}
+            politicians = []
+            counts = {"positions": 0, "locations": 0, "countries": 0, "politicians": 0}
             entity_count = 0
 
             for entity in self.dump_reader.read_chunk_entities(
@@ -395,7 +401,7 @@ class WikidataDumpProcessor:
                 if not entity_id:
                     continue
 
-                # Check if this entity is a position, location, or country
+                # Check if this entity is a position, location, country, or politician
                 is_position = self.entity_extractor.is_instance_of_position(
                     entity, position_descendants
                 )
@@ -403,6 +409,7 @@ class WikidataDumpProcessor:
                     entity, location_descendants
                 )
                 is_country = self.entity_extractor.is_country_entity(entity)
+                is_politician = self.entity_extractor.is_politician(entity)
 
                 if is_position:
                     position_data = self.entity_extractor.extract_position_data(entity)
@@ -422,6 +429,14 @@ class WikidataDumpProcessor:
                         countries.append(country_data)
                         counts["countries"] += 1
 
+                if is_politician:
+                    politician_data = self.entity_extractor.extract_politician_data(
+                        entity
+                    )
+                    if politician_data:
+                        politicians.append(politician_data)
+                        counts["politicians"] += 1
+
                 # Process batches when they reach the batch size
                 if len(positions) >= batch_size:
                     self.database_inserter.insert_positions_batch(positions)
@@ -435,6 +450,10 @@ class WikidataDumpProcessor:
                     self.database_inserter.insert_countries_batch(countries)
                     countries = []
 
+                if len(politicians) >= batch_size:
+                    self.database_inserter.insert_politicians_batch(politicians)
+                    politicians = []
+
             # Process remaining entities in final batches
             try:
                 if positions:
@@ -443,6 +462,8 @@ class WikidataDumpProcessor:
                     self.database_inserter.insert_locations_batch(locations)
                 if countries:
                     self.database_inserter.insert_countries_batch(countries)
+                if politicians:
+                    self.database_inserter.insert_politicians_batch(politicians)
             except Exception as cleanup_error:
                 logger.warning(
                     f"Worker {worker_id}: error during cleanup: {cleanup_error}"
@@ -469,6 +490,8 @@ class WikidataDumpProcessor:
                     self.database_inserter.insert_locations_batch(locations)
                 if countries:
                     self.database_inserter.insert_countries_batch(countries)
+                if politicians:
+                    self.database_inserter.insert_politicians_batch(politicians)
             except Exception as cleanup_error:
                 logger.warning(
                     f"Worker {worker_id}: error during cleanup: {cleanup_error}"
@@ -478,4 +501,4 @@ class WikidataDumpProcessor:
             return counts, entity_count
         except Exception as e:
             logger.error(f"Worker {worker_id}: error processing chunk: {e}")
-            return {"positions": 0, "locations": 0, "countries": 0}, 0
+            return {"positions": 0, "locations": 0, "countries": 0, "politicians": 0}, 0
