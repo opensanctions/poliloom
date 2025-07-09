@@ -836,14 +836,8 @@ class WikidataDumpProcessor:
     def _is_instance_of_position(
         self, entity: Dict[str, Any], position_descendants: Set[str]
     ) -> bool:
-        """Check if an entity is an instance of any position type (P31 instance of position descendants) or is a position type itself."""
-        entity_id = entity.get("id", "")
-
-        # Check if this entity is itself a position type
-        if entity_id in position_descendants:
-            return True
-
-        # Check if this entity is an instance of a position type
+        """Check if an entity is an instance of any position type (P31 instance of position descendants)."""
+        # Only check if this entity is an instance of a position type
         claims = entity.get("claims", {})
         instance_of_claims = claims.get("P31", [])
 
@@ -860,14 +854,8 @@ class WikidataDumpProcessor:
     def _is_instance_of_location(
         self, entity: Dict[str, Any], location_descendants: Set[str]
     ) -> bool:
-        """Check if an entity is an instance of any location type (P31 instance of location descendants) or is a location type itself."""
-        entity_id = entity.get("id", "")
-
-        # Check if this entity is itself a location type
-        if entity_id in location_descendants:
-            return True
-
-        # Check if this entity is an instance of a location type
+        """Check if an entity is an instance of any location type (P31 instance of location descendants)."""
+        # Only check if this entity is an instance of a location type
         claims = entity.get("claims", {})
         instance_of_claims = claims.get("P31", [])
 
