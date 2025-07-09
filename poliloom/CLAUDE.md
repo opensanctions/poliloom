@@ -54,28 +54,23 @@ This module is responsible for initially populating the local database with poli
     - **Pass 2 - Extract Entities:** Use cached trees to efficiently filter and extract politicians, positions, and locations in a single pass
   - Extract politicians by filtering entities with occupation (Q82955) or position held (Q39486) properties
   - Process entities in batches for efficient database insertion
-  - **REFACTOR:** Remove existing SPARQL-based politician import logic and replace with dump processing
 - **Entity Extraction Strategy:**
   - Identify politicians through occupation properties (P106) and position held properties (P39)
   - Extract basic politician data: name, birth date, birth place, political positions with dates
   - Handle incomplete dates and multilingual names from dump data
   - Extract Wikipedia article links (sitelinks) for subsequent enrichment
-  - **REFACTOR:** Replace existing entity fetching with dump-based extraction
 - **Country Data Handling:**
   - Countries are only linked to existing entities (no on-demand creation)
   - Citizenship relationships are only created when the referenced country already exists in the database
   - This aligns with the existing pattern for positions and locations that only link to existing entities
-  - **REFACTOR:** Update country creation to work with dump-extracted data
 - **Position Data Handling:**
   - Use cached position hierarchy tree (descendants of Q294414) to identify all political positions during dump processing
   - Create Position entities directly from dump data with embeddings for similarity search
   - Link politicians to positions during the same processing run
-  - **REFACTOR:** Replace position import functionality to work with dump data
 - **Location Data Handling:**
   - Use cached location hierarchy tree (descendants of Q2221906) to identify all geographic locations during dump processing
   - Create Location entities directly from dump data with embeddings for similarity search
   - Link politicians to birthplaces during the same processing run
-  - **REFACTOR:** Replace location import functionality to work with dump data
 - **Hierarchy Tree Caching:**
   - Store position and location descendant trees as JSON files after first pass
   - Tree structure: `{"subclass_of": {"Q1": ["Q2", ...], ...}}`
@@ -161,7 +156,6 @@ curl http://localhost:8000/openapi.json
   - **--batch-size**: Number of entities to process in each database batch (default: 100)
   - Requires hierarchy trees to be built first using `dump build-hierarchy`
   - Processes the dump line-by-line for memory efficiency
-  - **REFACTOR:** Replace individual import commands with unified dump processing
 
 - **poliloom politicians enrich --id \<wikidata_id\>**
 
@@ -197,17 +191,14 @@ curl http://localhost:8000/openapi.json
 - **Extract**: Use `make extract-wikidata-dump` for parallel decompression with lbzip2
 - **Paths**: Configure paths via .env file (WIKIDATA_DUMP_BZ2_PATH, WIKIDATA_DUMP_JSON_PATH)
 
-**Deprecated Commands (to be removed):**
+**Legacy Commands (to be cleaned up):**
 
-- **~~poliloom politicians import~~** - **REFACTOR:** Remove, replaced by dump processing
-- **~~poliloom positions import~~** - **REFACTOR:** Remove, replaced by dump processing
-- **~~poliloom positions import-csv~~** - **REFACTOR:** Remove, replaced by dump processing
-- **~~poliloom locations import~~** - **REFACTOR:** Remove, replaced by dump processing
+- **~~poliloom positions import-csv~~** - Legacy CSV import functionality, superseded by dump processing
 
 ## **5\. External Integrations**
 
 - **Wikidata Dumps:** Primary data source via dump files (latest-all.json) for bulk entity extraction
-- **Wikidata API:** **REFACTOR:** Minimize usage, only for updating Wikidata after user confirmation via GUI
+- **Wikidata API:** Minimal usage, only for updating Wikidata after user confirmation via GUI
 - **MediaWiki OAuth 2.0:** For user authentication within the API using JWT tokens
 - **OpenAI API:** For all LLM-based data extraction from web content
 - **Wikipedia API:** For fetching article content during enrichment process
@@ -232,7 +223,7 @@ Implement essential testing using pytest with mocking for external APIs. Focus o
 
 - **Core Business Logic**: All service layer methods (import, extraction, enrichment)
 - **Database Models**: Entity relationships, constraints, cascade behavior, data integrity
-- **External API Integration**: Wikidata SPARQL queries and entity API calls (mocked)
+- **External API Integration**: Wikidata dump processing and Wikipedia API calls (mocked)
 - **Data Processing**: Property extraction, position handling, country import, date parsing
 - **Error Handling**: Network failures, malformed data, database errors, edge cases
 
@@ -252,7 +243,6 @@ This focused approach ensures robust testing of critical data pipeline component
 - **Wikidata Dump Processing**: Mock dump file content, entity extraction, batch processing, error handling
 - **LLM Extraction**: Mock OpenAI responses, property/position extraction, conflict detection
 - **API Endpoints**: Both endpoints with auth mocking, error responses, pagination
-- **REFACTOR**: Update existing Wikidata import tests to use dump processing instead of SPARQL
 
 ### **7.2. Key Fixtures (conftest.py)**
 
@@ -261,7 +251,6 @@ This focused approach ensures robust testing of critical data pipeline component
 - Mock Wikidata dump file content (compressed JSON entities)
 - Mock OpenAI structured extraction responses
 - Sample Wikipedia content
-- **REFACTOR**: Replace Wikidata SPARQL response mocks with dump processing mocks
 
 **Priority**: Test the main data flow thoroughly. Mock dump file processing, OpenAI API, and MediaWiki OAuth. Handle incomplete dates, conflicting data, and processing failures.
 
