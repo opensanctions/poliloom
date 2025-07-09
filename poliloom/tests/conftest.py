@@ -219,7 +219,4 @@ def mock_wikidata_responses():
         "place_response": load_fixture("wikidata_place_response.json"),
         "position_response": load_fixture("wikidata_position_response.json"),
         "country_response": load_fixture("wikidata_country_response.json"),
-        "sparql_politicians_response": load_fixture(
-            "wikidata_politicians_sparql_response.json"
-        ),
     }
