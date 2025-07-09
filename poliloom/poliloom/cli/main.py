@@ -627,8 +627,8 @@ def dump_build_hierarchy(dump_file, num_workers):
     "--batch-size",
     "batch_size",
     type=int,
-    default=100,
-    help="Number of entities to process in each database batch (default: 100)",
+    default=1000,
+    help="Number of entities to process in each database batch (default: 1000)",
 )
 @click.option(
     "--workers",

@@ -4,7 +4,6 @@ import json
 import logging
 import os
 import multiprocessing as mp
-from multiprocessing import shared_memory
 from typing import Dict, Set, Optional, Iterator, Any, Tuple
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -14,7 +13,7 @@ logger = logging.getLogger(__name__)
 # Global variable to store worker-specific database session
 _worker_session = None
 
-# Global variables for shared memory in worker processes
+# Global variables for memory-mapped files in worker processes
 _shared_position_descendants = None
 _shared_location_descendants = None
 
@@ -59,49 +58,54 @@ def _get_worker_session():
     return _worker_session()
 
 
-def _create_shared_memory_from_set(
-    data_set: Set[str], name: str
-) -> shared_memory.SharedMemory:
-    """Create shared memory buffer from a set of strings."""
+def _create_shared_memory_from_set(data_set: Set[str], name: str) -> str:
+    """Create memory-mapped file from a set of strings."""
+    import tempfile
+    import os
+
     # Convert set to JSON string
     json_data = json.dumps(sorted(list(data_set)))
     json_bytes = json_data.encode("utf-8")
 
-    # Create shared memory buffer
-    shm = shared_memory.SharedMemory(create=True, size=len(json_bytes), name=name)
-    shm.buf[: len(json_bytes)] = json_bytes
+    # Create temporary file for memory mapping
+    temp_dir = tempfile.gettempdir()
+    filename = os.path.join(temp_dir, f"{name}.json")
 
-    return shm
+    with open(filename, "wb") as f:
+        f.write(json_bytes)
 
-
-def _load_set_from_shared_memory(shm_name: str) -> Set[str]:
-    """Load a set from shared memory buffer."""
-    # Attach to existing shared memory
-    shm = shared_memory.SharedMemory(name=shm_name)
-
-    # Read and decode JSON data
-    json_data = bytes(shm.buf).decode("utf-8")
-    data_list = json.loads(json_data)
-
-    # Convert back to set
-    return set(data_list)
+    return filename
 
 
-def _init_worker_hierarchy(position_shm_name: str, location_shm_name: str):
-    """Initialize hierarchy data in worker process from shared memory."""
+def _load_set_from_shared_memory(filename: str) -> Set[str]:
+    """Load a set from memory-mapped file."""
+    import mmap
+
+    with open(filename, "rb") as f:
+        with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mmapped_file:
+            # Read and decode JSON data
+            json_data = mmapped_file[:].decode("utf-8")
+            data_list = json.loads(json_data)
+
+            # Convert back to set
+            return set(data_list)
+
+
+def _init_worker_hierarchy(position_filename: str, location_filename: str):
+    """Initialize hierarchy data in worker process from memory-mapped files."""
     global _shared_position_descendants, _shared_location_descendants
 
     try:
-        _shared_position_descendants = _load_set_from_shared_memory(position_shm_name)
-        _shared_location_descendants = _load_set_from_shared_memory(location_shm_name)
+        _shared_position_descendants = _load_set_from_shared_memory(position_filename)
+        _shared_location_descendants = _load_set_from_shared_memory(location_filename)
 
         logger.info(
-            f"Worker {os.getpid()}: Loaded {len(_shared_position_descendants)} position descendants and {len(_shared_location_descendants)} location descendants from shared memory"
+            f"Worker {os.getpid()}: Loaded {len(_shared_position_descendants)} position descendants and {len(_shared_location_descendants)} location descendants from memory-mapped files"
         )
 
     except Exception as e:
         logger.error(
-            f"Worker {os.getpid()}: Failed to load hierarchy from shared memory: {e}"
+            f"Worker {os.getpid()}: Failed to load hierarchy from memory-mapped files: {e}"
         )
         raise
 
@@ -593,20 +597,17 @@ class WikidataDumpProcessor:
         chunks = self._calculate_file_chunks(dump_file_path, num_workers)
         logger.info(f"Split file into {len(chunks)} chunks for {num_workers} workers")
 
-        # Create shared memory buffers for hierarchy data
-        logger.info("Creating shared memory buffers for hierarchy data...")
-        position_shm_name = f"poliloom_positions_{os.getpid()}"
-        location_shm_name = f"poliloom_locations_{os.getpid()}"
-
-        position_shm = _create_shared_memory_from_set(
-            position_descendants, position_shm_name
+        # Create memory-mapped files for hierarchy data
+        logger.info("Creating memory-mapped files for hierarchy data...")
+        position_filename = _create_shared_memory_from_set(
+            position_descendants, f"poliloom_positions_{os.getpid()}"
         )
-        location_shm = _create_shared_memory_from_set(
-            location_descendants, location_shm_name
+        location_filename = _create_shared_memory_from_set(
+            location_descendants, f"poliloom_locations_{os.getpid()}"
         )
 
         logger.info(
-            f"Created shared memory buffers: positions={len(position_descendants)} items, locations={len(location_descendants)} items"
+            f"Created memory-mapped files: positions={len(position_descendants)} items, locations={len(location_descendants)} items"
         )
 
         # Process chunks in parallel with proper KeyboardInterrupt handling
@@ -615,7 +616,7 @@ class WikidataDumpProcessor:
             # Initialize workers with database and hierarchy data
             def init_worker():
                 _init_worker_db()
-                _init_worker_hierarchy(position_shm_name, location_shm_name)
+                _init_worker_hierarchy(position_filename, location_filename)
 
             pool = mp.Pool(processes=num_workers, initializer=init_worker)
 
@@ -651,15 +652,15 @@ class WikidataDumpProcessor:
                 pool.close()
                 pool.join()
 
-            # Clean up shared memory buffers
+            # Clean up memory-mapped files
             try:
-                position_shm.close()
-                position_shm.unlink()
-                location_shm.close()
-                location_shm.unlink()
-                logger.info("Cleaned up shared memory buffers")
+                if os.path.exists(position_filename):
+                    os.unlink(position_filename)
+                if os.path.exists(location_filename):
+                    os.unlink(location_filename)
+                logger.info("Cleaned up memory-mapped files")
             except Exception as e:
-                logger.warning(f"Error cleaning up shared memory: {e}")
+                logger.warning(f"Error cleaning up memory-mapped files: {e}")
 
         # Merge results from all chunks
         total_counts = {"positions": 0, "locations": 0, "countries": 0}
@@ -835,7 +836,14 @@ class WikidataDumpProcessor:
     def _is_instance_of_position(
         self, entity: Dict[str, Any], position_descendants: Set[str]
     ) -> bool:
-        """Check if an entity is an instance of any position type (P31 instance of position descendants)."""
+        """Check if an entity is an instance of any position type (P31 instance of position descendants) or is a position type itself."""
+        entity_id = entity.get("id", "")
+
+        # Check if this entity is itself a position type
+        if entity_id in position_descendants:
+            return True
+
+        # Check if this entity is an instance of a position type
         claims = entity.get("claims", {})
         instance_of_claims = claims.get("P31", [])
 
@@ -852,7 +860,14 @@ class WikidataDumpProcessor:
     def _is_instance_of_location(
         self, entity: Dict[str, Any], location_descendants: Set[str]
     ) -> bool:
-        """Check if an entity is an instance of any location type (P31 instance of location descendants)."""
+        """Check if an entity is an instance of any location type (P31 instance of location descendants) or is a location type itself."""
+        entity_id = entity.get("id", "")
+
+        # Check if this entity is itself a location type
+        if entity_id in location_descendants:
+            return True
+
+        # Check if this entity is an instance of a location type
         claims = entity.get("claims", {})
         instance_of_claims = claims.get("P31", [])
 
@@ -999,9 +1014,8 @@ class WikidataDumpProcessor:
 
                     session.add_all(position_objects)
                     session.commit()
-                    logger.info(f"Inserted {len(new_positions)} new positions")
-                else:
-                    logger.info("No new positions to insert in this batch")
+                    logger.debug(f"Inserted {len(new_positions)} new positions")
+                # Skip logging when no new positions - this is normal
                 break  # Success, exit retry loop
 
             except (DisconnectionError, Exception) as e:
@@ -1060,9 +1074,8 @@ class WikidataDumpProcessor:
 
                     session.add_all(location_objects)
                     session.commit()
-                    logger.info(f"Inserted {len(new_locations)} new locations")
-                else:
-                    logger.info("No new locations to insert in this batch")
+                    logger.debug(f"Inserted {len(new_locations)} new locations")
+                # Skip logging when no new locations - this is normal
                 break  # Success, exit retry loop
 
             except (DisconnectionError, Exception) as e:
@@ -1113,7 +1126,7 @@ class WikidataDumpProcessor:
                 session.commit()
 
                 inserted_count = result.rowcount
-                logger.info(
+                logger.debug(
                     f"Inserted {inserted_count} new countries (skipped {len(countries) - inserted_count} duplicates)"
                 )
                 break  # Success, exit retry loop
