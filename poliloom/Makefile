@@ -1,4 +1,4 @@
-.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump extract-wikidata-dump
+.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump extract-wikidata-dump truncate-db
 
 # Start pgAdmin4 container for database inspection
 pgadmin:
@@ -47,3 +47,9 @@ extract-wikidata-dump:
 	echo "Extracting $$INPUT_PATH to $$OUTPUT_PATH using lbzip2..."; \
 	lbzip2 -d -c "$$INPUT_PATH" > "$$OUTPUT_PATH"; \
 	echo "Extraction complete: $$OUTPUT_PATH"
+
+# Truncate main database tables (cascades will handle related tables)
+truncate-db:
+	@echo "Truncating main database tables..."
+	@docker-compose exec -T postgres psql -U postgres -d poliloom -c "TRUNCATE TABLE politicians, countries, locations, positions CASCADE;"
+	@echo "Database tables truncated successfully."
