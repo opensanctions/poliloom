@@ -50,7 +50,7 @@ This module is responsible for initially populating the local database with poli
 - **Wikidata Dump Processing:**
   - Process the complete Wikidata dump file (latest-all.json) directly
   - **Two-Pass Processing Strategy:**
-    - **Pass 1 - Build Hierarchy Trees:** Extract all P279 (subclass of) and P31 (instance of) relationships to build complete descendant trees for positions (Q294414 - public office) and locations (Q2221906 - geographic location). Cache combined hierarchy to JSON files for reuse.
+    - **Pass 1 - Build Hierarchy Trees:** Extract all P279 (subclass of) relationships to build complete descendant trees for positions (Q294414 - public office) and locations (Q2221906 - geographic location). Cache hierarchy to JSON files for reuse.
     - **Pass 2 - Extract Entities:** Use cached trees to efficiently filter and extract politicians, positions, and locations in a single pass
   - Extract politicians by filtering entities with occupation (Q82955) or position held (Q39486) properties
   - Process entities in batches for efficient database insertion
@@ -78,10 +78,10 @@ This module is responsible for initially populating the local database with poli
   - **REFACTOR:** Replace location import functionality to work with dump data
 - **Hierarchy Tree Caching:**
   - Store position and location descendant trees as JSON files after first pass
-  - Tree structure: `{"subclass_of": {"Q1": ["Q2", ...], ...}, "instance_of": {"Q3": ["Q4", ...], ...}}`
+  - Tree structure: `{"subclass_of": {"Q1": ["Q2", ...], ...}}`
   - Trees are rebuilt for each new dump import (no dump date tracking needed)
   - Enables efficient O(1) entity type checking during extraction
-  - Includes both subclass (P279) and instance (P31) relationships for comprehensive hierarchy coverage
+  - Includes subclass (P279) relationships for comprehensive hierarchy coverage
 - **Wikipedia Linkage:**
   - Extract Wikipedia article links directly from entity sitelinks in the dump
   - Prioritize English and local language versions
@@ -147,8 +147,8 @@ curl http://localhost:8000/openapi.json
   - **--file**: Path to the extracted JSON dump file (default: ./latest-all.json from WIKIDATA_DUMP_JSON_PATH env var)
   - **--workers**: Number of worker processes (default: CPU count)
   - Uses chunk-based parallel processing - splits file into byte ranges for true parallelism
-  - Extracts all P279 (subclass of) and P31 (instance of) relationships to build complete descendant trees
-  - Saves complete hierarchy to `complete_hierarchy.json` (~200-500MB) containing both subclass and instance relationships
+  - Extracts all P279 (subclass of) relationships to build complete descendant trees
+  - Saves complete hierarchy to `complete_hierarchy.json` (~200-500MB) containing subclass relationships
   - Provides position/location counts for verification but stores everything in the complete hierarchy
   - Must be run before `dump import` command
   - **Performance**: Scales linearly with CPU cores - near-linear speedup up to 32+ cores
@@ -156,7 +156,7 @@ curl http://localhost:8000/openapi.json
 
 - **poliloom dump query-tree --root QID [--output FILE]**
 
-  - Extract descendants of any entity from the complete hierarchy (subclass + instance relationships)
+  - Extract descendants of any entity from the complete hierarchy (subclass relationships)
   - **--root**: Root entity QID to extract descendants for (e.g., Q515 for city, Q5 for human)
   - **--output**: Optional output file to save descendants (default: print to console)
   - Enables querying any entity type without re-processing the dump

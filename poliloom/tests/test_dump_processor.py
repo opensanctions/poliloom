@@ -84,41 +84,32 @@ MALFORMED_JSON_LINE,
             os.unlink(temp_file)
 
     def test_get_all_descendants(self, processor):
-        """Test building descendant trees using BFS with both subclass and instance relations."""
+        """Test building descendant trees using BFS with subclass relations."""
         # Load test data from fixture
         dump_data = load_json_fixture("dump_processor_entities.json")
         subclass_relations = {
             k: set(v) for k, v in dump_data["subclass_relations_example"].items()
         }
-        instance_relations = {"Q1": {"Q8"}, "Q3": {"Q9"}}  # Add some instance relations
 
-        descendants = processor._get_all_descendants(
-            "Q1", subclass_relations, instance_relations
-        )
+        descendants = processor._get_all_descendants("Q1", subclass_relations)
 
-        # Should include root, all descendants, and instances
-        expected = {"Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8", "Q9"}
+        # Should include root and all descendants
+        expected = {"Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7"}
         assert descendants == expected
 
     def test_get_all_descendants_single_node(self, processor):
         """Test descendant tree with single node."""
         subclass_relations = {"Q1": set()}
-        instance_relations = {}
 
-        descendants = processor._get_all_descendants(
-            "Q1", subclass_relations, instance_relations
-        )
+        descendants = processor._get_all_descendants("Q1", subclass_relations)
 
         assert descendants == {"Q1"}
 
     def test_get_all_descendants_no_children(self, processor):
         """Test descendant tree when node has no children."""
         subclass_relations = {}
-        instance_relations = {}
 
-        descendants = processor._get_all_descendants(
-            "Q1", subclass_relations, instance_relations
-        )
+        descendants = processor._get_all_descendants("Q1", subclass_relations)
 
         assert descendants == {"Q1"}
 
@@ -244,7 +235,7 @@ MALFORMED_JSON_LINE,
             file_size = os.path.getsize(temp_file)
 
             # Process the entire file as one chunk
-            subclass_relations, instance_relations, count = processor._process_chunk(
+            subclass_relations, count = processor._process_chunk(
                 temp_file, 0, file_size, 0
             )
 
@@ -262,40 +253,31 @@ MALFORMED_JSON_LINE,
             "Q2": {"Q4"},
             "Q5": {"Q6", "Q7", "Q8"},
         }
-        test_instance_relations = {"Q1": {"Q10", "Q11"}, "Q3": {"Q12"}}
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Save complete hierarchy
-            processor.save_complete_hierarchy_trees(
-                test_subclass_relations, test_instance_relations, temp_dir
-            )
+            processor.save_complete_hierarchy_trees(test_subclass_relations, temp_dir)
 
             # Check file was created
             hierarchy_file = os.path.join(temp_dir, "complete_hierarchy.json")
             assert os.path.exists(hierarchy_file)
 
             # Load hierarchy back
-            loaded_hierarchy = processor.load_complete_hierarchy(temp_dir)
+            loaded_subclass = processor.load_complete_hierarchy(temp_dir)
 
-            assert loaded_hierarchy is not None
-            loaded_subclass, loaded_instance = loaded_hierarchy
+            assert loaded_subclass is not None
 
             assert loaded_subclass["Q1"] == {"Q2", "Q3"}
             assert loaded_subclass["Q2"] == {"Q4"}
             assert loaded_subclass["Q5"] == {"Q6", "Q7", "Q8"}
-            assert loaded_instance["Q1"] == {"Q10", "Q11"}
-            assert loaded_instance["Q3"] == {"Q12"}
 
     def test_get_descendants_from_complete_tree(self, processor):
         """Test extracting descendants from the complete hierarchy."""
         test_subclass_relations = {"Q1": {"Q2", "Q3"}, "Q2": {"Q4"}, "Q3": {"Q5"}}
-        test_instance_relations = {"Q1": {"Q10"}, "Q3": {"Q11"}}
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Save complete hierarchy
-            processor.save_complete_hierarchy_trees(
-                test_subclass_relations, test_instance_relations, temp_dir
-            )
+            processor.save_complete_hierarchy_trees(test_subclass_relations, temp_dir)
 
             # Extract descendants of Q1
             descendants = processor.get_descendants_from_complete_tree("Q1", temp_dir)
@@ -307,9 +289,7 @@ MALFORMED_JSON_LINE,
                 "Q3",
                 "Q4",
                 "Q5",
-                "Q10",
-                "Q11",
-            }  # Q1 + all descendants + instances
+            }  # Q1 + all descendants
             assert descendants == expected
 
     def test_complete_hierarchy_integration(self, processor, sample_dump_content):
@@ -330,10 +310,8 @@ MALFORMED_JSON_LINE,
                 assert os.path.exists(hierarchy_file)
 
                 # Load and verify complete hierarchy
-                hierarchy = processor.load_complete_hierarchy(temp_dir)
-                assert hierarchy is not None
-
-                subclass_tree, instance_tree = hierarchy
+                subclass_tree = processor.load_complete_hierarchy(temp_dir)
+                assert subclass_tree is not None
 
                 # Should contain the relationships from our sample data
                 assert "Q294414" in subclass_tree  # public office has subclasses

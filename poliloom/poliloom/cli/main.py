@@ -628,7 +628,7 @@ def dump_build_hierarchy(dump_file, num_workers):
     help="Output file to save the descendants (default: print to console)",
 )
 def dump_query_tree(root_qid, output_file):
-    """Extract descendants of any entity from the complete hierarchy (subclass + instance)."""
+    """Extract descendants of any entity from the complete hierarchy (subclass relationships)."""
     from ..services.dump_processor import WikidataDumpProcessor
     import os
 
@@ -653,7 +653,7 @@ def dump_query_tree(root_qid, output_file):
 
         if not descendants:
             click.echo(
-                f"⚠️  No descendants found for {root_qid} (entity may not exist or have no subclasses/instances)"
+                f"⚠️  No descendants found for {root_qid} (entity may not exist or have no subclasses)"
             )
             return
 
