@@ -279,61 +279,17 @@ def positions_embed(batch_size):
 
     from ..database import SessionLocal
     from ..models import Position
-    from ..embeddings import generate_embeddings
+    from ..embeddings import generate_embeddings_for_entities
 
     session = None
     try:
         session = SessionLocal()
-
-        # Get total count of positions without embeddings
-        total_count = (
-            session.query(Position).filter(Position.embedding.is_(None)).count()
-        )
-
-        if total_count == 0:
-            click.echo("✅ All positions already have embeddings")
-            return
-
-        click.echo(f"Found {total_count} positions without embeddings")
-        click.echo(f"Processing in batches of {batch_size}")
-
-        processed_count = 0
-        offset = 0
-
-        while offset < total_count:
-            # Load batch of positions
-            batch_positions = (
-                session.query(Position)
-                .filter(Position.embedding.is_(None))
-                .offset(offset)
-                .limit(batch_size)
-                .all()
-            )
-
-            if not batch_positions:
-                break
-
-            # Extract names for this batch
-            names = [pos.name for pos in batch_positions]
-
-            # Generate embeddings for this batch
-            embeddings = generate_embeddings(names)
-
-            # Update positions with embeddings
-            for position, embedding in zip(batch_positions, embeddings):
-                position.embedding = embedding
-
-            # Commit this batch
-            session.commit()
-
-            # Update progress
-            batch_size_actual = len(batch_positions)
-            processed_count += batch_size_actual
-            offset += batch_size
-            click.echo(f"Processed {processed_count}/{total_count} positions")
-
-        click.echo(
-            f"✅ Successfully generated embeddings for {processed_count} positions"
+        generate_embeddings_for_entities(
+            session=session,
+            model_class=Position,
+            entity_name="positions",
+            batch_size=batch_size,
+            progress_callback=click.echo,
         )
 
     except Exception as e:
@@ -388,61 +344,17 @@ def locations_embed(batch_size):
 
     from ..database import SessionLocal
     from ..models import Location
-    from ..embeddings import generate_embeddings
+    from ..embeddings import generate_embeddings_for_entities
 
     session = None
     try:
         session = SessionLocal()
-
-        # Get total count of locations without embeddings
-        total_count = (
-            session.query(Location).filter(Location.embedding.is_(None)).count()
-        )
-
-        if total_count == 0:
-            click.echo("✅ All locations already have embeddings")
-            return
-
-        click.echo(f"Found {total_count} locations without embeddings")
-        click.echo(f"Processing in batches of {batch_size}")
-
-        processed_count = 0
-        offset = 0
-
-        while offset < total_count:
-            # Load batch of locations
-            batch_locations = (
-                session.query(Location)
-                .filter(Location.embedding.is_(None))
-                .offset(offset)
-                .limit(batch_size)
-                .all()
-            )
-
-            if not batch_locations:
-                break
-
-            # Extract names for this batch
-            names = [loc.name for loc in batch_locations]
-
-            # Generate embeddings for this batch
-            embeddings = generate_embeddings(names)
-
-            # Update locations with embeddings
-            for location, embedding in zip(batch_locations, embeddings):
-                location.embedding = embedding
-
-            # Commit this batch
-            session.commit()
-
-            # Update progress
-            batch_size_actual = len(batch_locations)
-            processed_count += batch_size_actual
-            offset += batch_size
-            click.echo(f"Processed {processed_count}/{total_count} locations")
-
-        click.echo(
-            f"✅ Successfully generated embeddings for {processed_count} locations"
+        generate_embeddings_for_entities(
+            session=session,
+            model_class=Location,
+            entity_name="locations",
+            batch_size=batch_size,
+            progress_callback=click.echo,
         )
 
     except Exception as e:
