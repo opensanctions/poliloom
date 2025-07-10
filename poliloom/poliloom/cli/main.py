@@ -5,6 +5,7 @@ import logging
 import uvicorn
 from ..services.import_service import ImportService
 from ..services.enrichment_service import EnrichmentService
+from ..database import get_db_session, get_db_session_no_commit
 
 # Configure logging
 logging.basicConfig(
@@ -87,34 +88,34 @@ def politicians_show(wikidata_id):
     """Display comprehensive information about a politician, distinguishing between imported and generated data."""
     click.echo(f"Showing information for politician with Wikidata ID: {wikidata_id}")
 
-    from ..database import SessionLocal
     from ..models import Politician, HoldsPosition, HasCitizenship, BornAt
     from sqlalchemy.orm import joinedload
 
-    session = None
     try:
-        session = SessionLocal()
-        # Query politician with all related data
-        politician = (
-            session.query(Politician)
-            .filter(Politician.wikidata_id == wikidata_id)
-            .options(
-                joinedload(Politician.properties),
-                joinedload(Politician.positions_held).joinedload(
-                    HoldsPosition.position
-                ),
-                joinedload(Politician.citizenships).joinedload(HasCitizenship.country),
-                joinedload(Politician.birthplaces).joinedload(BornAt.location),
-                joinedload(Politician.wikipedia_links),
+        with get_db_session_no_commit() as session:
+            # Query politician with all related data
+            politician = (
+                session.query(Politician)
+                .filter(Politician.wikidata_id == wikidata_id)
+                .options(
+                    joinedload(Politician.properties),
+                    joinedload(Politician.positions_held).joinedload(
+                        HoldsPosition.position
+                    ),
+                    joinedload(Politician.citizenships).joinedload(
+                        HasCitizenship.country
+                    ),
+                    joinedload(Politician.birthplaces).joinedload(BornAt.location),
+                    joinedload(Politician.wikipedia_links),
+                )
+                .first()
             )
-            .first()
-        )
 
-        if not politician:
-            click.echo(
-                f"❌ Politician with Wikidata ID '{wikidata_id}' not found in database."
-            )
-            exit(1)
+            if not politician:
+                click.echo(
+                    f"❌ Politician with Wikidata ID '{wikidata_id}' not found in database."
+                )
+                exit(1)
 
         # Display basic information
         click.echo()
@@ -258,15 +259,12 @@ def politicians_show(wikidata_id):
 
                     click.echo(f"    • {position_info} [{status}]")
 
-        click.echo()
-        click.echo("=" * 80)
+            click.echo()
+            click.echo("=" * 80)
 
     except Exception as e:
         click.echo(f"❌ Error showing politician information: {e}")
         exit(1)
-    finally:
-        if session:
-            session.close()
 
 
 @positions.command("embed")
@@ -277,29 +275,22 @@ def positions_embed(batch_size):
     """Generate embeddings for all positions that don't have embeddings yet."""
     click.echo("Generating embeddings for positions without embeddings...")
 
-    from ..database import SessionLocal
     from ..models import Position
     from ..embeddings import generate_embeddings_for_entities
 
-    session = None
     try:
-        session = SessionLocal()
-        generate_embeddings_for_entities(
-            session=session,
-            model_class=Position,
-            entity_name="positions",
-            batch_size=batch_size,
-            progress_callback=click.echo,
-        )
+        with get_db_session() as session:
+            generate_embeddings_for_entities(
+                session=session,
+                model_class=Position,
+                entity_name="positions",
+                batch_size=batch_size,
+                progress_callback=click.echo,
+            )
 
     except Exception as e:
-        if session:
-            session.rollback()
         click.echo(f"❌ Error generating embeddings: {e}")
         exit(1)
-    finally:
-        if session:
-            session.close()
 
 
 @positions.command("import-csv")
@@ -342,29 +333,22 @@ def locations_embed(batch_size):
     """Generate embeddings for all locations that don't have embeddings yet."""
     click.echo("Generating embeddings for locations without embeddings...")
 
-    from ..database import SessionLocal
     from ..models import Location
     from ..embeddings import generate_embeddings_for_entities
 
-    session = None
     try:
-        session = SessionLocal()
-        generate_embeddings_for_entities(
-            session=session,
-            model_class=Location,
-            entity_name="locations",
-            batch_size=batch_size,
-            progress_callback=click.echo,
-        )
+        with get_db_session() as session:
+            generate_embeddings_for_entities(
+                session=session,
+                model_class=Location,
+                entity_name="locations",
+                batch_size=batch_size,
+                progress_callback=click.echo,
+            )
 
     except Exception as e:
-        if session:
-            session.rollback()
         click.echo(f"❌ Error generating embeddings: {e}")
         exit(1)
-    finally:
-        if session:
-            session.close()
 
 
 @dump.command("build-hierarchy")

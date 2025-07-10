@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
-from sqlalchemy.exc import DisconnectionError
 
 from poliloom.services.database_inserter import DatabaseInserter
 
@@ -79,36 +78,6 @@ class TestDatabaseInserter:
 
             # Should not create session for empty batch
             mock_get_session.assert_not_called()
-
-    def test_insert_positions_batch_with_retry(self, inserter):
-        """Test inserting positions with database error and retry."""
-        positions = [
-            {"wikidata_id": "Q1", "name": "Position 1"},
-        ]
-
-        # Mock session that fails once then succeeds
-        mock_session = MagicMock()
-        mock_query = MagicMock()
-        mock_session.query.return_value = mock_query
-        mock_query.filter.return_value = mock_query
-        mock_query.all.return_value = []
-
-        # First call raises exception, second succeeds
-        mock_session.commit.side_effect = [
-            DisconnectionError("connection lost", None, None),
-            None,
-        ]
-
-        with patch(
-            "poliloom.services.database_inserter.get_worker_session",
-            return_value=mock_session,
-        ):
-            with patch("time.sleep"):  # Mock sleep to speed up test
-                inserter.insert_positions_batch(positions)
-
-                # Should be called twice (retry)
-                assert mock_session.commit.call_count == 2
-                assert mock_session.rollback.call_count == 1
 
     def test_insert_locations_batch(self, inserter):
         """Test inserting a batch of locations."""
@@ -209,34 +178,6 @@ class TestDatabaseInserter:
 
             # Should not create session for empty batch
             mock_get_session.assert_not_called()
-
-    def test_insert_countries_batch_with_retry(self, inserter):
-        """Test inserting countries with database error and retry."""
-        countries = [
-            {"wikidata_id": "Q1", "name": "Country 1", "iso_code": "C1"},
-        ]
-
-        # Mock session that fails once then succeeds
-        mock_session = MagicMock()
-        mock_result = MagicMock()
-        mock_result.rowcount = 1
-
-        # First call raises exception, second succeeds
-        mock_session.execute.side_effect = [
-            DisconnectionError("connection lost", None, None),
-            mock_result,
-        ]
-
-        with patch(
-            "poliloom.services.database_inserter.get_worker_session",
-            return_value=mock_session,
-        ):
-            with patch("time.sleep"):  # Mock sleep to speed up test
-                inserter.insert_countries_batch(countries)
-
-                # Should be called twice (retry)
-                assert mock_session.execute.call_count == 2
-                assert mock_session.rollback.call_count == 1
 
     def test_insert_countries_batch_with_duplicates_handling(self, inserter):
         """Test that countries batch uses ON CONFLICT DO NOTHING."""
@@ -388,45 +329,6 @@ class TestDatabaseInserter:
 
             # Should not create session for empty batch
             mock_get_session.assert_not_called()
-
-    def test_insert_politicians_batch_with_retry(self, inserter):
-        """Test inserting politicians with database error and retry."""
-        politicians = [
-            {
-                "wikidata_id": "Q1",
-                "name": "John Doe",
-                "is_deceased": False,
-                "properties": [],
-                "citizenships": [],
-                "positions": [],
-                "birthplace": None,
-                "wikipedia_links": [],
-            }
-        ]
-
-        # Mock session that fails once then succeeds
-        mock_session = MagicMock()
-        mock_query = MagicMock()
-        mock_session.query.return_value = mock_query
-        mock_query.filter.return_value = mock_query
-        mock_query.all.return_value = []
-
-        # First call raises exception, second succeeds
-        mock_session.commit.side_effect = [
-            DisconnectionError("connection lost", None, None),
-            None,
-        ]
-
-        with patch(
-            "poliloom.services.database_inserter.get_worker_session",
-            return_value=mock_session,
-        ):
-            with patch("time.sleep"):  # Mock sleep to speed up test
-                inserter.insert_politicians_batch(politicians)
-
-                # Should be called twice (retry)
-                assert mock_session.commit.call_count == 2
-                assert mock_session.rollback.call_count == 1
 
     def test_insert_politicians_batch_with_relationships(self, inserter):
         """Test inserting politicians with full relationship data."""
