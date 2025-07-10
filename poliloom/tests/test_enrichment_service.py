@@ -8,10 +8,6 @@ from poliloom.services.enrichment_service import (
     PropertyExtractionResult,
     ExtractedProperty,
     PropertyType,
-    FreeFormPositionExtractionResult,
-    FreeFormExtractedPosition,
-    FreeFormBirthplaceExtractionResult,
-    FreeFormExtractedBirthplace,
 )
 from poliloom.models import (
     Politician,
@@ -214,116 +210,6 @@ class TestEnrichmentService:
 
         assert properties is None
 
-    def test_extract_positions_free_form(
-        self, enrichment_service, mock_openai_client, sample_wikipedia_content
-    ):
-        """Test free-form position extraction."""
-        # Mock OpenAI response
-        mock_message = Mock()
-        mock_message.parsed = FreeFormPositionExtractionResult(
-            positions=[
-                FreeFormExtractedPosition(
-                    name="Mayor of Springfield",
-                    start_date="2020",
-                    end_date="2024",
-                    proof="served as Mayor of Springfield from 2020 to 2024",
-                )
-            ]
-        )
-        mock_response = Mock()
-        mock_response.choices = [Mock(message=mock_message)]
-        mock_openai_client.beta.chat.completions.parse.return_value = mock_response
-
-        positions = enrichment_service._extract_positions_free_form(
-            sample_wikipedia_content, "Test Politician", "United States"
-        )
-
-        assert positions is not None
-        assert len(positions) == 1
-        assert positions[0].name == "Mayor of Springfield"
-        assert positions[0].start_date == "2020"
-        assert positions[0].end_date == "2024"
-
-    def test_llm_map_to_wikidata_position_success(
-        self, enrichment_service, mock_openai_client
-    ):
-        """Test successful position mapping with LLM."""
-        # Mock OpenAI response
-        mock_message = Mock()
-        mock_message.parsed = Mock()
-        mock_message.parsed.wikidata_position_name = "Mayor of Springfield"
-        mock_response = Mock()
-        mock_response.choices = [Mock(message=mock_message)]
-        mock_openai_client.beta.chat.completions.parse.return_value = mock_response
-
-        result = enrichment_service._llm_map_to_wikidata_position(
-            "Mayor", ["Mayor of Springfield", "Governor"], "proof text"
-        )
-
-        assert result == "Mayor of Springfield"
-
-    def test_llm_map_to_wikidata_position_no_match(
-        self, enrichment_service, mock_openai_client
-    ):
-        """Test position mapping when no match found."""
-        # Mock OpenAI response with None result
-        mock_message = Mock()
-        mock_message.parsed = Mock()
-        mock_message.parsed.wikidata_position_name = None
-        mock_response = Mock()
-        mock_response.choices = [Mock(message=mock_message)]
-        mock_openai_client.beta.chat.completions.parse.return_value = mock_response
-
-        result = enrichment_service._llm_map_to_wikidata_position(
-            "Unknown Position", ["Mayor", "Governor"], "proof text"
-        )
-
-        assert result is None
-
-    def test_extract_birthplaces_free_form(
-        self, enrichment_service, mock_openai_client, sample_wikipedia_content
-    ):
-        """Test free-form birthplace extraction."""
-        # Mock OpenAI response
-        mock_message = Mock()
-        mock_message.parsed = FreeFormBirthplaceExtractionResult(
-            birthplaces=[
-                FreeFormExtractedBirthplace(
-                    location_name="Springfield, Illinois",
-                    proof="He was born in Springfield, Illinois",
-                )
-            ]
-        )
-        mock_response = Mock()
-        mock_response.choices = [Mock(message=mock_message)]
-        mock_openai_client.beta.chat.completions.parse.return_value = mock_response
-
-        birthplaces = enrichment_service._extract_birthplaces_free_form(
-            sample_wikipedia_content, "Test Politician", "United States"
-        )
-
-        assert birthplaces is not None
-        assert len(birthplaces) == 1
-        assert birthplaces[0].location_name == "Springfield, Illinois"
-
-    def test_llm_map_to_wikidata_location(self, enrichment_service, mock_openai_client):
-        """Test successful location mapping with LLM."""
-        # Mock OpenAI response
-        mock_message = Mock()
-        mock_message.parsed = Mock()
-        mock_message.parsed.wikidata_location_name = "Springfield, Illinois"
-        mock_response = Mock()
-        mock_response.choices = [Mock(message=mock_message)]
-        mock_openai_client.beta.chat.completions.parse.return_value = mock_response
-
-        result = enrichment_service._llm_map_to_wikidata_location(
-            "Springfield",
-            ["Springfield, Illinois", "Springfield, Missouri"],
-            "proof text",
-        )
-
-        assert result == "Springfield, Illinois"
-
     def test_find_exact_position_match(
         self, enrichment_service, test_session, sample_position
     ):
@@ -345,41 +231,6 @@ class TestEnrichmentService:
 
         assert match is not None
         assert match.name == "Springfield, Illinois"
-
-    @patch("poliloom.embeddings.generate_embedding")
-    def test_get_similar_positions_for_mapping(
-        self,
-        mock_generate_embedding,
-        enrichment_service,
-        test_session,
-        politician_with_source,
-        sample_position,
-    ):
-        """Test getting similar positions for mapping."""
-        # Mock embedding generation
-        mock_generate_embedding.return_value = [0.1] * 384
-
-        similar_positions = enrichment_service._get_similar_positions_for_mapping(
-            test_session, "Mayor", politician_with_source
-        )
-
-        assert len(similar_positions) >= 0  # Could be empty if no embeddings match
-        mock_generate_embedding.assert_called_once_with("Mayor")
-
-    @patch("poliloom.embeddings.generate_embedding")
-    def test_get_similar_locations_for_mapping(
-        self, mock_generate_embedding, enrichment_service, test_session, sample_location
-    ):
-        """Test getting similar locations for mapping."""
-        # Mock embedding generation
-        mock_generate_embedding.return_value = [0.2] * 384
-
-        similar_locations = enrichment_service._get_similar_locations_for_mapping(
-            test_session, "Springfield"
-        )
-
-        assert len(similar_locations) >= 0  # Could be empty if no embeddings match
-        mock_generate_embedding.assert_called_once_with("Springfield")
 
     def test_store_extracted_data_properties(
         self, enrichment_service, test_session, politician_with_source
@@ -417,7 +268,7 @@ class TestEnrichmentService:
     ):
         """Test storing extracted positions."""
         source = politician_with_source.wikipedia_links[0]
-        from poliloom.services.enrichment_service import ExtractedPosition
+        from poliloom.services.position_extraction_service import ExtractedPosition
 
         data = {
             "properties": [],
@@ -456,7 +307,7 @@ class TestEnrichmentService:
     ):
         """Test storing extracted birthplaces."""
         source = politician_with_source.wikipedia_links[0]
-        from poliloom.services.enrichment_service import ExtractedBirthplace
+        from poliloom.services.birthplace_extraction_service import ExtractedBirthplace
 
         data = {
             "properties": [],
@@ -490,7 +341,7 @@ class TestEnrichmentService:
     ):
         """Test that storing skips positions that don't exist in database."""
         source = politician_with_source.wikipedia_links[0]
-        from poliloom.services.enrichment_service import ExtractedPosition
+        from poliloom.services.position_extraction_service import ExtractedPosition
 
         data = {
             "properties": [],
@@ -524,7 +375,7 @@ class TestEnrichmentService:
     ):
         """Test that storing skips locations that don't exist in database."""
         source = politician_with_source.wikipedia_links[0]
-        from poliloom.services.enrichment_service import ExtractedBirthplace
+        from poliloom.services.birthplace_extraction_service import ExtractedBirthplace
 
         data = {
             "properties": [],
