@@ -527,13 +527,7 @@ def dump_import_politicians(dump_file, batch_size, num_workers):
         )
         exit(1)
 
-    # Check if hierarchy trees exist
-    if not os.path.exists("complete_hierarchy.json"):
-        click.echo("❌ Complete hierarchy not found!")
-        click.echo(
-            "Run 'poliloom dump build-hierarchy' first to generate the hierarchy trees."
-        )
-        exit(1)
+    # No hierarchy check needed for politician import
 
     processor = WikidataDumpProcessor()
 

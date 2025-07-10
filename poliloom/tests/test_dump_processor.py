@@ -497,7 +497,7 @@ class TestWikidataDumpProcessor:
 
                     # Test politician extraction
                     result = processor.extract_politicians_from_dump(
-                        temp_file, batch_size=10, num_workers=1, hierarchy_dir=temp_dir
+                        temp_file, batch_size=10, num_workers=1
                     )
 
                     # Should have extracted only politicians (since supporting entities are imported separately)
@@ -582,7 +582,7 @@ class TestWikidataDumpProcessor:
 
                 # Mock hierarchy sets
                 with patch(
-                    "poliloom.services.dump_processor.get_hierarchy_sets"
+                    "poliloom.services.worker_manager.get_hierarchy_sets"
                 ) as mock_get_hierarchy:
                     mock_get_hierarchy.return_value = (set(), set())  # Empty sets
 
@@ -675,7 +675,7 @@ class TestWikidataDumpProcessor:
 
                 # Mock hierarchy sets
                 with patch(
-                    "poliloom.services.dump_processor.get_hierarchy_sets"
+                    "poliloom.services.worker_manager.get_hierarchy_sets"
                 ) as mock_get_hierarchy:
                     mock_get_hierarchy.return_value = (set(), set())  # Empty sets
 

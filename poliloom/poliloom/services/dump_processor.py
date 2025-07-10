@@ -1,7 +1,6 @@
 """Wikidata dump processing service for extracting entities."""
 
 import logging
-import os
 import multiprocessing as mp
 from typing import Dict, Set, Optional
 from collections import defaultdict
@@ -10,12 +9,7 @@ from .dump_reader import DumpReader
 from .hierarchy_builder import HierarchyBuilder
 from .entity_extractor import EntityExtractor
 from .database_inserter import DatabaseInserter
-from .worker_manager import (
-    init_worker_with_db,
-    init_worker_with_hierarchy,
-    create_shared_memory_from_set,
-    get_hierarchy_sets,
-)
+from .worker_manager import init_worker_with_db, init_worker_with_hierarchy
 
 logger = logging.getLogger(__name__)
 
@@ -261,7 +255,6 @@ class WikidataDumpProcessor:
         dump_file_path: str,
         batch_size: int = 100,
         num_workers: Optional[int] = None,
-        hierarchy_dir: str = ".",
     ) -> Dict[str, int]:
         """
         Extract politicians from the Wikidata dump using parallel processing.
@@ -270,38 +263,22 @@ class WikidataDumpProcessor:
             dump_file_path: Path to the Wikidata JSON dump file
             batch_size: Number of entities to process in each database batch
             num_workers: Number of worker processes (default: CPU count)
-            hierarchy_dir: Directory containing the complete hierarchy file (default: current directory)
 
         Returns:
             Dictionary with counts of extracted entities
         """
-        # Load the hierarchy trees (still needed for validation)
-        subclass_relations = self.hierarchy_builder.load_complete_hierarchy(
-            hierarchy_dir
-        )
-        if subclass_relations is None:
-            raise ValueError(
-                "Complete hierarchy not found. Run 'poliloom dump build-hierarchy' first."
-            )
-
-        # Get descendant sets for filtering (still needed for some validation)
-        descendants = self.hierarchy_builder.get_position_and_location_descendants(
-            subclass_relations
-        )
-        position_descendants = descendants["positions"]
-        location_descendants = descendants["locations"]
-
         if num_workers is None:
             num_workers = mp.cpu_count()
 
         logger.info(f"Using parallel processing with {num_workers} workers")
 
+        # No hierarchy data needed for politician extraction
         return self._extract_entities_parallel(
             dump_file_path,
             batch_size,
             num_workers,
-            position_descendants,
-            location_descendants,
+            position_descendants=set(),  # Empty set - not used for politicians
+            location_descendants=set(),  # Empty set - not used for politicians
             include_politicians=True,
         )
 
@@ -321,25 +298,15 @@ class WikidataDumpProcessor:
         chunks = self.dump_reader.calculate_file_chunks(dump_file_path, num_workers)
         logger.info(f"Split file into {len(chunks)} chunks for {num_workers} workers")
 
-        # Create memory-mapped files for hierarchy data
-        logger.info("Creating memory-mapped files for hierarchy data...")
-        position_filename = create_shared_memory_from_set(
-            position_descendants, f"poliloom_positions_{os.getpid()}"
-        )
-        location_filename = create_shared_memory_from_set(
-            location_descendants, f"poliloom_locations_{os.getpid()}"
-        )
-
-        logger.info(
-            f"Created memory-mapped files: positions={len(position_descendants)} items, locations={len(location_descendants)} items"
-        )
-
         # Process chunks in parallel with proper KeyboardInterrupt handling
         pool = None
         try:
-            # Initialize workers with database and hierarchy data
+            # Initialize workers with hierarchy data
             def init_worker():
-                init_worker_with_hierarchy(position_filename, location_filename)
+                init_worker_with_hierarchy(
+                    position_descendants if not include_politicians else set(),
+                    location_descendants if not include_politicians else set(),
+                )
 
             pool = mp.Pool(processes=num_workers, initializer=init_worker)
 
@@ -375,16 +342,6 @@ class WikidataDumpProcessor:
             if pool:
                 pool.close()
                 pool.join()
-
-            # Clean up memory-mapped files
-            try:
-                if os.path.exists(position_filename):
-                    os.unlink(position_filename)
-                if os.path.exists(location_filename):
-                    os.unlink(location_filename)
-                logger.info("Cleaned up memory-mapped files")
-            except Exception as e:
-                logger.warning(f"Error cleaning up memory-mapped files: {e}")
 
         # Merge results from all chunks
         total_counts = {
@@ -426,7 +383,9 @@ class WikidataDumpProcessor:
         interrupted = False
 
         try:
-            # Get hierarchy data from shared memory
+            # Get hierarchy data from worker globals
+            from .worker_manager import get_hierarchy_sets
+
             position_descendants, location_descendants = get_hierarchy_sets()
 
             positions = []

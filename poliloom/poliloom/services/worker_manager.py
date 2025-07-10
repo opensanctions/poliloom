@@ -1,10 +1,7 @@
 """Worker process management for multiprocessing dump operations."""
 
-import json
 import logging
-import mmap
 import os
-import tempfile
 from typing import Set, Tuple
 
 logger = logging.getLogger(__name__)
@@ -12,7 +9,7 @@ logger = logging.getLogger(__name__)
 # Global variable to store worker-specific database session
 _worker_session = None
 
-# Global variables for memory-mapped files in worker processes
+# Global variables for hierarchy data in worker processes
 _shared_position_descendants = None
 _shared_location_descendants = None
 
@@ -57,50 +54,22 @@ def get_worker_session():
     return _worker_session()
 
 
-def create_shared_memory_from_set(data_set: Set[str], name: str) -> str:
-    """Create memory-mapped file from a set of strings."""
-    # Convert set to JSON string
-    json_data = json.dumps(sorted(list(data_set)))
-    json_bytes = json_data.encode("utf-8")
-
-    # Create temporary file for memory mapping
-    temp_dir = tempfile.gettempdir()
-    filename = os.path.join(temp_dir, f"{name}.json")
-
-    with open(filename, "wb") as f:
-        f.write(json_bytes)
-
-    return filename
-
-
-def load_set_from_shared_memory(filename: str) -> Set[str]:
-    """Load a set from memory-mapped file."""
-    with open(filename, "rb") as f:
-        with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mmapped_file:
-            # Read and decode JSON data
-            json_data = mmapped_file[:].decode("utf-8")
-            data_list = json.loads(json_data)
-
-            # Convert back to set
-            return set(data_list)
-
-
-def init_worker_hierarchy(position_filename: str, location_filename: str):
-    """Initialize hierarchy data in worker process from memory-mapped files."""
+def init_worker_hierarchy(
+    position_descendants: Set[str], location_descendants: Set[str]
+):
+    """Initialize hierarchy data in worker process."""
     global _shared_position_descendants, _shared_location_descendants
 
     try:
-        _shared_position_descendants = load_set_from_shared_memory(position_filename)
-        _shared_location_descendants = load_set_from_shared_memory(location_filename)
+        _shared_position_descendants = position_descendants
+        _shared_location_descendants = location_descendants
 
         logger.info(
-            f"Worker {os.getpid()}: Loaded {len(_shared_position_descendants)} position descendants and {len(_shared_location_descendants)} location descendants from memory-mapped files"
+            f"Worker {os.getpid()}: Loaded {len(_shared_position_descendants)} position descendants and {len(_shared_location_descendants)} location descendants"
         )
 
     except Exception as e:
-        logger.error(
-            f"Worker {os.getpid()}: Failed to load hierarchy from memory-mapped files: {e}"
-        )
+        logger.error(f"Worker {os.getpid()}: Failed to initialize hierarchy data: {e}")
         raise
 
 
@@ -119,7 +88,9 @@ def init_worker_with_db():
     _init_worker_db()
 
 
-def init_worker_with_hierarchy(position_filename: str, location_filename: str):
+def init_worker_with_hierarchy(
+    position_descendants: Set[str], location_descendants: Set[str]
+):
     """Initialize worker process with both database and hierarchy data."""
     _init_worker_db()
-    init_worker_hierarchy(position_filename, location_filename)
+    init_worker_hierarchy(position_descendants, location_descendants)
