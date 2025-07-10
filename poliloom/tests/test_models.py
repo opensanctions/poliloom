@@ -19,64 +19,18 @@ from poliloom.models import (
 from poliloom.embeddings import generate_embedding
 
 
-class TestHelpers:
-    """Helper methods for common test patterns."""
-
-    @staticmethod
-    def assert_basic_model_fields(model, expected_fields):
-        """Assert that model has expected basic fields."""
-        assert model.id is not None
-        assert model.created_at is not None
-        assert model.updated_at is not None
-        for field, value in expected_fields.items():
-            assert getattr(model, field) == value
-
-    @staticmethod
-    def create_and_commit(session, *entities):
-        """Create entities and commit them to the session."""
-        session.add_all(entities)
-        session.commit()
-        for entity in entities:
-            session.refresh(entity)
-        return entities if len(entities) > 1 else entities[0]
-
-    @staticmethod
-    def create_position_with_embedding(name, wikidata_id):
-        """Create a Position with embedding."""
-        position = Position(name=name, wikidata_id=wikidata_id)
-        position.embedding = generate_embedding(name)
-        return position
-
-    @staticmethod
-    def create_location_with_embedding(name, wikidata_id):
-        """Create a Location with embedding."""
-        location = Location(name=name, wikidata_id=wikidata_id)
-        location.embedding = generate_embedding(name)
-        return location
-
-    @staticmethod
-    def similarity_search(session, model_class, query_text, limit=5):
-        """Perform similarity search on model with embeddings."""
-        query_embedding = generate_embedding(query_text)
-        query = session.query(model_class).filter(model_class.embedding.isnot(None))
-
-        return (
-            query.order_by(model_class.embedding.cosine_distance(query_embedding))
-            .limit(limit)
-            .all()
-        )
-
-
 class TestPolitician:
     """Test cases for the Politician model."""
 
-    def test_politician_creation(self, test_session):
+    def test_politician_creation(
+        self, test_session, create_entities, assert_model_fields
+    ):
         """Test basic politician creation."""
-        politician = TestHelpers.create_and_commit(
+        politician = create_entities(
             test_session,
             Politician(name="Jane Smith", wikidata_id="Q789012", is_deceased=True),
         )
-        TestHelpers.assert_basic_model_fields(
+        assert_model_fields(
             politician,
             {"name": "Jane Smith", "wikidata_id": "Q789012", "is_deceased": True},
         )
@@ -92,12 +46,12 @@ class TestPolitician:
         with pytest.raises(IntegrityError):
             test_session.commit()
 
-    def test_politician_default_values(self, test_session):
+    def test_politician_default_values(
+        self, test_session, create_entities, assert_model_fields
+    ):
         """Test default values for politician fields."""
-        politician = TestHelpers.create_and_commit(
-            test_session, Politician(name="Test Person")
-        )
-        TestHelpers.assert_basic_model_fields(
+        politician = create_entities(test_session, Politician(name="Test Person"))
+        assert_model_fields(
             politician,
             {"name": "Test Person", "is_deceased": False, "wikidata_id": None},
         )
@@ -128,9 +82,11 @@ class TestPolitician:
 class TestWikipediaLink:
     """Test cases for the WikipediaLink model."""
 
-    def test_wikipedia_link_creation(self, test_session, sample_politician):
+    def test_wikipedia_link_creation(
+        self, test_session, sample_politician, create_entities, assert_model_fields
+    ):
         """Test basic Wikipedia link creation."""
-        wikipedia_link = TestHelpers.create_and_commit(
+        wikipedia_link = create_entities(
             test_session,
             WikipediaLink(
                 politician_id=sample_politician.id,
@@ -138,7 +94,7 @@ class TestWikipediaLink:
                 language_code="en",
             ),
         )
-        TestHelpers.assert_basic_model_fields(
+        assert_model_fields(
             wikipedia_link,
             {
                 "politician_id": sample_politician.id,
@@ -151,10 +107,12 @@ class TestWikipediaLink:
 class TestProperty:
     """Test cases for the Property model."""
 
-    def test_property_creation(self, test_session, sample_politician):
+    def test_property_creation(
+        self, test_session, sample_politician, create_entities, assert_model_fields
+    ):
         """Test basic property creation."""
         confirmed_at = datetime(2024, 1, 20, 9, 0, 0)
-        prop = TestHelpers.create_and_commit(
+        prop = create_entities(
             test_session,
             Property(
                 politician_id=sample_politician.id,
@@ -165,7 +123,7 @@ class TestProperty:
                 confirmed_at=confirmed_at,
             ),
         )
-        TestHelpers.assert_basic_model_fields(
+        assert_model_fields(
             prop,
             {
                 "politician_id": sample_politician.id,
@@ -177,15 +135,17 @@ class TestProperty:
         )
         assert prop.confirmed_at == confirmed_at
 
-    def test_property_default_values(self, test_session, sample_politician):
+    def test_property_default_values(
+        self, test_session, sample_politician, create_entities, assert_model_fields
+    ):
         """Test default values for property fields."""
-        prop = TestHelpers.create_and_commit(
+        prop = create_entities(
             test_session,
             Property(
                 politician_id=sample_politician.id, type="BirthDate", value="1980"
             ),
         )
-        TestHelpers.assert_basic_model_fields(
+        assert_model_fields(
             prop,
             {
                 "politician_id": sample_politician.id,
@@ -201,21 +161,23 @@ class TestProperty:
 class TestCountry:
     """Test cases for the Country model."""
 
-    def test_country_creation(self, test_session):
+    def test_country_creation(self, test_session, create_entities, assert_model_fields):
         """Test basic country creation."""
-        country = TestHelpers.create_and_commit(
+        country = create_entities(
             test_session, Country(name="Germany", iso_code="DE", wikidata_id="Q183")
         )
-        TestHelpers.assert_basic_model_fields(
+        assert_model_fields(
             country, {"name": "Germany", "iso_code": "DE", "wikidata_id": "Q183"}
         )
 
-    def test_country_optional_iso_code(self, test_session):
+    def test_country_optional_iso_code(
+        self, test_session, create_entities, assert_model_fields
+    ):
         """Test that iso_code is optional."""
-        country = TestHelpers.create_and_commit(
+        country = create_entities(
             test_session, Country(name="Some Territory", wikidata_id="Q12345")
         )
-        TestHelpers.assert_basic_model_fields(
+        assert_model_fields(
             country,
             {"name": "Some Territory", "wikidata_id": "Q12345", "iso_code": None},
         )
@@ -224,14 +186,14 @@ class TestCountry:
 class TestPosition:
     """Test cases for the Position model."""
 
-    def test_position_creation(self, test_session):
+    def test_position_creation(
+        self, test_session, create_entities, assert_model_fields
+    ):
         """Test basic position creation."""
         position = Position(name="Senator", wikidata_id="Q4416090")
-        position = TestHelpers.create_and_commit(test_session, position)
+        position = create_entities(test_session, position)
 
-        TestHelpers.assert_basic_model_fields(
-            position, {"name": "Senator", "wikidata_id": "Q4416090"}
-        )
+        assert_model_fields(position, {"name": "Senator", "wikidata_id": "Q4416090"})
 
 
 class TestPositionVectorSimilarity:
@@ -253,9 +215,9 @@ class TestPositionVectorSimilarity:
         different_embedding = generate_embedding("Mayor")
         assert embedding != different_embedding
 
-    def test_position_embedding_workflow(self, test_session):
+    def test_position_embedding_workflow(self, test_session, create_entities):
         """Test complete embedding workflow for positions."""
-        position = TestHelpers.create_and_commit(
+        position = create_entities(
             test_session, Position(name="Secretary of State", wikidata_id="Q3112749")
         )
 
@@ -292,34 +254,36 @@ class TestPositionVectorSimilarity:
         )
         assert updated_embedding != original_embedding
 
-    def test_similarity_search_functionality(self, test_session):
+    def test_similarity_search_functionality(
+        self,
+        test_session,
+        position_with_embedding,
+        create_entities,
+        similarity_searcher,
+    ):
         """Test similarity search with various scenarios."""
         # Create positions with embeddings
         positions = [
-            TestHelpers.create_position_with_embedding("US President", "Q11696"),
-            TestHelpers.create_position_with_embedding("US Governor", "Q889821"),
-            TestHelpers.create_position_with_embedding("UK Prime Minister", "Q14212"),
-            TestHelpers.create_position_with_embedding("UK Minister", "Q83307"),
+            position_with_embedding("US President", "Q11696"),
+            position_with_embedding("US Governor", "Q889821"),
+            position_with_embedding("UK Prime Minister", "Q14212"),
+            position_with_embedding("UK Minister", "Q83307"),
         ]
 
-        TestHelpers.create_and_commit(test_session, *positions)
+        create_entities(test_session, *positions)
 
         # Test basic similarity search
-        results = TestHelpers.similarity_search(
+        results = similarity_searcher(
             test_session, Position, "Chief Executive", limit=2
         )
         assert len(results) <= 2
         assert all(isinstance(pos, Position) for pos in results)
 
         # Test limit behavior
-        no_results = TestHelpers.similarity_search(
-            test_session, Position, "Query", limit=0
-        )
+        no_results = similarity_searcher(test_session, Position, "Query", limit=0)
         assert no_results == []
 
-        one_result = TestHelpers.similarity_search(
-            test_session, Position, "Query", limit=1
-        )
+        one_result = similarity_searcher(test_session, Position, "Query", limit=1)
         assert len(one_result) <= 1
 
 
@@ -327,11 +291,16 @@ class TestHoldsPosition:
     """Test cases for the HoldsPosition model."""
 
     def test_holds_position_creation(
-        self, test_session, sample_politician, sample_position
+        self,
+        test_session,
+        sample_politician,
+        sample_position,
+        create_entities,
+        assert_model_fields,
     ):
         """Test basic holds position creation."""
         confirmed_at = datetime(2024, 1, 25, 16, 45, 0)
-        holds_pos = TestHelpers.create_and_commit(
+        holds_pos = create_entities(
             test_session,
             HoldsPosition(
                 politician_id=sample_politician.id,
@@ -343,7 +312,7 @@ class TestHoldsPosition:
                 confirmed_at=confirmed_at,
             ),
         )
-        TestHelpers.assert_basic_model_fields(
+        assert_model_fields(
             holds_pos,
             {
                 "politician_id": sample_politician.id,
@@ -388,16 +357,21 @@ class TestHoldsPosition:
             test_session.commit()
 
     def test_holds_position_default_values(
-        self, test_session, sample_politician, sample_position
+        self,
+        test_session,
+        sample_politician,
+        sample_position,
+        create_entities,
+        assert_model_fields,
     ):
         """Test default values for holds position fields."""
-        holds_pos = TestHelpers.create_and_commit(
+        holds_pos = create_entities(
             test_session,
             HoldsPosition(
                 politician_id=sample_politician.id, position_id=sample_position.id
             ),
         )
-        TestHelpers.assert_basic_model_fields(
+        assert_model_fields(
             holds_pos,
             {
                 "politician_id": sample_politician.id,
@@ -415,33 +389,38 @@ class TestHasCitizenship:
     """Test cases for the HasCitizenship model."""
 
     def test_has_citizenship_creation(
-        self, test_session, sample_politician, sample_country
+        self,
+        test_session,
+        sample_politician,
+        sample_country,
+        create_entities,
+        assert_model_fields,
     ):
         """Test basic citizenship relationship creation."""
-        citizenship = TestHelpers.create_and_commit(
+        citizenship = create_entities(
             test_session,
             HasCitizenship(
                 politician_id=sample_politician.id, country_id=sample_country.id
             ),
         )
-        TestHelpers.assert_basic_model_fields(
+        assert_model_fields(
             citizenship,
             {"politician_id": sample_politician.id, "country_id": sample_country.id},
         )
 
     def test_has_citizenship_multiple_citizenships_per_politician(
-        self, test_session, sample_politician
+        self, test_session, sample_politician, create_entities
     ):
         """Test that a politician can have multiple citizenships."""
         # Create two countries
-        country1, country2 = TestHelpers.create_and_commit(
+        country1, country2 = create_entities(
             test_session,
             Country(name="United States", iso_code="US"),
             Country(name="Canada", iso_code="CA"),
         )
 
         # Create two citizenships for the same politician
-        TestHelpers.create_and_commit(
+        create_entities(
             test_session,
             HasCitizenship(politician_id=sample_politician.id, country_id=country1.id),
             HasCitizenship(politician_id=sample_politician.id, country_id=country2.id),
@@ -462,18 +441,18 @@ class TestHasCitizenship:
         assert "Canada" in country_names
 
     def test_has_citizenship_multiple_politicians_per_country(
-        self, test_session, sample_country
+        self, test_session, sample_country, create_entities
     ):
         """Test that a country can have multiple citizen politicians."""
         # Create two politicians
-        politician1, politician2 = TestHelpers.create_and_commit(
+        politician1, politician2 = create_entities(
             test_session,
             Politician(name="Alice Smith", wikidata_id="Q111"),
             Politician(name="Bob Jones", wikidata_id="Q222"),
         )
 
         # Create two citizenships for the same country
-        TestHelpers.create_and_commit(
+        create_entities(
             test_session,
             HasCitizenship(politician_id=politician1.id, country_id=sample_country.id),
             HasCitizenship(politician_id=politician2.id, country_id=sample_country.id),
@@ -624,14 +603,14 @@ class TestUUIDBehavior:
 class TestLocation:
     """Test cases for the Location model."""
 
-    def test_location_creation(self, test_session):
+    def test_location_creation(
+        self, test_session, create_entities, assert_model_fields
+    ):
         """Test basic location creation."""
-        location = TestHelpers.create_and_commit(
+        location = create_entities(
             test_session, Location(name="New York City", wikidata_id="Q60")
         )
-        TestHelpers.assert_basic_model_fields(
-            location, {"name": "New York City", "wikidata_id": "Q60"}
-        )
+        assert_model_fields(location, {"name": "New York City", "wikidata_id": "Q60"})
 
     def test_location_unique_wikidata_id(self, test_session):
         """Test that Wikidata ID must be unique."""
@@ -645,21 +624,25 @@ class TestLocation:
         with pytest.raises(IntegrityError):
             test_session.commit()
 
-    def test_location_find_similar(self, test_session):
+    def test_location_find_similar(
+        self,
+        test_session,
+        location_with_embedding,
+        create_entities,
+        similarity_searcher,
+    ):
         """Test location similarity search functionality."""
         # Create test locations with embeddings
         locations = [
-            TestHelpers.create_location_with_embedding("New York City", "Q60"),
-            TestHelpers.create_location_with_embedding("Los Angeles", "Q65"),
-            TestHelpers.create_location_with_embedding("Chicago", "Q1297"),
+            location_with_embedding("New York City", "Q60"),
+            location_with_embedding("Los Angeles", "Q65"),
+            location_with_embedding("Chicago", "Q1297"),
         ]
 
-        TestHelpers.create_and_commit(test_session, *locations)
+        create_entities(test_session, *locations)
 
         # Test similarity search
-        similar = TestHelpers.similarity_search(
-            test_session, Location, "New York", limit=2
-        )
+        similar = similarity_searcher(test_session, Location, "New York", limit=2)
         assert len(similar) <= 2
         if len(similar) > 0:
             assert isinstance(similar[0], Location)
@@ -669,13 +652,15 @@ class TestLocation:
 class TestBornAt:
     """Test cases for the BornAt relationship model."""
 
-    def test_born_at_creation(self, test_session, sample_politician):
+    def test_born_at_creation(
+        self, test_session, sample_politician, create_entities, assert_model_fields
+    ):
         """Test basic BornAt relationship creation."""
-        location = TestHelpers.create_and_commit(
+        location = create_entities(
             test_session, Location(name="Paris", wikidata_id="Q90")
         )
 
-        born_at = TestHelpers.create_and_commit(
+        born_at = create_entities(
             test_session,
             BornAt(
                 politician_id=sample_politician.id,
@@ -683,7 +668,7 @@ class TestBornAt:
                 is_extracted=True,
             ),
         )
-        TestHelpers.assert_basic_model_fields(
+        assert_model_fields(
             born_at,
             {
                 "politician_id": sample_politician.id,
@@ -694,17 +679,19 @@ class TestBornAt:
             },
         )
 
-    def test_born_at_default_values(self, test_session, sample_politician):
+    def test_born_at_default_values(
+        self, test_session, sample_politician, create_entities, assert_model_fields
+    ):
         """Test BornAt model default values."""
-        location = TestHelpers.create_and_commit(
+        location = create_entities(
             test_session, Location(name="London", wikidata_id="Q84")
         )
 
-        born_at = TestHelpers.create_and_commit(
+        born_at = create_entities(
             test_session,
             BornAt(politician_id=sample_politician.id, location_id=location.id),
         )
-        TestHelpers.assert_basic_model_fields(
+        assert_model_fields(
             born_at,
             {
                 "politician_id": sample_politician.id,
@@ -715,13 +702,15 @@ class TestBornAt:
             },
         )
 
-    def test_born_at_confirmation(self, test_session, sample_politician):
+    def test_born_at_confirmation(
+        self, test_session, sample_politician, create_entities
+    ):
         """Test BornAt confirmation workflow."""
-        location = TestHelpers.create_and_commit(
+        location = create_entities(
             test_session, Location(name="Berlin", wikidata_id="Q64")
         )
 
-        born_at = TestHelpers.create_and_commit(
+        born_at = create_entities(
             test_session,
             BornAt(
                 politician_id=sample_politician.id,
@@ -745,13 +734,15 @@ class TestBornAt:
         ) == confirmation_time.replace(microsecond=0, tzinfo=None)
         assert born_at.is_extracted is False
 
-    def test_born_at_relationships(self, test_session, sample_politician):
+    def test_born_at_relationships(
+        self, test_session, sample_politician, create_entities
+    ):
         """Test BornAt model relationships."""
-        location = TestHelpers.create_and_commit(
+        location = create_entities(
             test_session, Location(name="Tokyo", wikidata_id="Q1490")
         )
 
-        born_at = TestHelpers.create_and_commit(
+        born_at = create_entities(
             test_session,
             BornAt(politician_id=sample_politician.id, location_id=location.id),
         )
@@ -770,13 +761,15 @@ class TestBornAt:
         assert len(location.born_here) == 1
         assert location.born_here[0].id == born_at.id
 
-    def test_born_at_cascade_delete(self, test_session, sample_politician):
+    def test_born_at_cascade_delete(
+        self, test_session, sample_politician, create_entities
+    ):
         """Test that deleting a politician cascades to BornAt relationships."""
-        location = TestHelpers.create_and_commit(
+        location = create_entities(
             test_session, Location(name="Rome", wikidata_id="Q220")
         )
 
-        born_at = TestHelpers.create_and_commit(
+        born_at = create_entities(
             test_session,
             BornAt(politician_id=sample_politician.id, location_id=location.id),
         )

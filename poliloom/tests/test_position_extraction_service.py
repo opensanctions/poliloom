@@ -8,7 +8,6 @@ from poliloom.services.position_extraction_service import (
     FreeFormPositionExtractionResult,
     FreeFormExtractedPosition,
 )
-from poliloom.models import Position, Politician
 
 
 class TestPositionExtractionService:
@@ -23,34 +22,6 @@ class TestPositionExtractionService:
     def position_extraction_service(self, mock_openai_client):
         """Create PositionExtractionService with mocked OpenAI client."""
         return PositionExtractionService(mock_openai_client)
-
-    @pytest.fixture
-    def sample_politician(self):
-        """Create a sample politician for testing."""
-        return Politician(
-            name="Test Politician", wikidata_id="Q123456", is_deceased=False
-        )
-
-    @pytest.fixture
-    def sample_position(self, test_session):
-        """Create a sample position with embedding."""
-        position = Position(
-            name="Mayor",
-            wikidata_id="Q30185",
-            embedding=[0.1] * 384,  # Mock embedding
-        )
-        test_session.add(position)
-        test_session.commit()
-        test_session.refresh(position)
-        return position
-
-    @pytest.fixture
-    def sample_wikipedia_content(self):
-        """Sample Wikipedia content for testing."""
-        return """
-        Test Politician (born January 15, 1970) is an American politician who served as Mayor of Springfield from 2020 to 2024.
-        He previously worked as a city councilman from 2018 to 2020.
-        """
 
     def test_extract_and_map_success(
         self,

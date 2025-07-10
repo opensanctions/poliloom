@@ -12,11 +12,9 @@ from poliloom.services.enrichment_service import (
 from poliloom.models import (
     Politician,
     Property,
-    Position,
     HoldsPosition,
     WikipediaLink,
     HasCitizenship,
-    Location,
     BornAt,
 )
 from .conftest import load_json_fixture
@@ -72,38 +70,6 @@ class TestEnrichmentService:
         test_session.commit()
         test_session.refresh(politician)
         return politician
-
-    @pytest.fixture
-    def sample_wikipedia_content(self):
-        """Sample Wikipedia article content."""
-        enrichment_data = load_json_fixture("enrichment_test_data.json")
-        return enrichment_data["wikipedia_content_examples"]["test_politician_article"]
-
-    @pytest.fixture
-    def sample_position(self, test_session):
-        """Create a sample position with embedding."""
-        position = Position(
-            name="Mayor of Springfield",
-            wikidata_id="Q30185",
-            embedding=[0.1] * 384,  # Mock embedding
-        )
-        test_session.add(position)
-        test_session.commit()
-        test_session.refresh(position)
-        return position
-
-    @pytest.fixture
-    def sample_location(self, test_session):
-        """Create a sample location with embedding."""
-        location = Location(
-            name="Springfield, Illinois",
-            wikidata_id="Q28513",
-            embedding=[0.2] * 384,  # Mock embedding
-        )
-        test_session.add(location)
-        test_session.commit()
-        test_session.refresh(location)
-        return location
 
     def test_enrich_politician_not_found(self, enrichment_service, test_session):
         """Test enrichment fails when politician not found."""
@@ -164,7 +130,7 @@ class TestEnrichmentService:
         assert content is None
 
     def test_extract_properties_with_llm(
-        self, enrichment_service, mock_openai_client, sample_wikipedia_content
+        self, enrichment_service, mock_openai_client, enrichment_wikipedia_content
     ):
         """Test property extraction with LLM."""
         # Load test data from fixture
@@ -188,7 +154,7 @@ class TestEnrichmentService:
         mock_openai_client.beta.chat.completions.parse.return_value = mock_response
 
         properties = enrichment_service._extract_properties_with_llm(
-            sample_wikipedia_content, "Test Politician", "United States"
+            enrichment_wikipedia_content, "Test Politician", "United States"
         )
 
         assert properties is not None
@@ -211,7 +177,7 @@ class TestEnrichmentService:
         assert properties is None
 
     def test_find_exact_position_match(
-        self, enrichment_service, test_session, sample_position
+        self, enrichment_service, test_session, sample_mayor_of_springfield_position
     ):
         """Test exact position matching."""
         match = enrichment_service._find_exact_position_match(
@@ -264,7 +230,11 @@ class TestEnrichmentService:
         assert property_obj.is_extracted is True
 
     def test_store_extracted_data_positions(
-        self, enrichment_service, test_session, politician_with_source, sample_position
+        self,
+        enrichment_service,
+        test_session,
+        politician_with_source,
+        sample_mayor_of_springfield_position,
     ):
         """Test storing extracted positions."""
         source = politician_with_source.wikipedia_links[0]
@@ -293,7 +263,8 @@ class TestEnrichmentService:
         holds_position = (
             test_session.query(HoldsPosition)
             .filter_by(
-                politician_id=politician_with_source.id, position_id=sample_position.id
+                politician_id=politician_with_source.id,
+                position_id=sample_mayor_of_springfield_position.id,
             )
             .first()
         )
