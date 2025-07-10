@@ -196,23 +196,3 @@ def sample_holds_position(test_session, sample_politician, sample_position):
     test_session.commit()
     test_session.refresh(holds_pos)
     return holds_pos
-
-
-@pytest.fixture
-def mock_wikidata_responses():
-    """Mock Wikidata API responses for testing."""
-    import json
-    import os
-
-    fixtures_dir = os.path.join(os.path.dirname(__file__), "fixtures")
-
-    def load_fixture(filename):
-        with open(os.path.join(fixtures_dir, filename), "r") as f:
-            return json.load(f)
-
-    return {
-        "politician_response": load_fixture("wikidata_politician_response.json"),
-        "place_response": load_fixture("wikidata_place_response.json"),
-        "position_response": load_fixture("wikidata_position_response.json"),
-        "country_response": load_fixture("wikidata_country_response.json"),
-    }
