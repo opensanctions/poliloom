@@ -49,11 +49,12 @@ This module is responsible for initially populating the local database with poli
 
 - **Wikidata Dump Processing:**
   - Process the complete Wikidata dump file (latest-all.json) directly
-  - **Two-Pass Processing Strategy:**
+  - **Three-Pass Processing Strategy:**
     - **Pass 1 - Build Hierarchy Trees:** Extract all P279 (subclass of) relationships to build complete descendant trees for positions (Q294414 - public office) and locations (Q2221906 - geographic location). Cache hierarchy to JSON files for reuse.
-    - **Pass 2 - Extract Entities:** Use cached trees to efficiently filter and extract politicians, positions, and locations in a single pass
-  - Extract politicians by filtering entities with occupation (Q82955) or position held (Q39486) properties
+    - **Pass 2 - Import Supporting Entities:** Use cached trees to efficiently filter and extract positions, locations, and countries from the dump, ensuring all entities that politicians will reference are available in the database first
+    - **Pass 3 - Import Politicians:** Extract politicians by filtering entities with occupation (Q82955) or position held (Q39486) properties, linking them to the previously imported entities
   - Process entities in batches for efficient database insertion
+  - This three-pass approach prevents deadlock issues that occurred when trying to link politicians to entities that hadn't been imported yet
 - **Entity Extraction Strategy:**
   - Identify politicians through occupation properties (P106) and position held properties (P39)
   - Extract basic politician data: name, birth date, birth place, political positions with dates
@@ -65,12 +66,15 @@ This module is responsible for initially populating the local database with poli
   - This aligns with the existing pattern for positions and locations that only link to existing entities
 - **Position Data Handling:**
   - Use cached position hierarchy tree (descendants of Q294414) to identify all political positions during dump processing
-  - Create Position entities directly from dump data with embeddings for similarity search
-  - Link politicians to positions during the same processing run
+  - Create Position entities directly from dump data during the supporting entities import pass
+  - Embeddings are initially NULL and generated separately for optimal performance
 - **Location Data Handling:**
   - Use cached location hierarchy tree (descendants of Q2221906) to identify all geographic locations during dump processing
-  - Create Location entities directly from dump data with embeddings for similarity search
-  - Link politicians to birthplaces during the same processing run
+  - Create Location entities directly from dump data during the supporting entities import pass
+  - Embeddings are initially NULL and generated separately for optimal performance
+- **Country Data Handling:**
+  - Import countries during the supporting entities pass to ensure they are available for citizenship relationships
+  - Countries are identified through their entity types in the dump data
 - **Hierarchy Tree Caching:**
   - Store position and location descendant trees as JSON files after first pass
   - Tree structure: `{"subclass_of": {"Q1": ["Q2", ...], ...}}`
@@ -149,13 +153,23 @@ curl http://localhost:8000/openapi.json
   - **Performance**: Scales linearly with CPU cores - near-linear speedup up to 32+ cores
   - **Scalability**: Each worker processes independent file chunks for optimal resource utilization
 
-- **poliloom dump import [--file FILE] [--batch-size SIZE]**
+- **poliloom dump import-entities [--file FILE] [--batch-size SIZE]**
 
-  - Import politicians, positions, and locations from a Wikidata dump file
+  - Import supporting entities (positions, locations, countries) from a Wikidata dump file
   - **--file**: Path to the extracted JSON dump file (default: ./latest-all.json from WIKIDATA_DUMP_JSON_PATH env var)
   - **--batch-size**: Number of entities to process in each database batch (default: 100)
   - Requires hierarchy trees to be built first using `dump build-hierarchy`
   - Processes the dump line-by-line for memory efficiency
+  - Must be run before `dump import-politicians`
+
+- **poliloom dump import-politicians [--file FILE] [--batch-size SIZE]**
+
+  - Import politicians from a Wikidata dump file, linking them to existing entities
+  - **--file**: Path to the extracted JSON dump file (default: ./latest-all.json from WIKIDATA_DUMP_JSON_PATH env var)
+  - **--batch-size**: Number of entities to process in each database batch (default: 100)
+  - Requires supporting entities to be imported first using `dump import-entities`
+  - Processes the dump line-by-line for memory efficiency
+  - Links politicians to existing positions, locations, and countries to avoid deadlock issues
 
 - **poliloom politicians enrich --id \<wikidata_id\>**
 
@@ -186,7 +200,8 @@ curl http://localhost:8000/openapi.json
 1. `make download-wikidata-dump` - Download compressed dump (one-time, ~100GB compressed)
 2. `make extract-wikidata-dump` - Extract to JSON (requires lbzip2, ~1TB uncompressed)
 3. `poliloom dump build-hierarchy` - Build hierarchy trees for positions and locations (one-time per dump)
-4. `poliloom dump import` - Import data to database (can be repeated)
+4. `poliloom dump import-entities` - Import supporting entities (positions, locations, countries) to database
+5. `poliloom dump import-politicians` - Import politicians and link to existing entities
 
 **Dump Management:**
 

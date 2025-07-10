@@ -211,7 +211,7 @@ class WikidataDumpProcessor:
         hierarchy_dir: str = ".",
     ) -> Dict[str, int]:
         """
-        Extract locations, positions, and countries from the Wikidata dump using parallel processing.
+        Extract supporting entities (positions, locations, countries) from the Wikidata dump using parallel processing.
 
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
@@ -253,6 +253,56 @@ class WikidataDumpProcessor:
             num_workers,
             position_descendants,
             location_descendants,
+            include_politicians=False,
+        )
+
+    def extract_politicians_from_dump(
+        self,
+        dump_file_path: str,
+        batch_size: int = 100,
+        num_workers: Optional[int] = None,
+        hierarchy_dir: str = ".",
+    ) -> Dict[str, int]:
+        """
+        Extract politicians from the Wikidata dump using parallel processing.
+
+        Args:
+            dump_file_path: Path to the Wikidata JSON dump file
+            batch_size: Number of entities to process in each database batch
+            num_workers: Number of worker processes (default: CPU count)
+            hierarchy_dir: Directory containing the complete hierarchy file (default: current directory)
+
+        Returns:
+            Dictionary with counts of extracted entities
+        """
+        # Load the hierarchy trees (still needed for validation)
+        subclass_relations = self.hierarchy_builder.load_complete_hierarchy(
+            hierarchy_dir
+        )
+        if subclass_relations is None:
+            raise ValueError(
+                "Complete hierarchy not found. Run 'poliloom dump build-hierarchy' first."
+            )
+
+        # Get descendant sets for filtering (still needed for some validation)
+        descendants = self.hierarchy_builder.get_position_and_location_descendants(
+            subclass_relations
+        )
+        position_descendants = descendants["positions"]
+        location_descendants = descendants["locations"]
+
+        if num_workers is None:
+            num_workers = mp.cpu_count()
+
+        logger.info(f"Using parallel processing with {num_workers} workers")
+
+        return self._extract_entities_parallel(
+            dump_file_path,
+            batch_size,
+            num_workers,
+            position_descendants,
+            location_descendants,
+            include_politicians=True,
         )
 
     def _extract_entities_parallel(
@@ -262,6 +312,7 @@ class WikidataDumpProcessor:
         num_workers: int,
         position_descendants: Set[str],
         location_descendants: Set[str],
+        include_politicians: bool = False,
     ) -> Dict[str, int]:
         """Parallel implementation for entity extraction using shared memory."""
 
@@ -302,6 +353,7 @@ class WikidataDumpProcessor:
                         end,
                         i,
                         batch_size,
+                        include_politicians,
                     )
                     for i, (start, end) in enumerate(chunks)
                 ],
@@ -362,6 +414,7 @@ class WikidataDumpProcessor:
         end_byte: int,
         worker_id: int,
         batch_size: int,
+        include_politicians: bool = False,
     ):
         """
         Process a specific byte range of the dump file for entity extraction.
@@ -401,69 +454,80 @@ class WikidataDumpProcessor:
                 if not entity_id:
                     continue
 
-                # Check if this entity is a position, location, country, or politician
-                is_position = self.entity_extractor.is_instance_of_position(
-                    entity, position_descendants
-                )
-                is_location = self.entity_extractor.is_instance_of_location(
-                    entity, location_descendants
-                )
-                is_country = self.entity_extractor.is_country_entity(entity)
-                is_politician = self.entity_extractor.is_politician(entity)
-
-                if is_position:
-                    position_data = self.entity_extractor.extract_position_data(entity)
-                    if position_data:
-                        positions.append(position_data)
-                        counts["positions"] += 1
-
-                if is_location:
-                    location_data = self.entity_extractor.extract_location_data(entity)
-                    if location_data:
-                        locations.append(location_data)
-                        counts["locations"] += 1
-
-                if is_country:
-                    country_data = self.entity_extractor.extract_country_data(entity)
-                    if country_data:
-                        countries.append(country_data)
-                        counts["countries"] += 1
-
-                if is_politician:
-                    politician_data = self.entity_extractor.extract_politician_data(
-                        entity
+                if include_politicians:
+                    # Only process politicians
+                    is_politician = self.entity_extractor.is_politician(entity)
+                    if is_politician:
+                        politician_data = self.entity_extractor.extract_politician_data(
+                            entity
+                        )
+                        if politician_data:
+                            politicians.append(politician_data)
+                            counts["politicians"] += 1
+                else:
+                    # Only process supporting entities (positions, locations, countries)
+                    is_position = self.entity_extractor.is_instance_of_position(
+                        entity, position_descendants
                     )
-                    if politician_data:
-                        politicians.append(politician_data)
-                        counts["politicians"] += 1
+                    is_location = self.entity_extractor.is_instance_of_location(
+                        entity, location_descendants
+                    )
+                    is_country = self.entity_extractor.is_country_entity(entity)
+
+                    if is_position:
+                        position_data = self.entity_extractor.extract_position_data(
+                            entity
+                        )
+                        if position_data:
+                            positions.append(position_data)
+                            counts["positions"] += 1
+
+                    if is_location:
+                        location_data = self.entity_extractor.extract_location_data(
+                            entity
+                        )
+                        if location_data:
+                            locations.append(location_data)
+                            counts["locations"] += 1
+
+                    if is_country:
+                        country_data = self.entity_extractor.extract_country_data(
+                            entity
+                        )
+                        if country_data:
+                            countries.append(country_data)
+                            counts["countries"] += 1
 
                 # Process batches when they reach the batch size
-                if len(positions) >= batch_size:
-                    self.database_inserter.insert_positions_batch(positions)
-                    positions = []
+                if include_politicians:
+                    if len(politicians) >= batch_size:
+                        self.database_inserter.insert_politicians_batch(politicians)
+                        politicians = []
+                else:
+                    if len(positions) >= batch_size:
+                        self.database_inserter.insert_positions_batch(positions)
+                        positions = []
 
-                if len(locations) >= batch_size:
-                    self.database_inserter.insert_locations_batch(locations)
-                    locations = []
+                    if len(locations) >= batch_size:
+                        self.database_inserter.insert_locations_batch(locations)
+                        locations = []
 
-                if len(countries) >= batch_size:
-                    self.database_inserter.insert_countries_batch(countries)
-                    countries = []
-
-                if len(politicians) >= batch_size:
-                    self.database_inserter.insert_politicians_batch(politicians)
-                    politicians = []
+                    if len(countries) >= batch_size:
+                        self.database_inserter.insert_countries_batch(countries)
+                        countries = []
 
             # Process remaining entities in final batches
             try:
-                if positions:
-                    self.database_inserter.insert_positions_batch(positions)
-                if locations:
-                    self.database_inserter.insert_locations_batch(locations)
-                if countries:
-                    self.database_inserter.insert_countries_batch(countries)
-                if politicians:
-                    self.database_inserter.insert_politicians_batch(politicians)
+                if include_politicians:
+                    if politicians:
+                        self.database_inserter.insert_politicians_batch(politicians)
+                else:
+                    if positions:
+                        self.database_inserter.insert_positions_batch(positions)
+                    if locations:
+                        self.database_inserter.insert_locations_batch(locations)
+                    if countries:
+                        self.database_inserter.insert_countries_batch(countries)
             except Exception as cleanup_error:
                 logger.warning(
                     f"Worker {worker_id}: error during cleanup: {cleanup_error}"
@@ -484,14 +548,16 @@ class WikidataDumpProcessor:
             logger.info(f"Worker {worker_id}: interrupted, processing final batches...")
             # Process remaining entities in final batches even when interrupted
             try:
-                if positions:
-                    self.database_inserter.insert_positions_batch(positions)
-                if locations:
-                    self.database_inserter.insert_locations_batch(locations)
-                if countries:
-                    self.database_inserter.insert_countries_batch(countries)
-                if politicians:
-                    self.database_inserter.insert_politicians_batch(politicians)
+                if include_politicians:
+                    if politicians:
+                        self.database_inserter.insert_politicians_batch(politicians)
+                else:
+                    if positions:
+                        self.database_inserter.insert_positions_batch(positions)
+                    if locations:
+                        self.database_inserter.insert_locations_batch(locations)
+                    if countries:
+                        self.database_inserter.insert_countries_batch(countries)
             except Exception as cleanup_error:
                 logger.warning(
                     f"Worker {worker_id}: error during cleanup: {cleanup_error}"

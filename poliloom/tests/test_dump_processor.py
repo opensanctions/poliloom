@@ -495,15 +495,15 @@ class TestWikidataDumpProcessor:
                     mock_result.rowcount = 1
                     mock_session.execute.return_value = mock_result
 
-                    # Test extraction
-                    result = processor.extract_entities_from_dump(
+                    # Test politician extraction
+                    result = processor.extract_politicians_from_dump(
                         temp_file, batch_size=10, num_workers=1, hierarchy_dir=temp_dir
                     )
 
-                    # Should have extracted all entity types including politicians
-                    assert result["positions"] == 1
-                    assert result["locations"] == 1
-                    assert result["countries"] == 1
+                    # Should have extracted only politicians (since supporting entities are imported separately)
+                    assert result["positions"] == 0
+                    assert result["locations"] == 0
+                    assert result["countries"] == 0
                     assert result["politicians"] == 2  # John Doe and Jane Smith
 
         finally:
@@ -589,7 +589,12 @@ class TestWikidataDumpProcessor:
                     # Process the entire file as one chunk
                     file_size = os.path.getsize(temp_file)
                     counts, entity_count = processor._process_entity_chunk(
-                        temp_file, 0, file_size, worker_id=0, batch_size=10
+                        temp_file,
+                        0,
+                        file_size,
+                        worker_id=0,
+                        batch_size=10,
+                        include_politicians=True,
                     )
 
                     # Should have identified 2 politicians
@@ -677,7 +682,12 @@ class TestWikidataDumpProcessor:
                     # Process the entire file as one chunk
                     file_size = os.path.getsize(temp_file)
                     counts, entity_count = processor._process_entity_chunk(
-                        temp_file, 0, file_size, worker_id=0, batch_size=10
+                        temp_file,
+                        0,
+                        file_size,
+                        worker_id=0,
+                        batch_size=10,
+                        include_politicians=True,
                     )
 
                     # Should have extracted only 1 politician (Q1)

@@ -512,7 +512,7 @@ def dump_build_hierarchy(dump_file, num_workers):
         exit(1)
 
 
-@dump.command("import")
+@dump.command("import-entities")
 @click.option(
     "--file",
     "dump_file",
@@ -533,9 +533,9 @@ def dump_build_hierarchy(dump_file, num_workers):
     type=int,
     help="Number of worker processes (default: CPU count)",
 )
-def dump_import(dump_file, batch_size, num_workers):
-    """Import positions, locations, countries, and politicians from a Wikidata dump file."""
-    click.echo(f"Importing entities from dump file: {dump_file}")
+def dump_import_entities(dump_file, batch_size, num_workers):
+    """Import supporting entities (positions, locations, countries) from a Wikidata dump file."""
+    click.echo(f"Importing supporting entities from dump file: {dump_file}")
     click.echo(f"Using batch size: {batch_size}")
 
     import os
@@ -560,37 +560,116 @@ def dump_import(dump_file, batch_size, num_workers):
     processor = WikidataDumpProcessor()
 
     try:
-        click.echo("⏳ Extracting entities from dump...")
+        click.echo("⏳ Extracting supporting entities from dump...")
         click.echo("This may take a while for the full dump...")
         click.echo("Press Ctrl+C to interrupt...")
 
-        # Extract entities
+        # Extract supporting entities only
         counts = processor.extract_entities_from_dump(
             dump_file, batch_size=batch_size, num_workers=num_workers
         )
 
-        click.echo("✅ Successfully imported entities from dump:")
+        click.echo("✅ Successfully imported supporting entities from dump:")
         click.echo(f"  • Positions: {counts['positions']}")
         click.echo(f"  • Locations: {counts['locations']}")
         click.echo(f"  • Countries: {counts['countries']}")
-        click.echo(f"  • Politicians: {counts['politicians']}")
         click.echo(f"  • Total: {sum(counts.values())}")
 
         # Suggest next steps
         click.echo()
         click.echo("💡 Next steps:")
+        click.echo("  • Run 'poliloom dump import-politicians' to import politicians")
         click.echo("  • Run 'poliloom positions embed' to generate position embeddings")
         click.echo("  • Run 'poliloom locations embed' to generate location embeddings")
 
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
-        click.echo("❌ Entity import was cancelled.")
+        click.echo("❌ Supporting entities import was cancelled.")
         click.echo(
             "⚠️  Note: Some entities may have been partially imported to the database."
         )
         exit(1)
     except Exception as e:
-        click.echo(f"❌ Error importing entities: {e}")
+        click.echo(f"❌ Error importing supporting entities: {e}")
+        exit(1)
+
+
+@dump.command("import-politicians")
+@click.option(
+    "--file",
+    "dump_file",
+    help="Path to the extracted JSON dump file",
+    envvar="WIKIDATA_DUMP_JSON_PATH",
+    default="./latest-all.json",
+)
+@click.option(
+    "--batch-size",
+    "batch_size",
+    type=int,
+    default=1000,
+    help="Number of entities to process in each database batch (default: 1000)",
+)
+@click.option(
+    "--workers",
+    "num_workers",
+    type=int,
+    help="Number of worker processes (default: CPU count)",
+)
+def dump_import_politicians(dump_file, batch_size, num_workers):
+    """Import politicians from a Wikidata dump file, linking them to existing entities."""
+    click.echo(f"Importing politicians from dump file: {dump_file}")
+    click.echo(f"Using batch size: {batch_size}")
+
+    import os
+    from ..services.dump_processor import WikidataDumpProcessor
+
+    # Check if dump file exists
+    if not os.path.exists(dump_file):
+        click.echo(f"❌ Dump file not found: {dump_file}")
+        click.echo(
+            "Please run 'make download-wikidata-dump' and 'make extract-wikidata-dump' first"
+        )
+        exit(1)
+
+    # Check if hierarchy trees exist
+    if not os.path.exists("complete_hierarchy.json"):
+        click.echo("❌ Complete hierarchy not found!")
+        click.echo(
+            "Run 'poliloom dump build-hierarchy' first to generate the hierarchy trees."
+        )
+        exit(1)
+
+    processor = WikidataDumpProcessor()
+
+    try:
+        click.echo("⏳ Extracting politicians from dump...")
+        click.echo("This may take a while for the full dump...")
+        click.echo("Press Ctrl+C to interrupt...")
+
+        # Extract politicians only
+        counts = processor.extract_politicians_from_dump(
+            dump_file, batch_size=batch_size, num_workers=num_workers
+        )
+
+        click.echo("✅ Successfully imported politicians from dump:")
+        click.echo(f"  • Politicians: {counts['politicians']}")
+
+        # Suggest next steps
+        click.echo()
+        click.echo("💡 Next steps:")
+        click.echo(
+            "  • Run 'poliloom politicians enrich --id <wikidata_id>' to enrich politician data"
+        )
+
+    except KeyboardInterrupt:
+        click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
+        click.echo("❌ Politicians import was cancelled.")
+        click.echo(
+            "⚠️  Note: Some politicians may have been partially imported to the database."
+        )
+        exit(1)
+    except Exception as e:
+        click.echo(f"❌ Error importing politicians: {e}")
         exit(1)
 
 
