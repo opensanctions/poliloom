@@ -48,6 +48,7 @@ class TestEnrichmentService:
         ):
             mock_openai.return_value = mock_openai_client
             mock_httpx.return_value = mock_http_client
+
             service = EnrichmentService()
             return service
 
@@ -110,11 +111,7 @@ class TestEnrichmentService:
 
     def test_enrich_politician_not_found(self, enrichment_service, test_session):
         """Test enrichment fails when politician not found."""
-        with patch(
-            "poliloom.services.enrichment_service.SessionLocal",
-            return_value=test_session,
-        ):
-            result = enrichment_service.enrich_politician_from_wikipedia("Q999999")
+        result = enrichment_service.enrich_politician_from_wikipedia("Q999999")
 
         assert result is False
 
@@ -126,11 +123,7 @@ class TestEnrichmentService:
         test_session.add(politician)
         test_session.commit()
 
-        with patch(
-            "poliloom.services.enrichment_service.SessionLocal",
-            return_value=test_session,
-        ):
-            result = enrichment_service.enrich_politician_from_wikipedia("Q123456")
+        result = enrichment_service.enrich_politician_from_wikipedia("Q123456")
 
         assert result is False
 

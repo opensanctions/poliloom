@@ -43,12 +43,7 @@ class TestCSVImport:
         """Test successful import of positions from CSV file."""
         import_service = ImportService()
 
-        with patch(
-            "poliloom.services.import_service.get_db_session"
-        ) as mock_get_db_session:
-            mock_get_db_session.return_value.__enter__.return_value = test_session
-            mock_get_db_session.return_value.__exit__.return_value = None
-            result = import_service.import_positions_from_csv(str(test_csv_file))
+        result = import_service.import_positions_from_csv(str(test_csv_file))
 
         # Should import 7 positions (filtering out FALSE is_pep and invalid rows)
         # Valid positions: Q110118256, Q134765401, Q134765105, Q134758719, Q134758625, Q134758519, Q134758330
@@ -83,12 +78,7 @@ class TestCSVImport:
         """Test that positions with is_pep=FALSE are filtered out."""
         import_service = ImportService()
 
-        with patch(
-            "poliloom.services.import_service.get_db_session"
-        ) as mock_get_db_session:
-            mock_get_db_session.return_value.__enter__.return_value = test_session
-            mock_get_db_session.return_value.__exit__.return_value = None
-            import_service.import_positions_from_csv(str(test_csv_file))
+        import_service.import_positions_from_csv(str(test_csv_file))
 
         # Should not import positions with is_pep=FALSE
         filtered_positions = ["Q89279295", "Q134765299"]  # These have is_pep=FALSE
@@ -107,12 +97,7 @@ class TestCSVImport:
         """Test handling of positions with empty or missing countries."""
         import_service = ImportService()
 
-        with patch(
-            "poliloom.services.import_service.get_db_session"
-        ) as mock_get_db_session:
-            mock_get_db_session.return_value.__enter__.return_value = test_session
-            mock_get_db_session.return_value.__exit__.return_value = None
-            import_service.import_positions_from_csv(str(test_csv_file))
+        import_service.import_positions_from_csv(str(test_csv_file))
 
         # Check position with empty countries array
         position_empty_countries = (
@@ -132,12 +117,7 @@ class TestCSVImport:
         """Test that all countries from the countries array are linked to the position."""
         import_service = ImportService()
 
-        with patch(
-            "poliloom.services.import_service.get_db_session"
-        ) as mock_get_db_session:
-            mock_get_db_session.return_value.__enter__.return_value = test_session
-            mock_get_db_session.return_value.__exit__.return_value = None
-            import_service.import_positions_from_csv(str(test_csv_file))
+        import_service.import_positions_from_csv(str(test_csv_file))
 
         # Check position with multiple countries - should exist
         position_multi_countries = (
@@ -151,12 +131,7 @@ class TestCSVImport:
         """Test that rows with missing required fields are skipped."""
         import_service = ImportService()
 
-        with patch(
-            "poliloom.services.import_service.get_db_session"
-        ) as mock_get_db_session:
-            mock_get_db_session.return_value.__enter__.return_value = test_session
-            mock_get_db_session.return_value.__exit__.return_value = None
-            import_service.import_positions_from_csv(str(test_csv_file))
+        import_service.import_positions_from_csv(str(test_csv_file))
 
         # Should skip row with empty caption only - Q134758330 has valid entity_id and caption
         invalid_positions = ["Q134758429"]  # Empty caption only
@@ -191,12 +166,7 @@ class TestCSVImport:
         test_session.add(existing_position)
         test_session.commit()
 
-        with patch(
-            "poliloom.services.import_service.get_db_session"
-        ) as mock_get_db_session:
-            mock_get_db_session.return_value.__enter__.return_value = test_session
-            mock_get_db_session.return_value.__exit__.return_value = None
-            result = import_service.import_positions_from_csv(str(test_csv_file))
+        result = import_service.import_positions_from_csv(str(test_csv_file))
 
         # Should import 6 positions (7 total - 1 existing)
         assert result == 6
@@ -215,12 +185,7 @@ class TestCSVImport:
 
         # Don't add any countries to the database initially
 
-        with patch(
-            "poliloom.services.import_service.get_db_session"
-        ) as mock_get_db_session:
-            mock_get_db_session.return_value.__enter__.return_value = test_session
-            mock_get_db_session.return_value.__exit__.return_value = None
-            result = import_service.import_positions_from_csv(str(test_csv_file))
+        result = import_service.import_positions_from_csv(str(test_csv_file))
 
         # Should import positions and create countries on-demand
         assert result == 7
@@ -233,12 +198,7 @@ class TestCSVImport:
         """Test handling of non-existent CSV file."""
         import_service = ImportService()
 
-        with patch(
-            "poliloom.services.import_service.get_db_session"
-        ) as mock_get_db_session:
-            mock_get_db_session.return_value.__enter__.return_value = test_session
-            mock_get_db_session.return_value.__exit__.return_value = None
-            result = import_service.import_positions_from_csv("/nonexistent/file.csv")
+        result = import_service.import_positions_from_csv("/nonexistent/file.csv")
 
         assert result == 0
 
@@ -260,14 +220,7 @@ class TestCSVImport:
             f.flush()
 
             try:
-                with patch(
-                    "poliloom.services.import_service.get_db_session"
-                ) as mock_get_db_session:
-                    mock_get_db_session.return_value.__enter__.return_value = (
-                        test_session
-                    )
-                    mock_get_db_session.return_value.__exit__.return_value = None
-                    result = import_service.import_positions_from_csv(f.name)
+                result = import_service.import_positions_from_csv(f.name)
 
                 # Should import 2 positions (both have valid entity_id and caption)
                 # Q123 has invalid JSON but still gets imported with no countries
@@ -284,28 +237,6 @@ class TestCSVImport:
             finally:
                 os.unlink(f.name)
 
-    def test_import_positions_database_error(
-        self, test_session, test_csv_file, sample_countries
-    ):
-        """Test handling of database errors during import."""
-        import_service = ImportService()
-
-        with patch(
-            "poliloom.services.import_service.get_db_session"
-        ) as mock_get_db_session:
-            # Mock the context manager to raise an exception on commit
-            mock_context = mock_get_db_session.return_value
-            mock_context.__enter__.return_value = test_session
-            mock_context.__exit__.side_effect = Exception("Database error")
-
-            result = import_service.import_positions_from_csv(str(test_csv_file))
-
-        assert result == 0
-
-        # Note: With the new context manager approach, the exception is caught
-        # by the service layer and returns 0, but positions may still be in the session
-        # since they were added before the context manager's commit failed
-
     def test_import_positions_batch_commit(self, test_session, sample_countries):
         """Test that positions are committed in batches of 1000."""
         import_service = ImportService()
@@ -320,24 +251,17 @@ class TestCSVImport:
             f.flush()
 
             try:
-                with patch(
-                    "poliloom.services.import_service.get_db_session"
-                ) as mock_get_db_session:
-                    mock_get_db_session.return_value.__enter__.return_value = (
-                        test_session
-                    )
-                    mock_get_db_session.return_value.__exit__.return_value = None
-                    # Track flushes instead of commits since we changed the behavior
-                    original_flush = test_session.flush
-                    flush_count = 0
+                # Track flushes instead of commits since we changed the behavior
+                original_flush = test_session.flush
+                flush_count = 0
 
-                    def count_flushes():
-                        nonlocal flush_count
-                        flush_count += 1
-                        return original_flush()
+                def count_flushes():
+                    nonlocal flush_count
+                    flush_count += 1
+                    return original_flush()
 
-                    with patch.object(test_session, "flush", side_effect=count_flushes):
-                        result = import_service.import_positions_from_csv(f.name)
+                with patch.object(test_session, "flush", side_effect=count_flushes):
+                    result = import_service.import_positions_from_csv(f.name)
 
                 assert result == 1250
 

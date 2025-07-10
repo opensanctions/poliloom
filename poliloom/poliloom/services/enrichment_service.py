@@ -19,7 +19,7 @@ from ..models import (
     Location,
     BornAt,
 )
-from ..database import SessionLocal
+from ..database import get_db_session, get_db_session_no_commit
 
 logger = logging.getLogger(__name__)
 
@@ -197,80 +197,78 @@ class EnrichmentService:
         Returns:
             True if enrichment was successful, False otherwise
         """
-        db = SessionLocal()
         try:
-            # Normalize Wikidata ID
-            if not wikidata_id.upper().startswith("Q"):
-                wikidata_id = f"Q{wikidata_id}"
-            else:
-                wikidata_id = wikidata_id.upper()
+            with get_db_session() as db:
+                # Normalize Wikidata ID
+                if not wikidata_id.upper().startswith("Q"):
+                    wikidata_id = f"Q{wikidata_id}"
+                else:
+                    wikidata_id = wikidata_id.upper()
 
-            # Get politician by Wikidata ID
-            politician = db.query(Politician).filter_by(wikidata_id=wikidata_id).first()
-            if not politician:
-                logger.error(f"Politician with Wikidata ID {wikidata_id} not found")
-                return False
-
-            if not politician.wikipedia_links:
-                logger.warning(
-                    f"No Wikipedia links found for politician {politician.name}"
+                # Get politician by Wikidata ID
+                politician = (
+                    db.query(Politician).filter_by(wikidata_id=wikidata_id).first()
                 )
-                return False
+                if not politician:
+                    logger.error(f"Politician with Wikidata ID {wikidata_id} not found")
+                    return False
 
-            # Process only English Wikipedia source
-            extracted_data = []
-            english_wikipedia_link = None
-            for wikipedia_link in politician.wikipedia_links:
-                if "en.wikipedia.org" in wikipedia_link.url:
-                    english_wikipedia_link = wikipedia_link
-                    break
-
-            if english_wikipedia_link:
-                logger.info(
-                    f"Processing English Wikipedia source: {english_wikipedia_link.url}"
-                )
-                content = self._fetch_wikipedia_content(english_wikipedia_link.url)
-                if content:
-                    # Get politician's primary country from citizenships
-                    primary_country = None
-                    if politician.citizenships:
-                        primary_country = politician.citizenships[0].country.name
-
-                    data = self._extract_data_with_llm(
-                        content, politician.name, primary_country, politician
+                if not politician.wikipedia_links:
+                    logger.warning(
+                        f"No Wikipedia links found for politician {politician.name}"
                     )
-                    if data:
-                        # Log what the LLM proposed
-                        self._log_extraction_results(politician.name, data)
-                        extracted_data.append((english_wikipedia_link, data))
-            else:
-                logger.warning(
-                    f"No English Wikipedia source found for politician {politician.name}"
-                )
+                    return False
 
-            if not extracted_data:
-                logger.warning(
-                    f"No data extracted from Wikipedia sources for {politician.name}"
-                )
-                return False
+                # Process only English Wikipedia source
+                extracted_data = []
+                english_wikipedia_link = None
+                for wikipedia_link in politician.wikipedia_links:
+                    if "en.wikipedia.org" in wikipedia_link.url:
+                        english_wikipedia_link = wikipedia_link
+                        break
 
-            # Store extracted data in database
-            success = self._store_extracted_data(db, politician, extracted_data)
+                if english_wikipedia_link:
+                    logger.info(
+                        f"Processing English Wikipedia source: {english_wikipedia_link.url}"
+                    )
+                    content = self._fetch_wikipedia_content(english_wikipedia_link.url)
+                    if content:
+                        # Get politician's primary country from citizenships
+                        primary_country = None
+                        if politician.citizenships:
+                            primary_country = politician.citizenships[0].country.name
 
-            if success:
-                db.commit()
-                logger.info(f"Successfully enriched politician {politician.name}")
-                return True
-            else:
-                db.rollback()
-                return False
+                        data = self._extract_data_with_llm(
+                            content, politician.name, primary_country, politician
+                        )
+                        if data:
+                            # Log what the LLM proposed
+                            self._log_extraction_results(politician.name, data)
+                            extracted_data.append((english_wikipedia_link, data))
+                else:
+                    logger.warning(
+                        f"No English Wikipedia source found for politician {politician.name}"
+                    )
+
+                if not extracted_data:
+                    logger.warning(
+                        f"No data extracted from Wikipedia sources for {politician.name}"
+                    )
+                    return False
+
+                # Store extracted data in database
+                success = self._store_extracted_data(db, politician, extracted_data)
+
+                if success:
+                    logger.info(f"Successfully enriched politician {politician.name}")
+                    return True
+                else:
+                    # Context manager will handle rollback
+                    return False
 
         except Exception as e:
-            db.rollback()
             logger.error(f"Error enriching politician {wikidata_id}: {e}")
             return False
-        finally:
-            db.close()
 
     def _fetch_wikipedia_content(self, url: str) -> Optional[str]:
         """Fetch and clean Wikipedia article content."""
@@ -492,16 +490,13 @@ Country: {country or "Unknown"}"""
 
             # Stage 2: Map each position to Wikidata
             mapped_positions = []
-            db = SessionLocal()
-            try:
+            with get_db_session_no_commit() as db:
                 for free_pos in free_form_positions:
                     mapped_pos = self._map_position_to_wikidata(
                         db, free_pos, politician
                     )
                     if mapped_pos:
                         mapped_positions.append(mapped_pos)
-            finally:
-                db.close()
 
             logger.info(
                 f"Mapped {len(mapped_positions)} out of {len(free_form_positions)} "
@@ -634,16 +629,13 @@ Country: {country or "Unknown"}"""
 
             # Stage 2: Map each birthplace to Wikidata
             mapped_birthplaces = []
-            db = SessionLocal()
-            try:
+            with get_db_session_no_commit() as db:
                 for free_birth in free_form_birthplaces:
                     mapped_birth = self._map_birthplace_to_wikidata(
                         db, free_birth, politician
                     )
                     if mapped_birth:
                         mapped_birthplaces.append(mapped_birth)
-            finally:
-                db.close()
 
             logger.info(
                 f"Mapped {len(mapped_birthplaces)} out of {len(free_form_birthplaces)} "

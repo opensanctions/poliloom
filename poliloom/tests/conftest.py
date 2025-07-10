@@ -196,3 +196,25 @@ def sample_holds_position(test_session, sample_politician, sample_position):
     test_session.commit()
     test_session.refresh(holds_pos)
     return holds_pos
+
+
+@pytest.fixture(autouse=True)
+def mock_get_db_session(test_session):
+    """Mock get_db_session functions globally to return test session."""
+    with (
+        patch("poliloom.services.enrichment_service.get_db_session") as mock_db_session,
+        patch(
+            "poliloom.services.enrichment_service.get_db_session_no_commit"
+        ) as mock_db_session_no_commit,
+        patch(
+            "poliloom.services.import_service.get_db_session"
+        ) as mock_import_db_session,
+    ):
+        # Mock both context managers to return the test session
+        mock_db_session.return_value.__enter__.return_value = test_session
+        mock_db_session.return_value.__exit__.return_value = None
+        mock_db_session_no_commit.return_value.__enter__.return_value = test_session
+        mock_db_session_no_commit.return_value.__exit__.return_value = None
+        mock_import_db_session.return_value.__enter__.return_value = test_session
+        mock_import_db_session.return_value.__exit__.return_value = None
+        yield
