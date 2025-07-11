@@ -563,6 +563,49 @@ def dump_import_politicians(dump_file, batch_size, num_workers):
         exit(1)
 
 
+@dump.command("query-hierarchy")
+@click.option(
+    "--entity-id",
+    required=True,
+    help="Wikidata entity ID to get descendants for (e.g., Q2221906)",
+)
+def dump_query_hierarchy(entity_id):
+    """Query hierarchy descendants for a given entity ID."""
+    import os
+    from ..services.hierarchy_builder import HierarchyBuilder
+
+    # Check if complete hierarchy file exists
+    hierarchy_file = "complete_hierarchy.json"
+    if not os.path.exists(hierarchy_file):
+        click.echo("❌ Complete hierarchy file not found!")
+        click.echo(
+            "Run 'poliloom dump build-hierarchy' first to generate the hierarchy."
+        )
+        exit(1)
+
+    try:
+        # Load hierarchy and get descendants
+        hierarchy_builder = HierarchyBuilder()
+        subclass_relations = hierarchy_builder.load_complete_hierarchy()
+
+        if subclass_relations is None:
+            click.echo("❌ Failed to load hierarchy data")
+            exit(1)
+
+        # Get all descendants for the given entity
+        descendants = hierarchy_builder.get_all_descendants(
+            entity_id, subclass_relations
+        )
+
+        # Output one entity ID per line
+        for descendant in sorted(descendants):
+            click.echo(descendant)
+
+    except Exception as e:
+        click.echo(f"❌ Error querying hierarchy: {e}")
+        exit(1)
+
+
 @main.command("serve")
 @click.option("--host", default="0.0.0.0", help="Host to bind the server to")
 @click.option("--port", default=8000, help="Port to bind the server to")
