@@ -68,7 +68,29 @@ class HierarchyBuilder:
         claims = entity.get("claims", {})
         subclass_claims = claims.get("P279", [])
 
+        # Implement truthy filtering: if preferred rank statements exist, only use those
+        # Otherwise, use all normal rank statements (always exclude deprecated)
+        non_deprecated_claims = []
+        preferred_claims = []
+
         for claim in subclass_claims:
+            try:
+                rank = claim.get("rank", "normal")
+                if rank == "deprecated":
+                    continue
+
+                non_deprecated_claims.append(claim)
+                if rank == "preferred":
+                    preferred_claims.append(claim)
+            except (KeyError, TypeError):
+                continue
+
+        # Apply truthy filtering logic
+        claims_to_process = (
+            preferred_claims if preferred_claims else non_deprecated_claims
+        )
+
+        for claim in claims_to_process:
             try:
                 parent_id = claim["mainsnak"]["datavalue"]["value"]["id"]
                 subclass_relations[parent_id].add(entity_id)
