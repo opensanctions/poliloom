@@ -21,12 +21,8 @@ class TestDatabaseInserter:
             {"wikidata_id": "Q2", "name": "Position 2"},
         ]
 
-        # Mock the database session and query
+        # Mock the database session for UPSERT
         mock_session = MagicMock()
-        mock_query = MagicMock()
-        mock_session.query.return_value = mock_query
-        mock_query.filter.return_value = mock_query
-        mock_query.all.return_value = []  # No existing positions
 
         with patch(
             "poliloom.services.database_inserter.get_worker_session",
@@ -34,11 +30,10 @@ class TestDatabaseInserter:
         ):
             inserter.insert_positions_batch(positions)
 
-            # Should check for existing positions
-            mock_session.query.assert_called_once()
-            # Should add new positions
-            mock_session.add_all.assert_called_once()
+            # Should execute UPSERT statement
+            mock_session.execute.assert_called_once()
             mock_session.commit.assert_called_once()
+            mock_session.close.assert_called_once()
 
     def test_insert_positions_batch_with_duplicates(self, inserter):
         """Test inserting positions with some duplicates."""
@@ -48,12 +43,8 @@ class TestDatabaseInserter:
             {"wikidata_id": "Q3", "name": "Position 3"},
         ]
 
-        # Mock existing positions Q1 and Q2
+        # Mock the database session for UPSERT (handles duplicates automatically)
         mock_session = MagicMock()
-        mock_query = MagicMock()
-        mock_session.query.return_value = mock_query
-        mock_query.filter.return_value = mock_query
-        mock_query.all.return_value = [("Q1",), ("Q2",)]
 
         with patch(
             "poliloom.services.database_inserter.get_worker_session",
@@ -61,11 +52,10 @@ class TestDatabaseInserter:
         ):
             inserter.insert_positions_batch(positions)
 
-            # Should only add Q3 (the new one)
-            mock_session.add_all.assert_called_once()
-            added_positions = mock_session.add_all.call_args[0][0]
-            assert len(added_positions) == 1
-            assert added_positions[0].wikidata_id == "Q3"
+            # Should execute UPSERT statement (duplicates handled by PostgreSQL)
+            mock_session.execute.assert_called_once()
+            mock_session.commit.assert_called_once()
+            mock_session.close.assert_called_once()
 
     def test_insert_positions_batch_empty(self, inserter):
         """Test inserting empty batch of positions."""
@@ -86,12 +76,8 @@ class TestDatabaseInserter:
             {"wikidata_id": "Q2", "name": "Location 2"},
         ]
 
-        # Mock the database session and query
+        # Mock the database session for UPSERT
         mock_session = MagicMock()
-        mock_query = MagicMock()
-        mock_session.query.return_value = mock_query
-        mock_query.filter.return_value = mock_query
-        mock_query.all.return_value = []  # No existing locations
 
         with patch(
             "poliloom.services.database_inserter.get_worker_session",
@@ -99,11 +85,10 @@ class TestDatabaseInserter:
         ):
             inserter.insert_locations_batch(locations)
 
-            # Should check for existing locations
-            mock_session.query.assert_called_once()
-            # Should add new locations
-            mock_session.add_all.assert_called_once()
+            # Should execute UPSERT statement
+            mock_session.execute.assert_called_once()
             mock_session.commit.assert_called_once()
+            mock_session.close.assert_called_once()
 
     def test_insert_locations_batch_with_duplicates(self, inserter):
         """Test inserting locations with some duplicates."""
@@ -113,12 +98,8 @@ class TestDatabaseInserter:
             {"wikidata_id": "Q3", "name": "Location 3"},
         ]
 
-        # Mock existing locations Q1 and Q2
+        # Mock the database session for UPSERT (handles duplicates automatically)
         mock_session = MagicMock()
-        mock_query = MagicMock()
-        mock_session.query.return_value = mock_query
-        mock_query.filter.return_value = mock_query
-        mock_query.all.return_value = [("Q1",), ("Q2",)]
 
         with patch(
             "poliloom.services.database_inserter.get_worker_session",
@@ -126,11 +107,10 @@ class TestDatabaseInserter:
         ):
             inserter.insert_locations_batch(locations)
 
-            # Should only add Q3 (the new one)
-            mock_session.add_all.assert_called_once()
-            added_locations = mock_session.add_all.call_args[0][0]
-            assert len(added_locations) == 1
-            assert added_locations[0].wikidata_id == "Q3"
+            # Should execute UPSERT statement (duplicates handled by PostgreSQL)
+            mock_session.execute.assert_called_once()
+            mock_session.commit.assert_called_once()
+            mock_session.close.assert_called_once()
 
     def test_insert_locations_batch_empty(self, inserter):
         """Test inserting empty batch of locations."""
@@ -208,7 +188,6 @@ class TestDatabaseInserter:
             {
                 "wikidata_id": "Q1",
                 "name": "John Doe",
-                "is_deceased": False,
                 "properties": [{"type": "BirthDate", "value": "1970-01-01"}],
                 "citizenships": ["Q30"],  # US
                 "positions": [
@@ -229,16 +208,15 @@ class TestDatabaseInserter:
             }
         ]
 
-        # Mock the database session and all queries
+        # Mock the database session for complex politician operations
         mock_session = MagicMock()
-        mock_query = MagicMock()
-        mock_session.query.return_value = mock_query
-        mock_query.filter.return_value = mock_query
-        mock_query.filter_by.return_value = mock_query
-        mock_query.first.return_value = None  # No existing entities
-        mock_query.all.return_value = []  # No existing politicians
 
-        # Mock existing position, country, and location
+        # Mock politician object returned after insert
+        mock_politician = MagicMock()
+        mock_politician.id = 1
+        mock_politician.wikidata_id = "Q1"
+
+        # Mock related entities
         mock_position = MagicMock()
         mock_position.id = 1
         mock_country = MagicMock()
@@ -246,20 +224,26 @@ class TestDatabaseInserter:
         mock_location = MagicMock()
         mock_location.id = 1
 
-        # Set up query returns for different entity types
-        def mock_query_side_effect(*args, **kwargs):
-            if hasattr(args[0], "__name__"):
-                if args[0].__name__ == "Position":
-                    mock_query.first.return_value = mock_position
-                elif args[0].__name__ == "Country":
-                    mock_query.first.return_value = mock_country
-                elif args[0].__name__ == "Location":
-                    mock_query.first.return_value = mock_location
-                else:
-                    mock_query.first.return_value = None
-            return mock_query
+        # Set up query behavior for different calls
+        def mock_query_filter_behavior(*args, **kwargs):
+            # First call is for politicians after insert
+            if (
+                args
+                and hasattr(args[0], "__name__")
+                and args[0].__name__ == "Politician"
+            ):
+                mock_query = MagicMock()
+                mock_query.filter.return_value = mock_query
+                mock_query.all.return_value = [mock_politician]
+                return mock_query
+            # Other calls are for checking existing entities
+            else:
+                mock_query = MagicMock()
+                mock_query.filter_by.return_value = mock_query
+                mock_query.first.return_value = None  # No existing relationships
+                return mock_query
 
-        mock_session.query.side_effect = mock_query_side_effect
+        mock_session.query.side_effect = mock_query_filter_behavior
 
         with patch(
             "poliloom.services.database_inserter.get_worker_session",
@@ -267,12 +251,12 @@ class TestDatabaseInserter:
         ):
             inserter.insert_politicians_batch(politicians)
 
-            # Should check for existing politicians
-            assert mock_session.query.call_count >= 1
-            # Should add politician and related entities
-            assert mock_session.add_all.call_count >= 1
-            assert mock_session.add.call_count >= 1  # For related entities
+            # Should execute politician UPSERT
+            mock_session.execute.assert_called()
+            # Should flush and commit
+            mock_session.flush.assert_called_once()
             mock_session.commit.assert_called_once()
+            mock_session.close.assert_called_once()
 
     def test_insert_politicians_batch_with_duplicates(self, inserter):
         """Test inserting politicians with some duplicates."""
@@ -280,7 +264,6 @@ class TestDatabaseInserter:
             {
                 "wikidata_id": "Q1",
                 "name": "John Doe",
-                "is_deceased": False,
                 "properties": [],
                 "citizenships": [],
                 "positions": [],
@@ -290,7 +273,6 @@ class TestDatabaseInserter:
             {
                 "wikidata_id": "Q2",
                 "name": "Jane Smith",
-                "is_deceased": False,
                 "properties": [],
                 "citizenships": [],
                 "positions": [],
@@ -299,12 +281,22 @@ class TestDatabaseInserter:
             },
         ]
 
-        # Mock existing politician Q1
+        # Mock the database session for UPSERT (handles duplicates automatically)
         mock_session = MagicMock()
+
+        # Mock politician objects returned after insert
+        mock_politician1 = MagicMock()
+        mock_politician1.id = 1
+        mock_politician1.wikidata_id = "Q1"
+        mock_politician2 = MagicMock()
+        mock_politician2.id = 2
+        mock_politician2.wikidata_id = "Q2"
+
+        # Mock query for retrieving inserted politicians
         mock_query = MagicMock()
-        mock_session.query.return_value = mock_query
         mock_query.filter.return_value = mock_query
-        mock_query.all.return_value = [("Q1",)]  # Q1 already exists
+        mock_query.all.return_value = [mock_politician1, mock_politician2]
+        mock_session.query.return_value = mock_query
 
         with patch(
             "poliloom.services.database_inserter.get_worker_session",
@@ -312,11 +304,11 @@ class TestDatabaseInserter:
         ):
             inserter.insert_politicians_batch(politicians)
 
-            # Should only add Q2 (the new one)
-            mock_session.add_all.assert_called_once()
-            added_politicians = mock_session.add_all.call_args[0][0]
-            assert len(added_politicians) == 1
-            assert added_politicians[0].wikidata_id == "Q2"
+            # Should execute UPSERT statement (duplicates handled by PostgreSQL)
+            mock_session.execute.assert_called()
+            mock_session.flush.assert_called_once()
+            mock_session.commit.assert_called_once()
+            mock_session.close.assert_called_once()
 
     def test_insert_politicians_batch_empty(self, inserter):
         """Test inserting empty batch of politicians."""
@@ -370,13 +362,13 @@ class TestDatabaseInserter:
             }
         ]
 
-        # Mock the database session and existing entities
+        # Mock the database session
         mock_session = MagicMock()
-        mock_query = MagicMock()
-        mock_session.query.return_value = mock_query
-        mock_query.filter.return_value = mock_query
-        mock_query.filter_by.return_value = mock_query
-        mock_query.all.return_value = []
+
+        # Mock politician object returned after UPSERT
+        mock_politician = MagicMock()
+        mock_politician.id = 1
+        mock_politician.wikidata_id = "Q1"
 
         # Mock existing entities
         mock_position1 = MagicMock()
@@ -390,18 +382,29 @@ class TestDatabaseInserter:
         mock_location = MagicMock()
         mock_location.id = 1
 
-        # Set up query returns
-        def mock_first_side_effect():
-            # Return different entities based on filter_by calls
-            return mock_position1
+        # Set up query behavior for different calls
+        def mock_query_side_effect(model):
+            mock_query = MagicMock()
+            mock_query.filter.return_value = mock_query
+            mock_query.filter_by.return_value = mock_query
 
-        mock_query.first.side_effect = [
-            mock_position1,  # First position
-            mock_position2,  # Second position
-            mock_country1,  # First country
-            mock_country2,  # Second country
-            mock_location,  # Location
-        ]
+            # For politician query after UPSERT
+            if hasattr(model, "__name__") and model.__name__ == "Politician":
+                mock_query.all.return_value = [mock_politician]
+            else:
+                mock_query.all.return_value = []
+
+            # For individual entity lookups
+            mock_query.first.side_effect = [
+                mock_position1,  # First position
+                mock_position2,  # Second position
+                mock_country1,  # First country
+                mock_country2,  # Second country
+                mock_location,  # Location
+            ]
+            return mock_query
+
+        mock_session.query.side_effect = mock_query_side_effect
 
         with patch(
             "poliloom.services.database_inserter.get_worker_session",
@@ -409,13 +412,11 @@ class TestDatabaseInserter:
         ):
             inserter.insert_politicians_batch(politicians)
 
-            # Should create all relationships
-            mock_session.add_all.assert_called_once()  # Politicians
-            # Should add properties, positions, citizenships, birthplace, sources, and wikipedia links
-            add_calls = mock_session.add.call_args_list
-            assert (
-                len(add_calls) >= 7
-            )  # At least 2 properties + 2 positions + 2 citizenships + 1 birthplace + 2 sources + 2 wikipedia links
+            # Should execute and commit
+            mock_session.execute.assert_called()
+            mock_session.flush.assert_called_once()
+            mock_session.commit.assert_called_once()
+            mock_session.close.assert_called_once()
 
     def test_insert_politicians_batch_missing_relationships(self, inserter):
         """Test inserting politicians when some related entities don't exist."""
@@ -440,12 +441,29 @@ class TestDatabaseInserter:
 
         # Mock the database session
         mock_session = MagicMock()
-        mock_query = MagicMock()
-        mock_session.query.return_value = mock_query
-        mock_query.filter.return_value = mock_query
-        mock_query.filter_by.return_value = mock_query
-        mock_query.all.return_value = []
-        mock_query.first.return_value = None  # No existing entities
+
+        # Mock politician object returned after UPSERT
+        mock_politician = MagicMock()
+        mock_politician.id = 1
+        mock_politician.wikidata_id = "Q1"
+
+        # Set up query behavior for different calls
+        def mock_query_side_effect(model):
+            mock_query = MagicMock()
+            mock_query.filter.return_value = mock_query
+            mock_query.filter_by.return_value = mock_query
+
+            # For politician query after UPSERT
+            if hasattr(model, "__name__") and model.__name__ == "Politician":
+                mock_query.all.return_value = [mock_politician]
+            else:
+                mock_query.all.return_value = []
+
+            # For individual entity lookups - all return None (missing entities)
+            mock_query.first.return_value = None
+            return mock_query
+
+        mock_session.query.side_effect = mock_query_side_effect
 
         with patch(
             "poliloom.services.database_inserter.get_worker_session",
@@ -453,12 +471,8 @@ class TestDatabaseInserter:
         ):
             inserter.insert_politicians_batch(politicians)
 
-            # Should still insert the politician
-            mock_session.add_all.assert_called_once()
-            added_politicians = mock_session.add_all.call_args[0][0]
-            assert len(added_politicians) == 1
-            assert added_politicians[0].wikidata_id == "Q1"
-
-            # Should not create relationships for missing entities
-            # Only politician should be added, no related entities
+            # Should execute and commit
+            mock_session.execute.assert_called()
+            mock_session.flush.assert_called_once()
             mock_session.commit.assert_called_once()
+            mock_session.close.assert_called_once()

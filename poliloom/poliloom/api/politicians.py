@@ -1,27 +1,33 @@
 """Politicians API endpoints."""
 
 from typing import List
-from datetime import datetime
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select
 
 from ..database import get_db
-from ..models import Politician, Property, HoldsPosition, BornAt
+from ..models import (
+    Politician,
+    Property,
+    HoldsPosition,
+    BornAt,
+    Evaluation,
+    EvaluationResult,
+)
 from .schemas import (
     UnconfirmedPoliticianResponse,
     UnconfirmedPropertyResponse,
     UnconfirmedPositionResponse,
     UnconfirmedBirthplaceResponse,
-    ConfirmationRequest,
-    ConfirmationResponse,
+    EvaluationRequest,
+    EvaluationResponse,
 )
 from .auth import get_current_user, User
 
 router = APIRouter()
 
 
-@router.get("/unconfirmed", response_model=List[UnconfirmedPoliticianResponse])
+@router.get("/", response_model=List[UnconfirmedPoliticianResponse])
 async def get_unconfirmed_politicians(
     limit: int = Query(
         default=50, le=100, description="Maximum number of politicians to return"
@@ -31,19 +37,23 @@ async def get_unconfirmed_politicians(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Retrieve politicians that have unconfirmed (is_extracted=True) properties or positions.
+    Retrieve politicians that have unevaluated (is_extracted=True) properties or positions.
 
-    Returns a list of politicians with their unconfirmed data for review and confirmation.
+    Returns a list of politicians with their unevaluated data for review and evaluation.
     """
-    # Query for politicians that have either unconfirmed properties or positions
+    # Query for politicians that have either unevaluated properties or positions
     query = (
         select(Politician)
         .options(
-            selectinload(Politician.properties),
+            selectinload(Politician.properties).selectinload(Property.evaluations),
             selectinload(Politician.positions_held).selectinload(
                 HoldsPosition.position
             ),
+            selectinload(Politician.positions_held).selectinload(
+                HoldsPosition.evaluations
+            ),
             selectinload(Politician.birthplaces).selectinload(BornAt.location),
+            selectinload(Politician.birthplaces).selectinload(BornAt.evaluations),
             selectinload(Politician.wikipedia_links),
         )
         .where(
@@ -59,29 +69,29 @@ async def get_unconfirmed_politicians(
 
     result = []
     for politician in politicians:
-        # Filter unconfirmed properties
-        unconfirmed_properties = [
+        # Filter unevaluated properties (extracted but not evaluated)
+        unevaluated_properties = [
             prop
             for prop in politician.properties
-            if prop.is_extracted and prop.confirmed_at is None
+            if prop.is_extracted and not prop.evaluations
         ]
 
-        # Filter unconfirmed positions
-        unconfirmed_positions = [
+        # Filter unevaluated positions (extracted but not evaluated)
+        unevaluated_positions = [
             pos
             for pos in politician.positions_held
-            if pos.is_extracted and pos.confirmed_at is None
+            if pos.is_extracted and not pos.evaluations
         ]
 
-        # Filter unconfirmed birthplaces
-        unconfirmed_birthplaces = [
+        # Filter unevaluated birthplaces (extracted but not evaluated)
+        unevaluated_birthplaces = [
             birthplace
             for birthplace in politician.birthplaces
-            if birthplace.is_extracted and birthplace.confirmed_at is None
+            if birthplace.is_extracted and not birthplace.evaluations
         ]
 
-        # Only include politicians that actually have unconfirmed data
-        if unconfirmed_properties or unconfirmed_positions or unconfirmed_birthplaces:
+        # Only include politicians that actually have unevaluated data
+        if unevaluated_properties or unevaluated_positions or unevaluated_birthplaces:
             politician_response = UnconfirmedPoliticianResponse(
                 id=str(politician.id),
                 name=politician.name,
@@ -92,7 +102,7 @@ async def get_unconfirmed_politicians(
                         type=prop.type,
                         value=prop.value,
                     )
-                    for prop in unconfirmed_properties
+                    for prop in unevaluated_properties
                 ],
                 unconfirmed_positions=[
                     UnconfirmedPositionResponse(
@@ -101,7 +111,7 @@ async def get_unconfirmed_politicians(
                         start_date=pos.start_date,
                         end_date=pos.end_date,
                     )
-                    for pos in unconfirmed_positions
+                    for pos in unevaluated_positions
                 ],
                 unconfirmed_birthplaces=[
                     UnconfirmedBirthplaceResponse(
@@ -109,7 +119,7 @@ async def get_unconfirmed_politicians(
                         location_name=birthplace.location.name,
                         location_wikidata_id=birthplace.location.wikidata_id,
                     )
-                    for birthplace in unconfirmed_birthplaces
+                    for birthplace in unevaluated_birthplaces
                 ],
             )
             result.append(politician_response)
@@ -117,136 +127,84 @@ async def get_unconfirmed_politicians(
     return result
 
 
-@router.post("/{politician_id}/confirm", response_model=ConfirmationResponse)
-async def confirm_politician_data(
-    politician_id: str,
-    confirmation: ConfirmationRequest,
+@router.post("/evaluate", response_model=EvaluationResponse)
+async def evaluate_extracted_data(
+    request: EvaluationRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Confirm or discard extracted properties and positions for a politician.
+    Evaluate extracted properties, positions, and birthplaces.
 
-    This endpoint allows authenticated users to review and confirm extracted data,
-    marking it as verified or discarding incorrect extractions.
+    This endpoint allows authenticated users to evaluate extracted data,
+    marking it as confirmed or discarded. Creates evaluation records
+    that can be used for threshold-based evaluation workflows.
     """
-    # Verify politician exists
-    politician = db.get(Politician, politician_id)
-    if not politician:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Politician not found"
-        )
-
-    confirmed_count = 0
-    discarded_count = 0
+    processed_count = 0
     errors = []
 
-    # Process confirmed properties
-    for prop_id in confirmation.confirmed_properties:
-        prop = db.get(Property, prop_id)
-        if not prop:
-            errors.append(f"Property {prop_id} not found")
-            continue
-        if prop.politician_id != politician_id:
+    for eval_item in request.evaluations:
+        try:
+            # Determine entity type and get the entity
+            entity = None
+            if eval_item.entity_type == "property":
+                entity = db.get(Property, eval_item.entity_id)
+                if not entity:
+                    errors.append(f"Property {eval_item.entity_id} not found")
+                    continue
+            elif eval_item.entity_type == "position":
+                entity = db.get(HoldsPosition, eval_item.entity_id)
+                if not entity:
+                    errors.append(f"Position {eval_item.entity_id} not found")
+                    continue
+            elif eval_item.entity_type == "birthplace":
+                entity = db.get(BornAt, eval_item.entity_id)
+                if not entity:
+                    errors.append(f"Birthplace {eval_item.entity_id} not found")
+                    continue
+            else:
+                errors.append(f"Invalid entity type: {eval_item.entity_type}")
+                continue
+
+            # Convert pydantic enum to database enum
+            result = (
+                EvaluationResult.CONFIRMED
+                if eval_item.result.value == "confirmed"
+                else EvaluationResult.DISCARDED
+            )
+
+            # Create evaluation record
+            evaluation = Evaluation(
+                user_id=current_user.username,
+                result=result,
+            )
+
+            # Set the appropriate foreign key based on entity type
+            if eval_item.entity_type == "property":
+                evaluation.property_id = eval_item.entity_id
+            elif eval_item.entity_type == "position":
+                evaluation.holds_position_id = eval_item.entity_id
+            elif eval_item.entity_type == "birthplace":
+                evaluation.born_at_id = eval_item.entity_id
+            db.add(evaluation)
+            processed_count += 1
+
+            # If discarded, remove the original entity
+            if result == EvaluationResult.DISCARDED:
+                db.delete(entity)
+
+        except Exception as e:
             errors.append(
-                f"Property {prop_id} does not belong to politician {politician_id}"
+                f"Error processing {eval_item.entity_type} {eval_item.entity_id}: {str(e)}"
             )
             continue
-
-        prop.is_extracted = False
-        prop.confirmed_by = current_user.username
-        prop.confirmed_at = datetime.utcnow()
-        confirmed_count += 1
-
-    # Process discarded properties
-    for prop_id in confirmation.discarded_properties:
-        prop = db.get(Property, prop_id)
-        if not prop:
-            errors.append(f"Property {prop_id} not found")
-            continue
-        if prop.politician_id != politician_id:
-            errors.append(
-                f"Property {prop_id} does not belong to politician {politician_id}"
-            )
-            continue
-
-        # Mark as discarded by removing from database or setting a flag
-        db.delete(prop)
-        discarded_count += 1
-
-    # Process confirmed positions
-    for pos_id in confirmation.confirmed_positions:
-        pos = db.get(HoldsPosition, pos_id)
-        if not pos:
-            errors.append(f"Position {pos_id} not found")
-            continue
-        if pos.politician_id != politician_id:
-            errors.append(
-                f"Position {pos_id} does not belong to politician {politician_id}"
-            )
-            continue
-
-        pos.is_extracted = False
-        pos.confirmed_by = current_user.username
-        pos.confirmed_at = datetime.utcnow()
-        confirmed_count += 1
-
-    # Process discarded positions
-    for pos_id in confirmation.discarded_positions:
-        pos = db.get(HoldsPosition, pos_id)
-        if not pos:
-            errors.append(f"Position {pos_id} not found")
-            continue
-        if pos.politician_id != politician_id:
-            errors.append(
-                f"Position {pos_id} does not belong to politician {politician_id}"
-            )
-            continue
-
-        # Mark as discarded by removing from database
-        db.delete(pos)
-        discarded_count += 1
-
-    # Process confirmed birthplaces
-    for birthplace_id in confirmation.confirmed_birthplaces:
-        birthplace = db.get(BornAt, birthplace_id)
-        if not birthplace:
-            errors.append(f"Birthplace {birthplace_id} not found")
-            continue
-        if birthplace.politician_id != politician_id:
-            errors.append(
-                f"Birthplace {birthplace_id} does not belong to politician {politician_id}"
-            )
-            continue
-
-        birthplace.is_extracted = False
-        birthplace.confirmed_by = current_user.username
-        birthplace.confirmed_at = datetime.utcnow()
-        confirmed_count += 1
-
-    # Process discarded birthplaces
-    for birthplace_id in confirmation.discarded_birthplaces:
-        birthplace = db.get(BornAt, birthplace_id)
-        if not birthplace:
-            errors.append(f"Birthplace {birthplace_id} not found")
-            continue
-        if birthplace.politician_id != politician_id:
-            errors.append(
-                f"Birthplace {birthplace_id} does not belong to politician {politician_id}"
-            )
-            continue
-
-        # Mark as discarded by removing from database
-        db.delete(birthplace)
-        discarded_count += 1
 
     try:
         db.commit()
-        return ConfirmationResponse(
+        return EvaluationResponse(
             success=True,
-            message=f"Successfully processed {confirmed_count} confirmations and {discarded_count} discards",
-            confirmed_count=confirmed_count,
-            discarded_count=discarded_count,
+            message=f"Successfully processed {processed_count} evaluations",
+            processed_count=processed_count,
             errors=errors,
         )
     except Exception as e:

@@ -123,7 +123,7 @@ def test_session(test_engine):
 @pytest.fixture
 def sample_politician(test_session):
     """Create a sample politician for testing."""
-    politician = Politician(name="John Doe", wikidata_id="Q123456", is_deceased=False)
+    politician = Politician(name="John Doe", wikidata_id="Q123456")
     test_session.add(politician)
     test_session.commit()
     test_session.refresh(politician)

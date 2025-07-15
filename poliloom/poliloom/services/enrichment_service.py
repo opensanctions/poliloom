@@ -371,7 +371,7 @@ Country: {country or "Unknown"}"""
                                 politician_id=politician.id,
                                 type=prop_data.type,
                                 value=prop_data.value,
-                                is_extracted=True,  # Newly extracted, needs confirmation
+                                is_extracted=True,  # Newly extracted, needs evaluation
                             )
                             db.add(new_property)
                             db.flush()  # Get the ID
@@ -412,7 +412,7 @@ Country: {country or "Unknown"}"""
                                 position_id=position.id,
                                 start_date=pos_data.start_date,
                                 end_date=pos_data.end_date,
-                                is_extracted=True,  # Newly extracted, needs confirmation
+                                is_extracted=True,  # Newly extracted, needs evaluation
                             )
                             db.add(holds_position)
                             db.flush()
@@ -462,7 +462,7 @@ Country: {country or "Unknown"}"""
                             born_at = BornAt(
                                 politician_id=politician.id,
                                 location_id=location.id,
-                                is_extracted=True,  # Newly extracted, needs confirmation
+                                is_extracted=True,  # Newly extracted, needs evaluation
                             )
                             db.add(born_at)
                             db.flush()

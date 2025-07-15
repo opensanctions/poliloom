@@ -2,6 +2,14 @@
 
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict
+from enum import Enum
+
+
+class EvaluationResultEnum(str, Enum):
+    """Enum for evaluation results."""
+
+    CONFIRMED = "confirmed"
+    DISCARDED = "discarded"
 
 
 class UnconfirmedPropertyResponse(BaseModel):
@@ -48,22 +56,24 @@ class UnconfirmedPoliticianResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ConfirmationRequest(BaseModel):
-    """Schema for confirmation request body."""
+class EvaluationItem(BaseModel):
+    """Schema for individual evaluation item."""
 
-    confirmed_properties: List[str] = []
-    discarded_properties: List[str] = []
-    confirmed_positions: List[str] = []
-    discarded_positions: List[str] = []
-    confirmed_birthplaces: List[str] = []
-    discarded_birthplaces: List[str] = []
+    entity_type: str  # "property", "position", "birthplace"
+    entity_id: str
+    result: EvaluationResultEnum
 
 
-class ConfirmationResponse(BaseModel):
-    """Schema for confirmation response."""
+class EvaluationRequest(BaseModel):
+    """Schema for evaluation request body."""
+
+    evaluations: List[EvaluationItem]
+
+
+class EvaluationResponse(BaseModel):
+    """Schema for evaluation response."""
 
     success: bool
     message: str
-    confirmed_count: int
-    discarded_count: int
+    processed_count: int
     errors: List[str] = []

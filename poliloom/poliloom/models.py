@@ -1,13 +1,21 @@
 """Database models for the PoliLoom project."""
 
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Integer, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, declarative_base
 from uuid import uuid4
 from pgvector.sqlalchemy import Vector
+import enum
 
 Base = declarative_base()
+
+
+class EvaluationResult(enum.Enum):
+    """Enum for evaluation results."""
+
+    CONFIRMED = "confirmed"
+    DISCARDED = "discarded"
 
 
 class TimestampMixin:
@@ -22,6 +30,28 @@ class TimestampMixin:
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+
+class Evaluation(Base, TimestampMixin):
+    """Evaluation entity for tracking user evaluations of extracted data."""
+
+    __tablename__ = "evaluations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id = Column(String, nullable=False)  # ID of user who made the evaluation
+    result = Column(Enum(EvaluationResult), nullable=False)  # CONFIRMED or DISCARDED
+
+    # Polymorphic foreign keys to the entities being evaluated
+    property_id = Column(UUID(as_uuid=True), ForeignKey("properties.id"), nullable=True)
+    holds_position_id = Column(
+        UUID(as_uuid=True), ForeignKey("holds_position.id"), nullable=True
+    )
+    born_at_id = Column(UUID(as_uuid=True), ForeignKey("born_at.id"), nullable=True)
+
+    # Relationships
+    property = relationship("Property", back_populates="evaluations")
+    holds_position = relationship("HoldsPosition", back_populates="evaluations")
+    born_at = relationship("BornAt", back_populates="evaluations")
 
 
 class Politician(Base, TimestampMixin):
@@ -88,12 +118,13 @@ class Property(Base, TimestampMixin):
     )  # Wikidata precision integer for date properties (9=year, 10=month, 11=day)
     is_extracted = Column(
         Boolean, default=True
-    )  # True if newly extracted and unconfirmed
-    confirmed_by = Column(String, nullable=True)  # ID of user who confirmed
-    confirmed_at = Column(DateTime, nullable=True)
+    )  # True if newly extracted and not yet evaluated
 
     # Relationships
     politician = relationship("Politician", back_populates="properties")
+    evaluations = relationship(
+        "Evaluation", back_populates="property", cascade="all, delete-orphan"
+    )
 
 
 class Country(Base, TimestampMixin):
@@ -164,13 +195,14 @@ class HoldsPosition(Base, TimestampMixin):
     )  # Wikidata precision integer (9=year, 10=month, 11=day)
     is_extracted = Column(
         Boolean, default=True
-    )  # True if newly extracted and unconfirmed
-    confirmed_by = Column(String, nullable=True)  # ID of user who confirmed
-    confirmed_at = Column(DateTime, nullable=True)
+    )  # True if newly extracted and not yet evaluated
 
     # Relationships
     politician = relationship("Politician", back_populates="positions_held")
     position = relationship("Position", back_populates="held_by")
+    evaluations = relationship(
+        "Evaluation", back_populates="holds_position", cascade="all, delete-orphan"
+    )
 
 
 class BornAt(Base, TimestampMixin):
@@ -185,13 +217,14 @@ class BornAt(Base, TimestampMixin):
     location_id = Column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=False)
     is_extracted = Column(
         Boolean, default=True
-    )  # True if newly extracted and unconfirmed
-    confirmed_by = Column(String, nullable=True)  # ID of user who confirmed
-    confirmed_at = Column(DateTime, nullable=True)
+    )  # True if newly extracted and not yet evaluated
 
     # Relationships
     politician = relationship("Politician", back_populates="birthplaces")
     location = relationship("Location", back_populates="born_here")
+    evaluations = relationship(
+        "Evaluation", back_populates="born_at", cascade="all, delete-orphan"
+    )
 
 
 class HasCitizenship(Base, TimestampMixin):

@@ -15,6 +15,8 @@ from poliloom.models import (
     HasCitizenship,
     Location,
     BornAt,
+    Evaluation,
+    EvaluationResult,
 )
 from poliloom.embeddings import generate_embedding
 
@@ -28,11 +30,11 @@ class TestPolitician:
         """Test basic politician creation."""
         politician = create_entities(
             test_session,
-            Politician(name="Jane Smith", wikidata_id="Q789012", is_deceased=True),
+            Politician(name="Jane Smith", wikidata_id="Q789012"),
         )
         assert_model_fields(
             politician,
-            {"name": "Jane Smith", "wikidata_id": "Q789012", "is_deceased": True},
+            {"name": "Jane Smith", "wikidata_id": "Q789012"},
         )
 
     def test_politician_unique_wikidata_id(self, test_session, sample_politician):
@@ -111,7 +113,6 @@ class TestProperty:
         self, test_session, sample_politician, create_entities, assert_model_fields
     ):
         """Test basic property creation."""
-        confirmed_at = datetime(2024, 1, 20, 9, 0, 0)
         prop = create_entities(
             test_session,
             Property(
@@ -119,8 +120,6 @@ class TestProperty:
                 type="Education",
                 value="Harvard University",
                 is_extracted=False,
-                confirmed_by="user123",
-                confirmed_at=confirmed_at,
             ),
         )
         assert_model_fields(
@@ -130,10 +129,8 @@ class TestProperty:
                 "type": "Education",
                 "value": "Harvard University",
                 "is_extracted": False,
-                "confirmed_by": "user123",
             },
         )
-        assert prop.confirmed_at == confirmed_at
 
     def test_property_default_values(
         self, test_session, sample_politician, create_entities, assert_model_fields
@@ -152,8 +149,6 @@ class TestProperty:
                 "type": "BirthDate",
                 "value": "1980",
                 "is_extracted": True,
-                "confirmed_by": None,
-                "confirmed_at": None,
             },
         )
 
@@ -299,7 +294,6 @@ class TestHoldsPosition:
         assert_model_fields,
     ):
         """Test basic holds position creation."""
-        confirmed_at = datetime(2024, 1, 25, 16, 45, 0)
         holds_pos = create_entities(
             test_session,
             HoldsPosition(
@@ -308,8 +302,6 @@ class TestHoldsPosition:
                 start_date="2019-01",
                 end_date="2023-12-31",
                 is_extracted=False,
-                confirmed_by="admin",
-                confirmed_at=confirmed_at,
             ),
         )
         assert_model_fields(
@@ -320,10 +312,8 @@ class TestHoldsPosition:
                 "start_date": "2019-01",
                 "end_date": "2023-12-31",
                 "is_extracted": False,
-                "confirmed_by": "admin",
             },
         )
-        assert holds_pos.confirmed_at == confirmed_at
 
     def test_holds_position_incomplete_dates(
         self, test_session, sample_politician, sample_position
@@ -377,8 +367,6 @@ class TestHoldsPosition:
                 "politician_id": sample_politician.id,
                 "position_id": sample_position.id,
                 "is_extracted": True,
-                "confirmed_by": None,
-                "confirmed_at": None,
                 "start_date": None,
                 "end_date": None,
             },
@@ -649,6 +637,199 @@ class TestLocation:
             assert hasattr(similar[0], "name")
 
 
+class TestEvaluation:
+    """Test cases for the Evaluation model."""
+
+    def test_evaluation_creation_for_property(
+        self, test_session, sample_politician, create_entities, assert_model_fields
+    ):
+        """Test creating an evaluation for a property."""
+        prop = create_entities(
+            test_session,
+            Property(
+                politician_id=sample_politician.id,
+                type="BirthDate",
+                value="1980-01-01",
+                is_extracted=True,
+            ),
+        )
+
+        evaluation = create_entities(
+            test_session,
+            Evaluation(
+                user_id="user123",
+                result=EvaluationResult.CONFIRMED,
+                property_id=prop.id,
+            ),
+        )
+
+        assert_model_fields(
+            evaluation,
+            {
+                "user_id": "user123",
+                "result": EvaluationResult.CONFIRMED,
+                "property_id": prop.id,
+                "holds_position_id": None,
+                "born_at_id": None,
+            },
+        )
+
+        # Check relationships
+        assert evaluation.property == prop
+        assert evaluation.holds_position is None
+        assert evaluation.born_at is None
+        assert len(prop.evaluations) == 1
+        assert prop.evaluations[0] == evaluation
+
+    def test_evaluation_creation_for_holds_position(
+        self,
+        test_session,
+        sample_politician,
+        sample_position,
+        create_entities,
+        assert_model_fields,
+    ):
+        """Test creating an evaluation for a holds position."""
+        holds_pos = create_entities(
+            test_session,
+            HoldsPosition(
+                politician_id=sample_politician.id,
+                position_id=sample_position.id,
+                start_date="2020-01",
+                is_extracted=True,
+            ),
+        )
+
+        evaluation = create_entities(
+            test_session,
+            Evaluation(
+                user_id="admin",
+                result=EvaluationResult.DISCARDED,
+                holds_position_id=holds_pos.id,
+            ),
+        )
+
+        assert_model_fields(
+            evaluation,
+            {
+                "user_id": "admin",
+                "result": EvaluationResult.DISCARDED,
+                "property_id": None,
+                "holds_position_id": holds_pos.id,
+                "born_at_id": None,
+            },
+        )
+
+        # Check relationships
+        assert evaluation.holds_position == holds_pos
+        assert evaluation.property is None
+        assert evaluation.born_at is None
+        assert len(holds_pos.evaluations) == 1
+        assert holds_pos.evaluations[0] == evaluation
+
+    def test_evaluation_creation_for_born_at(
+        self, test_session, sample_politician, create_entities, assert_model_fields
+    ):
+        """Test creating an evaluation for a born at relationship."""
+        location = create_entities(
+            test_session, Location(name="Paris", wikidata_id="Q90")
+        )
+
+        born_at = create_entities(
+            test_session,
+            BornAt(
+                politician_id=sample_politician.id,
+                location_id=location.id,
+                is_extracted=True,
+            ),
+        )
+
+        evaluation = create_entities(
+            test_session,
+            Evaluation(
+                user_id="reviewer",
+                result=EvaluationResult.CONFIRMED,
+                born_at_id=born_at.id,
+            ),
+        )
+
+        assert_model_fields(
+            evaluation,
+            {
+                "user_id": "reviewer",
+                "result": EvaluationResult.CONFIRMED,
+                "property_id": None,
+                "holds_position_id": None,
+                "born_at_id": born_at.id,
+            },
+        )
+
+        # Check relationships
+        assert evaluation.born_at == born_at
+        assert evaluation.property is None
+        assert evaluation.holds_position is None
+        assert len(born_at.evaluations) == 1
+        assert born_at.evaluations[0] == evaluation
+
+    def test_multiple_evaluations_for_same_entity(
+        self, test_session, sample_politician, create_entities
+    ):
+        """Test multiple evaluations for the same entity."""
+        prop = create_entities(
+            test_session,
+            Property(
+                politician_id=sample_politician.id,
+                type="BirthDate",
+                value="1980-01-01",
+                is_extracted=True,
+            ),
+        )
+
+        create_entities(
+            test_session,
+            Evaluation(
+                user_id="user1",
+                result=EvaluationResult.CONFIRMED,
+                property_id=prop.id,
+            ),
+        )
+
+        create_entities(
+            test_session,
+            Evaluation(
+                user_id="user2",
+                result=EvaluationResult.CONFIRMED,
+                property_id=prop.id,
+            ),
+        )
+
+        create_entities(
+            test_session,
+            Evaluation(
+                user_id="user3",
+                result=EvaluationResult.DISCARDED,
+                property_id=prop.id,
+            ),
+        )
+
+        # Check that all evaluations are linked to the property
+        assert len(prop.evaluations) == 3
+        evaluation_users = [e.user_id for e in prop.evaluations]
+        assert "user1" in evaluation_users
+        assert "user2" in evaluation_users
+        assert "user3" in evaluation_users
+
+        # Check that evaluations have correct results
+        confirmed_count = sum(
+            1 for e in prop.evaluations if e.result == EvaluationResult.CONFIRMED
+        )
+        discarded_count = sum(
+            1 for e in prop.evaluations if e.result == EvaluationResult.DISCARDED
+        )
+        assert confirmed_count == 2
+        assert discarded_count == 1
+
+
 class TestBornAt:
     """Test cases for the BornAt relationship model."""
 
@@ -674,8 +855,6 @@ class TestBornAt:
                 "politician_id": sample_politician.id,
                 "location_id": location.id,
                 "is_extracted": True,
-                "confirmed_by": None,
-                "confirmed_at": None,
             },
         )
 
@@ -697,15 +876,13 @@ class TestBornAt:
                 "politician_id": sample_politician.id,
                 "location_id": location.id,
                 "is_extracted": True,
-                "confirmed_by": None,
-                "confirmed_at": None,
             },
         )
 
     def test_born_at_confirmation(
         self, test_session, sample_politician, create_entities
     ):
-        """Test BornAt confirmation workflow."""
+        """Test BornAt confirmation workflow with evaluations."""
         location = create_entities(
             test_session, Location(name="Berlin", wikidata_id="Q64")
         )
@@ -719,20 +896,22 @@ class TestBornAt:
             ),
         )
 
-        # Confirm the relationship
-        confirmation_time = datetime.now(timezone.utc)
-        born_at.confirmed_by = "user123"
-        born_at.confirmed_at = confirmation_time
-        born_at.is_extracted = False
-        test_session.commit()
-        test_session.refresh(born_at)
+        # Add evaluation to confirm the relationship
+        evaluation = create_entities(
+            test_session,
+            Evaluation(
+                user_id="user123",
+                result=EvaluationResult.CONFIRMED,
+                born_at_id=born_at.id,
+            ),
+        )
 
-        assert born_at.confirmed_by == "user123"
-        # Compare datetime without microseconds and timezone due to database storage differences
-        assert born_at.confirmed_at.replace(
-            microsecond=0, tzinfo=None
-        ) == confirmation_time.replace(microsecond=0, tzinfo=None)
-        assert born_at.is_extracted is False
+        # Check that the evaluation is linked properly
+        assert evaluation.born_at_id == born_at.id
+        assert evaluation.user_id == "user123"
+        assert evaluation.result == EvaluationResult.CONFIRMED
+        assert len(born_at.evaluations) == 1
+        assert born_at.evaluations[0].user_id == "user123"
 
     def test_born_at_relationships(
         self, test_session, sample_politician, create_entities

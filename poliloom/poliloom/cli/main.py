@@ -170,9 +170,27 @@ def politicians_show(wikidata_id):
             if extracted_props:
                 click.echo("  🤖 EXTRACTED FROM WEB SOURCES:")
                 for prop in extracted_props:
-                    status = "✅ CONFIRMED" if prop.confirmed_by else "⏳ PENDING"
-                    if prop.confirmed_by:
-                        status += f" by {prop.confirmed_by} on {prop.confirmed_at.strftime('%Y-%m-%d')}"
+                    if prop.evaluations:
+                        # Show evaluation status
+                        confirmed_evals = [
+                            e for e in prop.evaluations if e.result.value == "confirmed"
+                        ]
+                        discarded_evals = [
+                            e for e in prop.evaluations if e.result.value == "discarded"
+                        ]
+
+                        if confirmed_evals:
+                            status = f"✅ CONFIRMED by {len(confirmed_evals)} user(s)"
+                            if len(confirmed_evals) == 1:
+                                status += f" ({confirmed_evals[0].user_id})"
+                        elif discarded_evals:
+                            status = f"❌ DISCARDED by {len(discarded_evals)} user(s)"
+                            if len(discarded_evals) == 1:
+                                status += f" ({discarded_evals[0].user_id})"
+                        else:
+                            status = "⏳ PENDING"
+                    else:
+                        status = "⏳ PENDING"
 
                     click.echo(f"    • {prop.type}: {prop.value} [{status}]")
 
@@ -201,9 +219,31 @@ def politicians_show(wikidata_id):
             if extracted_birthplaces:
                 click.echo("  🤖 EXTRACTED FROM WEB SOURCES:")
                 for birthplace in extracted_birthplaces:
-                    status = "✅ CONFIRMED" if birthplace.confirmed_by else "⏳ PENDING"
-                    if birthplace.confirmed_by:
-                        status += f" by {birthplace.confirmed_by} on {birthplace.confirmed_at.strftime('%Y-%m-%d')}"
+                    if birthplace.evaluations:
+                        # Show evaluation status
+                        confirmed_evals = [
+                            e
+                            for e in birthplace.evaluations
+                            if e.result.value == "confirmed"
+                        ]
+                        discarded_evals = [
+                            e
+                            for e in birthplace.evaluations
+                            if e.result.value == "discarded"
+                        ]
+
+                        if confirmed_evals:
+                            status = f"✅ CONFIRMED by {len(confirmed_evals)} user(s)"
+                            if len(confirmed_evals) == 1:
+                                status += f" ({confirmed_evals[0].user_id})"
+                        elif discarded_evals:
+                            status = f"❌ DISCARDED by {len(discarded_evals)} user(s)"
+                            if len(discarded_evals) == 1:
+                                status += f" ({discarded_evals[0].user_id})"
+                        else:
+                            status = "⏳ PENDING"
+                    else:
+                        status = "⏳ PENDING"
 
                     location_info = f"{birthplace.location.name}"
                     if birthplace.location.wikidata_id:
@@ -243,9 +283,27 @@ def politicians_show(wikidata_id):
             if extracted_positions:
                 click.echo("  �🤖 EXTRACTED FROM WEB SOURCES:")
                 for pos in extracted_positions:
-                    status = "✅ CONFIRMED" if pos.confirmed_by else "⏳ PENDING"
-                    if pos.confirmed_by:
-                        status += f" by {pos.confirmed_by} on {pos.confirmed_at.strftime('%Y-%m-%d')}"
+                    if pos.evaluations:
+                        # Show evaluation status
+                        confirmed_evals = [
+                            e for e in pos.evaluations if e.result.value == "confirmed"
+                        ]
+                        discarded_evals = [
+                            e for e in pos.evaluations if e.result.value == "discarded"
+                        ]
+
+                        if confirmed_evals:
+                            status = f"✅ CONFIRMED by {len(confirmed_evals)} user(s)"
+                            if len(confirmed_evals) == 1:
+                                status += f" ({confirmed_evals[0].user_id})"
+                        elif discarded_evals:
+                            status = f"❌ DISCARDED by {len(discarded_evals)} user(s)"
+                            if len(discarded_evals) == 1:
+                                status += f" ({discarded_evals[0].user_id})"
+                        else:
+                            status = "⏳ PENDING"
+                    else:
+                        status = "⏳ PENDING"
 
                     date_info = ""
                     if pos.start_date or pos.end_date:

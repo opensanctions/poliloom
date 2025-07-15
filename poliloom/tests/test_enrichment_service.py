@@ -49,9 +49,7 @@ class TestEnrichmentService:
     @pytest.fixture
     def politician_with_source(self, test_session, sample_country):
         """Create a politician with Wikipedia source and citizenship."""
-        politician = Politician(
-            name="Test Politician", wikidata_id="Q123456", is_deceased=False
-        )
+        politician = Politician(name="Test Politician", wikidata_id="Q123456")
 
         # Add citizenship
         citizenship = HasCitizenship(country=sample_country)
@@ -79,9 +77,7 @@ class TestEnrichmentService:
 
     def test_enrich_politician_no_sources(self, enrichment_service, test_session):
         """Test enrichment fails when politician has no Wikipedia sources."""
-        politician = Politician(
-            name="No Sources Politician", wikidata_id="Q123456", is_deceased=False
-        )
+        politician = Politician(name="No Sources Politician", wikidata_id="Q123456")
         test_session.add(politician)
         test_session.commit()
 

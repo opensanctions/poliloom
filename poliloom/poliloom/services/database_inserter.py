@@ -260,7 +260,7 @@ class DatabaseInserter:
                 # Handle relationships: need to check if they already exist to avoid duplicates
                 # For re-imports, we want to add new relationships but not duplicate existing ones
 
-                # Add properties using UPSERT - update only if NOT extracted (preserve user confirmations)
+                # Add properties using UPSERT - update only if NOT extracted (preserve user evaluations)
                 for prop in politician_data.get("properties", []):
                     prop_stmt = insert(Property).values(
                         politician_id=politician_obj.id,
@@ -305,7 +305,7 @@ class DatabaseInserter:
                         )
 
                         if existing_position:
-                            # Update precision if this is NOT extracted data (preserve user confirmations)
+                            # Update precision if this is NOT extracted data (preserve user evaluations)
                             if not existing_position.is_extracted:
                                 existing_position.start_date_precision = pos.get(
                                     "start_date_precision"

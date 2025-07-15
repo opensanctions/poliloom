@@ -20,34 +20,37 @@ def mock_user():
     """Create a mock authenticated user."""
     auth_data = load_json_fixture("auth_test_data.json")
     test_user = auth_data["test_user"]
-    return User(username=test_user["username"], user_id=test_user["sub"], email=test_user["email"])
+    return User(
+        username=test_user["username"],
+        user_id=test_user["sub"],
+        email=test_user["email"],
+    )
 
 
 class TestAPIAuthentication:
     """Test authentication integration across API endpoints."""
 
     def test_unconfirmed_politicians_requires_auth(self, client):
-        """Test that /politicians/unconfirmed requires authentication."""
-        response = client.get("/politicians/unconfirmed")
+        """Test that /politicians requires authentication."""
+        response = client.get("/politicians/")
         assert response.status_code == 403  # No auth token provided
 
-    def test_confirm_politician_requires_auth(self, client):
-        """Test that /politicians/{id}/confirm requires authentication."""
-        api_data = load_json_fixture("api_test_data.json")
-        confirmation_data = api_data["confirmation_request_examples"]["empty_confirmation"]
-        response = client.post("/politicians/test_id/confirm", json=confirmation_data)
+    def test_evaluate_requires_auth(self, client):
+        """Test that /evaluate requires authentication."""
+        evaluation_data = {"evaluations": []}
+        response = client.post("/politicians/evaluate", json=evaluation_data)
         assert response.status_code == 403  # No auth token provided
 
     def test_invalid_token_format_rejected(self, client):
         """Test that invalid token format is rejected."""
         headers = {"Authorization": "Bearer invalid_token_format"}
-        response = client.get("/politicians/unconfirmed", headers=headers)
+        response = client.get("/politicians/", headers=headers)
         assert response.status_code == 401  # Invalid token format
 
     def test_invalid_auth_scheme_rejected(self, client):
         """Test that invalid auth scheme is rejected."""
         headers = {"Authorization": "Basic invalid_scheme"}
-        response = client.get("/politicians/unconfirmed", headers=headers)
+        response = client.get("/politicians/", headers=headers)
         assert response.status_code == 403  # Invalid scheme
 
     def test_valid_token_passes_auth(self, client):
@@ -72,7 +75,38 @@ class TestAPIAuthentication:
                 mock_get_db.return_value = mock_db
 
                 headers = {"Authorization": "Bearer valid_jwt_token"}
-                response = client.get("/politicians/unconfirmed", headers=headers)
+                response = client.get("/politicians/", headers=headers)
+
+                # Should be 200 (auth should pass)
+                assert response.status_code == 200
+                mock_oauth_handler.verify_jwt_token.assert_called_once_with(
+                    "valid_jwt_token"
+                )
+
+    def test_evaluation_endpoint_with_auth(self, client):
+        """Test that /evaluate endpoint works with valid authentication."""
+        from unittest.mock import AsyncMock, Mock as SyncMock
+
+        with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
+            # Mock successful OAuth verification
+            mock_user = User(
+                username="testuser", user_id=12345, email="test@example.com"
+            )
+            mock_oauth_handler = SyncMock()
+            mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=mock_user)
+            mock_get_oauth_handler.return_value = mock_oauth_handler
+
+            # Mock the database session
+            with patch("poliloom.api.politicians.get_db") as mock_get_db:
+                mock_db = SyncMock()
+                mock_db.commit.return_value = None
+                mock_get_db.return_value = mock_db
+
+                headers = {"Authorization": "Bearer valid_jwt_token"}
+                evaluation_data = {"evaluations": []}
+                response = client.post(
+                    "/politicians/evaluate", json=evaluation_data, headers=headers
+                )
 
                 # Should be 200 (auth should pass)
                 assert response.status_code == 200
@@ -91,20 +125,15 @@ class TestAPIEndpointsStructure:
         assert response.json() == {"message": "PoliLoom API"}
 
     def test_unconfirmed_politicians_endpoint_exists(self, client):
-        """Test that unconfirmed politicians endpoint exists."""
-        response = client.get("/politicians/unconfirmed")
+        """Test that politicians endpoint exists."""
+        response = client.get("/politicians/")
         # Should fail with 403 (auth required) not 404 (not found)
         assert response.status_code == 403
 
-    def test_confirm_politician_endpoint_exists(self, client):
-        """Test that confirm politician endpoint exists."""
-        confirmation_data = {
-            "confirmed_properties": [],
-            "discarded_properties": [],
-            "confirmed_positions": [],
-            "discarded_positions": [],
-        }
-        response = client.post("/politicians/test_id/confirm", json=confirmation_data)
+    def test_evaluate_endpoint_exists(self, client):
+        """Test that evaluate endpoint exists."""
+        evaluation_data = {"evaluations": []}
+        response = client.post("/politicians/evaluate", json=evaluation_data)
         # Should fail with 403 (auth required) not 404 (not found)
         assert response.status_code == 403
 
@@ -112,11 +141,11 @@ class TestAPIEndpointsStructure:
 class TestAPIResponseSchemas:
     """Test API response schemas and validation."""
 
-    def test_confirmation_request_validation(self, client):
-        """Test that confirmation request validates input schema."""
+    def test_evaluation_request_validation(self, client):
+        """Test that evaluation request validates input schema."""
         # Test with invalid JSON structure
         invalid_data = {"invalid_field": "value"}
-        response = client.post("/politicians/test_id/confirm", json=invalid_data)
+        response = client.post("/politicians/evaluate", json=invalid_data)
 
         # Should either be 403 (auth required) or 422 (validation error)
         # The auth error takes precedence
@@ -125,9 +154,9 @@ class TestAPIResponseSchemas:
     def test_pagination_parameter_validation(self, client):
         """Test that pagination parameters are validated."""
         # Test with invalid limit (too high)
-        response = client.get("/politicians/unconfirmed?limit=101")
+        response = client.get("/politicians/?limit=101")
         assert response.status_code in [403, 422]  # Auth or validation error
 
         # Test with invalid offset (negative)
-        response = client.get("/politicians/unconfirmed?offset=-1")
+        response = client.get("/politicians/?offset=-1")
         assert response.status_code in [403, 422]  # Auth or validation error

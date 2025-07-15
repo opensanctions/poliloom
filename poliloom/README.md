@@ -96,10 +96,10 @@ uv run poliloom serve
 
 ## API Endpoints
 
-The FastAPI server provides endpoints for confirmation workflows:
+The FastAPI server provides endpoints for evaluation workflows:
 
-- `GET /politicians/unconfirmed` - Get politicians with unconfirmed data
-- `POST /politicians/{politician_id}/confirm` - Confirm/discard extracted data
+- `GET /politicians` - Get politicians with unevaluated data
+- `POST /evaluate` - Evaluate extracted data (confirm/discard)
 
 Access API documentation at `http://localhost:8000/docs` when server is running.
 
@@ -149,9 +149,9 @@ uv run alembic upgrade head
 
 ## Architecture
 
-**Data Pipeline**: Wikidata dump → Local database → LLM enrichment → Confirmation GUI
+**Data Pipeline**: Wikidata dump → Local database → LLM enrichment → Evaluation GUI
 
-**Database Schema**: Stores politicians, positions, locations with relationships and embeddings. Supports incomplete dates, multiple citizenships, and confirmation workflows.
+**Database Schema**: Stores politicians, positions, locations with relationships and embeddings. Supports incomplete dates, multiple citizenships, and evaluation workflows.
 
 **External Integrations**: Wikidata dumps, OpenAI API, Wikipedia API, MediaWiki OAuth
 

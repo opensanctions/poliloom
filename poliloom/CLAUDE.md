@@ -8,7 +8,7 @@ This API and CLI project is responsible for:
 
 - Populating a local database with politician data from Wikidata and Wikipedia.
 - Extracting new properties (e.g., date of birth, birthplace) and political positions from web sources using Large Language Models (LLMs).
-- Providing an API for a separate GUI project to interact with the extracted data, specifically for confirmation workflows.
+- Providing an API for a separate GUI project to interact with the extracted data, specifically for evaluation workflows.
 - Offering CLI tools for direct data import and enrichment operations.
 - Integrating with external services like Wikidata and OpenAI.
 
@@ -37,9 +37,10 @@ The database reproduces a subset of the Wikidata politician data model to store 
 
 - **Incomplete Dates:** The schema should accommodate incomplete birth dates and position held dates (e.g., '1962', 'JUN 1982'). Store these as strings.
 - **Multilingual Names:** The Politician entity will store names as strings. Handling multilingual variations in names during extraction and matching will be crucial.
-- **Citizenships:** Politician citizenships are stored as HasCitizenship records linking politicians to countries. Multiple citizenships are supported by creating multiple HasCitizenship records. Citizenships are only imported from Wikidata and do not require user confirmation. Citizenship relationships are only created when the referenced country already exists in the database.
+- **Citizenships:** Politician citizenships are stored as HasCitizenship records linking politicians to countries. Multiple citizenships are supported by creating multiple HasCitizenship records. Citizenships are only imported from Wikidata and do not require user evaluation. Citizenship relationships are only created when the referenced country already exists in the database.
 - **Conflict Resolution:** conflict_resolved fields will be used to flag when discrepancies between extracted data and existing Wikidata values have been addressed.
 - **Embedding Workflow:** Position and Location entities have optional embedding fields that are initially NULL during import. Embeddings are generated separately in batch processing for all entities without embeddings to ensure optimal performance.
+- **Evaluation System:** Instead of direct confirmation fields, the system uses separate Evaluation records that track user evaluations (CONFIRMED/DISCARDED) for Properties, HoldsPosition, and BornAt entities. This allows multiple users to evaluate the same extracted data and supports threshold-based confirmation workflows.
 
 ## **4\. Core Functionality**
 
@@ -48,18 +49,21 @@ The database reproduces a subset of the Wikidata politician data model to store 
 The system uses an entity-oriented architecture where each Wikidata entity type is represented by a dedicated class that handles its complete lifecycle from raw data to database insertion. This approach provides cleaner separation of concerns and eliminates awkward parameter passing patterns.
 
 **Entity Class Hierarchy:**
+
 - **`WikidataEntity`** (Base class): Common functionality for all Wikidata entities including truthy claim filtering, date extraction, and name extraction
 - **`WikidataPolitician`**: Handles politician identification, birth/death date extraction, citizenship extraction, position extraction, and Wikipedia link extraction
 - **`WikidataPosition`**: Handles position identification using cached hierarchy trees
-- **`WikidataLocation`**: Handles location identification using cached hierarchy trees  
+- **`WikidataLocation`**: Handles location identification using cached hierarchy trees
 - **`WikidataCountry`**: Handles country identification and ISO code extraction
 
 **Factory Pattern:**
+
 - **`WikidataEntityFactory`**: Determines entity type from raw Wikidata JSON and creates appropriate entity class instances
 - Single entry point for entity creation with automatic type detection
 - Handles malformed data gracefully by returning None for unrecognized entities
 
 **Key Benefits:**
+
 - **Truthy Claim Filtering**: Centralized in base class using rank-based filtering logic (preferred → normal → deprecated)
 - **Type Safety**: Each entity class owns its data extraction and validation logic
 - **Testability**: Entity classes can be unit tested independently of dump processing
@@ -145,7 +149,7 @@ This module extracts new properties and positions from web sources using LLMs.
 
 ### **4.3. API Endpoints (FastAPI)**
 
-The API will expose endpoints for the GUI to manage confirmation workflows. Authentication will leverage MediaWiki OAuth.
+The API will expose endpoints for the GUI to manage evaluation workflows. Authentication will leverage MediaWiki OAuth.
 
 - **Authentication:**
   - Integrate with MediaWiki OAuth 2.0 for user authentication and authorization.
@@ -153,6 +157,9 @@ The API will expose endpoints for the GUI to manage confirmation workflows. Auth
   - Verify JWT token signatures using MediaWiki's public keys or token introspection endpoint.
   - Ensure secure handling of user tokens and permissions.
 - **Routes:**
+
+  - **GET /politicians**: Retrieve politicians that have unevaluated (is_extracted=True) properties, positions, or birthplaces
+  - **POST /evaluate**: Evaluate extracted data (properties, positions, birthplaces) with CONFIRMED/DISCARDED results
 
 - **OpenAPI Documentation**: The complete API specification is available at `http://localhost:8000/openapi.json` when the backend server is running. To fetch it using curl:
 
@@ -211,7 +218,8 @@ curl http://localhost:8000/openapi.json
   - Generate embeddings for all Location entities that don't have embeddings yet
   - Processes locations in batches for optimal performance
 
-- **poliloom positions import-csv** 
+- **poliloom positions import-csv**
+
   - CSV import functionality for positions data
 
 - **poliloom serve [--host HOST] [--port PORT] [--reload]**
@@ -231,11 +239,10 @@ curl http://localhost:8000/openapi.json
 - **Extract**: Use `make extract-wikidata-dump` for parallel decompression with lbzip2
 - **Paths**: Configure paths via .env file (WIKIDATA_DUMP_BZ2_PATH, WIKIDATA_DUMP_JSON_PATH)
 
-
 ## **5\. External Integrations**
 
 - **Wikidata Dumps:** Primary data source via dump files (latest-all.json) for bulk entity extraction
-- **Wikidata API:** Minimal usage, only for updating Wikidata after user confirmation via GUI
+- **Wikidata API:** Minimal usage, only for updating Wikidata after user evaluation via GUI
 - **MediaWiki OAuth 2.0:** For user authentication within the API using JWT tokens
 - **OpenAI API:** For all LLM-based data extraction from web content
 - **Wikipedia API:** For fetching article content during enrichment process
@@ -252,7 +259,7 @@ curl http://localhost:8000/openapi.json
 
 ## **7. Minimal Testing Implementation**
 
-Implement essential testing using pytest with mocking for external APIs. Focus on the core data pipeline: import → extract → confirm.
+Implement essential testing using pytest with mocking for external APIs. Focus on the core data pipeline: import → extract → evaluate.
 
 ### **7.0. Testing Scope**
 

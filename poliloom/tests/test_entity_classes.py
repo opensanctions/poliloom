@@ -118,7 +118,7 @@ class TestWikidataEntityBaseMethods:
         ]
         entity = WikidataCountry({"id": "Q123"})
         date = entity.extract_date_from_claims(claims)
-        assert date == "1980-01-01"
+        assert date == {"date": "1980-01-01", "precision": 11}
 
     def test_extract_date_from_claims_partial(self):
         """Test extracting partial date from claims."""
@@ -135,7 +135,7 @@ class TestWikidataEntityBaseMethods:
         ]
         entity = WikidataCountry({"id": "Q123"})
         date = entity.extract_date_from_claims(claims)
-        assert date == "1980"
+        assert date == {"date": "1980", "precision": 9}
 
 
 class TestWikidataPolitician:
@@ -272,7 +272,7 @@ class TestWikidataPolitician:
         }
         politician = WikidataPolitician(entity_data)
         birth_date = politician.extract_birth_date()
-        assert birth_date == "1980-01-01"
+        assert birth_date == {"date": "1980-01-01", "precision": 11}
 
     def test_extract_citizenships(self):
         """Test extracting citizenships."""
