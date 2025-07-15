@@ -72,14 +72,16 @@ class WikidataEntity(ABC):
         # Apply truthy filtering logic
         return preferred_claims if preferred_claims else non_deprecated_claims
 
-    def extract_date_from_claims(self, claims: List[Dict[str, Any]]) -> Optional[str]:
+    def extract_date_from_claims(
+        self, claims: List[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
         """Extract date from Wikidata claims with precision handling.
 
         Args:
             claims: List of Wikidata claims (from get_truthy_claims or qualifiers)
 
         Returns:
-            Date string in appropriate format based on precision, or None
+            Dictionary with 'date' (string) and 'precision' (int) keys, or None
         """
         for claim in claims:
             try:
@@ -97,11 +99,17 @@ class WikidataEntity(ABC):
                         # Handle precision - only return what's specified
                         precision = datavalue.get("value", {}).get("precision", 11)
                         if precision >= 11:  # day precision
-                            return date_part
+                            return {"date": date_part, "precision": precision}
                         elif precision == 10:  # month precision
-                            return date_part[:7]  # YYYY-MM
+                            return {
+                                "date": date_part[:7],
+                                "precision": precision,
+                            }  # YYYY-MM
                         elif precision == 9:  # year precision
-                            return date_part[:4]  # YYYY
+                            return {
+                                "date": date_part[:4],
+                                "precision": precision,
+                            }  # YYYY
             except (KeyError, TypeError):
                 continue
         return None

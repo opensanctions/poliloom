@@ -1,7 +1,7 @@
 """Database models for the PoliLoom project."""
 
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, declarative_base
 from uuid import uuid4
@@ -83,6 +83,9 @@ class Property(Base, TimestampMixin):
     )
     type = Column(String, nullable=False)  # e.g., 'BirthDate'
     value = Column(String, nullable=False)
+    value_precision = Column(
+        Integer
+    )  # Wikidata precision integer for date properties (9=year, 10=month, 11=day)
     is_extracted = Column(
         Boolean, default=True
     )  # True if newly extracted and unconfirmed
@@ -152,7 +155,13 @@ class HoldsPosition(Base, TimestampMixin):
     )
     position_id = Column(UUID(as_uuid=True), ForeignKey("positions.id"), nullable=False)
     start_date = Column(String)  # Allowing incomplete dates as strings
+    start_date_precision = Column(
+        Integer
+    )  # Wikidata precision integer (9=year, 10=month, 11=day)
     end_date = Column(String)  # Allowing incomplete dates as strings
+    end_date_precision = Column(
+        Integer
+    )  # Wikidata precision integer (9=year, 10=month, 11=day)
     is_extracted = Column(
         Boolean, default=True
     )  # True if newly extracted and unconfirmed

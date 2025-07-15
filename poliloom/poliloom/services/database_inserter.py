@@ -65,37 +65,30 @@ class DatabaseInserter:
 
         session = get_worker_session()
         try:
-            # Check for existing positions to avoid duplicates
-            existing_wikidata_ids = {
-                result[0]
-                for result in session.query(Position.wikidata_id)
-                .filter(
-                    Position.wikidata_id.in_([p["wikidata_id"] for p in position_dicts])
-                )
-                .all()
-            }
-
-            # Filter out duplicates
-            new_positions = [
-                p
-                for p in position_dicts
-                if p["wikidata_id"] not in existing_wikidata_ids
-            ]
-
-            if new_positions:
-                # Create Position objects
-                position_objects = [
-                    Position(
-                        wikidata_id=p["wikidata_id"],
-                        name=p["name"],
-                        embedding=None,  # Will be generated later
-                    )
-                    for p in new_positions
+            # Use PostgreSQL UPSERT for positions
+            stmt = insert(Position).values(
+                [
+                    {
+                        "wikidata_id": p["wikidata_id"],
+                        "name": p["name"],
+                        "embedding": None,  # Will be generated later
+                    }
+                    for p in position_dicts
                 ]
+            )
 
-                session.add_all(position_objects)
-                session.commit()
-                logger.debug(f"Inserted {len(new_positions)} new positions")
+            # On conflict, update the name (in case it changed in Wikidata)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["wikidata_id"],
+                set_={
+                    "name": stmt.excluded.name,
+                    "updated_at": stmt.excluded.updated_at,
+                },
+            )
+
+            session.execute(stmt)
+            session.commit()
+            logger.debug(f"Processed {len(position_dicts)} positions (upserted)")
             # Skip logging when no new positions - this is normal
 
         except Exception:
@@ -121,39 +114,30 @@ class DatabaseInserter:
 
         session = get_worker_session()
         try:
-            # Check for existing locations to avoid duplicates
-            existing_wikidata_ids = {
-                result[0]
-                for result in session.query(Location.wikidata_id)
-                .filter(
-                    Location.wikidata_id.in_(
-                        [loc["wikidata_id"] for loc in location_dicts]
-                    )
-                )
-                .all()
-            }
-
-            # Filter out duplicates
-            new_locations = [
-                loc
-                for loc in location_dicts
-                if loc["wikidata_id"] not in existing_wikidata_ids
-            ]
-
-            if new_locations:
-                # Create Location objects
-                location_objects = [
-                    Location(
-                        wikidata_id=loc["wikidata_id"],
-                        name=loc["name"],
-                        embedding=None,  # Will be generated later
-                    )
-                    for loc in new_locations
+            # Use PostgreSQL UPSERT for locations
+            stmt = insert(Location).values(
+                [
+                    {
+                        "wikidata_id": loc["wikidata_id"],
+                        "name": loc["name"],
+                        "embedding": None,  # Will be generated later
+                    }
+                    for loc in location_dicts
                 ]
+            )
 
-                session.add_all(location_objects)
-                session.commit()
-                logger.debug(f"Inserted {len(new_locations)} new locations")
+            # On conflict, update the name (in case it changed in Wikidata)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["wikidata_id"],
+                set_={
+                    "name": stmt.excluded.name,
+                    "updated_at": stmt.excluded.updated_at,
+                },
+            )
+
+            session.execute(stmt)
+            session.commit()
+            logger.debug(f"Processed {len(location_dicts)} locations (upserted)")
             # Skip logging when no new locations - this is normal
 
         except Exception:
@@ -193,18 +177,21 @@ class DatabaseInserter:
 
             # Use PostgreSQL's ON CONFLICT to handle duplicates
             # We need to handle both wikidata_id and iso_code constraints
-            # Since PostgreSQL doesn't support multiple ON CONFLICT clauses,
-            # we'll use a more robust approach with ON CONFLICT DO NOTHING
+            # Use ON CONFLICT DO UPDATE for wikidata_id to allow name updates
             stmt = insert(Country).values(country_data)
-            stmt = stmt.on_conflict_do_nothing()
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["wikidata_id"],
+                set_={
+                    "name": stmt.excluded.name,
+                    "iso_code": stmt.excluded.iso_code,
+                    "updated_at": stmt.excluded.updated_at,
+                },
+            )
 
-            result = session.execute(stmt)
+            session.execute(stmt)
             session.commit()
 
-            inserted_count = result.rowcount
-            logger.debug(
-                f"Inserted {inserted_count} new countries (skipped {len(country_dicts) - inserted_count} duplicates)"
-            )
+            logger.debug(f"Processed {len(country_dicts)} countries (upserted)")
 
         except Exception:
             session.rollback()
@@ -229,54 +216,72 @@ class DatabaseInserter:
 
         session = get_worker_session()
         try:
-            # Check for existing politicians to avoid duplicates
-            existing_wikidata_ids = {
-                result[0]
-                for result in session.query(Politician.wikidata_id)
+            # Use PostgreSQL UPSERT for politicians
+            stmt = insert(Politician).values(
+                [
+                    {
+                        "wikidata_id": p["wikidata_id"],
+                        "name": p["name"],
+                    }
+                    for p in politician_dicts
+                ]
+            )
+
+            # On conflict, update the name (in case it changed in Wikidata)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["wikidata_id"],
+                set_={
+                    "name": stmt.excluded.name,
+                    "updated_at": stmt.excluded.updated_at,
+                },
+            )
+
+            session.execute(stmt)
+            session.flush()
+
+            # Get all politician objects (both new and existing)
+            politician_objects = (
+                session.query(Politician)
                 .filter(
                     Politician.wikidata_id.in_(
                         [p["wikidata_id"] for p in politician_dicts]
                     )
                 )
                 .all()
-            }
+            )
 
-            # Filter out duplicates
-            new_politicians = [
-                p
-                for p in politician_dicts
-                if p["wikidata_id"] not in existing_wikidata_ids
-            ]
-
-            if not new_politicians:
-                return  # No new politicians to insert
-
-            # Create politician objects first
-            politician_objects = []
-            for p in new_politicians:
-                politician = Politician(
-                    wikidata_id=p["wikidata_id"],
-                    name=p["name"],
-                )
-                politician_objects.append(politician)
-
-            # Add politicians to session
-            session.add_all(politician_objects)
-            session.flush()  # Get IDs without committing
+            # Create mapping for easy lookup
+            politician_map = {pol.wikidata_id: pol for pol in politician_objects}
 
             # Now process related data for each politician
-            for politician_obj, politician_data in zip(
-                politician_objects, new_politicians
-            ):
-                # Add properties
+            for politician_data in politician_dicts:
+                politician_obj = politician_map[politician_data["wikidata_id"]]
+
+                # Handle relationships: need to check if they already exist to avoid duplicates
+                # For re-imports, we want to add new relationships but not duplicate existing ones
+
+                # Add properties using UPSERT - update only if NOT extracted (preserve user confirmations)
                 for prop in politician_data.get("properties", []):
-                    property_obj = Property(
+                    prop_stmt = insert(Property).values(
                         politician_id=politician_obj.id,
                         type=prop["type"],
                         value=prop["value"],
+                        value_precision=prop.get("value_precision"),
                         is_extracted=False,
                     )
-                    session.add(property_obj)
+
+                    # Update only if is_extracted=False (preserve extracted data)
+                    prop_stmt = prop_stmt.on_conflict_do_update(
+                        index_elements=["politician_id", "type"],
+                        set_={
+                            "value": prop_stmt.excluded.value,
+                            "value_precision": prop_stmt.excluded.value_precision,
+                            "updated_at": prop_stmt.excluded.updated_at,
+                        },
+                        where=not Property.is_extracted,
+                    )
+
+                    session.execute(prop_stmt)
 
                 # Add positions - only link to existing positions
                 for pos in politician_data.get("positions", []):
@@ -287,14 +292,39 @@ class DatabaseInserter:
                     )
 
                     if position_obj:
-                        holds_position = HoldsPosition(
-                            politician_id=politician_obj.id,
-                            position_id=position_obj.id,
-                            start_date=pos.get("start_date"),
-                            end_date=pos.get("end_date"),
-                            is_extracted=False,
+                        # Check if this exact relationship already exists
+                        existing_position = (
+                            session.query(HoldsPosition)
+                            .filter_by(
+                                politician_id=politician_obj.id,
+                                position_id=position_obj.id,
+                                start_date=pos.get("start_date"),
+                                end_date=pos.get("end_date"),
+                            )
+                            .first()
                         )
-                        session.add(holds_position)
+
+                        if existing_position:
+                            # Update precision if this is NOT extracted data (preserve user confirmations)
+                            if not existing_position.is_extracted:
+                                existing_position.start_date_precision = pos.get(
+                                    "start_date_precision"
+                                )
+                                existing_position.end_date_precision = pos.get(
+                                    "end_date_precision"
+                                )
+                        else:
+                            # Insert new position relationship
+                            holds_position = HoldsPosition(
+                                politician_id=politician_obj.id,
+                                position_id=position_obj.id,
+                                start_date=pos.get("start_date"),
+                                start_date_precision=pos.get("start_date_precision"),
+                                end_date=pos.get("end_date"),
+                                end_date_precision=pos.get("end_date_precision"),
+                                is_extracted=False,
+                            )
+                            session.add(holds_position)
 
                 # Add citizenships - only link to existing countries
                 for citizenship_id in politician_data.get("citizenships", []):
@@ -305,11 +335,22 @@ class DatabaseInserter:
                     )
 
                     if country_obj:
-                        has_citizenship = HasCitizenship(
-                            politician_id=politician_obj.id,
-                            country_id=country_obj.id,
+                        # Check if this citizenship already exists
+                        existing_citizenship = (
+                            session.query(HasCitizenship)
+                            .filter_by(
+                                politician_id=politician_obj.id,
+                                country_id=country_obj.id,
+                            )
+                            .first()
                         )
-                        session.add(has_citizenship)
+
+                        if not existing_citizenship:
+                            has_citizenship = HasCitizenship(
+                                politician_id=politician_obj.id,
+                                country_id=country_obj.id,
+                            )
+                            session.add(has_citizenship)
 
                 # Add birthplace - only link to existing locations
                 birthplace_id = politician_data.get("birthplace")
@@ -321,24 +362,46 @@ class DatabaseInserter:
                     )
 
                     if location_obj:
-                        born_at = BornAt(
-                            politician_id=politician_obj.id,
-                            location_id=location_obj.id,
-                            is_extracted=False,
+                        # Check if this birthplace already exists
+                        existing_birthplace = (
+                            session.query(BornAt)
+                            .filter_by(
+                                politician_id=politician_obj.id,
+                                location_id=location_obj.id,
+                            )
+                            .first()
                         )
-                        session.add(born_at)
+
+                        if not existing_birthplace:
+                            born_at = BornAt(
+                                politician_id=politician_obj.id,
+                                location_id=location_obj.id,
+                                is_extracted=False,
+                            )
+                            session.add(born_at)
 
                 # Add Wikipedia links
                 for wiki_link in politician_data.get("wikipedia_links", []):
-                    wikipedia_link = WikipediaLink(
-                        politician_id=politician_obj.id,
-                        url=wiki_link["url"],
-                        language_code=wiki_link.get("language", "en"),
+                    # Check if this Wikipedia link already exists
+                    existing_link = (
+                        session.query(WikipediaLink)
+                        .filter_by(
+                            politician_id=politician_obj.id,
+                            url=wiki_link["url"],
+                        )
+                        .first()
                     )
-                    session.add(wikipedia_link)
+
+                    if not existing_link:
+                        wikipedia_link = WikipediaLink(
+                            politician_id=politician_obj.id,
+                            url=wiki_link["url"],
+                            language_code=wiki_link.get("language", "en"),
+                        )
+                        session.add(wikipedia_link)
 
             session.commit()
-            logger.debug(f"Inserted {len(new_politicians)} new politicians")
+            logger.debug(f"Processed {len(politician_dicts)} politicians (upserted)")
 
         except Exception:
             session.rollback()

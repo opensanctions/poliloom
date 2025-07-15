@@ -60,27 +60,29 @@ class WikidataPolitician(WikidataEntity):
         if not self.is_deceased:
             return True
 
-        death_date_str = self.extract_death_date()
-        if not death_date_str:
+        death_date_result = self.extract_death_date()
+        if not death_date_result:
             # If deceased but no death date, be conservative and exclude
             return False
 
         # Parse death date and check if within 5 years
         try:
+            death_date_str = death_date_result["date"]
+            death_precision = death_date_result["precision"]
             current_year = datetime.now().year
 
-            # Handle different date precisions
-            if len(death_date_str) == 4:  # Year only (YYYY)
+            # Handle different date precisions using precision integer
+            if death_precision == 9:  # Year only (YYYY)
                 death_year = int(death_date_str)
                 # Use conservative approach: assume death occurred on January 1st
                 years_since_death = current_year - death_year
-            elif len(death_date_str) == 7:  # Year-month (YYYY-MM)
+            elif death_precision == 10:  # Year-month (YYYY-MM)
                 death_year = int(death_date_str[:4])
                 death_month = int(death_date_str[5:7])
                 # Use conservative approach: assume death occurred on 1st of month
                 death_date = date(death_year, death_month, 1)
                 years_since_death = (date.today() - death_date).days / 365.25
-            else:  # Full date (YYYY-MM-DD)
+            else:  # Full date (YYYY-MM-DD), precision >= 11
                 death_year = int(death_date_str[:4])
                 death_month = int(death_date_str[5:7])
                 death_day = int(death_date_str[8:10])
@@ -93,20 +95,20 @@ class WikidataPolitician(WikidataEntity):
             # If we can't parse the date, be conservative and exclude
             return False
 
-    def extract_birth_date(self) -> Optional[str]:
+    def extract_birth_date(self) -> Optional[Dict[str, Any]]:
         """Extract birth date (P569) using truthy filtering.
 
         Returns:
-            Birth date string with appropriate precision, or None
+            Dictionary with 'date' (string) and 'precision' (int) keys, or None
         """
         birth_claims = self.get_truthy_claims("P569")
         return self.extract_date_from_claims(birth_claims)
 
-    def extract_death_date(self) -> Optional[str]:
+    def extract_death_date(self) -> Optional[Dict[str, Any]]:
         """Extract death date (P570) using truthy filtering.
 
         Returns:
-            Death date string with appropriate precision, or None
+            Dictionary with 'date' (string) and 'precision' (int) keys, or None
         """
         death_claims = self.get_truthy_claims("P570")
         return self.extract_date_from_claims(death_claims)
@@ -143,25 +145,35 @@ class WikidataPolitician(WikidataEntity):
                 position_id = claim["mainsnak"]["datavalue"]["value"]["id"]
 
                 # Extract start/end dates from qualifiers
-                start_date = None
-                end_date = None
                 qualifiers = claim.get("qualifiers", {})
 
                 # Start time (P580)
                 start_claims = qualifiers.get("P580", [])
+                start_date_result = None
                 if start_claims:
-                    start_date = self.extract_date_from_claims(start_claims)
+                    start_date_result = self.extract_date_from_claims(start_claims)
 
                 # End time (P582)
                 end_claims = qualifiers.get("P582", [])
+                end_date_result = None
                 if end_claims:
-                    end_date = self.extract_date_from_claims(end_claims)
+                    end_date_result = self.extract_date_from_claims(end_claims)
 
                 positions.append(
                     {
                         "wikidata_id": position_id,
-                        "start_date": start_date,
-                        "end_date": end_date,
+                        "start_date": start_date_result["date"]
+                        if start_date_result
+                        else None,
+                        "start_date_precision": start_date_result["precision"]
+                        if start_date_result
+                        else None,
+                        "end_date": end_date_result["date"]
+                        if end_date_result
+                        else None,
+                        "end_date_precision": end_date_result["precision"]
+                        if end_date_result
+                        else None,
                     }
                 )
             except (KeyError, TypeError):
@@ -218,16 +230,28 @@ class WikidataPolitician(WikidataEntity):
             raise ValueError(f"Politician {self.get_wikidata_id()} has no name")
 
         # Extract basic data
-        birth_date = self.extract_birth_date()
-        death_date = self.extract_death_date()
+        birth_date_result = self.extract_birth_date()
+        death_date_result = self.extract_death_date()
         birthplace = self.extract_birthplace()
 
         # Build properties list
         properties = []
-        if birth_date:
-            properties.append({"type": "BirthDate", "value": birth_date})
-        if death_date:
-            properties.append({"type": "DeathDate", "value": death_date})
+        if birth_date_result:
+            properties.append(
+                {
+                    "type": "BirthDate",
+                    "value": birth_date_result["date"],
+                    "value_precision": birth_date_result["precision"],
+                }
+            )
+        if death_date_result:
+            properties.append(
+                {
+                    "type": "DeathDate",
+                    "value": death_date_result["date"],
+                    "value_precision": death_date_result["precision"],
+                }
+            )
 
         return {
             "wikidata_id": self.get_wikidata_id(),
