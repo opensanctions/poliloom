@@ -1,6 +1,7 @@
 """WikidataPolitician entity class for politician-specific extraction."""
 
 from typing import Dict, List, Optional, Any
+from datetime import datetime, date
 from .wikidata_entity import WikidataEntity
 
 
@@ -47,6 +48,50 @@ class WikidataPolitician(WikidataEntity):
         """Check if politician is deceased based on death date (P570)."""
         death_claims = self.get_truthy_claims("P570")
         return len(death_claims) > 0
+
+    def should_import_politician(self) -> bool:
+        """Check if politician should be imported based on death date.
+
+        Only import politicians who are alive or have been dead for less than 5 years.
+
+        Returns:
+            True if politician should be imported, False otherwise
+        """
+        if not self.is_deceased:
+            return True
+
+        death_date_str = self.extract_death_date()
+        if not death_date_str:
+            # If deceased but no death date, be conservative and exclude
+            return False
+
+        # Parse death date and check if within 5 years
+        try:
+            current_year = datetime.now().year
+
+            # Handle different date precisions
+            if len(death_date_str) == 4:  # Year only (YYYY)
+                death_year = int(death_date_str)
+                # Use conservative approach: assume death occurred on January 1st
+                years_since_death = current_year - death_year
+            elif len(death_date_str) == 7:  # Year-month (YYYY-MM)
+                death_year = int(death_date_str[:4])
+                death_month = int(death_date_str[5:7])
+                # Use conservative approach: assume death occurred on 1st of month
+                death_date = date(death_year, death_month, 1)
+                years_since_death = (date.today() - death_date).days / 365.25
+            else:  # Full date (YYYY-MM-DD)
+                death_year = int(death_date_str[:4])
+                death_month = int(death_date_str[5:7])
+                death_day = int(death_date_str[8:10])
+                death_date = date(death_year, death_month, death_day)
+                years_since_death = (date.today() - death_date).days / 365.25
+
+            return years_since_death < 5.0
+
+        except (ValueError, IndexError):
+            # If we can't parse the date, be conservative and exclude
+            return False
 
     def extract_birth_date(self) -> Optional[str]:
         """Extract birth date (P569) using truthy filtering.

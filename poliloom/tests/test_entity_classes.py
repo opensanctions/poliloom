@@ -347,6 +347,128 @@ class TestWikidataPolitician:
         assert data["properties"][0]["type"] == "BirthDate"
         assert data["properties"][0]["value"] == "1980-01-01"
 
+    def test_should_import_politician_alive(self):
+        """Test importing living politician."""
+        entity_data = {"id": "Q123"}
+        politician = WikidataPolitician(entity_data)
+        assert politician.should_import_politician() is True
+
+    def test_should_import_politician_recently_deceased(self):
+        """Test importing recently deceased politician (within 5 years)."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P570": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {
+                                "type": "time",
+                                "value": {
+                                    "time": "+2022-01-01T00:00:00Z",
+                                    "precision": 11,
+                                },
+                            }
+                        },
+                    }
+                ]
+            },
+        }
+        politician = WikidataPolitician(entity_data)
+        assert politician.should_import_politician() is True
+
+    def test_should_import_politician_old_deceased(self):
+        """Test excluding old deceased politician (more than 5 years ago)."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P570": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {
+                                "type": "time",
+                                "value": {
+                                    "time": "+2015-01-01T00:00:00Z",
+                                    "precision": 11,
+                                },
+                            }
+                        },
+                    }
+                ]
+            },
+        }
+        politician = WikidataPolitician(entity_data)
+        assert politician.should_import_politician() is False
+
+    def test_should_import_politician_year_only_recent(self):
+        """Test importing politician with year-only death date (recent)."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P570": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {
+                                "type": "time",
+                                "value": {
+                                    "time": "+2022-00-00T00:00:00Z",
+                                    "precision": 9,
+                                },
+                            }
+                        },
+                    }
+                ]
+            },
+        }
+        politician = WikidataPolitician(entity_data)
+        assert politician.should_import_politician() is True
+
+    def test_should_import_politician_year_only_old(self):
+        """Test excluding politician with year-only death date (old)."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P570": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {
+                                "type": "time",
+                                "value": {
+                                    "time": "+2015-00-00T00:00:00Z",
+                                    "precision": 9,
+                                },
+                            }
+                        },
+                    }
+                ]
+            },
+        }
+        politician = WikidataPolitician(entity_data)
+        assert politician.should_import_politician() is False
+
+    def test_should_import_politician_deceased_no_date(self):
+        """Test excluding deceased politician with no death date."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P570": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {
+                                "type": "somevalue",
+                            }
+                        },
+                    }
+                ]
+            },
+        }
+        politician = WikidataPolitician(entity_data)
+        assert politician.should_import_politician() is False
+
 
 class TestWikidataPosition:
     """Test the WikidataPosition class."""
@@ -668,5 +790,43 @@ class TestWikidataEntityFactory:
 
         # Empty data
         entity_data = {"id": "Q123"}
+        entity = WikidataEntityFactory.create_entity(entity_data)
+        assert entity is None
+
+    def test_create_politician_entity_filtered_by_death_date(self):
+        """Test that old deceased politicians are filtered out by factory."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P31": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {"datavalue": {"value": {"id": "Q5"}}},
+                    }
+                ],  # human
+                "P106": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {"datavalue": {"value": {"id": "Q82955"}}},
+                    }
+                ],  # politician
+                "P570": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {
+                                "type": "time",
+                                "value": {
+                                    "time": "+2015-01-01T00:00:00Z",
+                                    "precision": 11,
+                                },
+                            }
+                        },
+                    }
+                ],  # death date more than 5 years ago
+            },
+        }
+
+        # Should return None because politician died more than 5 years ago
         entity = WikidataEntityFactory.create_entity(entity_data)
         assert entity is None

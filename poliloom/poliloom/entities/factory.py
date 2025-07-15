@@ -47,7 +47,12 @@ class WikidataEntityFactory:
             if (
                 allowed_types is None or "politician" in allowed_types
             ) and WikidataPolitician.is_politician(raw_data):
-                return WikidataPolitician.from_raw(raw_data)
+                politician = WikidataPolitician.from_raw(raw_data)
+                # Apply death date filtering
+                if politician.should_import_politician():
+                    return politician
+                else:
+                    return None
 
             # Positions require hierarchy data
             if (
