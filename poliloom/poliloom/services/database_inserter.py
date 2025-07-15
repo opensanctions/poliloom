@@ -257,7 +257,6 @@ class DatabaseInserter:
                 politician = Politician(
                     wikidata_id=p["wikidata_id"],
                     name=p["name"],
-                    is_deceased=p.get("is_deceased", False),
                 )
                 politician_objects.append(politician)
 

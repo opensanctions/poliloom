@@ -232,7 +232,6 @@ class WikidataPolitician(WikidataEntity):
         return {
             "wikidata_id": self.get_wikidata_id(),
             "name": name,
-            "is_deceased": self.is_deceased,
             "properties": properties,
             "citizenships": self.extract_citizenships(),
             "positions": self.extract_positions(),

@@ -32,7 +32,11 @@ class Politician(Base, TimestampMixin):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     name = Column(String, nullable=False)
     wikidata_id = Column(String, unique=True, index=True)
-    is_deceased = Column(Boolean, default=False)
+
+    @property
+    def is_deceased(self) -> bool:
+        """Check if politician is deceased based on DeathDate property."""
+        return any(prop.type == "DeathDate" for prop in self.properties)
 
     # Relationships
     properties = relationship(

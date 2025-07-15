@@ -342,7 +342,6 @@ class TestWikidataPolitician:
 
         assert data["wikidata_id"] == "Q123"
         assert data["name"] == "Test Politician"
-        assert data["is_deceased"] is False
         assert len(data["properties"]) == 1
         assert data["properties"][0]["type"] == "BirthDate"
         assert data["properties"][0]["value"] == "1980-01-01"
@@ -830,3 +829,194 @@ class TestWikidataEntityFactory:
         # Should return None because politician died more than 5 years ago
         entity = WikidataEntityFactory.create_entity(entity_data)
         assert entity is None
+
+
+class TestPoliticianCleaningFunctionality:
+    """Test the politician cleaning functionality used by the CLI clean command."""
+
+    def test_reconstruction_of_raw_data_for_living_politician(self):
+        """Test reconstructing raw data structure for a living politician."""
+
+        # Simulate database politician record
+        class MockPolitician:
+            def __init__(self):
+                self.wikidata_id = "Q123"
+                self.name = "John Doe"
+                self.is_deceased = False
+                self.properties = []
+
+        politician = MockPolitician()
+
+        # Reconstruct raw data as done in clean command
+        raw_data = {"id": politician.wikidata_id, "claims": {}}
+
+        # Create WikidataPolitician instance
+        wikidata_politician = WikidataPolitician(raw_data)
+
+        # Should be imported (living politician)
+        assert wikidata_politician.should_import_politician() is True
+
+    def test_reconstruction_of_raw_data_for_recently_deceased_politician(self):
+        """Test reconstructing raw data structure for a recently deceased politician."""
+
+        # Simulate database politician record
+        class MockProperty:
+            def __init__(self, prop_type, value):
+                self.type = prop_type
+                self.value = value
+
+        class MockPolitician:
+            def __init__(self):
+                self.wikidata_id = "Q123"
+                self.name = "Jane Doe"
+                self.is_deceased = True
+                self.properties = [MockProperty("DeathDate", "2022-01-01")]
+
+        politician = MockPolitician()
+
+        # Reconstruct raw data as done in clean command
+        raw_data = {"id": politician.wikidata_id, "claims": {}}
+
+        # Add death date if politician is deceased
+        if politician.is_deceased:
+            death_date_property = None
+            for prop in politician.properties:
+                if prop.type == "DeathDate":
+                    death_date_property = prop
+                    break
+
+            if death_date_property:
+                raw_data["claims"]["P570"] = [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {
+                                "type": "time",
+                                "value": {
+                                    "time": f"+{death_date_property.value}T00:00:00Z",
+                                    "precision": 11
+                                    if len(death_date_property.value) == 10
+                                    else 10
+                                    if len(death_date_property.value) == 7
+                                    else 9,
+                                },
+                            }
+                        },
+                    }
+                ]
+
+        # Create WikidataPolitician instance
+        wikidata_politician = WikidataPolitician(raw_data)
+
+        # Should be imported (recently deceased)
+        assert wikidata_politician.should_import_politician() is True
+
+    def test_reconstruction_of_raw_data_for_old_deceased_politician(self):
+        """Test reconstructing raw data structure for an old deceased politician."""
+
+        # Simulate database politician record
+        class MockProperty:
+            def __init__(self, prop_type, value):
+                self.type = prop_type
+                self.value = value
+
+        class MockPolitician:
+            def __init__(self):
+                self.wikidata_id = "Q123"
+                self.name = "Old Politician"
+                self.is_deceased = True
+                self.properties = [MockProperty("DeathDate", "2015-01-01")]
+
+        politician = MockPolitician()
+
+        # Reconstruct raw data as done in clean command
+        raw_data = {"id": politician.wikidata_id, "claims": {}}
+
+        # Add death date if politician is deceased
+        if politician.is_deceased:
+            death_date_property = None
+            for prop in politician.properties:
+                if prop.type == "DeathDate":
+                    death_date_property = prop
+                    break
+
+            if death_date_property:
+                raw_data["claims"]["P570"] = [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {
+                                "type": "time",
+                                "value": {
+                                    "time": f"+{death_date_property.value}T00:00:00Z",
+                                    "precision": 11
+                                    if len(death_date_property.value) == 10
+                                    else 10
+                                    if len(death_date_property.value) == 7
+                                    else 9,
+                                },
+                            }
+                        },
+                    }
+                ]
+
+        # Create WikidataPolitician instance
+        wikidata_politician = WikidataPolitician(raw_data)
+
+        # Should NOT be imported (old deceased)
+        assert wikidata_politician.should_import_politician() is False
+
+    def test_reconstruction_of_raw_data_for_deceased_no_death_date(self):
+        """Test reconstructing raw data structure for deceased politician with no death date."""
+
+        # Simulate database politician record
+        class MockPolitician:
+            def __init__(self):
+                self.wikidata_id = "Q123"
+                self.name = "Unknown Death Date"
+                self.is_deceased = True
+                self.properties = []  # No death date property
+
+        politician = MockPolitician()
+
+        # Reconstruct raw data as done in clean command
+        raw_data = {"id": politician.wikidata_id, "claims": {}}
+
+        # Add death date if politician is deceased
+        if politician.is_deceased:
+            death_date_property = None
+            for prop in politician.properties:
+                if prop.type == "DeathDate":
+                    death_date_property = prop
+                    break
+
+            if death_date_property:
+                raw_data["claims"]["P570"] = [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {
+                                "type": "time",
+                                "value": {
+                                    "time": f"+{death_date_property.value}T00:00:00Z",
+                                    "precision": 11
+                                    if len(death_date_property.value) == 10
+                                    else 10
+                                    if len(death_date_property.value) == 7
+                                    else 9,
+                                },
+                            }
+                        },
+                    }
+                ]
+            else:
+                # Deceased but no death date - add empty P570 claim
+                raw_data["claims"]["P570"] = [
+                    {"rank": "normal", "mainsnak": {"datavalue": {"type": "somevalue"}}}
+                ]
+
+        # Create WikidataPolitician instance
+        wikidata_politician = WikidataPolitician(raw_data)
+
+        # Should NOT be imported (deceased but no death date)
+        assert wikidata_politician.should_import_politician() is False
