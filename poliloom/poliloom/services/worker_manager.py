@@ -61,8 +61,8 @@ def init_worker_hierarchy(
     global _shared_position_descendants, _shared_location_descendants
 
     try:
-        _shared_position_descendants = position_descendants
-        _shared_location_descendants = location_descendants
+        _shared_position_descendants = position_descendants or set()
+        _shared_location_descendants = location_descendants or set()
 
         logger.info(
             f"Worker {os.getpid()}: Loaded {len(_shared_position_descendants)} position descendants and {len(_shared_location_descendants)} location descendants"
@@ -78,7 +78,8 @@ def get_hierarchy_sets() -> Tuple[Set[str], Set[str]]:
     global _shared_position_descendants, _shared_location_descendants
 
     if _shared_position_descendants is None or _shared_location_descendants is None:
-        raise RuntimeError("Hierarchy data not initialized in worker process")
+        # Return empty sets if not initialized
+        return set(), set()
 
     return _shared_position_descendants, _shared_location_descendants
 

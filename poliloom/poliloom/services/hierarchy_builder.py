@@ -3,8 +3,9 @@
 import json
 import logging
 import os
-from typing import Dict, Set, Optional
+from typing import Dict, Set, Optional, List
 from collections import defaultdict
+
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,36 @@ class HierarchyBuilder:
 
         return descendants
 
+    def _get_truthy_claims(self, entity: Dict, property_id: str) -> List[Dict]:
+        """Get truthy claims for a property using the same logic as WikidataEntity.
+
+        Args:
+            entity: Raw Wikidata entity dictionary
+            property_id: The property ID (e.g., 'P279')
+
+        Returns:
+            List of truthy claims for the property
+        """
+        claims = entity.get("claims", {}).get(property_id, [])
+
+        non_deprecated_claims = []
+        preferred_claims = []
+
+        for claim in claims:
+            try:
+                rank = claim.get("rank", "normal")
+                if rank == "deprecated":
+                    continue
+
+                non_deprecated_claims.append(claim)
+                if rank == "preferred":
+                    preferred_claims.append(claim)
+            except (KeyError, TypeError):
+                continue
+
+        # Apply truthy filtering logic
+        return preferred_claims if preferred_claims else non_deprecated_claims
+
     def extract_subclass_relations_from_entity(
         self, entity: Dict
     ) -> Dict[str, Set[str]]:
@@ -65,32 +96,10 @@ class HierarchyBuilder:
         if not entity_id:
             return {}
 
-        claims = entity.get("claims", {})
-        subclass_claims = claims.get("P279", [])
-
-        # Implement truthy filtering: if preferred rank statements exist, only use those
-        # Otherwise, use all normal rank statements (always exclude deprecated)
-        non_deprecated_claims = []
-        preferred_claims = []
+        # Use WikidataEntity's truthy filtering logic consistently
+        subclass_claims = self._get_truthy_claims(entity, "P279")
 
         for claim in subclass_claims:
-            try:
-                rank = claim.get("rank", "normal")
-                if rank == "deprecated":
-                    continue
-
-                non_deprecated_claims.append(claim)
-                if rank == "preferred":
-                    preferred_claims.append(claim)
-            except (KeyError, TypeError):
-                continue
-
-        # Apply truthy filtering logic
-        claims_to_process = (
-            preferred_claims if preferred_claims else non_deprecated_claims
-        )
-
-        for claim in claims_to_process:
             try:
                 parent_id = claim["mainsnak"]["datavalue"]["value"]["id"]
                 subclass_relations[parent_id].add(entity_id)

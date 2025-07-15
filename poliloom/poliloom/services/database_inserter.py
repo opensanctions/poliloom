@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Union
 
 from sqlalchemy.dialects.postgresql import insert
 from .worker_manager import get_worker_session
@@ -17,6 +17,12 @@ from ..models import (
     BornAt,
     WikipediaLink,
 )
+from ..entities import (
+    WikidataPolitician,
+    WikidataPosition,
+    WikidataLocation,
+    WikidataCountry,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +30,38 @@ logger = logging.getLogger(__name__)
 class DatabaseInserter:
     """Handles batch database insertions for dump processing."""
 
-    def insert_positions_batch(self, positions: List[dict]) -> None:
+    def insert_entity(
+        self,
+        entity: Union[
+            WikidataPolitician, WikidataPosition, WikidataLocation, WikidataCountry
+        ],
+    ) -> None:
+        """Insert a single entity into the database based on its type."""
+        if isinstance(entity, WikidataPolitician):
+            self.insert_politicians_batch([entity])
+        elif isinstance(entity, WikidataPosition):
+            self.insert_positions_batch([entity])
+        elif isinstance(entity, WikidataLocation):
+            self.insert_locations_batch([entity])
+        elif isinstance(entity, WikidataCountry):
+            self.insert_countries_batch([entity])
+        else:
+            raise ValueError(f"Unknown entity type: {type(entity)}")
+
+    def insert_positions_batch(
+        self, positions: List[Union[dict, WikidataPosition]]
+    ) -> None:
         """Insert a batch of positions into the database."""
         if not positions:
             return
+
+        # Convert entity objects to database dicts
+        position_dicts = []
+        for p in positions:
+            if isinstance(p, WikidataPosition):
+                position_dicts.append(p.to_database_dict())
+            else:
+                position_dicts.append(p)
 
         session = get_worker_session()
         try:
@@ -35,13 +69,17 @@ class DatabaseInserter:
             existing_wikidata_ids = {
                 result[0]
                 for result in session.query(Position.wikidata_id)
-                .filter(Position.wikidata_id.in_([p["wikidata_id"] for p in positions]))
+                .filter(
+                    Position.wikidata_id.in_([p["wikidata_id"] for p in position_dicts])
+                )
                 .all()
             }
 
             # Filter out duplicates
             new_positions = [
-                p for p in positions if p["wikidata_id"] not in existing_wikidata_ids
+                p
+                for p in position_dicts
+                if p["wikidata_id"] not in existing_wikidata_ids
             ]
 
             if new_positions:
@@ -66,10 +104,20 @@ class DatabaseInserter:
         finally:
             session.close()
 
-    def insert_locations_batch(self, locations: List[dict]) -> None:
+    def insert_locations_batch(
+        self, locations: List[Union[dict, WikidataLocation]]
+    ) -> None:
         """Insert a batch of locations into the database."""
         if not locations:
             return
+
+        # Convert entity objects to database dicts
+        location_dicts = []
+        for loc in locations:
+            if isinstance(loc, WikidataLocation):
+                location_dicts.append(loc.to_database_dict())
+            else:
+                location_dicts.append(loc)
 
         session = get_worker_session()
         try:
@@ -78,7 +126,9 @@ class DatabaseInserter:
                 result[0]
                 for result in session.query(Location.wikidata_id)
                 .filter(
-                    Location.wikidata_id.in_([loc["wikidata_id"] for loc in locations])
+                    Location.wikidata_id.in_(
+                        [loc["wikidata_id"] for loc in location_dicts]
+                    )
                 )
                 .all()
             }
@@ -86,7 +136,7 @@ class DatabaseInserter:
             # Filter out duplicates
             new_locations = [
                 loc
-                for loc in locations
+                for loc in location_dicts
                 if loc["wikidata_id"] not in existing_wikidata_ids
             ]
 
@@ -112,10 +162,20 @@ class DatabaseInserter:
         finally:
             session.close()
 
-    def insert_countries_batch(self, countries: List[dict]) -> None:
+    def insert_countries_batch(
+        self, countries: List[Union[dict, WikidataCountry]]
+    ) -> None:
         """Insert a batch of countries into the database using ON CONFLICT."""
         if not countries:
             return
+
+        # Convert entity objects to database dicts
+        country_dicts = []
+        for c in countries:
+            if isinstance(c, WikidataCountry):
+                country_dicts.append(c.to_database_dict())
+            else:
+                country_dicts.append(c)
 
         session = get_worker_session()
         try:
@@ -128,7 +188,7 @@ class DatabaseInserter:
                     "created_at": datetime.now(timezone.utc),
                     "updated_at": datetime.now(timezone.utc),
                 }
-                for c in countries
+                for c in country_dicts
             ]
 
             # Use PostgreSQL's ON CONFLICT to handle duplicates
@@ -143,7 +203,7 @@ class DatabaseInserter:
 
             inserted_count = result.rowcount
             logger.debug(
-                f"Inserted {inserted_count} new countries (skipped {len(countries) - inserted_count} duplicates)"
+                f"Inserted {inserted_count} new countries (skipped {len(country_dicts) - inserted_count} duplicates)"
             )
 
         except Exception:
@@ -152,10 +212,20 @@ class DatabaseInserter:
         finally:
             session.close()
 
-    def insert_politicians_batch(self, politicians: List[dict]) -> None:
+    def insert_politicians_batch(
+        self, politicians: List[Union[dict, WikidataPolitician]]
+    ) -> None:
         """Insert a batch of politicians into the database."""
         if not politicians:
             return
+
+        # Convert entity objects to database dicts
+        politician_dicts = []
+        for p in politicians:
+            if isinstance(p, WikidataPolitician):
+                politician_dicts.append(p.to_database_dict())
+            else:
+                politician_dicts.append(p)
 
         session = get_worker_session()
         try:
@@ -164,14 +234,18 @@ class DatabaseInserter:
                 result[0]
                 for result in session.query(Politician.wikidata_id)
                 .filter(
-                    Politician.wikidata_id.in_([p["wikidata_id"] for p in politicians])
+                    Politician.wikidata_id.in_(
+                        [p["wikidata_id"] for p in politician_dicts]
+                    )
                 )
                 .all()
             }
 
             # Filter out duplicates
             new_politicians = [
-                p for p in politicians if p["wikidata_id"] not in existing_wikidata_ids
+                p
+                for p in politician_dicts
+                if p["wikidata_id"] not in existing_wikidata_ids
             ]
 
             if not new_politicians:

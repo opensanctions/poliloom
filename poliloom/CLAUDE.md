@@ -43,6 +43,28 @@ The database reproduces a subset of the Wikidata politician data model to store 
 
 ## **4\. Core Functionality**
 
+### **4.0. Entity-Oriented Architecture**
+
+The system uses an entity-oriented architecture where each Wikidata entity type is represented by a dedicated class that handles its complete lifecycle from raw data to database insertion. This approach provides cleaner separation of concerns and eliminates awkward parameter passing patterns.
+
+**Entity Class Hierarchy:**
+- **`WikidataEntity`** (Base class): Common functionality for all Wikidata entities including truthy claim filtering, date extraction, and name extraction
+- **`WikidataPolitician`**: Handles politician identification, birth/death date extraction, citizenship extraction, position extraction, and Wikipedia link extraction
+- **`WikidataPosition`**: Handles position identification using cached hierarchy trees
+- **`WikidataLocation`**: Handles location identification using cached hierarchy trees  
+- **`WikidataCountry`**: Handles country identification and ISO code extraction
+
+**Factory Pattern:**
+- **`WikidataEntityFactory`**: Determines entity type from raw Wikidata JSON and creates appropriate entity class instances
+- Single entry point for entity creation with automatic type detection
+- Handles malformed data gracefully by returning None for unrecognized entities
+
+**Key Benefits:**
+- **Truthy Claim Filtering**: Centralized in base class using rank-based filtering logic (preferred → normal → deprecated)
+- **Type Safety**: Each entity class owns its data extraction and validation logic
+- **Testability**: Entity classes can be unit tested independently of dump processing
+- **Maintainability**: Changes to entity handling are contained within respective classes
+
 ### **4.1. Data Import / Database Population**
 
 This module is responsible for initially populating the local database with politician data using Wikidata dump processing instead of API calls.
@@ -236,7 +258,8 @@ Implement essential testing using pytest with mocking for external APIs. Focus o
 
 **What We Test:**
 
-- **Core Business Logic**: All service layer methods (import, extraction, enrichment)
+- **Entity Classes**: Entity identification, data extraction, truthy claim filtering, database dictionary generation
+- **Factory Pattern**: Entity type detection, malformed data handling, proper entity instantiation
 - **Database Models**: Entity relationships, constraints, cascade behavior, data integrity
 - **External API Integration**: Wikidata dump processing and Wikipedia API calls (mocked)
 - **Data Processing**: Property extraction, position handling, country import, date parsing
@@ -254,6 +277,8 @@ This focused approach ensures robust testing of critical data pipeline component
 
 ### **7.1. Required Test Coverage**
 
+- **Entity Classes**: WikidataPolitician, WikidataPosition, WikidataLocation, WikidataCountry classes with truthy filtering
+- **Factory Pattern**: WikidataEntityFactory with various entity types and edge cases
 - **Database Models**: Relationships, date handling, CRUD operations, Country model
 - **Wikidata Dump Processing**: Mock dump file content, entity extraction, batch processing, error handling
 - **LLM Extraction**: Mock OpenAI responses, property/position extraction, conflict detection

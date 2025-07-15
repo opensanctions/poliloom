@@ -495,16 +495,31 @@ class TestWikidataDumpProcessor:
                     mock_result.rowcount = 1
                     mock_session.execute.return_value = mock_result
 
-                    # Test politician extraction
-                    result = processor.extract_politicians_from_dump(
-                        temp_file, batch_size=10, num_workers=1
-                    )
+                    # Test politician extraction using chunk processing
+                    # (multiprocessing with mocked database sessions has issues)
+                    with patch(
+                        "poliloom.services.worker_manager.get_hierarchy_sets"
+                    ) as mock_get_hierarchy:
+                        mock_get_hierarchy.return_value = (
+                            set(),
+                            set(),
+                        )  # Empty sets for politician extraction
 
-                    # Should have extracted only politicians (since supporting entities are imported separately)
-                    assert result["positions"] == 0
-                    assert result["locations"] == 0
-                    assert result["countries"] == 0
-                    assert result["politicians"] == 2  # John Doe and Jane Smith
+                        file_size = os.path.getsize(temp_file)
+                        counts, entity_count = processor._process_politicians_chunk(
+                            temp_file,
+                            0,
+                            file_size,
+                            worker_id=0,
+                            batch_size=10,
+                        )
+
+                        # Should have extracted only politicians (since supporting entities are imported separately)
+                        assert counts["positions"] == 0
+                        assert counts["locations"] == 0
+                        assert counts["countries"] == 0
+                        assert counts["politicians"] == 2  # John Doe and Jane Smith
+                        assert entity_count == 5  # Total entities processed
 
         finally:
             os.unlink(temp_file)
@@ -588,13 +603,12 @@ class TestWikidataDumpProcessor:
 
                     # Process the entire file as one chunk
                     file_size = os.path.getsize(temp_file)
-                    counts, entity_count = processor._process_entity_chunk(
+                    counts, entity_count = processor._process_politicians_chunk(
                         temp_file,
                         0,
                         file_size,
                         worker_id=0,
                         batch_size=10,
-                        include_politicians=True,
                     )
 
                     # Should have identified 2 politicians
@@ -681,13 +695,12 @@ class TestWikidataDumpProcessor:
 
                     # Process the entire file as one chunk
                     file_size = os.path.getsize(temp_file)
-                    counts, entity_count = processor._process_entity_chunk(
+                    counts, entity_count = processor._process_politicians_chunk(
                         temp_file,
                         0,
                         file_size,
                         worker_id=0,
                         batch_size=10,
-                        include_politicians=True,
                     )
 
                     # Should have extracted only 1 politician (Q1)

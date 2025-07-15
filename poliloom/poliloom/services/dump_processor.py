@@ -7,9 +7,13 @@ from collections import defaultdict
 
 from .dump_reader import DumpReader
 from .hierarchy_builder import HierarchyBuilder
-from .entity_extractor import EntityExtractor
 from .database_inserter import DatabaseInserter
 from .worker_manager import init_worker_with_db, init_worker_with_hierarchy
+from ..entities.factory import WikidataEntityFactory
+from ..entities.politician import WikidataPolitician
+from ..entities.position import WikidataPosition
+from ..entities.location import WikidataLocation
+from ..entities.country import WikidataCountry
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +24,6 @@ class WikidataDumpProcessor:
     def __init__(self):
         self.dump_reader = DumpReader()
         self.hierarchy_builder = HierarchyBuilder()
-        self.entity_extractor = EntityExtractor()
         self.database_inserter = DatabaseInserter()
 
     def build_hierarchy_trees(
@@ -205,7 +208,7 @@ class WikidataDumpProcessor:
         hierarchy_dir: str = ".",
     ) -> Dict[str, int]:
         """
-        Extract supporting entities (positions, locations, countries) from the Wikidata dump using parallel processing.
+        Extract supporting entities from the Wikidata dump using parallel processing.
 
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
@@ -214,9 +217,9 @@ class WikidataDumpProcessor:
             hierarchy_dir: Directory containing the complete hierarchy file (default: current directory)
 
         Returns:
-            Dictionary with counts of extracted entities
+            Dictionary with counts of extracted entities (positions, locations, countries)
         """
-        # Load the hierarchy trees
+        # Load the hierarchy trees for supporting entities
         subclass_relations = self.hierarchy_builder.load_complete_hierarchy(
             hierarchy_dir
         )
@@ -241,13 +244,12 @@ class WikidataDumpProcessor:
 
         logger.info(f"Using parallel processing with {num_workers} workers")
 
-        return self._extract_entities_parallel(
+        return self._extract_supporting_entities_parallel(
             dump_file_path,
             batch_size,
             num_workers,
             position_descendants,
             location_descendants,
-            include_politicians=False,
         )
 
     def extract_politicians_from_dump(
@@ -272,26 +274,21 @@ class WikidataDumpProcessor:
 
         logger.info(f"Using parallel processing with {num_workers} workers")
 
-        # No hierarchy data needed for politician extraction
-        return self._extract_entities_parallel(
+        return self._extract_politicians_parallel(
             dump_file_path,
             batch_size,
             num_workers,
-            position_descendants=set(),  # Empty set - not used for politicians
-            location_descendants=set(),  # Empty set - not used for politicians
-            include_politicians=True,
         )
 
-    def _extract_entities_parallel(
+    def _extract_supporting_entities_parallel(
         self,
         dump_file_path: str,
         batch_size: int,
         num_workers: int,
         position_descendants: Set[str],
         location_descendants: Set[str],
-        include_politicians: bool = False,
     ) -> Dict[str, int]:
-        """Parallel implementation for entity extraction using shared memory."""
+        """Parallel implementation for supporting entities extraction (positions, locations, countries)."""
 
         # Split file into chunks for parallel processing
         logger.info("Calculating file chunks for parallel processing...")
@@ -304,15 +301,15 @@ class WikidataDumpProcessor:
             # Initialize workers with hierarchy data
             def init_worker():
                 init_worker_with_hierarchy(
-                    position_descendants if not include_politicians else set(),
-                    location_descendants if not include_politicians else set(),
+                    position_descendants,
+                    location_descendants,
                 )
 
             pool = mp.Pool(processes=num_workers, initializer=init_worker)
 
             # Each worker processes its chunk independently
             async_result = pool.starmap_async(
-                self._process_entity_chunk,
+                self._process_supporting_entities_chunk,
                 [
                     (
                         dump_file_path,
@@ -320,7 +317,6 @@ class WikidataDumpProcessor:
                         end,
                         i,
                         batch_size,
-                        include_politicians,
                     )
                     for i, (start, end) in enumerate(chunks)
                 ],
@@ -359,22 +355,97 @@ class WikidataDumpProcessor:
 
         logger.info(f"Extraction complete. Total processed: {total_entities}")
         logger.info(
-            f"Extracted: {total_counts['positions']} positions, {total_counts['locations']} locations, {total_counts['countries']} countries, {total_counts['politicians']} politicians"
+            f"Extracted: {total_counts['positions']} positions, {total_counts['locations']} locations, {total_counts['countries']} countries"
         )
 
         return total_counts
 
-    def _process_entity_chunk(
+    def _extract_politicians_parallel(
+        self,
+        dump_file_path: str,
+        batch_size: int,
+        num_workers: int,
+    ) -> Dict[str, int]:
+        """Parallel implementation for politician extraction."""
+
+        # Split file into chunks for parallel processing
+        logger.info("Calculating file chunks for parallel processing...")
+        chunks = self.dump_reader.calculate_file_chunks(dump_file_path, num_workers)
+        logger.info(f"Split file into {len(chunks)} chunks for {num_workers} workers")
+
+        # Process chunks in parallel with proper KeyboardInterrupt handling
+        pool = None
+        try:
+            # Initialize workers with empty hierarchy data (politicians don't need hierarchy)
+            def init_worker():
+                init_worker_with_hierarchy(
+                    set(),
+                    set(),
+                )
+
+            pool = mp.Pool(processes=num_workers, initializer=init_worker)
+
+            # Each worker processes its chunk independently
+            async_result = pool.starmap_async(
+                self._process_politicians_chunk,
+                [
+                    (
+                        dump_file_path,
+                        start,
+                        end,
+                        i,
+                        batch_size,
+                    )
+                    for i, (start, end) in enumerate(chunks)
+                ],
+            )
+
+            # Wait for completion with proper interrupt handling
+            chunk_results = async_result.get()
+
+        except KeyboardInterrupt:
+            logger.info("Received interrupt signal, cleaning up workers...")
+            if pool:
+                pool.terminate()
+                try:
+                    pool.join(timeout=5)  # Wait up to 5 seconds for workers to finish
+                except Exception:
+                    pass  # If join times out, continue anyway
+            raise KeyboardInterrupt("Entity extraction interrupted by user")
+        finally:
+            if pool:
+                pool.close()
+                pool.join()
+
+        # Merge results from all chunks
+        total_counts = {
+            "positions": 0,
+            "locations": 0,
+            "countries": 0,
+            "politicians": 0,
+        }
+        total_entities = 0
+
+        for counts, chunk_count in chunk_results:
+            total_entities += chunk_count
+            for key in total_counts:
+                total_counts[key] += counts[key]
+
+        logger.info(f"Extraction complete. Total processed: {total_entities}")
+        logger.info(f"Extracted: {total_counts['politicians']} politicians")
+
+        return total_counts
+
+    def _process_supporting_entities_chunk(
         self,
         dump_file_path: str,
         start_byte: int,
         end_byte: int,
         worker_id: int,
         batch_size: int,
-        include_politicians: bool = False,
     ):
         """
-        Process a specific byte range of the dump file for entity extraction.
+        Process a specific byte range of the dump file for supporting entities extraction.
 
         Each worker independently reads and parses its assigned chunk.
         Returns entity counts found in this chunk.
@@ -391,6 +462,151 @@ class WikidataDumpProcessor:
             positions = []
             locations = []
             countries = []
+            counts = {"positions": 0, "locations": 0, "countries": 0, "politicians": 0}
+            entity_count = 0
+
+            for entity in self.dump_reader.read_chunk_entities(
+                dump_file_path, start_byte, end_byte
+            ):
+                if interrupted:
+                    break
+
+                entity_count += 1
+
+                # Progress reporting for large chunks
+                if entity_count % 50000 == 0:
+                    logger.info(
+                        f"Worker {worker_id}: processed {entity_count} entities"
+                    )
+
+                entity_id = entity.get("id", "")
+                if not entity_id:
+                    continue
+
+                # Use factory to create appropriate entity instance
+                try:
+                    # For supporting entities, create position/location/country entities
+                    wikidata_entity = WikidataEntityFactory.create_entity(
+                        entity,
+                        position_descendants,
+                        location_descendants,
+                        allowed_types=["position", "location", "country"],
+                    )
+
+                    if wikidata_entity is None:
+                        continue
+
+                    # Route entity to appropriate batch based on type
+                    if isinstance(wikidata_entity, WikidataPosition):
+                        position_data = wikidata_entity.to_database_dict()
+                        if position_data:
+                            positions.append(position_data)
+                            counts["positions"] += 1
+                    elif isinstance(wikidata_entity, WikidataLocation):
+                        location_data = wikidata_entity.to_database_dict()
+                        if location_data:
+                            locations.append(location_data)
+                            counts["locations"] += 1
+                    elif isinstance(wikidata_entity, WikidataCountry):
+                        country_data = wikidata_entity.to_database_dict()
+                        if country_data:
+                            countries.append(country_data)
+                            counts["countries"] += 1
+                except Exception as e:
+                    # Log entity processing errors but continue processing
+                    logger.debug(
+                        f"Worker {worker_id}: skipping entity {entity_id} due to error: {e}"
+                    )
+                    continue
+
+                # Process batches when they reach the batch size
+                if len(positions) >= batch_size:
+                    self.database_inserter.insert_positions_batch(positions)
+                    positions = []
+
+                if len(locations) >= batch_size:
+                    self.database_inserter.insert_locations_batch(locations)
+                    locations = []
+
+                if len(countries) >= batch_size:
+                    self.database_inserter.insert_countries_batch(countries)
+                    countries = []
+
+            # Process remaining entities in final batches
+            try:
+                if positions:
+                    self.database_inserter.insert_positions_batch(positions)
+                if locations:
+                    self.database_inserter.insert_locations_batch(locations)
+                if countries:
+                    self.database_inserter.insert_countries_batch(countries)
+            except Exception as cleanup_error:
+                logger.warning(
+                    f"Worker {worker_id}: error during cleanup: {cleanup_error}"
+                )
+
+            if interrupted:
+                logger.info(
+                    f"Worker {worker_id}: interrupted, returning partial results"
+                )
+            else:
+                logger.info(
+                    f"Worker {worker_id}: finished processing {entity_count} entities"
+                )
+
+            return counts, entity_count
+
+        except KeyboardInterrupt:
+            logger.info(f"Worker {worker_id}: interrupted, processing final batches...")
+            # Process remaining entities in final batches even when interrupted
+            try:
+                if positions:
+                    self.database_inserter.insert_positions_batch(positions)
+                if locations:
+                    self.database_inserter.insert_locations_batch(locations)
+                if countries:
+                    self.database_inserter.insert_countries_batch(countries)
+            except Exception as cleanup_error:
+                logger.warning(
+                    f"Worker {worker_id}: error during cleanup: {cleanup_error}"
+                )
+
+            logger.info(f"Worker {worker_id}: interrupted, returning partial results")
+            return counts, entity_count
+        except Exception as e:
+            logger.error(f"Worker {worker_id}: error processing chunk: {e}")
+            # Process any remaining entities in final batches before returning
+            try:
+                if positions:
+                    self.database_inserter.insert_positions_batch(positions)
+                if locations:
+                    self.database_inserter.insert_locations_batch(locations)
+                if countries:
+                    self.database_inserter.insert_countries_batch(countries)
+            except Exception as cleanup_error:
+                logger.warning(
+                    f"Worker {worker_id}: error during cleanup: {cleanup_error}"
+                )
+            return counts, entity_count
+
+    def _process_politicians_chunk(
+        self,
+        dump_file_path: str,
+        start_byte: int,
+        end_byte: int,
+        worker_id: int,
+        batch_size: int,
+    ):
+        """
+        Process a specific byte range of the dump file for politician extraction.
+
+        Each worker independently reads and parses its assigned chunk.
+        Returns entity counts found in this chunk.
+        """
+        # Simple interrupt flag without signal handlers to avoid cascading issues
+        interrupted = False
+
+        try:
             politicians = []
             counts = {"positions": 0, "locations": 0, "countries": 0, "politicians": 0}
             entity_count = 0
@@ -413,80 +629,38 @@ class WikidataDumpProcessor:
                 if not entity_id:
                     continue
 
-                if include_politicians:
-                    # Only process politicians
-                    is_politician = self.entity_extractor.is_politician(entity)
-                    if is_politician:
-                        politician_data = self.entity_extractor.extract_politician_data(
-                            entity
-                        )
+                # Use factory to create appropriate entity instance
+                try:
+                    # For politicians, only create politician entities
+                    wikidata_entity = WikidataEntityFactory.create_entity(
+                        entity, set(), set(), allowed_types=["politician"]
+                    )
+
+                    if wikidata_entity is None:
+                        continue
+
+                    # Route entity to appropriate batch based on type
+                    if isinstance(wikidata_entity, WikidataPolitician):
+                        politician_data = wikidata_entity.to_database_dict()
                         if politician_data:
                             politicians.append(politician_data)
                             counts["politicians"] += 1
-                else:
-                    # Only process supporting entities (positions, locations, countries)
-                    is_position = self.entity_extractor.is_instance_of_position(
-                        entity, position_descendants
+                except Exception as e:
+                    # Log entity processing errors but continue processing
+                    logger.debug(
+                        f"Worker {worker_id}: skipping entity {entity_id} due to error: {e}"
                     )
-                    is_location = self.entity_extractor.is_instance_of_location(
-                        entity, location_descendants
-                    )
-                    is_country = self.entity_extractor.is_country_entity(entity)
-
-                    if is_position:
-                        position_data = self.entity_extractor.extract_position_data(
-                            entity
-                        )
-                        if position_data:
-                            positions.append(position_data)
-                            counts["positions"] += 1
-
-                    if is_location:
-                        location_data = self.entity_extractor.extract_location_data(
-                            entity
-                        )
-                        if location_data:
-                            locations.append(location_data)
-                            counts["locations"] += 1
-
-                    if is_country:
-                        country_data = self.entity_extractor.extract_country_data(
-                            entity
-                        )
-                        if country_data:
-                            countries.append(country_data)
-                            counts["countries"] += 1
+                    continue
 
                 # Process batches when they reach the batch size
-                if include_politicians:
-                    if len(politicians) >= batch_size:
-                        self.database_inserter.insert_politicians_batch(politicians)
-                        politicians = []
-                else:
-                    if len(positions) >= batch_size:
-                        self.database_inserter.insert_positions_batch(positions)
-                        positions = []
-
-                    if len(locations) >= batch_size:
-                        self.database_inserter.insert_locations_batch(locations)
-                        locations = []
-
-                    if len(countries) >= batch_size:
-                        self.database_inserter.insert_countries_batch(countries)
-                        countries = []
+                if len(politicians) >= batch_size:
+                    self.database_inserter.insert_politicians_batch(politicians)
+                    politicians = []
 
             # Process remaining entities in final batches
             try:
-                if include_politicians:
-                    if politicians:
-                        self.database_inserter.insert_politicians_batch(politicians)
-                else:
-                    if positions:
-                        self.database_inserter.insert_positions_batch(positions)
-                    if locations:
-                        self.database_inserter.insert_locations_batch(locations)
-                    if countries:
-                        self.database_inserter.insert_countries_batch(countries)
+                if politicians:
+                    self.database_inserter.insert_politicians_batch(politicians)
             except Exception as cleanup_error:
                 logger.warning(
                     f"Worker {worker_id}: error during cleanup: {cleanup_error}"
@@ -507,16 +681,8 @@ class WikidataDumpProcessor:
             logger.info(f"Worker {worker_id}: interrupted, processing final batches...")
             # Process remaining entities in final batches even when interrupted
             try:
-                if include_politicians:
-                    if politicians:
-                        self.database_inserter.insert_politicians_batch(politicians)
-                else:
-                    if positions:
-                        self.database_inserter.insert_positions_batch(positions)
-                    if locations:
-                        self.database_inserter.insert_locations_batch(locations)
-                    if countries:
-                        self.database_inserter.insert_countries_batch(countries)
+                if politicians:
+                    self.database_inserter.insert_politicians_batch(politicians)
             except Exception as cleanup_error:
                 logger.warning(
                     f"Worker {worker_id}: error during cleanup: {cleanup_error}"
@@ -526,4 +692,12 @@ class WikidataDumpProcessor:
             return counts, entity_count
         except Exception as e:
             logger.error(f"Worker {worker_id}: error processing chunk: {e}")
-            return {"positions": 0, "locations": 0, "countries": 0, "politicians": 0}, 0
+            # Process any remaining entities in final batches before returning
+            try:
+                if politicians:
+                    self.database_inserter.insert_politicians_batch(politicians)
+            except Exception as cleanup_error:
+                logger.warning(
+                    f"Worker {worker_id}: error during cleanup: {cleanup_error}"
+                )
+            return counts, entity_count
