@@ -267,10 +267,10 @@ class DatabaseInserter:
                         type=prop["type"],
                         value=prop["value"],
                         value_precision=prop.get("value_precision"),
-                        is_extracted=False,
+                        archived_page_id=None,
                     )
 
-                    # Update only if is_extracted=False (preserve extracted data)
+                    # Update only if archived_page_id is None (preserve extracted data)
                     prop_stmt = prop_stmt.on_conflict_do_update(
                         index_elements=["politician_id", "type"],
                         set_={
@@ -278,7 +278,7 @@ class DatabaseInserter:
                             "value_precision": prop_stmt.excluded.value_precision,
                             "updated_at": prop_stmt.excluded.updated_at,
                         },
-                        where=not Property.is_extracted,
+                        where=Property.archived_page_id.is_(None),
                     )
 
                     session.execute(prop_stmt)
@@ -306,7 +306,7 @@ class DatabaseInserter:
 
                         if existing_position:
                             # Update precision if this is NOT extracted data (preserve user evaluations)
-                            if not existing_position.is_extracted:
+                            if existing_position.archived_page_id is None:
                                 existing_position.start_date_precision = pos.get(
                                     "start_date_precision"
                                 )
@@ -322,7 +322,7 @@ class DatabaseInserter:
                                 start_date_precision=pos.get("start_date_precision"),
                                 end_date=pos.get("end_date"),
                                 end_date_precision=pos.get("end_date_precision"),
-                                is_extracted=False,
+                                archived_page_id=None,
                             )
                             session.add(holds_position)
 
@@ -376,7 +376,7 @@ class DatabaseInserter:
                             born_at = BornAt(
                                 politician_id=politician_obj.id,
                                 location_id=location_obj.id,
-                                is_extracted=False,
+                                archived_page_id=None,
                             )
                             session.add(born_at)
 

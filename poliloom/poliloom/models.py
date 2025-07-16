@@ -1,7 +1,7 @@
 """Database models for the PoliLoom project."""
 
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Integer, Enum
+from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, declarative_base
 from uuid import uuid4
@@ -86,6 +86,25 @@ class Politician(Base, TimestampMixin):
     )
 
 
+class ArchivedPage(Base, TimestampMixin):
+    """Archived page entity for storing fetched web page metadata and file paths."""
+
+    __tablename__ = "archived_pages"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    url = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)  # Path to MHTML file on disk
+    content_hash = Column(
+        String, nullable=False, index=True
+    )  # SHA256 hash for deduplication
+    fetch_timestamp = Column(DateTime, nullable=False)
+
+    # Relationships
+    properties = relationship("Property", back_populates="archived_page")
+    positions_held = relationship("HoldsPosition", back_populates="archived_page")
+    birthplaces = relationship("BornAt", back_populates="archived_page")
+
+
 class WikipediaLink(Base, TimestampMixin):
     """Wikipedia link entity for storing politician Wikipedia article URLs."""
 
@@ -116,12 +135,13 @@ class Property(Base, TimestampMixin):
     value_precision = Column(
         Integer
     )  # Wikidata precision integer for date properties (9=year, 10=month, 11=day)
-    is_extracted = Column(
-        Boolean, default=True
-    )  # True if newly extracted and not yet evaluated
+    archived_page_id = Column(
+        UUID(as_uuid=True), ForeignKey("archived_pages.id"), nullable=True
+    )  # NULL for Wikidata imports, set for extracted data
 
     # Relationships
     politician = relationship("Politician", back_populates="properties")
+    archived_page = relationship("ArchivedPage", back_populates="properties")
     evaluations = relationship(
         "Evaluation", back_populates="property", cascade="all, delete-orphan"
     )
@@ -193,13 +213,14 @@ class HoldsPosition(Base, TimestampMixin):
     end_date_precision = Column(
         Integer
     )  # Wikidata precision integer (9=year, 10=month, 11=day)
-    is_extracted = Column(
-        Boolean, default=True
-    )  # True if newly extracted and not yet evaluated
+    archived_page_id = Column(
+        UUID(as_uuid=True), ForeignKey("archived_pages.id"), nullable=True
+    )  # NULL for Wikidata imports, set for extracted data
 
     # Relationships
     politician = relationship("Politician", back_populates="positions_held")
     position = relationship("Position", back_populates="held_by")
+    archived_page = relationship("ArchivedPage", back_populates="positions_held")
     evaluations = relationship(
         "Evaluation", back_populates="holds_position", cascade="all, delete-orphan"
     )
@@ -215,13 +236,14 @@ class BornAt(Base, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
     )
     location_id = Column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=False)
-    is_extracted = Column(
-        Boolean, default=True
-    )  # True if newly extracted and not yet evaluated
+    archived_page_id = Column(
+        UUID(as_uuid=True), ForeignKey("archived_pages.id"), nullable=True
+    )  # NULL for Wikidata imports, set for extracted data
 
     # Relationships
     politician = relationship("Politician", back_populates="birthplaces")
     location = relationship("Location", back_populates="born_here")
+    archived_page = relationship("ArchivedPage", back_populates="birthplaces")
     evaluations = relationship(
         "Evaluation", back_populates="born_at", cascade="all, delete-orphan"
     )

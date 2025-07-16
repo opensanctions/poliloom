@@ -69,61 +69,21 @@ class TestEnrichmentService:
         test_session.refresh(politician)
         return politician
 
-    def test_enrich_politician_not_found(self, enrichment_service, test_session):
+    async def test_enrich_politician_not_found(self, enrichment_service, test_session):
         """Test enrichment fails when politician not found."""
-        result = enrichment_service.enrich_politician_from_wikipedia("Q999999")
+        result = await enrichment_service.enrich_politician_from_wikipedia("Q999999")
 
         assert result is False
 
-    def test_enrich_politician_no_sources(self, enrichment_service, test_session):
+    async def test_enrich_politician_no_sources(self, enrichment_service, test_session):
         """Test enrichment fails when politician has no Wikipedia sources."""
         politician = Politician(name="No Sources Politician", wikidata_id="Q123456")
         test_session.add(politician)
         test_session.commit()
 
-        result = enrichment_service.enrich_politician_from_wikipedia("Q123456")
+        result = await enrichment_service.enrich_politician_from_wikipedia("Q123456")
 
         assert result is False
-
-    def test_fetch_wikipedia_content_success(
-        self, enrichment_service, mock_http_client
-    ):
-        """Test successful Wikipedia content fetching."""
-        mock_response = Mock()
-        mock_response.text = """
-        <html>
-            <div id="mw-content-text">
-                <p>First paragraph with content.</p>
-                <p>Second paragraph with content.</p>
-            </div>
-        </html>
-        """
-        mock_http_client.get.return_value = mock_response
-
-        content = enrichment_service._fetch_wikipedia_content(
-            "https://en.wikipedia.org/wiki/Test"
-        )
-
-        assert content is not None
-        assert "First paragraph with content." in content
-        assert "Second paragraph with content." in content
-        mock_http_client.get.assert_called_once_with(
-            "https://en.wikipedia.org/wiki/Test"
-        )
-
-    def test_fetch_wikipedia_content_failure(
-        self, enrichment_service, mock_http_client
-    ):
-        """Test Wikipedia content fetching failure."""
-        import httpx
-
-        mock_http_client.get.side_effect = httpx.RequestError("Network error")
-
-        content = enrichment_service._fetch_wikipedia_content(
-            "https://en.wikipedia.org/wiki/Test"
-        )
-
-        assert content is None
 
     def test_extract_properties_with_llm(
         self, enrichment_service, mock_openai_client, enrichment_wikipedia_content
@@ -195,10 +155,13 @@ class TestEnrichmentService:
         assert match.name == "Springfield, Illinois"
 
     def test_store_extracted_data_properties(
-        self, enrichment_service, test_session, politician_with_source
+        self,
+        enrichment_service,
+        test_session,
+        politician_with_source,
+        sample_archived_page,
     ):
         """Test storing extracted properties."""
-        source = politician_with_source.wikipedia_links[0]
         data = {
             "properties": [
                 ExtractedProperty(type=PropertyType.BIRTH_DATE, value="1970-01-15")
@@ -208,7 +171,7 @@ class TestEnrichmentService:
         }
 
         success = enrichment_service._store_extracted_data(
-            test_session, politician_with_source, [(source, data)]
+            test_session, politician_with_source, [(sample_archived_page, data)]
         )
 
         assert success is True
@@ -223,7 +186,7 @@ class TestEnrichmentService:
         )
         assert property_obj is not None
         assert property_obj.value == "1970-01-15"
-        assert property_obj.is_extracted is True
+        assert property_obj.archived_page_id == sample_archived_page.id
 
     def test_store_extracted_data_positions(
         self,
@@ -231,9 +194,10 @@ class TestEnrichmentService:
         test_session,
         politician_with_source,
         sample_mayor_of_springfield_position,
+        sample_archived_page,
     ):
         """Test storing extracted positions."""
-        source = politician_with_source.wikipedia_links[0]
+        # Using sample_archived_page instead of source
         from poliloom.services.position_extraction_service import ExtractedPosition
 
         data = {
@@ -250,7 +214,7 @@ class TestEnrichmentService:
         }
 
         success = enrichment_service._store_extracted_data(
-            test_session, politician_with_source, [(source, data)]
+            test_session, politician_with_source, [(sample_archived_page, data)]
         )
 
         assert success is True
@@ -267,13 +231,18 @@ class TestEnrichmentService:
         assert holds_position is not None
         assert holds_position.start_date == "2020"
         assert holds_position.end_date == "2024"
-        assert holds_position.is_extracted is True
+        assert holds_position.archived_page_id == sample_archived_page.id
 
     def test_store_extracted_data_birthplaces(
-        self, enrichment_service, test_session, politician_with_source, sample_location
+        self,
+        enrichment_service,
+        test_session,
+        politician_with_source,
+        sample_location,
+        sample_archived_page,
     ):
         """Test storing extracted birthplaces."""
-        source = politician_with_source.wikipedia_links[0]
+        # Using sample_archived_page instead of source
         from poliloom.services.birthplace_extraction_service import ExtractedBirthplace
 
         data = {
@@ -287,7 +256,7 @@ class TestEnrichmentService:
         }
 
         success = enrichment_service._store_extracted_data(
-            test_session, politician_with_source, [(source, data)]
+            test_session, politician_with_source, [(sample_archived_page, data)]
         )
 
         assert success is True
@@ -301,13 +270,17 @@ class TestEnrichmentService:
             .first()
         )
         assert born_at is not None
-        assert born_at.is_extracted is True
+        assert born_at.archived_page_id == sample_archived_page.id
 
     def test_store_extracted_data_skips_nonexistent_position(
-        self, enrichment_service, test_session, politician_with_source
+        self,
+        enrichment_service,
+        test_session,
+        politician_with_source,
+        sample_archived_page,
     ):
         """Test that storing skips positions that don't exist in database."""
-        source = politician_with_source.wikipedia_links[0]
+        # Using sample_archived_page instead of source
         from poliloom.services.position_extraction_service import ExtractedPosition
 
         data = {
@@ -324,7 +297,7 @@ class TestEnrichmentService:
         }
 
         success = enrichment_service._store_extracted_data(
-            test_session, politician_with_source, [(source, data)]
+            test_session, politician_with_source, [(sample_archived_page, data)]
         )
 
         assert success is True
@@ -338,10 +311,14 @@ class TestEnrichmentService:
         assert len(holds_positions) == 0
 
     def test_store_extracted_data_skips_nonexistent_location(
-        self, enrichment_service, test_session, politician_with_source
+        self,
+        enrichment_service,
+        test_session,
+        politician_with_source,
+        sample_archived_page,
     ):
         """Test that storing skips locations that don't exist in database."""
-        source = politician_with_source.wikipedia_links[0]
+        # Using sample_archived_page instead of source
         from poliloom.services.birthplace_extraction_service import ExtractedBirthplace
 
         data = {
@@ -355,7 +332,7 @@ class TestEnrichmentService:
         }
 
         success = enrichment_service._store_extracted_data(
-            test_session, politician_with_source, [(source, data)]
+            test_session, politician_with_source, [(sample_archived_page, data)]
         )
 
         assert success is True
@@ -369,10 +346,14 @@ class TestEnrichmentService:
         assert len(born_ats) == 0
 
     def test_store_extracted_data_error_handling(
-        self, enrichment_service, test_session, politician_with_source
+        self,
+        enrichment_service,
+        test_session,
+        politician_with_source,
+        sample_archived_page,
     ):
         """Test error handling in store_extracted_data."""
-        source = politician_with_source.wikipedia_links[0]
+        # Using sample_archived_page instead of source
 
         # Create invalid data to trigger an error
         data = {
@@ -386,7 +367,7 @@ class TestEnrichmentService:
         # Mock the session to raise an exception during add
         with patch.object(test_session, "add", side_effect=Exception("Database error")):
             success = enrichment_service._store_extracted_data(
-                test_session, politician_with_source, [(source, data)]
+                test_session, politician_with_source, [(sample_archived_page, data)]
             )
 
         assert success is False

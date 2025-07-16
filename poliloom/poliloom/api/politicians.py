@@ -37,7 +37,7 @@ async def get_unconfirmed_politicians(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Retrieve politicians that have unevaluated (is_extracted=True) properties or positions.
+    Retrieve politicians that have unevaluated extracted data (archived_page_id is not null).
 
     Returns a list of politicians with their unevaluated data for review and evaluation.
     """
@@ -57,9 +57,13 @@ async def get_unconfirmed_politicians(
             selectinload(Politician.wikipedia_links),
         )
         .where(
-            (Politician.properties.any(Property.is_extracted))
-            | (Politician.positions_held.any(HoldsPosition.is_extracted))
-            | (Politician.birthplaces.any(BornAt.is_extracted))
+            (Politician.properties.any(Property.archived_page_id.isnot(None)))
+            | (
+                Politician.positions_held.any(
+                    HoldsPosition.archived_page_id.isnot(None)
+                )
+            )
+            | (Politician.birthplaces.any(BornAt.archived_page_id.isnot(None)))
         )
         .offset(offset)
         .limit(limit)
@@ -73,21 +77,21 @@ async def get_unconfirmed_politicians(
         unevaluated_properties = [
             prop
             for prop in politician.properties
-            if prop.is_extracted and not prop.evaluations
+            if prop.archived_page_id is not None and not prop.evaluations
         ]
 
         # Filter unevaluated positions (extracted but not evaluated)
         unevaluated_positions = [
             pos
             for pos in politician.positions_held
-            if pos.is_extracted and not pos.evaluations
+            if pos.archived_page_id is not None and not pos.evaluations
         ]
 
         # Filter unevaluated birthplaces (extracted but not evaluated)
         unevaluated_birthplaces = [
             birthplace
             for birthplace in politician.birthplaces
-            if birthplace.is_extracted and not birthplace.evaluations
+            if birthplace.archived_page_id is not None and not birthplace.evaluations
         ]
 
         # Only include politicians that actually have unevaluated data

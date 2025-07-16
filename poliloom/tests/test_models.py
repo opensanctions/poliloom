@@ -119,7 +119,7 @@ class TestProperty:
                 politician_id=sample_politician.id,
                 type="Education",
                 value="Harvard University",
-                is_extracted=False,
+                archived_page_id=None,
             ),
         )
         assert_model_fields(
@@ -128,7 +128,7 @@ class TestProperty:
                 "politician_id": sample_politician.id,
                 "type": "Education",
                 "value": "Harvard University",
-                "is_extracted": False,
+                "archived_page_id": None,
             },
         )
 
@@ -148,7 +148,7 @@ class TestProperty:
                 "politician_id": sample_politician.id,
                 "type": "BirthDate",
                 "value": "1980",
-                "is_extracted": True,
+                "archived_page_id": None,
             },
         )
 
@@ -301,7 +301,7 @@ class TestHoldsPosition:
                 position_id=sample_position.id,
                 start_date="2019-01",
                 end_date="2023-12-31",
-                is_extracted=False,
+                archived_page_id=None,
             ),
         )
         assert_model_fields(
@@ -311,7 +311,7 @@ class TestHoldsPosition:
                 "position_id": sample_position.id,
                 "start_date": "2019-01",
                 "end_date": "2023-12-31",
-                "is_extracted": False,
+                "archived_page_id": None,
             },
         )
 
@@ -366,7 +366,7 @@ class TestHoldsPosition:
             {
                 "politician_id": sample_politician.id,
                 "position_id": sample_position.id,
-                "is_extracted": True,
+                "archived_page_id": None,
                 "start_date": None,
                 "end_date": None,
             },
@@ -650,7 +650,7 @@ class TestEvaluation:
                 politician_id=sample_politician.id,
                 type="BirthDate",
                 value="1980-01-01",
-                is_extracted=True,
+                archived_page_id=None,
             ),
         )
 
@@ -696,7 +696,7 @@ class TestEvaluation:
                 politician_id=sample_politician.id,
                 position_id=sample_position.id,
                 start_date="2020-01",
-                is_extracted=True,
+                archived_page_id=None,
             ),
         )
 
@@ -740,7 +740,7 @@ class TestEvaluation:
             BornAt(
                 politician_id=sample_politician.id,
                 location_id=location.id,
-                is_extracted=True,
+                archived_page_id=None,
             ),
         )
 
@@ -781,7 +781,7 @@ class TestEvaluation:
                 politician_id=sample_politician.id,
                 type="BirthDate",
                 value="1980-01-01",
-                is_extracted=True,
+                archived_page_id=None,
             ),
         )
 
@@ -846,7 +846,7 @@ class TestBornAt:
             BornAt(
                 politician_id=sample_politician.id,
                 location_id=location.id,
-                is_extracted=True,
+                archived_page_id=None,
             ),
         )
         assert_model_fields(
@@ -854,7 +854,7 @@ class TestBornAt:
             {
                 "politician_id": sample_politician.id,
                 "location_id": location.id,
-                "is_extracted": True,
+                "archived_page_id": None,
             },
         )
 
@@ -875,7 +875,7 @@ class TestBornAt:
             {
                 "politician_id": sample_politician.id,
                 "location_id": location.id,
-                "is_extracted": True,
+                "archived_page_id": None,
             },
         )
 
@@ -892,7 +892,7 @@ class TestBornAt:
             BornAt(
                 politician_id=sample_politician.id,
                 location_id=location.id,
-                is_extracted=True,
+                archived_page_id=None,
             ),
         )
 

@@ -16,6 +16,7 @@ from poliloom.models import (
     HoldsPosition,
     Country,
     Location,
+    ArchivedPage,
 )
 
 
@@ -145,6 +146,23 @@ def sample_wikipedia_link(test_session, sample_politician):
 
 
 @pytest.fixture
+def sample_archived_page(test_session):
+    """Create a sample archived page for testing."""
+    from datetime import datetime, timezone
+
+    archived_page = ArchivedPage(
+        url="https://en.wikipedia.org/wiki/Test_Page",
+        file_path="./archives/2025/07/16/test123.mhtml",
+        content_hash="test123",
+        fetch_timestamp=datetime.now(timezone.utc),
+    )
+    test_session.add(archived_page)
+    test_session.commit()
+    test_session.refresh(archived_page)
+    return archived_page
+
+
+@pytest.fixture
 def sample_country(test_session):
     """Create a sample country for testing."""
     country = Country(name="United States", iso_code="US", wikidata_id="Q30")
@@ -183,9 +201,7 @@ def sample_property(test_session, sample_politician):
         politician_id=sample_politician.id,
         type="BirthDate",
         value="1970-01-15",
-        is_extracted=True,
-        confirmed_by=None,
-        confirmed_at=None,
+        archived_page_id=None,
     )
     test_session.add(prop)
     test_session.commit()
@@ -201,9 +217,7 @@ def sample_holds_position(test_session, sample_politician, sample_position):
         position_id=sample_position.id,
         start_date="2020",
         end_date="2024",
-        is_extracted=True,
-        confirmed_by=None,
-        confirmed_at=None,
+        archived_page_id=None,
     )
     test_session.add(holds_pos)
     test_session.commit()

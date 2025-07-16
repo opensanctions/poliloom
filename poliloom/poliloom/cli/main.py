@@ -1,5 +1,6 @@
 """Main CLI interface for PoliLoom."""
 
+import asyncio
 import click
 import logging
 import uvicorn
@@ -59,7 +60,9 @@ def politicians_enrich(wikidata_id):
     enrichment_service = EnrichmentService()
 
     try:
-        success = enrichment_service.enrich_politician_from_wikipedia(wikidata_id)
+        success = asyncio.run(
+            enrichment_service.enrich_politician_from_wikipedia(wikidata_id)
+        )
 
         if success:
             click.echo(

@@ -1,14 +1,17 @@
 """Service for enriching politician data from Wikipedia using LLM extraction."""
 
 import os
+import hashlib
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import List, Optional
 from enum import Enum
 from sqlalchemy.orm import Session
 import httpx
-from bs4 import BeautifulSoup
 import logging
 from openai import OpenAI
 from pydantic import BaseModel
+from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
 
 from ..models import (
     Politician,
@@ -17,6 +20,7 @@ from ..models import (
     HoldsPosition,
     Location,
     BornAt,
+    ArchivedPage,
 )
 from ..database import get_db_session, get_db_session_no_commit
 from .position_extraction_service import PositionExtractionService, ExtractedPosition
@@ -59,7 +63,7 @@ class EnrichmentService:
             self.openai_client
         )
 
-    def enrich_politician_from_wikipedia(self, wikidata_id: str) -> bool:
+    async def enrich_politician_from_wikipedia(self, wikidata_id: str) -> bool:
         """
         Enrich a politician's data by extracting information from their Wikipedia sources.
 
@@ -103,8 +107,13 @@ class EnrichmentService:
                     logger.info(
                         f"Processing English Wikipedia source: {english_wikipedia_link.url}"
                     )
-                    content = self._fetch_wikipedia_content(english_wikipedia_link.url)
-                    if content:
+                    (
+                        content,
+                        archived_page,
+                    ) = await self._fetch_wikipedia_content_and_archive(
+                        english_wikipedia_link.url, db
+                    )
+                    if content and archived_page:
                         # Get politician's primary country from citizenships
                         primary_country = None
                         if politician.citizenships:
@@ -116,7 +125,7 @@ class EnrichmentService:
                         if data:
                             # Log what the LLM proposed
                             self._log_extraction_results(politician.name, data)
-                            extracted_data.append((english_wikipedia_link, data))
+                            extracted_data.append((archived_page, data))
                 else:
                     logger.warning(
                         f"No English Wikipedia source found for politician {politician.name}"
@@ -142,41 +151,93 @@ class EnrichmentService:
             logger.error(f"Error enriching politician {wikidata_id}: {e}")
             return False
 
-    def _fetch_wikipedia_content(self, url: str) -> Optional[str]:
-        """Fetch and clean Wikipedia article content."""
+    async def _fetch_wikipedia_content_and_archive(
+        self, url: str, db: Session
+    ) -> tuple[Optional[str], Optional[ArchivedPage]]:
+        """Fetch Wikipedia content using crawl4ai and archive the page."""
         try:
-            response = self.http_client.get(url)
-            response.raise_for_status()
+            # Check if we already have this page archived
+            content_hash = hashlib.sha256(url.encode()).hexdigest()[:16]
+            existing_page = (
+                db.query(ArchivedPage).filter(ArchivedPage.url == url).first()
+            )
 
-            soup = BeautifulSoup(response.text, "html.parser")
+            if existing_page:
+                logger.info(f"Using existing archived page for {url}")
+                # Read the markdown content from disk
+                try:
+                    with open(
+                        existing_page.file_path + ".md", "r", encoding="utf-8"
+                    ) as f:
+                        content = f.read()
+                    return content, existing_page
+                except FileNotFoundError:
+                    logger.warning(
+                        f"Archived markdown file not found: {existing_page.file_path}.md"
+                    )
+                    # Continue to re-fetch the page
 
-            # Remove unwanted elements
-            for element in soup.find_all(
-                ["script", "style", "nav", "footer", "header"]
-            ):
-                element.decompose()
+            # Create archive directory structure
+            archive_root = os.getenv("POLILOOM_ARCHIVE_ROOT", "./archives")
+            now = datetime.now(timezone.utc)
+            date_path = f"{now.year:04d}/{now.month:02d}/{now.day:02d}"
+            archive_dir = Path(archive_root) / date_path
+            archive_dir.mkdir(parents=True, exist_ok=True)
 
-            # Get main content - Wikipedia articles use div with id="mw-content-text"
-            content_div = soup.find("div", {"id": "mw-content-text"})
-            if content_div:
-                # Extract text from paragraphs in the main content
-                paragraphs = content_div.find_all("p")
-                content = "\n\n".join(
-                    [p.get_text().strip() for p in paragraphs if p.get_text().strip()]
+            # Generate unique filename
+            mhtml_path = archive_dir / f"{content_hash}.mhtml"
+            markdown_path = archive_dir / f"{content_hash}.md"
+
+            # Configure crawl4ai to capture MHTML and convert to markdown
+            config = CrawlerRunConfig(
+                capture_mhtml=True,
+                excluded_tags=["nav", "footer", "script", "style"],
+                css_selector="#mw-content-text",  # Focus on Wikipedia main content
+                word_count_threshold=50,
+                verbose=True,
+            )
+
+            async with AsyncWebCrawler() as crawler:
+                result = await crawler.arun(url, config=config)
+
+                if not result.success:
+                    logger.error(f"Failed to crawl Wikipedia page: {url}")
+                    return None, None
+
+                # Save MHTML archive to disk
+                if result.mhtml:
+                    with open(mhtml_path, "w", encoding="utf-8") as f:
+                        f.write(result.mhtml)
+                    logger.info(f"Saved MHTML archive: {mhtml_path}")
+
+                # Save markdown content to disk and prepare for return
+                markdown_content = result.markdown
+                if markdown_content:
+                    # Limit content length to avoid token limits
+                    if len(markdown_content) > 8000:
+                        markdown_content = markdown_content[:8000] + "..."
+
+                    with open(markdown_path, "w", encoding="utf-8") as f:
+                        f.write(markdown_content)
+                    logger.info(f"Saved markdown content: {markdown_path}")
+
+                # Create ArchivedPage record
+                archived_page = ArchivedPage(
+                    url=url,
+                    file_path=str(mhtml_path),
+                    content_hash=content_hash,
+                    fetch_timestamp=now,
                 )
+                db.add(archived_page)
+                db.commit()
 
-                # Limit content length to avoid token limits
-                if len(content) > 8000:
-                    content = content[:8000] + "..."
+                return markdown_content, archived_page
 
-                return content
-
-            logger.warning(f"Could not find main content in Wikipedia page: {url}")
-            return None
-
-        except httpx.RequestError as e:
-            logger.error(f"Error fetching Wikipedia content from {url}: {e}")
-            return None
+        except Exception as e:
+            logger.error(
+                f"Error fetching and archiving Wikipedia content from {url}: {e}"
+            )
+            return None, None
 
     def _find_exact_position_match(
         self, db: Session, position_name: str
@@ -351,7 +412,7 @@ Country: {country or "Unknown"}"""
     ) -> bool:
         """Store extracted data in the database."""
         try:
-            for wikipedia_link, data in extracted_data:
+            for archived_page, data in extracted_data:
                 # Store properties
                 for prop_data in data.get("properties", []):
                     if prop_data.value:
@@ -371,7 +432,7 @@ Country: {country or "Unknown"}"""
                                 politician_id=politician.id,
                                 type=prop_data.type,
                                 value=prop_data.value,
-                                is_extracted=True,  # Newly extracted, needs evaluation
+                                archived_page_id=archived_page.id,
                             )
                             db.add(new_property)
                             db.flush()  # Get the ID
@@ -412,7 +473,7 @@ Country: {country or "Unknown"}"""
                                 position_id=position.id,
                                 start_date=pos_data.start_date,
                                 end_date=pos_data.end_date,
-                                is_extracted=True,  # Newly extracted, needs evaluation
+                                archived_page_id=archived_page.id,
                             )
                             db.add(holds_position)
                             db.flush()
@@ -462,7 +523,7 @@ Country: {country or "Unknown"}"""
                             born_at = BornAt(
                                 politician_id=politician.id,
                                 location_id=location.id,
-                                is_extracted=True,  # Newly extracted, needs evaluation
+                                archived_page_id=archived_page.id,
                             )
                             db.add(born_at)
                             db.flush()
