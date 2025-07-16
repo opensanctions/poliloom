@@ -1,4 +1,4 @@
-import { Politician, ConfirmationRequest } from '@/types';
+import { Politician, EvaluationRequest, EvaluationResponse } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
@@ -16,9 +16,9 @@ async function apiRequest<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers,
+    ...((options.headers as Record<string, string>) || {}),
   };
 
   if (accessToken) {
@@ -41,20 +41,19 @@ async function apiRequest<T>(
 }
 
 export async function fetchUnconfirmedPolitician(accessToken: string): Promise<Politician | null> {
-  const politicians = await apiRequest<Politician[]>('/politicians/unconfirmed?limit=1', {}, accessToken);
+  const politicians = await apiRequest<Politician[]>('/politicians/?limit=1', {}, accessToken);
   return politicians.length > 0 ? politicians[0] : null;
 }
 
-export async function confirmPolitician(
-  politicianId: string,
-  confirmationData: ConfirmationRequest,
+export async function submitEvaluations(
+  evaluationData: EvaluationRequest,
   accessToken: string
-): Promise<void> {
-  return apiRequest<void>(
-    `/politicians/${politicianId}/confirm`,
+): Promise<EvaluationResponse> {
+  return apiRequest<EvaluationResponse>(
+    `/politicians/evaluate`,
     {
       method: 'POST',
-      body: JSON.stringify(confirmationData),
+      body: JSON.stringify(evaluationData),
     },
     accessToken
   );

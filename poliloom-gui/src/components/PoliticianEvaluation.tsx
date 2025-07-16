@@ -1,16 +1,16 @@
 "use client";
 
 import { useState } from 'react';
-import { Politician, Property, Position, Birthplace, ConfirmationRequest } from '@/types';
-import { confirmPolitician } from '@/lib/api';
+import { Politician, Property, Position, Birthplace, EvaluationRequest, EvaluationItem } from '@/types';
+import { submitEvaluations } from '@/lib/api';
 
-interface PoliticianConfirmationProps {
+interface PoliticianEvaluationProps {
   politician: Politician;
   accessToken: string;
   onNext: () => void;
 }
 
-export function PoliticianConfirmation({ politician, accessToken, onNext }: PoliticianConfirmationProps) {
+export function PoliticianEvaluation({ politician, accessToken, onNext }: PoliticianEvaluationProps) {
   const [confirmedProperties, setConfirmedProperties] = useState<Set<string>>(new Set());
   const [discardedProperties, setDiscardedProperties] = useState<Set<string>>(new Set());
   const [confirmedPositions, setConfirmedPositions] = useState<Set<string>>(new Set());
@@ -76,20 +76,53 @@ export function PoliticianConfirmation({ politician, accessToken, onNext }: Poli
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      const confirmationData: ConfirmationRequest = {
-        confirmed_properties: Array.from(confirmedProperties),
-        discarded_properties: Array.from(discardedProperties),
-        confirmed_positions: Array.from(confirmedPositions),
-        discarded_positions: Array.from(discardedPositions),
-        confirmed_birthplaces: Array.from(confirmedBirthplaces),
-        discarded_birthplaces: Array.from(discardedBirthplaces),
+      const evaluations: EvaluationItem[] = [
+        ...Array.from(confirmedProperties).map(id => ({
+          entity_type: 'property',
+          entity_id: id,
+          result: 'confirmed' as const
+        })),
+        ...Array.from(discardedProperties).map(id => ({
+          entity_type: 'property',
+          entity_id: id,
+          result: 'discarded' as const
+        })),
+        ...Array.from(confirmedPositions).map(id => ({
+          entity_type: 'position',
+          entity_id: id,
+          result: 'confirmed' as const
+        })),
+        ...Array.from(discardedPositions).map(id => ({
+          entity_type: 'position',
+          entity_id: id,
+          result: 'discarded' as const
+        })),
+        ...Array.from(confirmedBirthplaces).map(id => ({
+          entity_type: 'birthplace',
+          entity_id: id,
+          result: 'confirmed' as const
+        })),
+        ...Array.from(discardedBirthplaces).map(id => ({
+          entity_type: 'birthplace',
+          entity_id: id,
+          result: 'discarded' as const
+        }))
+      ];
+
+      const evaluationData: EvaluationRequest = {
+        evaluations
       };
 
-      await confirmPolitician(politician.id, confirmationData, accessToken);
-      onNext();
+      const response = await submitEvaluations(evaluationData, accessToken);
+      if (response.success) {
+        onNext();
+      } else {
+        console.error('Evaluation errors:', response.errors);
+        alert(`Error submitting evaluations: ${response.message}`);
+      }
     } catch (error) {
-      console.error('Error confirming politician:', error);
-      alert('Error submitting confirmation. Please try again.');
+      console.error('Error submitting evaluations:', error);
+      alert('Error submitting evaluations. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -161,7 +194,7 @@ export function PoliticianConfirmation({ politician, accessToken, onNext }: Poli
           disabled={isSubmitting}
           className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isSubmitting ? 'Submitting...' : 'Next Politician'}
+          {isSubmitting ? 'Submitting...' : 'Submit Evaluations & Next'}
         </button>
       </div>
     </div>

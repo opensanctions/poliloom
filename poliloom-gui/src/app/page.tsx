@@ -1,9 +1,9 @@
 "use client"
 
 import { useSession } from "next-auth/react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Header } from "@/components/Header"
-import { PoliticianConfirmation } from "@/components/PoliticianConfirmation"
+import { PoliticianEvaluation } from "@/components/PoliticianEvaluation"
 import { handleSignIn } from "@/lib/actions"
 import { fetchUnconfirmedPolitician } from "@/lib/api"
 import { Politician } from "@/types"
@@ -14,7 +14,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const loadPolitician = async () => {
+  const loadPolitician = useCallback(async () => {
     if (!session?.accessToken) return
 
     setLoading(true)
@@ -28,13 +28,13 @@ export default function Home() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [session?.accessToken])
 
   useEffect(() => {
     if (status === 'authenticated' && session?.accessToken) {
       loadPolitician()
     }
-  }, [status, session?.accessToken])
+  }, [status, session?.accessToken, loadPolitician])
 
   const handleNext = () => {
     setPolitician(null)
@@ -48,10 +48,10 @@ export default function Home() {
       <main className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            PoliLoom Data Confirmation
+            PoliLoom Data Evaluation
           </h1>
           <p className="text-lg text-gray-600 mb-8">
-            Help verify politician data extracted from Wikipedia and other sources
+            Help evaluate politician data extracted from Wikipedia and other sources
           </p>
           
           {status === "loading" && (
@@ -61,7 +61,7 @@ export default function Home() {
           {status === "unauthenticated" && (
             <div className="space-y-4">
               <p className="text-gray-600">
-                Please sign in with your MediaWiki account to start confirming data.
+                Please sign in with your MediaWiki account to start evaluating data.
               </p>
               <form action={handleSignIn}>
                 <button
@@ -95,7 +95,7 @@ export default function Home() {
               )}
               
               {politician && session?.accessToken && (
-                <PoliticianConfirmation
+                <PoliticianEvaluation
                   politician={politician}
                   accessToken={session.accessToken}
                   onNext={handleNext}
@@ -104,7 +104,7 @@ export default function Home() {
               
               {!loading && !error && !politician && (
                 <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
-                  <p className="text-gray-600">No politicians available for confirmation at this time.</p>
+                  <p className="text-gray-600">No politicians available for evaluation at this time.</p>
                 </div>
               )}
             </div>

@@ -23,12 +23,12 @@ This is a modern Next.js application that provides a user interface for confirmi
 - **Session Management**: Secure session handling with proper token management
 - **Protected Routes**: All confirmation pages require authentication
 
-### 2. Data Confirmation Interface
+### 2. Data Evaluation Interface
 
 - **Single Politician View**: Show one politician at a time with their extracted data
 - **Sequential Navigation**: Move through politicians one by one
-- **Source Verification**: Show source URLs where information was extracted from
-- **Individual Item Actions**: Confirm/discard each property and position individually
+- **Individual Item Actions**: Evaluate each property, position, and birthplace individually
+- **Batch Evaluation**: Submit multiple evaluations in a single request
 
 ### 3. User Experience
 
@@ -45,8 +45,8 @@ The GUI communicates with the PoliLoom API backend:
 
 **Key Endpoints**:
 
-- `GET /politicians/unconfirmed` - Fetch next politician needing confirmation
-- `POST /politicians/{politician_id}/confirm` - Submit confirmation decisions
+- `GET /politicians/` - Fetch unconfirmed politicians (with pagination)
+- `POST /politicians/evaluate` - Submit evaluation decisions for extracted data
 
 **Authentication**: All API calls include MediaWiki OAuth tokens in Authorization headers.
 
@@ -61,38 +61,53 @@ curl http://localhost:8000/openapi.json
 ### Politician Object
 
 ```typescript
-interface Politician {
+interface UnconfirmedPolitician {
   id: string;
   name: string;
-  country: string;
+  wikidata_id: string | null;
   unconfirmed_properties: Property[];
   unconfirmed_positions: Position[];
+  unconfirmed_birthplaces: Birthplace[];
 }
 
 interface Property {
   id: string;
-  type: "BirthDate" | "BirthPlace";
+  type: string;
   value: string;
-  source_url: string;
 }
 
 interface Position {
   id: string;
   position_name: string;
-  start_date: string;
-  end_date: string;
-  source_url: string;
+  start_date: string | null;
+  end_date: string | null;
+}
+
+interface Birthplace {
+  id: string;
+  location_name: string;
+  location_wikidata_id: string | null;
 }
 ```
 
-### Confirmation Payload
+### Evaluation Payload
 
 ```typescript
-interface ConfirmationRequest {
-  confirmed_properties: string[];
-  discarded_properties: string[];
-  confirmed_positions: string[];
-  discarded_positions: string[];
+interface EvaluationRequest {
+  evaluations: EvaluationItem[];
+}
+
+interface EvaluationItem {
+  entity_type: string;
+  entity_id: string;
+  result: "confirmed" | "discarded";
+}
+
+interface EvaluationResponse {
+  success: boolean;
+  message: string;
+  processed_count: number;
+  errors: string[];
 }
 ```
 
@@ -108,9 +123,10 @@ src/
 │   └── layout.tsx               # Root layout
 ├── components/
 │   ├── ui/                      # Reusable UI components
-│   ├── PoliticianConfirmation.tsx # Main confirmation component
-│   ├── PropertyItem.tsx         # Individual property confirmation
-│   ├── PositionItem.tsx         # Individual position confirmation
+│   ├── PoliticianEvaluation.tsx # Main evaluation component
+│   ├── PropertyItem.tsx         # Individual property evaluation
+│   ├── PositionItem.tsx         # Individual position evaluation
+│   ├── BirthplaceItem.tsx       # Individual birthplace evaluation
 │   └── Navigation.tsx           # Simple navigation
 ├── lib/
 │   ├── api.ts                   # API client functions
@@ -122,10 +138,10 @@ src/
 
 ## Key Pages & Components
 
-### 1. Main Confirmation Interface (`/`)
+### 1. Main Evaluation Interface (`/`)
 
 - Single politician display with all extracted data
-- Individual confirm/discard actions for each property and position
+- Individual confirm/discard actions for each property, position, and birthplace
 - "Next" button to move to the next politician
 - Progress indicator (e.g., "Politician 5 of 23")
 
@@ -137,24 +153,30 @@ src/
 
 ### 3. Key Components
 
-**PoliticianConfirmation**:
+**PoliticianEvaluation**:
 
-- Main component showing politician name, country
+- Main component showing politician name and Wikidata ID
 - Links to Wikipedia/Wikidata
-- Contains all PropertyItem and PositionItem components
+- Contains all PropertyItem, PositionItem, and BirthplaceItem components
 - "Next Politician" navigation
 
 **PropertyItem**:
 
-- Shows property type, extracted value, source
+- Shows property type and extracted value
 - Individual confirm/discard buttons
 - Minimal, inline design
 
 **PositionItem**:
 
-- Shows position name, dates, source
+- Shows position name and dates
 - Individual confirm/discard buttons
 - Clear, compact layout
+
+**BirthplaceItem**:
+
+- Shows location name and Wikidata ID (if available)
+- Individual confirm/discard buttons
+- Consistent layout with other items
 
 ## Environment Configuration
 
@@ -272,7 +294,7 @@ Focus only on critical functionality that could break the confirmation workflow.
 
 - Authentication flow (OAuth login/logout)
 - Politician data display and rendering
-- Confirm/discard actions for properties and positions
+- Confirm/discard actions for properties, positions, and birthplaces
 - Navigation to next politician
 - Basic error handling
 
@@ -294,9 +316,10 @@ Focus only on critical functionality that could break the confirmation workflow.
 ```
 __tests__/
 ├── components/
-│   ├── PoliticianConfirmation.test.tsx
+│   ├── PoliticianEvaluation.test.tsx
 │   ├── PropertyItem.test.tsx
-│   └── PositionItem.test.tsx
+│   ├── PositionItem.test.tsx
+│   └── BirthplaceItem.test.tsx
 └── lib/
     └── api.test.ts
 ```
@@ -316,11 +339,11 @@ __tests__/
 2. ✅ Configure Tailwind CSS
 3. ⏳ Implement MediaWiki OAuth authentication
 4. ⏳ Create API client for politician data fetching
-5. ⏳ Build main confirmation interface (single politician view)
-6. ⏳ Implement individual property/position confirmation
+5. ⏳ Build main evaluation interface (single politician view)
+6. ⏳ Implement individual property/position/birthplace evaluation
 7. ⏳ Add "Next Politician" navigation
 8. ⏳ Add basic error handling and loading states
 9. ⏳ Write minimal tests for critical components
 10. ⏳ Deploy and test OAuth integration
 
-This specification provides a minimal, focused foundation for building a simple confirmation interface for the PoliLoom project.
+This specification provides a minimal, focused foundation for building a simple evaluation interface for the PoliLoom project.

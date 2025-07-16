@@ -29,11 +29,19 @@ export interface Politician {
   unconfirmed_birthplaces: Birthplace[];
 }
 
-export interface ConfirmationRequest {
-  confirmed_properties: string[];
-  discarded_properties: string[];
-  confirmed_positions: string[];
-  discarded_positions: string[];
-  confirmed_birthplaces: string[];
-  discarded_birthplaces: string[];
+export interface EvaluationItem {
+  entity_type: string;
+  entity_id: string;
+  result: "confirmed" | "discarded";
+}
+
+export interface EvaluationRequest {
+  evaluations: EvaluationItem[];
+}
+
+export interface EvaluationResponse {
+  success: boolean;
+  message: string;
+  processed_count: number;
+  errors: string[];
 }
