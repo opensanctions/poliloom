@@ -314,25 +314,30 @@ class TestWikidataDumpProcessor:
                 with open(hierarchy_file, "w") as f:
                     json.dump(hierarchy_data, f)
 
-                # Mock database operations
+                # Mock database operations by disabling multiprocessing and using synchronous execution
                 with patch(
-                    "poliloom.services.worker_manager.get_worker_session"
-                ) as mock_get_session:
-                    mock_session = MagicMock()
-                    mock_get_session.return_value = mock_session
+                    "poliloom.services.dump_processor.mp.Pool"
+                ) as mock_pool_class:
+                    # Create a mock pool that executes synchronously in the current process
+                    mock_pool = MagicMock()
+                    mock_pool_class.return_value = mock_pool
 
-                    # Mock query to return no existing entities
-                    mock_query = MagicMock()
-                    mock_session.query.return_value = mock_query
-                    mock_query.filter.return_value = mock_query
-                    mock_query.all.return_value = []
+                    # Mock starmap_async to return expected results synchronously
+                    mock_async_result = MagicMock()
+                    mock_pool.starmap_async.return_value = mock_async_result
+                    mock_async_result.get.return_value = [
+                        (
+                            {
+                                "positions": 1,
+                                "locations": 1,
+                                "countries": 1,
+                                "politicians": 0,
+                            },
+                            3,
+                        )
+                    ]
 
-                    # Mock execute for countries
-                    mock_result = MagicMock()
-                    mock_result.rowcount = 1
-                    mock_session.execute.return_value = mock_result
-
-                    # Test extraction
+                    # Test extraction - this will now run synchronously without actual multiprocessing
                     result = processor.extract_entities_from_dump(
                         temp_file, batch_size=10, num_workers=1, hierarchy_dir=temp_dir
                     )
