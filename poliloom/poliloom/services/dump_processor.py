@@ -376,14 +376,8 @@ class WikidataDumpProcessor:
         # Process chunks in parallel with proper KeyboardInterrupt handling
         pool = None
         try:
-            # Initialize workers with empty hierarchy data (politicians don't need hierarchy)
-            def init_worker():
-                init_worker_with_hierarchy(
-                    set(),
-                    set(),
-                )
-
-            pool = mp.Pool(processes=num_workers, initializer=init_worker)
+            # Initialize workers with database only (politicians don't need hierarchy)
+            pool = mp.Pool(processes=num_workers, initializer=init_worker_with_db)
 
             # Each worker processes its chunk independently
             async_result = pool.starmap_async(
