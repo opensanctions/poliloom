@@ -195,3 +195,4 @@ cython_debug/
 latest-all.json.gz
 latest-all.json.bz2
 complete_hierarchy.json
+crawl4ai_custom_context.md

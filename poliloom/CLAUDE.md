@@ -27,6 +27,18 @@ This API and CLI project is responsible for:
 
 **important** use the `uv` tool for running python commands and managing dependencies
 
+## **Web Crawling Reference**
+
+The repository includes `crawl4ai_custom_context.md` - a comprehensive reference for crawl4ai library usage patterns and best practices. This file contains detailed examples for:
+
+- Browser configuration and session management
+- Content extraction strategies (CSS selectors, XPath, regex)
+- LLM integration patterns for structured data extraction
+- Performance optimization and cost management
+- Error handling and quality control
+
+Use this reference for all web requests in the project, including Wikipedia content fetching and politician data enrichment from external web sources.
+
 ## **3\. Database Schema**
 
 The database reproduces a subset of the Wikidata politician data model to store extracted information.
