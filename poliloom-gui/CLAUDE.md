@@ -332,18 +332,3 @@ __tests__/
 **Environment Variables**: Secure management of OAuth credentials and API endpoints
 
 ---
-
-## Quick Start Checklist
-
-1. ✅ Set up Next.js project with TypeScript
-2. ✅ Configure Tailwind CSS
-3. ⏳ Implement MediaWiki OAuth authentication
-4. ⏳ Create API client for politician data fetching
-5. ⏳ Build main evaluation interface (single politician view)
-6. ⏳ Implement individual property/position/birthplace evaluation
-7. ⏳ Add "Next Politician" navigation
-8. ⏳ Add basic error handling and loading states
-9. ⏳ Write minimal tests for critical components
-10. ⏳ Deploy and test OAuth integration
-
-This specification provides a minimal, focused foundation for building a simple evaluation interface for the PoliLoom project.
