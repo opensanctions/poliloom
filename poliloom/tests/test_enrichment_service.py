@@ -102,6 +102,7 @@ class TestEnrichmentService:
                 ExtractedProperty(
                     type=PropertyType.BIRTH_DATE,
                     value=openai_response["properties"][0]["value"],
+                    proof="born January 15, 1970",
                 )
             ]
         )
@@ -164,7 +165,11 @@ class TestEnrichmentService:
         """Test storing extracted properties."""
         data = {
             "properties": [
-                ExtractedProperty(type=PropertyType.BIRTH_DATE, value="1970-01-15")
+                ExtractedProperty(
+                    type=PropertyType.BIRTH_DATE,
+                    value="1970-01-15",
+                    proof="born January 15, 1970",
+                )
             ],
             "positions": [],
             "birthplaces": [],
@@ -358,7 +363,11 @@ class TestEnrichmentService:
         # Create invalid data to trigger an error
         data = {
             "properties": [
-                ExtractedProperty(type=PropertyType.BIRTH_DATE, value="1970-01-15")
+                ExtractedProperty(
+                    type=PropertyType.BIRTH_DATE,
+                    value="1970-01-15",
+                    proof="born January 15, 1970",
+                )
             ],
             "positions": [],
             "birthplaces": [],
