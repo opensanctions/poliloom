@@ -138,6 +138,9 @@ class Property(Base, TimestampMixin):
     archived_page_id = Column(
         UUID(as_uuid=True), ForeignKey("archived_pages.id"), nullable=True
     )  # NULL for Wikidata imports, set for extracted data
+    proof_line = Column(
+        String, nullable=True
+    )  # NULL for Wikidata imports, set for extracted data
 
     # Relationships
     politician = relationship("Politician", back_populates="properties")
@@ -216,6 +219,9 @@ class HoldsPosition(Base, TimestampMixin):
     archived_page_id = Column(
         UUID(as_uuid=True), ForeignKey("archived_pages.id"), nullable=True
     )  # NULL for Wikidata imports, set for extracted data
+    proof_line = Column(
+        String, nullable=True
+    )  # NULL for Wikidata imports, set for extracted data
 
     # Relationships
     politician = relationship("Politician", back_populates="positions_held")
@@ -238,6 +244,9 @@ class BornAt(Base, TimestampMixin):
     location_id = Column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=False)
     archived_page_id = Column(
         UUID(as_uuid=True), ForeignKey("archived_pages.id"), nullable=True
+    )  # NULL for Wikidata imports, set for extracted data
+    proof_line = Column(
+        String, nullable=True
     )  # NULL for Wikidata imports, set for extracted data
 
     # Relationships

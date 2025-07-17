@@ -44,6 +44,7 @@ class ExtractedProperty(BaseModel):
 
     type: PropertyType
     value: str
+    proof: str
 
 
 class PropertyExtractionResult(BaseModel):
@@ -295,6 +296,7 @@ Rules:
 - Only extract information explicitly stated in the text
 - ONLY extract BirthDate and DeathDate - ignore all other personal information
 - Use partial dates if full dates aren't available
+- For each property, provide a 'proof' field with the exact quote that mentions this property
 - Be precise and only extract what is clearly stated"""
 
             user_prompt = f"""Extract personal properties about {politician_name} from this Wikipedia article text:
@@ -433,6 +435,7 @@ Country: {country or "Unknown"}"""
                                 type=prop_data.type,
                                 value=prop_data.value,
                                 archived_page_id=archived_page.id,
+                                proof_line=prop_data.proof,
                             )
                             db.add(new_property)
                             db.flush()  # Get the ID
@@ -474,6 +477,7 @@ Country: {country or "Unknown"}"""
                                 start_date=pos_data.start_date,
                                 end_date=pos_data.end_date,
                                 archived_page_id=archived_page.id,
+                                proof_line=pos_data.proof,
                             )
                             db.add(holds_position)
                             db.flush()
@@ -524,6 +528,7 @@ Country: {country or "Unknown"}"""
                                 politician_id=politician.id,
                                 location_id=location.id,
                                 archived_page_id=archived_page.id,
+                                proof_line=birth_data.proof,
                             )
                             db.add(born_at)
                             db.flush()
