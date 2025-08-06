@@ -1,9 +1,7 @@
 """Service for enriching politician data from Wikipedia using LLM extraction."""
 
 import os
-import hashlib
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import List, Optional
 from enum import Enum
 from sqlalchemy.orm import Session
@@ -12,6 +10,7 @@ import logging
 from openai import OpenAI
 from pydantic import BaseModel
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+from unmhtml import MHTMLConverter
 
 from ..models import (
     Politician,
@@ -158,43 +157,33 @@ class EnrichmentService:
         """Fetch Wikipedia content using crawl4ai and archive the page."""
         try:
             # Check if we already have this page archived
-            content_hash = hashlib.sha256(url.encode()).hexdigest()[:16]
             existing_page = (
                 db.query(ArchivedPage).filter(ArchivedPage.url == url).first()
             )
 
             if existing_page:
                 logger.info(f"Using existing archived page for {url}")
-                # Read the markdown content from disk
+                # Read the markdown content from disk using the model method
                 try:
-                    with open(
-                        existing_page.file_path + ".md", "r", encoding="utf-8"
-                    ) as f:
-                        content = f.read()
+                    content = existing_page.read_markdown_content()
                     return content, existing_page
                 except FileNotFoundError:
                     logger.warning(
-                        f"Archived markdown file not found: {existing_page.file_path}.md"
+                        f"Archived markdown file not found: {existing_page.markdown_path}"
                     )
                     # Continue to re-fetch the page
 
-            # Create archive directory structure
-            archive_root = os.getenv("POLILOOM_ARCHIVE_ROOT", "./archives")
+            # Create and insert ArchivedPage first - let SQLAlchemy events handle field generation
             now = datetime.now(timezone.utc)
-            date_path = f"{now.year:04d}/{now.month:02d}/{now.day:02d}"
-            archive_dir = Path(archive_root) / date_path
-            archive_dir.mkdir(parents=True, exist_ok=True)
+            archived_page = ArchivedPage(url=url, fetch_timestamp=now)
+            db.add(archived_page)
+            db.flush()  # Insert to database to trigger events, but don't commit yet
 
-            # Generate unique filename
-            mhtml_path = archive_dir / f"{content_hash}.mhtml"
-            markdown_path = archive_dir / f"{content_hash}.md"
+            # Now the object is properly initialized with generated content_hash
 
             # Configure crawl4ai to capture MHTML and convert to markdown
             config = CrawlerRunConfig(
                 capture_mhtml=True,
-                excluded_tags=["nav", "footer", "script", "style"],
-                css_selector="#mw-content-text",  # Focus on Wikipedia main content
-                word_count_threshold=50,
                 verbose=True,
             )
 
@@ -203,13 +192,29 @@ class EnrichmentService:
 
                 if not result.success:
                     logger.error(f"Failed to crawl Wikipedia page: {url}")
+                    # Rollback the ArchivedPage insert since crawling failed
+                    db.rollback()
                     return None, None
 
                 # Save MHTML archive to disk
                 if result.mhtml:
-                    with open(mhtml_path, "w", encoding="utf-8") as f:
+                    with open(archived_page.mhtml_path, "w", encoding="utf-8") as f:
                         f.write(result.mhtml)
-                    logger.info(f"Saved MHTML archive: {mhtml_path}")
+                    logger.info(f"Saved MHTML archive: {archived_page.mhtml_path}")
+
+                    # Generate HTML from MHTML using unmhtml
+                    try:
+                        converter = MHTMLConverter()
+                        html_content = converter.convert_file(
+                            str(archived_page.mhtml_path)
+                        )
+                        with open(archived_page.html_path, "w", encoding="utf-8") as f:
+                            f.write(html_content)
+                        logger.info(
+                            f"Generated HTML from MHTML: {archived_page.html_path}"
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to generate HTML from MHTML: {e}")
 
                 # Save markdown content to disk and prepare for return
                 markdown_content = result.markdown
@@ -218,18 +223,13 @@ class EnrichmentService:
                     if len(markdown_content) > 8000:
                         markdown_content = markdown_content[:8000] + "..."
 
-                    with open(markdown_path, "w", encoding="utf-8") as f:
+                    with open(archived_page.markdown_path, "w", encoding="utf-8") as f:
                         f.write(markdown_content)
-                    logger.info(f"Saved markdown content: {markdown_path}")
+                    logger.info(
+                        f"Saved markdown content: {archived_page.markdown_path}"
+                    )
 
-                # Create ArchivedPage record
-                archived_page = ArchivedPage(
-                    url=url,
-                    file_path=str(mhtml_path),
-                    content_hash=content_hash,
-                    fetch_timestamp=now,
-                )
-                db.add(archived_page)
+                # Commit the transaction now that files are successfully saved
                 db.commit()
 
                 return markdown_content, archived_page

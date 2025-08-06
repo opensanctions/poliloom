@@ -152,7 +152,6 @@ def sample_archived_page(test_session):
 
     archived_page = ArchivedPage(
         url="https://en.wikipedia.org/wiki/Test_Page",
-        file_path="./archives/2025/07/16/test123.mhtml",
         content_hash="test123",
         fetch_timestamp=datetime.now(timezone.utc),
     )

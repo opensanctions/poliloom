@@ -1,6 +1,9 @@
 """Database models for the PoliLoom project."""
 
+import os
+import hashlib
 from datetime import datetime, timezone
+from pathlib import Path
 from sqlalchemy import (
     Column,
     String,
@@ -12,6 +15,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy import event
+from sqlalchemy.ext.hybrid import hybrid_property
 from uuid import uuid4
 from pgvector.sqlalchemy import Vector
 import enum
@@ -101,16 +106,84 @@ class ArchivedPage(Base, TimestampMixin):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     url = Column(String, nullable=False)
-    file_path = Column(String, nullable=False)  # Path to MHTML file on disk
     content_hash = Column(
         String, nullable=False, index=True
     )  # SHA256 hash for deduplication
-    fetch_timestamp = Column(DateTime, nullable=False)
+    fetch_timestamp = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
 
     # Relationships
     properties = relationship("Property", back_populates="archived_page")
     positions_held = relationship("HoldsPosition", back_populates="archived_page")
     birthplaces = relationship("BornAt", back_populates="archived_page")
+
+    @staticmethod
+    def _generate_content_hash(url: str) -> str:
+        """Generate a content hash for a URL."""
+        return hashlib.sha256(url.encode()).hexdigest()[:16]
+
+    @staticmethod
+    def _create_archive_directory(timestamp: datetime) -> Path:
+        """Create archive directory structure and return the path."""
+        archive_root = os.getenv("POLILOOM_ARCHIVE_ROOT", "./archives")
+        date_path = f"{timestamp.year:04d}/{timestamp.month:02d}/{timestamp.day:02d}"
+        archive_dir = Path(archive_root) / date_path
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        return archive_dir
+
+    def _get_archive_directory(self) -> Path:
+        """Get the archive directory for this archived page."""
+        return self._create_archive_directory(self.fetch_timestamp)
+
+    @hybrid_property
+    def mhtml_path(self) -> Path:
+        """Get the MHTML file path for this archived page."""
+        return self._get_archive_directory() / f"{self.content_hash}.mhtml"
+
+    @hybrid_property
+    def html_path(self) -> Path:
+        """Get the HTML file path for this archived page."""
+        return self._get_archive_directory() / f"{self.content_hash}.html"
+
+    @hybrid_property
+    def markdown_path(self) -> Path:
+        """Get the markdown file path for this archived page."""
+        return self._get_archive_directory() / f"{self.content_hash}.md"
+
+    def get_file_paths(self) -> dict:
+        """Get all file paths for this archived page."""
+        return {
+            "mhtml": self.mhtml_path,
+            "html": self.html_path,
+            "markdown": self.markdown_path,
+        }
+
+    def read_markdown_content(self) -> str:
+        """Read the markdown content from disk."""
+        try:
+            with open(self.markdown_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"Archived markdown file not found: {self.markdown_path}"
+            )
+
+    def read_html_content(self) -> str:
+        """Read the HTML content from disk."""
+        try:
+            with open(self.html_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Archived HTML file not found: {self.html_path}")
+
+
+@event.listens_for(ArchivedPage, "before_insert")
+def generate_archived_page_content_hash(mapper, connection, target):
+    """Auto-generate content_hash before inserting ArchivedPage."""
+    if target.url and not target.content_hash:
+        # Generate content hash from URL
+        target.content_hash = ArchivedPage._generate_content_hash(target.url)
 
 
 class WikipediaLink(Base, TimestampMixin):
