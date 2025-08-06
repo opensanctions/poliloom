@@ -52,7 +52,7 @@ The database reproduces a subset of the Wikidata politician data model to store 
 - **Citizenships:** Politician citizenships are stored as HasCitizenship records linking politicians to countries. Multiple citizenships are supported by creating multiple HasCitizenship records. Citizenships are only imported from Wikidata and do not require user evaluation. Citizenship relationships are only created when the referenced country already exists in the database.
 - **Conflict Resolution:** conflict_resolved fields will be used to flag when discrepancies between extracted data and existing Wikidata values have been addressed.
 - **Embedding Workflow:** Position and Location entities have optional embedding fields that are initially NULL during import. Embeddings are generated separately in batch processing for all entities without embeddings to ensure optimal performance.
-- **Evaluation System:** Instead of direct confirmation fields, the system uses separate Evaluation records that track user evaluations (CONFIRMED/DISCARDED) for Properties, HoldsPosition, and BornAt entities. This allows multiple users to evaluate the same extracted data and supports threshold-based confirmation workflows.
+- **Evaluation System:** Instead of direct confirmation fields, the system uses separate evaluation tables (PropertyEvaluation, PositionEvaluation, BirthplaceEvaluation) that track user evaluations with boolean confirmed/rejected flags for Properties, HoldsPosition, and BornAt entities. This allows multiple users to evaluate the same extracted data and supports threshold-based confirmation workflows.
 
 ## **4\. Core Functionality**
 
@@ -171,7 +171,7 @@ The API will expose endpoints for the GUI to manage evaluation workflows. Authen
 - **Routes:**
 
   - **GET /politicians**: Retrieve politicians that have unevaluated (is_extracted=True) properties, positions, or birthplaces
-  - **POST /evaluate**: Evaluate extracted data (properties, positions, birthplaces) with CONFIRMED/DISCARDED results
+  - **POST /evaluate**: Evaluate extracted data (properties, positions, birthplaces) with boolean confirmed/rejected results
 
 - **OpenAPI Documentation**: The complete API specification is available at `http://localhost:8000/openapi.json` when the backend server is running. To fetch it using curl:
 

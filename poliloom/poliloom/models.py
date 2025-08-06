@@ -10,7 +10,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
-    Enum,
+    Boolean,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -19,16 +19,8 @@ from sqlalchemy import event
 from sqlalchemy.ext.hybrid import hybrid_property
 from uuid import uuid4
 from pgvector.sqlalchemy import Vector
-import enum
 
 Base = declarative_base()
-
-
-class EvaluationResult(enum.Enum):
-    """Enum for evaluation results."""
-
-    CONFIRMED = "confirmed"
-    DISCARDED = "discarded"
 
 
 class TimestampMixin:
@@ -45,25 +37,49 @@ class TimestampMixin:
     )
 
 
-class Evaluation(Base, TimestampMixin):
-    """Evaluation entity for tracking user evaluations of extracted data."""
+class PropertyEvaluation(Base, TimestampMixin):
+    """Property evaluation entity for tracking user evaluations of extracted properties."""
 
-    __tablename__ = "evaluations"
+    __tablename__ = "property_evaluations"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    user_id = Column(String, nullable=False)  # ID of user who made the evaluation
-    result = Column(Enum(EvaluationResult), nullable=False)  # CONFIRMED or DISCARDED
-
-    # Polymorphic foreign keys to the entities being evaluated
-    property_id = Column(UUID(as_uuid=True), ForeignKey("properties.id"), nullable=True)
-    holds_position_id = Column(
-        UUID(as_uuid=True), ForeignKey("holds_position.id"), nullable=True
+    user_id = Column(String, nullable=False)
+    is_confirmed = Column(Boolean, nullable=False)
+    property_id = Column(
+        UUID(as_uuid=True), ForeignKey("properties.id"), nullable=False
     )
-    born_at_id = Column(UUID(as_uuid=True), ForeignKey("born_at.id"), nullable=True)
 
     # Relationships
     property = relationship("Property", back_populates="evaluations")
+
+
+class PositionEvaluation(Base, TimestampMixin):
+    """Position evaluation entity for tracking user evaluations of extracted positions."""
+
+    __tablename__ = "position_evaluations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id = Column(String, nullable=False)
+    is_confirmed = Column(Boolean, nullable=False)
+    holds_position_id = Column(
+        UUID(as_uuid=True), ForeignKey("holds_position.id"), nullable=False
+    )
+
+    # Relationships
     holds_position = relationship("HoldsPosition", back_populates="evaluations")
+
+
+class BirthplaceEvaluation(Base, TimestampMixin):
+    """Birthplace evaluation entity for tracking user evaluations of extracted birthplaces."""
+
+    __tablename__ = "birthplace_evaluations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id = Column(String, nullable=False)
+    is_confirmed = Column(Boolean, nullable=False)
+    born_at_id = Column(UUID(as_uuid=True), ForeignKey("born_at.id"), nullable=False)
+
+    # Relationships
     born_at = relationship("BornAt", back_populates="evaluations")
 
 
@@ -252,11 +268,16 @@ class Property(Base, TimestampMixin):
         """Check if this property was extracted from a web source."""
         return self.archived_page_id is not None
 
+    @is_extracted.expression
+    def is_extracted(cls):
+        """SQL expression for is_extracted."""
+        return cls.archived_page_id.isnot(None)
+
     # Relationships
     politician = relationship("Politician", back_populates="properties")
     archived_page = relationship("ArchivedPage", back_populates="properties")
     evaluations = relationship(
-        "Evaluation", back_populates="property", cascade="all, delete-orphan"
+        "PropertyEvaluation", back_populates="property", cascade="all, delete-orphan"
     )
 
 
@@ -338,12 +359,19 @@ class HoldsPosition(Base, TimestampMixin):
         """Check if this position was extracted from a web source."""
         return self.archived_page_id is not None
 
+    @is_extracted.expression
+    def is_extracted(cls):
+        """SQL expression for is_extracted."""
+        return cls.archived_page_id.isnot(None)
+
     # Relationships
     politician = relationship("Politician", back_populates="positions_held")
     position = relationship("Position", back_populates="held_by")
     archived_page = relationship("ArchivedPage", back_populates="positions_held")
     evaluations = relationship(
-        "Evaluation", back_populates="holds_position", cascade="all, delete-orphan"
+        "PositionEvaluation",
+        back_populates="holds_position",
+        cascade="all, delete-orphan",
     )
 
 
@@ -369,12 +397,17 @@ class BornAt(Base, TimestampMixin):
         """Check if this birthplace was extracted from a web source."""
         return self.archived_page_id is not None
 
+    @is_extracted.expression
+    def is_extracted(cls):
+        """SQL expression for is_extracted."""
+        return cls.archived_page_id.isnot(None)
+
     # Relationships
     politician = relationship("Politician", back_populates="birthplaces")
     location = relationship("Location", back_populates="born_here")
     archived_page = relationship("ArchivedPage", back_populates="birthplaces")
     evaluations = relationship(
-        "Evaluation", back_populates="born_at", cascade="all, delete-orphan"
+        "BirthplaceEvaluation", back_populates="born_at", cascade="all, delete-orphan"
     )
 
 

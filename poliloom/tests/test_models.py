@@ -15,8 +15,9 @@ from poliloom.models import (
     HasCitizenship,
     Location,
     BornAt,
-    Evaluation,
-    EvaluationResult,
+    PropertyEvaluation,
+    PositionEvaluation,
+    BirthplaceEvaluation,
 )
 from poliloom.embeddings import generate_embedding
 
@@ -637,13 +638,13 @@ class TestLocation:
             assert hasattr(similar[0], "name")
 
 
-class TestEvaluation:
-    """Test cases for the Evaluation model."""
+class TestPropertyEvaluation:
+    """Test cases for the PropertyEvaluation model."""
 
-    def test_evaluation_creation_for_property(
+    def test_property_evaluation_creation(
         self, test_session, sample_politician, create_entities, assert_model_fields
     ):
-        """Test creating an evaluation for a property."""
+        """Test creating a property evaluation."""
         prop = create_entities(
             test_session,
             Property(
@@ -656,9 +657,9 @@ class TestEvaluation:
 
         evaluation = create_entities(
             test_session,
-            Evaluation(
+            PropertyEvaluation(
                 user_id="user123",
-                result=EvaluationResult.CONFIRMED,
+                is_confirmed=True,
                 property_id=prop.id,
             ),
         )
@@ -667,21 +668,58 @@ class TestEvaluation:
             evaluation,
             {
                 "user_id": "user123",
-                "result": EvaluationResult.CONFIRMED,
+                "is_confirmed": True,
                 "property_id": prop.id,
-                "holds_position_id": None,
-                "born_at_id": None,
             },
         )
 
         # Check relationships
         assert evaluation.property == prop
-        assert evaluation.holds_position is None
-        assert evaluation.born_at is None
         assert len(prop.evaluations) == 1
         assert prop.evaluations[0] == evaluation
 
-    def test_evaluation_creation_for_holds_position(
+    def test_property_evaluation_discarded(
+        self, test_session, sample_politician, create_entities, assert_model_fields
+    ):
+        """Test creating a discarded property evaluation."""
+        prop = create_entities(
+            test_session,
+            Property(
+                politician_id=sample_politician.id,
+                type="BirthDate",
+                value="1980-01-01",
+                archived_page_id=None,
+            ),
+        )
+
+        evaluation = create_entities(
+            test_session,
+            PropertyEvaluation(
+                user_id="user123",
+                is_confirmed=False,
+                property_id=prop.id,
+            ),
+        )
+
+        assert_model_fields(
+            evaluation,
+            {
+                "user_id": "user123",
+                "is_confirmed": False,
+                "property_id": prop.id,
+            },
+        )
+
+        # Check relationships
+        assert evaluation.property == prop
+        assert len(prop.evaluations) == 1
+        assert prop.evaluations[0] == evaluation
+
+
+class TestPositionEvaluation:
+    """Test cases for the PositionEvaluation model."""
+
+    def test_position_evaluation_creation(
         self,
         test_session,
         sample_politician,
@@ -689,7 +727,7 @@ class TestEvaluation:
         create_entities,
         assert_model_fields,
     ):
-        """Test creating an evaluation for a holds position."""
+        """Test creating a position evaluation."""
         holds_pos = create_entities(
             test_session,
             HoldsPosition(
@@ -702,9 +740,9 @@ class TestEvaluation:
 
         evaluation = create_entities(
             test_session,
-            Evaluation(
+            PositionEvaluation(
                 user_id="admin",
-                result=EvaluationResult.DISCARDED,
+                is_confirmed=True,
                 holds_position_id=holds_pos.id,
             ),
         )
@@ -713,24 +751,24 @@ class TestEvaluation:
             evaluation,
             {
                 "user_id": "admin",
-                "result": EvaluationResult.DISCARDED,
-                "property_id": None,
+                "is_confirmed": True,
                 "holds_position_id": holds_pos.id,
-                "born_at_id": None,
             },
         )
 
         # Check relationships
         assert evaluation.holds_position == holds_pos
-        assert evaluation.property is None
-        assert evaluation.born_at is None
         assert len(holds_pos.evaluations) == 1
         assert holds_pos.evaluations[0] == evaluation
 
-    def test_evaluation_creation_for_born_at(
+
+class TestBirthplaceEvaluation:
+    """Test cases for the BirthplaceEvaluation model."""
+
+    def test_birthplace_evaluation_creation(
         self, test_session, sample_politician, create_entities, assert_model_fields
     ):
-        """Test creating an evaluation for a born at relationship."""
+        """Test creating a birthplace evaluation."""
         location = create_entities(
             test_session, Location(name="Paris", wikidata_id="Q90")
         )
@@ -746,9 +784,9 @@ class TestEvaluation:
 
         evaluation = create_entities(
             test_session,
-            Evaluation(
+            BirthplaceEvaluation(
                 user_id="reviewer",
-                result=EvaluationResult.CONFIRMED,
+                is_confirmed=True,
                 born_at_id=born_at.id,
             ),
         )
@@ -757,24 +795,24 @@ class TestEvaluation:
             evaluation,
             {
                 "user_id": "reviewer",
-                "result": EvaluationResult.CONFIRMED,
-                "property_id": None,
-                "holds_position_id": None,
+                "is_confirmed": True,
                 "born_at_id": born_at.id,
             },
         )
 
         # Check relationships
         assert evaluation.born_at == born_at
-        assert evaluation.property is None
-        assert evaluation.holds_position is None
         assert len(born_at.evaluations) == 1
         assert born_at.evaluations[0] == evaluation
 
-    def test_multiple_evaluations_for_same_entity(
+
+class TestEvaluationMultiple:
+    """Test cases for multiple evaluations."""
+
+    def test_multiple_evaluations_for_same_property(
         self, test_session, sample_politician, create_entities
     ):
-        """Test multiple evaluations for the same entity."""
+        """Test multiple evaluations for the same property."""
         prop = create_entities(
             test_session,
             Property(
@@ -787,27 +825,27 @@ class TestEvaluation:
 
         create_entities(
             test_session,
-            Evaluation(
+            PropertyEvaluation(
                 user_id="user1",
-                result=EvaluationResult.CONFIRMED,
+                is_confirmed=True,
                 property_id=prop.id,
             ),
         )
 
         create_entities(
             test_session,
-            Evaluation(
+            PropertyEvaluation(
                 user_id="user2",
-                result=EvaluationResult.CONFIRMED,
+                is_confirmed=True,
                 property_id=prop.id,
             ),
         )
 
         create_entities(
             test_session,
-            Evaluation(
+            PropertyEvaluation(
                 user_id="user3",
-                result=EvaluationResult.DISCARDED,
+                is_confirmed=False,
                 property_id=prop.id,
             ),
         )
@@ -820,12 +858,8 @@ class TestEvaluation:
         assert "user3" in evaluation_users
 
         # Check that evaluations have correct results
-        confirmed_count = sum(
-            1 for e in prop.evaluations if e.result == EvaluationResult.CONFIRMED
-        )
-        discarded_count = sum(
-            1 for e in prop.evaluations if e.result == EvaluationResult.DISCARDED
-        )
+        confirmed_count = sum(1 for e in prop.evaluations if e.is_confirmed)
+        discarded_count = sum(1 for e in prop.evaluations if not e.is_confirmed)
         assert confirmed_count == 2
         assert discarded_count == 1
 
@@ -899,9 +933,9 @@ class TestBornAt:
         # Add evaluation to confirm the relationship
         evaluation = create_entities(
             test_session,
-            Evaluation(
+            BirthplaceEvaluation(
                 user_id="user123",
-                result=EvaluationResult.CONFIRMED,
+                is_confirmed=True,
                 born_at_id=born_at.id,
             ),
         )
@@ -909,7 +943,7 @@ class TestBornAt:
         # Check that the evaluation is linked properly
         assert evaluation.born_at_id == born_at.id
         assert evaluation.user_id == "user123"
-        assert evaluation.result == EvaluationResult.CONFIRMED
+        assert evaluation.is_confirmed
         assert len(born_at.evaluations) == 1
         assert born_at.evaluations[0].user_id == "user123"
 

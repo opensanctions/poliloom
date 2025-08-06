@@ -176,10 +176,10 @@ def politicians_show(wikidata_id):
                     if prop.evaluations:
                         # Show evaluation status
                         confirmed_evals = [
-                            e for e in prop.evaluations if e.result.value == "confirmed"
+                            e for e in prop.evaluations if e.is_confirmed
                         ]
                         discarded_evals = [
-                            e for e in prop.evaluations if e.result.value == "discarded"
+                            e for e in prop.evaluations if not e.is_confirmed
                         ]
 
                         if confirmed_evals:
@@ -187,7 +187,7 @@ def politicians_show(wikidata_id):
                             if len(confirmed_evals) == 1:
                                 status += f" ({confirmed_evals[0].user_id})"
                         elif discarded_evals:
-                            status = f"❌ DISCARDED by {len(discarded_evals)} user(s)"
+                            status = f"❌ REJECTED by {len(discarded_evals)} user(s)"
                             if len(discarded_evals) == 1:
                                 status += f" ({discarded_evals[0].user_id})"
                         else:
@@ -225,14 +225,10 @@ def politicians_show(wikidata_id):
                     if birthplace.evaluations:
                         # Show evaluation status
                         confirmed_evals = [
-                            e
-                            for e in birthplace.evaluations
-                            if e.result.value == "confirmed"
+                            e for e in birthplace.evaluations if e.is_confirmed
                         ]
                         discarded_evals = [
-                            e
-                            for e in birthplace.evaluations
-                            if e.result.value == "discarded"
+                            e for e in birthplace.evaluations if not e.is_confirmed
                         ]
 
                         if confirmed_evals:
@@ -240,7 +236,7 @@ def politicians_show(wikidata_id):
                             if len(confirmed_evals) == 1:
                                 status += f" ({confirmed_evals[0].user_id})"
                         elif discarded_evals:
-                            status = f"❌ DISCARDED by {len(discarded_evals)} user(s)"
+                            status = f"❌ REJECTED by {len(discarded_evals)} user(s)"
                             if len(discarded_evals) == 1:
                                 status += f" ({discarded_evals[0].user_id})"
                         else:
@@ -288,11 +284,9 @@ def politicians_show(wikidata_id):
                 for pos in extracted_positions:
                     if pos.evaluations:
                         # Show evaluation status
-                        confirmed_evals = [
-                            e for e in pos.evaluations if e.result.value == "confirmed"
-                        ]
+                        confirmed_evals = [e for e in pos.evaluations if e.is_confirmed]
                         discarded_evals = [
-                            e for e in pos.evaluations if e.result.value == "discarded"
+                            e for e in pos.evaluations if not e.is_confirmed
                         ]
 
                         if confirmed_evals:
@@ -300,7 +294,7 @@ def politicians_show(wikidata_id):
                             if len(confirmed_evals) == 1:
                                 status += f" ({confirmed_evals[0].user_id})"
                         elif discarded_evals:
-                            status = f"❌ DISCARDED by {len(discarded_evals)} user(s)"
+                            status = f"❌ REJECTED by {len(discarded_evals)} user(s)"
                             if len(discarded_evals) == 1:
                                 status += f" ({discarded_evals[0].user_id})"
                         else:

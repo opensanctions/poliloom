@@ -11,8 +11,9 @@ from ..models import (
     Property,
     HoldsPosition,
     BornAt,
-    Evaluation,
-    EvaluationResult,
+    PropertyEvaluation,
+    PositionEvaluation,
+    BirthplaceEvaluation,
 )
 from .schemas import (
     UnconfirmedPoliticianResponse,
@@ -140,71 +141,96 @@ async def evaluate_extracted_data(
     marking it as confirmed or discarded. Creates evaluation records
     that can be used for threshold-based evaluation workflows.
     """
-    processed_count = 0
+    property_count = 0
+    position_count = 0
+    birthplace_count = 0
     errors = []
 
-    for eval_item in request.evaluations:
+    # Process property evaluations
+    for eval_item in request.property_evaluations:
         try:
-            # Determine entity type and get the entity
-            entity = None
-            if eval_item.entity_type == "property":
-                entity = db.get(Property, eval_item.entity_id)
-                if not entity:
-                    errors.append(f"Property {eval_item.entity_id} not found")
-                    continue
-            elif eval_item.entity_type == "position":
-                entity = db.get(HoldsPosition, eval_item.entity_id)
-                if not entity:
-                    errors.append(f"Position {eval_item.entity_id} not found")
-                    continue
-            elif eval_item.entity_type == "birthplace":
-                entity = db.get(BornAt, eval_item.entity_id)
-                if not entity:
-                    errors.append(f"Birthplace {eval_item.entity_id} not found")
-                    continue
-            else:
-                errors.append(f"Invalid entity type: {eval_item.entity_type}")
+            property_entity = db.get(Property, eval_item.id)
+            if not property_entity:
+                errors.append(f"Property {eval_item.id} not found")
                 continue
 
-            # Convert pydantic enum to database enum
-            result = (
-                EvaluationResult.CONFIRMED
-                if eval_item.result.value == "confirmed"
-                else EvaluationResult.DISCARDED
-            )
-
-            # Create evaluation record
-            evaluation = Evaluation(
+            # Create property evaluation record
+            evaluation = PropertyEvaluation(
                 user_id=current_user.username,
-                result=result,
+                is_confirmed=eval_item.is_confirmed,
+                property_id=eval_item.id,
             )
-
-            # Set the appropriate foreign key based on entity type
-            if eval_item.entity_type == "property":
-                evaluation.property_id = eval_item.entity_id
-            elif eval_item.entity_type == "position":
-                evaluation.holds_position_id = eval_item.entity_id
-            elif eval_item.entity_type == "birthplace":
-                evaluation.born_at_id = eval_item.entity_id
             db.add(evaluation)
-            processed_count += 1
+            property_count += 1
 
-            # If discarded, remove the original entity
-            if result == EvaluationResult.DISCARDED:
-                db.delete(entity)
+            # If not confirmed, remove the original entity
+            if not eval_item.is_confirmed:
+                db.delete(property_entity)
 
         except Exception as e:
-            errors.append(
-                f"Error processing {eval_item.entity_type} {eval_item.entity_id}: {str(e)}"
-            )
+            errors.append(f"Error processing property {eval_item.id}: {str(e)}")
             continue
+
+    # Process position evaluations
+    for eval_item in request.position_evaluations:
+        try:
+            position_entity = db.get(HoldsPosition, eval_item.id)
+            if not position_entity:
+                errors.append(f"Position {eval_item.id} not found")
+                continue
+
+            # Create position evaluation record
+            evaluation = PositionEvaluation(
+                user_id=current_user.username,
+                is_confirmed=eval_item.is_confirmed,
+                holds_position_id=eval_item.id,
+            )
+            db.add(evaluation)
+            position_count += 1
+
+            # If not confirmed, remove the original entity
+            if not eval_item.is_confirmed:
+                db.delete(position_entity)
+
+        except Exception as e:
+            errors.append(f"Error processing position {eval_item.id}: {str(e)}")
+            continue
+
+    # Process birthplace evaluations
+    for eval_item in request.birthplace_evaluations:
+        try:
+            birthplace_entity = db.get(BornAt, eval_item.id)
+            if not birthplace_entity:
+                errors.append(f"Birthplace {eval_item.id} not found")
+                continue
+
+            # Create birthplace evaluation record
+            evaluation = BirthplaceEvaluation(
+                user_id=current_user.username,
+                is_confirmed=eval_item.is_confirmed,
+                born_at_id=eval_item.id,
+            )
+            db.add(evaluation)
+            birthplace_count += 1
+
+            # If not confirmed, remove the original entity
+            if not eval_item.is_confirmed:
+                db.delete(birthplace_entity)
+
+        except Exception as e:
+            errors.append(f"Error processing birthplace {eval_item.id}: {str(e)}")
+            continue
+
+    total_processed = property_count + position_count + birthplace_count
 
     try:
         db.commit()
         return EvaluationResponse(
             success=True,
-            message=f"Successfully processed {processed_count} evaluations",
-            processed_count=processed_count,
+            message=f"Successfully processed {total_processed} evaluations",
+            property_count=property_count,
+            position_count=position_count,
+            birthplace_count=birthplace_count,
             errors=errors,
         )
     except Exception as e:
