@@ -4,6 +4,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .politicians import router as politicians_router
+from .archived_pages import router as archived_pages_router
 
 app = FastAPI(
     title="PoliLoom API",
@@ -22,6 +23,9 @@ app.add_middleware(
 )
 
 app.include_router(politicians_router, prefix="/politicians", tags=["politicians"])
+app.include_router(
+    archived_pages_router, prefix="/archived-pages", tags=["archived-pages"]
+)
 
 
 @app.get("/")
