@@ -247,6 +247,11 @@ class Property(Base, TimestampMixin):
         String, nullable=True
     )  # NULL for Wikidata imports, set for extracted data
 
+    @hybrid_property
+    def is_extracted(self) -> bool:
+        """Check if this property was extracted from a web source."""
+        return self.archived_page_id is not None
+
     # Relationships
     politician = relationship("Politician", back_populates="properties")
     archived_page = relationship("ArchivedPage", back_populates="properties")
@@ -328,6 +333,11 @@ class HoldsPosition(Base, TimestampMixin):
         String, nullable=True
     )  # NULL for Wikidata imports, set for extracted data
 
+    @hybrid_property
+    def is_extracted(self) -> bool:
+        """Check if this position was extracted from a web source."""
+        return self.archived_page_id is not None
+
     # Relationships
     politician = relationship("Politician", back_populates="positions_held")
     position = relationship("Position", back_populates="held_by")
@@ -353,6 +363,11 @@ class BornAt(Base, TimestampMixin):
     proof_line = Column(
         String, nullable=True
     )  # NULL for Wikidata imports, set for extracted data
+
+    @hybrid_property
+    def is_extracted(self) -> bool:
+        """Check if this birthplace was extracted from a web source."""
+        return self.archived_page_id is not None
 
     # Relationships
     politician = relationship("Politician", back_populates="birthplaces")
