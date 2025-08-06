@@ -177,6 +177,21 @@ class ArchivedPage(Base, TimestampMixin):
         except FileNotFoundError:
             raise FileNotFoundError(f"Archived HTML file not found: {self.html_path}")
 
+    def save_mhtml(self, content: str) -> None:
+        """Save MHTML content to disk."""
+        with open(self.mhtml_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    def save_html(self, content: str) -> None:
+        """Save HTML content to disk."""
+        with open(self.html_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    def save_markdown(self, content: str) -> None:
+        """Save markdown content to disk."""
+        with open(self.markdown_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
 
 @event.listens_for(ArchivedPage, "before_insert")
 def generate_archived_page_content_hash(mapper, connection, target):
@@ -184,6 +199,12 @@ def generate_archived_page_content_hash(mapper, connection, target):
     if target.url and not target.content_hash:
         # Generate content hash from URL
         target.content_hash = ArchivedPage._generate_content_hash(target.url)
+
+
+@event.listens_for(ArchivedPage, "after_insert")
+def create_archive_directory(mapper, connection, target):
+    """Create archive directory structure after inserting ArchivedPage."""
+    target._get_archive_directory().mkdir(parents=True, exist_ok=True)
 
 
 class WikipediaLink(Base, TimestampMixin):

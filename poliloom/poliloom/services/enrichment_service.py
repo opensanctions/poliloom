@@ -196,10 +196,9 @@ class EnrichmentService:
                     db.rollback()
                     return None, None
 
-                # Save MHTML archive to disk
+                # Save MHTML archive to disk using model method
                 if result.mhtml:
-                    with open(archived_page.mhtml_path, "w", encoding="utf-8") as f:
-                        f.write(result.mhtml)
+                    archived_page.save_mhtml(result.mhtml)
                     logger.info(f"Saved MHTML archive: {archived_page.mhtml_path}")
 
                     # Generate HTML from MHTML using unmhtml
@@ -208,8 +207,7 @@ class EnrichmentService:
                         html_content = converter.convert_file(
                             str(archived_page.mhtml_path)
                         )
-                        with open(archived_page.html_path, "w", encoding="utf-8") as f:
-                            f.write(html_content)
+                        archived_page.save_html(html_content)
                         logger.info(
                             f"Generated HTML from MHTML: {archived_page.html_path}"
                         )
@@ -223,8 +221,7 @@ class EnrichmentService:
                     if len(markdown_content) > 8000:
                         markdown_content = markdown_content[:8000] + "..."
 
-                    with open(archived_page.markdown_path, "w", encoding="utf-8") as f:
-                        f.write(markdown_content)
+                    archived_page.save_markdown(markdown_content)
                     logger.info(
                         f"Saved markdown content: {archived_page.markdown_path}"
                     )
