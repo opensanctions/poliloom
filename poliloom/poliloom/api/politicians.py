@@ -47,14 +47,19 @@ async def get_unconfirmed_politicians(
         select(Politician)
         .options(
             selectinload(Politician.properties).selectinload(Property.evaluations),
+            selectinload(Politician.properties).selectinload(Property.archived_page),
             selectinload(Politician.positions_held).selectinload(
                 HoldsPosition.position
             ),
             selectinload(Politician.positions_held).selectinload(
                 HoldsPosition.evaluations
             ),
+            selectinload(Politician.positions_held).selectinload(
+                HoldsPosition.archived_page
+            ),
             selectinload(Politician.birthplaces).selectinload(BornAt.location),
             selectinload(Politician.birthplaces).selectinload(BornAt.evaluations),
+            selectinload(Politician.birthplaces).selectinload(BornAt.archived_page),
             selectinload(Politician.wikipedia_links),
         )
         .where(
@@ -102,6 +107,8 @@ async def get_unconfirmed_politicians(
                         id=str(prop.id),
                         type=prop.type,
                         value=prop.value,
+                        proof_line=prop.proof_line,
+                        archived_page=prop.archived_page,
                     )
                     for prop in unevaluated_properties
                 ],
@@ -111,6 +118,8 @@ async def get_unconfirmed_politicians(
                         position_name=pos.position.name,
                         start_date=pos.start_date,
                         end_date=pos.end_date,
+                        proof_line=pos.proof_line,
+                        archived_page=pos.archived_page,
                     )
                     for pos in unevaluated_positions
                 ],
@@ -119,6 +128,8 @@ async def get_unconfirmed_politicians(
                         id=str(birthplace.id),
                         location_name=birthplace.location.name,
                         location_wikidata_id=birthplace.location.wikidata_id,
+                        proof_line=birthplace.proof_line,
+                        archived_page=birthplace.archived_page,
                     )
                     for birthplace in unevaluated_birthplaces
                 ],

@@ -2,6 +2,18 @@
 
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict
+from datetime import datetime
+
+
+class ArchivedPageResponse(BaseModel):
+    """Schema for archived page data."""
+
+    id: str
+    url: str
+    content_hash: str
+    fetch_timestamp: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UnconfirmedPropertyResponse(BaseModel):
@@ -10,6 +22,8 @@ class UnconfirmedPropertyResponse(BaseModel):
     id: str
     type: str
     value: str
+    proof_line: Optional[str] = None
+    archived_page: Optional[ArchivedPageResponse] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -21,6 +35,8 @@ class UnconfirmedPositionResponse(BaseModel):
     position_name: str
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    proof_line: Optional[str] = None
+    archived_page: Optional[ArchivedPageResponse] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -31,6 +47,8 @@ class UnconfirmedBirthplaceResponse(BaseModel):
     id: str
     location_name: str
     location_wikidata_id: Optional[str] = None
+    proof_line: Optional[str] = None
+    archived_page: Optional[ArchivedPageResponse] = None
 
     model_config = ConfigDict(from_attributes=True)
 
