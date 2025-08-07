@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Politician, Property, Position, Birthplace, EvaluationRequest, PropertyEvaluationItem, PositionEvaluationItem, BirthplaceEvaluationItem, ArchivedPageResponse } from '@/types';
 import { submitEvaluations } from '@/lib/api';
+import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting';
+import { useArchivedPageCache } from '@/contexts/ArchivedPageContext';
 
 interface PoliticianEvaluationProps {
   politician: Politician;
@@ -19,6 +21,19 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
   const [discardedBirthplaces, setDiscardedBirthplaces] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedArchivedPage, setSelectedArchivedPage] = useState<ArchivedPageResponse | null>(null);
+  const [selectedProofLine, setSelectedProofLine] = useState<string | null>(null);
+  
+  // Refs and hooks for iframe highlighting
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const archivedPageCache = useArchivedPageCache();
+  const {
+    clearAllHighlights,
+    isHighlighting,
+    highlightCount,
+    isIframeLoaded,
+    handleIframeLoad,
+    handleProofLineChange
+  } = useIframeAutoHighlight(iframeRef, selectedProofLine);
 
   const handlePropertyAction = (propertyId: string, action: 'confirm' | 'discard') => {
     if (action === 'confirm') {
@@ -153,7 +168,12 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
                 isConfirmed={confirmedProperties.has(property.id)}
                 isDiscarded={discardedProperties.has(property.id)}
                 onAction={(action) => handlePropertyAction(property.id, action)}
-                onShowArchived={() => property.archived_page && setSelectedArchivedPage(property.archived_page)}
+                onShowArchived={() => {
+                  if (property.archived_page) {
+                    setSelectedArchivedPage(property.archived_page);
+                    setSelectedProofLine(property.proof_line);
+                  }
+                }}
               />
             ))}
           </div>
@@ -171,7 +191,12 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
                 isConfirmed={confirmedPositions.has(position.id)}
                 isDiscarded={discardedPositions.has(position.id)}
                 onAction={(action) => handlePositionAction(position.id, action)}
-                onShowArchived={() => position.archived_page && setSelectedArchivedPage(position.archived_page)}
+                onShowArchived={() => {
+                  if (position.archived_page) {
+                    setSelectedArchivedPage(position.archived_page);
+                    setSelectedProofLine(position.proof_line);
+                  }
+                }}
               />
             ))}
           </div>
@@ -189,7 +214,12 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
                 isConfirmed={confirmedBirthplaces.has(birthplace.id)}
                 isDiscarded={discardedBirthplaces.has(birthplace.id)}
                 onAction={(action) => handleBirthplaceAction(birthplace.id, action)}
-                onShowArchived={() => birthplace.archived_page && setSelectedArchivedPage(birthplace.archived_page)}
+                onShowArchived={() => {
+                  if (birthplace.archived_page) {
+                    setSelectedArchivedPage(birthplace.archived_page);
+                    setSelectedProofLine(birthplace.proof_line);
+                  }
+                }}
               />
             ))}
           </div>
@@ -223,22 +253,61 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
               <p className="text-xs text-gray-500 mt-1">
                 Fetched: {new Date(selectedArchivedPage.fetch_timestamp).toLocaleDateString()}
               </p>
+              {selectedProofLine && (
+                <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                  <p className="text-gray-700 mb-1">Searching for:</p>
+                  <p className="italic text-gray-900">&ldquo;{selectedProofLine}&rdquo;</p>
+                  {isHighlighting && (
+                    <p className="text-blue-600 mt-1">Highlighting...</p>
+                  )}
+                  {!isHighlighting && highlightCount > 0 && (
+                    <p className="text-green-600 mt-1">{highlightCount} match{highlightCount !== 1 ? 'es' : ''} found</p>
+                  )}
+                  {!isHighlighting && highlightCount === 0 && isIframeLoaded && (
+                    <p className="text-amber-600 mt-1">No matches found</p>
+                  )}
+                </div>
+              )}
+              <div className="mt-2 flex gap-2">
+                {selectedProofLine && isIframeLoaded && (
+                  <button
+                    onClick={() => handleProofLineChange(selectedProofLine)}
+                    className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                    disabled={isHighlighting}
+                  >
+                    Re-highlight
+                  </button>
+                )}
+                {highlightCount > 0 && (
+                  <button
+                    onClick={clearAllHighlights}
+                    className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                  >
+                    Clear highlights
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
         <div className="flex-1 overflow-hidden">
           {selectedArchivedPage ? (
             <iframe
+              ref={iframeRef}
               src={`/api/archived-pages/${selectedArchivedPage.id}/html`}
               className="w-full h-full border-0"
               title="Archived Page"
               sandbox="allow-scripts allow-same-origin"
+              onLoad={() => {
+                archivedPageCache.markPageAsLoaded(selectedArchivedPage.id);
+                handleIframeLoad();
+              }}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-500">
               <div className="text-center">
                 <p className="text-lg mb-2">📄</p>
-                <p>Click "View Source" on any item to see the archived page</p>
+                <p>Click &ldquo;View Source&rdquo; on any item to see the archived page</p>
               </div>
             </div>
           )}
