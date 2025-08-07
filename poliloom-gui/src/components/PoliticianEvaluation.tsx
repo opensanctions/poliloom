@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Politician, Property, Position, Birthplace, EvaluationRequest, EvaluationItem } from '@/types';
+import { Politician, Property, Position, Birthplace, EvaluationRequest, PropertyEvaluationItem, PositionEvaluationItem, BirthplaceEvaluationItem } from '@/types';
 import { submitEvaluations } from '@/lib/api';
 
 interface PoliticianEvaluationProps {
@@ -76,41 +76,43 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      const evaluations: EvaluationItem[] = [
+      const propertyEvaluations: PropertyEvaluationItem[] = [
         ...Array.from(confirmedProperties).map(id => ({
-          entity_type: 'property',
-          entity_id: id,
-          result: 'confirmed' as const
+          id,
+          is_confirmed: true
         })),
         ...Array.from(discardedProperties).map(id => ({
-          entity_type: 'property',
-          entity_id: id,
-          result: 'discarded' as const
-        })),
+          id,
+          is_confirmed: false
+        }))
+      ];
+
+      const positionEvaluations: PositionEvaluationItem[] = [
         ...Array.from(confirmedPositions).map(id => ({
-          entity_type: 'position',
-          entity_id: id,
-          result: 'confirmed' as const
+          id,
+          is_confirmed: true
         })),
         ...Array.from(discardedPositions).map(id => ({
-          entity_type: 'position',
-          entity_id: id,
-          result: 'discarded' as const
-        })),
+          id,
+          is_confirmed: false
+        }))
+      ];
+
+      const birthplaceEvaluations: BirthplaceEvaluationItem[] = [
         ...Array.from(confirmedBirthplaces).map(id => ({
-          entity_type: 'birthplace',
-          entity_id: id,
-          result: 'confirmed' as const
+          id,
+          is_confirmed: true
         })),
         ...Array.from(discardedBirthplaces).map(id => ({
-          entity_type: 'birthplace',
-          entity_id: id,
-          result: 'discarded' as const
+          id,
+          is_confirmed: false
         }))
       ];
 
       const evaluationData: EvaluationRequest = {
-        evaluations
+        property_evaluations: propertyEvaluations,
+        position_evaluations: positionEvaluations,
+        birthplace_evaluations: birthplaceEvaluations
       };
 
       const response = await submitEvaluations(evaluationData, accessToken);
@@ -215,19 +217,32 @@ function PropertyItem({ property, isConfirmed, isDiscarded, onAction }: Property
         <div className="flex-1">
           <h3 className="font-medium text-gray-900">{property.type}</h3>
           <p className="text-gray-700 mt-1">{property.value}</p>
-          <div className="mt-2">
-            {property.source_urls.map((url, index) => (
+          {property.proof_line && (
+            <p className="text-gray-600 text-sm mt-2 italic">Evidence: {property.proof_line}</p>
+          )}
+          {property.archived_page && (
+            <div className="mt-2 space-x-3">
               <a
-                key={index}
-                href={url}
+                href={`/api/archived-pages/${property.archived_page.id}.html`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 text-sm inline-block mr-3"
+                className="text-blue-600 hover:text-blue-800 text-sm inline-block"
               >
-                Source {index + 1} →
+                View HTML →
               </a>
-            ))}
-          </div>
+              <a
+                href={`/api/archived-pages/${property.archived_page.id}.md`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 text-sm inline-block"
+              >
+                View Markdown →
+              </a>
+              <span className="text-gray-500 text-xs">
+                Source: {property.archived_page.url}
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex space-x-2 ml-4">
           <button
@@ -272,19 +287,32 @@ function PositionItem({ position, isConfirmed, isDiscarded, onAction }: Position
           <p className="text-gray-700 mt-1">
             {position.start_date || 'Unknown'} - {position.end_date || 'Present'}
           </p>
-          <div className="mt-2">
-            {position.source_urls.map((url, index) => (
+          {position.proof_line && (
+            <p className="text-gray-600 text-sm mt-2 italic">Evidence: {position.proof_line}</p>
+          )}
+          {position.archived_page && (
+            <div className="mt-2 space-x-3">
               <a
-                key={index}
-                href={url}
+                href={`/api/archived-pages/${position.archived_page.id}.html`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 text-sm inline-block mr-3"
+                className="text-blue-600 hover:text-blue-800 text-sm inline-block"
               >
-                Source {index + 1} →
+                View HTML →
               </a>
-            ))}
-          </div>
+              <a
+                href={`/api/archived-pages/${position.archived_page.id}.md`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 text-sm inline-block"
+              >
+                View Markdown →
+              </a>
+              <span className="text-gray-500 text-xs">
+                Source: {position.archived_page.url}
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex space-x-2 ml-4">
           <button
@@ -329,19 +357,32 @@ function BirthplaceItem({ birthplace, isConfirmed, isDiscarded, onAction }: Birt
           {birthplace.location_wikidata_id && (
             <p className="text-gray-600 text-sm mt-1">Wikidata: {birthplace.location_wikidata_id}</p>
           )}
-          <div className="mt-2">
-            {birthplace.source_urls.map((url, index) => (
+          {birthplace.proof_line && (
+            <p className="text-gray-600 text-sm mt-2 italic">Evidence: {birthplace.proof_line}</p>
+          )}
+          {birthplace.archived_page && (
+            <div className="mt-2 space-x-3">
               <a
-                key={index}
-                href={url}
+                href={`/api/archived-pages/${birthplace.archived_page.id}.html`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 text-sm inline-block mr-3"
+                className="text-blue-600 hover:text-blue-800 text-sm inline-block"
               >
-                Source {index + 1} →
+                View HTML →
               </a>
-            ))}
-          </div>
+              <a
+                href={`/api/archived-pages/${birthplace.archived_page.id}.md`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 text-sm inline-block"
+              >
+                View Markdown →
+              </a>
+              <span className="text-gray-500 text-xs">
+                Source: {birthplace.archived_page.url}
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex space-x-2 ml-4">
           <button

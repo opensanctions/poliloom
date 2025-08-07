@@ -1,8 +1,16 @@
+export interface ArchivedPageResponse {
+  id: string;
+  url: string;
+  content_hash: string;
+  fetch_timestamp: string;
+}
+
 export interface Property {
   id: string;
   type: string;
   value: string;
-  source_urls: string[];
+  proof_line: string | null;
+  archived_page: ArchivedPageResponse | null;
 }
 
 export interface Position {
@@ -10,14 +18,16 @@ export interface Position {
   position_name: string;
   start_date: string | null;
   end_date: string | null;
-  source_urls: string[];
+  proof_line: string | null;
+  archived_page: ArchivedPageResponse | null;
 }
 
 export interface Birthplace {
   id: string;
   location_name: string;
   location_wikidata_id: string | null;
-  source_urls: string[];
+  proof_line: string | null;
+  archived_page: ArchivedPageResponse | null;
 }
 
 export interface Politician {
@@ -29,19 +39,32 @@ export interface Politician {
   unconfirmed_birthplaces: Birthplace[];
 }
 
-export interface EvaluationItem {
-  entity_type: string;
-  entity_id: string;
-  result: "confirmed" | "discarded";
+export interface PropertyEvaluationItem {
+  id: string;
+  is_confirmed: boolean;
+}
+
+export interface PositionEvaluationItem {
+  id: string;
+  is_confirmed: boolean;
+}
+
+export interface BirthplaceEvaluationItem {
+  id: string;
+  is_confirmed: boolean;
 }
 
 export interface EvaluationRequest {
-  evaluations: EvaluationItem[];
+  property_evaluations: PropertyEvaluationItem[];
+  position_evaluations: PositionEvaluationItem[];
+  birthplace_evaluations: BirthplaceEvaluationItem[];
 }
 
 export interface EvaluationResponse {
   success: boolean;
   message: string;
-  processed_count: number;
+  property_count: number;
+  position_count: number;
+  birthplace_count: number;
   errors: string[];
 }
