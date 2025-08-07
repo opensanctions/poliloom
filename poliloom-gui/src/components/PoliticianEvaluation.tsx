@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Politician, Property, Position, Birthplace, EvaluationRequest, PropertyEvaluationItem, PositionEvaluationItem, BirthplaceEvaluationItem } from '@/types';
+import { Politician, Property, Position, Birthplace, EvaluationRequest, PropertyEvaluationItem, PositionEvaluationItem, BirthplaceEvaluationItem, ArchivedPageResponse } from '@/types';
 import { submitEvaluations } from '@/lib/api';
 
 interface PoliticianEvaluationProps {
@@ -18,6 +18,7 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
   const [confirmedBirthplaces, setConfirmedBirthplaces] = useState<Set<string>>(new Set());
   const [discardedBirthplaces, setDiscardedBirthplaces] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedArchivedPage, setSelectedArchivedPage] = useState<ArchivedPageResponse | null>(null);
 
   const handlePropertyAction = (propertyId: string, action: 'confirm' | 'discard') => {
     if (action === 'confirm') {
@@ -131,13 +132,15 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
   };
 
   return (
-    <div className="max-w-4xl mx-auto bg-white shadow-lg rounded-lg p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">{politician.name}</h1>
-        {politician.wikidata_id && (
-          <p className="text-gray-600">Wikidata ID: {politician.wikidata_id}</p>
-        )}
-      </div>
+    <div className="flex h-screen bg-gray-100">
+      {/* Left panel - Evaluation interface */}
+      <div className="w-1/2 overflow-y-auto bg-white shadow-lg p-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">{politician.name}</h1>
+          {politician.wikidata_id && (
+            <p className="text-gray-600">Wikidata ID: {politician.wikidata_id}</p>
+          )}
+        </div>
 
       {politician.unconfirmed_properties.length > 0 && (
         <div className="mb-8">
@@ -150,6 +153,7 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
                 isConfirmed={confirmedProperties.has(property.id)}
                 isDiscarded={discardedProperties.has(property.id)}
                 onAction={(action) => handlePropertyAction(property.id, action)}
+                onShowArchived={() => property.archived_page && setSelectedArchivedPage(property.archived_page)}
               />
             ))}
           </div>
@@ -167,6 +171,7 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
                 isConfirmed={confirmedPositions.has(position.id)}
                 isDiscarded={discardedPositions.has(position.id)}
                 onAction={(action) => handlePositionAction(position.id, action)}
+                onShowArchived={() => position.archived_page && setSelectedArchivedPage(position.archived_page)}
               />
             ))}
           </div>
@@ -184,20 +189,60 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
                 isConfirmed={confirmedBirthplaces.has(birthplace.id)}
                 isDiscarded={discardedBirthplaces.has(birthplace.id)}
                 onAction={(action) => handleBirthplaceAction(birthplace.id, action)}
+                onShowArchived={() => birthplace.archived_page && setSelectedArchivedPage(birthplace.archived_page)}
               />
             ))}
           </div>
         </div>
       )}
 
-      <div className="flex justify-end">
-        <button
-          onClick={handleSubmit}
-          disabled={isSubmitting}
-          className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isSubmitting ? 'Submitting...' : 'Submit Evaluations & Next'}
-        </button>
+        <div className="flex justify-end">
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? 'Submitting...' : 'Submit Evaluations & Next'}
+          </button>
+        </div>
+      </div>
+
+      {/* Right panel - Archived page viewer */}
+      <div className="w-1/2 bg-gray-50 border-l border-gray-200 flex flex-col">
+        <div className="p-4 border-b border-gray-200 bg-white">
+          <h3 className="text-lg font-semibold text-gray-900">
+            {selectedArchivedPage ? 'Archived Page' : 'Select an item to view source'}
+          </h3>
+          {selectedArchivedPage && (
+            <div className="mt-2">
+              <p className="text-sm text-gray-600">
+                Source: <a href={selectedArchivedPage.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                  {selectedArchivedPage.url}
+                </a>
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Fetched: {new Date(selectedArchivedPage.fetch_timestamp).toLocaleDateString()}
+              </p>
+            </div>
+          )}
+        </div>
+        <div className="flex-1 overflow-hidden">
+          {selectedArchivedPage ? (
+            <iframe
+              src={`/api/archived-pages/${selectedArchivedPage.id}/html`}
+              className="w-full h-full border-0"
+              title="Archived Page"
+              sandbox="allow-scripts allow-same-origin"
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-500">
+              <div className="text-center">
+                <p className="text-lg mb-2">📄</p>
+                <p>Click "View Source" on any item to see the archived page</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -208,9 +253,10 @@ interface PropertyItemProps {
   isConfirmed: boolean;
   isDiscarded: boolean;
   onAction: (action: 'confirm' | 'discard') => void;
+  onShowArchived: () => void;
 }
 
-function PropertyItem({ property, isConfirmed, isDiscarded, onAction }: PropertyItemProps) {
+function PropertyItem({ property, isConfirmed, isDiscarded, onAction, onShowArchived }: PropertyItemProps) {
   return (
     <div className="border border-gray-200 rounded-lg p-4">
       <div className="flex justify-between items-start">
@@ -221,25 +267,15 @@ function PropertyItem({ property, isConfirmed, isDiscarded, onAction }: Property
             <p className="text-gray-600 text-sm mt-2 italic">Evidence: {property.proof_line}</p>
           )}
           {property.archived_page && (
-            <div className="mt-2 space-x-3">
-              <a
-                href={`/api/archived-pages/${property.archived_page.id}.html`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 text-sm inline-block"
+            <div className="mt-2">
+              <button
+                onClick={onShowArchived}
+                className="text-blue-600 hover:text-blue-800 text-sm inline-block mr-3"
               >
-                View HTML →
-              </a>
-              <a
-                href={`/api/archived-pages/${property.archived_page.id}.md`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 text-sm inline-block"
-              >
-                View Markdown →
-              </a>
+                View Source →
+              </button>
               <span className="text-gray-500 text-xs">
-                Source: {property.archived_page.url}
+                From: {new URL(property.archived_page.url).hostname}
               </span>
             </div>
           )}
@@ -276,9 +312,10 @@ interface PositionItemProps {
   isConfirmed: boolean;
   isDiscarded: boolean;
   onAction: (action: 'confirm' | 'discard') => void;
+  onShowArchived: () => void;
 }
 
-function PositionItem({ position, isConfirmed, isDiscarded, onAction }: PositionItemProps) {
+function PositionItem({ position, isConfirmed, isDiscarded, onAction, onShowArchived }: PositionItemProps) {
   return (
     <div className="border border-gray-200 rounded-lg p-4">
       <div className="flex justify-between items-start">
@@ -291,25 +328,15 @@ function PositionItem({ position, isConfirmed, isDiscarded, onAction }: Position
             <p className="text-gray-600 text-sm mt-2 italic">Evidence: {position.proof_line}</p>
           )}
           {position.archived_page && (
-            <div className="mt-2 space-x-3">
-              <a
-                href={`/api/archived-pages/${position.archived_page.id}.html`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 text-sm inline-block"
+            <div className="mt-2">
+              <button
+                onClick={onShowArchived}
+                className="text-blue-600 hover:text-blue-800 text-sm inline-block mr-3"
               >
-                View HTML →
-              </a>
-              <a
-                href={`/api/archived-pages/${position.archived_page.id}.md`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 text-sm inline-block"
-              >
-                View Markdown →
-              </a>
+                View Source →
+              </button>
               <span className="text-gray-500 text-xs">
-                Source: {position.archived_page.url}
+                From: {new URL(position.archived_page.url).hostname}
               </span>
             </div>
           )}
@@ -346,9 +373,10 @@ interface BirthplaceItemProps {
   isConfirmed: boolean;
   isDiscarded: boolean;
   onAction: (action: 'confirm' | 'discard') => void;
+  onShowArchived: () => void;
 }
 
-function BirthplaceItem({ birthplace, isConfirmed, isDiscarded, onAction }: BirthplaceItemProps) {
+function BirthplaceItem({ birthplace, isConfirmed, isDiscarded, onAction, onShowArchived }: BirthplaceItemProps) {
   return (
     <div className="border border-gray-200 rounded-lg p-4">
       <div className="flex justify-between items-start">
@@ -361,25 +389,15 @@ function BirthplaceItem({ birthplace, isConfirmed, isDiscarded, onAction }: Birt
             <p className="text-gray-600 text-sm mt-2 italic">Evidence: {birthplace.proof_line}</p>
           )}
           {birthplace.archived_page && (
-            <div className="mt-2 space-x-3">
-              <a
-                href={`/api/archived-pages/${birthplace.archived_page.id}.html`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 text-sm inline-block"
+            <div className="mt-2">
+              <button
+                onClick={onShowArchived}
+                className="text-blue-600 hover:text-blue-800 text-sm inline-block mr-3"
               >
-                View HTML →
-              </a>
-              <a
-                href={`/api/archived-pages/${birthplace.archived_page.id}.md`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 text-sm inline-block"
-              >
-                View Markdown →
-              </a>
+                View Source →
+              </button>
               <span className="text-gray-500 text-xs">
-                Source: {birthplace.archived_page.url}
+                From: {new URL(birthplace.archived_page.url).hostname}
               </span>
             </div>
           )}
