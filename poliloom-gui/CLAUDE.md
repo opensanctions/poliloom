@@ -1,19 +1,16 @@
-# PoliLoom GUI - Confirmation Interface
+# PoliLoom GUI - Project Specification
 
-This is a modern Next.js application that provides a user interface for confirming extracted politician metadata from the PoliLoom project. Users can review and confirm properties (birth dates, birthplaces) and political positions extracted by LLMs from Wikipedia and other web sources.
+## Project Purpose
 
-## Project Overview
+The PoliLoom GUI is a web application that provides a user interface for confirming the accuracy of politician metadata automatically extracted by the PoliLoom project. Users review and validate properties (birth dates, birthplaces) and political positions extracted by LLMs from Wikipedia and other sources before the data is submitted to Wikidata.
 
-**Purpose**: Allow users to confirm the accuracy of automatically extracted politician data before it gets submitted to Wikidata.
+## Technical Requirements
 
-**Tech Stack**:
-
-- Next.js 15+ (App Router)
-- React 19+
-- TypeScript 5+
-- Tailwind CSS 4+
-- MediaWiki OAuth for authentication
-- Native fetch API for HTTP requests
+- Modern web application using Next.js with App Router
+- React-based user interface with TypeScript
+- Responsive design with Tailwind CSS
+- MediaWiki OAuth integration for authentication
+- RESTful API integration with the PoliLoom backend
 
 ## Core Features
 
@@ -37,298 +34,151 @@ This is a modern Next.js application that provides a user interface for confirmi
 - **Loading States**: Clear feedback during API operations
 - **Error Handling**: Graceful error handling with user-friendly messages
 
-## API Integration
+## API Integration Requirements
 
-The GUI communicates with the PoliLoom API backend:
+The application integrates with the PoliLoom API backend to:
 
-**Base URL**: `http://localhost:8000` (development) / configurable for production
+- Fetch unconfirmed politician data with pagination support
+- Submit evaluation decisions for extracted data
+- Handle authentication via MediaWiki OAuth tokens
+- Support configurable API base URL for different environments
 
-**Key Endpoints**:
+The API specification is available via OpenAPI documentation from the backend service (runs at `http://localhost:8000` in development) at `/openapi.json`.
 
-- `GET /politicians/` - Fetch unconfirmed politicians (with pagination)
-- `POST /politicians/evaluate` - Submit evaluation decisions for extracted data
+## Data Model
 
-**Authentication**: All API calls include MediaWiki OAuth tokens in Authorization headers.
+### Core Entities
 
-**OpenAPI Documentation**: The complete API specification is available at `http://localhost:8000/openapi.json` when the backend server is running. To fetch it using curl:
+**Politicians**: Each politician contains:
 
-```bash
-curl http://localhost:8000/openapi.json
-```
+- Basic identification (ID, name, Wikidata ID)
+- Unconfirmed properties (birth date, etc.)
+- Unconfirmed political positions (with dates)
+- Unconfirmed birthplaces (with location data)
 
-## Data Types
+**Evaluations**: Users can confirm or discard individual entities with:
 
-### Politician Object
+- Entity type and ID reference
+- Confirmation result (confirmed/discarded)
+- Batch submission support
 
-```typescript
-interface UnconfirmedPolitician {
-  id: string;
-  name: string;
-  wikidata_id: string | null;
-  unconfirmed_properties: Property[];
-  unconfirmed_positions: Position[];
-  unconfirmed_birthplaces: Birthplace[];
-}
+## Application Architecture
 
-interface Property {
-  id: string;
-  type: string;
-  value: string;
-}
+### Page Structure
 
-interface Position {
-  id: string;
-  position_name: string;
-  start_date: string | null;
-  end_date: string | null;
-}
+- **Main Interface**: Single-politician evaluation workflow
+- **Authentication**: MediaWiki OAuth login and callback handling
+- **Protected Routes**: All evaluation pages require authentication
 
-interface Birthplace {
-  id: string;
-  location_name: string;
-  location_wikidata_id: string | null;
-}
-```
+### Component Architecture
 
-### Evaluation Payload
+- **Evaluation Components**: Individual UI for confirming properties, positions, and birthplaces
+- **Navigation**: Simple sequential navigation between politicians
+- **Reusable UI**: Consistent design components throughout
 
-```typescript
-interface EvaluationRequest {
-  evaluations: EvaluationItem[];
-}
+## User Interface Requirements
 
-interface EvaluationItem {
-  entity_type: string;
-  entity_id: string;
-  result: "confirmed" | "discarded";
-}
+### Main Evaluation Interface
 
-interface EvaluationResponse {
-  success: boolean;
-  message: string;
-  processed_count: number;
-  errors: string[];
-}
-```
+- Display one politician at a time with all extracted data
+- Individual confirm/discard actions for each data item
+- Sequential navigation between politicians
+- Progress indicator showing current position
+- Links to external resources (Wikipedia/Wikidata)
 
-## Application Structure
+### Authentication Interface
 
-```
-src/
-├── app/
-│   ├── page.tsx                 # Main confirmation interface
-│   ├── auth/
-│   │   ├── login/page.tsx       # MediaWiki OAuth login
-│   │   └── callback/page.tsx    # OAuth callback handler
-│   └── layout.tsx               # Root layout
-├── components/
-│   ├── ui/                      # Reusable UI components
-│   ├── PoliticianEvaluation.tsx # Main evaluation component
-│   ├── PropertyItem.tsx         # Individual property evaluation
-│   ├── PositionItem.tsx         # Individual position evaluation
-│   ├── BirthplaceItem.tsx       # Individual birthplace evaluation
-│   └── Navigation.tsx           # Simple navigation
-├── lib/
-│   ├── api.ts                   # API client functions
-│   ├── auth.ts                  # MediaWiki OAuth helpers
-│   └── utils.ts                 # Utility functions
-└── types/
-    └── index.ts                 # TypeScript type definitions
-```
+- MediaWiki OAuth login integration
+- Clear explanation of the tool's purpose
+- Minimal, focused login experience
 
-## Key Pages & Components
+## Configuration Requirements
 
-### 1. Main Evaluation Interface (`/`)
+### Environment Variables
 
-- Single politician display with all extracted data
-- Individual confirm/discard actions for each property, position, and birthplace
-- "Next" button to move to the next politician
-- Progress indicator (e.g., "Politician 5 of 23")
+- API base URL configuration for different environments
+- MediaWiki OAuth client credentials
+- Session management secrets
+- Application URL configuration
 
-### 2. Login Page (`/auth/login`)
+### Development Dependencies
 
-- MediaWiki OAuth login button
-- Simple explanation of the tool
-- Minimal, focused interface
+- Code linting and formatting tools
+- TypeScript compilation
+- Build and development server tools
 
-### 3. Key Components
+**Note**: Development server runs via `npm run dev` (typically already running).
 
-**PoliticianEvaluation**:
+## User Experience Requirements
 
-- Main component showing politician name and Wikidata ID
-- Links to Wikipedia/Wikidata
-- Contains all PropertyItem, PositionItem, and BirthplaceItem components
-- "Next Politician" navigation
-
-**PropertyItem**:
-
-- Shows property type and extracted value
-- Individual confirm/discard buttons
-- Minimal, inline design
-
-**PositionItem**:
-
-- Shows position name and dates
-- Individual confirm/discard buttons
-- Clear, compact layout
-
-**BirthplaceItem**:
-
-- Shows location name and Wikidata ID (if available)
-- Individual confirm/discard buttons
-- Consistent layout with other items
-
-## Environment Configuration
-
-Create `.env.local`:
-
-```
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
-MEDIAWIKI_OAUTH_CLIENT_ID=your_client_id
-MEDIAWIKI_OAUTH_CLIENT_SECRET=your_client_secret
-MEDIAWIKI_OAUTH_CALLBACK_URL=http://localhost:3000/auth/callback
-NEXTAUTH_SECRET=your_nextauth_secret
-NEXTAUTH_URL=http://localhost:3000
-```
-
-## Development Setup
-
-```bash
-# Install dependencies
-npm install
-
-# Run development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
-```
-
-## Dependencies
-
-**Core**:
-
-- `next`: ^15.0.0
-- `react`: ^19.0.0
-- `typescript`: ^5.6.0
-
-**UI & Styling**:
-
-- `tailwindcss`: ^4.0.0
-- `@headlessui/react`: ^2.0.0 (for accessible UI components)
-- `lucide-react`: ^0.400.0 (icons)
-
-**Authentication**:
-
-- `next-auth`: ^5.0.0 (for session management)
-- Custom MediaWiki OAuth implementation
-
-**API & Data**:
-
-- Native fetch API: HTTP client with built-in error handling
-- `swr`: Data fetching and caching
-
-**Development**:
-
-- `eslint`: Code linting
-- `prettier`: Code formatting
-
-## Design Guidelines
-
-### Visual Design
+### Design Principles
 
 - Clean, professional interface suitable for data verification
 - Clear visual hierarchy with proper spacing
-- Consistent color scheme (consider accessibility)
-- Clear CTAs for confirm/discard actions
+- Accessible design with good color contrast
+- Clear call-to-action buttons for confirm/discard actions
 
-### UX Principles
+### Usability Requirements
 
-- **Clarity**: Always show source of extracted data
-- **Efficiency**: Minimize clicks needed for common actions
-- **Safety**: Clear confirmation before irreversible actions
-- **Feedback**: Always show status of operations
+- **Clarity**: Show source context for extracted data
+- **Efficiency**: Minimize clicks for common evaluation actions
+- **Safety**: Clear feedback before irreversible actions
+- **Responsiveness**: Optimized for desktop use (1024px+)
 
-### Responsive Breakpoints
+### Target Platform
 
+- Primary: Desktop browsers (Chrome, Firefox)
 - Mobile: Not supported (redirect to desktop)
-- Desktop: 1024px+ (optimized for desktop use)
 
-## Error Handling
+## Quality Requirements
 
-- **Network Errors**: Retry mechanisms with user feedback
-- **Authentication Errors**: Clear re-login prompts
-- **Validation Errors**: Inline error messages
-- **Server Errors**: Graceful fallbacks with error reporting
+### Error Handling
 
-## Security Considerations
+- Network error recovery with user feedback
+- Clear authentication error handling and re-login prompts
+- Inline validation error messages
+- Graceful server error handling
 
-- **OAuth Token Security**: Secure storage and transmission
-- **CSRF Protection**: Built-in Next.js CSRF protection
-- **Input Validation**: Client-side validation with server-side verification
-- **XSS Prevention**: Proper sanitization of displayed content
+### Security Requirements
 
-## Performance Optimization
+- Secure OAuth token storage and transmission
+- CSRF protection
+- Input validation and sanitization
+- XSS prevention measures
 
-- **Code Splitting**: Automatic with Next.js App Router
-- **Image Optimization**: Next.js Image component for any politician photos
-- **Data Caching**: SWR for efficient data fetching
-- **Bundle Analysis**: Regular bundle size monitoring
+### Performance Requirements
 
-## Accessibility
+- Efficient data loading and caching
+- Code splitting for optimal bundle sizes
+- Image optimization for any media content
 
-- **Keyboard Navigation**: Full keyboard accessibility
-- **Screen Readers**: Proper ARIA labels and semantic HTML
-- **Color Contrast**: WCAG AA compliance
-- **Focus Management**: Clear focus indicators
+### Accessibility Requirements
+
+- Full keyboard navigation support
+- Screen reader compatibility with proper ARIA labels
+- WCAG AA color contrast compliance
+- Clear focus indicators
 
 ## Testing Strategy
 
-**Minimal Testing Approach**:
-Focus only on critical functionality that could break the confirmation workflow.
+**Approach**: Minimal, behavior-focused testing that covers critical functionality without over-engineering.
 
-**What to Test**:
+**Testing Priorities**:
 
 - Authentication flow (OAuth login/logout)
-- Politician data display and rendering
-- Confirm/discard actions for properties, positions, and birthplaces
-- Navigation to next politician
-- Basic error handling
+- Core evaluation workflow (confirm/discard actions)
+- Politician data display and navigation
+- API integration and error handling
 
-**What NOT to Test**:
+**Testing Scope**:
 
-- Complex user interactions
-- Performance testing
-- Accessibility testing (beyond basic checks)
-- Cross-browser compatibility (focus on Chrome/Firefox)
+- Focus on user-facing behavior rather than implementation details
+- Manual testing for OAuth integration
+- Automated testing for core evaluation components
+- Basic error scenario coverage
 
-**Testing Tools**:
+**Out of Scope**:
 
-- Jest + React Testing Library for critical component tests
-- Simple integration tests for API calls
-- Manual testing for OAuth flow
-
-**Test Files**:
-
-```
-__tests__/
-├── components/
-│   ├── PoliticianEvaluation.test.tsx
-│   ├── PropertyItem.test.tsx
-│   ├── PositionItem.test.tsx
-│   └── BirthplaceItem.test.tsx
-└── lib/
-    └── api.test.ts
-```
-
-## Deployment
-
-**Development**: Vercel (recommended) or similar platform
-**Production**: TBD based on infrastructure requirements
-
-**Environment Variables**: Secure management of OAuth credentials and API endpoints
-
----
+- Complex user interaction testing
+- Performance or accessibility testing suites
+- Extensive cross-browser testing
