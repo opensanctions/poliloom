@@ -27,12 +27,22 @@ class TestPositionExtractionService:
         self,
         position_extraction_service,
         mock_openai_client,
-        test_session,
-        sample_politician,
-        sample_position,
+        db_session,
+        sample_politician_data,
+        sample_position_data,
         sample_wikipedia_content,
     ):
         """Test successful position extraction and mapping."""
+        from poliloom.models import Politician, Position
+
+        # Create model instances from fixture data
+        politician = Politician(**sample_politician_data)
+        position = Position(**sample_position_data)
+        db_session.add_all([politician, position])
+        db_session.commit()
+        db_session.refresh(politician)
+        db_session.refresh(position)
+
         # Mock Stage 1: Free-form extraction
         mock_message1 = Mock()
         mock_message1.parsed = FreeFormPositionExtractionResult(
@@ -63,11 +73,11 @@ class TestPositionExtractionService:
         # Mock embedding generation
         with patch("poliloom.embeddings.generate_embedding", return_value=[0.1] * 384):
             result = position_extraction_service.extract_and_map(
-                test_session,
+                db_session,
                 sample_wikipedia_content,
                 "Test Politician",
                 "United States",
-                sample_politician,
+                politician,
                 "positions",
             )
 
@@ -82,11 +92,19 @@ class TestPositionExtractionService:
         self,
         position_extraction_service,
         mock_openai_client,
-        test_session,
-        sample_politician,
+        db_session,
+        sample_politician_data,
         sample_wikipedia_content,
     ):
         """Test extraction when no positions are found."""
+        from poliloom.models import Politician
+
+        # Create model instance from fixture data
+        politician = Politician(**sample_politician_data)
+        db_session.add(politician)
+        db_session.commit()
+        db_session.refresh(politician)
+
         # Mock Stage 1: Empty result
         mock_message1 = Mock()
         mock_message1.parsed = FreeFormPositionExtractionResult(positions=[])
@@ -96,11 +114,11 @@ class TestPositionExtractionService:
         mock_openai_client.beta.chat.completions.parse.return_value = mock_response1
 
         result = position_extraction_service.extract_and_map(
-            test_session,
+            db_session,
             sample_wikipedia_content,
             "Test Politician",
             "United States",
-            sample_politician,
+            politician,
             "positions",
         )
 
@@ -110,22 +128,30 @@ class TestPositionExtractionService:
         self,
         position_extraction_service,
         mock_openai_client,
-        test_session,
-        sample_politician,
+        db_session,
+        sample_politician_data,
         sample_wikipedia_content,
     ):
         """Test extraction when LLM fails."""
+        from poliloom.models import Politician
+
+        # Create model instance from fixture data
+        politician = Politician(**sample_politician_data)
+        db_session.add(politician)
+        db_session.commit()
+        db_session.refresh(politician)
+
         # Mock Stage 1: LLM failure
         mock_openai_client.beta.chat.completions.parse.side_effect = Exception(
             "LLM Error"
         )
 
         result = position_extraction_service.extract_and_map(
-            test_session,
+            db_session,
             sample_wikipedia_content,
             "Test Politician",
             "United States",
-            sample_politician,
+            politician,
             "positions",
         )
 

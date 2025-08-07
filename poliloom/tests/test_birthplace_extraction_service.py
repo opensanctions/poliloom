@@ -27,12 +27,22 @@ class TestBirthplaceExtractionService:
         self,
         birthplace_extraction_service,
         mock_openai_client,
-        test_session,
-        sample_politician,
-        sample_location,
+        db_session,
+        sample_politician_data,
+        sample_location_data,
         sample_wikipedia_content,
     ):
         """Test successful birthplace extraction and mapping."""
+        from poliloom.models import Politician, Location
+
+        # Create model instances from fixture data
+        politician = Politician(**sample_politician_data)
+        location = Location(**sample_location_data)
+        db_session.add_all([politician, location])
+        db_session.commit()
+        db_session.refresh(politician)
+        db_session.refresh(location)
+
         # Mock Stage 1: Free-form extraction
         mock_message1 = Mock()
         mock_message1.parsed = FreeFormBirthplaceExtractionResult(
@@ -61,11 +71,11 @@ class TestBirthplaceExtractionService:
         # Mock embedding generation
         with patch("poliloom.embeddings.generate_embedding", return_value=[0.2] * 384):
             result = birthplace_extraction_service.extract_and_map(
-                test_session,
+                db_session,
                 sample_wikipedia_content,
                 "Test Politician",
                 "United States",
-                sample_politician,
+                politician,
                 "birthplaces",
             )
 
@@ -78,11 +88,19 @@ class TestBirthplaceExtractionService:
         self,
         birthplace_extraction_service,
         mock_openai_client,
-        test_session,
-        sample_politician,
+        db_session,
+        sample_politician_data,
         sample_wikipedia_content,
     ):
         """Test extraction when no birthplaces are found."""
+        from poliloom.models import Politician
+
+        # Create model instance from fixture data
+        politician = Politician(**sample_politician_data)
+        db_session.add(politician)
+        db_session.commit()
+        db_session.refresh(politician)
+
         # Mock Stage 1: Empty result
         mock_message1 = Mock()
         mock_message1.parsed = FreeFormBirthplaceExtractionResult(birthplaces=[])
@@ -92,11 +110,11 @@ class TestBirthplaceExtractionService:
         mock_openai_client.beta.chat.completions.parse.return_value = mock_response1
 
         result = birthplace_extraction_service.extract_and_map(
-            test_session,
+            db_session,
             sample_wikipedia_content,
             "Test Politician",
             "United States",
-            sample_politician,
+            politician,
             "birthplaces",
         )
 
@@ -106,22 +124,30 @@ class TestBirthplaceExtractionService:
         self,
         birthplace_extraction_service,
         mock_openai_client,
-        test_session,
-        sample_politician,
+        db_session,
+        sample_politician_data,
         sample_wikipedia_content,
     ):
         """Test extraction when LLM fails."""
+        from poliloom.models import Politician
+
+        # Create model instance from fixture data
+        politician = Politician(**sample_politician_data)
+        db_session.add(politician)
+        db_session.commit()
+        db_session.refresh(politician)
+
         # Mock Stage 1: LLM failure
         mock_openai_client.beta.chat.completions.parse.side_effect = Exception(
             "LLM Error"
         )
 
         result = birthplace_extraction_service.extract_and_map(
-            test_session,
+            db_session,
             sample_wikipedia_content,
             "Test Politician",
             "United States",
-            sample_politician,
+            politician,
             "birthplaces",
         )
 

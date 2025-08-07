@@ -213,9 +213,18 @@ class TestArchivedPagesAPI:
             assert response.status_code == 404
             assert "Archived page not found" in response.json()["detail"]
 
-    def test_file_not_found_returns_404(self, client, sample_archived_page):
+    def test_file_not_found_returns_404(
+        self, client, db_session, sample_archived_page_data
+    ):
         """Test that missing files return 404."""
         from unittest.mock import AsyncMock, Mock as SyncMock, patch
+        from poliloom.models import ArchivedPage
+
+        # Create archived page instance
+        archived_page = ArchivedPage(**sample_archived_page_data)
+        db_session.add(archived_page)
+        db_session.commit()
+        db_session.refresh(archived_page)
 
         with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
             # Mock successful OAuth verification
@@ -234,14 +243,23 @@ class TestArchivedPagesAPI:
                 headers = {"Authorization": "Bearer valid_jwt_token"}
 
                 response = client.get(
-                    f"/archived-pages/{sample_archived_page.id}.md", headers=headers
+                    f"/archived-pages/{archived_page.id}.md", headers=headers
                 )
                 assert response.status_code == 404
                 assert "File not found" in response.json()["detail"]
 
-    def test_explicit_extension_endpoints(self, client, sample_archived_page):
+    def test_explicit_extension_endpoints(
+        self, client, db_session, sample_archived_page_data
+    ):
         """Test explicit .html and .md extension endpoints."""
         from unittest.mock import AsyncMock, Mock as SyncMock, patch
+        from poliloom.models import ArchivedPage
+
+        # Create archived page instance
+        archived_page = ArchivedPage(**sample_archived_page_data)
+        db_session.add(archived_page)
+        db_session.commit()
+        db_session.refresh(archived_page)
 
         with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
             # Mock successful OAuth verification
@@ -267,7 +285,7 @@ class TestArchivedPagesAPI:
 
                 # Test .html endpoint
                 response = client.get(
-                    f"/archived-pages/{sample_archived_page.id}.html", headers=headers
+                    f"/archived-pages/{archived_page.id}.html", headers=headers
                 )
                 assert response.status_code == 200
                 assert response.headers["content-type"] == "text/html; charset=utf-8"
@@ -275,7 +293,7 @@ class TestArchivedPagesAPI:
 
                 # Test .md endpoint
                 response = client.get(
-                    f"/archived-pages/{sample_archived_page.id}.md", headers=headers
+                    f"/archived-pages/{archived_page.id}.md", headers=headers
                 )
                 assert response.status_code == 200
                 assert (
