@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor, act } from '@testing-library/react';
 import { render } from '@testing-library/react';
 import Home from './page';
 import { mockPolitician } from '@/test/mock-data';
@@ -74,9 +74,15 @@ describe('Home Page', () => {
     const { fetchUnconfirmedPolitician } = await import('@/lib/api');
     vi.mocked(fetchUnconfirmedPolitician).mockResolvedValue(mockPolitician);
 
-    render(<Home />);
+    await act(async () => {
+      render(<Home />);
+    });
 
-    // The component will eventually show the PoliticianEvaluation
+    // Wait for the async operations to complete
+    await waitFor(() => {
+      expect(screen.getByText('PoliticianEvaluation Component')).toBeInTheDocument();
+    });
+
     expect(screen.getByText('Header')).toBeInTheDocument();
   });
 });
