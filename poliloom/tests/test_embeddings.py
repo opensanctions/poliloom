@@ -11,7 +11,9 @@ class TestEmbeddingService:
     @pytest.mark.parametrize(
         "model_class,entity_name", [(Position, "positions"), (Location, "locations")]
     )
-    def test_generate_embeddings_for_entities(self, model_class, entity_name):
+    def test_generate_embeddings_for_entities(
+        self, model_class, entity_name, db_session
+    ):
         """Test batch embedding generation for different entity types."""
         # Create test entities without embeddings
         entities = []
@@ -32,13 +34,10 @@ class TestEmbeddingService:
         entities.append(entity_with_embedding)
 
         # Commit all entities
-        from poliloom.database import get_db_session
-
-        with get_db_session() as session:
-            session.add_all(entities)
-            session.commit()
-            for entity in entities:
-                session.refresh(entity)
+        db_session.add_all(entities)
+        db_session.commit()
+        for entity in entities:
+            db_session.refresh(entity)
 
         # Track progress messages
         progress_messages = []
@@ -47,25 +46,23 @@ class TestEmbeddingService:
             progress_messages.append(msg)
 
         # Generate embeddings for entities without them
-        with get_db_session() as session:
-            processed_count = generate_embeddings_for_entities(
-                session=session,
-                model_class=model_class,
-                entity_name=entity_name,
-                batch_size=3,  # Small batch size to test batching
-                progress_callback=capture_progress,
-            )
+        processed_count = generate_embeddings_for_entities(
+            session=db_session,
+            model_class=model_class,
+            entity_name=entity_name,
+            batch_size=3,  # Small batch size to test batching
+            progress_callback=capture_progress,
+        )
 
         # Verify results
         assert processed_count == 5  # Only the 5 without embeddings
 
         # Check all entities now have embeddings
-        with get_db_session() as session:
-            all_entities = session.query(model_class).all()
-            assert len(all_entities) == 6
-            for entity in all_entities:
-                assert entity.embedding is not None
-                assert len(entity.embedding) == 384
+        all_entities = db_session.query(model_class).all()
+        assert len(all_entities) == 6
+        for entity in all_entities:
+            assert entity.embedding is not None
+            assert len(entity.embedding) == 384
 
         # Verify progress messages
         assert f"Found 5 {entity_name} without embeddings" in progress_messages
@@ -78,7 +75,9 @@ class TestEmbeddingService:
     @pytest.mark.parametrize(
         "model_class,entity_name", [(Position, "positions"), (Location, "locations")]
     )
-    def test_generate_embeddings_all_have_embeddings(self, model_class, entity_name):
+    def test_generate_embeddings_all_have_embeddings(
+        self, model_class, entity_name, db_session
+    ):
         """Test behavior when all entities already have embeddings."""
         # Create entities with embeddings
         from poliloom.embeddings import generate_embedding
@@ -91,13 +90,10 @@ class TestEmbeddingService:
             entity.embedding = generate_embedding(entity.name)
             entities.append(entity)
 
-        from poliloom.database import get_db_session
-
-        with get_db_session() as session:
-            session.add_all(entities)
-            session.commit()
-            for entity in entities:
-                session.refresh(entity)
+        db_session.add_all(entities)
+        db_session.commit()
+        for entity in entities:
+            db_session.refresh(entity)
 
         # Track progress messages
         progress_messages = []
@@ -106,20 +102,19 @@ class TestEmbeddingService:
             progress_messages.append(msg)
 
         # Try to generate embeddings
-        with get_db_session() as session:
-            processed_count = generate_embeddings_for_entities(
-                session=session,
-                model_class=model_class,
-                entity_name=entity_name,
-                batch_size=100,
-                progress_callback=capture_progress,
-            )
+        processed_count = generate_embeddings_for_entities(
+            session=db_session,
+            model_class=model_class,
+            entity_name=entity_name,
+            batch_size=100,
+            progress_callback=capture_progress,
+        )
 
         # Verify no processing occurred
         assert processed_count == 0
         assert f"✅ All {entity_name} already have embeddings" in progress_messages
 
-    def test_generate_embeddings_empty_database(self):
+    def test_generate_embeddings_empty_database(self, db_session):
         """Test behavior with no entities in database."""
         progress_messages = []
 
@@ -127,46 +122,38 @@ class TestEmbeddingService:
             progress_messages.append(msg)
 
         # Test with Position
-        from poliloom.database import get_db_session
-
-        with get_db_session() as session:
-            processed_count = generate_embeddings_for_entities(
-                session=session,
-                model_class=Position,
-                entity_name="positions",
-                batch_size=100,
-                progress_callback=capture_progress,
-            )
+        processed_count = generate_embeddings_for_entities(
+            session=db_session,
+            model_class=Position,
+            entity_name="positions",
+            batch_size=100,
+            progress_callback=capture_progress,
+        )
 
         assert processed_count == 0
         assert "✅ All positions already have embeddings" in progress_messages
 
-    def test_generate_embeddings_no_progress_callback(self):
+    def test_generate_embeddings_no_progress_callback(self, db_session):
         """Test that the function works without a progress callback."""
         # Create a position without embedding
-        from poliloom.database import get_db_session
-
         position = Position(name="Test Position", wikidata_id="Q3000")
-        with get_db_session() as session:
-            session.add(position)
-            session.commit()
-            session.refresh(position)
+        db_session.add(position)
+        db_session.commit()
+        db_session.refresh(position)
 
         # Generate embeddings without progress callback
-        with get_db_session() as session:
-            processed_count = generate_embeddings_for_entities(
-                session=session,
-                model_class=Position,
-                entity_name="positions",
-                batch_size=100,
-                progress_callback=None,  # No callback
-            )
+        processed_count = generate_embeddings_for_entities(
+            session=db_session,
+            model_class=Position,
+            entity_name="positions",
+            batch_size=100,
+            progress_callback=None,  # No callback
+        )
 
         assert processed_count == 1
 
         # Verify embedding was generated
-        with get_db_session() as session:
-            # Re-query the position to get it in the current session
-            position = session.query(Position).filter_by(wikidata_id="Q3000").first()
-            assert position.embedding is not None
-            assert len(position.embedding) == 384
+        # Re-query the position to get it in the current session
+        position = db_session.query(Position).filter_by(wikidata_id="Q3000").first()
+        assert position.embedding is not None
+        assert len(position.embedding) == 384

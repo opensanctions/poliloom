@@ -241,22 +241,20 @@ def location_with_embedding():
 
 
 @pytest.fixture
-def similarity_searcher():
+def similarity_searcher(db_session):
     """Fixture for performing similarity search on models with embeddings."""
-    from poliloom.database import get_db_session
 
     def _similarity_search(model_class, query_text, limit=5):
         """Perform similarity search on model with embeddings."""
         from poliloom.embeddings import generate_embedding
 
-        with get_db_session() as session:
-            query_embedding = generate_embedding(query_text)
-            query = session.query(model_class).filter(model_class.embedding.isnot(None))
+        query_embedding = generate_embedding(query_text)
+        query = db_session.query(model_class).filter(model_class.embedding.isnot(None))
 
-            return (
-                query.order_by(model_class.embedding.cosine_distance(query_embedding))
-                .limit(limit)
-                .all()
-            )
+        return (
+            query.order_by(model_class.embedding.cosine_distance(query_embedding))
+            .limit(limit)
+            .all()
+        )
 
     return _similarity_search

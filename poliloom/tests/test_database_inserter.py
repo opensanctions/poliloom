@@ -14,7 +14,7 @@ class TestDatabaseInserter:
         """Create a DatabaseInserter instance."""
         return DatabaseInserter()
 
-    def test_insert_positions_batch(self, inserter):
+    def test_insert_positions_batch(self, inserter, db_session):
         """Test inserting a batch of positions."""
         positions = [
             {"wikidata_id": "Q1", "name": "Position 1"},
@@ -24,15 +24,12 @@ class TestDatabaseInserter:
         inserter.insert_positions_batch(positions)
 
         # Verify positions were inserted
-        from poliloom.database import get_db_session
+        inserted_positions = db_session.query(Position).all()
+        assert len(inserted_positions) == 2
+        wikidata_ids = {pos.wikidata_id for pos in inserted_positions}
+        assert wikidata_ids == {"Q1", "Q2"}
 
-        with get_db_session() as session:
-            inserted_positions = session.query(Position).all()
-            assert len(inserted_positions) == 2
-            wikidata_ids = {pos.wikidata_id for pos in inserted_positions}
-            assert wikidata_ids == {"Q1", "Q2"}
-
-    def test_insert_positions_batch_with_duplicates(self, inserter):
+    def test_insert_positions_batch_with_duplicates(self, inserter, db_session):
         """Test inserting positions with some duplicates."""
         # Insert initial batch
         initial_positions = [
@@ -53,21 +50,18 @@ class TestDatabaseInserter:
         inserter.insert_positions_batch(positions_with_duplicates)
 
         # Verify all positions exist with correct data
-        from poliloom.database import get_db_session
+        inserted_positions = db_session.query(Position).all()
+        assert len(inserted_positions) == 3
+        wikidata_ids = {pos.wikidata_id for pos in inserted_positions}
+        assert wikidata_ids == {"Q1", "Q2", "Q3"}
 
-        with get_db_session() as session:
-            inserted_positions = session.query(Position).all()
-            assert len(inserted_positions) == 3
-            wikidata_ids = {pos.wikidata_id for pos in inserted_positions}
-            assert wikidata_ids == {"Q1", "Q2", "Q3"}
+        # Verify Q1 was updated
+        q1_position = (
+            db_session.query(Position).filter(Position.wikidata_id == "Q1").first()
+        )
+        assert q1_position.name == "Position 1 Updated"
 
-            # Verify Q1 was updated
-            q1_position = (
-                session.query(Position).filter(Position.wikidata_id == "Q1").first()
-            )
-            assert q1_position.name == "Position 1 Updated"
-
-    def test_insert_positions_batch_empty(self, inserter):
+    def test_insert_positions_batch_empty(self, inserter, db_session):
         """Test inserting empty batch of positions."""
         positions = []
 
@@ -75,13 +69,10 @@ class TestDatabaseInserter:
         inserter.insert_positions_batch(positions)
 
         # Verify no positions were inserted
-        from poliloom.database import get_db_session
+        inserted_positions = db_session.query(Position).all()
+        assert len(inserted_positions) == 0
 
-        with get_db_session() as session:
-            inserted_positions = session.query(Position).all()
-            assert len(inserted_positions) == 0
-
-    def test_insert_locations_batch(self, inserter):
+    def test_insert_locations_batch(self, inserter, db_session):
         """Test inserting a batch of locations."""
         locations = [
             {"wikidata_id": "Q1", "name": "Location 1"},
@@ -91,15 +82,12 @@ class TestDatabaseInserter:
         inserter.insert_locations_batch(locations)
 
         # Verify locations were inserted
-        from poliloom.database import get_db_session
+        inserted_locations = db_session.query(Location).all()
+        assert len(inserted_locations) == 2
+        wikidata_ids = {loc.wikidata_id for loc in inserted_locations}
+        assert wikidata_ids == {"Q1", "Q2"}
 
-        with get_db_session() as session:
-            inserted_locations = session.query(Location).all()
-            assert len(inserted_locations) == 2
-            wikidata_ids = {loc.wikidata_id for loc in inserted_locations}
-            assert wikidata_ids == {"Q1", "Q2"}
-
-    def test_insert_locations_batch_with_duplicates(self, inserter):
+    def test_insert_locations_batch_with_duplicates(self, inserter, db_session):
         """Test inserting locations with some duplicates."""
         locations = [
             {"wikidata_id": "Q1", "name": "Location 1"},
@@ -110,13 +98,10 @@ class TestDatabaseInserter:
         inserter.insert_locations_batch(locations)
 
         # Verify locations were inserted
-        from poliloom.database import get_db_session
-
-        with get_db_session() as session:
-            inserted_locations = session.query(Location).all()
-            assert len(inserted_locations) == 3
-            wikidata_ids = {loc.wikidata_id for loc in inserted_locations}
-            assert wikidata_ids == {"Q1", "Q2", "Q3"}
+        inserted_locations = db_session.query(Location).all()
+        assert len(inserted_locations) == 3
+        wikidata_ids = {loc.wikidata_id for loc in inserted_locations}
+        assert wikidata_ids == {"Q1", "Q2", "Q3"}
 
         # Insert again with some duplicates - should handle gracefully
         locations_with_duplicates = [
@@ -126,13 +111,12 @@ class TestDatabaseInserter:
         inserter.insert_locations_batch(locations_with_duplicates)
 
         # Should now have 4 total locations
-        with get_db_session() as session:
-            all_locations = session.query(Location).all()
-            assert len(all_locations) == 4
-            wikidata_ids = {loc.wikidata_id for loc in all_locations}
-            assert wikidata_ids == {"Q1", "Q2", "Q3", "Q4"}
+        all_locations = db_session.query(Location).all()
+        assert len(all_locations) == 4
+        wikidata_ids = {loc.wikidata_id for loc in all_locations}
+        assert wikidata_ids == {"Q1", "Q2", "Q3", "Q4"}
 
-    def test_insert_locations_batch_empty(self, inserter):
+    def test_insert_locations_batch_empty(self, inserter, db_session):
         """Test inserting empty batch of locations."""
         locations = []
 
@@ -140,13 +124,10 @@ class TestDatabaseInserter:
         inserter.insert_locations_batch(locations)
 
         # Verify no locations were inserted
-        from poliloom.database import get_db_session
+        inserted_locations = db_session.query(Location).all()
+        assert len(inserted_locations) == 0
 
-        with get_db_session() as session:
-            inserted_locations = session.query(Location).all()
-            assert len(inserted_locations) == 0
-
-    def test_insert_countries_batch(self, inserter):
+    def test_insert_countries_batch(self, inserter, db_session):
         """Test inserting a batch of countries."""
         countries = [
             {"wikidata_id": "Q1", "name": "Country 1", "iso_code": "C1"},
@@ -156,22 +137,17 @@ class TestDatabaseInserter:
         inserter.insert_countries_batch(countries)
 
         # Verify countries were inserted
-        from poliloom.database import get_db_session
+        inserted_countries = db_session.query(Country).all()
+        assert len(inserted_countries) == 2
+        wikidata_ids = {country.wikidata_id for country in inserted_countries}
+        assert wikidata_ids == {"Q1", "Q2"}
 
-        with get_db_session() as session:
-            inserted_countries = session.query(Country).all()
-            assert len(inserted_countries) == 2
-            wikidata_ids = {country.wikidata_id for country in inserted_countries}
-            assert wikidata_ids == {"Q1", "Q2"}
+        # Verify specific country data
+        country1 = db_session.query(Country).filter(Country.wikidata_id == "Q1").first()
+        assert country1.name == "Country 1"
+        assert country1.iso_code == "C1"
 
-            # Verify specific country data
-            country1 = (
-                session.query(Country).filter(Country.wikidata_id == "Q1").first()
-            )
-            assert country1.name == "Country 1"
-            assert country1.iso_code == "C1"
-
-    def test_insert_countries_batch_empty(self, inserter):
+    def test_insert_countries_batch_empty(self, inserter, db_session):
         """Test inserting empty batch of countries."""
         countries = []
 
@@ -179,13 +155,12 @@ class TestDatabaseInserter:
         inserter.insert_countries_batch(countries)
 
         # Verify no countries were inserted
-        from poliloom.database import get_db_session
+        inserted_countries = db_session.query(Country).all()
+        assert len(inserted_countries) == 0
 
-        with get_db_session() as session:
-            inserted_countries = session.query(Country).all()
-            assert len(inserted_countries) == 0
-
-    def test_insert_countries_batch_with_duplicates_handling(self, inserter):
+    def test_insert_countries_batch_with_duplicates_handling(
+        self, inserter, db_session
+    ):
         """Test that countries batch uses ON CONFLICT DO NOTHING."""
         countries = [
             {"wikidata_id": "Q1", "name": "Country 1", "iso_code": "C1"},
@@ -195,36 +170,29 @@ class TestDatabaseInserter:
         inserter.insert_countries_batch(countries)
 
         # Verify first insertion
-        from poliloom.database import get_db_session
-
-        with get_db_session() as session:
-            inserted_countries = session.query(Country).all()
-            assert len(inserted_countries) == 1
+        inserted_countries = db_session.query(Country).all()
+        assert len(inserted_countries) == 1
 
         # Insert again - should handle duplicates gracefully
         inserter.insert_countries_batch(countries)
 
         # Should still have only one country (ON CONFLICT DO NOTHING)
-        with get_db_session() as session:
-            final_countries = session.query(Country).all()
-            assert len(final_countries) == 1
-            assert final_countries[0].wikidata_id == "Q1"
+        final_countries = db_session.query(Country).all()
+        assert len(final_countries) == 1
+        assert final_countries[0].wikidata_id == "Q1"
 
-    def test_insert_politicians_batch(self, inserter):
+    def test_insert_politicians_batch(self, inserter, db_session):
         """Test inserting a batch of politicians."""
         # First create the required related entities
-        from poliloom.database import get_db_session
+        position = Position(name="Mayor", wikidata_id="Q30185")
+        country = Country(name="United States", wikidata_id="Q30", iso_code="US")
+        location = Location(name="New York City", wikidata_id="Q60")
 
-        with get_db_session() as session:
-            position = Position(name="Mayor", wikidata_id="Q30185")
-            country = Country(name="United States", wikidata_id="Q30", iso_code="US")
-            location = Location(name="New York City", wikidata_id="Q60")
-
-            session.add_all([position, country, location])
-            session.commit()
-            session.refresh(position)
-            session.refresh(country)
-            session.refresh(location)
+        db_session.add_all([position, country, location])
+        db_session.commit()
+        db_session.refresh(position)
+        db_session.refresh(country)
+        db_session.refresh(location)
 
         politicians = [
             {
@@ -253,14 +221,13 @@ class TestDatabaseInserter:
         inserter.insert_politicians_batch(politicians)
 
         # Verify politician was created
-        with get_db_session() as session:
-            inserted_politician = (
-                session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
-            )
-            assert inserted_politician is not None
-            assert inserted_politician.name == "John Doe"
+        inserted_politician = (
+            db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
+        )
+        assert inserted_politician is not None
+        assert inserted_politician.name == "John Doe"
 
-    def test_insert_politicians_batch_with_duplicates(self, inserter):
+    def test_insert_politicians_batch_with_duplicates(self, inserter, db_session):
         """Test inserting politicians with some duplicates."""
         politicians = [
             {
@@ -287,23 +254,19 @@ class TestDatabaseInserter:
         inserter.insert_politicians_batch(politicians)
 
         # Verify politicians were created
-        from poliloom.database import get_db_session
-
-        with get_db_session() as session:
-            inserted_politicians = session.query(Politician).all()
-            assert len(inserted_politicians) == 2
-            wikidata_ids = {pol.wikidata_id for pol in inserted_politicians}
-            assert wikidata_ids == {"Q1", "Q2"}
+        inserted_politicians = db_session.query(Politician).all()
+        assert len(inserted_politicians) == 2
+        wikidata_ids = {pol.wikidata_id for pol in inserted_politicians}
+        assert wikidata_ids == {"Q1", "Q2"}
 
         # Insert again with duplicates - should handle gracefully
         inserter.insert_politicians_batch(politicians)
 
         # Should still have only 2 politicians (UPSERT behavior)
-        with get_db_session() as session:
-            final_politicians = session.query(Politician).all()
-            assert len(final_politicians) == 2
+        final_politicians = db_session.query(Politician).all()
+        assert len(final_politicians) == 2
 
-    def test_insert_politicians_batch_empty(self, inserter):
+    def test_insert_politicians_batch_empty(self, inserter, db_session):
         """Test inserting empty batch of politicians."""
         politicians = []
 
@@ -311,26 +274,20 @@ class TestDatabaseInserter:
         inserter.insert_politicians_batch(politicians)
 
         # Verify no politicians were inserted
-        from poliloom.database import get_db_session
+        inserted_politicians = db_session.query(Politician).all()
+        assert len(inserted_politicians) == 0
 
-        with get_db_session() as session:
-            inserted_politicians = session.query(Politician).all()
-            assert len(inserted_politicians) == 0
-
-    def test_insert_politicians_batch_with_relationships(self, inserter):
+    def test_insert_politicians_batch_with_relationships(self, inserter, db_session):
         """Test inserting politicians with full relationship data."""
         # First create the required related entities
-        from poliloom.database import get_db_session
+        position1 = Position(name="Mayor", wikidata_id="Q30185")
+        position2 = Position(name="President", wikidata_id="Q11696")
+        country1 = Country(name="United States", wikidata_id="Q30", iso_code="US")
+        country2 = Country(name="Canada", wikidata_id="Q16", iso_code="CA")
+        location = Location(name="New York City", wikidata_id="Q60")
 
-        with get_db_session() as session:
-            position1 = Position(name="Mayor", wikidata_id="Q30185")
-            position2 = Position(name="President", wikidata_id="Q11696")
-            country1 = Country(name="United States", wikidata_id="Q30", iso_code="US")
-            country2 = Country(name="Canada", wikidata_id="Q16", iso_code="CA")
-            location = Location(name="New York City", wikidata_id="Q60")
-
-            session.add_all([position1, position2, country1, country2, location])
-            session.commit()
+        db_session.add_all([position1, position2, country1, country2, location])
+        db_session.commit()
 
         politicians = [
             {
@@ -372,15 +329,14 @@ class TestDatabaseInserter:
         inserter.insert_politicians_batch(politicians)
 
         # Verify politician was created with relationships
-        with get_db_session() as session:
-            inserted_politician = (
-                session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
-            )
-            assert inserted_politician is not None
-            assert inserted_politician.name == "John Doe"
-            assert not inserted_politician.is_deceased
+        inserted_politician = (
+            db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
+        )
+        assert inserted_politician is not None
+        assert inserted_politician.name == "John Doe"
+        assert not inserted_politician.is_deceased
 
-    def test_insert_politicians_batch_missing_relationships(self, inserter):
+    def test_insert_politicians_batch_missing_relationships(self, inserter, db_session):
         """Test inserting politicians when some related entities don't exist."""
         politicians = [
             {
@@ -405,11 +361,8 @@ class TestDatabaseInserter:
         inserter.insert_politicians_batch(politicians)
 
         # Verify politician was still created (relationships are optional)
-        from poliloom.database import get_db_session
-
-        with get_db_session() as session:
-            inserted_politician = (
-                session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
-            )
-            assert inserted_politician is not None
-            assert inserted_politician.name == "John Doe"
+        inserted_politician = (
+            db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
+        )
+        assert inserted_politician is not None
+        assert inserted_politician.name == "John Doe"

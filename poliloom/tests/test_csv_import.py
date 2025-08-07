@@ -227,7 +227,7 @@ class TestCSVImport:
             positions = session.query(Position).all()
             assert len(positions) == 0
 
-    def test_import_positions_malformed_csv(self, sample_countries):
+    def test_import_positions_malformed_csv(self, sample_countries, db_session):
         """Test handling of malformed CSV data."""
         import_service = ImportService()
 
@@ -249,14 +249,11 @@ class TestCSVImport:
                 assert result == 2
 
                 # Verify both positions were created
-                from poliloom.database import get_db_session
-
-                with get_db_session() as session:
-                    positions = session.query(Position).all()
-                    assert len(positions) == 2
-                    wikidata_ids = {pos.wikidata_id for pos in positions}
-                    assert "Q123" in wikidata_ids
-                    assert "Q124" in wikidata_ids
+                positions = db_session.query(Position).all()
+                assert len(positions) == 2
+                wikidata_ids = {pos.wikidata_id for pos in positions}
+                assert "Q123" in wikidata_ids
+                assert "Q124" in wikidata_ids
 
             finally:
                 os.unlink(f.name)

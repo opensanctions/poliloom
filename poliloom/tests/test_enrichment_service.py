@@ -47,40 +47,36 @@ class TestEnrichmentService:
             return service
 
     @pytest.fixture
-    def politician_with_source(self, sample_country_data):
+    def politician_with_source(self, sample_country_data, db_session):
         """Create a politician with Wikipedia source and citizenship."""
-        from poliloom.database import get_db_session
         from poliloom.models import Country
 
-        with get_db_session() as session:
-            # Create country
-            country = Country(**sample_country_data)
-            session.add(country)
-            session.commit()
-            session.refresh(country)
+        # Create country
+        country = Country(**sample_country_data)
+        db_session.add(country)
+        db_session.commit()
+        db_session.refresh(country)
 
-            # Create politician
-            politician = Politician(name="Test Politician", wikidata_id="Q123456")
-            session.add(politician)
-            session.commit()
-            session.refresh(politician)
+        # Create politician
+        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        db_session.add(politician)
+        db_session.commit()
+        db_session.refresh(politician)
 
-            # Add citizenship
-            citizenship = HasCitizenship(
-                politician_id=politician.id, country_id=country.id
-            )
-            session.add(citizenship)
+        # Add citizenship
+        citizenship = HasCitizenship(politician_id=politician.id, country_id=country.id)
+        db_session.add(citizenship)
 
-            # Add Wikipedia link
-            wikipedia_link = WikipediaLink(
-                politician_id=politician.id,
-                url="https://en.wikipedia.org/wiki/Test_Politician",
-                language_code="en",
-            )
-            session.add(wikipedia_link)
-            session.commit()
-            session.refresh(politician)
-            return politician
+        # Add Wikipedia link
+        wikipedia_link = WikipediaLink(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            language_code="en",
+        )
+        db_session.add(wikipedia_link)
+        db_session.commit()
+        db_session.refresh(politician)
+        return politician
 
     async def test_enrich_politician_not_found(self, enrichment_service):
         """Test enrichment fails when politician not found."""
@@ -88,14 +84,11 @@ class TestEnrichmentService:
 
         assert result is False
 
-    async def test_enrich_politician_no_sources(self, enrichment_service):
+    async def test_enrich_politician_no_sources(self, enrichment_service, db_session):
         """Test enrichment fails when politician has no Wikipedia sources."""
-        from poliloom.database import get_db_session
-
-        with get_db_session() as session:
-            politician = Politician(name="No Sources Politician", wikidata_id="Q123456")
-            session.add(politician)
-            session.commit()
+        politician = Politician(name="No Sources Politician", wikidata_id="Q123456")
+        db_session.add(politician)
+        db_session.commit()
 
         result = await enrichment_service.enrich_politician_from_wikipedia("Q123456")
 
