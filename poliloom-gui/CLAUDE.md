@@ -161,6 +161,8 @@ The API specification is available via OpenAPI documentation from the backend se
 
 ## Testing Strategy
 
+**Framework**: Vitest + React Testing Library for fast, modern testing with excellent TypeScript support.
+
 **Approach**: Minimal, behavior-focused testing that covers critical functionality without over-engineering.
 
 **Testing Priorities**:
@@ -174,7 +176,7 @@ The API specification is available via OpenAPI documentation from the backend se
 
 - Focus on user-facing behavior rather than implementation details
 - Manual testing for OAuth integration
-- Automated testing for core evaluation components
+- Automated testing for core evaluation components using Vitest
 - Basic error scenario coverage
 
 **Out of Scope**:
