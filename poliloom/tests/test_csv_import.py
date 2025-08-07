@@ -19,8 +19,10 @@ class TestCSVImport:
         return Path(__file__).parent / "fixtures" / "test_positions.csv"
 
     @pytest.fixture
-    def sample_countries(self, test_session):
+    def sample_countries(self):
         """Create sample countries for testing."""
+        from poliloom.database import get_db_session
+
         # Load test data from fixture
         position_data = load_json_fixture("position_test_data.json")
         country_data = position_data["sample_countries"]
@@ -31,14 +33,17 @@ class TestCSVImport:
             )
             for c in country_data
         ]
-        for country in countries:
-            test_session.add(country)
-        test_session.commit()
+
+        with get_db_session() as session:
+            for country in countries:
+                session.add(country)
+            session.commit()
+            for country in countries:
+                session.refresh(country)
+
         return countries
 
-    def test_import_positions_from_csv_success(
-        self, test_session, test_csv_file, sample_countries
-    ):
+    def test_import_positions_from_csv_success(self, test_csv_file, sample_countries):
         """Test successful import of positions from CSV file."""
         import_service = ImportService()
 
@@ -49,30 +54,33 @@ class TestCSVImport:
         assert result == 7
 
         # Verify positions were created
-        positions = test_session.query(Position).all()
-        assert len(positions) == 7
+        from poliloom.database import get_db_session
 
-        # Check specific positions
-        mayor_hongseong = (
-            test_session.query(Position).filter_by(wikidata_id="Q110118256").first()
-        )
-        assert mayor_hongseong is not None
-        assert mayor_hongseong.name == "Mayor of Hongseong"
+        with get_db_session() as session:
+            positions = session.query(Position).all()
+            assert len(positions) == 7
 
-        mayor_jeongeup = (
-            test_session.query(Position).filter_by(wikidata_id="Q134765401").first()
-        )
-        assert mayor_jeongeup is not None
-        assert mayor_jeongeup.name == "Mayor of Jeongeup"
+            # Check specific positions
+            mayor_hongseong = (
+                session.query(Position).filter_by(wikidata_id="Q110118256").first()
+            )
+            assert mayor_hongseong is not None
+            assert mayor_hongseong.name == "Mayor of Hongseong"
 
-        mayor_gunsan = (
-            test_session.query(Position).filter_by(wikidata_id="Q134765105").first()
-        )
-        assert mayor_gunsan is not None
-        assert mayor_gunsan.name == "Mayor of Gunsan"
+            mayor_jeongeup = (
+                session.query(Position).filter_by(wikidata_id="Q134765401").first()
+            )
+            assert mayor_jeongeup is not None
+            assert mayor_jeongeup.name == "Mayor of Jeongeup"
+
+            mayor_gunsan = (
+                session.query(Position).filter_by(wikidata_id="Q134765105").first()
+            )
+            assert mayor_gunsan is not None
+            assert mayor_gunsan.name == "Mayor of Gunsan"
 
     def test_import_positions_filters_false_is_pep(
-        self, test_session, test_csv_file, sample_countries
+        self, test_csv_file, sample_countries
     ):
         """Test that positions with is_pep=FALSE are filtered out."""
         import_service = ImportService()
@@ -80,18 +88,21 @@ class TestCSVImport:
         import_service.import_positions_from_csv(str(test_csv_file))
 
         # Should not import positions with is_pep=FALSE
+        from poliloom.database import get_db_session
+
         filtered_positions = ["Q89279295", "Q134765299"]  # These have is_pep=FALSE
 
-        for wikidata_id in filtered_positions:
-            position = (
-                test_session.query(Position).filter_by(wikidata_id=wikidata_id).first()
-            )
-            assert position is None, (
-                f"Position {wikidata_id} should have been filtered out"
-            )
+        with get_db_session() as session:
+            for wikidata_id in filtered_positions:
+                position = (
+                    session.query(Position).filter_by(wikidata_id=wikidata_id).first()
+                )
+                assert position is None, (
+                    f"Position {wikidata_id} should have been filtered out"
+                )
 
     def test_import_positions_handles_empty_countries(
-        self, test_session, test_csv_file, sample_countries
+        self, test_csv_file, sample_countries
     ):
         """Test handling of positions with empty or missing countries."""
         import_service = ImportService()
@@ -99,71 +110,77 @@ class TestCSVImport:
         import_service.import_positions_from_csv(str(test_csv_file))
 
         # Check position with empty countries array
-        position_empty_countries = (
-            test_session.query(Position).filter_by(wikidata_id="Q134758719").first()
-        )
-        assert position_empty_countries is not None
+        from poliloom.database import get_db_session
 
-        # Check position with empty string for countries
-        position_empty_string = (
-            test_session.query(Position).filter_by(wikidata_id="Q134758519").first()
-        )
-        assert position_empty_string is not None
+        with get_db_session() as session:
+            position_empty_countries = (
+                session.query(Position).filter_by(wikidata_id="Q134758719").first()
+            )
+            assert position_empty_countries is not None
 
-    def test_import_positions_uses_all_countries(
-        self, test_session, test_csv_file, sample_countries
-    ):
+            # Check position with empty string for countries
+            position_empty_string = (
+                session.query(Position).filter_by(wikidata_id="Q134758519").first()
+            )
+            assert position_empty_string is not None
+
+    def test_import_positions_uses_all_countries(self, test_csv_file, sample_countries):
         """Test that all countries from the countries array are linked to the position."""
         import_service = ImportService()
 
         import_service.import_positions_from_csv(str(test_csv_file))
 
         # Check position with multiple countries - should exist
-        position_multi_countries = (
-            test_session.query(Position).filter_by(wikidata_id="Q134758625").first()
-        )
-        assert position_multi_countries is not None
+        from poliloom.database import get_db_session
 
-    def test_import_positions_skips_invalid_rows(
-        self, test_session, test_csv_file, sample_countries
-    ):
+        with get_db_session() as session:
+            position_multi_countries = (
+                session.query(Position).filter_by(wikidata_id="Q134758625").first()
+            )
+            assert position_multi_countries is not None
+
+    def test_import_positions_skips_invalid_rows(self, test_csv_file, sample_countries):
         """Test that rows with missing required fields are skipped."""
         import_service = ImportService()
 
         import_service.import_positions_from_csv(str(test_csv_file))
 
         # Should skip row with empty caption only - Q134758330 has valid entity_id and caption
+        from poliloom.database import get_db_session
+
         invalid_positions = ["Q134758429"]  # Empty caption only
 
-        for wikidata_id in invalid_positions:
-            position = (
-                test_session.query(Position).filter_by(wikidata_id=wikidata_id).first()
+        with get_db_session() as session:
+            for wikidata_id in invalid_positions:
+                position = (
+                    session.query(Position).filter_by(wikidata_id=wikidata_id).first()
+                )
+                assert position is None, (
+                    f"Invalid position {wikidata_id} should have been skipped"
+                )
+
+            # Q134758330 should be imported as it has valid entity_id and caption
+            valid_position = (
+                session.query(Position).filter_by(wikidata_id="Q134758330").first()
             )
-            assert position is None, (
-                f"Invalid position {wikidata_id} should have been skipped"
+            assert valid_position is not None, (
+                "Position Q134758330 should have been imported"
             )
 
-        # Q134758330 should be imported as it has valid entity_id and caption
-        valid_position = (
-            test_session.query(Position).filter_by(wikidata_id="Q134758330").first()
-        )
-        assert valid_position is not None, (
-            "Position Q134758330 should have been imported"
-        )
-
-    def test_import_positions_skips_existing(
-        self, test_session, test_csv_file, sample_countries
-    ):
+    def test_import_positions_skips_existing(self, test_csv_file, sample_countries):
         """Test that existing positions are skipped."""
         import_service = ImportService()
 
         # Create existing position
-        existing_position = Position(
-            name="Existing Mayor",
-            wikidata_id="Q110118256",  # Same as one in CSV
-        )
-        test_session.add(existing_position)
-        test_session.commit()
+        from poliloom.database import get_db_session
+
+        with get_db_session() as session:
+            existing_position = Position(
+                name="Existing Mayor",
+                wikidata_id="Q110118256",  # Same as one in CSV
+            )
+            session.add(existing_position)
+            session.commit()
 
         result = import_service.import_positions_from_csv(str(test_csv_file))
 
@@ -171,14 +188,13 @@ class TestCSVImport:
         assert result == 6
 
         # Verify existing position wasn't updated
-        existing = (
-            test_session.query(Position).filter_by(wikidata_id="Q110118256").first()
-        )
-        assert existing.name == "Existing Mayor"  # Original name preserved
+        with get_db_session() as session:
+            existing = (
+                session.query(Position).filter_by(wikidata_id="Q110118256").first()
+            )
+            assert existing.name == "Existing Mayor"  # Original name preserved
 
-    def test_import_positions_creates_unknown_countries(
-        self, test_session, test_csv_file
-    ):
+    def test_import_positions_creates_unknown_countries(self, test_csv_file):
         """Test that positions with unknown country codes create countries on-demand."""
         import_service = ImportService()
 
@@ -190,10 +206,13 @@ class TestCSVImport:
         assert result == 7
 
         # Check that positions were created
-        positions = test_session.query(Position).all()
-        assert len(positions) == 7
+        from poliloom.database import get_db_session
 
-    def test_import_positions_file_not_found(self, test_session):
+        with get_db_session() as session:
+            positions = session.query(Position).all()
+            assert len(positions) == 7
+
+    def test_import_positions_file_not_found(self):
         """Test handling of non-existent CSV file."""
         import_service = ImportService()
 
@@ -202,10 +221,13 @@ class TestCSVImport:
         assert result == 0
 
         # Verify no positions were created
-        positions = test_session.query(Position).all()
-        assert len(positions) == 0
+        from poliloom.database import get_db_session
 
-    def test_import_positions_malformed_csv(self, test_session, sample_countries):
+        with get_db_session() as session:
+            positions = session.query(Position).all()
+            assert len(positions) == 0
+
+    def test_import_positions_malformed_csv(self, sample_countries):
         """Test handling of malformed CSV data."""
         import_service = ImportService()
 
@@ -227,11 +249,14 @@ class TestCSVImport:
                 assert result == 2
 
                 # Verify both positions were created
-                positions = test_session.query(Position).all()
-                assert len(positions) == 2
-                wikidata_ids = {pos.wikidata_id for pos in positions}
-                assert "Q123" in wikidata_ids
-                assert "Q124" in wikidata_ids
+                from poliloom.database import get_db_session
+
+                with get_db_session() as session:
+                    positions = session.query(Position).all()
+                    assert len(positions) == 2
+                    wikidata_ids = {pos.wikidata_id for pos in positions}
+                    assert "Q123" in wikidata_ids
+                    assert "Q124" in wikidata_ids
 
             finally:
                 os.unlink(f.name)

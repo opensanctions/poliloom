@@ -47,39 +47,55 @@ class TestEnrichmentService:
             return service
 
     @pytest.fixture
-    def politician_with_source(self, test_session, sample_country):
+    def politician_with_source(self, sample_country_data):
         """Create a politician with Wikipedia source and citizenship."""
-        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        from poliloom.database import get_db_session
+        from poliloom.models import Country
 
-        # Add citizenship
-        citizenship = HasCitizenship(country=sample_country)
-        politician.citizenships.append(citizenship)
+        with get_db_session() as session:
+            # Create country
+            country = Country(**sample_country_data)
+            session.add(country)
+            session.commit()
+            session.refresh(country)
 
-        # Add Wikipedia link
-        test_session.add(politician)
-        test_session.flush()  # Get politician ID
+            # Create politician
+            politician = Politician(name="Test Politician", wikidata_id="Q123456")
+            session.add(politician)
+            session.commit()
+            session.refresh(politician)
 
-        wikipedia_link = WikipediaLink(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/Test_Politician",
-            language_code="en",
-        )
-        test_session.add(wikipedia_link)
-        test_session.commit()
-        test_session.refresh(politician)
-        return politician
+            # Add citizenship
+            citizenship = HasCitizenship(
+                politician_id=politician.id, country_id=country.id
+            )
+            session.add(citizenship)
 
-    async def test_enrich_politician_not_found(self, enrichment_service, test_session):
+            # Add Wikipedia link
+            wikipedia_link = WikipediaLink(
+                politician_id=politician.id,
+                url="https://en.wikipedia.org/wiki/Test_Politician",
+                language_code="en",
+            )
+            session.add(wikipedia_link)
+            session.commit()
+            session.refresh(politician)
+            return politician
+
+    async def test_enrich_politician_not_found(self, enrichment_service):
         """Test enrichment fails when politician not found."""
         result = await enrichment_service.enrich_politician_from_wikipedia("Q999999")
 
         assert result is False
 
-    async def test_enrich_politician_no_sources(self, enrichment_service, test_session):
+    async def test_enrich_politician_no_sources(self, enrichment_service):
         """Test enrichment fails when politician has no Wikipedia sources."""
-        politician = Politician(name="No Sources Politician", wikidata_id="Q123456")
-        test_session.add(politician)
-        test_session.commit()
+        from poliloom.database import get_db_session
+
+        with get_db_session() as session:
+            politician = Politician(name="No Sources Politician", wikidata_id="Q123456")
+            session.add(politician)
+            session.commit()
 
         result = await enrichment_service.enrich_politician_from_wikipedia("Q123456")
 
@@ -134,22 +150,36 @@ class TestEnrichmentService:
         assert properties is None
 
     def test_find_exact_position_match(
-        self, enrichment_service, test_session, sample_mayor_of_springfield_position
+        self, enrichment_service, db_session, sample_mayor_of_springfield_position_data
     ):
         """Test exact position matching."""
+        from poliloom.models import Position
+
+        # Create the position using the test session
+        position = Position(**sample_mayor_of_springfield_position_data)
+        db_session.add(position)
+        db_session.commit()
+
         match = enrichment_service._find_exact_position_match(
-            test_session, "Mayor of Springfield"
+            db_session, "Mayor of Springfield"
         )
 
         assert match is not None
         assert match.name == "Mayor of Springfield"
 
     def test_find_exact_location_match(
-        self, enrichment_service, test_session, sample_location
+        self, enrichment_service, db_session, sample_location_data
     ):
         """Test exact location matching."""
+        from poliloom.models import Location
+
+        # Create the location using the test session
+        location = Location(**sample_location_data)
+        db_session.add(location)
+        db_session.commit()
+
         match = enrichment_service._find_exact_location_match(
-            test_session, "Springfield, Illinois"
+            db_session, "Springfield, Illinois"
         )
 
         assert match is not None
@@ -158,11 +188,40 @@ class TestEnrichmentService:
     def test_store_extracted_data_properties(
         self,
         enrichment_service,
-        test_session,
-        politician_with_source,
-        sample_archived_page,
+        db_session,
+        sample_archived_page_data,
+        sample_country_data,
     ):
         """Test storing extracted properties."""
+        from poliloom.models import (
+            ArchivedPage,
+            Politician,
+            Country,
+            WikipediaLink,
+            HasCitizenship,
+        )
+
+        # Create country, politician and archived page directly using data fixtures
+        country = Country(**sample_country_data)
+        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        archived_page = ArchivedPage(**sample_archived_page_data)
+
+        db_session.add(country)
+        db_session.add(politician)
+        db_session.add(archived_page)
+        db_session.commit()
+
+        # Add citizenship and Wikipedia link
+        citizenship = HasCitizenship(politician_id=politician.id, country_id=country.id)
+        wikipedia_link = WikipediaLink(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            language_code="en",
+        )
+        db_session.add(citizenship)
+        db_session.add(wikipedia_link)
+        db_session.commit()
+
         data = {
             "properties": [
                 ExtractedProperty(
@@ -176,34 +235,62 @@ class TestEnrichmentService:
         }
 
         success = enrichment_service._store_extracted_data(
-            test_session, politician_with_source, [(sample_archived_page, data)]
+            db_session, politician, [(archived_page, data)]
         )
 
         assert success is True
 
         # Verify property was stored
         property_obj = (
-            test_session.query(Property)
-            .filter_by(
-                politician_id=politician_with_source.id, type=PropertyType.BIRTH_DATE
-            )
+            db_session.query(Property)
+            .filter_by(politician_id=politician.id, type=PropertyType.BIRTH_DATE)
             .first()
         )
         assert property_obj is not None
         assert property_obj.value == "1970-01-15"
-        assert property_obj.archived_page_id == sample_archived_page.id
+        assert property_obj.archived_page_id == archived_page.id
 
     def test_store_extracted_data_positions(
         self,
         enrichment_service,
-        test_session,
-        politician_with_source,
-        sample_mayor_of_springfield_position,
-        sample_archived_page,
+        db_session,
+        sample_mayor_of_springfield_position_data,
+        sample_archived_page_data,
+        sample_country_data,
     ):
         """Test storing extracted positions."""
-        # Using sample_archived_page instead of source
         from poliloom.services.position_extraction_service import ExtractedPosition
+        from poliloom.models import (
+            ArchivedPage,
+            Position,
+            Politician,
+            Country,
+            WikipediaLink,
+            HasCitizenship,
+        )
+
+        # Create all required entities directly using data fixtures
+        country = Country(**sample_country_data)
+        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        archived_page = ArchivedPage(**sample_archived_page_data)
+        position = Position(**sample_mayor_of_springfield_position_data)
+
+        db_session.add(country)
+        db_session.add(politician)
+        db_session.add(archived_page)
+        db_session.add(position)
+        db_session.commit()
+
+        # Add citizenship and Wikipedia link
+        citizenship = HasCitizenship(politician_id=politician.id, country_id=country.id)
+        wikipedia_link = WikipediaLink(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            language_code="en",
+        )
+        db_session.add(citizenship)
+        db_session.add(wikipedia_link)
+        db_session.commit()
 
         data = {
             "properties": [],
@@ -219,36 +306,66 @@ class TestEnrichmentService:
         }
 
         success = enrichment_service._store_extracted_data(
-            test_session, politician_with_source, [(sample_archived_page, data)]
+            db_session, politician, [(archived_page, data)]
         )
 
         assert success is True
 
         # Verify position was stored
         holds_position = (
-            test_session.query(HoldsPosition)
+            db_session.query(HoldsPosition)
             .filter_by(
-                politician_id=politician_with_source.id,
-                position_id=sample_mayor_of_springfield_position.id,
+                politician_id=politician.id,
+                position_id=position.id,
             )
             .first()
         )
         assert holds_position is not None
         assert holds_position.start_date == "2020"
         assert holds_position.end_date == "2024"
-        assert holds_position.archived_page_id == sample_archived_page.id
+        assert holds_position.archived_page_id == archived_page.id
 
     def test_store_extracted_data_birthplaces(
         self,
         enrichment_service,
-        test_session,
-        politician_with_source,
-        sample_location,
-        sample_archived_page,
+        db_session,
+        sample_location_data,
+        sample_archived_page_data,
+        sample_country_data,
     ):
         """Test storing extracted birthplaces."""
-        # Using sample_archived_page instead of source
         from poliloom.services.birthplace_extraction_service import ExtractedBirthplace
+        from poliloom.models import (
+            ArchivedPage,
+            Location,
+            Politician,
+            Country,
+            WikipediaLink,
+            HasCitizenship,
+        )
+
+        # Create all required entities directly using data fixtures
+        country = Country(**sample_country_data)
+        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        archived_page = ArchivedPage(**sample_archived_page_data)
+        location = Location(**sample_location_data)
+
+        db_session.add(country)
+        db_session.add(politician)
+        db_session.add(archived_page)
+        db_session.add(location)
+        db_session.commit()
+
+        # Add citizenship and Wikipedia link
+        citizenship = HasCitizenship(politician_id=politician.id, country_id=country.id)
+        wikipedia_link = WikipediaLink(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            language_code="en",
+        )
+        db_session.add(citizenship)
+        db_session.add(wikipedia_link)
+        db_session.commit()
 
         data = {
             "properties": [],
@@ -261,32 +378,57 @@ class TestEnrichmentService:
         }
 
         success = enrichment_service._store_extracted_data(
-            test_session, politician_with_source, [(sample_archived_page, data)]
+            db_session, politician, [(archived_page, data)]
         )
 
         assert success is True
 
         # Verify birthplace was stored
         born_at = (
-            test_session.query(BornAt)
-            .filter_by(
-                politician_id=politician_with_source.id, location_id=sample_location.id
-            )
+            db_session.query(BornAt)
+            .filter_by(politician_id=politician.id, location_id=location.id)
             .first()
         )
         assert born_at is not None
-        assert born_at.archived_page_id == sample_archived_page.id
+        assert born_at.archived_page_id == archived_page.id
 
     def test_store_extracted_data_skips_nonexistent_position(
         self,
         enrichment_service,
-        test_session,
-        politician_with_source,
-        sample_archived_page,
+        db_session,
+        sample_archived_page_data,
+        sample_country_data,
     ):
         """Test that storing skips positions that don't exist in database."""
-        # Using sample_archived_page instead of source
         from poliloom.services.position_extraction_service import ExtractedPosition
+        from poliloom.models import (
+            ArchivedPage,
+            Politician,
+            Country,
+            WikipediaLink,
+            HasCitizenship,
+        )
+
+        # Create all required entities directly using data fixtures
+        country = Country(**sample_country_data)
+        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        archived_page = ArchivedPage(**sample_archived_page_data)
+
+        db_session.add(country)
+        db_session.add(politician)
+        db_session.add(archived_page)
+        db_session.commit()
+
+        # Add citizenship and Wikipedia link
+        citizenship = HasCitizenship(politician_id=politician.id, country_id=country.id)
+        wikipedia_link = WikipediaLink(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            language_code="en",
+        )
+        db_session.add(citizenship)
+        db_session.add(wikipedia_link)
+        db_session.commit()
 
         data = {
             "properties": [],
@@ -302,29 +444,54 @@ class TestEnrichmentService:
         }
 
         success = enrichment_service._store_extracted_data(
-            test_session, politician_with_source, [(sample_archived_page, data)]
+            db_session, politician, [(archived_page, data)]
         )
 
         assert success is True
 
         # Verify no position was stored
         holds_positions = (
-            test_session.query(HoldsPosition)
-            .filter_by(politician_id=politician_with_source.id)
-            .all()
+            db_session.query(HoldsPosition).filter_by(politician_id=politician.id).all()
         )
         assert len(holds_positions) == 0
 
     def test_store_extracted_data_skips_nonexistent_location(
         self,
         enrichment_service,
-        test_session,
-        politician_with_source,
-        sample_archived_page,
+        db_session,
+        sample_archived_page_data,
+        sample_country_data,
     ):
         """Test that storing skips locations that don't exist in database."""
-        # Using sample_archived_page instead of source
         from poliloom.services.birthplace_extraction_service import ExtractedBirthplace
+        from poliloom.models import (
+            ArchivedPage,
+            Politician,
+            Country,
+            WikipediaLink,
+            HasCitizenship,
+        )
+
+        # Create all required entities directly using data fixtures
+        country = Country(**sample_country_data)
+        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        archived_page = ArchivedPage(**sample_archived_page_data)
+
+        db_session.add(country)
+        db_session.add(politician)
+        db_session.add(archived_page)
+        db_session.commit()
+
+        # Add citizenship and Wikipedia link
+        citizenship = HasCitizenship(politician_id=politician.id, country_id=country.id)
+        wikipedia_link = WikipediaLink(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            language_code="en",
+        )
+        db_session.add(citizenship)
+        db_session.add(wikipedia_link)
+        db_session.commit()
 
         data = {
             "properties": [],
@@ -337,28 +504,51 @@ class TestEnrichmentService:
         }
 
         success = enrichment_service._store_extracted_data(
-            test_session, politician_with_source, [(sample_archived_page, data)]
+            db_session, politician, [(archived_page, data)]
         )
 
         assert success is True
 
         # Verify no birthplace was stored
-        born_ats = (
-            test_session.query(BornAt)
-            .filter_by(politician_id=politician_with_source.id)
-            .all()
-        )
+        born_ats = db_session.query(BornAt).filter_by(politician_id=politician.id).all()
         assert len(born_ats) == 0
 
     def test_store_extracted_data_error_handling(
         self,
         enrichment_service,
-        test_session,
-        politician_with_source,
-        sample_archived_page,
+        db_session,
+        sample_archived_page_data,
+        sample_country_data,
     ):
         """Test error handling in store_extracted_data."""
-        # Using sample_archived_page instead of source
+        from poliloom.models import (
+            ArchivedPage,
+            Politician,
+            Country,
+            WikipediaLink,
+            HasCitizenship,
+        )
+
+        # Create all required entities directly using data fixtures
+        country = Country(**sample_country_data)
+        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        archived_page = ArchivedPage(**sample_archived_page_data)
+
+        db_session.add(country)
+        db_session.add(politician)
+        db_session.add(archived_page)
+        db_session.commit()
+
+        # Add citizenship and Wikipedia link
+        citizenship = HasCitizenship(politician_id=politician.id, country_id=country.id)
+        wikipedia_link = WikipediaLink(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            language_code="en",
+        )
+        db_session.add(citizenship)
+        db_session.add(wikipedia_link)
+        db_session.commit()
 
         # Create invalid data to trigger an error
         data = {
@@ -374,9 +564,9 @@ class TestEnrichmentService:
         }
 
         # Mock the session to raise an exception during add
-        with patch.object(test_session, "add", side_effect=Exception("Database error")):
+        with patch.object(db_session, "add", side_effect=Exception("Database error")):
             success = enrichment_service._store_extracted_data(
-                test_session, politician_with_source, [(sample_archived_page, data)]
+                db_session, politician, [(archived_page, data)]
             )
 
         assert success is False
