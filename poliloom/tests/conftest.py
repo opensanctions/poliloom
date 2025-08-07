@@ -2,6 +2,7 @@
 
 import pytest
 import json
+import os
 from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -89,10 +90,9 @@ def test_engine():
     import poliloom.models  # noqa: F401
     from sqlalchemy import text
 
-    # Use test database connection (hardcoded to match docker-compose.yml)
-    engine = create_engine(
-        "postgresql://postgres:postgres@localhost:5433/poliloom_test", echo=False
-    )
+    # Use test database connection (DATABASE_URL is set by pytest-env)
+    database_url = os.environ.get("DATABASE_URL")
+    engine = create_engine(database_url, echo=False)
 
     # Setup pgvector extension
     with engine.connect() as conn:
@@ -333,25 +333,3 @@ def similarity_searcher():
         )
 
     return _similarity_search
-
-
-@pytest.fixture(autouse=True)
-def mock_get_db_session(test_session):
-    """Mock get_db_session functions globally to return test session."""
-    with (
-        patch("poliloom.services.enrichment_service.get_db_session") as mock_db_session,
-        patch(
-            "poliloom.services.enrichment_service.get_db_session_no_commit"
-        ) as mock_db_session_no_commit,
-        patch(
-            "poliloom.services.import_service.get_db_session"
-        ) as mock_import_db_session,
-    ):
-        # Mock both context managers to return the test session
-        mock_db_session.return_value.__enter__.return_value = test_session
-        mock_db_session.return_value.__exit__.return_value = None
-        mock_db_session_no_commit.return_value.__enter__.return_value = test_session
-        mock_db_session_no_commit.return_value.__exit__.return_value = None
-        mock_import_db_session.return_value.__enter__.return_value = test_session
-        mock_import_db_session.return_value.__exit__.return_value = None
-        yield

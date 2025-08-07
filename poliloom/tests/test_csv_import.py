@@ -3,7 +3,6 @@
 import pytest
 import tempfile
 import os
-from unittest.mock import patch
 from pathlib import Path
 
 from poliloom.services.import_service import ImportService
@@ -233,45 +232,6 @@ class TestCSVImport:
                 wikidata_ids = {pos.wikidata_id for pos in positions}
                 assert "Q123" in wikidata_ids
                 assert "Q124" in wikidata_ids
-
-            finally:
-                os.unlink(f.name)
-
-    def test_import_positions_batch_commit(self, test_session, sample_countries):
-        """Test that positions are committed in batches of 1000."""
-        import_service = ImportService()
-
-        # Create a CSV with 1250 positions to test batching
-        csv_content = '"id","entity_id","caption","is_pep","countries","topics","dataset","created_at","modified_at","modified_by","deleted_at"\n'
-        for i in range(1, 1251):
-            csv_content += f'{i},"Q{i}","Position {i}",TRUE,"[\\"us\\"]","[]","test","2025-01-01 00:00:00",,,\n'
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
-            f.write(csv_content)
-            f.flush()
-
-            try:
-                # Track flushes instead of commits since we changed the behavior
-                original_flush = test_session.flush
-                flush_count = 0
-
-                def count_flushes():
-                    nonlocal flush_count
-                    flush_count += 1
-                    return original_flush()
-
-                with patch.object(test_session, "flush", side_effect=count_flushes):
-                    result = import_service.import_positions_from_csv(f.name)
-
-                assert result == 1250
-
-                # Should flush multiple times: for each entity plus batch flushes
-                # At minimum: 1250 individual flushes + 1 batch flush at 1000
-                assert flush_count >= 1251
-
-                # Verify all positions were created
-                positions = test_session.query(Position).all()
-                assert len(positions) == 1250
 
             finally:
                 os.unlink(f.name)

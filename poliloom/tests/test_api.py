@@ -53,7 +53,7 @@ class TestAPIAuthentication:
         response = client.get("/politicians/", headers=headers)
         assert response.status_code == 403  # Invalid scheme
 
-    def test_valid_token_passes_auth(self, client):
+    def test_valid_token_passes_auth(self, client, test_engine):
         """Test that valid OAuth token passes authentication."""
         from unittest.mock import AsyncMock, Mock as SyncMock
 
@@ -66,22 +66,14 @@ class TestAPIAuthentication:
             mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=mock_user)
             mock_get_oauth_handler.return_value = mock_oauth_handler
 
-            # Mock the database session to return empty results
-            with patch("poliloom.api.politicians.get_db") as mock_get_db:
-                mock_db = SyncMock()
-                mock_result = SyncMock()
-                mock_result.scalars.return_value.all.return_value = []
-                mock_db.execute.return_value = mock_result
-                mock_get_db.return_value = mock_db
+            headers = {"Authorization": "Bearer valid_jwt_token"}
+            response = client.get("/politicians/", headers=headers)
 
-                headers = {"Authorization": "Bearer valid_jwt_token"}
-                response = client.get("/politicians/", headers=headers)
-
-                # Should be 200 (auth should pass)
-                assert response.status_code == 200
-                mock_oauth_handler.verify_jwt_token.assert_called_once_with(
-                    "valid_jwt_token"
-                )
+            # Should be 200 (auth should pass) with empty results
+            assert response.status_code == 200
+            mock_oauth_handler.verify_jwt_token.assert_called_once_with(
+                "valid_jwt_token"
+            )
 
     def test_evaluation_endpoint_with_auth(self, client):
         """Test that /evaluate endpoint works with valid authentication."""

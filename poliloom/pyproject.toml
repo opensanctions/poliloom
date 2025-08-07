@@ -39,10 +39,14 @@ target-version = "py312"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+env = [
+    "DATABASE_URL=postgresql://postgres:postgres@localhost:5433/poliloom_test"
+]
 
 [dependency-groups]
 dev = [
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
+    "pytest-env>=1.1.0",
     "pre-commit>=3.0.0",
 ]

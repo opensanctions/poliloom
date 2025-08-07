@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 
 from poliloom.services.database_inserter import DatabaseInserter
+from poliloom.models import Position, Location
 
 
 class TestDatabaseInserter:
@@ -14,81 +15,78 @@ class TestDatabaseInserter:
         """Create a DatabaseInserter instance."""
         return DatabaseInserter()
 
-    def test_insert_positions_batch(self, inserter):
+    def test_insert_positions_batch(self, inserter, test_session):
         """Test inserting a batch of positions."""
         positions = [
             {"wikidata_id": "Q1", "name": "Position 1"},
             {"wikidata_id": "Q2", "name": "Position 2"},
         ]
 
-        # Mock the database session for UPSERT
-        mock_session = MagicMock()
+        inserter.insert_positions_batch(positions)
 
-        with patch(
-            "poliloom.services.database_inserter.get_worker_session",
-            return_value=mock_session,
-        ):
-            inserter.insert_positions_batch(positions)
+        # Verify positions were inserted
+        inserted_positions = test_session.query(Position).all()
+        assert len(inserted_positions) == 2
+        wikidata_ids = {pos.wikidata_id for pos in inserted_positions}
+        assert wikidata_ids == {"Q1", "Q2"}
 
-            # Should execute UPSERT statement
-            mock_session.execute.assert_called_once()
-            mock_session.commit.assert_called_once()
-            mock_session.close.assert_called_once()
-
-    def test_insert_positions_batch_with_duplicates(self, inserter):
+    def test_insert_positions_batch_with_duplicates(self, inserter, test_session):
         """Test inserting positions with some duplicates."""
-        positions = [
+        # Insert initial batch
+        initial_positions = [
             {"wikidata_id": "Q1", "name": "Position 1"},
             {"wikidata_id": "Q2", "name": "Position 2"},
-            {"wikidata_id": "Q3", "name": "Position 3"},
         ]
+        inserter.insert_positions_batch(initial_positions)
 
-        # Mock the database session for UPSERT (handles duplicates automatically)
-        mock_session = MagicMock()
+        # Insert batch with some duplicates and new items
+        positions_with_duplicates = [
+            {
+                "wikidata_id": "Q1",
+                "name": "Position 1 Updated",
+            },  # Duplicate (should update)
+            {"wikidata_id": "Q2", "name": "Position 2"},  # Duplicate (no change)
+            {"wikidata_id": "Q3", "name": "Position 3"},  # New
+        ]
+        inserter.insert_positions_batch(positions_with_duplicates)
 
-        with patch(
-            "poliloom.services.database_inserter.get_worker_session",
-            return_value=mock_session,
-        ):
-            inserter.insert_positions_batch(positions)
+        # Verify all positions exist with correct data
+        inserted_positions = test_session.query(Position).all()
+        assert len(inserted_positions) == 3
+        wikidata_ids = {pos.wikidata_id for pos in inserted_positions}
+        assert wikidata_ids == {"Q1", "Q2", "Q3"}
 
-            # Should execute UPSERT statement (duplicates handled by PostgreSQL)
-            mock_session.execute.assert_called_once()
-            mock_session.commit.assert_called_once()
-            mock_session.close.assert_called_once()
+        # Verify Q1 was updated
+        q1_position = (
+            test_session.query(Position).filter(Position.wikidata_id == "Q1").first()
+        )
+        assert q1_position.name == "Position 1 Updated"
 
-    def test_insert_positions_batch_empty(self, inserter):
+    def test_insert_positions_batch_empty(self, inserter, test_session):
         """Test inserting empty batch of positions."""
         positions = []
 
-        with patch(
-            "poliloom.services.database_inserter.get_worker_session"
-        ) as mock_get_session:
-            inserter.insert_positions_batch(positions)
+        # Should handle empty batch gracefully without errors
+        inserter.insert_positions_batch(positions)
 
-            # Should not create session for empty batch
-            mock_get_session.assert_not_called()
+        # Verify no positions were inserted
+        inserted_positions = test_session.query(Position).all()
+        assert len(inserted_positions) == 0
 
-    def test_insert_locations_batch(self, inserter):
+    def test_insert_locations_batch(self, inserter, test_session):
         """Test inserting a batch of locations."""
         locations = [
             {"wikidata_id": "Q1", "name": "Location 1"},
             {"wikidata_id": "Q2", "name": "Location 2"},
         ]
 
-        # Mock the database session for UPSERT
-        mock_session = MagicMock()
+        inserter.insert_locations_batch(locations)
 
-        with patch(
-            "poliloom.services.database_inserter.get_worker_session",
-            return_value=mock_session,
-        ):
-            inserter.insert_locations_batch(locations)
-
-            # Should execute UPSERT statement
-            mock_session.execute.assert_called_once()
-            mock_session.commit.assert_called_once()
-            mock_session.close.assert_called_once()
+        # Verify locations were inserted
+        inserted_locations = test_session.query(Location).all()
+        assert len(inserted_locations) == 2
+        wikidata_ids = {loc.wikidata_id for loc in inserted_locations}
+        assert wikidata_ids == {"Q1", "Q2"}
 
     def test_insert_locations_batch_with_duplicates(self, inserter):
         """Test inserting locations with some duplicates."""
