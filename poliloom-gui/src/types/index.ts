@@ -34,9 +34,9 @@ export interface Politician {
   id: string;
   name: string;
   wikidata_id: string | null;
-  unconfirmed_properties: Property[];
-  unconfirmed_positions: Position[];
-  unconfirmed_birthplaces: Birthplace[];
+  extracted_properties: Property[];
+  extracted_positions: Position[];
+  extracted_birthplaces: Birthplace[];
 }
 
 export interface PropertyEvaluationItem {

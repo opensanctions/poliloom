@@ -36,18 +36,18 @@ export const mockPolitician: Politician = {
   id: 'pol-1',
   name: 'Test Politician',
   wikidata_id: 'Q987654',
-  unconfirmed_properties: [mockProperty],
-  unconfirmed_positions: [mockPosition],
-  unconfirmed_birthplaces: [mockBirthplace],
+  extracted_properties: [mockProperty],
+  extracted_positions: [mockPosition],
+  extracted_birthplaces: [mockBirthplace],
 };
 
 export const mockEmptyPolitician: Politician = {
   id: 'pol-2',
   name: 'Empty Politician',
   wikidata_id: null,
-  unconfirmed_properties: [],
-  unconfirmed_positions: [],
-  unconfirmed_birthplaces: [],
+  extracted_properties: [],
+  extracted_positions: [],
+  extracted_birthplaces: [],
 };
 
 export const createMockPolitician = (overrides?: Partial<Politician>): Politician => ({

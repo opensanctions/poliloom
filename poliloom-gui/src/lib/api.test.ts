@@ -2,10 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fetchUnconfirmedPolitician, submitEvaluations, ApiError } from './api';
 import { mockPolitician } from '@/test/mock-data';
 
-// Mock the auth module
-vi.mock('@/auth', () => ({
-  signOut: vi.fn(),
-}));
 
 describe('api', () => {
   beforeEach(() => {
@@ -56,8 +52,7 @@ describe('api', () => {
       await expect(fetchUnconfirmedPolitician('test-token')).rejects.toThrow(ApiError);
     });
 
-    it('calls signOut when API responds with 401', async () => {
-      const { signOut } = await import('@/auth');
+    it('throws ApiError when API responds with 401', async () => {
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -65,7 +60,6 @@ describe('api', () => {
       } as Response);
 
       await expect(fetchUnconfirmedPolitician('test-token')).rejects.toThrow(ApiError);
-      expect(signOut).toHaveBeenCalled();
     });
   });
 

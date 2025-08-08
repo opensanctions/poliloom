@@ -144,14 +144,15 @@ describe('PoliticianEvaluation', () => {
   it('shows View Source button for items with archived pages', () => {
     render(<PoliticianEvaluation {...defaultProps} />);
     
-    const viewSourceButtons = screen.getAllByText('View Source →');
-    expect(viewSourceButtons).toHaveLength(3); // one for each item type
+    // All items with the same archived page ID will show as active
+    const viewingSourceButtons = screen.getAllByText('● Viewing Source');
+    expect(viewingSourceButtons).toHaveLength(3); // all items share the same archived page
   });
 
   it('displays source domain for items with archived pages', () => {
     render(<PoliticianEvaluation {...defaultProps} />);
     
-    const domains = screen.getAllByText('From: en.wikipedia.org');
-    expect(domains).toHaveLength(3);
+    const sourceTexts = screen.getAllByText(/From: https:\/\/en\.wikipedia\.org\/wiki\/Test_Politician/);
+    expect(sourceTexts).toHaveLength(3);
   });
 });

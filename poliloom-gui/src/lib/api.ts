@@ -1,5 +1,4 @@
 import { Politician, EvaluationRequest, EvaluationResponse } from '@/types';
-import { signOut } from '@/auth';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
@@ -32,9 +31,6 @@ async function apiRequest<T>(
   });
 
   if (!response.ok) {
-    if (response.status === 401) {
-      await signOut();
-    }
     throw new ApiError(
       `API request failed: ${response.statusText}`,
       response.status

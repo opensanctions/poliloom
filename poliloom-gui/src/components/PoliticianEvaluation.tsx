@@ -38,7 +38,7 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
 
   // Auto-load first statement source on component mount
   useEffect(() => {
-    const firstItem = politician.unconfirmed_properties[0] || politician.unconfirmed_positions[0] || politician.unconfirmed_birthplaces[0];
+    const firstItem = politician.extracted_properties[0] || politician.extracted_positions[0] || politician.extracted_birthplaces[0];
     if (firstItem && firstItem.archived_page) {
       setSelectedArchivedPage(firstItem.archived_page);
       setSelectedProofLine(firstItem.proof_line);
@@ -168,11 +168,11 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
           )}
         </div>
 
-      {politician.unconfirmed_properties.length > 0 && (
+      {politician.extracted_properties.length > 0 && (
         <div className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Properties</h2>
           <div className="space-y-4">
-            {politician.unconfirmed_properties.map((property) => (
+            {politician.extracted_properties.map((property) => (
               <PropertyItem
                 key={property.id}
                 property={property}
@@ -193,11 +193,11 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
         </div>
       )}
 
-      {politician.unconfirmed_positions.length > 0 && (
+      {politician.extracted_positions.length > 0 && (
         <div className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Political Positions</h2>
           <div className="space-y-4">
-            {politician.unconfirmed_positions.map((position) => (
+            {politician.extracted_positions.map((position) => (
               <PositionItem
                 key={position.id}
                 position={position}
@@ -218,11 +218,11 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
         </div>
       )}
 
-      {politician.unconfirmed_birthplaces.length > 0 && (
+      {politician.extracted_birthplaces.length > 0 && (
         <div className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Birthplaces</h2>
           <div className="space-y-4">
-            {politician.unconfirmed_birthplaces.map((birthplace) => (
+            {politician.extracted_birthplaces.map((birthplace) => (
               <BirthplaceItem
                 key={birthplace.id}
                 birthplace={birthplace}
