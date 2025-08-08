@@ -1,75 +1,76 @@
 """Pydantic schemas for API responses."""
 
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict
+from uuid import UUID
+from pydantic import BaseModel, ConfigDict, field_serializer
 from datetime import datetime
 
 
-class ArchivedPageResponse(BaseModel):
-    """Schema for archived page data."""
+class UUIDBaseModel(BaseModel):
+    """Base model with automatic UUID to string serialization."""
 
-    id: str
-    url: str
-    content_hash: str
-    fetch_timestamp: datetime
+    @field_serializer("id", when_used="always", check_fields=False)
+    def serialize_uuid(self, value: UUID) -> str:
+        return str(value) if value else None
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class UnconfirmedPropertyResponse(BaseModel):
+class ArchivedPageResponse(UUIDBaseModel):
+    """Schema for archived page data."""
+
+    id: UUID
+    url: str
+    content_hash: str
+    fetch_timestamp: datetime
+
+
+class UnconfirmedPropertyResponse(UUIDBaseModel):
     """Schema for unconfirmed property data."""
 
-    id: str
+    id: UUID
     type: str
     value: str
     proof_line: Optional[str] = None
     archived_page: Optional[ArchivedPageResponse] = None
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class UnconfirmedPositionResponse(BaseModel):
+class UnconfirmedPositionResponse(UUIDBaseModel):
     """Schema for unconfirmed position data."""
 
-    id: str
+    id: UUID
     position_name: str
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     proof_line: Optional[str] = None
     archived_page: Optional[ArchivedPageResponse] = None
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class UnconfirmedBirthplaceResponse(BaseModel):
+class UnconfirmedBirthplaceResponse(UUIDBaseModel):
     """Schema for unconfirmed birthplace data."""
 
-    id: str
+    id: UUID
     location_name: str
     location_wikidata_id: Optional[str] = None
     proof_line: Optional[str] = None
     archived_page: Optional[ArchivedPageResponse] = None
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class UnconfirmedPoliticianResponse(BaseModel):
+class UnconfirmedPoliticianResponse(UUIDBaseModel):
     """Schema for politician with unconfirmed data."""
 
-    id: str
+    id: UUID
     name: str
     wikidata_id: Optional[str] = None
     unconfirmed_properties: List[UnconfirmedPropertyResponse]
     unconfirmed_positions: List[UnconfirmedPositionResponse]
     unconfirmed_birthplaces: List[UnconfirmedBirthplaceResponse]
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class PropertyEvaluationItem(BaseModel):
+class PropertyEvaluationItem(UUIDBaseModel):
     """Schema for property evaluation item."""
 
-    id: str
+    id: UUID
     is_confirmed: bool
 
     model_config = ConfigDict(
@@ -82,10 +83,10 @@ class PropertyEvaluationItem(BaseModel):
     )
 
 
-class PositionEvaluationItem(BaseModel):
+class PositionEvaluationItem(UUIDBaseModel):
     """Schema for position evaluation item."""
 
-    id: str
+    id: UUID
     is_confirmed: bool
 
     model_config = ConfigDict(
@@ -98,10 +99,10 @@ class PositionEvaluationItem(BaseModel):
     )
 
 
-class BirthplaceEvaluationItem(BaseModel):
+class BirthplaceEvaluationItem(UUIDBaseModel):
     """Schema for birthplace evaluation item."""
 
-    id: str
+    id: UUID
     is_confirmed: bool
 
     model_config = ConfigDict(
@@ -114,7 +115,7 @@ class BirthplaceEvaluationItem(BaseModel):
     )
 
 
-class EvaluationRequest(BaseModel):
+class EvaluationRequest(UUIDBaseModel):
     """Schema for evaluation request body."""
 
     property_evaluations: List[PropertyEvaluationItem] = []
@@ -148,7 +149,7 @@ class EvaluationRequest(BaseModel):
     )
 
 
-class EvaluationResponse(BaseModel):
+class EvaluationResponse(UUIDBaseModel):
     """Schema for evaluation response."""
 
     success: bool

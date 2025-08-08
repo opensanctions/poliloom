@@ -99,12 +99,12 @@ async def get_unconfirmed_politicians(
         # Only include politicians that actually have unevaluated data
         if unevaluated_properties or unevaluated_positions or unevaluated_birthplaces:
             politician_response = UnconfirmedPoliticianResponse(
-                id=str(politician.id),
+                id=politician.id,
                 name=politician.name,
                 wikidata_id=politician.wikidata_id,
                 unconfirmed_properties=[
                     UnconfirmedPropertyResponse(
-                        id=str(prop.id),
+                        id=prop.id,
                         type=prop.type,
                         value=prop.value,
                         proof_line=prop.proof_line,
@@ -114,7 +114,7 @@ async def get_unconfirmed_politicians(
                 ],
                 unconfirmed_positions=[
                     UnconfirmedPositionResponse(
-                        id=str(pos.id),
+                        id=pos.id,
                         position_name=pos.position.name,
                         start_date=pos.start_date,
                         end_date=pos.end_date,
@@ -125,7 +125,7 @@ async def get_unconfirmed_politicians(
                 ],
                 unconfirmed_birthplaces=[
                     UnconfirmedBirthplaceResponse(
-                        id=str(birthplace.id),
+                        id=birthplace.id,
                         location_name=birthplace.location.name,
                         location_wikidata_id=birthplace.location.wikidata_id,
                         proof_line=birthplace.proof_line,
