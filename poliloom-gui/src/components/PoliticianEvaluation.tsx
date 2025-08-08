@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Politician, Property, Position, Birthplace, EvaluationRequest, PropertyEvaluationItem, PositionEvaluationItem, BirthplaceEvaluationItem, ArchivedPageResponse } from '@/types';
 import { submitEvaluations } from '@/lib/api';
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting';
@@ -22,6 +22,7 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedArchivedPage, setSelectedArchivedPage] = useState<ArchivedPageResponse | null>(null);
   const [selectedProofLine, setSelectedProofLine] = useState<string | null>(null);
+  const [activeArchivedPageId, setActiveArchivedPageId] = useState<string | null>(null);
   
   // Refs and hooks for iframe highlighting
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -34,6 +35,16 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
     handleIframeLoad,
     handleProofLineChange
   } = useIframeAutoHighlight(iframeRef, selectedProofLine);
+
+  // Auto-load first statement source on component mount
+  useEffect(() => {
+    const firstItem = politician.unconfirmed_properties[0] || politician.unconfirmed_positions[0] || politician.unconfirmed_birthplaces[0];
+    if (firstItem && firstItem.archived_page) {
+      setSelectedArchivedPage(firstItem.archived_page);
+      setSelectedProofLine(firstItem.proof_line);
+      setActiveArchivedPageId(firstItem.archived_page.id);
+    }
+  }, [politician]);
 
   const handlePropertyAction = (propertyId: string, action: 'confirm' | 'discard') => {
     if (action === 'confirm') {
@@ -172,8 +183,10 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
                   if (property.archived_page) {
                     setSelectedArchivedPage(property.archived_page);
                     setSelectedProofLine(property.proof_line);
+                    setActiveArchivedPageId(property.archived_page.id);
                   }
                 }}
+                isActive={property.archived_page && activeArchivedPageId === property.archived_page.id}
               />
             ))}
           </div>
@@ -195,8 +208,10 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
                   if (position.archived_page) {
                     setSelectedArchivedPage(position.archived_page);
                     setSelectedProofLine(position.proof_line);
+                    setActiveArchivedPageId(position.archived_page.id);
                   }
                 }}
+                isActive={position.archived_page && activeArchivedPageId === position.archived_page.id}
               />
             ))}
           </div>
@@ -218,8 +233,10 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
                   if (birthplace.archived_page) {
                     setSelectedArchivedPage(birthplace.archived_page);
                     setSelectedProofLine(birthplace.proof_line);
+                    setActiveArchivedPageId(birthplace.archived_page.id);
                   }
                 }}
+                isActive={birthplace.archived_page && activeArchivedPageId === birthplace.archived_page.id}
               />
             ))}
           </div>
@@ -253,40 +270,6 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
               <p className="text-xs text-gray-500 mt-1">
                 Fetched: {new Date(selectedArchivedPage.fetch_timestamp).toLocaleDateString()}
               </p>
-              {selectedProofLine && (
-                <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
-                  <p className="text-gray-700 mb-1">Searching for:</p>
-                  <p className="italic text-gray-900">&ldquo;{selectedProofLine}&rdquo;</p>
-                  {isHighlighting && (
-                    <p className="text-blue-600 mt-1">Highlighting...</p>
-                  )}
-                  {!isHighlighting && highlightCount > 0 && (
-                    <p className="text-green-600 mt-1">{highlightCount} match{highlightCount !== 1 ? 'es' : ''} found</p>
-                  )}
-                  {!isHighlighting && highlightCount === 0 && isIframeLoaded && (
-                    <p className="text-amber-600 mt-1">No matches found</p>
-                  )}
-                </div>
-              )}
-              <div className="mt-2 flex gap-2">
-                {selectedProofLine && isIframeLoaded && (
-                  <button
-                    onClick={() => handleProofLineChange(selectedProofLine)}
-                    className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                    disabled={isHighlighting}
-                  >
-                    Re-highlight
-                  </button>
-                )}
-                {highlightCount > 0 && (
-                  <button
-                    onClick={clearAllHighlights}
-                    className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                  >
-                    Clear highlights
-                  </button>
-                )}
-              </div>
             </div>
           )}
         </div>
@@ -323,9 +306,10 @@ interface PropertyItemProps {
   isDiscarded: boolean;
   onAction: (action: 'confirm' | 'discard') => void;
   onShowArchived: () => void;
+  isActive?: boolean;
 }
 
-function PropertyItem({ property, isConfirmed, isDiscarded, onAction, onShowArchived }: PropertyItemProps) {
+function PropertyItem({ property, isConfirmed, isDiscarded, onAction, onShowArchived, isActive = false }: PropertyItemProps) {
   return (
     <div className="border border-gray-200 rounded-lg p-4">
       <div className="flex justify-between items-start">
@@ -336,12 +320,16 @@ function PropertyItem({ property, isConfirmed, isDiscarded, onAction, onShowArch
             <div className="mt-2">
               <button
                 onClick={onShowArchived}
-                className="text-blue-600 hover:text-blue-800 text-sm inline-block mr-3"
+                className={`text-sm inline-block mr-3 ${
+                  isActive 
+                    ? 'bg-blue-100 text-blue-800 px-2 py-1 rounded border border-blue-300 font-medium'
+                    : 'text-blue-600 hover:text-blue-800'
+                }`}
               >
-                View Source →
+                {isActive ? '● Viewing Source' : 'View Source →'}
               </button>
               <span className="text-gray-500 text-xs">
-                From: {new URL(property.archived_page.url).hostname}
+                From: {property.archived_page.url}
               </span>
             </div>
           )}
@@ -384,9 +372,10 @@ interface PositionItemProps {
   isDiscarded: boolean;
   onAction: (action: 'confirm' | 'discard') => void;
   onShowArchived: () => void;
+  isActive?: boolean;
 }
 
-function PositionItem({ position, isConfirmed, isDiscarded, onAction, onShowArchived }: PositionItemProps) {
+function PositionItem({ position, isConfirmed, isDiscarded, onAction, onShowArchived, isActive = false }: PositionItemProps) {
   return (
     <div className="border border-gray-200 rounded-lg p-4">
       <div className="flex justify-between items-start">
@@ -399,12 +388,16 @@ function PositionItem({ position, isConfirmed, isDiscarded, onAction, onShowArch
             <div className="mt-2">
               <button
                 onClick={onShowArchived}
-                className="text-blue-600 hover:text-blue-800 text-sm inline-block mr-3"
+                className={`text-sm inline-block mr-3 ${
+                  isActive 
+                    ? 'bg-blue-100 text-blue-800 px-2 py-1 rounded border border-blue-300 font-medium'
+                    : 'text-blue-600 hover:text-blue-800'
+                }`}
               >
-                View Source →
+                {isActive ? '● Viewing Source' : 'View Source →'}
               </button>
               <span className="text-gray-500 text-xs">
-                From: {new URL(position.archived_page.url).hostname}
+                From: {position.archived_page.url}
               </span>
             </div>
           )}
@@ -447,9 +440,10 @@ interface BirthplaceItemProps {
   isDiscarded: boolean;
   onAction: (action: 'confirm' | 'discard') => void;
   onShowArchived: () => void;
+  isActive?: boolean;
 }
 
-function BirthplaceItem({ birthplace, isConfirmed, isDiscarded, onAction, onShowArchived }: BirthplaceItemProps) {
+function BirthplaceItem({ birthplace, isConfirmed, isDiscarded, onAction, onShowArchived, isActive = false }: BirthplaceItemProps) {
   return (
     <div className="border border-gray-200 rounded-lg p-4">
       <div className="flex justify-between items-start">
@@ -462,12 +456,16 @@ function BirthplaceItem({ birthplace, isConfirmed, isDiscarded, onAction, onShow
             <div className="mt-2">
               <button
                 onClick={onShowArchived}
-                className="text-blue-600 hover:text-blue-800 text-sm inline-block mr-3"
+                className={`text-sm inline-block mr-3 ${
+                  isActive 
+                    ? 'bg-blue-100 text-blue-800 px-2 py-1 rounded border border-blue-300 font-medium'
+                    : 'text-blue-600 hover:text-blue-800'
+                }`}
               >
-                View Source →
+                {isActive ? '● Viewing Source' : 'View Source →'}
               </button>
               <span className="text-gray-500 text-xs">
-                From: {new URL(birthplace.archived_page.url).hostname}
+                From: {birthplace.archived_page.url}
               </span>
             </div>
           )}
