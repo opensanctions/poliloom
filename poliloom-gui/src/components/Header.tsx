@@ -8,7 +8,7 @@ export function Header() {
   const { data: session, status } = useSession()
 
   return (
-    <header className="bg-white shadow-sm border-b">
+    <header className="bg-white shadow-sm border-b sticky top-0 z-10">
       <div className="w-full pl-6 pr-4 sm:pr-6 lg:pr-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
