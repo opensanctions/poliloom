@@ -122,6 +122,7 @@ class TwoStageExtractionService(
         country: str,
         politician: Politician,
         entity_name: str,
+        source_url: str = None,
     ) -> Optional[List[ExtractedT]]:
         """
         Perform two-stage extraction: free-form extraction + Wikidata mapping.
@@ -133,6 +134,7 @@ class TwoStageExtractionService(
             country: Country of the politician
             politician: Politician entity
             entity_name: Name of the entity type being extracted (for logging)
+            source_url: URL of the content source (for source type detection)
 
         Returns:
             List of extracted and mapped entities
@@ -140,7 +142,7 @@ class TwoStageExtractionService(
         try:
             # Stage 1: Free-form extraction
             free_form_entities = self._extract_free_form(
-                content, politician_name, country, entity_name
+                content, politician_name, country, entity_name, source_url
             )
 
             if free_form_entities is None:
@@ -179,6 +181,7 @@ class TwoStageExtractionService(
         politician_name: str,
         country: str,
         entity_name: str,
+        source_url: str,
     ) -> Optional[List[FreeFormT]]:
         """Stage 1: Extract entities in free-form without constraints."""
         try:
@@ -186,6 +189,7 @@ class TwoStageExtractionService(
                 politician_name=politician_name,
                 content=content,
                 country=country or "Unknown",
+                source_url=source_url or "Unknown",
             )
 
             logger.debug(

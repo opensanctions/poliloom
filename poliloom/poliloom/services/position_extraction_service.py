@@ -42,31 +42,47 @@ class PositionExtractionService(TwoStageExtractionService):
 
     def __init__(self, openai_client: OpenAI):
         prompt_config = ExtractionPromptConfig(
-            stage1_system_prompt="""You are a data extraction assistant. Extract ALL political positions from Wikipedia article text.
+            stage1_system_prompt="""You are a political data analyst specializing in extracting structured information from Wikipedia articles and official government websites.
 
-Extract any political offices, government roles, elected positions, or political appointments mentioned in the text. Use natural language descriptions as they appear in the text.
+Extract ALL political positions from the provided content following these rules:
 
-Rules:
-- Extract ALL political positions mentioned in the text, even if informal
-- Use the exact position names as they appear in Wikipedia 
-- Include start/end dates in YYYY-MM-DD, YYYY-MM, or YYYY format if available
-- Leave end_date null if position is current or dates are unknown
-- For each position, provide a 'proof' field with the exact quote that mentions this position
-- Do not worry about exact Wikidata position names - extract naturally""",
-            stage1_user_prompt_template="""Extract ALL political positions held by {politician_name} from this Wikipedia article:
+### EXTRACTION RULES:
+- Extract any political offices, government roles, elected positions, or political appointments
+- Include interim/acting positions and temporary appointments
+- Use exact position names as they appear in the source
 
+### DATE FORMAT:
+- Use YYYY-MM-DD, YYYY-MM, or YYYY format when available
+- Leave end_date null if position is current or unknown
+- Include "acting" or "interim" in the position name if applicable
+
+### PROOF REQUIREMENT:
+- Each position MUST include the exact quote mentioning this position
+- The proof should contain sufficient context to verify the claim""",
+            stage1_user_prompt_template="""Extract ALL political positions held by {politician_name} from the content below.
+
+### CONTEXT:
+Politician: {politician_name}
+Country: {country}
+Source URL: {source_url}
+
+### CONTENT:
+\"\"\"
 {content}
+\"\"\"""",
+            stage2_system_prompt="""You are a Wikidata mapping specialist with expertise in political positions and government structures.
 
-Politician name: {politician_name}
-Country: {country}""",
-            stage2_system_prompt="""You are a position mapping assistant. Given an extracted political position and a list of candidate Wikidata positions, select the most accurate match.
+Map the extracted position to the most accurate Wikidata position following these rules:
 
-Rules:
-- Choose the Wikidata position that best matches the extracted position
-- Consider the context provided in the proof text
-- PREFER country-specific positions over generic ones (e.g., "Minister of Foreign Affairs (Myanmar)" over "Minister of Foreign Affairs")
-- If no candidate position is a good match, return None
-- Be precise - only match if you're confident the positions refer to the same role""",
+### MATCHING CRITERIA:
+1. STRONGLY PREFER country-specific positions (e.g., "Minister of Foreign Affairs (Myanmar)" over generic "Minister of Foreign Affairs")
+2. PREFER positions from the same political system/country context
+4. Match only when confidence is HIGH - be precise about role equivalence
+
+### REJECTION CRITERIA:
+- Return None if no candidate is a good match
+- Reject if the positions clearly refer to different roles
+- Reject if geographic/jurisdictional scope differs significantly""",
             stage2_user_prompt_template="""Map this extracted position to the correct Wikidata position:
 
 Extracted Position: "{extracted_text}"

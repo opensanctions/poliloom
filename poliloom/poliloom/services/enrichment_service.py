@@ -120,7 +120,11 @@ class EnrichmentService:
                             primary_country = politician.citizenships[0].country.name
 
                         data = self._extract_data_with_llm(
-                            content, politician.name, primary_country, politician
+                            content,
+                            politician.name,
+                            primary_country,
+                            politician,
+                            english_wikipedia_link.url,
                         )
                         if data:
                             # Log what the LLM proposed
@@ -249,7 +253,12 @@ class EnrichmentService:
         return exact_match
 
     def _extract_data_with_llm(
-        self, content: str, politician_name: str, country: str, politician: Politician
+        self,
+        content: str,
+        politician_name: str,
+        country: str,
+        politician: Politician,
+        source_url: str = None,
     ) -> Optional[dict]:
         """Extract structured data from Wikipedia content using separate OpenAI calls for properties, positions, and birthplaces."""
         try:
@@ -260,12 +269,12 @@ class EnrichmentService:
 
             # Extract positions second
             positions = self._extract_positions_with_llm(
-                content, politician_name, country, politician
+                content, politician_name, country, politician, source_url
             )
 
             # Extract birthplaces third
             birthplaces = self._extract_birthplaces_with_llm(
-                content, politician_name, country, politician
+                content, politician_name, country, politician, source_url
             )
 
             return {
@@ -330,26 +339,48 @@ Country: {country or "Unknown"}"""
             return None
 
     def _extract_positions_with_llm(
-        self, content: str, politician_name: str, country: str, politician: Politician
+        self,
+        content: str,
+        politician_name: str,
+        country: str,
+        politician: Politician,
+        source_url: str = None,
     ) -> Optional[List[ExtractedPosition]]:
         """Extract positions using two-stage approach: free-form extraction + Wikidata mapping."""
         try:
             with get_db_session_no_commit() as db:
                 return self.position_extraction_service.extract_and_map(
-                    db, content, politician_name, country, politician, "positions"
+                    db,
+                    content,
+                    politician_name,
+                    country,
+                    politician,
+                    "positions",
+                    source_url,
                 )
         except Exception as e:
             logger.error(f"Error extracting positions with two-stage approach: {e}")
             return None
 
     def _extract_birthplaces_with_llm(
-        self, content: str, politician_name: str, country: str, politician: Politician
+        self,
+        content: str,
+        politician_name: str,
+        country: str,
+        politician: Politician,
+        source_url: str = None,
     ) -> Optional[List[ExtractedBirthplace]]:
         """Extract birthplaces using two-stage approach: free-form extraction + Wikidata mapping."""
         try:
             with get_db_session_no_commit() as db:
                 return self.birthplace_extraction_service.extract_and_map(
-                    db, content, politician_name, country, politician, "birthplaces"
+                    db,
+                    content,
+                    politician_name,
+                    country,
+                    politician,
+                    "birthplaces",
+                    source_url,
                 )
         except Exception as e:
             logger.error(f"Error extracting birthplaces with two-stage approach: {e}")

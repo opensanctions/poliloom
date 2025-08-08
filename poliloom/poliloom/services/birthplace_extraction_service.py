@@ -38,30 +38,41 @@ class BirthplaceExtractionService(TwoStageExtractionService):
 
     def __init__(self, openai_client: OpenAI):
         prompt_config = ExtractionPromptConfig(
-            stage1_system_prompt="""You are a data extraction assistant. Extract birthplace information from Wikipedia article text.
+            stage1_system_prompt="""You are a biographical data specialist extracting location information from Wikipedia articles and official government profiles.
 
-Extract the birthplace of the politician mentioned in the text. Use natural language descriptions as they appear in the text.
+Extract birthplace information following these rules:
 
-Rules:
-- Extract the birthplace location as mentioned in the Wikipedia article
-- Include city, town, village, or region names as they appear
-- For each birthplace, provide a 'proof' field with the exact quote that mentions this birthplace
-- Only extract birthplace information explicitly stated in the text
-- Do not worry about exact Wikidata location names - extract naturally""",
-            stage1_user_prompt_template="""Extract the birthplace of {politician_name} from this Wikipedia article:
+### EXTRACTION RULES:
+- Extract birthplace as mentioned in the source (city, town, village, region, or country)
+- Include historical place names with modern equivalents if mentioned
 
+### PROOF REQUIREMENT:
+- Provide the exact quote mentioning the birthplace
+- Include sufficient context to verify the location claim""",
+            stage1_user_prompt_template="""Extract the birthplace of {politician_name} from the content below.
+
+### CONTEXT:
+Politician: {politician_name}
+Country: {country}
+Source URL: {source_url}
+
+### CONTENT:
+\"\"\"
 {content}
+\"\"\"""",
+            stage2_system_prompt="""You are a Wikidata location mapping specialist with expertise in geographic locations and administrative divisions.
 
-Politician name: {politician_name}
-Country: {country}""",
-            stage2_system_prompt="""You are a location mapping assistant. Given an extracted birthplace and a list of candidate Wikidata locations, select the most accurate match.
+Map the extracted birthplace to the most accurate Wikidata location following these rules:
 
-Rules:
-- Choose the Wikidata location that best matches the extracted birthplace
-- Consider the context provided in the proof text
-- If no candidate location is a good match, return None
-- Be precise - only match if you're confident the locations refer to the same place
-- Consider that birthplaces can be cities, towns, villages, regions, or even countries""",
+### MATCHING CRITERIA:
+1. Match the most specific location level (city over region over country)
+2. Consider administrative changes and historical place names
+3. Account for different name spellings and transliterations
+
+### REJECTION CRITERIA:
+- Return None if no candidate is a good match
+- Reject if geographic scope differs significantly
+- Reject if locations clearly refer to different places""",
             stage2_user_prompt_template="""Map this extracted birthplace to the correct Wikidata location:
 
 Extracted Birthplace: "{extracted_text}"
