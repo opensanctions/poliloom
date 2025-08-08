@@ -149,7 +149,7 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Left panel - Evaluation interface */}
-      <div className="w-1/2 overflow-y-auto bg-white shadow-lg p-6">
+      <div className="w-[48rem] flex-shrink-0 overflow-y-auto bg-white shadow-lg p-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">{politician.name}</h1>
           {politician.wikidata_id && (
@@ -238,7 +238,7 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
       </div>
 
       {/* Right panel - Archived page viewer */}
-      <div className="w-1/2 bg-gray-50 border-l border-gray-200 flex flex-col">
+      <div className="flex-1 bg-gray-50 border-l border-gray-200 flex flex-col">
         <div className="p-4 border-b border-gray-200 bg-white">
           <h3 className="text-lg font-semibold text-gray-900">
             {selectedArchivedPage ? 'Archived Page' : 'Select an item to view source'}
