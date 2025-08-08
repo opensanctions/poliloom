@@ -332,9 +332,6 @@ function PropertyItem({ property, isConfirmed, isDiscarded, onAction, onShowArch
         <div className="flex-1">
           <h3 className="font-medium text-gray-900">{property.type}</h3>
           <p className="text-gray-700 mt-1">{property.value}</p>
-          {property.proof_line && (
-            <p className="text-gray-600 text-sm mt-2 italic">Evidence: {property.proof_line}</p>
-          )}
           {property.archived_page && (
             <div className="mt-2">
               <button
@@ -372,6 +369,11 @@ function PropertyItem({ property, isConfirmed, isDiscarded, onAction, onShowArch
           </button>
         </div>
       </div>
+      {property.proof_line && (
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <p className="text-gray-600 text-sm italic">Evidence: {property.proof_line}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -393,9 +395,6 @@ function PositionItem({ position, isConfirmed, isDiscarded, onAction, onShowArch
           <p className="text-gray-700 mt-1">
             {position.start_date || 'Unknown'} - {position.end_date || 'Present'}
           </p>
-          {position.proof_line && (
-            <p className="text-gray-600 text-sm mt-2 italic">Evidence: {position.proof_line}</p>
-          )}
           {position.archived_page && (
             <div className="mt-2">
               <button
@@ -433,6 +432,11 @@ function PositionItem({ position, isConfirmed, isDiscarded, onAction, onShowArch
           </button>
         </div>
       </div>
+      {position.proof_line && (
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <p className="text-gray-600 text-sm italic">Evidence: {position.proof_line}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -453,9 +457,6 @@ function BirthplaceItem({ birthplace, isConfirmed, isDiscarded, onAction, onShow
           <h3 className="font-medium text-gray-900">{birthplace.location_name}</h3>
           {birthplace.location_wikidata_id && (
             <p className="text-gray-600 text-sm mt-1">Wikidata: {birthplace.location_wikidata_id}</p>
-          )}
-          {birthplace.proof_line && (
-            <p className="text-gray-600 text-sm mt-2 italic">Evidence: {birthplace.proof_line}</p>
           )}
           {birthplace.archived_page && (
             <div className="mt-2">
@@ -494,6 +495,11 @@ function BirthplaceItem({ birthplace, isConfirmed, isDiscarded, onAction, onShow
           </button>
         </div>
       </div>
+      {birthplace.proof_line && (
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <p className="text-gray-600 text-sm italic">Evidence: {birthplace.proof_line}</p>
+        </div>
+      )}
     </div>
   );
 }
