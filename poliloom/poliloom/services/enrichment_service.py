@@ -347,13 +347,12 @@ Country: {country or "Unknown"}"""
             logger.debug(f"Extracting properties for {politician_name}")
 
             response = self.openai_client.beta.chat.completions.parse(
-                model="gpt-4o",
+                model="gpt-5",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
                 response_format=PropertyExtractionResult,
-                temperature=0.1,
             )
 
             message = response.choices[0].message

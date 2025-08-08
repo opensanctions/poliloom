@@ -197,7 +197,7 @@ class TwoStageExtractionService(
             )
 
             response = self.openai_client.beta.chat.completions.parse(
-                model="gpt-4o",
+                model="gpt-5",
                 messages=[
                     {
                         "role": "system",
@@ -206,7 +206,6 @@ class TwoStageExtractionService(
                     {"role": "user", "content": user_prompt},
                 ],
                 response_format=self.free_form_response_model,
-                temperature=0.1,
             )
 
             message = response.choices[0].message
@@ -303,7 +302,7 @@ class TwoStageExtractionService(
             )
 
             response = self.openai_client.beta.chat.completions.parse(
-                model="gpt-4o",
+                model="gpt-5",
                 messages=[
                     {
                         "role": "system",
@@ -312,7 +311,6 @@ class TwoStageExtractionService(
                     {"role": "user", "content": user_prompt},
                 ],
                 response_format=DynamicMappingResult,
-                temperature=0.1,
             )
 
             message = response.choices[0].message
