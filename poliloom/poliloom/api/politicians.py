@@ -20,6 +20,9 @@ from .schemas import (
     UnconfirmedPropertyResponse,
     UnconfirmedPositionResponse,
     UnconfirmedBirthplaceResponse,
+    WikidataPropertyResponse,
+    WikidataPositionResponse,
+    WikidataBirthplaceResponse,
     EvaluationRequest,
     EvaluationResponse,
 )
@@ -96,12 +99,57 @@ async def get_unconfirmed_politicians(
             if birthplace.is_extracted and not birthplace.evaluations
         ]
 
+        # Filter Wikidata properties (not extracted from web sources)
+        wikidata_properties = [
+            prop for prop in politician.properties if not prop.is_extracted
+        ]
+
+        # Filter Wikidata positions (not extracted from web sources)
+        wikidata_positions = [
+            pos for pos in politician.positions_held if not pos.is_extracted
+        ]
+
+        # Filter Wikidata birthplaces (not extracted from web sources)
+        wikidata_birthplaces = [
+            birthplace
+            for birthplace in politician.birthplaces
+            if not birthplace.is_extracted
+        ]
+
         # Only include politicians that actually have unevaluated data
         if unevaluated_properties or unevaluated_positions or unevaluated_birthplaces:
             politician_response = UnconfirmedPoliticianResponse(
                 id=politician.id,
                 name=politician.name,
                 wikidata_id=politician.wikidata_id,
+                wikidata_properties=[
+                    WikidataPropertyResponse(
+                        id=prop.id,
+                        type=prop.type,
+                        value=prop.value,
+                        value_precision=prop.value_precision,
+                    )
+                    for prop in wikidata_properties
+                ],
+                wikidata_positions=[
+                    WikidataPositionResponse(
+                        id=pos.id,
+                        position_name=pos.position.name,
+                        start_date=pos.start_date,
+                        start_date_precision=pos.start_date_precision,
+                        end_date=pos.end_date,
+                        end_date_precision=pos.end_date_precision,
+                    )
+                    for pos in wikidata_positions
+                ],
+                wikidata_birthplaces=[
+                    WikidataBirthplaceResponse(
+                        id=birthplace.id,
+                        location_name=birthplace.location.name,
+                        location_wikidata_id=birthplace.location.wikidata_id,
+                    )
+                    for birthplace in wikidata_birthplaces
+                ],
                 unconfirmed_properties=[
                     UnconfirmedPropertyResponse(
                         id=prop.id,

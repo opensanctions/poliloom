@@ -56,12 +56,43 @@ class UnconfirmedBirthplaceResponse(UUIDBaseModel):
     archived_page: Optional[ArchivedPageResponse] = None
 
 
+class WikidataPropertyResponse(UUIDBaseModel):
+    """Schema for Wikidata property data."""
+
+    id: UUID
+    type: str
+    value: str
+    value_precision: Optional[int] = None
+
+
+class WikidataPositionResponse(UUIDBaseModel):
+    """Schema for Wikidata position data."""
+
+    id: UUID
+    position_name: str
+    start_date: Optional[str] = None
+    start_date_precision: Optional[int] = None
+    end_date: Optional[str] = None
+    end_date_precision: Optional[int] = None
+
+
+class WikidataBirthplaceResponse(UUIDBaseModel):
+    """Schema for Wikidata birthplace data."""
+
+    id: UUID
+    location_name: str
+    location_wikidata_id: Optional[str] = None
+
+
 class UnconfirmedPoliticianResponse(UUIDBaseModel):
     """Schema for politician with unconfirmed data."""
 
     id: UUID
     name: str
     wikidata_id: Optional[str] = None
+    wikidata_properties: List[WikidataPropertyResponse]
+    wikidata_positions: List[WikidataPositionResponse]
+    wikidata_birthplaces: List[WikidataBirthplaceResponse]
     unconfirmed_properties: List[UnconfirmedPropertyResponse]
     unconfirmed_positions: List[UnconfirmedPositionResponse]
     unconfirmed_birthplaces: List[UnconfirmedBirthplaceResponse]
