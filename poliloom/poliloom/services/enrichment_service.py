@@ -209,6 +209,8 @@ class EnrichmentService:
             config = CrawlerRunConfig(
                 capture_mhtml=True,
                 verbose=True,
+                word_count_threshold=0,  # Disable word count filtering
+                only_text=True,  # Clean text extraction
             )
 
             async with AsyncWebCrawler() as crawler:
@@ -242,8 +244,8 @@ class EnrichmentService:
                 markdown_content = result.markdown
                 if markdown_content:
                     # Limit content length to avoid token limits
-                    if len(markdown_content) > 8000:
-                        markdown_content = markdown_content[:8000] + "..."
+                    if len(markdown_content) > 50000:
+                        markdown_content = markdown_content[:50000] + "..."
 
                     archived_page.save_markdown(markdown_content)
                     logger.info(
