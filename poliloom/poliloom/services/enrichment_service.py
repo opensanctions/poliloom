@@ -11,6 +11,8 @@ from openai import OpenAI
 from pydantic import BaseModel
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
 from unmhtml import MHTMLConverter
+import mistune
+from bs4 import BeautifulSoup
 
 from ..models import (
     Politician,
@@ -29,6 +31,28 @@ from .birthplace_extraction_service import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def markdown_to_text(markdown_text: str) -> str:
+    """Convert markdown text to plain text via HTML rendering then text extraction.
+
+    This approach mirrors how the frontend will extract text content from HTML
+    for proof line highlighting, ensuring consistency.
+    """
+    if not markdown_text:
+        return markdown_text
+
+    # Convert markdown to HTML using mistune
+    html = mistune.html(markdown_text)
+
+    # Extract text content using BeautifulSoup (same approach as frontend)
+    soup = BeautifulSoup(html, "html.parser")
+    text = soup.get_text()
+
+    # Clean up whitespace - normalize multiple spaces and newlines
+    text = " ".join(text.split())
+
+    return text
 
 
 class PropertyType(str, Enum):
@@ -169,8 +193,10 @@ class EnrichmentService:
                 logger.info(f"Using existing archived page for {url}")
                 # Read the markdown content from disk using the model method
                 try:
-                    content = existing_page.read_markdown_content()
-                    return content, existing_page
+                    markdown_content = existing_page.read_markdown_content()
+                    # Convert to plain text for LLM processing
+                    plain_text_content = markdown_to_text(markdown_content)
+                    return plain_text_content, existing_page
                 except FileNotFoundError:
                     logger.warning(
                         f"Archived markdown file not found: {existing_page.markdown_path}"
@@ -230,10 +256,16 @@ class EnrichmentService:
                         f"Saved markdown content: {archived_page.markdown_path}"
                     )
 
+                    # Convert markdown to plain text for LLM processing
+                    # This ensures proof lines don't contain markdown formatting
+                    plain_text_content = markdown_to_text(markdown_content)
+                else:
+                    plain_text_content = None
+
                 # Commit the transaction now that files are successfully saved
                 db.commit()
 
-                return markdown_content, archived_page
+                return plain_text_content, archived_page
 
         except Exception as e:
             logger.error(

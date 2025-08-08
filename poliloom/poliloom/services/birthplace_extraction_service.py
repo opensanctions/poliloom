@@ -44,11 +44,9 @@ Extract birthplace information following these rules:
 
 ### EXTRACTION RULES:
 - Extract birthplace as mentioned in the source (city, town, village, region, or country)
-- Include historical place names with modern equivalents if mentioned
 
 ### PROOF REQUIREMENT:
-- Provide the exact quote mentioning the birthplace
-- Include sufficient context to verify the location claim""",
+- Provide the exact quote from the source content that you base your statement on""",
             stage1_user_prompt_template="""Extract the birthplace of {politician_name} from the content below.
 
 ### CONTEXT:
@@ -65,13 +63,11 @@ Source URL: {source_url}
 Map the extracted birthplace to the most accurate Wikidata location following these rules:
 
 ### MATCHING CRITERIA:
-1. Match the most specific location level (city over region over country)
-2. Consider administrative changes and historical place names
-3. Account for different name spellings and transliterations
+1. When there's multiple entities with the same name, and you have no proof for which one matches, match the least specific location level (region over city)
+2. Account for different name spellings and transliterations
 
 ### REJECTION CRITERIA:
 - Return None if no candidate is a good match
-- Reject if geographic scope differs significantly
 - Reject if locations clearly refer to different places""",
             stage2_user_prompt_template="""Map this extracted birthplace to the correct Wikidata location:
 
