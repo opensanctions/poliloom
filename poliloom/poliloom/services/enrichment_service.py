@@ -138,15 +138,9 @@ class EnrichmentService:
                         english_wikipedia_link.url, db
                     )
                     if content and archived_page:
-                        # Get politician's primary country from citizenships
-                        primary_country = None
-                        if politician.citizenships:
-                            primary_country = politician.citizenships[0].country.name
-
                         data = self._extract_data_with_llm(
                             content,
                             politician.name,
-                            primary_country,
                             politician,
                             english_wikipedia_link.url,
                         )
@@ -288,25 +282,22 @@ class EnrichmentService:
         self,
         content: str,
         politician_name: str,
-        country: str,
         politician: Politician,
         source_url: str = None,
     ) -> Optional[dict]:
         """Extract structured data from Wikipedia content using separate OpenAI calls for properties, positions, and birthplaces."""
         try:
             # Extract properties first
-            properties = self._extract_properties_with_llm(
-                content, politician_name, country
-            )
+            properties = self._extract_properties_with_llm(content, politician_name)
 
             # Extract positions second
             positions = self._extract_positions_with_llm(
-                content, politician_name, country, politician, source_url
+                content, politician_name, politician, source_url
             )
 
             # Extract birthplaces third
             birthplaces = self._extract_birthplaces_with_llm(
-                content, politician_name, country, politician, source_url
+                content, politician_name, politician, source_url
             )
 
             return {
@@ -320,7 +311,7 @@ class EnrichmentService:
             return None
 
     def _extract_properties_with_llm(
-        self, content: str, politician_name: str, country: str
+        self, content: str, politician_name: str
     ) -> Optional[List[ExtractedProperty]]:
         """Extract properties from Wikipedia content using OpenAI structured output."""
         try:
@@ -341,8 +332,7 @@ Rules:
 
 {content}
 
-Politician name: {politician_name}
-Country: {country or "Unknown"}"""
+Politician name: {politician_name}"""
 
             logger.debug(f"Extracting properties for {politician_name}")
 
@@ -373,7 +363,6 @@ Country: {country or "Unknown"}"""
         self,
         content: str,
         politician_name: str,
-        country: str,
         politician: Politician,
         source_url: str = None,
     ) -> Optional[List[ExtractedPosition]]:
@@ -384,7 +373,6 @@ Country: {country or "Unknown"}"""
                     db,
                     content,
                     politician_name,
-                    country,
                     politician,
                     "positions",
                     source_url,
@@ -397,7 +385,6 @@ Country: {country or "Unknown"}"""
         self,
         content: str,
         politician_name: str,
-        country: str,
         politician: Politician,
         source_url: str = None,
     ) -> Optional[List[ExtractedBirthplace]]:
@@ -408,7 +395,6 @@ Country: {country or "Unknown"}"""
                     db,
                     content,
                     politician_name,
-                    country,
                     politician,
                     "birthplaces",
                     source_url,

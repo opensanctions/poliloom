@@ -120,7 +120,7 @@ class TestEnrichmentService:
         mock_openai_client.beta.chat.completions.parse.return_value = mock_response
 
         properties = enrichment_service._extract_properties_with_llm(
-            enrichment_wikipedia_content, "Test Politician", "United States"
+            enrichment_wikipedia_content, "Test Politician"
         )
 
         assert properties is not None
@@ -137,7 +137,7 @@ class TestEnrichmentService:
         )
 
         properties = enrichment_service._extract_properties_with_llm(
-            "test content", "Test Politician", "United States"
+            "test content", "Test Politician"
         )
 
         assert properties is None

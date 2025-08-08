@@ -76,7 +76,6 @@ class TestPositionExtractionService:
                 db_session,
                 sample_wikipedia_content,
                 "Test Politician",
-                "United States",
                 politician,
                 "positions",
             )
@@ -117,7 +116,6 @@ class TestPositionExtractionService:
             db_session,
             sample_wikipedia_content,
             "Test Politician",
-            "United States",
             politician,
             "positions",
         )
@@ -150,7 +148,6 @@ class TestPositionExtractionService:
             db_session,
             sample_wikipedia_content,
             "Test Politician",
-            "United States",
             politician,
             "positions",
         )

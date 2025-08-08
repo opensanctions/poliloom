@@ -16,10 +16,10 @@ from ..models import (
     BirthplaceEvaluation,
 )
 from .schemas import (
-    UnconfirmedPoliticianResponse,
-    UnconfirmedPropertyResponse,
-    UnconfirmedPositionResponse,
-    UnconfirmedBirthplaceResponse,
+    PoliticianResponse,
+    ExtractedPropertyResponse,
+    ExtractedPositionResponse,
+    ExtractedBirthplaceResponse,
     WikidataPropertyResponse,
     WikidataPositionResponse,
     WikidataBirthplaceResponse,
@@ -31,8 +31,8 @@ from .auth import get_current_user, User
 router = APIRouter()
 
 
-@router.get("/", response_model=List[UnconfirmedPoliticianResponse])
-async def get_unconfirmed_politicians(
+@router.get("/", response_model=List[PoliticianResponse])
+async def get_politicians(
     limit: int = Query(
         default=50, le=100, description="Maximum number of politicians to return"
     ),
@@ -43,7 +43,8 @@ async def get_unconfirmed_politicians(
     """
     Retrieve politicians that have unevaluated extracted data.
 
-    Returns a list of politicians with their unevaluated data for review and evaluation.
+    Returns a list of politicians with their Wikidata properties, positions, birthplaces
+    and unevaluated extracted data for review and evaluation.
     """
     # Query for politicians that have either unevaluated properties or positions
     query = (
@@ -118,7 +119,7 @@ async def get_unconfirmed_politicians(
 
         # Only include politicians that actually have unevaluated data
         if unevaluated_properties or unevaluated_positions or unevaluated_birthplaces:
-            politician_response = UnconfirmedPoliticianResponse(
+            politician_response = PoliticianResponse(
                 id=politician.id,
                 name=politician.name,
                 wikidata_id=politician.wikidata_id,
@@ -150,8 +151,8 @@ async def get_unconfirmed_politicians(
                     )
                     for birthplace in wikidata_birthplaces
                 ],
-                unconfirmed_properties=[
-                    UnconfirmedPropertyResponse(
+                extracted_properties=[
+                    ExtractedPropertyResponse(
                         id=prop.id,
                         type=prop.type,
                         value=prop.value,
@@ -160,8 +161,8 @@ async def get_unconfirmed_politicians(
                     )
                     for prop in unevaluated_properties
                 ],
-                unconfirmed_positions=[
-                    UnconfirmedPositionResponse(
+                extracted_positions=[
+                    ExtractedPositionResponse(
                         id=pos.id,
                         position_name=pos.position.name,
                         start_date=pos.start_date,
@@ -171,8 +172,8 @@ async def get_unconfirmed_politicians(
                     )
                     for pos in unevaluated_positions
                 ],
-                unconfirmed_birthplaces=[
-                    UnconfirmedBirthplaceResponse(
+                extracted_birthplaces=[
+                    ExtractedBirthplaceResponse(
                         id=birthplace.id,
                         location_name=birthplace.location.name,
                         location_wikidata_id=birthplace.location.wikidata_id,

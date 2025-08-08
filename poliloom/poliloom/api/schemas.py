@@ -25,8 +25,8 @@ class ArchivedPageResponse(UUIDBaseModel):
     fetch_timestamp: datetime
 
 
-class UnconfirmedPropertyResponse(UUIDBaseModel):
-    """Schema for unconfirmed property data."""
+class ExtractedPropertyResponse(UUIDBaseModel):
+    """Schema for extracted property data."""
 
     id: UUID
     type: str
@@ -35,8 +35,8 @@ class UnconfirmedPropertyResponse(UUIDBaseModel):
     archived_page: Optional[ArchivedPageResponse] = None
 
 
-class UnconfirmedPositionResponse(UUIDBaseModel):
-    """Schema for unconfirmed position data."""
+class ExtractedPositionResponse(UUIDBaseModel):
+    """Schema for extracted position data."""
 
     id: UUID
     position_name: str
@@ -46,8 +46,8 @@ class UnconfirmedPositionResponse(UUIDBaseModel):
     archived_page: Optional[ArchivedPageResponse] = None
 
 
-class UnconfirmedBirthplaceResponse(UUIDBaseModel):
-    """Schema for unconfirmed birthplace data."""
+class ExtractedBirthplaceResponse(UUIDBaseModel):
+    """Schema for extracted birthplace data."""
 
     id: UUID
     location_name: str
@@ -84,8 +84,8 @@ class WikidataBirthplaceResponse(UUIDBaseModel):
     location_wikidata_id: Optional[str] = None
 
 
-class UnconfirmedPoliticianResponse(UUIDBaseModel):
-    """Schema for politician with unconfirmed data."""
+class PoliticianResponse(UUIDBaseModel):
+    """Schema for politician with extracted and Wikidata data."""
 
     id: UUID
     name: str
@@ -93,9 +93,9 @@ class UnconfirmedPoliticianResponse(UUIDBaseModel):
     wikidata_properties: List[WikidataPropertyResponse]
     wikidata_positions: List[WikidataPositionResponse]
     wikidata_birthplaces: List[WikidataBirthplaceResponse]
-    unconfirmed_properties: List[UnconfirmedPropertyResponse]
-    unconfirmed_positions: List[UnconfirmedPositionResponse]
-    unconfirmed_birthplaces: List[UnconfirmedBirthplaceResponse]
+    extracted_properties: List[ExtractedPropertyResponse]
+    extracted_positions: List[ExtractedPositionResponse]
+    extracted_birthplaces: List[ExtractedBirthplaceResponse]
 
 
 class PropertyEvaluationItem(UUIDBaseModel):

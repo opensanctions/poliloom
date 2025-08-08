@@ -43,7 +43,7 @@ class BirthplaceExtractionService(TwoStageExtractionService):
 Extract birthplace information following these rules:
 
 ### EXTRACTION RULES:
-- Extract birthplace as mentioned in the source (city, town, village, region, or country)
+- Extract birthplace as mentioned in the source (city, town, village or region)
 
 ### PROOF REQUIREMENT:
 - Provide the exact quote from the source content that you base your statement on""",
@@ -51,7 +51,6 @@ Extract birthplace information following these rules:
 
 ### CONTEXT:
 Politician: {politician_name}
-Country: {country}
 Source URL: {source_url}
 
 ### CONTENT:
@@ -63,12 +62,11 @@ Source URL: {source_url}
 Map the extracted birthplace to the most accurate Wikidata location following these rules:
 
 ### MATCHING CRITERIA:
-1. When there's multiple entities with the same name, and you have no proof for which one matches, match the least specific location level (region over city)
+1. When there's multiple candidate entities with the same name, and you have no proof for which one matches, match the least specific location level (region over city)
 2. Account for different name spellings and transliterations
 
 ### REJECTION CRITERIA:
-- Return None if no candidate is a good match
-- Reject if locations clearly refer to different places""",
+- Return None if no candidate is a good match""",
             stage2_user_prompt_template="""Map this extracted birthplace to the correct Wikidata location:
 
 Extracted Birthplace: "{extracted_text}"

@@ -63,7 +63,6 @@ Extract ALL political positions from the provided content following these rules:
 
 ### CONTEXT:
 Politician: {politician_name}
-Country: {country}
 Source URL: {source_url}
 
 ### CONTENT:

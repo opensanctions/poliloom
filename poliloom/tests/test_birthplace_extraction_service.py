@@ -74,7 +74,6 @@ class TestBirthplaceExtractionService:
                 db_session,
                 sample_wikipedia_content,
                 "Test Politician",
-                "United States",
                 politician,
                 "birthplaces",
             )
@@ -113,7 +112,6 @@ class TestBirthplaceExtractionService:
             db_session,
             sample_wikipedia_content,
             "Test Politician",
-            "United States",
             politician,
             "birthplaces",
         )
@@ -146,7 +144,6 @@ class TestBirthplaceExtractionService:
             db_session,
             sample_wikipedia_content,
             "Test Politician",
-            "United States",
             politician,
             "birthplaces",
         )
