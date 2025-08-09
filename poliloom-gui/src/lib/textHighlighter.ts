@@ -129,23 +129,31 @@ export function clearHighlights(document: Document): void {
  * Scrolls to the first highlighted element in the document
  */
 export function scrollToFirstHighlight(document: Document): boolean {
-  const firstHighlight = document.querySelector(`.${HIGHLIGHT_CLASS}`);
+  const firstHighlight = document.querySelector(`.${HIGHLIGHT_CLASS}`) as HTMLElement;
   
   if (firstHighlight) {
-    firstHighlight.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center',
-      inline: 'nearest'
+    // Get the iframe's window context
+    const iframeWindow = document.defaultView || window;
+    
+    // Get the scroll container (body or documentElement of the iframe)
+    const scrollContainer = document.body.scrollHeight > document.documentElement.scrollHeight 
+      ? document.body 
+      : document.documentElement;
+    
+    // Calculate position relative to the iframe document
+    const rect = firstHighlight.getBoundingClientRect();
+    const scrollTop = scrollContainer.scrollTop;
+    const targetPosition = scrollTop + rect.top - (iframeWindow.innerHeight / 2) + (rect.height / 2);
+    
+    // Scroll only within the iframe's context
+    scrollContainer.scrollTo({
+      top: Math.max(0, targetPosition),
+      behavior: 'smooth'
     });
+    
     return true;
   }
   
   return false;
 }
 
-/**
- * Gets the count of highlighted elements in the document
- */
-export function getHighlightCount(document: Document): number {
-  return document.querySelectorAll(`.${HIGHLIGHT_CLASS}`).length;
-}
