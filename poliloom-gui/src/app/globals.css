@@ -25,12 +25,3 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Iframe highlighting styles */
-iframe .poliloom-highlight {
-  background-color: #fef3c7 !important; /* yellow-100 */
-  color: #92400e !important; /* yellow-800 */
-  font-weight: 600 !important;
-  padding: 1px 2px !important;
-  border-radius: 2px !important;
-  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3) !important; /* yellow-500 with opacity */
-}

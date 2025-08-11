@@ -85,7 +85,7 @@ export function highlightTextInDocument(document: Document, searchText: string):
 
       // Add highlighted match
       const mark = document.createElement(HIGHLIGHT_TAG);
-      mark.className = `${HIGHLIGHT_CLASS} bg-yellow-200 font-semibold`;
+      mark.className = HIGHLIGHT_CLASS;
       mark.textContent = matchText;
       fragment.appendChild(mark);
 
