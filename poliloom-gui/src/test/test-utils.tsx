@@ -1,6 +1,6 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
-import { ArchivedPageCacheProvider } from '@/contexts/ArchivedPageContext';
+import { ArchivedPageProvider } from '@/contexts/ArchivedPageContext';
 
 // Mock SessionProvider for testing
 const MockSessionProvider = ({ children }: { children: React.ReactNode }) => <>{children}</>;
@@ -8,9 +8,9 @@ const MockSessionProvider = ({ children }: { children: React.ReactNode }) => <>{
 const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
   return (
     <MockSessionProvider>
-      <ArchivedPageCacheProvider>
+      <ArchivedPageProvider>
         {children}
-      </ArchivedPageCacheProvider>
+      </ArchivedPageProvider>
     </MockSessionProvider>
   );
 };

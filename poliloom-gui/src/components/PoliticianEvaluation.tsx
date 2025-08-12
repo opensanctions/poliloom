@@ -6,6 +6,7 @@ import { submitEvaluations } from '@/lib/api';
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting';
 import { highlightTextInDocument, clearHighlights } from '@/lib/textHighlighter';
 import { useArchivedPageCache } from '@/contexts/ArchivedPageContext';
+import { BaseEvaluationItem } from './BaseEvaluationItem';
 
 interface PoliticianEvaluationProps {
   politician: Politician;
@@ -351,61 +352,18 @@ interface PropertyItemProps {
 
 function PropertyItem({ property, isConfirmed, isDiscarded, onAction, onShowArchived, onHover, isActive = false }: PropertyItemProps) {
   return (
-    <div 
-      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-      onMouseEnter={onHover}
+    <BaseEvaluationItem
+      item={property}
+      isConfirmed={isConfirmed}
+      isDiscarded={isDiscarded}
+      onAction={onAction}
+      onShowArchived={onShowArchived}
+      onHover={onHover}
+      isActive={isActive}
     >
-      <div className="flex justify-between items-start">
-        <div className="flex-1">
-          <h3 className="font-medium text-gray-900">{property.type}</h3>
-          <p className="text-gray-700 mt-1">{property.value}</p>
-          {property.archived_page && (
-            <div className="mt-2">
-              <button
-                onClick={onShowArchived}
-                className={`text-sm inline-block mr-3 ${
-                  isActive 
-                    ? 'bg-blue-100 text-blue-800 px-2 py-1 rounded border border-blue-300 font-medium'
-                    : 'text-blue-600 hover:text-blue-800'
-                }`}
-              >
-                {isActive ? '● Viewing Source' : 'View Source →'}
-              </button>
-              <span className="text-gray-500 text-xs">
-                From: {property.archived_page.url}
-              </span>
-            </div>
-          )}
-        </div>
-        <div className="flex space-x-2 ml-4">
-          <button
-            onClick={() => onAction('confirm')}
-            className={`px-3 py-1 rounded text-sm font-medium cursor-pointer ${
-              isConfirmed
-                ? 'bg-green-100 text-green-800 border border-green-300'
-                : 'bg-gray-100 text-gray-700 hover:bg-green-50 hover:text-green-700'
-            }`}
-          >
-            ✓ Confirm
-          </button>
-          <button
-            onClick={() => onAction('discard')}
-            className={`px-3 py-1 rounded text-sm font-medium cursor-pointer ${
-              isDiscarded
-                ? 'bg-red-100 text-red-800 border border-red-300'
-                : 'bg-gray-100 text-gray-700 hover:bg-red-50 hover:text-red-700'
-            }`}
-          >
-            ✗ Discard
-          </button>
-        </div>
-      </div>
-      {property.proof_line && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <p className="text-gray-600 text-sm italic">Evidence: {property.proof_line}</p>
-        </div>
-      )}
-    </div>
+      <h3 className="font-medium text-gray-900">{property.type}</h3>
+      <p className="text-gray-700 mt-1">{property.value}</p>
+    </BaseEvaluationItem>
   );
 }
 
@@ -421,76 +379,33 @@ interface PositionItemProps {
 
 function PositionItem({ position, isConfirmed, isDiscarded, onAction, onShowArchived, onHover, isActive = false }: PositionItemProps) {
   return (
-    <div 
-      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-      onMouseEnter={onHover}
+    <BaseEvaluationItem
+      item={position}
+      isConfirmed={isConfirmed}
+      isDiscarded={isDiscarded}
+      onAction={onAction}
+      onShowArchived={onShowArchived}
+      onHover={onHover}
+      isActive={isActive}
     >
-      <div className="flex justify-between items-start">
-        <div className="flex-1">
-          <h3 className="font-medium text-gray-900">
-            {position.wikidata_id ? (
-              <a 
-                href={`https://www.wikidata.org/wiki/${position.wikidata_id}`} 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="hover:underline"
-              >
-                {position.position_name} <span className="text-gray-500 font-normal">({position.wikidata_id})</span>
-              </a>
-            ) : (
-              position.position_name
-            )}
-          </h3>
-          <p className="text-gray-700 mt-1">
-            {position.start_date || 'Unknown'} - {position.end_date || 'Present'}
-          </p>
-          {position.archived_page && (
-            <div className="mt-2">
-              <button
-                onClick={onShowArchived}
-                className={`text-sm inline-block mr-3 ${
-                  isActive 
-                    ? 'bg-blue-100 text-blue-800 px-2 py-1 rounded border border-blue-300 font-medium'
-                    : 'text-blue-600 hover:text-blue-800'
-                }`}
-              >
-                {isActive ? '● Viewing Source' : 'View Source →'}
-              </button>
-              <span className="text-gray-500 text-xs">
-                From: {position.archived_page.url}
-              </span>
-            </div>
-          )}
-        </div>
-        <div className="flex space-x-2 ml-4">
-          <button
-            onClick={() => onAction('confirm')}
-            className={`px-3 py-1 rounded text-sm font-medium cursor-pointer ${
-              isConfirmed
-                ? 'bg-green-100 text-green-800 border border-green-300'
-                : 'bg-gray-100 text-gray-700 hover:bg-green-50 hover:text-green-700'
-            }`}
+      <h3 className="font-medium text-gray-900">
+        {position.wikidata_id ? (
+          <a 
+            href={`https://www.wikidata.org/wiki/${position.wikidata_id}`} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="hover:underline"
           >
-            ✓ Confirm
-          </button>
-          <button
-            onClick={() => onAction('discard')}
-            className={`px-3 py-1 rounded text-sm font-medium cursor-pointer ${
-              isDiscarded
-                ? 'bg-red-100 text-red-800 border border-red-300'
-                : 'bg-gray-100 text-gray-700 hover:bg-red-50 hover:text-red-700'
-            }`}
-          >
-            ✗ Discard
-          </button>
-        </div>
-      </div>
-      {position.proof_line && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <p className="text-gray-600 text-sm italic">Evidence: {position.proof_line}</p>
-        </div>
-      )}
-    </div>
+            {position.position_name} <span className="text-gray-500 font-normal">({position.wikidata_id})</span>
+          </a>
+        ) : (
+          position.position_name
+        )}
+      </h3>
+      <p className="text-gray-700 mt-1">
+        {position.start_date || 'Unknown'} - {position.end_date || 'Present'}
+      </p>
+    </BaseEvaluationItem>
   );
 }
 
@@ -506,72 +421,29 @@ interface BirthplaceItemProps {
 
 function BirthplaceItem({ birthplace, isConfirmed, isDiscarded, onAction, onShowArchived, onHover, isActive = false }: BirthplaceItemProps) {
   return (
-    <div 
-      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-      onMouseEnter={onHover}
+    <BaseEvaluationItem
+      item={birthplace}
+      isConfirmed={isConfirmed}
+      isDiscarded={isDiscarded}
+      onAction={onAction}
+      onShowArchived={onShowArchived}
+      onHover={onHover}
+      isActive={isActive}
     >
-      <div className="flex justify-between items-start">
-        <div className="flex-1">
-          <h3 className="font-medium text-gray-900">
-            {birthplace.wikidata_id ? (
-              <a 
-                href={`https://www.wikidata.org/wiki/${birthplace.wikidata_id}`} 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="hover:underline"
-              >
-                {birthplace.location_name} <span className="text-gray-500 font-normal">({birthplace.wikidata_id})</span>
-              </a>
-            ) : (
-              birthplace.location_name
-            )}
-          </h3>
-          {birthplace.archived_page && (
-            <div className="mt-2">
-              <button
-                onClick={onShowArchived}
-                className={`text-sm inline-block mr-3 ${
-                  isActive 
-                    ? 'bg-blue-100 text-blue-800 px-2 py-1 rounded border border-blue-300 font-medium'
-                    : 'text-blue-600 hover:text-blue-800'
-                }`}
-              >
-                {isActive ? '● Viewing Source' : 'View Source →'}
-              </button>
-              <span className="text-gray-500 text-xs">
-                From: {birthplace.archived_page.url}
-              </span>
-            </div>
-          )}
-        </div>
-        <div className="flex space-x-2 ml-4">
-          <button
-            onClick={() => onAction('confirm')}
-            className={`px-3 py-1 rounded text-sm font-medium cursor-pointer ${
-              isConfirmed
-                ? 'bg-green-100 text-green-800 border border-green-300'
-                : 'bg-gray-100 text-gray-700 hover:bg-green-50 hover:text-green-700'
-            }`}
+      <h3 className="font-medium text-gray-900">
+        {birthplace.wikidata_id ? (
+          <a 
+            href={`https://www.wikidata.org/wiki/${birthplace.wikidata_id}`} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="hover:underline"
           >
-            ✓ Confirm
-          </button>
-          <button
-            onClick={() => onAction('discard')}
-            className={`px-3 py-1 rounded text-sm font-medium cursor-pointer ${
-              isDiscarded
-                ? 'bg-red-100 text-red-800 border border-red-300'
-                : 'bg-gray-100 text-gray-700 hover:bg-red-50 hover:text-red-700'
-            }`}
-          >
-            ✗ Discard
-          </button>
-        </div>
-      </div>
-      {birthplace.proof_line && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <p className="text-gray-600 text-sm italic">Evidence: {birthplace.proof_line}</p>
-        </div>
-      )}
-    </div>
+            {birthplace.location_name} <span className="text-gray-500 font-normal">({birthplace.wikidata_id})</span>
+          </a>
+        ) : (
+          birthplace.location_name
+        )}
+      </h3>
+    </BaseEvaluationItem>
   );
 }

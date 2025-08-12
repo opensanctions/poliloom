@@ -3,7 +3,7 @@ import { auth } from '@/auth';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -20,7 +20,8 @@ export async function GET(
       );
     }
 
-    const apiUrl = `${apiBaseUrl}/archived-pages/${params.id}.html`;
+    const resolvedParams = await params;
+    const apiUrl = `${apiBaseUrl}/archived-pages/${resolvedParams.id}.html`;
     
     const response = await fetch(apiUrl, {
       headers: {

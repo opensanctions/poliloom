@@ -5,30 +5,27 @@ export interface ArchivedPageResponse {
   fetch_timestamp: string;
 }
 
-export interface Property {
+export interface BaseEvaluationItem {
   id: string;
-  type: string;
-  value: string;
   proof_line: string | null;
   archived_page: ArchivedPageResponse | null;
 }
 
-export interface Position {
-  id: string;
+export interface Property extends BaseEvaluationItem {
+  type: string;
+  value: string;
+}
+
+export interface Position extends BaseEvaluationItem {
   position_name: string;
   wikidata_id: string | null;
   start_date: string | null;
   end_date: string | null;
-  proof_line: string | null;
-  archived_page: ArchivedPageResponse | null;
 }
 
-export interface Birthplace {
-  id: string;
+export interface Birthplace extends BaseEvaluationItem {
   location_name: string;
   wikidata_id: string | null;
-  proof_line: string | null;
-  archived_page: ArchivedPageResponse | null;
 }
 
 export interface Politician {
