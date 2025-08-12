@@ -1,8 +1,9 @@
 import { useCallback, useState, RefObject } from 'react';
 import {
-  highlightTextInDocument,
+  highlightTextInScope,
   clearHighlights,
-  scrollToFirstHighlight
+  scrollToFirstHighlight,
+  ensureHighlightStyles
 } from '@/lib/textHighlighter';
 
 interface UseIframeHighlightingReturn {
@@ -41,15 +42,16 @@ export function useIframeHighlighting(
       let matchCount = 0;
       
       if (searchText.trim()) {
-        // Add new highlights
-        matchCount = highlightTextInDocument(document, searchText);
+        // Add new highlights - use the iframe's body as the scope
+        const root = document.body || document.documentElement;
+        matchCount = highlightTextInScope(document, root, searchText);
         
         // Scroll to first match if any found
         if (matchCount > 0) {
-          // Small delay to ensure DOM is updated before scrolling
+          // Small delay to ensure highlights are applied before scrolling
           setTimeout(() => {
             scrollToFirstHighlight(document);
-          }, 100);
+          }, 50);
         }
       }
       
@@ -104,6 +106,11 @@ export function useIframeAutoHighlight(
   const handleIframeLoad = useCallback(() => {
     setIsIframeLoaded(true);
     
+    // Ensure highlight styles are injected into the iframe
+    if (iframeRef.current?.contentDocument) {
+      ensureHighlightStyles(iframeRef.current.contentDocument);
+    }
+    
     // Auto-highlight if proof line is available
     if (proofLine) {
       // Small delay to ensure iframe content is fully loaded
@@ -111,7 +118,7 @@ export function useIframeAutoHighlight(
         highlighting.highlightText(proofLine);
       }, 200);
     }
-  }, [proofLine, highlighting]);
+  }, [proofLine, highlighting, iframeRef]);
 
   /**
    * Handler when proof line changes

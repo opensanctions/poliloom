@@ -1,19 +1,36 @@
 /**
- * Utility functions for highlighting text within DOM documents
+ * Modern text highlighting using the CSS Custom Highlight API
+ * Supports exact text matching and cross-element highlighting
  */
 
-const HIGHLIGHT_CLASS = 'poliloom-highlight';
-const HIGHLIGHT_TAG = 'mark';
+const HIGHLIGHT_NAME = 'poliloom';
 
 /**
- * Escapes special regex characters in a string
+ * Safely strips HTML tags from text using DOMParser
  */
-function escapeRegExp(string: string): string {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export function stripHtmlTags(html: string): string {
+  if (!html || !html.trim()) {
+    return '';
+  }
+  
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return normalizeWhitespace(doc.body.textContent || '');
+  } catch (error) {
+    console.warn('Error parsing HTML, falling back to regex:', error);
+    return normalizeWhitespace(html.replace(/<[^>]*>/g, ''));
+  }
 }
 
 /**
- * Creates a text node walker that only visits text nodes
+ * Normalizes whitespace by collapsing multiple spaces and trimming
+ */
+export function normalizeWhitespace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Creates a text node walker that skips script/style elements
  */
 function createTextNodeWalker(document: Document, root: Node): TreeWalker {
   return document.createTreeWalker(
@@ -21,13 +38,11 @@ function createTextNodeWalker(document: Document, root: Node): TreeWalker {
     NodeFilter.SHOW_TEXT,
     {
       acceptNode: (node: Node) => {
-        // Skip text nodes inside script, style, and our highlight tags
         const parent = node.parentElement;
         if (parent && (
           parent.tagName === 'SCRIPT' ||
           parent.tagName === 'STYLE' ||
-          parent.tagName === 'NOSCRIPT' ||
-          parent.classList.contains(HIGHLIGHT_CLASS)
+          parent.tagName === 'NOSCRIPT'
         )) {
           return NodeFilter.FILTER_REJECT;
         }
@@ -38,122 +53,269 @@ function createTextNodeWalker(document: Document, root: Node): TreeWalker {
 }
 
 /**
- * Highlights all occurrences of searchText within the document
- * Returns the number of matches found
+ * Finds exact text matches within a single text node using CSS Custom Highlight API
+ */
+function highlightExactMatches(
+  document: Document,
+  textNode: Text,
+  searchText: string
+): Range[] {
+  const text = textNode.textContent || '';
+  const normalizedText = normalizeWhitespace(text);
+  const normalizedSearch = normalizeWhitespace(searchText);
+  
+  // Case-insensitive search for the exact text
+  const searchIndex = normalizedText.toLowerCase().indexOf(normalizedSearch.toLowerCase());
+  
+  if (searchIndex === -1) {
+    return [];
+  }
+  
+  // Find the actual position in the original text (accounting for whitespace differences)
+  let actualStart = 0;
+  let normalizedPos = 0;
+  
+  for (let i = 0; i < text.length; i++) {
+    if (normalizedPos === searchIndex) {
+      actualStart = i;
+      break;
+    }
+    if (text[i].match(/\s/)) {
+      // Skip consecutive whitespace in original
+      while (i + 1 < text.length && text[i + 1].match(/\s/)) {
+        i++;
+      }
+      normalizedPos++; // Count as single space in normalized
+    } else {
+      normalizedPos++;
+    }
+  }
+  
+  // Find the actual end position
+  let actualEnd = actualStart;
+  let matchedLength = 0;
+  
+  for (let i = actualStart; i < text.length && matchedLength < normalizedSearch.length; i++) {
+    if (text[i].match(/\s/)) {
+      // Skip consecutive whitespace
+      while (i + 1 < text.length && text[i + 1].match(/\s/) && matchedLength < normalizedSearch.length) {
+        i++;
+      }
+      matchedLength++;
+    } else {
+      matchedLength++;
+    }
+    actualEnd = i + 1;
+  }
+  
+  // Create a range for the matched text
+  const range = document.createRange();
+  range.setStart(textNode, actualStart);
+  range.setEnd(textNode, actualEnd);
+  
+  return [range];
+}
+
+/**
+ * Handles text that spans multiple text nodes using CSS Custom Highlight API
+ */
+function highlightCrossNodeText(
+  document: Document,
+  textNodes: Text[],
+  searchText: string
+): Range[] {
+  const normalizedSearch = normalizeWhitespace(searchText).toLowerCase();
+  const ranges: Range[] = [];
+  
+  // Build a map of text nodes and their cumulative text
+  for (let i = 0; i < textNodes.length; i++) {
+    let combinedText = '';
+    const nodeInfos: Array<{ node: Text; text: string; startPos: number; endPos: number }> = [];
+    
+    // Try combining consecutive text nodes
+    for (let j = i; j < Math.min(i + 20, textNodes.length); j++) {
+      const nodeText = textNodes[j].textContent || '';
+      
+      // Skip empty or whitespace-only nodes for matching purposes
+      if (!nodeText.trim()) {
+        continue;
+      }
+      
+      const startPos = combinedText.length;
+      
+      // Add space between nodes, but not before punctuation
+      if (combinedText && !nodeText.match(/^\s*[.!?,:;]/)) {
+        combinedText += ' ';
+      }
+      combinedText += nodeText;
+      
+      const endPos = combinedText.length;
+      nodeInfos.push({ node: textNodes[j], text: nodeText, startPos, endPos });
+      
+      const normalizedCombined = normalizeWhitespace(combinedText).toLowerCase();
+      
+      if (normalizedCombined.includes(normalizedSearch)) {
+        // Found a match - create ranges for nodes that contribute to the match
+        const matchStart = normalizedCombined.indexOf(normalizedSearch);
+        const matchEnd = matchStart + normalizedSearch.length;
+        
+        // Only highlight nodes that actually contribute to the matching text
+        for (const nodeInfo of nodeInfos) {
+          const normalizedNodeStart = normalizeWhitespace(combinedText.substring(0, nodeInfo.startPos)).length;
+          const normalizedNodeEnd = normalizeWhitespace(combinedText.substring(0, nodeInfo.endPos)).length;
+          
+          // Check if this node overlaps with the match
+          if (normalizedNodeEnd > matchStart && normalizedNodeStart < matchEnd) {
+            const range = document.createRange();
+            range.selectNode(nodeInfo.node);
+            ranges.push(range);
+          }
+        }
+        return ranges;
+      }
+    }
+  }
+  
+  return ranges;
+}
+
+/**
+ * Finds and highlights exact text matches within a scope using CSS Custom Highlight API
+ * Returns the number of highlights created
+ */
+export function highlightTextInScope(
+  document: Document, 
+  scope: Element, 
+  searchText: string
+): number {
+  if (!searchText.trim()) {
+    return 0;
+  }
+
+  const normalizedSearch = normalizeWhitespace(searchText);
+  const walker = createTextNodeWalker(document, scope);
+  const textNodes: Text[] = [];
+  let node: Node | null;
+  
+  // Collect all text nodes
+  while (node = walker.nextNode()) {
+    textNodes.push(node as Text);
+  }
+  
+  let ranges: Range[] = [];
+  
+  // Try to find exact matches in individual text nodes first
+  for (const textNode of textNodes) {
+    const nodeRanges = highlightExactMatches(document, textNode, normalizedSearch);
+    ranges.push(...nodeRanges);
+  }
+  
+  // If no exact matches found, try to find cross-node matches
+  if (ranges.length === 0) {
+    ranges = highlightCrossNodeText(document, textNodes, normalizedSearch);
+  }
+  
+  // Create and set the highlight
+  if (ranges.length > 0) {
+    const highlight = new Highlight(...ranges);
+    CSS.highlights.set(HIGHLIGHT_NAME, highlight);
+    
+    // Inject highlight styles if not already present
+    // Important: Don't recreate the style element if it exists
+    if (!document.querySelector('style[data-poliloom-highlight]')) {
+      const style = document.createElement('style');
+      style.setAttribute('data-poliloom-highlight', 'true');
+      style.textContent = `::highlight(${HIGHLIGHT_NAME}) { background-color: yellow; }`;
+      document.head.appendChild(style);
+    }
+  }
+  
+  return ranges.length;
+}
+
+/**
+ * Main highlighting function - for backward compatibility
+ * @deprecated Use highlightTextInScope for better control
  */
 export function highlightTextInDocument(document: Document, searchText: string): number {
   if (!searchText.trim()) {
     return 0;
   }
 
-  const walker = createTextNodeWalker(document, document.body || document.documentElement);
-  const textNodes: Text[] = [];
-  let node: Node | null;
+  const root = document.body || document.documentElement;
+  return highlightTextInScope(document, root, searchText);
+}
 
-  // Collect all text nodes first to avoid iterator invalidation
-  while (node = walker.nextNode()) {
-    textNodes.push(node as Text);
+/**
+ * Ensures highlight styles are injected in the document
+ */
+export function ensureHighlightStyles(document: Document): void {
+  if (!document.querySelector('style[data-poliloom-highlight]')) {
+    const style = document.createElement('style');
+    style.setAttribute('data-poliloom-highlight', 'true');
+    style.textContent = `::highlight(${HIGHLIGHT_NAME}) { background-color: yellow; }`;
+    document.head.appendChild(style);
   }
-
-  const searchRegex = new RegExp(escapeRegExp(searchText.trim()), 'gi');
-  let totalMatches = 0;
-
-  textNodes.forEach(textNode => {
-    const text = textNode.textContent || '';
-    const matches = Array.from(text.matchAll(searchRegex));
-    
-    if (matches.length === 0) {
-      return;
-    }
-
-    totalMatches += matches.length;
-
-    // Create document fragment with highlighted text
-    const fragment = document.createDocumentFragment();
-    let lastIndex = 0;
-
-    matches.forEach(match => {
-      const matchIndex = match.index!;
-      const matchText = match[0];
-
-      // Add text before the match
-      if (matchIndex > lastIndex) {
-        fragment.appendChild(
-          document.createTextNode(text.slice(lastIndex, matchIndex))
-        );
-      }
-
-      // Add highlighted match
-      const mark = document.createElement(HIGHLIGHT_TAG);
-      mark.className = HIGHLIGHT_CLASS;
-      mark.textContent = matchText;
-      fragment.appendChild(mark);
-
-      lastIndex = matchIndex + matchText.length;
-    });
-
-    // Add remaining text after the last match
-    if (lastIndex < text.length) {
-      fragment.appendChild(
-        document.createTextNode(text.slice(lastIndex))
-      );
-    }
-
-    // Replace the original text node with the highlighted fragment
-    textNode.parentNode?.replaceChild(fragment, textNode);
-  });
-
-  return totalMatches;
 }
 
 /**
  * Removes all highlights from the document
  */
 export function clearHighlights(document: Document): void {
-  const highlights = document.querySelectorAll(`.${HIGHLIGHT_CLASS}`);
-  
-  highlights.forEach(highlight => {
-    const parent = highlight.parentNode;
-    if (parent) {
-      // Replace the highlight element with its text content
-      const textNode = document.createTextNode(highlight.textContent || '');
-      parent.replaceChild(textNode, highlight);
-      
-      // Normalize adjacent text nodes
-      parent.normalize();
-    }
-  });
+  CSS.highlights.delete(HIGHLIGHT_NAME);
+  // Note: We intentionally keep the style element in place
+  // Only the highlight registry entry is cleared
 }
 
 /**
- * Scrolls to the first highlighted element in the document
+ * Scrolls to the first highlighted range in the document
  */
 export function scrollToFirstHighlight(document: Document): boolean {
-  const firstHighlight = document.querySelector(`.${HIGHLIGHT_CLASS}`) as HTMLElement;
+  const highlight = CSS.highlights.get(HIGHLIGHT_NAME);
   
-  if (firstHighlight) {
-    // Get the iframe's window context
-    const iframeWindow = document.defaultView || window;
+  if (highlight && highlight.size > 0) {
+    // Get the first range from the highlight
+    const firstRange = highlight.values().next().value;
     
-    // Get the scroll container (body or documentElement of the iframe)
-    const scrollContainer = document.body.scrollHeight > document.documentElement.scrollHeight 
-      ? document.body 
-      : document.documentElement;
-    
-    // Calculate position relative to the iframe document
-    const rect = firstHighlight.getBoundingClientRect();
-    const scrollTop = scrollContainer.scrollTop;
-    const targetPosition = scrollTop + rect.top - (iframeWindow.innerHeight / 2) + (rect.height / 2);
-    
-    // Scroll only within the iframe's context
-    scrollContainer.scrollTo({
-      top: Math.max(0, targetPosition),
-      behavior: 'smooth'
-    });
-    
-    return true;
+    if (firstRange) {
+      const iframeWindow = document.defaultView || window;
+      const scrollContainer = document.body.scrollHeight > document.documentElement.scrollHeight 
+        ? document.body 
+        : document.documentElement;
+      
+      const rect = firstRange.getBoundingClientRect();
+      const scrollTop = scrollContainer.scrollTop;
+      const targetPosition = scrollTop + rect.top - (iframeWindow.innerHeight / 2) + (rect.height / 2);
+      
+      if (typeof scrollContainer.scrollTo === 'function') {
+        scrollContainer.scrollTo({
+          top: Math.max(0, targetPosition),
+          behavior: 'smooth'
+        });
+      } else {
+        scrollContainer.scrollTop = Math.max(0, targetPosition);
+      }
+      
+      return true;
+    }
   }
   
   return false;
 }
 
+/**
+ * For backward compatibility - finds elements containing text
+ * @deprecated This is kept only for compatibility
+ */
+export function findTextAcrossElements(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _document: Document, 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _root: Element, 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _searchText: string
+): Element[] | null {
+  // This function is kept for backward compatibility but shouldn't be used
+  // The new implementation uses CSS Custom Highlight API instead
+  return null;
+}
