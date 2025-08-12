@@ -40,7 +40,7 @@ export async function GET(
     
     // Inject highlight styles for the iframe highlighting functionality
     const styleTag = `<style data-poliloom-highlight="true">
-::highlight(poliloom-iframe) { background-color: yellow; }
+::highlight(poliloom) { background-color: yellow; }
 </style>`;
     
     // Insert the style tag before the closing </head> tag, or at the beginning if no head tag

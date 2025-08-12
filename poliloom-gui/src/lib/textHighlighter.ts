@@ -186,8 +186,7 @@ function highlightCrossNodeText(
 export function highlightTextInScope(
   document: Document, 
   scope: Element, 
-  searchText: string,
-  highlightName: string = HIGHLIGHT_NAME
+  searchText: string
 ): number {
   if (!searchText.trim()) {
     return 0;
@@ -221,33 +220,21 @@ export function highlightTextInScope(
     const highlight = new Highlight(...ranges);
     // Use the document's CSS object instead of the global CSS
     const documentCSS = document.defaultView?.CSS || CSS;
-    documentCSS.highlights.set(highlightName, highlight);
+    documentCSS.highlights.set(HIGHLIGHT_NAME, highlight);
   }
   
   return ranges.length;
 }
 
-/**
- * Main highlighting function - for backward compatibility
- * @deprecated Use highlightTextInScope for better control
- */
-export function highlightTextInDocument(document: Document, searchText: string): number {
-  if (!searchText.trim()) {
-    return 0;
-  }
-
-  const root = document.body || document.documentElement;
-  return highlightTextInScope(document, root, searchText);
-}
 
 
 
 /**
  * Scrolls to the first highlighted range in the document
  */
-export function scrollToFirstHighlight(document: Document, highlightName: string = HIGHLIGHT_NAME): boolean {
+export function scrollToFirstHighlight(document: Document): boolean {
   const documentCSS = document.defaultView?.CSS || CSS;
-  const highlight = documentCSS.highlights.get(highlightName);
+  const highlight = documentCSS.highlights.get(HIGHLIGHT_NAME);
   
   if (highlight && highlight.size > 0) {
     // Get the first range from the highlight
@@ -279,19 +266,3 @@ export function scrollToFirstHighlight(document: Document, highlightName: string
   return false;
 }
 
-/**
- * For backward compatibility - finds elements containing text
- * @deprecated This is kept only for compatibility
- */
-export function findTextAcrossElements(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _document: Document, 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _root: Element, 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _searchText: string
-): Element[] | null {
-  // This function is kept for backward compatibility but shouldn't be used
-  // The new implementation uses CSS Custom Highlight API instead
-  return null;
-}

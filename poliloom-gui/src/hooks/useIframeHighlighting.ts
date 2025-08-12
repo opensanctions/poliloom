@@ -36,13 +36,13 @@ export function useIframeHighlighting(
       if (searchText.trim()) {
         // Add new highlights - use the iframe's body as the scope
         const root = document.body || document.documentElement;
-        matchCount = highlightTextInScope(document, root, searchText, 'poliloom-iframe');
+        matchCount = highlightTextInScope(document, root, searchText);
         
         // Scroll to first match if any found
         if (matchCount > 0) {
           // Small delay to ensure highlights are applied before scrolling
           setTimeout(() => {
-            scrollToFirstHighlight(document, 'poliloom-iframe');
+            scrollToFirstHighlight(document);
           }, 50);
         }
       }

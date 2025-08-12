@@ -109,7 +109,7 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
     
     // Highlight in left panel (main document)
     if (leftPanelRef.current && proofLine) {
-      highlightTextInScope(document, leftPanelRef.current, proofLine, 'poliloom-main');
+      highlightTextInScope(document, leftPanelRef.current, proofLine);
     }
     
     // Highlight in right panel (iframe) if loaded

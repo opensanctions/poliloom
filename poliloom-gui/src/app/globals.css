@@ -33,10 +33,3 @@ body {
   background-color: yellow;
 }
 
-::highlight(poliloom-main) {
-  background-color: yellow;
-}
-
-::highlight(poliloom-iframe) {
-  background-color: yellow;
-}
