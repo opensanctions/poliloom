@@ -18,6 +18,7 @@ export const mockProperty: Property = {
 export const mockPosition: Position = {
   id: 'pos-1',
   position_name: 'Mayor of Test City',
+  wikidata_id: 'Q555777',
   start_date: '2020-01-01',
   end_date: '2024-01-01',
   proof_line: 'served as mayor from 2020 to 2024',
@@ -27,7 +28,7 @@ export const mockPosition: Position = {
 export const mockBirthplace: Birthplace = {
   id: 'birth-1',
   location_name: 'Test City',
-  location_wikidata_id: 'Q123456',
+  wikidata_id: 'Q123456',
   proof_line: 'was born in Test City',
   archived_page: mockArchivedPage,
 };

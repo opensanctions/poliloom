@@ -57,16 +57,26 @@ describe('PoliticianEvaluation', () => {
     render(<PoliticianEvaluation {...defaultProps} />);
     
     expect(screen.getByText('Political Positions')).toBeInTheDocument();
-    expect(screen.getByText('Mayor of Test City')).toBeInTheDocument();
+    expect(screen.getByText(/Mayor of Test City/)).toBeInTheDocument();
+    expect(screen.getByText(/Q555777/)).toBeInTheDocument();
     expect(screen.getByText('2020-01-01 - 2024-01-01')).toBeInTheDocument();
+    
+    // Check that the Wikidata link exists
+    const wikidataLink = screen.getByRole('link', { name: /Mayor of Test City.*Q555777/ });
+    expect(wikidataLink).toHaveAttribute('href', 'https://www.wikidata.org/wiki/Q555777');
+    expect(wikidataLink).toHaveAttribute('target', '_blank');
   });
 
   it('renders birthplaces section with birthplace details', () => {
     render(<PoliticianEvaluation {...defaultProps} />);
     
     expect(screen.getByText('Birthplaces')).toBeInTheDocument();
-    expect(screen.getByText('Test City')).toBeInTheDocument();
-    expect(screen.getByText('Wikidata: Q123456')).toBeInTheDocument();
+    expect(screen.getByText(/Q123456/)).toBeInTheDocument();
+    
+    // Check that the Wikidata link for birthplace exists
+    const wikidataLink = screen.getByRole('link', { name: /Test City.*Q123456/ });
+    expect(wikidataLink).toHaveAttribute('href', 'https://www.wikidata.org/wiki/Q123456');
+    expect(wikidataLink).toHaveAttribute('target', '_blank');
   });
 
   it('allows confirming a property', () => {

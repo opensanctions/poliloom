@@ -352,7 +352,7 @@ interface PropertyItemProps {
 function PropertyItem({ property, isConfirmed, isDiscarded, onAction, onShowArchived, onHover, isActive = false }: PropertyItemProps) {
   return (
     <div 
-      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
       onMouseEnter={onHover}
     >
       <div className="flex justify-between items-start">
@@ -380,7 +380,7 @@ function PropertyItem({ property, isConfirmed, isDiscarded, onAction, onShowArch
         <div className="flex space-x-2 ml-4">
           <button
             onClick={() => onAction('confirm')}
-            className={`px-3 py-1 rounded text-sm font-medium ${
+            className={`px-3 py-1 rounded text-sm font-medium cursor-pointer ${
               isConfirmed
                 ? 'bg-green-100 text-green-800 border border-green-300'
                 : 'bg-gray-100 text-gray-700 hover:bg-green-50 hover:text-green-700'
@@ -390,7 +390,7 @@ function PropertyItem({ property, isConfirmed, isDiscarded, onAction, onShowArch
           </button>
           <button
             onClick={() => onAction('discard')}
-            className={`px-3 py-1 rounded text-sm font-medium ${
+            className={`px-3 py-1 rounded text-sm font-medium cursor-pointer ${
               isDiscarded
                 ? 'bg-red-100 text-red-800 border border-red-300'
                 : 'bg-gray-100 text-gray-700 hover:bg-red-50 hover:text-red-700'
@@ -422,12 +422,25 @@ interface PositionItemProps {
 function PositionItem({ position, isConfirmed, isDiscarded, onAction, onShowArchived, onHover, isActive = false }: PositionItemProps) {
   return (
     <div 
-      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
       onMouseEnter={onHover}
     >
       <div className="flex justify-between items-start">
         <div className="flex-1">
-          <h3 className="font-medium text-gray-900">{position.position_name}</h3>
+          <h3 className="font-medium text-gray-900">
+            {position.wikidata_id ? (
+              <a 
+                href={`https://www.wikidata.org/wiki/${position.wikidata_id}`} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="hover:underline"
+              >
+                {position.position_name} <span className="text-gray-500 font-normal">({position.wikidata_id})</span>
+              </a>
+            ) : (
+              position.position_name
+            )}
+          </h3>
           <p className="text-gray-700 mt-1">
             {position.start_date || 'Unknown'} - {position.end_date || 'Present'}
           </p>
@@ -452,7 +465,7 @@ function PositionItem({ position, isConfirmed, isDiscarded, onAction, onShowArch
         <div className="flex space-x-2 ml-4">
           <button
             onClick={() => onAction('confirm')}
-            className={`px-3 py-1 rounded text-sm font-medium ${
+            className={`px-3 py-1 rounded text-sm font-medium cursor-pointer ${
               isConfirmed
                 ? 'bg-green-100 text-green-800 border border-green-300'
                 : 'bg-gray-100 text-gray-700 hover:bg-green-50 hover:text-green-700'
@@ -462,7 +475,7 @@ function PositionItem({ position, isConfirmed, isDiscarded, onAction, onShowArch
           </button>
           <button
             onClick={() => onAction('discard')}
-            className={`px-3 py-1 rounded text-sm font-medium ${
+            className={`px-3 py-1 rounded text-sm font-medium cursor-pointer ${
               isDiscarded
                 ? 'bg-red-100 text-red-800 border border-red-300'
                 : 'bg-gray-100 text-gray-700 hover:bg-red-50 hover:text-red-700'
@@ -494,15 +507,25 @@ interface BirthplaceItemProps {
 function BirthplaceItem({ birthplace, isConfirmed, isDiscarded, onAction, onShowArchived, onHover, isActive = false }: BirthplaceItemProps) {
   return (
     <div 
-      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
       onMouseEnter={onHover}
     >
       <div className="flex justify-between items-start">
         <div className="flex-1">
-          <h3 className="font-medium text-gray-900">{birthplace.location_name}</h3>
-          {birthplace.location_wikidata_id && (
-            <p className="text-gray-600 text-sm mt-1">Wikidata: {birthplace.location_wikidata_id}</p>
-          )}
+          <h3 className="font-medium text-gray-900">
+            {birthplace.wikidata_id ? (
+              <a 
+                href={`https://www.wikidata.org/wiki/${birthplace.wikidata_id}`} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="hover:underline"
+              >
+                {birthplace.location_name} <span className="text-gray-500 font-normal">({birthplace.wikidata_id})</span>
+              </a>
+            ) : (
+              birthplace.location_name
+            )}
+          </h3>
           {birthplace.archived_page && (
             <div className="mt-2">
               <button
@@ -524,7 +547,7 @@ function BirthplaceItem({ birthplace, isConfirmed, isDiscarded, onAction, onShow
         <div className="flex space-x-2 ml-4">
           <button
             onClick={() => onAction('confirm')}
-            className={`px-3 py-1 rounded text-sm font-medium ${
+            className={`px-3 py-1 rounded text-sm font-medium cursor-pointer ${
               isConfirmed
                 ? 'bg-green-100 text-green-800 border border-green-300'
                 : 'bg-gray-100 text-gray-700 hover:bg-green-50 hover:text-green-700'
@@ -534,7 +557,7 @@ function BirthplaceItem({ birthplace, isConfirmed, isDiscarded, onAction, onShow
           </button>
           <button
             onClick={() => onAction('discard')}
-            className={`px-3 py-1 rounded text-sm font-medium ${
+            className={`px-3 py-1 rounded text-sm font-medium cursor-pointer ${
               isDiscarded
                 ? 'bg-red-100 text-red-800 border border-red-300'
                 : 'bg-gray-100 text-gray-700 hover:bg-red-50 hover:text-red-700'

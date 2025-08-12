@@ -16,6 +16,7 @@ export interface Property {
 export interface Position {
   id: string;
   position_name: string;
+  wikidata_id: string | null;
   start_date: string | null;
   end_date: string | null;
   proof_line: string | null;
@@ -25,7 +26,7 @@ export interface Position {
 export interface Birthplace {
   id: string;
   location_name: string;
-  location_wikidata_id: string | null;
+  wikidata_id: string | null;
   proof_line: string | null;
   archived_page: ArchivedPageResponse | null;
 }
