@@ -1,9 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { config } from './auth';
 
 // Mock NextAuth since we can't easily test the full OAuth flow
 vi.mock('next-auth', () => ({
-  default: vi.fn((config: any) => ({
+  default: vi.fn(() => ({
     handlers: { GET: vi.fn(), POST: vi.fn() },
     auth: vi.fn(),
     signIn: vi.fn(),
@@ -19,16 +18,16 @@ vi.mock('next-auth/providers/wikimedia', () => ({
 const mockConfig = {
   providers: [{ id: 'wikimedia', name: 'Wikimedia' }],
   callbacks: {
-    jwt: vi.fn(async ({ token, account }: any) => {
+    jwt: vi.fn(async ({ token, account }: { token: Record<string, unknown>; account: { access_token: string } | null }) => {
       if (account) {
         return { ...token, accessToken: account.access_token };
       }
       return token;
     }),
-    session: vi.fn(async ({ session, token }: any) => {
+    session: vi.fn(async ({ session, token }: { session: Record<string, unknown>; token: { accessToken?: string } }) => {
       return { ...session, accessToken: token.accessToken };
     }),
-    redirect: vi.fn(async ({ url, baseUrl }: any) => {
+    redirect: vi.fn(async ({ url, baseUrl }: { url: string; baseUrl: string }) => {
       if (url.startsWith('/')) return `${baseUrl}${url}`;
       if (url.startsWith(baseUrl)) return url;
       return baseUrl;
@@ -52,7 +51,7 @@ describe('auth configuration', () => {
     const result = await mockConfig.callbacks?.jwt?.({ 
       token: mockToken, 
       account: mockAccount 
-    } as any);
+    });
 
     expect(result).toEqual({
       someExistingToken: 'value',
@@ -66,7 +65,7 @@ describe('auth configuration', () => {
     const result = await mockConfig.callbacks?.jwt?.({ 
       token: mockToken, 
       account: null 
-    } as any);
+    });
 
     expect(result).toEqual(mockToken);
   });
@@ -78,7 +77,7 @@ describe('auth configuration', () => {
     const result = await mockConfig.callbacks?.session?.({ 
       session: mockSession, 
       token: mockToken 
-    } as any);
+    });
 
     expect(result).toEqual({
       user: { name: 'Test User' },
@@ -92,7 +91,7 @@ describe('auth configuration', () => {
     const result = await mockConfig.callbacks?.redirect?.({ 
       url: '/dashboard', 
       baseUrl 
-    } as any);
+    });
 
     expect(result).toBe('https://example.com/dashboard');
   });
@@ -103,7 +102,7 @@ describe('auth configuration', () => {
     const result = await mockConfig.callbacks?.redirect?.({ 
       url: 'https://example.com/dashboard', 
       baseUrl 
-    } as any);
+    });
 
     expect(result).toBe('https://example.com/dashboard');
   });
@@ -114,7 +113,7 @@ describe('auth configuration', () => {
     const result = await mockConfig.callbacks?.redirect?.({ 
       url: 'https://malicious-site.com/dashboard', 
       baseUrl 
-    } as any);
+    });
 
     expect(result).toBe(baseUrl);
   });

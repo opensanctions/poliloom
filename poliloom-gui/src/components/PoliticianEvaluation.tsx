@@ -98,47 +98,41 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
     }
   };
 
-  // Helper functions for left panel highlighting
-  const highlightProofLineInLeftPanel = (proofLine: string) => {
+  // Unified hover handler for all statement types
+  const handleStatementHover = (proofLine: string, archivedPage: ArchivedPageResponse) => {
+    // Clear previous highlights before setting new ones
     clearHighlights(document);
+    
+    // Set new archived page and highlight the proof line
+    setSelectedArchivedPage(archivedPage);
+    setActiveArchivedPageId(archivedPage.id);
+    setSelectedProofLine(proofLine);
+    
+    // Highlight in left panel (main document)
     highlightTextInDocument(document, proofLine);
+    
+    // Highlight in right panel (iframe) if loaded
+    if (isIframeLoaded) {
+      highlightText(proofLine);
+    }
   };
 
-  const clearProofLineHighlights = () => {
-    clearHighlights(document);
-  };
-
-  // Hover handlers for highlighting
+  // Individual hover handlers that use the unified logic
   const handlePropertyHover = (property: Property) => {
     if (property.proof_line && property.archived_page) {
-      setSelectedArchivedPage(property.archived_page);
-      setActiveArchivedPageId(property.archived_page.id);
-      highlightProofLineInLeftPanel(property.proof_line);
-      if (isIframeLoaded) {
-        highlightText(property.proof_line);
-      }
+      handleStatementHover(property.proof_line, property.archived_page);
     }
   };
 
   const handlePositionHover = (position: Position) => {
     if (position.proof_line && position.archived_page) {
-      setSelectedArchivedPage(position.archived_page);
-      setActiveArchivedPageId(position.archived_page.id);
-      highlightProofLineInLeftPanel(position.proof_line);
-      if (isIframeLoaded) {
-        highlightText(position.proof_line);
-      }
+      handleStatementHover(position.proof_line, position.archived_page);
     }
   };
 
   const handleBirthplaceHover = (birthplace: Birthplace) => {
     if (birthplace.proof_line && birthplace.archived_page) {
-      setSelectedArchivedPage(birthplace.archived_page);
-      setActiveArchivedPageId(birthplace.archived_page.id);
-      highlightProofLineInLeftPanel(birthplace.proof_line);
-      if (isIframeLoaded) {
-        highlightText(birthplace.proof_line);
-      }
+      handleStatementHover(birthplace.proof_line, birthplace.archived_page);
     }
   };
 
@@ -229,8 +223,7 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
                   }
                 }}
                 onHover={() => handlePropertyHover(property)}
-                onHoverEnd={clearProofLineHighlights}
-                isActive={property.archived_page && activeArchivedPageId === property.archived_page.id}
+                isActive={!!(property.archived_page && activeArchivedPageId === property.archived_page.id)}
               />
             ))}
           </div>
@@ -256,8 +249,7 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
                   }
                 }}
                 onHover={() => handlePositionHover(position)}
-                onHoverEnd={clearProofLineHighlights}
-                isActive={position.archived_page && activeArchivedPageId === position.archived_page.id}
+                isActive={!!(position.archived_page && activeArchivedPageId === position.archived_page.id)}
               />
             ))}
           </div>
@@ -283,8 +275,7 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
                   }
                 }}
                 onHover={() => handleBirthplaceHover(birthplace)}
-                onHoverEnd={clearProofLineHighlights}
-                isActive={birthplace.archived_page && activeArchivedPageId === birthplace.archived_page.id}
+                isActive={!!(birthplace.archived_page && activeArchivedPageId === birthplace.archived_page.id)}
               />
             ))}
           </div>
@@ -355,16 +346,14 @@ interface PropertyItemProps {
   onAction: (action: 'confirm' | 'discard') => void;
   onShowArchived: () => void;
   onHover: () => void;
-  onHoverEnd: () => void;
   isActive?: boolean;
 }
 
-function PropertyItem({ property, isConfirmed, isDiscarded, onAction, onShowArchived, onHover, onHoverEnd, isActive = false }: PropertyItemProps) {
+function PropertyItem({ property, isConfirmed, isDiscarded, onAction, onShowArchived, onHover, isActive = false }: PropertyItemProps) {
   return (
     <div 
       className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
       onMouseEnter={onHover}
-      onMouseLeave={onHoverEnd}
     >
       <div className="flex justify-between items-start">
         <div className="flex-1">
@@ -427,16 +416,14 @@ interface PositionItemProps {
   onAction: (action: 'confirm' | 'discard') => void;
   onShowArchived: () => void;
   onHover: () => void;
-  onHoverEnd: () => void;
   isActive?: boolean;
 }
 
-function PositionItem({ position, isConfirmed, isDiscarded, onAction, onShowArchived, onHover, onHoverEnd, isActive = false }: PositionItemProps) {
+function PositionItem({ position, isConfirmed, isDiscarded, onAction, onShowArchived, onHover, isActive = false }: PositionItemProps) {
   return (
     <div 
       className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
       onMouseEnter={onHover}
-      onMouseLeave={onHoverEnd}
     >
       <div className="flex justify-between items-start">
         <div className="flex-1">
@@ -501,16 +488,14 @@ interface BirthplaceItemProps {
   onAction: (action: 'confirm' | 'discard') => void;
   onShowArchived: () => void;
   onHover: () => void;
-  onHoverEnd: () => void;
   isActive?: boolean;
 }
 
-function BirthplaceItem({ birthplace, isConfirmed, isDiscarded, onAction, onShowArchived, onHover, onHoverEnd, isActive = false }: BirthplaceItemProps) {
+function BirthplaceItem({ birthplace, isConfirmed, isDiscarded, onAction, onShowArchived, onHover, isActive = false }: BirthplaceItemProps) {
   return (
     <div 
       className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
       onMouseEnter={onHover}
-      onMouseLeave={onHoverEnd}
     >
       <div className="flex justify-between items-start">
         <div className="flex-1">
