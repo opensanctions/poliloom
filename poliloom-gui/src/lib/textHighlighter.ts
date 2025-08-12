@@ -219,15 +219,6 @@ export function highlightTextInScope(
   if (ranges.length > 0) {
     const highlight = new Highlight(...ranges);
     CSS.highlights.set(HIGHLIGHT_NAME, highlight);
-    
-    // Inject highlight styles if not already present
-    // Important: Don't recreate the style element if it exists
-    if (!document.querySelector('style[data-poliloom-highlight]')) {
-      const style = document.createElement('style');
-      style.setAttribute('data-poliloom-highlight', 'true');
-      style.textContent = `::highlight(${HIGHLIGHT_NAME}) { background-color: yellow; }`;
-      document.head.appendChild(style);
-    }
   }
   
   return ranges.length;
@@ -246,25 +237,12 @@ export function highlightTextInDocument(document: Document, searchText: string):
   return highlightTextInScope(document, root, searchText);
 }
 
-/**
- * Ensures highlight styles are injected in the document
- */
-export function ensureHighlightStyles(document: Document): void {
-  if (!document.querySelector('style[data-poliloom-highlight]')) {
-    const style = document.createElement('style');
-    style.setAttribute('data-poliloom-highlight', 'true');
-    style.textContent = `::highlight(${HIGHLIGHT_NAME}) { background-color: yellow; }`;
-    document.head.appendChild(style);
-  }
-}
 
 /**
  * Removes all highlights from the document
  */
-export function clearHighlights(document: Document): void {
+export function clearHighlights(): void {
   CSS.highlights.delete(HIGHLIGHT_NAME);
-  // Note: We intentionally keep the style element in place
-  // Only the highlight registry entry is cleared
 }
 
 /**
@@ -275,9 +253,9 @@ export function scrollToFirstHighlight(document: Document): boolean {
   
   if (highlight && highlight.size > 0) {
     // Get the first range from the highlight
-    const firstRange = highlight.values().next().value;
+    const firstRange = highlight.values().next().value as Range;
     
-    if (firstRange) {
+    if (firstRange && 'getBoundingClientRect' in firstRange) {
       const iframeWindow = document.defaultView || window;
       const scrollContainer = document.body.scrollHeight > document.documentElement.scrollHeight 
         ? document.body 

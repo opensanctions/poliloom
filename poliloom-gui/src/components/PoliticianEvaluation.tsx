@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Politician, Property, Position, Birthplace, EvaluationRequest, PropertyEvaluationItem, PositionEvaluationItem, BirthplaceEvaluationItem, ArchivedPageResponse } from '@/types';
 import { submitEvaluations } from '@/lib/api';
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting';
-import { highlightTextInScope, clearHighlights, ensureHighlightStyles } from '@/lib/textHighlighter';
+import { highlightTextInScope, clearHighlights } from '@/lib/textHighlighter';
 import { useArchivedPageCache } from '@/contexts/ArchivedPageContext';
 import { BaseEvaluationItem } from './BaseEvaluationItem';
 
@@ -36,11 +36,8 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
     handleIframeLoad
   } = useIframeAutoHighlight(iframeRef, selectedProofLine);
 
-  // Auto-load first statement source on component mount and ensure styles
+  // Auto-load first statement source on component mount
   useEffect(() => {
-    // Ensure highlight styles are injected into the main document once
-    ensureHighlightStyles(document);
-    
     const firstItem = politician.extracted_properties[0] || politician.extracted_positions[0] || politician.extracted_birthplaces[0];
     if (firstItem && firstItem.archived_page) {
       setSelectedArchivedPage(firstItem.archived_page);
@@ -105,13 +102,8 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
 
   // Unified hover handler for all statement types
   const handleStatementHover = (proofLine: string, archivedPage: ArchivedPageResponse) => {
-    // Clear previous highlights from main document
-    clearHighlights(document);
-    
-    // Clear previous highlights from iframe document if available
-    if (iframeRef.current?.contentDocument) {
-      clearHighlights(iframeRef.current.contentDocument);
-    }
+    // Clear previous highlights
+    clearHighlights();
     
     // Set new archived page and highlight the proof line
     setSelectedArchivedPage(archivedPage);

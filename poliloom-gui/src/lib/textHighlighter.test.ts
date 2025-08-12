@@ -11,7 +11,7 @@ import {
 // Mock the CSS Custom Highlight API for testing
 global.CSS = {
   highlights: new Map()
-} as any;
+} as typeof CSS;
 
 global.Highlight = class MockHighlight {
   private ranges: Range[];
@@ -27,7 +27,7 @@ global.Highlight = class MockHighlight {
   values() {
     return this.ranges[Symbol.iterator]();
   }
-} as any;
+} as typeof Highlight;
 
 describe('textHighlighter with CSS Custom Highlight API', () => {
   let dom: JSDOM;
@@ -128,7 +128,7 @@ describe('textHighlighter with CSS Custom Highlight API', () => {
       expect(CSS.highlights.has('poliloom')).toBe(true);
       
       // Clear highlights
-      clearHighlights(document);
+      clearHighlights();
       expect(CSS.highlights.has('poliloom')).toBe(false);
     });
   });
@@ -146,7 +146,7 @@ describe('textHighlighter with CSS Custom Highlight API', () => {
       } as Range;
       
       // Set up highlight manually
-      CSS.highlights.set('poliloom', new (global as any).Highlight(mockRange));
+      CSS.highlights.set('poliloom', new (global.Highlight)(mockRange));
       
       const result = scrollToFirstHighlight(document);
       expect(result).toBe(true);

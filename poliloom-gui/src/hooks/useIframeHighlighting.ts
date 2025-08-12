@@ -2,8 +2,7 @@ import { useCallback, useState, RefObject } from 'react';
 import {
   highlightTextInScope,
   clearHighlights,
-  scrollToFirstHighlight,
-  ensureHighlightStyles
+  scrollToFirstHighlight
 } from '@/lib/textHighlighter';
 
 interface UseIframeHighlightingReturn {
@@ -37,7 +36,7 @@ export function useIframeHighlighting(
       const document = iframeRef.current.contentDocument;
       
       // Clear any existing highlights
-      clearHighlights(document);
+      clearHighlights();
       
       let matchCount = 0;
       
@@ -75,7 +74,7 @@ export function useIframeHighlighting(
     }
 
     try {
-      clearHighlights(iframeRef.current.contentDocument);
+      clearHighlights();
       setHighlightCount(0);
     } catch (error) {
       console.error('Error clearing highlights in iframe:', error);
@@ -106,14 +105,22 @@ export function useIframeAutoHighlight(
   const handleIframeLoad = useCallback(() => {
     setIsIframeLoaded(true);
     
-    // Ensure highlight styles are injected into the iframe
+    // Inject highlight styles into the iframe from the parent document
     if (iframeRef.current?.contentDocument) {
-      ensureHighlightStyles(iframeRef.current.contentDocument);
+      const iframeDoc = iframeRef.current.contentDocument;
+      
+      // Check if styles are already injected
+      if (!iframeDoc.querySelector('style[data-poliloom-highlight]')) {
+        const style = iframeDoc.createElement('style');
+        style.setAttribute('data-poliloom-highlight', 'true');
+        style.textContent = `::highlight(poliloom) { background-color: yellow; }`;
+        iframeDoc.head.appendChild(style);
+      }
     }
     
     // Auto-highlight if proof line is available
     if (proofLine) {
-      // Small delay to ensure iframe content is fully loaded
+      // Small delay to ensure iframe content is fully loaded and styles are applied
       setTimeout(() => {
         highlighting.highlightText(proofLine);
       }, 200);

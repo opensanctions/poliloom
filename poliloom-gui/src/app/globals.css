@@ -29,3 +29,6 @@ body {
 /* Note: Some CSS parsers may not recognize ::highlight() yet */
 /* The actual highlighting is handled by the browser's CSS Custom Highlight API */
 
+::highlight(poliloom) {
+  background-color: yellow;
+}
