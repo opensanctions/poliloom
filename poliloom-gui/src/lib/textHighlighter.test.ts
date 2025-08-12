@@ -4,7 +4,6 @@ import {
   stripHtmlTags,
   normalizeWhitespace,
   highlightTextInScope,
-  clearHighlights,
   scrollToFirstHighlight
 } from './textHighlighter';
 
@@ -120,18 +119,6 @@ describe('textHighlighter with CSS Custom Highlight API', () => {
     });
   });
 
-  describe('clearHighlights', () => {
-    it('clears highlights from CSS.highlights', () => {
-      // Set up a highlight first
-      document.body.innerHTML = '<p>Test text</p>';
-      highlightTextInScope(document, document.body, 'Test');
-      expect(CSS.highlights.has('poliloom')).toBe(true);
-      
-      // Clear highlights
-      clearHighlights();
-      expect(CSS.highlights.has('poliloom')).toBe(false);
-    });
-  });
 
   describe('scrollToFirstHighlight', () => {
     it('returns false when no highlights exist', () => {

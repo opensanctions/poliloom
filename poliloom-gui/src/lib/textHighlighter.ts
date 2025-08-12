@@ -186,7 +186,8 @@ function highlightCrossNodeText(
 export function highlightTextInScope(
   document: Document, 
   scope: Element, 
-  searchText: string
+  searchText: string,
+  highlightName: string = HIGHLIGHT_NAME
 ): number {
   if (!searchText.trim()) {
     return 0;
@@ -218,7 +219,9 @@ export function highlightTextInScope(
   // Create and set the highlight
   if (ranges.length > 0) {
     const highlight = new Highlight(...ranges);
-    CSS.highlights.set(HIGHLIGHT_NAME, highlight);
+    // Use the document's CSS object instead of the global CSS
+    const documentCSS = document.defaultView?.CSS || CSS;
+    documentCSS.highlights.set(highlightName, highlight);
   }
   
   return ranges.length;
@@ -238,18 +241,13 @@ export function highlightTextInDocument(document: Document, searchText: string):
 }
 
 
-/**
- * Removes all highlights from the document
- */
-export function clearHighlights(): void {
-  CSS.highlights.delete(HIGHLIGHT_NAME);
-}
 
 /**
  * Scrolls to the first highlighted range in the document
  */
-export function scrollToFirstHighlight(document: Document): boolean {
-  const highlight = CSS.highlights.get(HIGHLIGHT_NAME);
+export function scrollToFirstHighlight(document: Document, highlightName: string = HIGHLIGHT_NAME): boolean {
+  const documentCSS = document.defaultView?.CSS || CSS;
+  const highlight = documentCSS.highlights.get(highlightName);
   
   if (highlight && highlight.size > 0) {
     // Get the first range from the highlight

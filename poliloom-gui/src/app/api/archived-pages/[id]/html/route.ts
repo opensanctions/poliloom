@@ -38,7 +38,20 @@ export async function GET(
 
     const htmlContent = await response.text();
     
-    return new NextResponse(htmlContent, {
+    // Inject highlight styles for the iframe highlighting functionality
+    const styleTag = `<style data-poliloom-highlight="true">
+::highlight(poliloom-iframe) { background-color: yellow; }
+</style>`;
+    
+    // Insert the style tag before the closing </head> tag, or at the beginning if no head tag
+    let modifiedHtml = htmlContent;
+    if (htmlContent.includes('</head>')) {
+      modifiedHtml = htmlContent.replace('</head>', `${styleTag}</head>`);
+    } else {
+      modifiedHtml = `${styleTag}${htmlContent}`;
+    }
+    
+    return new NextResponse(modifiedHtml, {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'X-Frame-Options': 'SAMEORIGIN',

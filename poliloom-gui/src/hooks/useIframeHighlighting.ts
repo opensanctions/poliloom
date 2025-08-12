@@ -1,15 +1,12 @@
 import { useCallback, useState, RefObject } from 'react';
 import {
   highlightTextInScope,
-  clearHighlights,
   scrollToFirstHighlight
 } from '@/lib/textHighlighter';
 
 interface UseIframeHighlightingReturn {
   highlightText: (searchText: string) => Promise<number>;
-  clearAllHighlights: () => void;
   isHighlighting: boolean;
-  highlightCount: number;
 }
 
 /**
@@ -19,7 +16,6 @@ export function useIframeHighlighting(
   iframeRef: RefObject<HTMLIFrameElement | null>
 ): UseIframeHighlightingReturn {
   const [isHighlighting, setIsHighlighting] = useState(false);
-  const [highlightCount, setHighlightCount] = useState(0);
 
   /**
    * Highlights text within the iframe document
@@ -35,57 +31,35 @@ export function useIframeHighlighting(
     try {
       const document = iframeRef.current.contentDocument;
       
-      // Clear any existing highlights
-      clearHighlights();
-      
       let matchCount = 0;
       
       if (searchText.trim()) {
         // Add new highlights - use the iframe's body as the scope
         const root = document.body || document.documentElement;
-        matchCount = highlightTextInScope(document, root, searchText);
+        matchCount = highlightTextInScope(document, root, searchText, 'poliloom-iframe');
         
         // Scroll to first match if any found
         if (matchCount > 0) {
           // Small delay to ensure highlights are applied before scrolling
           setTimeout(() => {
-            scrollToFirstHighlight(document);
+            scrollToFirstHighlight(document, 'poliloom-iframe');
           }, 50);
         }
       }
       
-      setHighlightCount(matchCount);
       return matchCount;
     } catch (error) {
       console.error('Error highlighting text in iframe:', error);
-      setHighlightCount(0);
       return 0;
     } finally {
       setIsHighlighting(false);
     }
   }, [iframeRef]);
 
-  /**
-   * Clears all highlights from the iframe document
-   */
-  const clearAllHighlights = useCallback(() => {
-    if (!iframeRef.current?.contentDocument) {
-      return;
-    }
-
-    try {
-      clearHighlights();
-      setHighlightCount(0);
-    } catch (error) {
-      console.error('Error clearing highlights in iframe:', error);
-    }
-  }, [iframeRef]);
 
   return {
     highlightText,
-    clearAllHighlights,
-    isHighlighting,
-    highlightCount
+    isHighlighting
   };
 }
 
@@ -105,19 +79,6 @@ export function useIframeAutoHighlight(
   const handleIframeLoad = useCallback(() => {
     setIsIframeLoaded(true);
     
-    // Inject highlight styles into the iframe from the parent document
-    if (iframeRef.current?.contentDocument) {
-      const iframeDoc = iframeRef.current.contentDocument;
-      
-      // Check if styles are already injected
-      if (!iframeDoc.querySelector('style[data-poliloom-highlight]')) {
-        const style = iframeDoc.createElement('style');
-        style.setAttribute('data-poliloom-highlight', 'true');
-        style.textContent = `::highlight(poliloom) { background-color: yellow; }`;
-        iframeDoc.head.appendChild(style);
-      }
-    }
-    
     // Auto-highlight if proof line is available
     if (proofLine) {
       // Small delay to ensure iframe content is fully loaded and styles are applied
@@ -133,8 +94,6 @@ export function useIframeAutoHighlight(
   const handleProofLineChange = useCallback((newProofLine: string | null) => {
     if (isIframeLoaded && newProofLine) {
       highlighting.highlightText(newProofLine);
-    } else if (isIframeLoaded && !newProofLine) {
-      highlighting.clearAllHighlights();
     }
   }, [isIframeLoaded, highlighting]);
 

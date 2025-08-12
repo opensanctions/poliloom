@@ -14,7 +14,6 @@ vi.mock('@/hooks/useIframeHighlighting', () => ({
     highlightText: vi.fn(() => Promise.resolve(1)),
     clearAllHighlights: vi.fn(),
     isHighlighting: false,
-    highlightCount: 0,
     isIframeLoaded: true,
     handleIframeLoad: vi.fn(),
     handleProofLineChange: vi.fn(),

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Politician, Property, Position, Birthplace, EvaluationRequest, PropertyEvaluationItem, PositionEvaluationItem, BirthplaceEvaluationItem, ArchivedPageResponse } from '@/types';
 import { submitEvaluations } from '@/lib/api';
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting';
-import { highlightTextInScope, clearHighlights } from '@/lib/textHighlighter';
+import { highlightTextInScope } from '@/lib/textHighlighter';
 import { useArchivedPageCache } from '@/contexts/ArchivedPageContext';
 import { BaseEvaluationItem } from './BaseEvaluationItem';
 
@@ -102,17 +102,14 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
 
   // Unified hover handler for all statement types
   const handleStatementHover = (proofLine: string, archivedPage: ArchivedPageResponse) => {
-    // Clear previous highlights
-    clearHighlights();
-    
     // Set new archived page and highlight the proof line
     setSelectedArchivedPage(archivedPage);
     setActiveArchivedPageId(archivedPage.id);
     setSelectedProofLine(proofLine);
     
-    // Highlight only in left panel (scoped highlighting)
-    if (leftPanelRef.current) {
-      highlightTextInScope(document, leftPanelRef.current, proofLine);
+    // Highlight in left panel (main document)
+    if (leftPanelRef.current && proofLine) {
+      highlightTextInScope(document, leftPanelRef.current, proofLine, 'poliloom-main');
     }
     
     // Highlight in right panel (iframe) if loaded
