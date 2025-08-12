@@ -46,6 +46,145 @@ def dump():
     pass
 
 
+@dump.command("download")
+@click.option(
+    "--source",
+    type=click.Choice(["wikimedia", "gcs"]),
+    default="wikimedia",
+    help="Source to download from (wikimedia or gcs)",
+)
+@click.option(
+    "--gcs-source",
+    envvar="GCS_DUMP_SOURCE",
+    help="GCS path to download from (when source=gcs)",
+)
+@click.option(
+    "--destination",
+    envvar="WIKIDATA_DUMP_BZ2_PATH",
+    default="./latest-all.json.bz2",
+    help="Destination path (local or gs://)",
+)
+@click.option(
+    "--gcs-credentials",
+    envvar="GCS_CREDENTIALS_PATH",
+    help="Path to GCS service account credentials JSON",
+)
+@click.option(
+    "--show-progress/--no-progress",
+    default=True,
+    help="Show download progress",
+)
+def dump_download(source, gcs_source, destination, gcs_credentials, show_progress):
+    """Download Wikidata dump file from Wikimedia or GCS."""
+    from ..services.storage import StorageFactory
+
+    click.echo(f"Downloading Wikidata dump to {destination}...")
+
+    try:
+        if source == "wikimedia":
+            # Download from Wikimedia dumps
+            url = (
+                "https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.bz2"
+            )
+            click.echo(f"Downloading from {url}")
+            click.echo(
+                "This is a large file (~100GB compressed) and may take several hours."
+            )
+
+            StorageFactory.download_from_url(url, destination, show_progress)
+        else:
+            # Copy from GCS
+            if not gcs_source:
+                click.echo("❌ GCS source path required when source=gcs")
+                click.echo(
+                    "Set GCS_DUMP_SOURCE environment variable or use --gcs-source"
+                )
+                raise click.Abort()
+
+            click.echo(f"Copying from {gcs_source}")
+
+            backend = StorageFactory.get_backend(gcs_source, gcs_credentials)
+            if not backend.exists(gcs_source):
+                click.echo(f"❌ Source file not found: {gcs_source}")
+                raise click.Abort()
+
+            backend.download(gcs_source, destination, show_progress)
+
+        click.echo(f"✅ Successfully downloaded dump to {destination}")
+
+    except Exception as e:
+        click.echo(f"❌ Download failed: {e}")
+        raise click.Abort()
+
+
+@dump.command("extract")
+@click.option(
+    "--source",
+    envvar="WIKIDATA_DUMP_BZ2_PATH",
+    default="./latest-all.json.bz2",
+    help="Source bz2 file path (local or gs://)",
+)
+@click.option(
+    "--destination",
+    envvar="WIKIDATA_DUMP_JSON_PATH",
+    default="./latest-all.json",
+    help="Destination JSON path (local or gs://)",
+)
+@click.option(
+    "--gcs-credentials",
+    envvar="GCS_CREDENTIALS_PATH",
+    help="Path to GCS service account credentials JSON",
+)
+@click.option(
+    "--parallel/--no-parallel",
+    default=True,
+    help="Use parallel decompression with lbzip2 if available",
+)
+@click.option(
+    "--show-progress/--no-progress",
+    default=True,
+    help="Show extraction progress",
+)
+def dump_extract(source, destination, gcs_credentials, parallel, show_progress):
+    """Extract bz2 compressed dump to JSON format."""
+    from ..services.storage import StorageFactory
+
+    click.echo(f"Extracting {source} to {destination}...")
+
+    # Check if source exists
+    backend = StorageFactory.get_backend(source, gcs_credentials)
+    if not backend.exists(source):
+        click.echo(f"❌ Source file not found: {source}")
+        click.echo(
+            "Run 'poliloom dump download' first or set WIKIDATA_DUMP_BZ2_PATH in .env"
+        )
+        raise click.Abort()
+
+    try:
+        # Check for lbzip2 (required)
+        if parallel:
+            import subprocess
+
+            if subprocess.run(["which", "lbzip2"], capture_output=True).returncode != 0:
+                click.echo("❌ lbzip2 not found. Please install lbzip2:")
+                click.echo("  On Ubuntu/Debian: sudo apt-get install lbzip2")
+                click.echo("  On macOS: brew install lbzip2")
+                raise click.Abort()
+
+        click.echo("⏳ Extracting dump file...")
+        click.echo("This will produce a file ~10x larger than the compressed version.")
+
+        StorageFactory.extract_bz2(
+            source, destination, show_progress=show_progress, use_parallel=parallel
+        )
+
+        click.echo(f"✅ Successfully extracted dump to {destination}")
+
+    except Exception as e:
+        click.echo(f"❌ Extraction failed: {e}")
+        raise click.Abort()
+
+
 @politicians.command("enrich")
 @click.option(
     "--id",
@@ -410,7 +549,7 @@ def locations_embed(batch_size):
 @click.option(
     "--file",
     "dump_file",
-    help="Path to the extracted JSON dump file",
+    help="Path to the extracted JSON dump file (local or gs://)",
     envvar="WIKIDATA_DUMP_JSON_PATH",
     default="./latest-all.json",
 )
@@ -420,22 +559,28 @@ def locations_embed(batch_size):
     type=int,
     help="Number of worker processes (default: CPU count)",
 )
-def dump_build_hierarchy(dump_file, num_workers):
+@click.option(
+    "--gcs-credentials",
+    envvar="GCS_CREDENTIALS_PATH",
+    help="Path to GCS service account credentials JSON",
+)
+def dump_build_hierarchy(dump_file, num_workers, gcs_credentials):
     """Build hierarchy trees for positions and locations from Wikidata dump."""
     click.echo(f"Building hierarchy trees from dump file: {dump_file}")
 
-    import os
     from ..services.dump_processor import WikidataDumpProcessor
+    from ..services.storage import StorageFactory
 
-    # Check if dump file exists
-    if not os.path.exists(dump_file):
+    # Check if dump file exists using storage backend
+    backend = StorageFactory.get_backend(dump_file, gcs_credentials)
+    if not backend.exists(dump_file):
         click.echo(f"❌ Dump file not found: {dump_file}")
         click.echo(
-            "Please run 'make download-wikidata-dump' and 'make extract-wikidata-dump' first"
+            "Please run 'poliloom dump download' and 'poliloom dump extract' first"
         )
         exit(1)
 
-    processor = WikidataDumpProcessor()
+    processor = WikidataDumpProcessor(gcs_credentials_path=gcs_credentials)
 
     try:
         click.echo("⏳ Extracting P279 (subclass of) relationships...")
@@ -467,7 +612,7 @@ def dump_build_hierarchy(dump_file, num_workers):
 @click.option(
     "--file",
     "dump_file",
-    help="Path to the extracted JSON dump file",
+    help="Path to the extracted JSON dump file (local or gs://)",
     envvar="WIKIDATA_DUMP_JSON_PATH",
     default="./latest-all.json",
 )
@@ -484,19 +629,26 @@ def dump_build_hierarchy(dump_file, num_workers):
     type=int,
     help="Number of worker processes (default: CPU count)",
 )
-def dump_import_entities(dump_file, batch_size, num_workers):
+@click.option(
+    "--gcs-credentials",
+    envvar="GCS_CREDENTIALS_PATH",
+    help="Path to GCS service account credentials JSON",
+)
+def dump_import_entities(dump_file, batch_size, num_workers, gcs_credentials):
     """Import supporting entities (positions, locations, countries) from a Wikidata dump file."""
     click.echo(f"Importing supporting entities from dump file: {dump_file}")
     click.echo(f"Using batch size: {batch_size}")
 
     import os
     from ..services.dump_processor import WikidataDumpProcessor
+    from ..services.storage import StorageFactory
 
-    # Check if dump file exists
-    if not os.path.exists(dump_file):
+    # Check if dump file exists using storage backend
+    backend = StorageFactory.get_backend(dump_file, gcs_credentials)
+    if not backend.exists(dump_file):
         click.echo(f"❌ Dump file not found: {dump_file}")
         click.echo(
-            "Please run 'make download-wikidata-dump' and 'make extract-wikidata-dump' first"
+            "Please run 'poliloom dump download' and 'poliloom dump extract' first"
         )
         exit(1)
 
@@ -508,7 +660,7 @@ def dump_import_entities(dump_file, batch_size, num_workers):
         )
         exit(1)
 
-    processor = WikidataDumpProcessor()
+    processor = WikidataDumpProcessor(gcs_credentials_path=gcs_credentials)
 
     try:
         click.echo("⏳ Extracting supporting entities from dump...")
@@ -549,7 +701,7 @@ def dump_import_entities(dump_file, batch_size, num_workers):
 @click.option(
     "--file",
     "dump_file",
-    help="Path to the extracted JSON dump file",
+    help="Path to the extracted JSON dump file (local or gs://)",
     envvar="WIKIDATA_DUMP_JSON_PATH",
     default="./latest-all.json",
 )
@@ -566,25 +718,31 @@ def dump_import_entities(dump_file, batch_size, num_workers):
     type=int,
     help="Number of worker processes (default: CPU count)",
 )
-def dump_import_politicians(dump_file, batch_size, num_workers):
+@click.option(
+    "--gcs-credentials",
+    envvar="GCS_CREDENTIALS_PATH",
+    help="Path to GCS service account credentials JSON",
+)
+def dump_import_politicians(dump_file, batch_size, num_workers, gcs_credentials):
     """Import politicians from a Wikidata dump file, linking them to existing entities."""
     click.echo(f"Importing politicians from dump file: {dump_file}")
     click.echo(f"Using batch size: {batch_size}")
 
-    import os
     from ..services.dump_processor import WikidataDumpProcessor
+    from ..services.storage import StorageFactory
 
-    # Check if dump file exists
-    if not os.path.exists(dump_file):
+    # Check if dump file exists using storage backend
+    backend = StorageFactory.get_backend(dump_file, gcs_credentials)
+    if not backend.exists(dump_file):
         click.echo(f"❌ Dump file not found: {dump_file}")
         click.echo(
-            "Please run 'make download-wikidata-dump' and 'make extract-wikidata-dump' first"
+            "Please run 'poliloom dump download' and 'poliloom dump extract' first"
         )
         exit(1)
 
     # No hierarchy check needed for politician import
 
-    processor = WikidataDumpProcessor()
+    processor = WikidataDumpProcessor(gcs_credentials_path=gcs_credentials)
 
     try:
         click.echo("⏳ Extracting politicians from dump...")

@@ -21,8 +21,14 @@ logger = logging.getLogger(__name__)
 class WikidataDumpProcessor:
     """Process Wikidata JSON dumps to extract entities and build hierarchy trees."""
 
-    def __init__(self):
-        self.dump_reader = DumpReader()
+    def __init__(self, session=None, gcs_credentials_path: Optional[str] = None):
+        """Initialize the dump processor.
+
+        Args:
+            session: Database session (optional, not used for hierarchy building)
+            gcs_credentials_path: Path to GCS service account credentials (optional)
+        """
+        self.dump_reader = DumpReader(gcs_credentials_path=gcs_credentials_path)
         self.hierarchy_builder = HierarchyBuilder()
         self.database_inserter = DatabaseInserter()
 
