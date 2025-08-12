@@ -27,6 +27,7 @@ from .schemas import (
     EvaluationResponse,
 )
 from .auth import get_current_user, User
+from ..services.wikidata_statement_service import get_wikidata_statement_service
 
 router = APIRouter()
 
@@ -202,11 +203,14 @@ async def evaluate_extracted_data(
     This endpoint allows authenticated users to evaluate extracted data,
     marking it as confirmed or discarded. Creates evaluation records
     that can be used for threshold-based evaluation workflows.
+
+    For confirmed evaluations, attempts to push statements to Wikidata.
     """
     property_count = 0
     position_count = 0
     birthplace_count = 0
     errors = []
+    confirmed_evaluations = []
 
     # Process property evaluations
     for eval_item in request.property_evaluations:
@@ -224,6 +228,10 @@ async def evaluate_extracted_data(
             )
             db.add(evaluation)
             property_count += 1
+
+            # Track confirmed evaluations for Wikidata push
+            if eval_item.is_confirmed:
+                confirmed_evaluations.append(evaluation)
 
             # If not confirmed, remove the original entity
             if not eval_item.is_confirmed:
@@ -250,6 +258,10 @@ async def evaluate_extracted_data(
             db.add(evaluation)
             position_count += 1
 
+            # Track confirmed evaluations for Wikidata push
+            if eval_item.is_confirmed:
+                confirmed_evaluations.append(evaluation)
+
             # If not confirmed, remove the original entity
             if not eval_item.is_confirmed:
                 db.delete(position_entity)
@@ -275,6 +287,10 @@ async def evaluate_extracted_data(
             db.add(evaluation)
             birthplace_count += 1
 
+            # Track confirmed evaluations for Wikidata push
+            if eval_item.is_confirmed:
+                confirmed_evaluations.append(evaluation)
+
             # If not confirmed, remove the original entity
             if not eval_item.is_confirmed:
                 db.delete(birthplace_entity)
@@ -286,10 +302,44 @@ async def evaluate_extracted_data(
     total_processed = property_count + position_count + birthplace_count
 
     try:
+        # Commit local database changes first
         db.commit()
+
+        # Push confirmed evaluations to Wikidata (don't rollback local changes on failure)
+        wikidata_service = get_wikidata_statement_service()
+        wikidata_errors = []
+
+        # Extract JWT token from authenticated user for Wikidata API calls
+        jwt_token = current_user.jwt_token
+        if not jwt_token:
+            wikidata_errors.append("No JWT token available for Wikidata API calls")
+        else:
+            try:
+                for evaluation in confirmed_evaluations:
+                    try:
+                        success = await wikidata_service.push_confirmed_evaluation(
+                            evaluation, jwt_token, db
+                        )
+                        if not success:
+                            wikidata_errors.append(
+                                f"Failed to push evaluation {evaluation.id} to Wikidata"
+                            )
+                    except Exception as e:
+                        wikidata_errors.append(
+                            f"Error pushing evaluation {evaluation.id} to Wikidata: {str(e)}"
+                        )
+
+            except Exception as e:
+                wikidata_errors.append(f"Error setting up Wikidata push: {str(e)}")
+
+        # Include Wikidata errors in response but don't fail the request
+        if wikidata_errors:
+            errors.extend(wikidata_errors)
+
         return EvaluationResponse(
             success=True,
-            message=f"Successfully processed {total_processed} evaluations",
+            message=f"Successfully processed {total_processed} evaluations"
+            + (f" ({len(wikidata_errors)} Wikidata errors)" if wikidata_errors else ""),
             property_count=property_count,
             position_count=position_count,
             birthplace_count=birthplace_count,

@@ -15,6 +15,7 @@ class User(BaseModel):
     username: str
     user_id: int
     email: Optional[str] = None
+    jwt_token: Optional[str] = None  # Store the raw JWT token for Wikidata API calls
 
 
 class MediaWikiOAuth:
@@ -45,6 +46,7 @@ class MediaWikiOAuth:
                 username=decoded.get("username", ""),
                 user_id=int(decoded.get("sub", 0)),
                 email=decoded.get("email"),
+                jwt_token=jwt_token,  # Store the raw JWT token
             )
         except (JWTError, ValueError, KeyError) as e:
             raise HTTPException(
