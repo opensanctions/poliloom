@@ -136,6 +136,7 @@ async def get_politicians(
                     WikidataPositionResponse(
                         id=pos.id,
                         position_name=pos.position.name,
+                        wikidata_id=pos.position.wikidata_id,
                         start_date=pos.start_date,
                         start_date_precision=pos.start_date_precision,
                         end_date=pos.end_date,
@@ -147,7 +148,7 @@ async def get_politicians(
                     WikidataBirthplaceResponse(
                         id=birthplace.id,
                         location_name=birthplace.location.name,
-                        location_wikidata_id=birthplace.location.wikidata_id,
+                        wikidata_id=birthplace.location.wikidata_id,
                     )
                     for birthplace in wikidata_birthplaces
                 ],
@@ -165,6 +166,7 @@ async def get_politicians(
                     ExtractedPositionResponse(
                         id=pos.id,
                         position_name=pos.position.name,
+                        wikidata_id=pos.position.wikidata_id,
                         start_date=pos.start_date,
                         end_date=pos.end_date,
                         proof_line=pos.proof_line,
@@ -176,7 +178,7 @@ async def get_politicians(
                     ExtractedBirthplaceResponse(
                         id=birthplace.id,
                         location_name=birthplace.location.name,
-                        location_wikidata_id=birthplace.location.wikidata_id,
+                        wikidata_id=birthplace.location.wikidata_id,
                         proof_line=birthplace.proof_line,
                         archived_page=birthplace.archived_page,
                     )

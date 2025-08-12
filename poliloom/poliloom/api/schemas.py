@@ -40,6 +40,7 @@ class ExtractedPositionResponse(UUIDBaseModel):
 
     id: UUID
     position_name: str
+    wikidata_id: Optional[str] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     proof_line: Optional[str] = None
@@ -51,7 +52,7 @@ class ExtractedBirthplaceResponse(UUIDBaseModel):
 
     id: UUID
     location_name: str
-    location_wikidata_id: Optional[str] = None
+    wikidata_id: Optional[str] = None
     proof_line: Optional[str] = None
     archived_page: Optional[ArchivedPageResponse] = None
 
@@ -70,6 +71,7 @@ class WikidataPositionResponse(UUIDBaseModel):
 
     id: UUID
     position_name: str
+    wikidata_id: Optional[str] = None
     start_date: Optional[str] = None
     start_date_precision: Optional[int] = None
     end_date: Optional[str] = None
@@ -81,7 +83,7 @@ class WikidataBirthplaceResponse(UUIDBaseModel):
 
     id: UUID
     location_name: str
-    location_wikidata_id: Optional[str] = None
+    wikidata_id: Optional[str] = None
 
 
 class PoliticianResponse(UUIDBaseModel):
