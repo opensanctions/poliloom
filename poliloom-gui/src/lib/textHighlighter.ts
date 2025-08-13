@@ -5,7 +5,6 @@
 
 const HIGHLIGHT_NAME = 'poliloom';
 const MAX_NODE_WINDOW = 20;
-const PUNCTUATION_REGEX = /^\s*[.!?,:;]/;
 const WHITESPACE_REGEX = /\s/;
 const EXCLUDED_TAG_NAMES = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT']);
 
@@ -125,31 +124,42 @@ function highlightExactMatches(
 /**
  * Combines text from consecutive nodes with smart spacing
  */
-function combineNodeTexts(nodes: Text[]): { 
-  combinedText: string; 
-  nodeMap: Array<{ node: Text; startPos: number; endPos: number }> 
+function combineNodeTexts(nodes: Text[]): {
+  combinedText: string;
+  nodeMap: Array<{ node: Text; startPos: number; endPos: number }>;
 } {
-  return nodes.reduce((acc, node) => {
-    const nodeText = node.textContent || '';
-    
-    // Skip empty or whitespace-only nodes for matching purposes
-    if (!nodeText.trim()) {
+  const isWordChar = (ch: string) => /[\p{L}\p{N}]/u.test(ch);
+
+  return nodes.reduce(
+    (acc, node) => {
+      const nodeText = node.textContent || '';
+
+      // Skip empty or whitespace-only nodes for matching purposes
+      if (!nodeText.trim()) {
+        return acc;
+      }
+
+      const startPos = acc.combinedText.length;
+
+      // Insert a space only if both boundaries are word characters.
+      // This avoids breaking tokens like "Lot's" or "2014–2018" and
+      // avoids adding spaces before brackets like "[citation needed]".
+      if (acc.combinedText) {
+        const prev = acc.combinedText[acc.combinedText.length - 1] || '';
+        const next = nodeText[0] || '';
+        if (isWordChar(prev) && isWordChar(next)) {
+          acc.combinedText += ' ';
+        }
+      }
+      acc.combinedText += nodeText;
+
+      const endPos = acc.combinedText.length;
+      acc.nodeMap.push({ node, startPos, endPos });
+
       return acc;
-    }
-    
-    const startPos = acc.combinedText.length;
-    
-    // Add space between nodes, but not before punctuation
-    if (acc.combinedText && !PUNCTUATION_REGEX.test(nodeText)) {
-      acc.combinedText += ' ';
-    }
-    acc.combinedText += nodeText;
-    
-    const endPos = acc.combinedText.length;
-    acc.nodeMap.push({ node, startPos, endPos });
-    
-    return acc;
-  }, { combinedText: '', nodeMap: [] as Array<{ node: Text; startPos: number; endPos: number }> });
+    },
+    { combinedText: '', nodeMap: [] as Array<{ node: Text; startPos: number; endPos: number }> }
+  );
 }
 
 /**
@@ -186,24 +196,20 @@ function highlightCrossNodeText(
   searchText: string
 ): Range[] {
   const normalizedSearch = normalizeWhitespace(searchText).toLowerCase();
-  
-  // Try different sliding windows of nodes to find matches
-  for (let i = 0; i < textNodes.length; i++) {
-    const windowNodes = textNodes.slice(i, Math.min(i + MAX_NODE_WINDOW, textNodes.length));
-    const { combinedText, nodeMap } = combineNodeTexts(windowNodes);
-    
-    if (!combinedText.trim()) continue;
-    
-    const normalizedCombined = normalizeWhitespace(combinedText).toLowerCase();
-    const matchStart = normalizedCombined.indexOf(normalizedSearch);
-    
-    if (matchStart !== -1) {
-      const matchEnd = matchStart + normalizedSearch.length;
-      return createOverlappingRanges(document, nodeMap, combinedText, matchStart, matchEnd);
-    }
-  }
-  
-  return [];
+
+  // Consider only nodes with non-empty visible text content
+  const meaningfulNodes = textNodes.filter((n) => (n.textContent || '').trim());
+
+  const { combinedText, nodeMap } = combineNodeTexts(meaningfulNodes);
+  if (!combinedText.trim()) return [];
+
+  const normalizedCombined = normalizeWhitespace(combinedText).toLowerCase();
+  const matchStart = normalizedCombined.indexOf(normalizedSearch);
+
+  if (matchStart === -1) return [];
+
+  const matchEnd = matchStart + normalizedSearch.length;
+  return createOverlappingRanges(document, nodeMap, combinedText, matchStart, matchEnd);
 }
 
 /**
@@ -288,4 +294,3 @@ export function scrollToFirstHighlight(document: Document): boolean {
   
   return false;
 }
-
