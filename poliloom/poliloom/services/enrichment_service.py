@@ -327,7 +327,8 @@ Rules:
 - Only extract information explicitly stated in the text
 - ONLY extract BirthDate and DeathDate - ignore all other personal information
 - Use partial dates if full dates aren't available
-- For each property, provide a 'proof' field with the exact quote that mentions this property
+- For each property, provide a 'proof' field with ONE exact quote that mentions this property
+- When multiple sentences support the claim, choose the MOST IMPORTANT/RELEVANT single quote
 - Be precise and only extract what is clearly stated"""
 
             user_prompt = f"""Extract personal properties about {politician_name} from this Wikipedia article text:

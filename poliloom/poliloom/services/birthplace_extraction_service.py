@@ -46,7 +46,8 @@ Extract birthplace information following these rules:
 - Extract birthplace as mentioned in the source (city, town, village or region)
 
 ### PROOF REQUIREMENT:
-- Provide the exact quote from the source content that you base your statement on""",
+- Provide ONE exact quote from the source content that mentions the birthplace
+- When multiple sentences support the claim, choose the MOST IMPORTANT/RELEVANT single quote""",
             stage1_user_prompt_template="""Extract the birthplace of {politician_name} from the content below.
 
 ### CONTEXT:

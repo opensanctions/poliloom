@@ -57,7 +57,8 @@ Extract ALL political positions from the provided content following these rules:
 - Include "acting" or "interim" in the position name if applicable
 
 ### PROOF REQUIREMENT:
-- Each position MUST include the exact quote mentioning this position
+- Each position MUST include ONE exact quote mentioning this position
+- When multiple sentences support the claim, choose the MOST IMPORTANT/RELEVANT single quote
 - The proof should contain sufficient context to verify the claim""",
             stage1_user_prompt_template="""Extract ALL political positions held by {politician_name} from the content below.
 
