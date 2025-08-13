@@ -21,14 +21,17 @@ logger = logging.getLogger(__name__)
 class WikidataDumpProcessor:
     """Process Wikidata JSON dumps to extract entities and build hierarchy trees."""
 
-    def __init__(self, session=None, gcs_credentials_path: Optional[str] = None):
+    def __init__(self, session=None):
         """Initialize the dump processor.
 
         Args:
             session: Database session (optional, not used for hierarchy building)
-            gcs_credentials_path: Path to GCS service account credentials (optional)
+
+        GCS authentication uses environment variables:
+        - GOOGLE_APPLICATION_CREDENTIALS: Path to service account JSON file
+        - GOOGLE_CLOUD_PROJECT: GCS project ID (optional)
         """
-        self.dump_reader = DumpReader(gcs_credentials_path=gcs_credentials_path)
+        self.dump_reader = DumpReader()
         self.hierarchy_builder = HierarchyBuilder()
         self.database_inserter = DatabaseInserter()
 
@@ -210,7 +213,6 @@ class WikidataDumpProcessor:
         self,
         dump_file_path: str,
         batch_size: int = 100,
-        num_workers: Optional[int] = None,
         hierarchy_dir: str = ".",
     ) -> Dict[str, int]:
         """
@@ -245,9 +247,7 @@ class WikidataDumpProcessor:
             f"Filtering for {len(position_descendants)} position types and {len(location_descendants)} location types"
         )
 
-        if num_workers is None:
-            num_workers = mp.cpu_count()
-
+        num_workers = mp.cpu_count()
         logger.info(f"Using parallel processing with {num_workers} workers")
 
         return self._extract_supporting_entities_parallel(
@@ -262,7 +262,6 @@ class WikidataDumpProcessor:
         self,
         dump_file_path: str,
         batch_size: int = 100,
-        num_workers: Optional[int] = None,
     ) -> Dict[str, int]:
         """
         Extract politicians from the Wikidata dump using parallel processing.
@@ -270,14 +269,11 @@ class WikidataDumpProcessor:
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
             batch_size: Number of entities to process in each database batch
-            num_workers: Number of worker processes (default: CPU count)
 
         Returns:
             Dictionary with counts of extracted entities
         """
-        if num_workers is None:
-            num_workers = mp.cpu_count()
-
+        num_workers = mp.cpu_count()
         logger.info(f"Using parallel processing with {num_workers} workers")
 
         return self._extract_politicians_parallel(

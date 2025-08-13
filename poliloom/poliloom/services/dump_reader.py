@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Dict, Any, Iterator, List, Tuple, Optional
+from typing import Dict, Any, Iterator, List, Tuple
 
 from .storage import StorageFactory
 
@@ -12,14 +12,14 @@ logger = logging.getLogger(__name__)
 class DumpReader:
     """Handles reading and chunking of Wikidata dump files from local or GCS."""
 
-    def __init__(self, gcs_credentials_path: Optional[str] = None):
-        """Initialize DumpReader with optional GCS credentials.
+    def __init__(self):
+        """Initialize DumpReader.
 
-        Args:
-            gcs_credentials_path: Optional path to GCS service account credentials.
-                                If not provided, uses Application Default Credentials.
+        GCS authentication uses environment variables:
+        - GOOGLE_APPLICATION_CREDENTIALS: Path to service account JSON file
+        - GOOGLE_CLOUD_PROJECT: GCS project ID (optional)
         """
-        self.gcs_credentials_path = gcs_credentials_path
+        pass
 
     def calculate_file_chunks(
         self, dump_file_path: str, num_workers: int
@@ -38,7 +38,7 @@ class DumpReader:
             List of (start_byte, end_byte) tuples
         """
         # Get the appropriate storage backend
-        backend = StorageFactory.get_backend(dump_file_path, self.gcs_credentials_path)
+        backend = StorageFactory.get_backend(dump_file_path)
         file_size = backend.get_size(dump_file_path)
 
         # For small files, don't create more chunks than needed
@@ -104,7 +104,7 @@ class DumpReader:
             Parsed entity dictionaries
         """
         # Get the appropriate storage backend
-        backend = StorageFactory.get_backend(dump_file_path, self.gcs_credentials_path)
+        backend = StorageFactory.get_backend(dump_file_path)
 
         for line in backend.stream_lines(dump_file_path):
             line = line.strip()
@@ -143,7 +143,7 @@ class DumpReader:
             Parsed entity dictionaries
         """
         # Get the appropriate storage backend
-        backend = StorageFactory.get_backend(dump_file_path, self.gcs_credentials_path)
+        backend = StorageFactory.get_backend(dump_file_path)
 
         # For GCS, we need to handle this differently
         if StorageFactory.is_gcs_path(dump_file_path):

@@ -1,12 +1,28 @@
 """Main CLI interface for PoliLoom."""
 
 import asyncio
+import os
+import subprocess
 import click
 import logging
 import uvicorn
+from sqlalchemy.orm import joinedload
+
 from ..services.import_service import ImportService
 from ..services.enrichment_service import EnrichmentService
+from ..services.storage import StorageFactory
+from ..services.dump_processor import WikidataDumpProcessor
+from ..services.hierarchy_builder import HierarchyBuilder
 from ..database import get_db_session, get_db_session_no_commit
+from ..models import (
+    Politician,
+    HoldsPosition,
+    HasCitizenship,
+    BornAt,
+    Position,
+    Location,
+)
+from ..embeddings import generate_embeddings_for_entities
 
 # Configure logging
 logging.basicConfig(
@@ -48,141 +64,63 @@ def dump():
 
 @dump.command("download")
 @click.option(
-    "--source",
-    type=click.Choice(["wikimedia", "gcs"]),
-    default="wikimedia",
-    help="Source to download from (wikimedia or gcs)",
+    "--output",
+    required=True,
+    help="Output path - local filesystem path or GCS path (gs://bucket/path)",
 )
-@click.option(
-    "--gcs-source",
-    envvar="GCS_DUMP_SOURCE",
-    help="GCS path to download from (when source=gcs)",
-)
-@click.option(
-    "--destination",
-    envvar="WIKIDATA_DUMP_BZ2_PATH",
-    default="./latest-all.json.bz2",
-    help="Destination path (local or gs://)",
-)
-@click.option(
-    "--gcs-credentials",
-    envvar="GCS_CREDENTIALS_PATH",
-    help="Path to GCS service account credentials JSON",
-)
-@click.option(
-    "--show-progress/--no-progress",
-    default=True,
-    help="Show download progress",
-)
-def dump_download(source, gcs_source, destination, gcs_credentials, show_progress):
-    """Download Wikidata dump file from Wikimedia or GCS."""
-    from ..services.storage import StorageFactory
+def dump_download(output):
+    """Download latest Wikidata dump from Wikidata to specified location."""
+    url = "https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.bz2"
 
-    click.echo(f"Downloading Wikidata dump to {destination}...")
+    click.echo(f"Downloading Wikidata dump from {url} to {output}...")
+    click.echo("This is a large file (~100GB compressed) and may take several hours.")
 
     try:
-        if source == "wikimedia":
-            # Download from Wikimedia dumps
-            url = (
-                "https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.bz2"
-            )
-            click.echo(f"Downloading from {url}")
-            click.echo(
-                "This is a large file (~100GB compressed) and may take several hours."
-            )
-
-            StorageFactory.download_from_url(url, destination, show_progress)
-        else:
-            # Copy from GCS
-            if not gcs_source:
-                click.echo("❌ GCS source path required when source=gcs")
-                click.echo(
-                    "Set GCS_DUMP_SOURCE environment variable or use --gcs-source"
-                )
-                raise click.Abort()
-
-            click.echo(f"Copying from {gcs_source}")
-
-            backend = StorageFactory.get_backend(gcs_source, gcs_credentials)
-            if not backend.exists(gcs_source):
-                click.echo(f"❌ Source file not found: {gcs_source}")
-                raise click.Abort()
-
-            backend.download(gcs_source, destination, show_progress)
-
-        click.echo(f"✅ Successfully downloaded dump to {destination}")
-
+        StorageFactory.download_from_url(url, output)
+        click.echo(f"✅ Successfully downloaded dump to {output}")
     except Exception as e:
         click.echo(f"❌ Download failed: {e}")
-        raise click.Abort()
+        raise SystemExit(1)
 
 
 @dump.command("extract")
 @click.option(
-    "--source",
-    envvar="WIKIDATA_DUMP_BZ2_PATH",
-    default="./latest-all.json.bz2",
-    help="Source bz2 file path (local or gs://)",
+    "--input",
+    required=True,
+    help="Input path to compressed dump - local filesystem path or GCS path (gs://bucket/path)",
 )
 @click.option(
-    "--destination",
-    envvar="WIKIDATA_DUMP_JSON_PATH",
-    default="./latest-all.json",
-    help="Destination JSON path (local or gs://)",
+    "--output",
+    required=True,
+    help="Output path for extracted JSON - local filesystem path or GCS path (gs://bucket/path)",
 )
-@click.option(
-    "--gcs-credentials",
-    envvar="GCS_CREDENTIALS_PATH",
-    help="Path to GCS service account credentials JSON",
-)
-@click.option(
-    "--parallel/--no-parallel",
-    default=True,
-    help="Use parallel decompression with lbzip2 if available",
-)
-@click.option(
-    "--show-progress/--no-progress",
-    default=True,
-    help="Show extraction progress",
-)
-def dump_extract(source, destination, gcs_credentials, parallel, show_progress):
-    """Extract bz2 compressed dump to JSON format."""
-    from ..services.storage import StorageFactory
-
-    click.echo(f"Extracting {source} to {destination}...")
+def dump_extract(input, output):
+    """Extract compressed Wikidata dump to JSON format."""
+    click.echo(f"Extracting {input} to {output}...")
 
     # Check if source exists
-    backend = StorageFactory.get_backend(source, gcs_credentials)
-    if not backend.exists(source):
-        click.echo(f"❌ Source file not found: {source}")
-        click.echo(
-            "Run 'poliloom dump download' first or set WIKIDATA_DUMP_BZ2_PATH in .env"
-        )
-        raise click.Abort()
+    backend = StorageFactory.get_backend(input)
+    if not backend.exists(input):
+        click.echo(f"❌ Source file not found: {input}")
+        click.echo("Run 'poliloom dump download' first")
+        raise SystemExit(1)
+
+    # Check for lbzip2 (required for parallel decompression)
+    if subprocess.run(["which", "lbzip2"], capture_output=True).returncode != 0:
+        click.echo("❌ lbzip2 not found. Please install lbzip2:")
+        click.echo("  On Ubuntu/Debian: sudo apt-get install lbzip2")
+        click.echo("  On macOS: brew install lbzip2")
+        raise SystemExit(1)
 
     try:
-        # Check for lbzip2 (required)
-        if parallel:
-            import subprocess
-
-            if subprocess.run(["which", "lbzip2"], capture_output=True).returncode != 0:
-                click.echo("❌ lbzip2 not found. Please install lbzip2:")
-                click.echo("  On Ubuntu/Debian: sudo apt-get install lbzip2")
-                click.echo("  On macOS: brew install lbzip2")
-                raise click.Abort()
-
         click.echo("⏳ Extracting dump file...")
         click.echo("This will produce a file ~10x larger than the compressed version.")
 
-        StorageFactory.extract_bz2(
-            source, destination, show_progress=show_progress, use_parallel=parallel
-        )
-
-        click.echo(f"✅ Successfully extracted dump to {destination}")
-
+        StorageFactory.extract_bz2(input, output, use_parallel=True)
+        click.echo(f"✅ Successfully extracted dump to {output}")
     except Exception as e:
         click.echo(f"❌ Extraction failed: {e}")
-        raise click.Abort()
+        raise SystemExit(1)
 
 
 @politicians.command("enrich")
@@ -229,9 +167,6 @@ def politicians_enrich(wikidata_id):
 def politicians_show(wikidata_id):
     """Display comprehensive information about a politician, distinguishing between imported and generated data."""
     click.echo(f"Showing information for politician with Wikidata ID: {wikidata_id}")
-
-    from ..models import Politician, HoldsPosition, HasCitizenship, BornAt
-    from sqlalchemy.orm import joinedload
 
     try:
         with get_db_session_no_commit() as session:
@@ -469,9 +404,6 @@ def positions_embed(batch_size):
     """Generate embeddings for all positions that don't have embeddings yet."""
     click.echo("Generating embeddings for positions without embeddings...")
 
-    from ..models import Position
-    from ..embeddings import generate_embeddings_for_entities
-
     try:
         with get_db_session() as session:
             generate_embeddings_for_entities(
@@ -527,9 +459,6 @@ def locations_embed(batch_size):
     """Generate embeddings for all locations that don't have embeddings yet."""
     click.echo("Generating embeddings for locations without embeddings...")
 
-    from ..models import Location
-    from ..embeddings import generate_embeddings_for_entities
-
     try:
         with get_db_session() as session:
             generate_embeddings_for_entities(
@@ -548,39 +477,28 @@ def locations_embed(batch_size):
 @dump.command("build-hierarchy")
 @click.option(
     "--file",
-    "dump_file",
-    help="Path to the extracted JSON dump file (local or gs://)",
-    envvar="WIKIDATA_DUMP_JSON_PATH",
-    default="./latest-all.json",
+    required=True,
+    help="Path to extracted JSON dump file - local filesystem path or GCS path (gs://bucket/path)",
 )
 @click.option(
     "--workers",
-    "num_workers",
     type=int,
     help="Number of worker processes (default: CPU count)",
 )
-@click.option(
-    "--gcs-credentials",
-    envvar="GCS_CREDENTIALS_PATH",
-    help="Path to GCS service account credentials JSON",
-)
-def dump_build_hierarchy(dump_file, num_workers, gcs_credentials):
+def dump_build_hierarchy(file, workers):
     """Build hierarchy trees for positions and locations from Wikidata dump."""
-    click.echo(f"Building hierarchy trees from dump file: {dump_file}")
-
-    from ..services.dump_processor import WikidataDumpProcessor
-    from ..services.storage import StorageFactory
+    click.echo(f"Building hierarchy trees from dump file: {file}")
 
     # Check if dump file exists using storage backend
-    backend = StorageFactory.get_backend(dump_file, gcs_credentials)
-    if not backend.exists(dump_file):
-        click.echo(f"❌ Dump file not found: {dump_file}")
+    backend = StorageFactory.get_backend(file)
+    if not backend.exists(file):
+        click.echo(f"❌ Dump file not found: {file}")
         click.echo(
             "Please run 'poliloom dump download' and 'poliloom dump extract' first"
         )
-        exit(1)
+        raise SystemExit(1)
 
-    processor = WikidataDumpProcessor(gcs_credentials_path=gcs_credentials)
+    processor = WikidataDumpProcessor()
 
     try:
         click.echo("⏳ Extracting P279 (subclass of) relationships...")
@@ -588,7 +506,7 @@ def dump_build_hierarchy(dump_file, num_workers, gcs_credentials):
         click.echo("Press Ctrl+C to interrupt...")
 
         # Build the trees (always parallel)
-        trees = processor.build_hierarchy_trees(dump_file, num_workers=num_workers)
+        trees = processor.build_hierarchy_trees(file, num_workers=workers)
 
         click.echo("✅ Successfully built hierarchy trees:")
         click.echo(
@@ -598,59 +516,40 @@ def dump_build_hierarchy(dump_file, num_workers, gcs_credentials):
             f"  • Locations: {len(trees['locations'])} descendants of Q2221906 (geographic location)"
         )
         click.echo("Complete hierarchy saved to complete_hierarchy.json")
-
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
         click.echo("❌ Hierarchy tree building was cancelled.")
-        exit(1)
+        raise SystemExit(1)
     except Exception as e:
         click.echo(f"❌ Error building hierarchy trees: {e}")
-        exit(1)
+        raise SystemExit(1)
 
 
 @dump.command("import-entities")
 @click.option(
     "--file",
-    "dump_file",
-    help="Path to the extracted JSON dump file (local or gs://)",
-    envvar="WIKIDATA_DUMP_JSON_PATH",
-    default="./latest-all.json",
+    required=True,
+    help="Path to extracted JSON dump file - local filesystem path or GCS path (gs://bucket/path)",
 )
 @click.option(
     "--batch-size",
-    "batch_size",
     type=int,
-    default=1000,
-    help="Number of entities to process in each database batch (default: 1000)",
+    default=100,
+    help="Number of entities to process in each database batch (default: 100)",
 )
-@click.option(
-    "--workers",
-    "num_workers",
-    type=int,
-    help="Number of worker processes (default: CPU count)",
-)
-@click.option(
-    "--gcs-credentials",
-    envvar="GCS_CREDENTIALS_PATH",
-    help="Path to GCS service account credentials JSON",
-)
-def dump_import_entities(dump_file, batch_size, num_workers, gcs_credentials):
+def dump_import_entities(file, batch_size):
     """Import supporting entities (positions, locations, countries) from a Wikidata dump file."""
-    click.echo(f"Importing supporting entities from dump file: {dump_file}")
+    click.echo(f"Importing supporting entities from dump file: {file}")
     click.echo(f"Using batch size: {batch_size}")
 
-    import os
-    from ..services.dump_processor import WikidataDumpProcessor
-    from ..services.storage import StorageFactory
-
     # Check if dump file exists using storage backend
-    backend = StorageFactory.get_backend(dump_file, gcs_credentials)
-    if not backend.exists(dump_file):
-        click.echo(f"❌ Dump file not found: {dump_file}")
+    backend = StorageFactory.get_backend(file)
+    if not backend.exists(file):
+        click.echo(f"❌ Dump file not found: {file}")
         click.echo(
             "Please run 'poliloom dump download' and 'poliloom dump extract' first"
         )
-        exit(1)
+        raise SystemExit(1)
 
     # Check if hierarchy trees exist
     if not os.path.exists("complete_hierarchy.json"):
@@ -658,9 +557,9 @@ def dump_import_entities(dump_file, batch_size, num_workers, gcs_credentials):
         click.echo(
             "Run 'poliloom dump build-hierarchy' first to generate the hierarchy trees."
         )
-        exit(1)
+        raise SystemExit(1)
 
-    processor = WikidataDumpProcessor(gcs_credentials_path=gcs_credentials)
+    processor = WikidataDumpProcessor()
 
     try:
         click.echo("⏳ Extracting supporting entities from dump...")
@@ -668,9 +567,7 @@ def dump_import_entities(dump_file, batch_size, num_workers, gcs_credentials):
         click.echo("Press Ctrl+C to interrupt...")
 
         # Extract supporting entities only
-        counts = processor.extract_entities_from_dump(
-            dump_file, batch_size=batch_size, num_workers=num_workers
-        )
+        counts = processor.extract_entities_from_dump(file, batch_size=batch_size)
 
         click.echo("✅ Successfully imported supporting entities from dump:")
         click.echo(f"  • Positions: {counts['positions']}")
@@ -684,65 +581,45 @@ def dump_import_entities(dump_file, batch_size, num_workers, gcs_credentials):
         click.echo("  • Run 'poliloom dump import-politicians' to import politicians")
         click.echo("  • Run 'poliloom positions embed' to generate position embeddings")
         click.echo("  • Run 'poliloom locations embed' to generate location embeddings")
-
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
         click.echo("❌ Supporting entities import was cancelled.")
         click.echo(
             "⚠️  Note: Some entities may have been partially imported to the database."
         )
-        exit(1)
+        raise SystemExit(1)
     except Exception as e:
         click.echo(f"❌ Error importing supporting entities: {e}")
-        exit(1)
+        raise SystemExit(1)
 
 
 @dump.command("import-politicians")
 @click.option(
     "--file",
-    "dump_file",
-    help="Path to the extracted JSON dump file (local or gs://)",
-    envvar="WIKIDATA_DUMP_JSON_PATH",
-    default="./latest-all.json",
+    required=True,
+    help="Path to extracted JSON dump file - local filesystem path or GCS path (gs://bucket/path)",
 )
 @click.option(
     "--batch-size",
-    "batch_size",
     type=int,
-    default=1000,
-    help="Number of entities to process in each database batch (default: 1000)",
+    default=100,
+    help="Number of entities to process in each database batch (default: 100)",
 )
-@click.option(
-    "--workers",
-    "num_workers",
-    type=int,
-    help="Number of worker processes (default: CPU count)",
-)
-@click.option(
-    "--gcs-credentials",
-    envvar="GCS_CREDENTIALS_PATH",
-    help="Path to GCS service account credentials JSON",
-)
-def dump_import_politicians(dump_file, batch_size, num_workers, gcs_credentials):
+def dump_import_politicians(file, batch_size):
     """Import politicians from a Wikidata dump file, linking them to existing entities."""
-    click.echo(f"Importing politicians from dump file: {dump_file}")
+    click.echo(f"Importing politicians from dump file: {file}")
     click.echo(f"Using batch size: {batch_size}")
 
-    from ..services.dump_processor import WikidataDumpProcessor
-    from ..services.storage import StorageFactory
-
     # Check if dump file exists using storage backend
-    backend = StorageFactory.get_backend(dump_file, gcs_credentials)
-    if not backend.exists(dump_file):
-        click.echo(f"❌ Dump file not found: {dump_file}")
+    backend = StorageFactory.get_backend(file)
+    if not backend.exists(file):
+        click.echo(f"❌ Dump file not found: {file}")
         click.echo(
             "Please run 'poliloom dump download' and 'poliloom dump extract' first"
         )
-        exit(1)
+        raise SystemExit(1)
 
-    # No hierarchy check needed for politician import
-
-    processor = WikidataDumpProcessor(gcs_credentials_path=gcs_credentials)
+    processor = WikidataDumpProcessor()
 
     try:
         click.echo("⏳ Extracting politicians from dump...")
@@ -750,9 +627,7 @@ def dump_import_politicians(dump_file, batch_size, num_workers, gcs_credentials)
         click.echo("Press Ctrl+C to interrupt...")
 
         # Extract politicians only
-        counts = processor.extract_politicians_from_dump(
-            dump_file, batch_size=batch_size, num_workers=num_workers
-        )
+        counts = processor.extract_politicians_from_dump(file, batch_size=batch_size)
 
         click.echo("✅ Successfully imported politicians from dump:")
         click.echo(f"  • Politicians: {counts['politicians']}")
@@ -763,17 +638,16 @@ def dump_import_politicians(dump_file, batch_size, num_workers, gcs_credentials)
         click.echo(
             "  • Run 'poliloom politicians enrich --id <wikidata_id>' to enrich politician data"
         )
-
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
         click.echo("❌ Politicians import was cancelled.")
         click.echo(
             "⚠️  Note: Some politicians may have been partially imported to the database."
         )
-        exit(1)
+        raise SystemExit(1)
     except Exception as e:
         click.echo(f"❌ Error importing politicians: {e}")
-        exit(1)
+        raise SystemExit(1)
 
 
 @dump.command("query-hierarchy")
@@ -784,8 +658,6 @@ def dump_import_politicians(dump_file, batch_size, num_workers, gcs_credentials)
 )
 def dump_query_hierarchy(entity_id):
     """Query hierarchy descendants for a given entity ID."""
-    import os
-    from ..services.hierarchy_builder import HierarchyBuilder
 
     # Check if complete hierarchy file exists
     hierarchy_file = "complete_hierarchy.json"
