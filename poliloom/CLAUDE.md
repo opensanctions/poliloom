@@ -23,9 +23,17 @@ This API and CLI project is responsible for:
 - **Database:** PostgreSQL (development and production)
 - **LLM Integration:** OpenAI API (for structured data extraction)
 - **Vector Search:** SentenceTransformers ('all-MiniLM-L6-v2') for embeddings, pgvector extension
+- **Cloud Storage:** Google Cloud Storage (GCS) for dump file storage and processing
 - **External APIs:** Wikidata API, MediaWiki OAuth
 
 **important** use the `uv` tool for running python commands and managing dependencies
+
+**GCS Configuration:**
+- Use environment variables for GCS authentication and configuration
+- **GOOGLE_APPLICATION_CREDENTIALS**: Path to service account JSON file for GCS authentication
+- **GOOGLE_CLOUD_PROJECT**: GCS project ID (optional, can be inferred from credentials)
+- Commands automatically detect GCS paths (gs://) vs local filesystem paths
+- No fallback behavior - errors must be handled explicitly
 
 ## **Web Crawling Reference**
 
@@ -181,10 +189,25 @@ curl http://localhost:8000/openapi.json
 
 ### **4.4. CLI Commands**
 
-- **poliloom dump build-hierarchy [--file FILE] [--workers NUM]**
+- **poliloom dump download --output PATH**
+
+  - Download latest Wikidata dump from Wikidata to specified location
+  - **--output**: Output path - local filesystem path or GCS path (gs://bucket/path)
+  - No progress bars, comprehensive error handling
+  - Downloads compressed dump (~100GB) for subsequent extraction
+
+- **poliloom dump extract --input PATH --output PATH**
+
+  - Extract compressed Wikidata dump to JSON format
+  - **--input**: Input path to compressed dump - local filesystem path or GCS path (gs://bucket/path)
+  - **--output**: Output path for extracted JSON - local filesystem path or GCS path (gs://bucket/path)
+  - Parallel decompression for optimal performance (~1TB uncompressed output)
+  - Comprehensive error handling without fallbacks
+
+- **poliloom dump build-hierarchy --file PATH [--workers NUM]**
 
   - Build hierarchy trees for positions and locations from Wikidata dump
-  - **--file**: Path to the extracted JSON dump file (default: ./latest-all.json from WIKIDATA_DUMP_JSON_PATH env var)
+  - **--file**: Path to extracted JSON dump file - local filesystem path or GCS path (gs://bucket/path)
   - **--workers**: Number of worker processes (default: CPU count)
   - Uses chunk-based parallel processing - splits file into byte ranges for true parallelism
   - Extracts all P279 (subclass of) relationships to build complete descendant trees
@@ -194,19 +217,19 @@ curl http://localhost:8000/openapi.json
   - **Performance**: Scales linearly with CPU cores - near-linear speedup up to 32+ cores
   - **Scalability**: Each worker processes independent file chunks for optimal resource utilization
 
-- **poliloom dump import-entities [--file FILE] [--batch-size SIZE]**
+- **poliloom dump import-entities --file PATH [--batch-size SIZE]**
 
   - Import supporting entities (positions, locations, countries) from a Wikidata dump file
-  - **--file**: Path to the extracted JSON dump file (default: ./latest-all.json from WIKIDATA_DUMP_JSON_PATH env var)
+  - **--file**: Path to extracted JSON dump file - local filesystem path or GCS path (gs://bucket/path)
   - **--batch-size**: Number of entities to process in each database batch (default: 100)
   - Requires hierarchy trees to be built first using `dump build-hierarchy`
   - Processes the dump line-by-line for memory efficiency
   - Must be run before `dump import-politicians`
 
-- **poliloom dump import-politicians [--file FILE] [--batch-size SIZE]**
+- **poliloom dump import-politicians --file PATH [--batch-size SIZE]**
 
   - Import politicians from a Wikidata dump file, linking them to existing entities
-  - **--file**: Path to the extracted JSON dump file (default: ./latest-all.json from WIKIDATA_DUMP_JSON_PATH env var)
+  - **--file**: Path to extracted JSON dump file - local filesystem path or GCS path (gs://bucket/path)
   - **--batch-size**: Number of entities to process in each database batch (default: 100)
   - Requires supporting entities to be imported first using `dump import-entities`
   - Processes the dump line-by-line for memory efficiency
@@ -239,21 +262,24 @@ curl http://localhost:8000/openapi.json
 
 **Recommended Workflow:**
 
-1. `make download-wikidata-dump` - Download compressed dump (one-time, ~100GB compressed)
-2. `make extract-wikidata-dump` - Extract to JSON (requires lbzip2, ~1TB uncompressed)
-3. `poliloom dump build-hierarchy` - Build hierarchy trees for positions and locations (one-time per dump)
-4. `poliloom dump import-entities` - Import supporting entities (positions, locations, countries) to database
-5. `poliloom dump import-politicians` - Import politicians and link to existing entities
+1. `poliloom dump download --output ./latest-all.json.bz2` - Download compressed dump (one-time, ~100GB compressed)
+2. `poliloom dump extract --input ./latest-all.json.bz2 --output ./latest-all.json` - Extract to JSON (~1TB uncompressed)
+3. `poliloom dump build-hierarchy --file ./latest-all.json` - Build hierarchy trees for positions and locations (one-time per dump)
+4. `poliloom dump import-entities --file ./latest-all.json` - Import supporting entities (positions, locations, countries) to database
+5. `poliloom dump import-politicians --file ./latest-all.json` - Import politicians and link to existing entities
 
-**Dump Management:**
+**GCS Workflow Example:**
 
-- **Download**: Use `make download-wikidata-dump` to fetch the latest compressed dump
-- **Extract**: Use `make extract-wikidata-dump` for parallel decompression with lbzip2
-- **Paths**: Configure paths via .env file (WIKIDATA_DUMP_BZ2_PATH, WIKIDATA_DUMP_JSON_PATH)
+1. `poliloom dump download --output gs://my-bucket/dumps/latest-all.json.bz2` - Download to GCS
+2. `poliloom dump extract --input gs://my-bucket/dumps/latest-all.json.bz2 --output gs://my-bucket/dumps/latest-all.json` - Extract in GCS
+3. `poliloom dump build-hierarchy --file gs://my-bucket/dumps/latest-all.json` - Build hierarchy from GCS
+4. `poliloom dump import-entities --file gs://my-bucket/dumps/latest-all.json` - Import from GCS
+5. `poliloom dump import-politicians --file gs://my-bucket/dumps/latest-all.json` - Import politicians from GCS
 
 ## **5\. External Integrations**
 
 - **Wikidata Dumps:** Primary data source via dump files (latest-all.json) for bulk entity extraction
+- **Google Cloud Storage (GCS):** Storage and processing of large Wikidata dump files using gs:// paths
 - **Wikidata API:** Minimal usage, only for updating Wikidata after user evaluation via GUI
 - **MediaWiki OAuth 2.0:** For user authentication within the API using JWT tokens
 - **OpenAI API:** For all LLM-based data extraction from web content
