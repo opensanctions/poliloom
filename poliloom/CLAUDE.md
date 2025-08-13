@@ -235,6 +235,14 @@ curl http://localhost:8000/openapi.json
   - Processes the dump line-by-line for memory efficiency
   - Links politicians to existing positions, locations, and countries to avoid deadlock issues
 
+- **poliloom dump query-hierarchy --entity-id ENTITY_ID**
+
+  - Query hierarchy descendants for a given Wikidata entity ID
+  - **--entity-id**: Wikidata entity ID to get descendants for (e.g., Q2221906 for geographic locations, Q294414 for public offices)
+  - Requires complete hierarchy to be built first using `dump build-hierarchy`
+  - Outputs one descendant entity ID per line for the given entity
+  - Useful for understanding hierarchy structure and debugging entity classification
+
 - **poliloom politicians enrich --id \<wikidata_id\>**
 
   - Enriches a single politician entity by extracting data from its linked Wikipedia articles using LLMs.
