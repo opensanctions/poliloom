@@ -1,65 +1,38 @@
 /**
  * Modern text highlighting using the CSS Custom Highlight API
- * Supports exact text matching and cross-element highlighting
+ * Simplified: single-pass, cross-node, whitespace-coalescing matcher
  */
 
 const HIGHLIGHT_NAME = 'poliloom';
-const MAX_NODE_WINDOW = 20;
 const WHITESPACE_REGEX = /\s/;
 const EXCLUDED_TAG_NAMES = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT']);
 
-/**
- * Safely strips HTML tags from text using DOMParser
- */
+// Public utilities kept for tests and callers
 export function stripHtmlTags(html: string): string {
-  if (!html || !html.trim()) {
-    return '';
-  }
-  
+  if (!html || !html.trim()) return '';
   try {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     return normalizeWhitespace(doc.body.textContent || '');
-  } catch (error) {
-    console.warn('Error parsing HTML, falling back to regex:', error);
+  } catch {
     return normalizeWhitespace(html.replace(/<[^>]*>/g, ''));
   }
 }
 
-/**
- * Normalizes whitespace by collapsing multiple spaces and trimming
- */
 export function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-/**
- * Escapes special regex characters in a string for literal matching
- */
-function escapeRegexChars(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function isWhitespace(ch: string): boolean {
+  return WHITESPACE_REGEX.test(ch);
 }
 
-/**
- * Creates a safe range with bounds checking
- */
-function createSafeRange(document: Document, textNode: Text, start: number, end: number): Range {
-  const range = document.createRange();
-  const textLength = textNode.textContent?.length || 0;
-  range.setStart(textNode, Math.min(start, textLength));
-  range.setEnd(textNode, Math.min(end, textLength));
-  return range;
-}
-
-/**
- * Creates a text node walker that skips script/style elements
- */
 function createTextNodeWalker(document: Document, root: Node): TreeWalker {
   return document.createTreeWalker(
     root,
     NodeFilter.SHOW_TEXT,
     {
       acceptNode: (node: Node) => {
-        const parent = node.parentElement;
+        const parent = (node as Text).parentElement;
         return parent && EXCLUDED_TAG_NAMES.has(parent.tagName)
           ? NodeFilter.FILTER_REJECT
           : NodeFilter.FILTER_ACCEPT;
@@ -69,192 +42,160 @@ function createTextNodeWalker(document: Document, root: Node): TreeWalker {
 }
 
 /**
- * Maps a position in normalized text back to the original text position
+ * Single-pass finder that produces precise ranges spanning across nodes.
+ * - Case-insensitive
+ * - Collapses any run of document whitespace into a single matcher unit
  */
-function mapNormalizedToOriginalPosition(originalText: string, normalizedPosition: number): number {
-  let normalizedIndex = 0;
-  let originalIndex = 0;
-  
-  while (originalIndex < originalText.length && normalizedIndex < normalizedPosition) {
-    if (WHITESPACE_REGEX.test(originalText[originalIndex])) {
-      // Skip consecutive whitespace in original text
-      while (originalIndex + 1 < originalText.length && WHITESPACE_REGEX.test(originalText[originalIndex + 1])) {
-        originalIndex++;
-      }
-      normalizedIndex++;
-    } else {
-      normalizedIndex++;
-    }
-    originalIndex++;
-  }
-  
-  return originalIndex;
-}
-
-/**
- * Finds exact text matches within a single text node using CSS Custom Highlight API
- */
-function highlightExactMatches(
+function findRangesAcrossNodes(
   document: Document,
-  textNode: Text,
+  scope: Element,
   searchText: string
 ): Range[] {
-  const text = textNode.textContent || '';
-  const normalizedText = normalizeWhitespace(text);
-  const normalizedSearch = normalizeWhitespace(searchText);
-  
-  // Use regex for case-insensitive search to find all matches
-  const regex = new RegExp(escapeRegexChars(normalizedSearch), 'gi');
-  const match = regex.exec(normalizedText);
-  
-  if (!match) {
-    return [];
-  }
-  
-  // Map normalized positions back to original text positions
-  const actualStart = mapNormalizedToOriginalPosition(text, match.index);
-  const actualEnd = mapNormalizedToOriginalPosition(text, match.index + normalizedSearch.length);
-  
-  // Create a range for the matched text
-  const range = createSafeRange(document, textNode, actualStart, actualEnd);
-  
-  return [range];
-}
+  const needle = normalizeWhitespace(searchText).toLowerCase();
+  if (!needle) return [];
 
-/**
- * Combines text from consecutive nodes with smart spacing
- */
-function combineNodeTexts(nodes: Text[]): {
-  combinedText: string;
-  nodeMap: Array<{ node: Text; startPos: number; endPos: number }>;
-} {
-  const isWordChar = (ch: string) => /[\p{L}\p{N}]/u.test(ch);
+  const walker = createTextNodeWalker(document, scope);
+  let node = walker.nextNode() as Text | null;
 
-  return nodes.reduce(
-    (acc, node) => {
-      const nodeText = node.textContent || '';
+  const ranges: Range[] = [];
+  let matchIdx = 0;
+  let matchStartNode: Text | null = null;
+  let matchStartOffset = 0;
+  let lastEndNode: Text | null = null;
+  let lastEndOffset = 0;
 
-      // Skip empty or whitespace-only nodes for matching purposes
-      if (!nodeText.trim()) {
-        return acc;
+  // Track if the last emitted unit was a space to coalesce whitespace across nodes
+  let prevUnitWasSpace = false;
+  // Track if the last successfully matched needle char was a space
+  let justMatchedSpace = false;
+  // Remember the previous non-space character (lowercased) for virtual-boundary space matching
+  let prevNonSpaceChar: string | null = null;
+
+  const firstNeedleChar = needle[0];
+
+  while (node) {
+    const text = node.textContent || '';
+    let i = 0;
+
+    while (i < text.length) {
+      // Produce next normalized unit from the document stream
+      let unitChar: string;
+      let unitStart = i;
+      let unitEnd = i + 1;
+
+      if (isWhitespace(text[i])) {
+        // Consume full run of whitespace
+        while (unitEnd < text.length && isWhitespace(text[unitEnd])) unitEnd++;
+
+        if (prevUnitWasSpace) {
+          // Extend previous space unit if we are in the middle of a match
+          if (justMatchedSpace && matchIdx > 0 && lastEndNode) {
+            lastEndNode = node;
+            lastEndOffset = unitEnd;
+          }
+          // Skip emitting another space unit
+          i = unitEnd;
+          continue;
+        }
+        unitChar = ' ';
+      } else {
+        unitChar = text[unitStart].toLowerCase();
       }
 
-      const startPos = acc.combinedText.length;
+      // Compare with current needle char
+      const expected = needle[matchIdx];
 
-      // Insert a space only if both boundaries are word characters.
-      // This avoids breaking tokens like "Lot's" or "2014–2018" and
-      // avoids adding spaces before brackets like "[citation needed]".
-      if (acc.combinedText) {
-        const prev = acc.combinedText[acc.combinedText.length - 1] || '';
-        const next = nodeText[0] || '';
-        if (isWordChar(prev) && isWordChar(next)) {
-          acc.combinedText += ' ';
+      // Allow a virtual space match at cross-element boundaries when both sides are word chars
+      if (
+        expected === ' ' &&
+        unitChar !== ' ' &&
+        !prevUnitWasSpace &&
+        prevNonSpaceChar && /[\p{L}\p{N}]/u.test(prevNonSpaceChar) && /[\p{L}\p{N}]/u.test(unitChar)
+      ) {
+        // Matched a virtual space without consuming any document character
+        if (matchIdx === 0) {
+          // Needle never starts with space due to normalization, so ignore
+        } else {
+          matchIdx++;
+          justMatchedSpace = true;
+          // Do not advance i; re-evaluate this same unit against the next expected char
+          continue;
         }
       }
-      acc.combinedText += nodeText;
+      if (expected === unitChar) {
+        // Start match
+        if (matchIdx === 0) {
+          matchStartNode = node;
+          matchStartOffset = unitStart;
+        }
+        lastEndNode = node;
+        lastEndOffset = unitEnd;
+        matchIdx++;
+        justMatchedSpace = unitChar === ' ';
 
-      const endPos = acc.combinedText.length;
-      acc.nodeMap.push({ node, startPos, endPos });
+        // If completed a match, create range
+        if (matchIdx === needle.length) {
+          const range = document.createRange();
+          range.setStart(matchStartNode!, matchStartOffset);
+          range.setEnd(lastEndNode!, lastEndOffset);
+          ranges.push(range);
 
-      return acc;
-    },
-    { combinedText: '', nodeMap: [] as Array<{ node: Text; startPos: number; endPos: number }> }
-  );
+          // Reset for next potential match (non-overlapping search)
+          matchIdx = 0;
+          matchStartNode = null;
+          justMatchedSpace = false;
+        }
+
+        // Advance
+        i = unitEnd;
+        prevUnitWasSpace = unitChar === ' ';
+        if (unitChar !== ' ') prevNonSpaceChar = unitChar;
+        continue;
+      }
+
+      // Mismatch: reset state and consider current unit as new start if it matches first char
+      matchIdx = 0;
+      matchStartNode = null;
+      justMatchedSpace = false;
+
+      if (firstNeedleChar === unitChar && unitChar !== ' ') {
+        matchIdx = 1;
+        matchStartNode = node;
+        matchStartOffset = unitStart;
+        lastEndNode = node;
+        lastEndOffset = unitEnd;
+      }
+
+      // Advance
+      i = unitEnd;
+      prevUnitWasSpace = unitChar === ' ';
+      if (unitChar !== ' ') prevNonSpaceChar = unitChar;
+    }
+
+    // Move to next node
+    node = walker.nextNode() as Text | null;
+  }
+
+  return ranges;
 }
 
 /**
- * Creates ranges for nodes that overlap with a text match
- */
-function createOverlappingRanges(
-  document: Document,
-  nodeMap: Array<{ node: Text; startPos: number; endPos: number }>,
-  combinedText: string,
-  matchStart: number,
-  matchEnd: number
-): Range[] {
-  return nodeMap
-    .filter(nodeInfo => {
-      const normalizedNodeStart = normalizeWhitespace(combinedText.substring(0, nodeInfo.startPos)).length;
-      const normalizedNodeEnd = normalizeWhitespace(combinedText.substring(0, nodeInfo.endPos)).length;
-      
-      // Check if this node overlaps with the match
-      return normalizedNodeEnd > matchStart && normalizedNodeStart < matchEnd;
-    })
-    .map(nodeInfo => {
-      const range = document.createRange();
-      range.selectNode(nodeInfo.node);
-      return range;
-    });
-}
-
-/**
- * Handles text that spans multiple text nodes using CSS Custom Highlight API
- */
-function highlightCrossNodeText(
-  document: Document,
-  textNodes: Text[],
-  searchText: string
-): Range[] {
-  const normalizedSearch = normalizeWhitespace(searchText).toLowerCase();
-
-  // Consider only nodes with non-empty visible text content
-  const meaningfulNodes = textNodes.filter((n) => (n.textContent || '').trim());
-
-  const { combinedText, nodeMap } = combineNodeTexts(meaningfulNodes);
-  if (!combinedText.trim()) return [];
-
-  const normalizedCombined = normalizeWhitespace(combinedText).toLowerCase();
-  const matchStart = normalizedCombined.indexOf(normalizedSearch);
-
-  if (matchStart === -1) return [];
-
-  const matchEnd = matchStart + normalizedSearch.length;
-  return createOverlappingRanges(document, nodeMap, combinedText, matchStart, matchEnd);
-}
-
-/**
- * Finds and highlights exact text matches within a scope using CSS Custom Highlight API
+ * Highlights text within a scope using the CSS Custom Highlight API
  * Returns the number of highlights created
  */
 export function highlightTextInScope(
-  document: Document, 
-  scope: Element, 
+  document: Document,
+  scope: Element,
   searchText: string
 ): number {
-  if (!searchText.trim()) {
-    return 0;
-  }
+  if (!searchText.trim()) return 0;
 
-  const normalizedSearch = normalizeWhitespace(searchText);
-  const walker = createTextNodeWalker(document, scope);
-  const textNodes: Text[] = [];
-  let node: Node | null;
-  
-  // Collect all text nodes
-  while (node = walker.nextNode()) {
-    textNodes.push(node as Text);
-  }
-  
-  let ranges: Range[] = [];
-  
-  // Try to find exact matches in individual text nodes first
-  for (const textNode of textNodes) {
-    const nodeRanges = highlightExactMatches(document, textNode, normalizedSearch);
-    ranges.push(...nodeRanges);
-  }
-  
-  // If no exact matches found, try to find cross-node matches
-  if (ranges.length === 0) {
-    ranges = highlightCrossNodeText(document, textNodes, normalizedSearch);
-  }
-  
-  // Create and set the highlight
+  const ranges = findRangesAcrossNodes(document, scope, searchText);
   if (ranges.length > 0) {
     const highlight = new Highlight(...ranges);
     const documentCSS = document.defaultView?.CSS || CSS;
     documentCSS.highlights.set(HIGHLIGHT_NAME, highlight);
   }
-  
   return ranges.length;
 }
 
@@ -264,33 +205,25 @@ export function highlightTextInScope(
 export function scrollToFirstHighlight(document: Document): boolean {
   const documentCSS = document.defaultView?.CSS || CSS;
   const highlight = documentCSS.highlights.get(HIGHLIGHT_NAME);
-  
   if (highlight && highlight.size > 0) {
-    // Get the first range from the highlight
     const firstRange = highlight.values().next().value as Range;
-    
     if (firstRange && 'getBoundingClientRect' in firstRange) {
       const iframeWindow = document.defaultView || window;
-      const scrollContainer = document.body.scrollHeight > document.documentElement.scrollHeight 
-        ? document.body 
+      const scrollContainer = document.body.scrollHeight > document.documentElement.scrollHeight
+        ? document.body
         : document.documentElement;
-      
+
       const rect = firstRange.getBoundingClientRect();
       const scrollTop = scrollContainer.scrollTop;
       const targetPosition = scrollTop + rect.top - (iframeWindow.innerHeight / 2) + (rect.height / 2);
-      
-      if (typeof scrollContainer.scrollTo === 'function') {
-        scrollContainer.scrollTo({
-          top: Math.max(0, targetPosition),
-          behavior: 'smooth'
-        });
+
+      if (typeof (scrollContainer as any).scrollTo === 'function') {
+        (scrollContainer as any).scrollTo({ top: Math.max(0, targetPosition), behavior: 'smooth' });
       } else {
-        scrollContainer.scrollTop = Math.max(0, targetPosition);
+        (scrollContainer as any).scrollTop = Math.max(0, targetPosition);
       }
-      
       return true;
     }
   }
-  
   return false;
 }
