@@ -4,6 +4,10 @@
  */
 
 const HIGHLIGHT_NAME = 'poliloom';
+const MAX_NODE_WINDOW = 20;
+const PUNCTUATION_REGEX = /^\s*[.!?,:;]/;
+const WHITESPACE_REGEX = /\s/;
+const EXCLUDED_TAG_NAMES = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT']);
 
 /**
  * Safely strips HTML tags from text using DOMParser
@@ -30,6 +34,24 @@ export function normalizeWhitespace(text: string): string {
 }
 
 /**
+ * Escapes special regex characters in a string for literal matching
+ */
+function escapeRegexChars(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Creates a safe range with bounds checking
+ */
+function createSafeRange(document: Document, textNode: Text, start: number, end: number): Range {
+  const range = document.createRange();
+  const textLength = textNode.textContent?.length || 0;
+  range.setStart(textNode, Math.min(start, textLength));
+  range.setEnd(textNode, Math.min(end, textLength));
+  return range;
+}
+
+/**
  * Creates a text node walker that skips script/style elements
  */
 function createTextNodeWalker(document: Document, root: Node): TreeWalker {
@@ -39,17 +61,35 @@ function createTextNodeWalker(document: Document, root: Node): TreeWalker {
     {
       acceptNode: (node: Node) => {
         const parent = node.parentElement;
-        if (parent && (
-          parent.tagName === 'SCRIPT' ||
-          parent.tagName === 'STYLE' ||
-          parent.tagName === 'NOSCRIPT'
-        )) {
-          return NodeFilter.FILTER_REJECT;
-        }
-        return NodeFilter.FILTER_ACCEPT;
+        return parent && EXCLUDED_TAG_NAMES.has(parent.tagName)
+          ? NodeFilter.FILTER_REJECT
+          : NodeFilter.FILTER_ACCEPT;
       }
     }
   );
+}
+
+/**
+ * Maps a position in normalized text back to the original text position
+ */
+function mapNormalizedToOriginalPosition(originalText: string, normalizedPosition: number): number {
+  let normalizedIndex = 0;
+  let originalIndex = 0;
+  
+  while (originalIndex < originalText.length && normalizedIndex < normalizedPosition) {
+    if (WHITESPACE_REGEX.test(originalText[originalIndex])) {
+      // Skip consecutive whitespace in original text
+      while (originalIndex + 1 < originalText.length && WHITESPACE_REGEX.test(originalText[originalIndex + 1])) {
+        originalIndex++;
+      }
+      normalizedIndex++;
+    } else {
+      normalizedIndex++;
+    }
+    originalIndex++;
+  }
+  
+  return originalIndex;
 }
 
 /**
@@ -64,56 +104,77 @@ function highlightExactMatches(
   const normalizedText = normalizeWhitespace(text);
   const normalizedSearch = normalizeWhitespace(searchText);
   
-  // Case-insensitive search for the exact text
-  const searchIndex = normalizedText.toLowerCase().indexOf(normalizedSearch.toLowerCase());
+  // Use regex for case-insensitive search to find all matches
+  const regex = new RegExp(escapeRegexChars(normalizedSearch), 'gi');
+  const match = regex.exec(normalizedText);
   
-  if (searchIndex === -1) {
+  if (!match) {
     return [];
   }
   
-  // Find the actual position in the original text (accounting for whitespace differences)
-  let actualStart = 0;
-  let normalizedPos = 0;
-  
-  for (let i = 0; i < text.length; i++) {
-    if (normalizedPos === searchIndex) {
-      actualStart = i;
-      break;
-    }
-    if (text[i].match(/\s/)) {
-      // Skip consecutive whitespace in original
-      while (i + 1 < text.length && text[i + 1].match(/\s/)) {
-        i++;
-      }
-      normalizedPos++; // Count as single space in normalized
-    } else {
-      normalizedPos++;
-    }
-  }
-  
-  // Find the actual end position
-  let actualEnd = actualStart;
-  let matchedLength = 0;
-  
-  for (let i = actualStart; i < text.length && matchedLength < normalizedSearch.length; i++) {
-    if (text[i].match(/\s/)) {
-      // Skip consecutive whitespace
-      while (i + 1 < text.length && text[i + 1].match(/\s/) && matchedLength < normalizedSearch.length) {
-        i++;
-      }
-      matchedLength++;
-    } else {
-      matchedLength++;
-    }
-    actualEnd = i + 1;
-  }
+  // Map normalized positions back to original text positions
+  const actualStart = mapNormalizedToOriginalPosition(text, match.index);
+  const actualEnd = mapNormalizedToOriginalPosition(text, match.index + normalizedSearch.length);
   
   // Create a range for the matched text
-  const range = document.createRange();
-  range.setStart(textNode, actualStart);
-  range.setEnd(textNode, actualEnd);
+  const range = createSafeRange(document, textNode, actualStart, actualEnd);
   
   return [range];
+}
+
+/**
+ * Combines text from consecutive nodes with smart spacing
+ */
+function combineNodeTexts(nodes: Text[]): { 
+  combinedText: string; 
+  nodeMap: Array<{ node: Text; startPos: number; endPos: number }> 
+} {
+  return nodes.reduce((acc, node) => {
+    const nodeText = node.textContent || '';
+    
+    // Skip empty or whitespace-only nodes for matching purposes
+    if (!nodeText.trim()) {
+      return acc;
+    }
+    
+    const startPos = acc.combinedText.length;
+    
+    // Add space between nodes, but not before punctuation
+    if (acc.combinedText && !PUNCTUATION_REGEX.test(nodeText)) {
+      acc.combinedText += ' ';
+    }
+    acc.combinedText += nodeText;
+    
+    const endPos = acc.combinedText.length;
+    acc.nodeMap.push({ node, startPos, endPos });
+    
+    return acc;
+  }, { combinedText: '', nodeMap: [] as Array<{ node: Text; startPos: number; endPos: number }> });
+}
+
+/**
+ * Creates ranges for nodes that overlap with a text match
+ */
+function createOverlappingRanges(
+  document: Document,
+  nodeMap: Array<{ node: Text; startPos: number; endPos: number }>,
+  combinedText: string,
+  matchStart: number,
+  matchEnd: number
+): Range[] {
+  return nodeMap
+    .filter(nodeInfo => {
+      const normalizedNodeStart = normalizeWhitespace(combinedText.substring(0, nodeInfo.startPos)).length;
+      const normalizedNodeEnd = normalizeWhitespace(combinedText.substring(0, nodeInfo.endPos)).length;
+      
+      // Check if this node overlaps with the match
+      return normalizedNodeEnd > matchStart && normalizedNodeStart < matchEnd;
+    })
+    .map(nodeInfo => {
+      const range = document.createRange();
+      range.selectNode(nodeInfo.node);
+      return range;
+    });
 }
 
 /**
@@ -125,58 +186,24 @@ function highlightCrossNodeText(
   searchText: string
 ): Range[] {
   const normalizedSearch = normalizeWhitespace(searchText).toLowerCase();
-  const ranges: Range[] = [];
   
-  // Build a map of text nodes and their cumulative text
+  // Try different sliding windows of nodes to find matches
   for (let i = 0; i < textNodes.length; i++) {
-    let combinedText = '';
-    const nodeInfos: Array<{ node: Text; text: string; startPos: number; endPos: number }> = [];
+    const windowNodes = textNodes.slice(i, Math.min(i + MAX_NODE_WINDOW, textNodes.length));
+    const { combinedText, nodeMap } = combineNodeTexts(windowNodes);
     
-    // Try combining consecutive text nodes
-    for (let j = i; j < Math.min(i + 20, textNodes.length); j++) {
-      const nodeText = textNodes[j].textContent || '';
-      
-      // Skip empty or whitespace-only nodes for matching purposes
-      if (!nodeText.trim()) {
-        continue;
-      }
-      
-      const startPos = combinedText.length;
-      
-      // Add space between nodes, but not before punctuation
-      if (combinedText && !nodeText.match(/^\s*[.!?,:;]/)) {
-        combinedText += ' ';
-      }
-      combinedText += nodeText;
-      
-      const endPos = combinedText.length;
-      nodeInfos.push({ node: textNodes[j], text: nodeText, startPos, endPos });
-      
-      const normalizedCombined = normalizeWhitespace(combinedText).toLowerCase();
-      
-      if (normalizedCombined.includes(normalizedSearch)) {
-        // Found a match - create ranges for nodes that contribute to the match
-        const matchStart = normalizedCombined.indexOf(normalizedSearch);
-        const matchEnd = matchStart + normalizedSearch.length;
-        
-        // Only highlight nodes that actually contribute to the matching text
-        for (const nodeInfo of nodeInfos) {
-          const normalizedNodeStart = normalizeWhitespace(combinedText.substring(0, nodeInfo.startPos)).length;
-          const normalizedNodeEnd = normalizeWhitespace(combinedText.substring(0, nodeInfo.endPos)).length;
-          
-          // Check if this node overlaps with the match
-          if (normalizedNodeEnd > matchStart && normalizedNodeStart < matchEnd) {
-            const range = document.createRange();
-            range.selectNode(nodeInfo.node);
-            ranges.push(range);
-          }
-        }
-        return ranges;
-      }
+    if (!combinedText.trim()) continue;
+    
+    const normalizedCombined = normalizeWhitespace(combinedText).toLowerCase();
+    const matchStart = normalizedCombined.indexOf(normalizedSearch);
+    
+    if (matchStart !== -1) {
+      const matchEnd = matchStart + normalizedSearch.length;
+      return createOverlappingRanges(document, nodeMap, combinedText, matchStart, matchEnd);
     }
   }
   
-  return ranges;
+  return [];
 }
 
 /**
@@ -218,16 +245,12 @@ export function highlightTextInScope(
   // Create and set the highlight
   if (ranges.length > 0) {
     const highlight = new Highlight(...ranges);
-    // Use the document's CSS object instead of the global CSS
     const documentCSS = document.defaultView?.CSS || CSS;
     documentCSS.highlights.set(HIGHLIGHT_NAME, highlight);
   }
   
   return ranges.length;
 }
-
-
-
 
 /**
  * Scrolls to the first highlighted range in the document

@@ -2,7 +2,7 @@
 
 ## Project Purpose
 
-The PoliLoom GUI is a web application that provides a user interface for confirming the accuracy of politician metadata automatically extracted by the PoliLoom project. Users review and validate properties (birth dates, birthplaces) and political positions extracted by LLMs from Wikipedia and other sources before the data is submitted to Wikidata.
+The PoliLoom GUI is a web application that provides a user interface for confirming the accuracy of politician metadata automatically extracted by the PoliLoom project. Users review and validate properties (birth dates, birthplaces) and political positions extracted by LLMs from government portals, Wikipedia, and other web sources before the data is submitted to Wikidata.
 
 ## Technical Requirements
 
@@ -26,6 +26,8 @@ The PoliLoom GUI is a web application that provides a user interface for confirm
 - **Sequential Navigation**: Move through politicians one by one
 - **Individual Item Actions**: Evaluate each property, position, and birthplace individually
 - **Batch Evaluation**: Submit multiple evaluations in a single request
+- **Archived Pages**: Access and display archived web pages from government portals, Wikipedia, and other sources for verification
+- **Text Highlighting**: Automatic highlighting of proof text within archived pages using CSS Custom Highlight API
 
 ### 3. User Experience
 
@@ -42,6 +44,7 @@ The application integrates with the PoliLoom API backend to:
 - Submit evaluation decisions for extracted data
 - Handle authentication via MediaWiki OAuth tokens
 - Support configurable API base URL for different environments
+- Retrieve archived web pages from various sources for context and verification
 
 The API specification is available via OpenAPI documentation from the backend service (runs at `http://localhost:8000` in development) at `/openapi.json`.
 
@@ -74,6 +77,8 @@ The API specification is available via OpenAPI documentation from the backend se
 
 - **Evaluation Components**: Individual UI for confirming properties, positions, and birthplaces
 - **Navigation**: Simple sequential navigation between politicians
+- **Text Highlighting System**: CSS Custom Highlight API implementation for highlighting proof text in archived pages
+- **Iframe Integration**: Secure display of archived web pages with automatic highlighting
 - **Reusable UI**: Consistent design components throughout
 
 ## User Interface Requirements
@@ -85,6 +90,7 @@ The API specification is available via OpenAPI documentation from the backend se
 - Sequential navigation between politicians
 - Progress indicator showing current position
 - Links to external resources (Wikipedia/Wikidata)
+- Embedded archived web pages with highlighted proof text for source verification
 
 ### Authentication Interface
 
