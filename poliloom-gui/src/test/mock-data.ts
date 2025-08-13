@@ -1,4 +1,4 @@
-import { Politician, Property, Position, Birthplace, ArchivedPageResponse } from '@/types';
+import { Politician, Property, Position, Birthplace, WikidataProperty, WikidataPosition, WikidataBirthplace, ArchivedPageResponse } from '@/types';
 
 export const mockArchivedPage: ArchivedPageResponse = {
   id: 'archived-1',
@@ -33,6 +33,26 @@ export const mockBirthplace: Birthplace = {
   archived_page: mockArchivedPage,
 };
 
+export const mockWikidataProperty: WikidataProperty = {
+  id: 'wd-prop-1',
+  type: 'birth_date',
+  value: '1969-12-31',
+};
+
+export const mockWikidataPosition: WikidataPosition = {
+  id: 'wd-pos-1',
+  position_name: 'City Council Member',
+  wikidata_id: 'Q444666',
+  start_date: '2018-01-01',
+  end_date: '2019-12-31',
+};
+
+export const mockWikidataBirthplace: WikidataBirthplace = {
+  id: 'wd-birth-1',
+  location_name: 'Old Town',
+  wikidata_id: 'Q111222',
+};
+
 export const mockPolitician: Politician = {
   id: 'pol-1',
   name: 'Test Politician',
@@ -40,6 +60,9 @@ export const mockPolitician: Politician = {
   extracted_properties: [mockProperty],
   extracted_positions: [mockPosition],
   extracted_birthplaces: [mockBirthplace],
+  wikidata_properties: [mockWikidataProperty],
+  wikidata_positions: [mockWikidataPosition],
+  wikidata_birthplaces: [mockWikidataBirthplace],
 };
 
 export const mockEmptyPolitician: Politician = {
@@ -49,6 +72,9 @@ export const mockEmptyPolitician: Politician = {
   extracted_properties: [],
   extracted_positions: [],
   extracted_birthplaces: [],
+  wikidata_properties: [],
+  wikidata_positions: [],
+  wikidata_birthplaces: [],
 };
 
 export const createMockPolitician = (overrides?: Partial<Politician>): Politician => ({
