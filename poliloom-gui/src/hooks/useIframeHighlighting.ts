@@ -40,10 +40,8 @@ export function useIframeHighlighting(
         
         // Scroll to first match if any found
         if (matchCount > 0) {
-          // Small delay to ensure highlights are applied before scrolling
-          setTimeout(() => {
-            scrollToFirstHighlight(document);
-          }, 50);
+          // Scroll immediately after highlights are applied
+          scrollToFirstHighlight(document);
         }
       }
       
@@ -81,10 +79,7 @@ export function useIframeAutoHighlight(
     
     // Auto-highlight if proof line is available
     if (proofLine) {
-      // Small delay to ensure iframe content is fully loaded and styles are applied
-      setTimeout(() => {
-        highlighting.highlightText(proofLine);
-      }, 200);
+      highlighting.highlightText(proofLine);
     }
   }, [proofLine, highlighting, iframeRef]);
 
