@@ -42,7 +42,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <>
       <Header />
       
       {politician && session?.accessToken ? (
@@ -52,8 +52,8 @@ export default function Home() {
           onNext={handleNext}
         />
       ) : (
-        <main className="py-12 px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
+        <main className="bg-gray-50 grid place-items-center py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
+          <div className="text-center max-w-2xl">
             <h1 className="text-4xl font-bold text-gray-900 mb-4">
               PoliLoom Data Evaluation
             </h1>
@@ -111,6 +111,6 @@ export default function Home() {
           </div>
         </main>
       )}
-    </div>
+    </>
   )
 }

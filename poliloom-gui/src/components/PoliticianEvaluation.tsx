@@ -206,15 +206,17 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
   };
 
   return (
-    <div className="flex bg-gray-100 min-h-screen">
+    <div className="grid grid-cols-[48rem_1fr] bg-gray-100 min-h-0">
       {/* Left panel - Evaluation interface */}
-      <div ref={leftPanelRef} className="w-[48rem] flex-shrink-0 bg-white shadow-lg p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">{politician.name}</h1>
-          {politician.wikidata_id && (
-            <p className="text-gray-600">Wikidata ID: {politician.wikidata_id}</p>
-          )}
-        </div>
+      <div className="bg-white shadow-lg grid grid-rows-[1fr_auto] min-h-0">
+        {/* Scrollable content area */}
+        <div ref={leftPanelRef} className="overflow-y-auto min-h-0 p-6">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">{politician.name}</h1>
+            {politician.wikidata_id && (
+              <p className="text-gray-600">Wikidata ID: {politician.wikidata_id}</p>
+            )}
+          </div>
 
       {mergedProperties.length > 0 && (
         <div className="mb-8">
@@ -317,20 +319,24 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
           </div>
         </div>
       )}
+        </div>
 
-        <div className="flex justify-end">
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? 'Submitting...' : 'Submit Evaluations & Next'}
-          </button>
+        {/* Fixed button at bottom */}
+        <div className="p-6 border-t border-gray-200">
+          <div className="flex justify-end">
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? 'Submitting...' : 'Submit Evaluations & Next'}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Right panel - Archived page viewer */}
-      <div className="flex-1 bg-gray-50 border-l border-gray-200 flex flex-col sticky" style={{ top: 'calc(4rem + 1px)', height: 'calc(100vh - 4rem - 1px)' }}>
+      <div className="bg-gray-50 border-l border-gray-200 grid grid-rows-[auto_1fr] min-h-0">
         <div className="p-4 border-b border-gray-200 bg-white">
           <h3 className="text-lg font-semibold text-gray-900">
             {selectedArchivedPage ? 'Archived Page' : 'Select an item to view source'}
@@ -348,7 +354,7 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
             </div>
           )}
         </div>
-        <div className="flex-1 overflow-hidden">
+        <div className="overflow-hidden min-h-0">
           {selectedArchivedPage ? (
             <iframe
               ref={iframeRef}
