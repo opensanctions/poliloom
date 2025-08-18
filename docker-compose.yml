@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    environment:
+      POSTGRES_DB: poliloom
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres_test:
+    image: pgvector/pgvector:pg15
+    environment:
+      POSTGRES_DB: poliloom_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: ghcr.io/opensanctions/poliloom:${API_VERSION:-latest}
+    build:
+      context: ./poliloom
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./poliloom/.env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/poliloom
+      - PYTHONPATH=/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./poliloom/archives:/app/archives
+      - ./poliloom/complete_hierarchy.json:/app/complete_hierarchy.json
+    profiles:
+      - production
+
+  gui:
+    image: ghcr.io/opensanctions/poliloom-gui:${GUI_VERSION:-latest}
+    build:
+      context: ./poliloom-gui
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./poliloom-gui/.env.local
+    environment:
+      - AUTH_TRUST_HOST=true
+      - NEXT_PUBLIC_API_BASE_URL=http://api:8000
+    depends_on:
+      - api
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+  postgres_test_data:

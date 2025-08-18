@@ -20,7 +20,7 @@ cd poliloom
 uv sync
 
 # Start PostgreSQL
-docker-compose up -d postgres
+cd .. && docker-compose up -d postgres
 
 # Set up database
 uv run alembic upgrade head
@@ -120,7 +120,7 @@ WIKIDATA_DUMP_JSON_PATH=./latest-all.json
 
 ```bash
 # Start test database
-docker-compose up -d postgres_test
+cd .. && docker-compose up -d postgres_test
 
 # Run tests with coverage
 uv run pytest --cov=poliloom

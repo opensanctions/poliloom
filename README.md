@@ -40,9 +40,7 @@ cd poliloom
 
 # Backend setup
 cd poliloom
-uv venv
-source .venv/bin/activate  # or `.venv\Scripts\activate` on Windows
-uv pip install -e .
+uv sync
 docker-compose up -d  # PostgreSQL with pgvector
 
 # Frontend setup

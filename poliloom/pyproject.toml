@@ -27,6 +27,13 @@ dependencies = [
     "tqdm>=4.66.0",
 ]
 
+[project.optional-dependencies]
+cpu = [
+  "torch>=2.7.0",
+]
+cu128 = [
+  "torch>=2.7.0",
+]
 
 [project.scripts]
 poliloom = "poliloom.cli:main"
@@ -53,3 +60,28 @@ dev = [
     "pytest-env>=1.1.0",
     "pre-commit>=3.0.0",
 ]
+
+[tool.uv]
+conflicts = [
+  [
+    { extra = "cpu" },
+    { extra = "cu128" },
+  ],
+]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-cu128", extra = "cu128" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
