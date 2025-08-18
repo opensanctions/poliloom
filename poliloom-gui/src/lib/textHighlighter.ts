@@ -80,7 +80,7 @@ function findRangesAcrossNodes(
     while (i < text.length) {
       // Produce next normalized unit from the document stream
       let unitChar: string;
-      let unitStart = i;
+      const unitStart = i;
       let unitEnd = i + 1;
 
       if (isWhitespace(text[i])) {
@@ -217,10 +217,10 @@ export function scrollToFirstHighlight(document: Document): boolean {
       const scrollTop = scrollContainer.scrollTop;
       const targetPosition = scrollTop + rect.top - (iframeWindow.innerHeight / 2) + (rect.height / 2);
 
-      if (typeof (scrollContainer as any).scrollTo === 'function') {
-        (scrollContainer as any).scrollTo({ top: Math.max(0, targetPosition), behavior: 'smooth' });
+      if (typeof (scrollContainer as Element).scrollTo === 'function') {
+        (scrollContainer as Element).scrollTo({ top: Math.max(0, targetPosition), behavior: 'smooth' });
       } else {
-        (scrollContainer as any).scrollTop = Math.max(0, targetPosition);
+        (scrollContainer as Element).scrollTop = Math.max(0, targetPosition);
       }
       return true;
     }

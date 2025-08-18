@@ -8,7 +8,7 @@ interface BaseDisplayItemProps<T extends BaseItem> {
 }
 
 export function BaseDisplayItem<T extends BaseItem>({
-  item: _item,
+  item: _item, // eslint-disable-line @typescript-eslint/no-unused-vars
   isConflicted = false,
   children
 }: BaseDisplayItemProps<T>) {

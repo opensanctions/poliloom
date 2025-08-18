@@ -63,12 +63,6 @@ export function mergeProperties(
   
   // Sort by priority: existing-only, conflicted, extracted-only, then by type name within each group
   return mergedArray.sort((a, b) => {
-    const aExistingOnly = isExistingOnly(a);
-    const bExistingOnly = isExistingOnly(b);
-    const aConflicted = isConflicted(a);
-    const bConflicted = isConflicted(b);
-    const aExtractedOnly = isExtractedOnly(a);
-    const bExtractedOnly = isExtractedOnly(b);
     
     // Priority order: existing-only (0), conflicted (1), extracted-only (2)
     const getPriority = (item: MergedProperty) => {

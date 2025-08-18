@@ -81,7 +81,7 @@ export function useIframeAutoHighlight(
     if (proofLine) {
       highlighting.highlightText(proofLine);
     }
-  }, [proofLine, highlighting, iframeRef]);
+  }, [proofLine, highlighting]);
 
   /**
    * Handler when proof line changes
