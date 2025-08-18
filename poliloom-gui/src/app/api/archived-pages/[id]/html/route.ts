@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 
+// CSS styles injected into archived pages for highlighting functionality
+const HIGHLIGHT_STYLES = `<style data-poliloom-highlight="true">
+::highlight(poliloom) { background-color: yellow; }
+</style>`;
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -38,17 +43,12 @@ export async function GET(
 
     const htmlContent = await response.text();
     
-    // Inject highlight styles for the iframe highlighting functionality
-    const styleTag = `<style data-poliloom-highlight="true">
-::highlight(poliloom) { background-color: yellow; }
-</style>`;
-    
-    // Insert the style tag before the closing </head> tag, or at the beginning if no head tag
+    // Insert the highlight styles before the closing </head> tag, or at the beginning if no head tag
     let modifiedHtml = htmlContent;
     if (htmlContent.includes('</head>')) {
-      modifiedHtml = htmlContent.replace('</head>', `${styleTag}</head>`);
+      modifiedHtml = htmlContent.replace('</head>', `${HIGHLIGHT_STYLES}</head>`);
     } else {
-      modifiedHtml = `${styleTag}${htmlContent}`;
+      modifiedHtml = `${HIGHLIGHT_STYLES}${htmlContent}`;
     }
     
     return new NextResponse(modifiedHtml, {

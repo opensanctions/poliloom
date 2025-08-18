@@ -34,9 +34,9 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
   const leftPanelRef = useRef<HTMLDivElement | null>(null);
   const archivedPageCache = useArchivedPageCache();
   const {
-    highlightText,
     isIframeLoaded,
-    handleIframeLoad
+    handleIframeLoad,
+    handleProofLineChange
   } = useIframeAutoHighlight(iframeRef, selectedProofLine);
 
   // Compute merged data for unified display
@@ -53,6 +53,13 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
       setActiveArchivedPageId(firstItem.archived_page.id);
     }
   }, [politician]);
+
+  // Update highlighting when proof line changes and iframe is loaded
+  useEffect(() => {
+    if (isIframeLoaded && selectedProofLine) {
+      handleProofLineChange(selectedProofLine);
+    }
+  }, [selectedProofLine, isIframeLoaded, handleProofLineChange]);
 
   const handlePropertyAction = (propertyId: string, action: 'confirm' | 'discard') => {
     if (action === 'confirm') {
@@ -110,20 +117,16 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
 
   // Unified hover handler for all statement types
   const handleStatementHover = (proofLine: string, archivedPage: ArchivedPageResponse) => {
-    // Set new archived page and highlight the proof line
-    setSelectedArchivedPage(archivedPage);
-    setActiveArchivedPageId(archivedPage.id);
-    setSelectedProofLine(proofLine);
-    
-    // Highlight in left panel (main document)
+    // Highlight in left panel (main document) - always do this
     if (leftPanelRef.current && proofLine) {
       highlightTextInScope(document, leftPanelRef.current, proofLine);
     }
     
-    // Highlight in right panel (iframe) if loaded
-    if (isIframeLoaded) {
-      highlightText(proofLine);
+    // Only update iframe highlighting if we're already viewing this page
+    if (activeArchivedPageId === archivedPage.id) {
+      setSelectedProofLine(proofLine);
     }
+    // Don't change the iframe source on hover
   };
 
   // Individual hover handlers that use the unified logic
