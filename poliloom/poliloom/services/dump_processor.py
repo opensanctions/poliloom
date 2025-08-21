@@ -29,7 +29,6 @@ class WikidataDumpProcessor:
 
         GCS authentication uses environment variables:
         - GOOGLE_APPLICATION_CREDENTIALS: Path to service account JSON file
-        - GOOGLE_CLOUD_PROJECT: GCS project ID (optional)
         """
         self.dump_reader = DumpReader()
         self.hierarchy_builder = HierarchyBuilder()

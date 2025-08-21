@@ -89,7 +89,6 @@ class GCSStorage(StorageBackend):
 
         Uses environment variables for authentication:
         - GOOGLE_APPLICATION_CREDENTIALS: Path to service account JSON file
-        - GOOGLE_CLOUD_PROJECT: GCS project ID (optional)
         """
         try:
             from google.cloud import storage
@@ -97,11 +96,6 @@ class GCSStorage(StorageBackend):
 
             # Use Application Default Credentials from environment
             credentials, project = default()
-
-            # Allow project override from environment
-            project_override = os.environ.get("GOOGLE_CLOUD_PROJECT")
-            if project_override:
-                project = project_override
 
             self.client = storage.Client(credentials=credentials, project=project)
         except ImportError:

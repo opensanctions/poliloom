@@ -29,14 +29,15 @@ This API and CLI project is responsible for:
 **important** use the `uv` tool for running python commands and managing dependencies
 
 **PyTorch Installation:**
+
 - Docker images use CPU-only PyTorch: `uv sync --extra cpu`
 - Development environment can use GPU: `uv sync --extra cu128`
 - The extras are mutually exclusive to prevent conflicts
 
 **GCS Configuration:**
+
 - Use environment variables for GCS authentication and configuration
 - **GOOGLE_APPLICATION_CREDENTIALS**: Path to service account JSON file for GCS authentication
-- **GOOGLE_CLOUD_PROJECT**: GCS project ID (optional, can be inferred from credentials)
 - Commands automatically detect GCS paths (gs://) vs local filesystem paths
 - No fallback behavior - errors must be handled explicitly
 
