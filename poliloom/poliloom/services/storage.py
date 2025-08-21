@@ -85,11 +85,7 @@ class GCSStorage(StorageBackend):
     """Google Cloud Storage backend."""
 
     def __init__(self):
-        """Initialize GCS storage backend.
-
-        Uses environment variables for authentication:
-        - GOOGLE_APPLICATION_CREDENTIALS: Path to service account JSON file
-        """
+        """Initialize GCS storage backend."""
         try:
             from google.cloud import storage
             from google.auth import default

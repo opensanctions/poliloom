@@ -13,11 +13,7 @@ class DumpReader:
     """Handles reading and chunking of Wikidata dump files from local or GCS."""
 
     def __init__(self):
-        """Initialize DumpReader.
-
-        GCS authentication uses environment variables:
-        - GOOGLE_APPLICATION_CREDENTIALS: Path to service account JSON file
-        """
+        """Initialize DumpReader."""
         pass
 
     def calculate_file_chunks(

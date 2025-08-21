@@ -26,9 +26,6 @@ class WikidataDumpProcessor:
 
         Args:
             session: Database session (optional, not used for hierarchy building)
-
-        GCS authentication uses environment variables:
-        - GOOGLE_APPLICATION_CREDENTIALS: Path to service account JSON file
         """
         self.dump_reader = DumpReader()
         self.hierarchy_builder = HierarchyBuilder()

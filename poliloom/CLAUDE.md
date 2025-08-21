@@ -36,10 +36,7 @@ This API and CLI project is responsible for:
 
 **GCS Configuration:**
 
-- Use environment variables for GCS authentication and configuration
-- **GOOGLE_APPLICATION_CREDENTIALS**: Path to service account JSON file for GCS authentication
 - Commands automatically detect GCS paths (gs://) vs local filesystem paths
-- No fallback behavior - errors must be handled explicitly
 
 ## **Web Crawling Reference**
 
