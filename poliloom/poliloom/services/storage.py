@@ -227,32 +227,12 @@ class StorageFactory:
             url: Source URL
             destination: Destination path (local or gs://)
         """
-        if cls.is_gcs_path(destination):
-            # Stream directly to GCS
-            cls._stream_http_to_gcs(url, destination)
-        else:
-            # Direct download to local file
-            cls._download_http_to_file(url, destination)
-
-    @classmethod
-    def _stream_http_to_gcs(cls, url: str, destination: str) -> None:
-        """Stream HTTP response directly to GCS without temporary files."""
         backend = cls.get_backend(destination)
 
         with httpx.stream("GET", url, follow_redirects=True) as response:
             response.raise_for_status()
 
             with backend.open(destination, "wb") as f:
-                for chunk in response.iter_bytes(chunk_size=1024 * 1024):  # 1MB chunks
-                    f.write(chunk)
-
-    @staticmethod
-    def _download_http_to_file(url: str, destination: str) -> None:
-        """Download from HTTP/HTTPS to a local file."""
-        with httpx.stream("GET", url, follow_redirects=True) as response:
-            response.raise_for_status()
-
-            with open(destination, "wb") as f:
                 for chunk in response.iter_bytes(chunk_size=1024 * 1024):  # 1MB chunks
                     f.write(chunk)
 
