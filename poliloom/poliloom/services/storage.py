@@ -1,6 +1,5 @@
 """Storage abstraction layer for handling both local and Google Cloud Storage."""
 
-import io
 import logging
 import os
 import shutil
@@ -136,49 +135,13 @@ class GCSStorage(StorageBackend):
         return blob.size or 0
 
     def open(self, path: str, mode: str = "rb") -> BinaryIO:
-        """Open a GCS file for streaming.
-
-        Note: Write mode creates a temporary file that uploads on close.
-        """
+        """Open a GCS file for streaming."""
         bucket_name, blob_name = self._parse_gcs_path(path)
         bucket = self.client.bucket(bucket_name)
         blob = bucket.blob(blob_name)
 
-        if "r" in mode:
-            # For reading, return a file-like object
-            return blob.open(mode)
-        elif "w" in mode:
-            # For writing, use streaming uploads via resumable upload
-            class GCSWriteStream:
-                def __init__(self, blob):
-                    self.blob = blob
-                    self._buffer = io.BytesIO()
-                    self._chunk_size = 100 * 1024 * 1024  # 100MB chunks
-                    self._closed = False
-
-                def write(self, data):
-                    if self._closed:
-                        raise ValueError("I/O operation on closed file")
-                    return self._buffer.write(data)
-
-                def close(self):
-                    if not self._closed:
-                        self._buffer.seek(0)
-                        # Use resumable upload for efficient streaming
-                        self.blob.chunk_size = self._chunk_size
-                        self.blob.upload_from_file(self._buffer, rewind=True)
-                        self._buffer.close()
-                        self._closed = True
-
-                def __enter__(self):
-                    return self
-
-                def __exit__(self, *args):
-                    self.close()
-
-            return GCSWriteStream(blob)
-        else:
-            raise ValueError(f"Unsupported mode: {mode}")
+        # Use native blob.open() which handles streaming uploads natively
+        return blob.open(mode)
 
     def read_range(self, path: str, start: int, end: int) -> bytes:
         """Read a specific byte range from a GCS file."""
@@ -264,23 +227,24 @@ class StorageFactory:
             url: Source URL
             destination: Destination path (local or gs://)
         """
-        # First download to a temporary local file if destination is GCS
         if cls.is_gcs_path(destination):
-            with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-                tmp_path = tmp_file.name
-
-            # Download to temp file first
-            cls._download_http_to_file(url, tmp_path)
-
-            # Then upload to GCS
-            backend = cls.get_backend(destination)
-            backend.download(tmp_path, destination)
-
-            # Clean up temp file
-            os.unlink(tmp_path)
+            # Stream directly to GCS
+            cls._stream_http_to_gcs(url, destination)
         else:
             # Direct download to local file
             cls._download_http_to_file(url, destination)
+
+    @classmethod
+    def _stream_http_to_gcs(cls, url: str, destination: str) -> None:
+        """Stream HTTP response directly to GCS without temporary files."""
+        backend = cls.get_backend(destination)
+
+        with httpx.stream("GET", url, follow_redirects=True) as response:
+            response.raise_for_status()
+
+            with backend.open(destination, "wb") as f:
+                for chunk in response.iter_bytes(chunk_size=1024 * 1024):  # 1MB chunks
+                    f.write(chunk)
 
     @staticmethod
     def _download_http_to_file(url: str, destination: str) -> None:
