@@ -99,8 +99,8 @@ This module is responsible for initially populating the local database with poli
 - **Wikidata Dump Processing:**
   - Process the complete Wikidata dump file (latest-all.json) directly
   - **Three-Pass Processing Strategy:**
-    - **Pass 1 - Build Hierarchy Trees:** Extract all P279 (subclass of) relationships to build complete descendant trees for positions (Q294414 - public office) and locations (Q2221906 - geographic location). Cache hierarchy to JSON files for reuse.
-    - **Pass 2 - Import Supporting Entities:** Use cached trees to efficiently filter and extract positions, locations, and countries from the dump, ensuring all entities that politicians will reference are available in the database first
+    - **Pass 1 - Build Hierarchy Trees:** Extract all P279 (subclass of) relationships to build complete descendant trees for positions (Q294414 - public office) and locations (Q2221906 - geographic location). Store hierarchy in database for reuse.
+    - **Pass 2 - Import Supporting Entities:** Use stored hierarchy trees to efficiently filter and extract positions, locations, and countries from the dump, ensuring all entities that politicians will reference are available in the database first
     - **Pass 3 - Import Politicians:** Extract politicians by filtering entities with occupation (Q82955) or position held (Q39486) properties, linking them to the previously imported entities
   - Process entities in batches for efficient database insertion
   - This three-pass approach prevents deadlock issues that occurred when trying to link politicians to entities that hadn't been imported yet
@@ -124,11 +124,10 @@ This module is responsible for initially populating the local database with poli
 - **Country Data Handling:**
   - Import countries during the supporting entities pass to ensure they are available for citizenship relationships
   - Countries are identified through their entity types in the dump data
-- **Hierarchy Tree Caching:**
-  - Store position and location descendant trees as JSON files after first pass
-  - Tree structure: `{"subclass_of": {"Q1": ["Q2", ...], ...}}`
+- **Hierarchy Tree Storage:**
+  - Store position and location descendant trees in database after first pass
+  - Database tables: `wikidata_classes` (entity names) and `subclass_relations` (P279 relationships)
   - Trees are rebuilt for each new dump import (no dump date tracking needed)
-  - Enables efficient O(1) entity type checking during extraction
   - Includes subclass (P279) relationships for comprehensive hierarchy coverage
 - **Wikipedia Linkage:**
   - Extract Wikipedia article links directly from entity sitelinks in the dump
@@ -214,8 +213,8 @@ curl http://localhost:8000/openapi.json
   - **--workers**: Number of worker processes (default: CPU count)
   - Uses chunk-based parallel processing - splits file into byte ranges for true parallelism
   - Extracts all P279 (subclass of) relationships to build complete descendant trees
-  - Saves complete hierarchy to `complete_hierarchy.json` (~200-500MB) containing subclass relationships
-  - Provides position/location counts for verification but stores everything in the complete hierarchy
+  - Saves complete hierarchy to database in `wikidata_classes` and `subclass_relations` tables
+  - Stores entity names alongside hierarchy relationships for better usability
   - Must be run before `dump import` command
   - **Performance**: Scales linearly with CPU cores - near-linear speedup up to 32+ cores
   - **Scalability**: Each worker processes independent file chunks for optimal resource utilization

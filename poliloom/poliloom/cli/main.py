@@ -1,7 +1,6 @@
 """Main CLI interface for PoliLoom."""
 
 import asyncio
-import os
 import subprocess
 import click
 import logging
@@ -510,7 +509,7 @@ def dump_build_hierarchy(file):
         click.echo(
             f"  • Locations: {len(trees['locations'])} descendants of Q2221906 (geographic location)"
         )
-        click.echo("Complete hierarchy saved to complete_hierarchy.json")
+        click.echo("Complete hierarchy saved to database")
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
         click.echo("❌ Hierarchy tree building was cancelled.")
@@ -546,12 +545,21 @@ def dump_import_entities(file, batch_size):
         )
         raise SystemExit(1)
 
-    # Check if hierarchy trees exist
-    if not os.path.exists("complete_hierarchy.json"):
-        click.echo("❌ Complete hierarchy not found!")
-        click.echo(
-            "Run 'poliloom dump build-hierarchy' first to generate the hierarchy trees."
-        )
+    # Check if hierarchy data exists in database
+    try:
+        with get_db_session_no_commit() as session:
+            hierarchy_builder = HierarchyBuilder()
+            subclass_relations = (
+                hierarchy_builder.load_complete_hierarchy_from_database(session)
+            )
+            if subclass_relations is None:
+                click.echo("❌ Complete hierarchy not found in database!")
+                click.echo(
+                    "Run 'poliloom dump build-hierarchy' first to generate the hierarchy trees."
+                )
+                raise SystemExit(1)
+    except Exception as e:
+        click.echo(f"❌ Error checking hierarchy data: {e}")
         raise SystemExit(1)
 
     processor = WikidataDumpProcessor()
@@ -654,32 +662,33 @@ def dump_import_politicians(file, batch_size):
 def dump_query_hierarchy(entity_id):
     """Query hierarchy descendants for a given entity ID."""
 
-    # Check if complete hierarchy file exists
-    hierarchy_file = "complete_hierarchy.json"
-    if not os.path.exists(hierarchy_file):
-        click.echo("❌ Complete hierarchy file not found!")
-        click.echo(
-            "Run 'poliloom dump build-hierarchy' first to generate the hierarchy."
-        )
-        exit(1)
-
     try:
-        # Load hierarchy and get descendants
-        hierarchy_builder = HierarchyBuilder()
-        subclass_relations = hierarchy_builder.load_complete_hierarchy()
+        from ..services.hierarchy_builder import HierarchyBuilder
 
-        if subclass_relations is None:
-            click.echo("❌ Failed to load hierarchy data")
-            exit(1)
+        # Check if hierarchy data exists in database and query descendants directly
+        with get_db_session_no_commit() as session:
+            hierarchy_builder = HierarchyBuilder()
 
-        # Get all descendants for the given entity
-        descendants = hierarchy_builder.get_all_descendants(
-            entity_id, subclass_relations
-        )
+            # Check if hierarchy data exists (efficient count check)
+            from ..models import SubclassRelation
 
-        # Output one entity ID per line
-        for descendant in sorted(descendants):
-            click.echo(descendant)
+            relation_count = session.query(SubclassRelation).count()
+
+            if relation_count == 0:
+                click.echo("❌ No hierarchy data found in database!")
+                click.echo(
+                    "Run 'poliloom dump build-hierarchy' first to generate the hierarchy."
+                )
+                exit(1)
+
+            # Get all descendants of the given entity using direct database query
+            descendants = hierarchy_builder.query_descendants_from_database(
+                entity_id, session
+            )
+
+            # Output one entity ID per line
+            for descendant in sorted(descendants):
+                click.echo(descendant)
 
     except Exception as e:
         click.echo(f"❌ Error querying hierarchy: {e}")

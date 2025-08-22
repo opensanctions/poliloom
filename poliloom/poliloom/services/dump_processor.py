@@ -9,6 +9,7 @@ from .dump_reader import DumpReader
 from .hierarchy_builder import HierarchyBuilder
 from .database_inserter import DatabaseInserter
 from .worker_manager import init_worker_with_db, init_worker_with_hierarchy
+from ..database import get_db_session
 from ..entities.factory import WikidataEntityFactory
 from ..entities.politician import WikidataPolitician
 from ..entities.position import WikidataPosition
@@ -34,17 +35,15 @@ class WikidataDumpProcessor:
     def build_hierarchy_trees(
         self,
         dump_file_path: str,
-        output_dir: str = ".",
     ) -> Dict[str, Set[str]]:
         """
         Build hierarchy trees for positions and locations from Wikidata dump.
 
         Uses parallel processing to extract all P279 (subclass of) relationships
-        and build complete descendant trees.
+        and saves them to the database.
 
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
-            output_dir: Directory to save the complete hierarchy file (default: current directory)
 
         Returns:
             Dictionary with 'positions' and 'locations' keys containing sets of QIDs
@@ -54,9 +53,15 @@ class WikidataDumpProcessor:
         num_workers = mp.cpu_count()
         logger.info(f"Using parallel processing with {num_workers} workers")
 
-        subclass_relations = self._build_hierarchy_trees_parallel(
-            dump_file_path, output_dir
+        subclass_relations, entity_names = self._build_hierarchy_trees_parallel(
+            dump_file_path
         )
+
+        # Save hierarchy to database
+        with get_db_session() as session:
+            self.hierarchy_builder.save_complete_hierarchy_to_database(
+                subclass_relations, entity_names, session
+            )
 
         # Extract specific trees from the complete hierarchy
         descendants = self.hierarchy_builder.get_position_and_location_descendants(
@@ -66,13 +71,13 @@ class WikidataDumpProcessor:
         return descendants
 
     def _build_hierarchy_trees_parallel(
-        self, dump_file_path: str, output_dir: str = "."
-    ) -> Dict[str, Set[str]]:
+        self, dump_file_path: str
+    ) -> tuple[Dict[str, Set[str]], Dict[str, str]]:
         """
         Parallel implementation using chunk-based file reading.
 
         Returns:
-            Dictionary of subclass_relations
+            Tuple of (subclass_relations, entity_names)
         """
         num_workers = mp.cpu_count()
 
@@ -114,20 +119,18 @@ class WikidataDumpProcessor:
 
         # Merge results from all chunks
         subclass_relations = defaultdict(set)
+        entity_names = {}
         total_entities = 0
 
-        for chunk_subclass, chunk_count in chunk_results:
+        for chunk_subclass, chunk_names, chunk_count in chunk_results:
             total_entities += chunk_count
             for parent_id, children in chunk_subclass.items():
                 subclass_relations[parent_id].update(children)
+            entity_names.update(chunk_names)
 
         logger.info(f"Processed {total_entities} total entities")
         logger.info(f"Found {len(subclass_relations)} entities with subclasses")
-
-        # Save complete hierarchy trees for future use
-        self.hierarchy_builder.save_complete_hierarchy_trees(
-            subclass_relations, output_dir
-        )
+        logger.info(f"Collected {len(entity_names)} entity names")
 
         # Extract specific trees from the complete tree for convenience
         descendants = self.hierarchy_builder.get_position_and_location_descendants(
@@ -143,7 +146,7 @@ class WikidataDumpProcessor:
             f"Found {len(location_descendants)} location descendants of {self.hierarchy_builder.location_root}"
         )
 
-        return subclass_relations
+        return subclass_relations, entity_names
 
     def _process_chunk(
         self, dump_file_path: str, start_byte: int, end_byte: int, worker_id: int
@@ -159,6 +162,7 @@ class WikidataDumpProcessor:
 
         try:
             subclass_relations = defaultdict(set)
+            entity_names = {}
             entity_count = 0
 
             for entity in self.dump_reader.read_chunk_entities(
@@ -184,6 +188,21 @@ class WikidataDumpProcessor:
                 for parent_id, children in chunk_relations.items():
                     subclass_relations[parent_id].update(children)
 
+                # Extract entity name if it has subclass relations or is referenced as a parent
+                entity_id = entity.get("id", "")
+                if entity_id and (
+                    chunk_relations
+                    or any(
+                        entity_id in children
+                        for children in subclass_relations.values()
+                    )
+                ):
+                    name = self.hierarchy_builder.extract_entity_name_from_entity(
+                        entity
+                    )
+                    if name:
+                        entity_names[entity_id] = name
+
             if interrupted:
                 logger.info(
                     f"Worker {worker_id}: interrupted, returning partial results"
@@ -193,20 +212,19 @@ class WikidataDumpProcessor:
                     f"Worker {worker_id}: finished processing {entity_count} entities"
                 )
 
-            return dict(subclass_relations), entity_count
+            return dict(subclass_relations), entity_names, entity_count
 
         except KeyboardInterrupt:
             logger.info(f"Worker {worker_id}: interrupted, returning partial results")
-            return dict(subclass_relations), entity_count
+            return dict(subclass_relations), entity_names, entity_count
         except Exception as e:
             logger.error(f"Worker {worker_id}: error processing chunk: {e}")
-            return {}, 0
+            return {}, {}, 0
 
     def extract_entities_from_dump(
         self,
         dump_file_path: str,
         batch_size: int = 100,
-        hierarchy_dir: str = ".",
     ) -> Dict[str, int]:
         """
         Extract supporting entities from the Wikidata dump using parallel processing.
@@ -214,31 +232,31 @@ class WikidataDumpProcessor:
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
             batch_size: Number of entities to process in each database batch
-            num_workers: Number of worker processes (default: CPU count)
-            hierarchy_dir: Directory containing the complete hierarchy file (default: current directory)
 
         Returns:
             Dictionary with counts of extracted entities (positions, locations, countries)
         """
-        # Load the hierarchy trees for supporting entities
-        subclass_relations = self.hierarchy_builder.load_complete_hierarchy(
-            hierarchy_dir
-        )
-        if subclass_relations is None:
-            raise ValueError(
-                "Complete hierarchy not found. Run 'poliloom dump build-hierarchy' first."
+        # Load only position and location descendants from database (optimized)
+        with get_db_session() as session:
+            # Check if hierarchy data exists first
+            from ..models import SubclassRelation
+
+            relation_count = session.query(SubclassRelation).count()
+            if relation_count == 0:
+                raise ValueError(
+                    "Complete hierarchy not found in database. Run 'poliloom dump build-hierarchy' first."
+                )
+
+            # Get descendant sets for filtering (optimized - only loads what we need)
+            descendants = self.hierarchy_builder.get_position_and_location_descendants_from_database(
+                session
             )
+            position_descendants = descendants["positions"]
+            location_descendants = descendants["locations"]
 
-        # Get descendant sets for filtering
-        descendants = self.hierarchy_builder.get_position_and_location_descendants(
-            subclass_relations
-        )
-        position_descendants = descendants["positions"]
-        location_descendants = descendants["locations"]
-
-        logger.info(
-            f"Filtering for {len(position_descendants)} position types and {len(location_descendants)} location types"
-        )
+            logger.info(
+                f"Filtering for {len(position_descendants)} position types and {len(location_descendants)} location types"
+            )
 
         num_workers = mp.cpu_count()
         logger.info(f"Using parallel processing with {num_workers} workers")

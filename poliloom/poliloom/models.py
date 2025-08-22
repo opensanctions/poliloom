@@ -427,4 +427,58 @@ class HasCitizenship(Base, TimestampMixin):
     country = relationship("Country", back_populates="citizens")
 
 
+class WikidataClass(Base, TimestampMixin):
+    """Wikidata class entity for hierarchy storage."""
+
+    __tablename__ = "wikidata_classes"
+
+    class_id = Column(String, primary_key=True, index=True)  # Wikidata QID
+    name = Column(String, nullable=False)  # Class name from Wikidata labels
+
+    # Relationships
+    parent_relations = relationship(
+        "SubclassRelation",
+        foreign_keys="SubclassRelation.child_class_id",
+        back_populates="child_class",
+        cascade="all, delete-orphan",
+    )
+    child_relations = relationship(
+        "SubclassRelation",
+        foreign_keys="SubclassRelation.parent_class_id",
+        back_populates="parent_class",
+        cascade="all, delete-orphan",
+    )
+
+
+class SubclassRelation(Base, TimestampMixin):
+    """Subclass relationship between Wikidata classes (P279)."""
+
+    __tablename__ = "subclass_relations"
+    __table_args__ = (
+        UniqueConstraint(
+            "parent_class_id", "child_class_id", name="uq_subclass_parent_child"
+        ),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    parent_class_id = Column(
+        String, ForeignKey("wikidata_classes.class_id"), nullable=False, index=True
+    )
+    child_class_id = Column(
+        String, ForeignKey("wikidata_classes.class_id"), nullable=False, index=True
+    )
+
+    # Relationships
+    parent_class = relationship(
+        "WikidataClass",
+        foreign_keys=[parent_class_id],
+        back_populates="child_relations",
+    )
+    child_class = relationship(
+        "WikidataClass",
+        foreign_keys=[child_class_id],
+        back_populates="parent_relations",
+    )
+
+
 # Vector columns are now defined directly in the model classes using pgvector.Vector(384)

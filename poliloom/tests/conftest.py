@@ -77,6 +77,12 @@ def load_json_fixture(filename):
 @pytest.fixture(autouse=True)
 def setup_test_database():
     """Setup test database for each test."""
+    # Reset database globals to ensure test database URL is used
+    import poliloom.database
+
+    poliloom.database._engine = None
+    poliloom.database._SessionLocal = None
+
     # Import all models to ensure they're registered with Base
     import poliloom.models  # noqa: F401
     from poliloom.database import get_engine
@@ -96,6 +102,10 @@ def setup_test_database():
 
     # Clean up after test
     Base.metadata.drop_all(engine)
+
+    # Reset globals again after test
+    poliloom.database._engine = None
+    poliloom.database._SessionLocal = None
 
 
 @pytest.fixture

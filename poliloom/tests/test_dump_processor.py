@@ -36,32 +36,38 @@ class TestWikidataDumpProcessor:
 
         return "".join(lines)
 
-    def test_build_hierarchy_trees(self, processor, sample_dump_content):
+    def test_build_hierarchy_trees(self, processor, sample_dump_content, db_session):
         """Test building hierarchy trees from dump."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write(sample_dump_content)
             temp_file = f.name
 
         try:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                # Test hierarchy tree building
-                result = processor.build_hierarchy_trees(temp_file, output_dir=temp_dir)
+            # Test hierarchy tree building (now saves to database)
+            result = processor.build_hierarchy_trees(temp_file)
 
-                # Should return position and location descendants
-                assert "positions" in result
-                assert "locations" in result
-                assert isinstance(result["positions"], set)
-                assert isinstance(result["locations"], set)
+            # Should return position and location descendants
+            assert "positions" in result
+            assert "locations" in result
+            assert isinstance(result["positions"], set)
+            assert isinstance(result["locations"], set)
 
-                # Should create hierarchy file
-                hierarchy_file = os.path.join(temp_dir, "complete_hierarchy.json")
-                assert os.path.exists(hierarchy_file)
+            # Should save hierarchy to database (we can verify by loading it back)
+            from poliloom.services.hierarchy_builder import HierarchyBuilder
+            from poliloom.database import get_db_session
+
+            with get_db_session() as session:
+                builder = HierarchyBuilder()
+                loaded_hierarchy = builder.load_complete_hierarchy_from_database(
+                    session
+                )
+                assert loaded_hierarchy is not None
 
         finally:
             os.unlink(temp_file)
 
     def test_build_hierarchy_trees_different_worker_counts(
-        self, processor, sample_dump_content
+        self, processor, sample_dump_content, db_session
     ):
         """Test building hierarchy trees with different worker counts."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
@@ -69,13 +75,12 @@ class TestWikidataDumpProcessor:
             temp_file = f.name
 
         try:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                # Test with different worker counts
-                result = processor.build_hierarchy_trees(temp_file, output_dir=temp_dir)
+            # Test hierarchy tree building (now saves to database)
+            result = processor.build_hierarchy_trees(temp_file)
 
-                # Should return position and location descendants
-                assert "positions" in result
-                assert "locations" in result
+            # Should return position and location descendants
+            assert "positions" in result
+            assert "locations" in result
 
         finally:
             os.unlink(temp_file)
@@ -108,9 +113,9 @@ class TestWikidataDumpProcessor:
             temp_file = f.name
 
         try:
-            # Process the entire file as one chunk
+            # Process the entire file as one chunk (now returns 3 values)
             file_size = os.path.getsize(temp_file)
-            subclass_relations, entity_count = processor._process_chunk(
+            subclass_relations, entity_names, entity_count = processor._process_chunk(
                 temp_file, 0, file_size, worker_id=0
             )
 
@@ -118,6 +123,9 @@ class TestWikidataDumpProcessor:
             assert "Q2" in subclass_relations
             assert "Q1" in subclass_relations["Q2"]
             assert entity_count == 2
+
+            # Should extract entity names (though these test entities have no labels)
+            assert isinstance(entity_names, dict)
 
         finally:
             os.unlink(temp_file)
@@ -166,16 +174,21 @@ class TestWikidataDumpProcessor:
             temp_file = f.name
 
         try:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                result = processor.build_hierarchy_trees(temp_file, output_dir=temp_dir)
+            # Test hierarchy tree building (now saves to database)
+            result = processor.build_hierarchy_trees(temp_file)
 
-                # Should return position and location descendants
-                assert "positions" in result
-                assert "locations" in result
+            # Should return position and location descendants
+            assert "positions" in result
+            assert "locations" in result
 
-                # Load the saved hierarchy to verify relationships
-                loaded_relations = processor.hierarchy_builder.load_complete_hierarchy(
-                    temp_dir
+            # Load the saved hierarchy from database to verify relationships
+            from poliloom.services.hierarchy_builder import HierarchyBuilder
+            from poliloom.database import get_db_session
+
+            with get_db_session() as session:
+                builder = HierarchyBuilder()
+                loaded_relations = builder.load_complete_hierarchy_from_database(
+                    session
                 )
 
                 # Should have captured the relationships
@@ -227,17 +240,21 @@ class TestWikidataDumpProcessor:
             temp_file = f.name
 
         try:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                # Should not raise exception despite malformed claims
-                result = processor.build_hierarchy_trees(temp_file, output_dir=temp_dir)
+            # Should not raise exception despite malformed claims
+            result = processor.build_hierarchy_trees(temp_file)
 
-                # Should return position and location descendants
-                assert "positions" in result
-                assert "locations" in result
+            # Should return position and location descendants
+            assert "positions" in result
+            assert "locations" in result
 
-                # Load the saved hierarchy to verify only valid relationships were captured
-                loaded_relations = processor.hierarchy_builder.load_complete_hierarchy(
-                    temp_dir
+            # Load the saved hierarchy from database to verify only valid relationships were captured
+            from poliloom.services.hierarchy_builder import HierarchyBuilder
+            from poliloom.database import get_db_session
+
+            with get_db_session() as session:
+                builder = HierarchyBuilder()
+                loaded_relations = builder.load_complete_hierarchy_from_database(
+                    session
                 )
 
                 # Should only have the valid relationship
@@ -249,8 +266,31 @@ class TestWikidataDumpProcessor:
         finally:
             os.unlink(temp_file)
 
-    def test_extract_entities_from_dump_integration(self, processor):
+    def test_extract_entities_from_dump_integration(self, processor, db_session):
         """Test complete entity extraction workflow."""
+        # First, set up hierarchy in database
+        from poliloom.services.hierarchy_builder import HierarchyBuilder
+        from poliloom.database import get_db_session
+
+        # Create hierarchy data that includes positions and locations
+        subclass_relations = {
+            "Q294414": {"Q1"},  # position root -> test position
+            "Q2221906": {"Q2"},  # location root -> test location
+        }
+        entity_names = {
+            "Q294414": "Public Office",
+            "Q2221906": "Geographic Location",
+            "Q1": "Test Position",
+            "Q2": "Test Location",
+            "Q3": "Test Country",
+        }
+
+        with get_db_session() as session:
+            builder = HierarchyBuilder()
+            builder.save_complete_hierarchy_to_database(
+                subclass_relations, entity_names, session
+            )
+
         # Create test entities that should be extracted
         entities = [
             {
@@ -292,50 +332,33 @@ class TestWikidataDumpProcessor:
             temp_file = f.name
 
         try:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                # Create hierarchy file first
-                hierarchy_data = {
-                    "subclass_of": {
-                        "Q294414": ["Q1"],  # position
-                        "Q2221906": ["Q2"],  # location
-                    }
-                }
+            # Mock multiprocessing but allow real database operations
+            with patch("poliloom.services.dump_processor.mp.Pool") as mock_pool_class:
+                # Create a mock pool that calls the real chunk processing function
+                mock_pool = MagicMock()
+                mock_pool_class.return_value = mock_pool
 
-                hierarchy_file = os.path.join(temp_dir, "complete_hierarchy.json")
-                with open(hierarchy_file, "w") as f:
-                    json.dump(hierarchy_data, f)
+                def mock_starmap_async(func, args_list):
+                    # Execute the chunk processing function synchronously in the current process
+                    results = []
+                    for args in args_list:
+                        result = func(*args)
+                        results.append(result)
 
-                # Mock multiprocessing but allow real database operations
-                with patch(
-                    "poliloom.services.dump_processor.mp.Pool"
-                ) as mock_pool_class:
-                    # Create a mock pool that calls the real chunk processing function
-                    mock_pool = MagicMock()
-                    mock_pool_class.return_value = mock_pool
+                    mock_async_result = MagicMock()
+                    mock_async_result.get.return_value = results
+                    return mock_async_result
 
-                    def mock_starmap_async(func, args_list):
-                        # Execute the chunk processing function synchronously in the current process
-                        results = []
-                        for args in args_list:
-                            result = func(*args)
-                            results.append(result)
+                mock_pool.starmap_async.side_effect = mock_starmap_async
 
-                        mock_async_result = MagicMock()
-                        mock_async_result.get.return_value = results
-                        return mock_async_result
+                # Test extraction - this will run the real chunk processing with real database
+                result = processor.extract_entities_from_dump(temp_file, batch_size=10)
 
-                    mock_pool.starmap_async.side_effect = mock_starmap_async
-
-                    # Test extraction - this will run the real chunk processing with real database
-                    result = processor.extract_entities_from_dump(
-                        temp_file, batch_size=10, hierarchy_dir=temp_dir
-                    )
-
-                    # Should have extracted all entity types (results may vary based on actual processing)
-                    assert "positions" in result
-                    assert "locations" in result
-                    assert "countries" in result
-                    assert "politicians" in result
+                # Should have extracted all entity types (results may vary based on actual processing)
+                assert "positions" in result
+                assert "locations" in result
+                assert "countries" in result
+                assert "politicians" in result
 
         finally:
             os.unlink(temp_file)
