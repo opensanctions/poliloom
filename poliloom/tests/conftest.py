@@ -89,14 +89,8 @@ def setup_test_database():
     # Import all models to ensure they're registered with Base
     import poliloom.models  # noqa: F401
     from poliloom.database import get_engine
-    from sqlalchemy import text
 
     engine = get_engine()
-
-    # Setup pgvector extension
-    with engine.connect() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        conn.commit()
 
     # Create all tables
     Base.metadata.create_all(engine)

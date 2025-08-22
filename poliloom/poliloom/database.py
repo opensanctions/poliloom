@@ -6,7 +6,7 @@ from typing import Generator, Optional
 
 import pg8000
 from google.cloud.sql.connector import Connector
-from sqlalchemy import create_engine, text, Engine
+from sqlalchemy import create_engine, Engine
 from sqlalchemy.orm import Session, sessionmaker
 from dotenv import load_dotenv
 
@@ -81,11 +81,6 @@ def get_engine() -> Engine:
             pool_recycle=3600,
             pool_pre_ping=True,
         )
-
-        # Setup pgvector extension
-        with _engine.connect() as conn:
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-            conn.commit()
 
     return _engine
 
