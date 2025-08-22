@@ -131,6 +131,69 @@ class HierarchyBuilder:
 
         return None
 
+    def clear_hierarchy_tables(self, session: Session) -> None:
+        """
+        Clear existing hierarchy data from database.
+
+        Args:
+            session: Database session
+        """
+        logger.info("Clearing existing hierarchy data...")
+        session.execute(text("DELETE FROM subclass_relations"))
+        session.execute(text("DELETE FROM wikidata_classes"))
+        session.commit()
+
+    def insert_subclass_relations_batch(
+        self, subclass_relations: Dict[str, Set[str]], session: Session
+    ) -> None:
+        """
+        Insert SubclassRelation records using existing WikidataClass records.
+
+        Args:
+            subclass_relations: Dictionary mapping parent QIDs to child QID sets
+            session: Database session
+        """
+        from ..models import WikidataClass, SubclassRelation
+        from sqlalchemy.dialects.postgresql import insert
+
+        # Get all existing WikidataClass records
+        logger.info("Loading WikidataClass mappings...")
+        wikidata_classes = session.query(WikidataClass).all()
+        wikidata_id_to_class = {wc.wikidata_id: wc for wc in wikidata_classes}
+
+        logger.info(f"Found {len(wikidata_id_to_class)} WikidataClass records")
+
+        # Prepare SubclassRelation data
+        relations_data = []
+        for parent_wikidata_id, children in subclass_relations.items():
+            parent_class = wikidata_id_to_class.get(parent_wikidata_id)
+            if not parent_class:
+                logger.warning(f"Parent class not found: {parent_wikidata_id}")
+                continue
+
+            for child_wikidata_id in children:
+                child_class = wikidata_id_to_class.get(child_wikidata_id)
+                if not child_class:
+                    logger.warning(f"Child class not found: {child_wikidata_id}")
+                    continue
+
+                relations_data.append(
+                    {
+                        "parent_class_id": parent_class.id,
+                        "child_class_id": child_class.id,
+                    }
+                )
+
+        # Batch insert with conflict handling
+        logger.info(f"Inserting {len(relations_data)} SubclassRelation records...")
+        if relations_data:
+            stmt = insert(SubclassRelation).values(relations_data)
+            stmt = stmt.on_conflict_do_nothing(constraint="uq_subclass_parent_child")
+            session.execute(stmt)
+            session.commit()
+
+        logger.info("SubclassRelation batch insert complete")
+
     def save_complete_hierarchy_to_database(
         self,
         subclass_relations: Dict[str, Set[str]],
@@ -138,13 +201,21 @@ class HierarchyBuilder:
         session: Session,
     ) -> None:
         """
-        Save the complete hierarchy (P279 subclass relationships) to database.
+        DEPRECATED: Legacy method for saving hierarchy to database.
+
+        This method is kept for test compatibility only. New code should use:
+        1. clear_hierarchy_tables()
+        2. batch insert WikidataClass records separately
+        3. insert_subclass_relations_batch()
 
         Args:
             subclass_relations: Dictionary mapping parent QIDs to sets of child QIDs (P279)
             entity_names: Dictionary mapping QIDs to entity names
             session: Database session
         """
+        logger.warning(
+            "Using deprecated save_complete_hierarchy_to_database method. Consider updating to new batch methods."
+        )
         from ..models import WikidataClass, SubclassRelation
 
         logger.info("Saving hierarchy to database...")

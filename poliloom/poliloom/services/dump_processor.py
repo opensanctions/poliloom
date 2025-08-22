@@ -2,13 +2,17 @@
 
 import logging
 import multiprocessing as mp
-from typing import Dict, Set
+from typing import Dict, Set, List
 from collections import defaultdict
 
 from .dump_reader import DumpReader
 from .hierarchy_builder import HierarchyBuilder
 from .database_inserter import DatabaseInserter
-from .worker_manager import init_worker_with_db, init_worker_with_hierarchy
+from .worker_manager import (
+    init_worker_with_db,
+    init_worker_with_hierarchy,
+    get_worker_session,
+)
 from ..database import get_db_session
 from ..entities.factory import WikidataEntityFactory
 from ..entities.politician import WikidataPolitician
@@ -39,8 +43,10 @@ class WikidataDumpProcessor:
         """
         Build hierarchy trees for positions and locations from Wikidata dump.
 
-        Uses parallel processing to extract all P279 (subclass of) relationships
-        and saves them to the database.
+        Uses a memory-efficient three-pass approach:
+        1. Collect QIDs involved in P279 relationships (~100MB memory)
+        2. Insert WikidataClass records for those QIDs only
+        3. Insert SubclassRelation records with proper foreign keys
 
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
@@ -50,57 +56,77 @@ class WikidataDumpProcessor:
         """
         logger.info(f"Building hierarchy trees from dump file: {dump_file_path}")
 
-        num_workers = mp.cpu_count()
-        logger.info(f"Using parallel processing with {num_workers} workers")
+        # Pass 1: Collect QIDs involved in P279 relationships (memory-efficient)
+        logger.info("Pass 1: Collecting QIDs involved in P279 relationships...")
+        subclass_relations = self._build_hierarchy_pass1(dump_file_path)
 
-        subclass_relations, entity_names = self._build_hierarchy_trees_parallel(
-            dump_file_path
+        # Extract all unique QIDs that need WikidataClass records
+        all_qids = set()
+        for parent_qid, children in subclass_relations.items():
+            all_qids.add(parent_qid)
+            all_qids.update(children)
+
+        logger.info(
+            f"Found {len(all_qids)} unique entities in hierarchy (vs ~100M total entities)"
         )
 
-        # Save hierarchy to database
-        with get_db_session() as session:
-            self.hierarchy_builder.save_complete_hierarchy_to_database(
-                subclass_relations, entity_names, session
-            )
+        # Pass 2: Insert WikidataClass records for filtered QIDs
+        logger.info("Pass 2: Inserting WikidataClass records...")
+        self._build_hierarchy_pass2(dump_file_path, all_qids)
+
+        # Pass 3: Insert SubclassRelation records
+        logger.info("Pass 3: Inserting SubclassRelation records...")
+        self._build_hierarchy_pass3(dump_file_path, subclass_relations)
 
         # Extract specific trees from the complete hierarchy
         descendants = self.hierarchy_builder.get_position_and_location_descendants(
             subclass_relations
         )
 
+        logger.info("✅ Hierarchy building complete")
+        logger.info(
+            f"  • Positions: {len(descendants['positions'])} descendants of Q294414"
+        )
+        logger.info(
+            f"  • Locations: {len(descendants['locations'])} descendants of Q2221906"
+        )
+
         return descendants
 
-    def _build_hierarchy_trees_parallel(
-        self, dump_file_path: str
-    ) -> tuple[Dict[str, Set[str]], Dict[str, str]]:
+    def _build_hierarchy_pass1(self, dump_file_path: str) -> Dict[str, Set[str]]:
         """
-        Parallel implementation using chunk-based file reading.
+        Pass 1: Collect QIDs involved in P279 relationships (memory-efficient).
+
+        This pass only collects relationship data without entity names,
+        dramatically reducing memory usage from 64GB+ to ~100MB.
+
+        Args:
+            dump_file_path: Path to the Wikidata JSON dump file
 
         Returns:
-            Tuple of (subclass_relations, entity_names)
+            Dictionary mapping parent QIDs to sets of child QIDs
         """
         num_workers = mp.cpu_count()
+        logger.info(f"Using {num_workers} parallel workers")
 
         # Split file into chunks for parallel processing
-        logger.info("Calculating file chunks for parallel processing...")
         chunks = self.dump_reader.calculate_file_chunks(dump_file_path)
-        logger.info(f"Split file into {len(chunks)} chunks for {num_workers} workers")
+        logger.info(f"Processing {len(chunks)} file chunks")
 
-        # Process chunks in parallel with proper KeyboardInterrupt handling
         pool = None
         try:
-            pool = mp.Pool(processes=num_workers, initializer=init_worker_with_db)
+            # Pass 1 doesn't need database access, just file processing
+            pool = mp.Pool(processes=num_workers)
 
             # Each worker processes its chunk independently
             async_result = pool.starmap_async(
-                self._process_chunk,
+                self._process_chunk_pass1,
                 [
                     (dump_file_path, start, end, i)
                     for i, (start, end) in enumerate(chunks)
                 ],
             )
 
-            # Wait for completion with proper interrupt handling
             chunk_results = async_result.get()
 
         except KeyboardInterrupt:
@@ -108,61 +134,125 @@ class WikidataDumpProcessor:
             if pool:
                 pool.terminate()
                 try:
-                    pool.join(timeout=5)  # Wait up to 5 seconds for workers to finish
+                    pool.join(timeout=5)
                 except Exception:
-                    pass  # If join times out, continue anyway
-            raise KeyboardInterrupt("Hierarchy tree building interrupted by user")
+                    pass
+            raise KeyboardInterrupt("Pass 1 interrupted by user")
         finally:
             if pool:
                 pool.close()
                 pool.join()
 
-        # Merge results from all chunks
+        # Merge results from all chunks (only relations, no names)
         subclass_relations = defaultdict(set)
-        entity_names = {}
         total_entities = 0
 
-        for chunk_subclass, chunk_names, chunk_count in chunk_results:
+        for chunk_relations, chunk_count in chunk_results:
             total_entities += chunk_count
-            for parent_id, children in chunk_subclass.items():
+            for parent_id, children in chunk_relations.items():
                 subclass_relations[parent_id].update(children)
-            entity_names.update(chunk_names)
 
-        logger.info(f"Processed {total_entities} total entities")
+        logger.info(f"Pass 1 complete: Processed {total_entities} entities")
         logger.info(f"Found {len(subclass_relations)} entities with subclasses")
-        logger.info(f"Collected {len(entity_names)} entity names")
 
-        # Extract specific trees from the complete tree for convenience
-        descendants = self.hierarchy_builder.get_position_and_location_descendants(
-            subclass_relations
-        )
-        position_descendants = descendants["positions"]
-        location_descendants = descendants["locations"]
+        return dict(subclass_relations)
 
+    def _build_hierarchy_pass2(
+        self, dump_file_path: str, qids_to_extract: Set[str]
+    ) -> None:
+        """
+        Pass 2: Extract and insert WikidataClass records for filtered QIDs only.
+
+        This pass processes the dump again but only extracts names for entities
+        that are involved in the hierarchy, dramatically reducing memory usage.
+
+        Args:
+            dump_file_path: Path to the Wikidata JSON dump file
+            qids_to_extract: Set of QIDs to extract names for
+        """
+        num_workers = mp.cpu_count()
+        logger.info(f"Using {num_workers} parallel workers")
+        logger.info(f"Extracting names for {len(qids_to_extract)} filtered entities")
+
+        # Clear existing hierarchy data first
+        with get_db_session() as session:
+            self.hierarchy_builder.clear_hierarchy_tables(session)
+
+        # Split file into chunks for parallel processing
+        chunks = self.dump_reader.calculate_file_chunks(dump_file_path)
+
+        pool = None
+        try:
+            pool = mp.Pool(processes=num_workers, initializer=init_worker_with_db)
+
+            # Each worker processes its chunk independently
+            async_result = pool.starmap_async(
+                self._process_chunk_pass2,
+                [
+                    (dump_file_path, start, end, i, qids_to_extract)
+                    for i, (start, end) in enumerate(chunks)
+                ],
+            )
+
+            chunk_results = async_result.get()
+
+        except KeyboardInterrupt:
+            logger.info("Received interrupt signal, cleaning up workers...")
+            if pool:
+                pool.terminate()
+                try:
+                    pool.join(timeout=5)
+                except Exception:
+                    pass
+            raise KeyboardInterrupt("Pass 2 interrupted by user")
+        finally:
+            if pool:
+                pool.close()
+                pool.join()
+
+        # Summarize results
+        total_entities = sum(chunk_count for chunk_count in chunk_results)
+        logger.info(f"Pass 2 complete: Processed {total_entities} entities")
         logger.info(
-            f"Found {len(position_descendants)} position descendants of {self.hierarchy_builder.position_root}"
+            f"WikidataClass records inserted for {len(qids_to_extract)} entities"
         )
+
+    def _build_hierarchy_pass3(
+        self, dump_file_path: str, subclass_relations: Dict[str, Set[str]]
+    ) -> None:
+        """
+        Pass 3: Insert SubclassRelation records using existing WikidataClass records.
+
+        All required WikidataClass records now exist, so we can safely create
+        SubclassRelation records with proper foreign key references.
+
+        Args:
+            dump_file_path: Path to the Wikidata JSON dump file
+            subclass_relations: Mapping of parent QIDs to child QID sets
+        """
         logger.info(
-            f"Found {len(location_descendants)} location descendants of {self.hierarchy_builder.location_root}"
+            f"Inserting {sum(len(children) for children in subclass_relations.values())} subclass relations"
         )
 
-        return subclass_relations, entity_names
+        with get_db_session() as session:
+            self.hierarchy_builder.insert_subclass_relations_batch(
+                subclass_relations, session
+            )
 
-    def _process_chunk(
+        logger.info("Pass 3 complete: All SubclassRelation records inserted")
+
+    def _process_chunk_pass1(
         self, dump_file_path: str, start_byte: int, end_byte: int, worker_id: int
     ):
         """
-        Process a specific byte range of the dump file.
+        Pass 1 worker: Extract only P279 relationships, no entity names.
 
-        Each worker independently reads and parses its assigned chunk.
-        Returns subclass (P279) relationships found in this chunk.
+        This dramatically reduces memory usage by avoiding entity name collection.
         """
-        # Simple interrupt flag without signal handlers to avoid cascading issues
         interrupted = False
 
         try:
             subclass_relations = defaultdict(set)
-            entity_names = {}
             entity_count = 0
 
             for entity in self.dump_reader.read_chunk_entities(
@@ -174,12 +264,14 @@ class WikidataDumpProcessor:
                 entity_count += 1
 
                 # Progress reporting for large chunks
-                if entity_count % 50000 == 0:
+                if (
+                    entity_count % 100000 == 0
+                ):  # Increased frequency since no name processing
                     logger.info(
                         f"Worker {worker_id}: processed {entity_count} entities"
                     )
 
-                # Extract P279 (subclass of) relationships using hierarchy builder
+                # Extract P279 relationships only (no entity names)
                 chunk_relations = (
                     self.hierarchy_builder.extract_subclass_relations_from_entity(
                         entity
@@ -188,32 +280,113 @@ class WikidataDumpProcessor:
                 for parent_id, children in chunk_relations.items():
                     subclass_relations[parent_id].update(children)
 
-                # Extract entity name for all entities
-                entity_id = entity.get("id", "")
-                if entity_id:
-                    name = self.hierarchy_builder.extract_entity_name_from_entity(
-                        entity
-                    )
-                    if name:
-                        entity_names[entity_id] = name
-
-            if interrupted:
-                logger.info(
-                    f"Worker {worker_id}: interrupted, returning partial results"
-                )
-            else:
-                logger.info(
-                    f"Worker {worker_id}: finished processing {entity_count} entities"
-                )
-
-            return dict(subclass_relations), entity_names, entity_count
+            logger.info(
+                f"Worker {worker_id}: Pass 1 complete, processed {entity_count} entities"
+            )
+            return dict(subclass_relations), entity_count
 
         except KeyboardInterrupt:
-            logger.info(f"Worker {worker_id}: interrupted, returning partial results")
-            return dict(subclass_relations), entity_names, entity_count
+            logger.info(f"Worker {worker_id}: Pass 1 interrupted")
+            return dict(subclass_relations), entity_count
         except Exception as e:
-            logger.error(f"Worker {worker_id}: error processing chunk: {e}")
-            return {}, {}, 0
+            logger.error(f"Worker {worker_id}: Pass 1 error: {e}")
+            return {}, 0
+
+    def _process_chunk_pass2(
+        self,
+        dump_file_path: str,
+        start_byte: int,
+        end_byte: int,
+        worker_id: int,
+        qids_to_extract: Set[str],
+    ):
+        """
+        Pass 2 worker: Extract names for filtered QIDs and insert WikidataClass records.
+
+        Only processes entities whose QIDs are in the filter set, dramatically
+        reducing memory usage and processing time.
+        """
+        interrupted = False
+        batch_size = 1000  # Process in smaller batches for memory efficiency
+
+        try:
+            wikidata_classes = []
+            entity_count = 0
+            extracted_count = 0
+
+            for entity in self.dump_reader.read_chunk_entities(
+                dump_file_path, start_byte, end_byte
+            ):
+                if interrupted:
+                    break
+
+                entity_count += 1
+
+                # Progress reporting
+                if entity_count % 100000 == 0:
+                    logger.info(
+                        f"Worker {worker_id}: processed {entity_count} entities, extracted {extracted_count}"
+                    )
+
+                # Only process entities in our filter set
+                entity_id = entity.get("id", "")
+                if entity_id not in qids_to_extract:
+                    continue
+
+                # Extract entity name
+                name = self.hierarchy_builder.extract_entity_name_from_entity(entity)
+                wikidata_classes.append(
+                    {
+                        "wikidata_id": entity_id,
+                        "name": name,  # Can be None
+                    }
+                )
+                extracted_count += 1
+
+                # Batch insert when we reach batch size
+                if len(wikidata_classes) >= batch_size:
+                    self._insert_wikidata_classes_batch(wikidata_classes)
+                    wikidata_classes = []
+
+            # Insert any remaining records
+            if wikidata_classes:
+                self._insert_wikidata_classes_batch(wikidata_classes)
+
+            logger.info(
+                f"Worker {worker_id}: Pass 2 complete, processed {entity_count} entities, extracted {extracted_count}"
+            )
+            return entity_count
+
+        except KeyboardInterrupt:
+            logger.info(f"Worker {worker_id}: Pass 2 interrupted")
+            return entity_count
+        except Exception as e:
+            logger.error(f"Worker {worker_id}: Pass 2 error: {e}")
+            return 0
+
+    def _insert_wikidata_classes_batch(
+        self, wikidata_classes: List[Dict[str, str]]
+    ) -> None:
+        """Insert a batch of WikidataClass records."""
+        try:
+            from ..models import WikidataClass
+            from sqlalchemy.dialects.postgresql import insert
+
+            session = get_worker_session()
+            try:
+                # Use UPSERT to handle duplicates across workers
+                stmt = insert(WikidataClass).values(wikidata_classes)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["wikidata_id"], set_=dict(name=stmt.excluded.name)
+                )
+                session.execute(stmt)
+                session.commit()
+            finally:
+                session.close()
+
+        except Exception as e:
+            logger.error(f"Failed to insert WikidataClass batch: {e}")
+            raise
 
     def extract_entities_from_dump(
         self,
@@ -450,10 +623,9 @@ class WikidataDumpProcessor:
         Returns entity counts found in this chunk.
         """
         # Get hierarchy data from worker globals
-        from .worker_manager import get_hierarchy_sets, get_class_lookup
+        from .worker_manager import get_hierarchy_sets
 
         position_descendants, location_descendants = get_hierarchy_sets()
-        class_lookup = get_class_lookup()
 
         positions = []
         locations = []
@@ -493,12 +665,12 @@ class WikidataDumpProcessor:
 
                     # Route entity to appropriate batch based on type
                     if isinstance(wikidata_entity, WikidataPosition):
-                        position_data = wikidata_entity.to_database_dict(class_lookup)
+                        position_data = wikidata_entity.to_database_dict()
                         if position_data:
                             positions.append(position_data)
                             counts["positions"] += 1
                     elif isinstance(wikidata_entity, WikidataLocation):
-                        location_data = wikidata_entity.to_database_dict(class_lookup)
+                        location_data = wikidata_entity.to_database_dict()
                         if location_data:
                             locations.append(location_data)
                             counts["locations"] += 1

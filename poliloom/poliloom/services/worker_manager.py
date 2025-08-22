@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Set, Tuple, Dict
+from typing import Set, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +12,6 @@ _worker_session = None
 # Global variables for hierarchy data in worker processes
 _shared_position_descendants = None
 _shared_location_descendants = None
-_shared_class_lookup = None
 
 
 def _init_worker_db():
@@ -34,30 +33,6 @@ def _init_worker_db():
     logger.info(f"Initialized database session for worker process {os.getpid()}")
 
 
-def _load_class_lookup() -> Dict[str, str]:
-    """Load WikidataClass lookup mapping from database.
-
-    Returns:
-        Dictionary mapping wikidata_id to UUID for class lookups
-    """
-    session = get_worker_session()
-    try:
-        from ..models import WikidataClass
-
-        class_lookup = {}
-        classes = session.query(WikidataClass).all()
-        for cls in classes:
-            if cls.wikidata_id:
-                class_lookup[cls.wikidata_id] = str(cls.id)
-
-        return class_lookup
-    except Exception as e:
-        logger.error(f"Failed to load class lookup: {e}")
-        return {}
-    finally:
-        session.close()
-
-
 def get_worker_session():
     """Get the worker-specific database session."""
     global _worker_session
@@ -70,23 +45,14 @@ def init_worker_hierarchy(
     position_descendants: Set[str], location_descendants: Set[str]
 ):
     """Initialize hierarchy data in worker process."""
-    global \
-        _shared_position_descendants, \
-        _shared_location_descendants, \
-        _shared_class_lookup
+    global _shared_position_descendants, _shared_location_descendants
 
     try:
         _shared_position_descendants = position_descendants or set()
         _shared_location_descendants = location_descendants or set()
 
-        # Load class lookup mapping from database
-        _shared_class_lookup = _load_class_lookup()
-
         logger.info(
             f"Worker {os.getpid()}: Loaded {len(_shared_position_descendants)} position descendants and {len(_shared_location_descendants)} location descendants"
-        )
-        logger.info(
-            f"Worker {os.getpid()}: Loaded {len(_shared_class_lookup)} class mappings"
         )
 
     except Exception as e:
@@ -103,12 +69,6 @@ def get_hierarchy_sets() -> Tuple[Set[str], Set[str]]:
         return set(), set()
 
     return _shared_position_descendants, _shared_location_descendants
-
-
-def get_class_lookup():
-    """Get class lookup mapping for current worker."""
-    global _shared_class_lookup
-    return _shared_class_lookup or {}
 
 
 def init_worker_with_db():

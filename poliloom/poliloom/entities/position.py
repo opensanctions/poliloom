@@ -33,7 +33,7 @@ class WikidataPosition(WikidataEntity):
         """Convert position to dictionary format for database insertion.
 
         Args:
-            class_lookup: Optional dictionary mapping wikidata_id to UUID for class lookups
+            class_lookup: Unused parameter kept for compatibility
 
         Returns:
             Dictionary with keys matching Position table columns
@@ -47,29 +47,24 @@ class WikidataPosition(WikidataEntity):
             "name": name,
         }
 
-        # Find the most specific class for this position
-        if class_lookup:
-            class_id = self._find_most_specific_class(class_lookup)
-            if class_id:
-                result["class_id"] = class_id
+        # Store the most specific wikidata class ID (not UUID) for later foreign key resolution
+        most_specific_class_id = self._find_most_specific_class_wikidata_id()
+        if most_specific_class_id:
+            result["wikidata_class_id"] = most_specific_class_id
 
         return result
 
-    def _find_most_specific_class(self, class_lookup: Dict[str, str]) -> Optional[str]:
-        """Find the most specific class for this position from its instance-of claims.
-
-        Args:
-            class_lookup: Dictionary mapping wikidata_id to UUID for class lookups
+    def _find_most_specific_class_wikidata_id(self) -> Optional[str]:
+        """Find the most specific wikidata class for this position from its instance-of claims.
 
         Returns:
-            UUID of the most specific class, or None if not found
+            Wikidata QID of the most specific class, or None if not found
         """
         instance_ids = self.get_instance_of_ids()
 
-        # For now, return the first matching class
+        # For now, return the first instance-of class
         # In the future, we could implement logic to find the most specific class
-        for instance_id in instance_ids:
-            if instance_id in class_lookup:
-                return class_lookup[instance_id]
+        if instance_ids:
+            return instance_ids[0]
 
         return None

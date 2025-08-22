@@ -85,7 +85,7 @@ class TestWikidataDumpProcessor:
         finally:
             os.unlink(temp_file)
 
-    def test_process_chunk(self, processor):
+    def test_process_chunk_pass1(self, processor):
         """Test processing a chunk of the dump file."""
         # Create test content for chunk processing
         entities = [
@@ -113,9 +113,9 @@ class TestWikidataDumpProcessor:
             temp_file = f.name
 
         try:
-            # Process the entire file as one chunk (now returns 3 values)
+            # Process the entire file as one chunk using Pass 1 (now returns 2 values)
             file_size = os.path.getsize(temp_file)
-            subclass_relations, entity_names, entity_count = processor._process_chunk(
+            subclass_relations, entity_count = processor._process_chunk_pass1(
                 temp_file, 0, file_size, worker_id=0
             )
 
@@ -123,9 +123,6 @@ class TestWikidataDumpProcessor:
             assert "Q2" in subclass_relations
             assert "Q1" in subclass_relations["Q2"]
             assert entity_count == 2
-
-            # Should extract entity names (though these test entities have no labels)
-            assert isinstance(entity_names, dict)
 
         finally:
             os.unlink(temp_file)
