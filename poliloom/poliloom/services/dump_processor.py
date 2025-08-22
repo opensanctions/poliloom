@@ -188,15 +188,9 @@ class WikidataDumpProcessor:
                 for parent_id, children in chunk_relations.items():
                     subclass_relations[parent_id].update(children)
 
-                # Extract entity name if it has subclass relations or is referenced as a parent
+                # Extract entity name for all entities
                 entity_id = entity.get("id", "")
-                if entity_id and (
-                    chunk_relations
-                    or any(
-                        entity_id in children
-                        for children in subclass_relations.values()
-                    )
-                ):
+                if entity_id:
                     name = self.hierarchy_builder.extract_entity_name_from_entity(
                         entity
                     )

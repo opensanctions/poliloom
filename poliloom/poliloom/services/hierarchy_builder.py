@@ -164,7 +164,9 @@ class HierarchyBuilder:
         logger.info(f"Inserting {len(all_entities)} Wikidata classes...")
         classes_to_insert = []
         for entity_id in all_entities:
-            name = entity_names.get(entity_id, entity_id)  # Fallback to ID if no name
+            name = entity_names.get(
+                entity_id
+            )  # Use actual name if available, None otherwise
             classes_to_insert.append(WikidataClass(wikidata_id=entity_id, name=name))
 
         # Add classes using ORM to get proper relationships
