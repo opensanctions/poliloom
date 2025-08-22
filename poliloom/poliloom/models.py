@@ -306,11 +306,15 @@ class Location(Base, TimestampMixin):
     name = Column(String, nullable=False)
     wikidata_id = Column(String, unique=True, index=True)
     embedding = Column(Vector(384), nullable=True)
+    class_id = Column(
+        UUID(as_uuid=True), ForeignKey("wikidata_classes.id"), nullable=True, index=True
+    )
 
     # Relationships
     born_here = relationship(
         "BornAt", back_populates="location", cascade="all, delete-orphan"
     )
+    wikidata_class = relationship("WikidataClass", back_populates="locations")
 
 
 class Position(Base, TimestampMixin):
@@ -322,11 +326,15 @@ class Position(Base, TimestampMixin):
     name = Column(String, nullable=False)
     wikidata_id = Column(String, unique=True, index=True)
     embedding = Column(Vector(384), nullable=True)
+    class_id = Column(
+        UUID(as_uuid=True), ForeignKey("wikidata_classes.id"), nullable=True, index=True
+    )
 
     # Relationships
     held_by = relationship(
         "HoldsPosition", back_populates="position", cascade="all, delete-orphan"
     )
+    wikidata_class = relationship("WikidataClass", back_populates="positions")
 
 
 class HoldsPosition(Base, TimestampMixin):
@@ -449,6 +457,8 @@ class WikidataClass(Base, TimestampMixin):
         back_populates="parent_class",
         cascade="all, delete-orphan",
     )
+    locations = relationship("Location", back_populates="wikidata_class")
+    positions = relationship("Position", back_populates="wikidata_class")
 
 
 class SubclassRelation(Base, TimestampMixin):

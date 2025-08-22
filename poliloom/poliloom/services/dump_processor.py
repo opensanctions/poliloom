@@ -460,9 +460,10 @@ class WikidataDumpProcessor:
 
         try:
             # Get hierarchy data from worker globals
-            from .worker_manager import get_hierarchy_sets
+            from .worker_manager import get_hierarchy_sets, get_class_lookup
 
             position_descendants, location_descendants = get_hierarchy_sets()
+            class_lookup = get_class_lookup()
 
             positions = []
             locations = []
@@ -503,12 +504,12 @@ class WikidataDumpProcessor:
 
                     # Route entity to appropriate batch based on type
                     if isinstance(wikidata_entity, WikidataPosition):
-                        position_data = wikidata_entity.to_database_dict()
+                        position_data = wikidata_entity.to_database_dict(class_lookup)
                         if position_data:
                             positions.append(position_data)
                             counts["positions"] += 1
                     elif isinstance(wikidata_entity, WikidataLocation):
-                        location_data = wikidata_entity.to_database_dict()
+                        location_data = wikidata_entity.to_database_dict(class_lookup)
                         if location_data:
                             locations.append(location_data)
                             counts["locations"] += 1

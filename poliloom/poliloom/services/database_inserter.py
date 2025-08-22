@@ -72,16 +72,18 @@ class DatabaseInserter:
                         "wikidata_id": p["wikidata_id"],
                         "name": p["name"],
                         "embedding": None,  # Will be generated later
+                        "class_id": p.get("class_id"),  # May be None if not found
                     }
                     for p in position_dicts
                 ]
             )
 
-            # On conflict, update the name (in case it changed in Wikidata)
+            # On conflict, update the name and class_id (in case it changed in Wikidata)
             stmt = stmt.on_conflict_do_update(
                 index_elements=["wikidata_id"],
                 set_={
                     "name": stmt.excluded.name,
+                    "class_id": stmt.excluded.class_id,
                     "updated_at": stmt.excluded.updated_at,
                 },
             )
@@ -121,16 +123,18 @@ class DatabaseInserter:
                         "wikidata_id": loc["wikidata_id"],
                         "name": loc["name"],
                         "embedding": None,  # Will be generated later
+                        "class_id": loc.get("class_id"),  # May be None if not found
                     }
                     for loc in location_dicts
                 ]
             )
 
-            # On conflict, update the name (in case it changed in Wikidata)
+            # On conflict, update the name and class_id (in case it changed in Wikidata)
             stmt = stmt.on_conflict_do_update(
                 index_elements=["wikidata_id"],
                 set_={
                     "name": stmt.excluded.name,
+                    "class_id": stmt.excluded.class_id,
                     "updated_at": stmt.excluded.updated_at,
                 },
             )
