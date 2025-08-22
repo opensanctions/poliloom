@@ -2,6 +2,8 @@
 
 import json
 import pytest
+import hashlib
+import numpy as np
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -11,6 +13,8 @@ from poliloom.models import (
     Position,
     Location,
 )
+from poliloom.embeddings import generate_embedding
+from poliloom.database import get_db_session
 
 
 class MockSentenceTransformer:
@@ -22,7 +26,6 @@ class MockSentenceTransformer:
 
     def encode(self, text, convert_to_tensor=False, batch_size=None):
         """Mock embedding generation for single text or batch of texts."""
-        import numpy as np
 
         # Handle batch processing (list of texts)
         if isinstance(text, list):
@@ -37,7 +40,6 @@ class MockSentenceTransformer:
 
     def _generate_single_embedding(self, text):
         """Generate a single embedding for text."""
-        import hashlib
 
         # Create a deterministic embedding based on text hash
         text_hash = hashlib.md5(text.encode()).digest()
@@ -216,8 +218,6 @@ def assert_model_fields(model, expected_fields):
 @pytest.fixture
 def db_session():
     """Provide a database session for tests."""
-    from poliloom.database import get_db_session
-
     with get_db_session() as session:
         yield session
 
@@ -228,8 +228,6 @@ def position_with_embedding():
 
     def _create_position_with_embedding(name, wikidata_id):
         """Create a Position with embedding."""
-        from poliloom.embeddings import generate_embedding
-
         position = Position(name=name, wikidata_id=wikidata_id)
         position.embedding = generate_embedding(name)
         return position
@@ -243,8 +241,6 @@ def location_with_embedding():
 
     def _create_location_with_embedding(name, wikidata_id):
         """Create a Location with embedding."""
-        from poliloom.embeddings import generate_embedding
-
         location = Location(name=name, wikidata_id=wikidata_id)
         location.embedding = generate_embedding(name)
         return location
@@ -258,8 +254,6 @@ def similarity_searcher(db_session):
 
     def _similarity_search(model_class, query_text, limit=5):
         """Perform similarity search on model with embeddings."""
-        from poliloom.embeddings import generate_embedding
-
         query_embedding = generate_embedding(query_text)
         query = db_session.query(model_class).filter(model_class.embedding.isnot(None))
 

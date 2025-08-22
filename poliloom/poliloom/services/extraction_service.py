@@ -8,6 +8,7 @@ from typing import Literal
 from openai import OpenAI
 
 from ..models import Position, Location, Politician
+from ..embeddings import generate_embedding
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +40,6 @@ class PositionRepository:
         self, db: Session, query_text: str, max_results: int = 100
     ) -> List[str]:
         """Find similar positions using embedding similarity search."""
-        from ..embeddings import generate_embedding
-
         query_embedding = generate_embedding(query_text)
 
         positions = (
@@ -65,8 +64,6 @@ class LocationRepository:
         self, db: Session, query_text: str, max_results: int = 100
     ) -> List[str]:
         """Find similar locations using embedding similarity search."""
-        from ..embeddings import generate_embedding
-
         query_embedding = generate_embedding(query_text)
 
         locations = (

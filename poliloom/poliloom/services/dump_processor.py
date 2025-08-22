@@ -11,7 +11,6 @@ from .database_inserter import DatabaseInserter
 from .worker_manager import (
     init_worker_with_db,
     init_worker_with_hierarchy,
-    get_worker_session,
 )
 from ..database import get_db_session
 from ..entities.factory import WikidataEntityFactory
@@ -183,7 +182,7 @@ class WikidataDumpProcessor:
 
         pool = None
         try:
-            pool = mp.Pool(processes=num_workers, initializer=init_worker_with_db)
+            pool = mp.Pool(processes=num_workers)
 
             # Each worker processes its chunk independently
             async_result = pool.starmap_async(
@@ -210,14 +209,24 @@ class WikidataDumpProcessor:
                 pool.close()
                 pool.join()
 
-        # Summarize results
-        total_entities = sum(chunk_count for chunk_count in chunk_results)
+        # Collect all entity data from workers and batch insert
+        all_entity_data = []
+        total_entities = 0
+
+        for entity_data_list, chunk_count in chunk_results:
+            total_entities += chunk_count
+            all_entity_data.extend(entity_data_list)
+
         logger.info(
             f"Entity name extraction complete: Processed {total_entities} entities"
         )
-        logger.info(
-            f"WikidataClass records inserted for {len(qids_to_extract)} entities"
-        )
+        logger.info(f"Collected {len(all_entity_data)} entities for batch insertion")
+
+        if all_entity_data:
+            self._batch_insert_wikidata_classes(all_entity_data)
+            logger.info(
+                f"WikidataClass records inserted for {len(all_entity_data)} entities"
+            )
 
     def _store_hierarchy_relationships(
         self, subclass_relations: Dict[str, Set[str]]
@@ -310,10 +319,8 @@ class WikidataDumpProcessor:
         reducing memory usage and processing time.
         """
         interrupted = False
-        batch_size = 1000  # Process in smaller batches for memory efficiency
-
         try:
-            wikidata_classes = []
+            entity_data = []
             entity_count = 0
             extracted_count = 0
 
@@ -336,56 +343,60 @@ class WikidataDumpProcessor:
                 if entity_id not in qids_to_extract:
                     continue
 
-                # Extract entity name
                 name = self.hierarchy_builder.extract_entity_name_from_entity(entity)
-                wikidata_classes.append(
+                entity_data.append(
                     {
                         "wikidata_id": entity_id,
-                        "name": name,  # Can be None
+                        "name": name,
                     }
                 )
                 extracted_count += 1
 
-                # Batch insert when we reach batch size
-                if len(wikidata_classes) >= batch_size:
-                    self._insert_wikidata_classes_batch(wikidata_classes)
-                    wikidata_classes = []
-
-            # Insert any remaining records
-            if wikidata_classes:
-                self._insert_wikidata_classes_batch(wikidata_classes)
-
             logger.info(
                 f"Worker {worker_id}: Entity name extraction complete, processed {entity_count} entities, extracted {extracted_count}"
             )
-            return entity_count
+            return entity_data, entity_count
 
         except KeyboardInterrupt:
             logger.info(f"Worker {worker_id}: Entity name extraction interrupted")
-            return entity_count
+            return entity_data, entity_count
         except Exception as e:
             logger.error(f"Worker {worker_id}: Entity name extraction error: {e}")
-            return 0
+            return [], 0
 
-    def _insert_wikidata_classes_batch(
+    def _batch_insert_wikidata_classes(
         self, wikidata_classes: List[Dict[str, str]]
     ) -> None:
-        """Insert a batch of WikidataClass records."""
+        """Insert WikidataClass records in manageable batches."""
+        if not wikidata_classes:
+            return
+
+        batch_size = 10000
+        total_batches = (len(wikidata_classes) + batch_size - 1) // batch_size
+
+        logger.info(
+            f"Inserting {len(wikidata_classes)} records in {total_batches} batches of {batch_size}"
+        )
+
         try:
             from ..models import WikidataClass
             from sqlalchemy.dialects.postgresql import insert
 
-            session = get_worker_session()
-            try:
-                # Use UPSERT to handle duplicates across workers
-                stmt = insert(WikidataClass).values(wikidata_classes)
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=["wikidata_id"], set_=dict(name=stmt.excluded.name)
-                )
-                session.execute(stmt)
-                session.commit()
-            finally:
-                session.close()
+            for i in range(0, len(wikidata_classes), batch_size):
+                batch = wikidata_classes[i : i + batch_size]
+                batch_num = (i // batch_size) + 1
+
+                with get_db_session() as session:
+                    stmt = insert(WikidataClass).values(batch)
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=["wikidata_id"],
+                        set_=dict(name=stmt.excluded.name),
+                    )
+                    session.execute(stmt)
+                    session.commit()
+
+                if batch_num % 5 == 0 or batch_num == total_batches:
+                    logger.info(f"Completed batch {batch_num}/{total_batches}")
 
         except Exception as e:
             logger.error(f"Failed to insert WikidataClass batch: {e}")

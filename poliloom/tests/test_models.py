@@ -243,8 +243,6 @@ class TestPositionVectorSimilarity:
         db_session,
     ):
         """Test similarity search functionality."""
-        from poliloom.embeddings import generate_embedding
-
         # Create positions with embeddings
         positions = [
             Position(name="US President", wikidata_id="Q11696"),
@@ -693,8 +691,6 @@ class TestLocation:
         db_session,
     ):
         """Test location similarity search functionality."""
-        from poliloom.embeddings import generate_embedding
-
         # Create test locations with embeddings
         locations = [
             Location(name="New York City", wikidata_id="Q60"),

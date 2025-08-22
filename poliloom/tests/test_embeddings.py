@@ -1,7 +1,7 @@
 """Tests for the embeddings module."""
 
 import pytest
-from poliloom.embeddings import generate_embeddings_for_entities
+from poliloom.embeddings import generate_embeddings_for_entities, generate_embedding
 from poliloom.models import Position, Location
 
 
@@ -28,8 +28,6 @@ class TestEmbeddingService:
             name=f"Test {entity_name[:-1].title()} With Embedding", wikidata_id="Q9999"
         )
         # Generate embedding using the module's function
-        from poliloom.embeddings import generate_embedding
-
         entity_with_embedding.embedding = generate_embedding(entity_with_embedding.name)
         entities.append(entity_with_embedding)
 
@@ -80,8 +78,6 @@ class TestEmbeddingService:
     ):
         """Test behavior when all entities already have embeddings."""
         # Create entities with embeddings
-        from poliloom.embeddings import generate_embedding
-
         entities = []
         for i in range(3):
             entity = model_class(

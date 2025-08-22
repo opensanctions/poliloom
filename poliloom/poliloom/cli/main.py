@@ -20,6 +20,7 @@ from ..models import (
     BornAt,
     Position,
     Location,
+    SubclassRelation,
 )
 from ..embeddings import generate_embeddings_for_entities
 
@@ -663,15 +664,11 @@ def dump_query_hierarchy(entity_id):
     """Query hierarchy descendants for a given entity ID."""
 
     try:
-        from ..services.hierarchy_builder import HierarchyBuilder
-
         # Check if hierarchy data exists in database and query descendants directly
         with get_db_session_no_commit() as session:
             hierarchy_builder = HierarchyBuilder()
 
             # Check if hierarchy data exists (efficient count check)
-            from ..models import SubclassRelation
-
             relation_count = session.query(SubclassRelation).count()
 
             if relation_count == 0:
