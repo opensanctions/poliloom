@@ -480,12 +480,7 @@ def locations_embed(batch_size):
     required=True,
     help="Path to extracted JSON dump file - local filesystem path or GCS path (gs://bucket/path)",
 )
-@click.option(
-    "--workers",
-    type=int,
-    help="Number of worker processes (default: CPU count)",
-)
-def dump_build_hierarchy(file, workers):
+def dump_build_hierarchy(file):
     """Build hierarchy trees for positions and locations from Wikidata dump."""
     click.echo(f"Building hierarchy trees from dump file: {file}")
 
@@ -506,7 +501,7 @@ def dump_build_hierarchy(file, workers):
         click.echo("Press Ctrl+C to interrupt...")
 
         # Build the trees (always parallel)
-        trees = processor.build_hierarchy_trees(file, num_workers=workers)
+        trees = processor.build_hierarchy_trees(file)
 
         click.echo("✅ Successfully built hierarchy trees:")
         click.echo(

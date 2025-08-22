@@ -2,7 +2,8 @@
 
 import json
 import logging
-from typing import Dict, Any, Iterator, List, Tuple
+import multiprocessing as mp
+from typing import Dict, Any, Iterator, List, Tuple, Optional
 
 from .storage import StorageFactory
 
@@ -17,7 +18,7 @@ class DumpReader:
         pass
 
     def calculate_file_chunks(
-        self, dump_file_path: str, num_workers: int
+        self, dump_file_path: str, num_workers: Optional[int] = None
     ) -> List[Tuple[int, int]]:
         """
         Calculate byte ranges for each worker to process independently.
@@ -27,11 +28,14 @@ class DumpReader:
 
         Args:
             dump_file_path: Path to dump file (local or gs://)
-            num_workers: Number of parallel workers
+            num_workers: Number of parallel workers (default: CPU count)
 
         Returns:
             List of (start_byte, end_byte) tuples
         """
+        if num_workers is None:
+            num_workers = mp.cpu_count()
+
         # Get the appropriate storage backend
         backend = StorageFactory.get_backend(dump_file_path)
         file_size = backend.get_size(dump_file_path)

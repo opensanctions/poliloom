@@ -2,7 +2,7 @@
 
 import logging
 import multiprocessing as mp
-from typing import Dict, Set, Optional
+from typing import Dict, Set
 from collections import defaultdict
 
 from .dump_reader import DumpReader
@@ -34,7 +34,6 @@ class WikidataDumpProcessor:
     def build_hierarchy_trees(
         self,
         dump_file_path: str,
-        num_workers: Optional[int] = None,
         output_dir: str = ".",
     ) -> Dict[str, Set[str]]:
         """
@@ -45,7 +44,6 @@ class WikidataDumpProcessor:
 
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
-            num_workers: Number of worker processes (default: CPU count)
             output_dir: Directory to save the complete hierarchy file (default: current directory)
 
         Returns:
@@ -53,13 +51,11 @@ class WikidataDumpProcessor:
         """
         logger.info(f"Building hierarchy trees from dump file: {dump_file_path}")
 
-        if num_workers is None:
-            num_workers = mp.cpu_count()
-
+        num_workers = mp.cpu_count()
         logger.info(f"Using parallel processing with {num_workers} workers")
 
         subclass_relations = self._build_hierarchy_trees_parallel(
-            dump_file_path, num_workers, output_dir
+            dump_file_path, output_dir
         )
 
         # Extract specific trees from the complete hierarchy
@@ -70,7 +66,7 @@ class WikidataDumpProcessor:
         return descendants
 
     def _build_hierarchy_trees_parallel(
-        self, dump_file_path: str, num_workers: int, output_dir: str = "."
+        self, dump_file_path: str, output_dir: str = "."
     ) -> Dict[str, Set[str]]:
         """
         Parallel implementation using chunk-based file reading.
@@ -78,10 +74,11 @@ class WikidataDumpProcessor:
         Returns:
             Dictionary of subclass_relations
         """
+        num_workers = mp.cpu_count()
 
         # Split file into chunks for parallel processing
         logger.info("Calculating file chunks for parallel processing...")
-        chunks = self.dump_reader.calculate_file_chunks(dump_file_path, num_workers)
+        chunks = self.dump_reader.calculate_file_chunks(dump_file_path)
         logger.info(f"Split file into {len(chunks)} chunks for {num_workers} workers")
 
         # Process chunks in parallel with proper KeyboardInterrupt handling
@@ -249,7 +246,6 @@ class WikidataDumpProcessor:
         return self._extract_supporting_entities_parallel(
             dump_file_path,
             batch_size,
-            num_workers,
             position_descendants,
             location_descendants,
         )
@@ -275,22 +271,21 @@ class WikidataDumpProcessor:
         return self._extract_politicians_parallel(
             dump_file_path,
             batch_size,
-            num_workers,
         )
 
     def _extract_supporting_entities_parallel(
         self,
         dump_file_path: str,
         batch_size: int,
-        num_workers: int,
         position_descendants: Set[str],
         location_descendants: Set[str],
     ) -> Dict[str, int]:
         """Parallel implementation for supporting entities extraction (positions, locations, countries)."""
+        num_workers = mp.cpu_count()
 
         # Split file into chunks for parallel processing
         logger.info("Calculating file chunks for parallel processing...")
-        chunks = self.dump_reader.calculate_file_chunks(dump_file_path, num_workers)
+        chunks = self.dump_reader.calculate_file_chunks(dump_file_path)
         logger.info(f"Split file into {len(chunks)} chunks for {num_workers} workers")
 
         # Process chunks in parallel with proper KeyboardInterrupt handling
@@ -362,13 +357,13 @@ class WikidataDumpProcessor:
         self,
         dump_file_path: str,
         batch_size: int,
-        num_workers: int,
     ) -> Dict[str, int]:
         """Parallel implementation for politician extraction."""
+        num_workers = mp.cpu_count()
 
         # Split file into chunks for parallel processing
         logger.info("Calculating file chunks for parallel processing...")
-        chunks = self.dump_reader.calculate_file_chunks(dump_file_path, num_workers)
+        chunks = self.dump_reader.calculate_file_chunks(dump_file_path)
         logger.info(f"Split file into {len(chunks)} chunks for {num_workers} workers")
 
         # Process chunks in parallel with proper KeyboardInterrupt handling

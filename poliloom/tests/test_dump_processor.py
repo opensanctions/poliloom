@@ -44,10 +44,8 @@ class TestWikidataDumpProcessor:
 
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
-                # Test with 1 worker to avoid multiprocessing complexity in tests
-                result = processor.build_hierarchy_trees(
-                    temp_file, num_workers=1, output_dir=temp_dir
-                )
+                # Test hierarchy tree building
+                result = processor.build_hierarchy_trees(temp_file, output_dir=temp_dir)
 
                 # Should return position and location descendants
                 assert "positions" in result
@@ -73,14 +71,11 @@ class TestWikidataDumpProcessor:
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
                 # Test with different worker counts
-                for num_workers in [1, 2]:
-                    result = processor.build_hierarchy_trees(
-                        temp_file, num_workers=num_workers, output_dir=temp_dir
-                    )
+                result = processor.build_hierarchy_trees(temp_file, output_dir=temp_dir)
 
-                    # Should return position and location descendants
-                    assert "positions" in result
-                    assert "locations" in result
+                # Should return position and location descendants
+                assert "positions" in result
+                assert "locations" in result
 
         finally:
             os.unlink(temp_file)
@@ -172,9 +167,7 @@ class TestWikidataDumpProcessor:
 
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
-                result = processor.build_hierarchy_trees(
-                    temp_file, num_workers=1, output_dir=temp_dir
-                )
+                result = processor.build_hierarchy_trees(temp_file, output_dir=temp_dir)
 
                 # Should return position and location descendants
                 assert "positions" in result
@@ -236,9 +229,7 @@ class TestWikidataDumpProcessor:
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
                 # Should not raise exception despite malformed claims
-                result = processor.build_hierarchy_trees(
-                    temp_file, num_workers=1, output_dir=temp_dir
-                )
+                result = processor.build_hierarchy_trees(temp_file, output_dir=temp_dir)
 
                 # Should return position and location descendants
                 assert "positions" in result
