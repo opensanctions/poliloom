@@ -2,9 +2,9 @@
 
 import os
 from contextlib import contextmanager
-from typing import Generator
+from typing import Generator, Optional
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, Engine
 from sqlalchemy.orm import Session, sessionmaker
 from dotenv import load_dotenv
 
@@ -14,26 +14,45 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/poliloom"
 )
 
-engine = create_engine(
-    DATABASE_URL,
-    pool_size=20,
-    max_overflow=30,
-    pool_timeout=30,
-    pool_recycle=3600,
-    pool_pre_ping=True,
-)
+# Global variables for lazy initialization
+_engine: Optional[Engine] = None
+_SessionLocal: Optional[sessionmaker] = None
 
-# Setup pgvector extension (only for PostgreSQL)
-if DATABASE_URL.startswith("postgresql"):
-    with engine.connect() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        conn.commit()
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+def get_engine() -> Engine:
+    """Get or create the database engine with lazy initialization."""
+    global _engine
+    if _engine is None:
+        _engine = create_engine(
+            DATABASE_URL,
+            pool_size=20,
+            max_overflow=30,
+            pool_timeout=30,
+            pool_recycle=3600,
+            pool_pre_ping=True,
+        )
+
+        # Setup pgvector extension
+        with _engine.connect() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            conn.commit()
+
+    return _engine
+
+
+def get_session_factory() -> sessionmaker:
+    """Get or create the session factory with lazy initialization."""
+    global _SessionLocal
+    if _SessionLocal is None:
+        _SessionLocal = sessionmaker(
+            autocommit=False, autoflush=False, bind=get_engine()
+        )
+    return _SessionLocal
 
 
 def get_db():
     """Get database session for FastAPI dependency injection."""
+    SessionLocal = get_session_factory()
     db = SessionLocal()
     try:
         yield db
@@ -57,6 +76,7 @@ def get_db_session() -> Generator[Session, None, None]:
             # Do database operations
             user = session.query(User).first()
     """
+    SessionLocal = get_session_factory()
     session = SessionLocal()
     try:
         yield session
@@ -82,6 +102,7 @@ def get_db_session_no_commit() -> Generator[Session, None, None]:
             # Manually commit if needed
             session.commit()
     """
+    SessionLocal = get_session_factory()
     session = SessionLocal()
     try:
         yield session

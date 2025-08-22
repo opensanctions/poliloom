@@ -337,7 +337,7 @@ class TestWikidataDumpProcessor:
 
                     # Test extraction - this will run the real chunk processing with real database
                     result = processor.extract_entities_from_dump(
-                        temp_file, batch_size=10, num_workers=1, hierarchy_dir=temp_dir
+                        temp_file, batch_size=10, hierarchy_dir=temp_dir
                     )
 
                     # Should have extracted all entity types (results may vary based on actual processing)

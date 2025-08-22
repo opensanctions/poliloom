@@ -79,8 +79,10 @@ def setup_test_database():
     """Setup test database for each test."""
     # Import all models to ensure they're registered with Base
     import poliloom.models  # noqa: F401
-    from poliloom.database import engine
+    from poliloom.database import get_engine
     from sqlalchemy import text
+
+    engine = get_engine()
 
     # Setup pgvector extension
     with engine.connect() as conn:
