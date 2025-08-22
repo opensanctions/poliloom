@@ -1,22 +1,26 @@
-FROM python:3.12-slim AS builder
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm AS builder
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Set environment variables for optimal uv behavior
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
 
 # Set working directory
 WORKDIR /app
 
-# Copy dependency files
-COPY pyproject.toml uv.lock ./
-
 # Install all dependencies first with CPU-only PyTorch
-RUN uv sync --frozen --no-install-project --no-dev --extra cpu
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    uv sync --frozen --no-install-project --no-dev --extra cpu
 
-# Copy application code
-COPY . .
+# Copy package source and setup files
+COPY pyproject.toml ./
+COPY README.md ./
+COPY poliloom/ ./poliloom/
 
-# Install the package in the virtual environment
-RUN uv pip install .
+# Install the package without dependencies (already installed)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install . --no-deps
 
 FROM python:3.12-slim AS runtime
 
