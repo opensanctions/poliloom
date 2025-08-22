@@ -16,29 +16,16 @@ _shared_class_lookup = None
 
 
 def _init_worker_db():
-    """Initialize database session for worker process."""
+    """Initialize database session for worker process using centralized database logic."""
     global _worker_session
-    import os
-    from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
-    from dotenv import load_dotenv
+    from ..database import get_engine
 
-    load_dotenv()
-    DATABASE_URL = os.getenv(
-        "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/poliloom"
-    )
+    # Use the centralized engine from database.py but create a separate sessionmaker for workers
+    # This ensures consistent connection logic across the application
+    worker_engine = get_engine()
 
-    # Create a separate engine for this worker process
-    worker_engine = create_engine(
-        DATABASE_URL,
-        pool_size=5,  # Smaller pool per worker
-        max_overflow=10,
-        pool_timeout=30,
-        pool_recycle=3600,
-        pool_pre_ping=True,
-    )
-
-    # Create sessionmaker for this worker
+    # Create sessionmaker for this worker with appropriate settings for multiprocessing
     WorkerSessionLocal = sessionmaker(
         autocommit=False, autoflush=False, bind=worker_engine
     )

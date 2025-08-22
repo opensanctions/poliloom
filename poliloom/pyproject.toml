@@ -17,7 +17,8 @@ dependencies = [
     "beautifulsoup4>=4.12.0",
     "python-jose[cryptography]>=3.3.0",
     "mwoauth>=0.3.7",
-    "psycopg2-binary>=2.9.0",
+    "pg8000>=1.30.0",
+    "cloud-sql-python-connector[pg8000]>=1.11.0",
     "pgvector>=0.2.0",
     "sentence-transformers>=2.2.0",
     "crawl4ai>=0.4.0",
@@ -50,7 +51,11 @@ target-version = "py312"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 env = [
-    "DATABASE_URL=postgresql://postgres:postgres@localhost:5433/poliloom_test"
+    "DB_HOST=localhost",
+    "DB_PORT=5433",
+    "DB_NAME=poliloom_test",
+    "DB_USER=postgres",
+    "DB_PASSWORD=postgres"
 ]
 
 [dependency-groups]
