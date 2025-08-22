@@ -449,28 +449,23 @@ class WikidataDumpProcessor:
         Each worker independently reads and parses its assigned chunk.
         Returns entity counts found in this chunk.
         """
-        # Simple interrupt flag without signal handlers to avoid cascading issues
+        # Get hierarchy data from worker globals
+        from .worker_manager import get_hierarchy_sets, get_class_lookup
+
+        position_descendants, location_descendants = get_hierarchy_sets()
+        class_lookup = get_class_lookup()
+
+        positions = []
+        locations = []
+        countries = []
+        counts = {"positions": 0, "locations": 0, "countries": 0, "politicians": 0}
+        entity_count = 0
         interrupted = False
 
         try:
-            # Get hierarchy data from worker globals
-            from .worker_manager import get_hierarchy_sets, get_class_lookup
-
-            position_descendants, location_descendants = get_hierarchy_sets()
-            class_lookup = get_class_lookup()
-
-            positions = []
-            locations = []
-            countries = []
-            counts = {"positions": 0, "locations": 0, "countries": 0, "politicians": 0}
-            entity_count = 0
-
             for entity in self.dump_reader.read_chunk_entities(
                 dump_file_path, start_byte, end_byte
             ):
-                if interrupted:
-                    break
-
                 entity_count += 1
 
                 # Progress reporting for large chunks
@@ -532,7 +527,13 @@ class WikidataDumpProcessor:
                     self.database_inserter.insert_countries_batch(countries)
                     countries = []
 
-            # Process remaining entities in final batches
+        except KeyboardInterrupt:
+            interrupted = True
+            logger.info(f"Worker {worker_id}: interrupted")
+        except Exception as e:
+            logger.error(f"Worker {worker_id}: error processing chunk: {e}")
+        finally:
+            # Always process remaining entities in final batches
             try:
                 if positions:
                     self.database_inserter.insert_positions_batch(positions)
@@ -554,40 +555,7 @@ class WikidataDumpProcessor:
                     f"Worker {worker_id}: finished processing {entity_count} entities"
                 )
 
-            return counts, entity_count
-
-        except KeyboardInterrupt:
-            logger.info(f"Worker {worker_id}: interrupted, processing final batches...")
-            # Process remaining entities in final batches even when interrupted
-            try:
-                if positions:
-                    self.database_inserter.insert_positions_batch(positions)
-                if locations:
-                    self.database_inserter.insert_locations_batch(locations)
-                if countries:
-                    self.database_inserter.insert_countries_batch(countries)
-            except Exception as cleanup_error:
-                logger.warning(
-                    f"Worker {worker_id}: error during cleanup: {cleanup_error}"
-                )
-
-            logger.info(f"Worker {worker_id}: interrupted, returning partial results")
-            return counts, entity_count
-        except Exception as e:
-            logger.error(f"Worker {worker_id}: error processing chunk: {e}")
-            # Process any remaining entities in final batches before returning
-            try:
-                if positions:
-                    self.database_inserter.insert_positions_batch(positions)
-                if locations:
-                    self.database_inserter.insert_locations_batch(locations)
-                if countries:
-                    self.database_inserter.insert_countries_batch(countries)
-            except Exception as cleanup_error:
-                logger.warning(
-                    f"Worker {worker_id}: error during cleanup: {cleanup_error}"
-                )
-            return counts, entity_count
+        return counts, entity_count
 
     def _process_politicians_chunk(
         self,
@@ -603,20 +571,15 @@ class WikidataDumpProcessor:
         Each worker independently reads and parses its assigned chunk.
         Returns entity counts found in this chunk.
         """
-        # Simple interrupt flag without signal handlers to avoid cascading issues
+        politicians = []
+        counts = {"positions": 0, "locations": 0, "countries": 0, "politicians": 0}
+        entity_count = 0
         interrupted = False
 
         try:
-            politicians = []
-            counts = {"positions": 0, "locations": 0, "countries": 0, "politicians": 0}
-            entity_count = 0
-
             for entity in self.dump_reader.read_chunk_entities(
                 dump_file_path, start_byte, end_byte
             ):
-                if interrupted:
-                    break
-
                 entity_count += 1
 
                 # Progress reporting for large chunks
@@ -657,7 +620,13 @@ class WikidataDumpProcessor:
                     self.database_inserter.insert_politicians_batch(politicians)
                     politicians = []
 
-            # Process remaining entities in final batches
+        except KeyboardInterrupt:
+            interrupted = True
+            logger.info(f"Worker {worker_id}: interrupted")
+        except Exception as e:
+            logger.error(f"Worker {worker_id}: error processing chunk: {e}")
+        finally:
+            # Always process remaining entities in final batches
             try:
                 if politicians:
                     self.database_inserter.insert_politicians_batch(politicians)
@@ -675,29 +644,4 @@ class WikidataDumpProcessor:
                     f"Worker {worker_id}: finished processing {entity_count} entities"
                 )
 
-            return counts, entity_count
-
-        except KeyboardInterrupt:
-            logger.info(f"Worker {worker_id}: interrupted, processing final batches...")
-            # Process remaining entities in final batches even when interrupted
-            try:
-                if politicians:
-                    self.database_inserter.insert_politicians_batch(politicians)
-            except Exception as cleanup_error:
-                logger.warning(
-                    f"Worker {worker_id}: error during cleanup: {cleanup_error}"
-                )
-
-            logger.info(f"Worker {worker_id}: interrupted, returning partial results")
-            return counts, entity_count
-        except Exception as e:
-            logger.error(f"Worker {worker_id}: error processing chunk: {e}")
-            # Process any remaining entities in final batches before returning
-            try:
-                if politicians:
-                    self.database_inserter.insert_politicians_batch(politicians)
-            except Exception as cleanup_error:
-                logger.warning(
-                    f"Worker {worker_id}: error during cleanup: {cleanup_error}"
-                )
-            return counts, entity_count
+        return counts, entity_count

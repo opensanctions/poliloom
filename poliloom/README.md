@@ -105,13 +105,36 @@ Access API documentation at `http://localhost:8000/docs` when server is running.
 
 ## Configuration
 
-Set environment variables in `.env`:
+Copy `.env.example` to `.env` and set the required environment variables:
 
 ```bash
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/poliloom
+cp .env.example .env
+```
+
+Key configuration variables:
+
+**Database (Local Development):**
+```bash
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=poliloom
+DB_USER=postgres
+DB_PASSWORD=postgres
+```
+
+**Database (Google Cloud SQL):**
+```bash
+INSTANCE_CONNECTION_NAME=project:region:instance
+DB_IAM_USER=your-iam-user
+DB_NAME=poliloom
+```
+
+**External Services:**
+```bash
 OPENAI_API_KEY=your_openai_api_key
-WIKIDATA_DUMP_BZ2_PATH=./latest-all.json.bz2
-WIKIDATA_DUMP_JSON_PATH=./latest-all.json
+MEDIAWIKI_OAUTH_CLIENT_ID=your-client-id
+MEDIAWIKI_OAUTH_CLIENT_SECRET=your-client-secret
+GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
 ```
 
 ## Development

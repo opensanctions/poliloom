@@ -15,9 +15,26 @@ load_dotenv()
 # access to the values within the .ini file in use.
 config = context.config
 
-# Override sqlalchemy.url with environment variable if present
-if os.getenv("DATABASE_URL"):
-    config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL"))
+# Build database URL from environment variables (same pattern as database.py)
+use_cloud_sql = bool(os.getenv("INSTANCE_CONNECTION_NAME"))
+
+if use_cloud_sql:
+    # For Cloud SQL, use the engine created by database.py
+    # Alembic will work with the engine directly
+    database_url = "postgresql+pg8000://"
+else:
+    # Local database connection
+    db_host = os.getenv("DB_HOST", "localhost")
+    db_port = os.getenv("DB_PORT", "5432")
+    db_name = os.getenv("DB_NAME", "poliloom")
+    db_user = os.getenv("DB_USER", "postgres")
+    db_password = os.getenv("DB_PASSWORD", "postgres")
+
+    database_url = (
+        f"postgresql+pg8000://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+    )
+
+config.set_main_option("sqlalchemy.url", database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

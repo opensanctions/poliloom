@@ -442,7 +442,9 @@ class WikidataClass(Base, TimestampMixin):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     wikidata_id = Column(String, unique=True, index=True)  # Wikidata QID
-    name = Column(String, nullable=False)  # Class name from Wikidata labels
+    name = Column(
+        String, nullable=True
+    )  # Class name from Wikidata labels (can be None)
 
     # Relationships
     parent_relations = relationship(
