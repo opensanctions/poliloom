@@ -131,18 +131,6 @@ class HierarchyBuilder:
 
         return None
 
-    def clear_hierarchy_tables(self, session: Session) -> None:
-        """
-        Clear existing hierarchy data from database.
-
-        Args:
-            session: Database session
-        """
-        logger.info("Clearing existing hierarchy data...")
-        session.execute(text("DELETE FROM subclass_relations"))
-        session.execute(text("DELETE FROM wikidata_classes"))
-        session.commit()
-
     def insert_subclass_relations_batch(
         self, subclass_relations: Dict[str, Set[str]], session: Session
     ) -> None:
@@ -193,84 +181,6 @@ class HierarchyBuilder:
             session.commit()
 
         logger.info("SubclassRelation batch insert complete")
-
-    def save_complete_hierarchy_to_database(
-        self,
-        subclass_relations: Dict[str, Set[str]],
-        entity_names: Dict[str, str],
-        session: Session,
-    ) -> None:
-        """
-        DEPRECATED: Legacy method for saving hierarchy to database.
-
-        This method is kept for test compatibility only. New code should use:
-        1. clear_hierarchy_tables()
-        2. batch insert WikidataClass records separately
-        3. insert_subclass_relations_batch()
-
-        Args:
-            subclass_relations: Dictionary mapping parent QIDs to sets of child QIDs (P279)
-            entity_names: Dictionary mapping QIDs to entity names
-            session: Database session
-        """
-        logger.warning(
-            "Using deprecated save_complete_hierarchy_to_database method. Consider updating to new batch methods."
-        )
-        from ..models import WikidataClass, SubclassRelation
-
-        logger.info("Saving hierarchy to database...")
-
-        # Clear existing hierarchy data
-        logger.info("Clearing existing hierarchy data...")
-        session.execute(text("DELETE FROM subclass_relations"))
-        session.execute(text("DELETE FROM wikidata_classes"))
-
-        # Collect all unique entity IDs that participate in the hierarchy
-        all_entities = set()
-        for parent_id, children in subclass_relations.items():
-            all_entities.add(parent_id)
-            all_entities.update(children)
-
-        # Insert WikidataClass records
-        logger.info(f"Inserting {len(all_entities)} Wikidata classes...")
-        classes_to_insert = []
-        for entity_id in all_entities:
-            name = entity_names.get(
-                entity_id
-            )  # Use actual name if available, None otherwise
-            classes_to_insert.append(WikidataClass(wikidata_id=entity_id, name=name))
-
-        # Add classes using ORM to get proper relationships
-        session.add_all(classes_to_insert)
-        session.flush()  # Flush to get UUIDs
-
-        # Create lookup from wikidata_id to WikidataClass object
-        wikidata_id_to_class = {wc.wikidata_id: wc for wc in classes_to_insert}
-
-        # Insert SubclassRelation records using ORM relationships
-        total_relations = sum(len(children) for children in subclass_relations.values())
-        logger.info(f"Inserting {total_relations} subclass relations...")
-
-        for parent_wikidata_id, children in subclass_relations.items():
-            parent_class = wikidata_id_to_class.get(parent_wikidata_id)
-            if not parent_class:
-                continue
-
-            for child_wikidata_id in children:
-                child_class = wikidata_id_to_class.get(child_wikidata_id)
-                if not child_class:
-                    continue
-
-                relation = SubclassRelation(
-                    parent_class=parent_class, child_class=child_class
-                )
-                session.add(relation)
-
-        session.commit()
-
-        logger.info(
-            f"Successfully saved hierarchy with {len(all_entities)} classes and {total_relations} relations"
-        )
 
     def load_complete_hierarchy_from_database(
         self, session: Session

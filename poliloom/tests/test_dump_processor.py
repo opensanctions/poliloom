@@ -265,28 +265,34 @@ class TestWikidataDumpProcessor:
 
     def test_extract_entities_from_dump_integration(self, processor, db_session):
         """Test complete entity extraction workflow."""
-        # First, set up hierarchy in database
+        # First, set up hierarchy in database using current approach
         from poliloom.services.hierarchy_builder import HierarchyBuilder
         from poliloom.database import get_db_session
+        from poliloom.models import WikidataClass
+        from sqlalchemy.dialects.postgresql import insert
 
-        # Create hierarchy data that includes positions and locations
-        subclass_relations = {
-            "Q294414": {"Q1"},  # position root -> test position
-            "Q2221906": {"Q2"},  # location root -> test location
-        }
-        entity_names = {
-            "Q294414": "Public Office",
-            "Q2221906": "Geographic Location",
-            "Q1": "Test Position",
-            "Q2": "Test Location",
-            "Q3": "Test Country",
-        }
+        # Create WikidataClass records first
+        wikidata_classes_data = [
+            {"wikidata_id": "Q294414", "name": "Public Office"},
+            {"wikidata_id": "Q2221906", "name": "Geographic Location"},
+            {"wikidata_id": "Q1", "name": "Test Position"},
+            {"wikidata_id": "Q2", "name": "Test Location"},
+            {"wikidata_id": "Q3", "name": "Test Country"},
+        ]
 
         with get_db_session() as session:
+            stmt = insert(WikidataClass).values(wikidata_classes_data)
+            stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+            session.execute(stmt)
+            session.commit()
+
+            # Create subclass relations
+            subclass_relations = {
+                "Q294414": {"Q1"},  # position root -> test position
+                "Q2221906": {"Q2"},  # location root -> test location
+            }
             builder = HierarchyBuilder()
-            builder.save_complete_hierarchy_to_database(
-                subclass_relations, entity_names, session
-            )
+            builder.insert_subclass_relations_batch(subclass_relations, session)
 
         # Create test entities that should be extracted
         entities = [

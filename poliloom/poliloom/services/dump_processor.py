@@ -174,10 +174,6 @@ class WikidataDumpProcessor:
         logger.info(f"Using {num_workers} parallel workers")
         logger.info(f"Extracting names for {len(qids_to_extract)} filtered entities")
 
-        # Clear existing hierarchy data first
-        with get_db_session() as session:
-            self.hierarchy_builder.clear_hierarchy_tables(session)
-
         # Split file into chunks for parallel processing
         chunks = self.dump_reader.calculate_file_chunks(dump_file_path)
 
