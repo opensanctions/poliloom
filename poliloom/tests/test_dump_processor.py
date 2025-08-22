@@ -6,7 +6,11 @@ import tempfile
 import os
 from unittest.mock import patch, MagicMock
 
+from poliloom.database import get_db_session
+from poliloom.models import WikidataClass
 from poliloom.services.dump_processor import WikidataDumpProcessor
+from poliloom.services.hierarchy_builder import HierarchyBuilder
+from sqlalchemy.dialects.postgresql import insert
 from .conftest import load_json_fixture
 
 
@@ -53,8 +57,6 @@ class TestWikidataDumpProcessor:
             assert isinstance(result["locations"], set)
 
             # Should save hierarchy to database (we can verify by loading it back)
-            from poliloom.services.hierarchy_builder import HierarchyBuilder
-            from poliloom.database import get_db_session
 
             with get_db_session() as session:
                 builder = HierarchyBuilder()
@@ -85,8 +87,8 @@ class TestWikidataDumpProcessor:
         finally:
             os.unlink(temp_file)
 
-    def test_process_chunk_pass1(self, processor):
-        """Test processing a chunk of the dump file."""
+    def test_process_chunk_for_relationships(self, processor):
+        """Test processing a chunk of the dump file to extract relationships."""
         # Create test content for chunk processing
         entities = [
             {
@@ -113,10 +115,12 @@ class TestWikidataDumpProcessor:
             temp_file = f.name
 
         try:
-            # Process the entire file as one chunk using Pass 1 (now returns 2 values)
+            # Process the entire file as one chunk for relationship extraction (returns 2 values)
             file_size = os.path.getsize(temp_file)
-            subclass_relations, entity_count = processor._process_chunk_pass1(
-                temp_file, 0, file_size, worker_id=0
+            subclass_relations, entity_count = (
+                processor._process_chunk_for_relationships(
+                    temp_file, 0, file_size, worker_id=0
+                )
             )
 
             # Should extract the P279 relationship
@@ -179,8 +183,6 @@ class TestWikidataDumpProcessor:
             assert "locations" in result
 
             # Load the saved hierarchy from database to verify relationships
-            from poliloom.services.hierarchy_builder import HierarchyBuilder
-            from poliloom.database import get_db_session
 
             with get_db_session() as session:
                 builder = HierarchyBuilder()
@@ -245,8 +247,6 @@ class TestWikidataDumpProcessor:
             assert "locations" in result
 
             # Load the saved hierarchy from database to verify only valid relationships were captured
-            from poliloom.services.hierarchy_builder import HierarchyBuilder
-            from poliloom.database import get_db_session
 
             with get_db_session() as session:
                 builder = HierarchyBuilder()
@@ -266,10 +266,6 @@ class TestWikidataDumpProcessor:
     def test_extract_entities_from_dump_integration(self, processor, db_session):
         """Test complete entity extraction workflow."""
         # First, set up hierarchy in database using current approach
-        from poliloom.services.hierarchy_builder import HierarchyBuilder
-        from poliloom.database import get_db_session
-        from poliloom.models import WikidataClass
-        from sqlalchemy.dialects.postgresql import insert
 
         # Create WikidataClass records first
         wikidata_classes_data = [

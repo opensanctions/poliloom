@@ -1,9 +1,10 @@
 """Tests for database models."""
 
 import pytest
+import time
 from datetime import datetime, timezone
-from uuid import UUID
 from sqlalchemy.exc import IntegrityError
+from uuid import UUID
 
 from poliloom.models import (
     Politician,
@@ -618,7 +619,6 @@ class TestTimestampBehavior:
         original_updated_at = politician.updated_at
 
         # Small delay to ensure timestamp difference
-        import time
 
         time.sleep(0.01)
 

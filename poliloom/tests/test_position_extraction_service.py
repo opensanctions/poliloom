@@ -3,10 +3,11 @@
 import pytest
 from unittest.mock import Mock, patch
 
+from poliloom.models import Politician, Position
 from poliloom.services.position_extraction_service import (
-    PositionExtractionService,
-    FreeFormPositionExtractionResult,
     FreeFormExtractedPosition,
+    FreeFormPositionExtractionResult,
+    PositionExtractionService,
 )
 
 
@@ -33,7 +34,6 @@ class TestPositionExtractionService:
         sample_wikipedia_content,
     ):
         """Test successful position extraction and mapping."""
-        from poliloom.models import Politician, Position
 
         # Create model instances from fixture data
         politician = Politician(**sample_politician_data)
@@ -96,7 +96,6 @@ class TestPositionExtractionService:
         sample_wikipedia_content,
     ):
         """Test extraction when no positions are found."""
-        from poliloom.models import Politician
 
         # Create model instance from fixture data
         politician = Politician(**sample_politician_data)
@@ -131,7 +130,6 @@ class TestPositionExtractionService:
         sample_wikipedia_content,
     ):
         """Test extraction when LLM fails."""
-        from poliloom.models import Politician
 
         # Create model instance from fixture data
         politician = Politician(**sample_politician_data)

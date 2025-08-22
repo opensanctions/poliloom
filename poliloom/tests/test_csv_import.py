@@ -5,8 +5,9 @@ import tempfile
 import os
 from pathlib import Path
 
+from poliloom.database import get_db_session
+from poliloom.models import Country, Position
 from poliloom.services.import_service import ImportService
-from poliloom.models import Position, Country
 from .conftest import load_json_fixture
 
 
@@ -21,7 +22,6 @@ class TestCSVImport:
     @pytest.fixture
     def sample_countries(self):
         """Create sample countries for testing."""
-        from poliloom.database import get_db_session
 
         # Load test data from fixture
         position_data = load_json_fixture("position_test_data.json")
@@ -54,7 +54,6 @@ class TestCSVImport:
         assert result == 7
 
         # Verify positions were created
-        from poliloom.database import get_db_session
 
         with get_db_session() as session:
             positions = session.query(Position).all()
@@ -88,7 +87,6 @@ class TestCSVImport:
         import_service.import_positions_from_csv(str(test_csv_file))
 
         # Should not import positions with is_pep=FALSE
-        from poliloom.database import get_db_session
 
         filtered_positions = ["Q89279295", "Q134765299"]  # These have is_pep=FALSE
 
@@ -110,7 +108,6 @@ class TestCSVImport:
         import_service.import_positions_from_csv(str(test_csv_file))
 
         # Check position with empty countries array
-        from poliloom.database import get_db_session
 
         with get_db_session() as session:
             position_empty_countries = (
@@ -131,7 +128,6 @@ class TestCSVImport:
         import_service.import_positions_from_csv(str(test_csv_file))
 
         # Check position with multiple countries - should exist
-        from poliloom.database import get_db_session
 
         with get_db_session() as session:
             position_multi_countries = (
@@ -146,7 +142,6 @@ class TestCSVImport:
         import_service.import_positions_from_csv(str(test_csv_file))
 
         # Should skip row with empty caption only - Q134758330 has valid entity_id and caption
-        from poliloom.database import get_db_session
 
         invalid_positions = ["Q134758429"]  # Empty caption only
 
@@ -172,7 +167,6 @@ class TestCSVImport:
         import_service = ImportService()
 
         # Create existing position
-        from poliloom.database import get_db_session
 
         with get_db_session() as session:
             existing_position = Position(
@@ -206,7 +200,6 @@ class TestCSVImport:
         assert result == 7
 
         # Check that positions were created
-        from poliloom.database import get_db_session
 
         with get_db_session() as session:
             positions = session.query(Position).all()
@@ -221,7 +214,6 @@ class TestCSVImport:
         assert result == 0
 
         # Verify no positions were created
-        from poliloom.database import get_db_session
 
         with get_db_session() as session:
             positions = session.query(Position).all()

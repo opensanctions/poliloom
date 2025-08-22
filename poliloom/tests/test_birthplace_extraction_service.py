@@ -3,6 +3,7 @@
 import pytest
 from unittest.mock import Mock, patch
 
+from poliloom.models import Location, Politician
 from poliloom.services.birthplace_extraction_service import (
     BirthplaceExtractionService,
     FreeFormBirthplaceExtractionResult,
@@ -33,7 +34,6 @@ class TestBirthplaceExtractionService:
         sample_wikipedia_content,
     ):
         """Test successful birthplace extraction and mapping."""
-        from poliloom.models import Politician, Location
 
         # Create model instances from fixture data
         politician = Politician(**sample_politician_data)
@@ -92,7 +92,6 @@ class TestBirthplaceExtractionService:
         sample_wikipedia_content,
     ):
         """Test extraction when no birthplaces are found."""
-        from poliloom.models import Politician
 
         # Create model instance from fixture data
         politician = Politician(**sample_politician_data)
@@ -127,7 +126,6 @@ class TestBirthplaceExtractionService:
         sample_wikipedia_content,
     ):
         """Test extraction when LLM fails."""
-        from poliloom.models import Politician
 
         # Create model instance from fixture data
         politician = Politician(**sample_politician_data)

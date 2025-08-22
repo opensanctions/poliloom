@@ -1,6 +1,9 @@
 """Tests for HierarchyBuilder."""
 
 import pytest
+from sqlalchemy.dialects.postgresql import insert
+
+from poliloom.models import WikidataClass
 from poliloom.services.hierarchy_builder import HierarchyBuilder
 from .conftest import load_json_fixture
 
@@ -150,8 +153,6 @@ class TestHierarchyBuilder:
 
     def test_query_descendants_from_database(self, builder, db_session):
         """Test querying descendants from database using recursive SQL."""
-        from poliloom.models import WikidataClass
-        from sqlalchemy.dialects.postgresql import insert
 
         # Create WikidataClass records first
         wikidata_classes_data = [
@@ -181,8 +182,6 @@ class TestHierarchyBuilder:
 
     def test_query_descendants_single_node_database(self, builder, db_session):
         """Test querying descendants for single node from database."""
-        from poliloom.models import WikidataClass
-        from sqlalchemy.dialects.postgresql import insert
 
         # Create WikidataClass record for single node
         wikidata_classes_data = [{"wikidata_id": "Q1", "name": "Entity 1"}]
@@ -226,8 +225,6 @@ class TestHierarchyBuilder:
         self, builder, db_session
     ):
         """Test extracting position and location descendants from database."""
-        from poliloom.models import WikidataClass
-        from sqlalchemy.dialects.postgresql import insert
 
         # Create WikidataClass records first
         wikidata_classes_data = [

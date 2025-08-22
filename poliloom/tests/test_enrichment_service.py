@@ -10,13 +10,19 @@ from poliloom.services.enrichment_service import (
     PropertyType,
 )
 from poliloom.models import (
+    ArchivedPage,
+    BornAt,
+    Country,
+    HasCitizenship,
+    HoldsPosition,
+    Location,
+    Position,
     Politician,
     Property,
-    HoldsPosition,
     WikipediaLink,
-    HasCitizenship,
-    BornAt,
 )
+from poliloom.services.birthplace_extraction_service import ExtractedBirthplace
+from poliloom.services.position_extraction_service import ExtractedPosition
 from .conftest import load_json_fixture
 
 
@@ -49,7 +55,6 @@ class TestEnrichmentService:
     @pytest.fixture
     def politician_with_source(self, sample_country_data, db_session):
         """Create a politician with Wikipedia source and citizenship."""
-        from poliloom.models import Country
 
         # Create country
         country = Country(**sample_country_data)
@@ -146,7 +151,6 @@ class TestEnrichmentService:
         self, enrichment_service, db_session, sample_mayor_of_springfield_position_data
     ):
         """Test exact position matching."""
-        from poliloom.models import Position
 
         # Create the position using the test session
         position = Position(**sample_mayor_of_springfield_position_data)
@@ -164,7 +168,6 @@ class TestEnrichmentService:
         self, enrichment_service, db_session, sample_location_data
     ):
         """Test exact location matching."""
-        from poliloom.models import Location
 
         # Create the location using the test session
         location = Location(**sample_location_data)
@@ -186,13 +189,6 @@ class TestEnrichmentService:
         sample_country_data,
     ):
         """Test storing extracted properties."""
-        from poliloom.models import (
-            ArchivedPage,
-            Politician,
-            Country,
-            WikipediaLink,
-            HasCitizenship,
-        )
 
         # Create country, politician and archived page directly using data fixtures
         country = Country(**sample_country_data)
@@ -252,15 +248,6 @@ class TestEnrichmentService:
         sample_country_data,
     ):
         """Test storing extracted positions."""
-        from poliloom.services.position_extraction_service import ExtractedPosition
-        from poliloom.models import (
-            ArchivedPage,
-            Position,
-            Politician,
-            Country,
-            WikipediaLink,
-            HasCitizenship,
-        )
 
         # Create all required entities directly using data fixtures
         country = Country(**sample_country_data)
@@ -327,15 +314,6 @@ class TestEnrichmentService:
         sample_country_data,
     ):
         """Test storing extracted birthplaces."""
-        from poliloom.services.birthplace_extraction_service import ExtractedBirthplace
-        from poliloom.models import (
-            ArchivedPage,
-            Location,
-            Politician,
-            Country,
-            WikipediaLink,
-            HasCitizenship,
-        )
 
         # Create all required entities directly using data fixtures
         country = Country(**sample_country_data)
@@ -393,14 +371,6 @@ class TestEnrichmentService:
         sample_country_data,
     ):
         """Test that storing skips positions that don't exist in database."""
-        from poliloom.services.position_extraction_service import ExtractedPosition
-        from poliloom.models import (
-            ArchivedPage,
-            Politician,
-            Country,
-            WikipediaLink,
-            HasCitizenship,
-        )
 
         # Create all required entities directly using data fixtures
         country = Country(**sample_country_data)
@@ -456,14 +426,6 @@ class TestEnrichmentService:
         sample_country_data,
     ):
         """Test that storing skips locations that don't exist in database."""
-        from poliloom.services.birthplace_extraction_service import ExtractedBirthplace
-        from poliloom.models import (
-            ArchivedPage,
-            Politician,
-            Country,
-            WikipediaLink,
-            HasCitizenship,
-        )
 
         # Create all required entities directly using data fixtures
         country = Country(**sample_country_data)
@@ -514,13 +476,6 @@ class TestEnrichmentService:
         sample_country_data,
     ):
         """Test error handling in store_extracted_data."""
-        from poliloom.models import (
-            ArchivedPage,
-            Politician,
-            Country,
-            WikipediaLink,
-            HasCitizenship,
-        )
 
         # Create all required entities directly using data fixtures
         country = Country(**sample_country_data)

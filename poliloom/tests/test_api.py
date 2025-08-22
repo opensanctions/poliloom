@@ -1,11 +1,12 @@
 """Tests for API endpoints with MediaWiki OAuth authentication."""
 
 import pytest
-from unittest.mock import patch
 from fastapi.testclient import TestClient
+from unittest.mock import AsyncMock, Mock as SyncMock, patch
 
 from poliloom.api.app import app
 from poliloom.api.auth import User
+from poliloom.models import ArchivedPage
 from .conftest import load_json_fixture
 
 
@@ -55,7 +56,6 @@ class TestAPIAuthentication:
 
     def test_valid_token_passes_auth(self, client):
         """Test that valid OAuth token passes authentication."""
-        from unittest.mock import AsyncMock, Mock as SyncMock
 
         with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
             # Mock successful OAuth verification
@@ -77,7 +77,6 @@ class TestAPIAuthentication:
 
     def test_evaluation_endpoint_with_auth(self, client):
         """Test that /evaluate endpoint works with valid authentication."""
-        from unittest.mock import AsyncMock, Mock as SyncMock
 
         with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
             # Mock successful OAuth verification
@@ -165,7 +164,6 @@ class TestArchivedPagesAPI:
 
     def test_invalid_uuid_format_rejected(self, client):
         """Test that invalid UUID format is rejected."""
-        from unittest.mock import AsyncMock, Mock as SyncMock
 
         with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
             # Mock successful OAuth verification
@@ -190,7 +188,6 @@ class TestArchivedPagesAPI:
 
     def test_nonexistent_archived_page_returns_404(self, client):
         """Test that nonexistent archived page returns 404."""
-        from unittest.mock import AsyncMock, Mock as SyncMock
 
         with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
             # Mock successful OAuth verification
@@ -217,8 +214,6 @@ class TestArchivedPagesAPI:
         self, client, db_session, sample_archived_page_data
     ):
         """Test that missing files return 404."""
-        from unittest.mock import AsyncMock, Mock as SyncMock, patch
-        from poliloom.models import ArchivedPage
 
         # Create archived page instance
         archived_page = ArchivedPage(**sample_archived_page_data)
@@ -252,8 +247,6 @@ class TestArchivedPagesAPI:
         self, client, db_session, sample_archived_page_data
     ):
         """Test explicit .html and .md extension endpoints."""
-        from unittest.mock import AsyncMock, Mock as SyncMock, patch
-        from poliloom.models import ArchivedPage
 
         # Create archived page instance
         archived_page = ArchivedPage(**sample_archived_page_data)

@@ -1,9 +1,10 @@
 """Test configuration and fixtures for PoliLoom tests."""
 
-import pytest
 import json
+import pytest
+from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from poliloom.models import (
     Base,
@@ -126,7 +127,6 @@ def sample_wikipedia_link_data():
 @pytest.fixture
 def sample_archived_page_data():
     """Return data for creating an archived page."""
-    from datetime import datetime, timezone
 
     return {
         "url": "https://en.wikipedia.org/wiki/Test_Page",

@@ -43,7 +43,7 @@ class WikidataDumpProcessor:
         """
         Build hierarchy trees for positions and locations from Wikidata dump.
 
-        Uses a memory-efficient three-pass approach:
+        Uses a memory-efficient three-step approach:
         1. Collect QIDs involved in P279 relationships (~100MB memory)
         2. Insert WikidataClass records for those QIDs only
         3. Insert SubclassRelation records with proper foreign keys
@@ -56,9 +56,9 @@ class WikidataDumpProcessor:
         """
         logger.info(f"Building hierarchy trees from dump file: {dump_file_path}")
 
-        # Pass 1: Collect QIDs involved in P279 relationships (memory-efficient)
-        logger.info("Pass 1: Collecting QIDs involved in P279 relationships...")
-        subclass_relations = self._build_hierarchy_pass1(dump_file_path)
+        # Step 1: Collect QIDs involved in P279 relationships (memory-efficient)
+        logger.info("Step 1: Collecting QIDs involved in P279 relationships...")
+        subclass_relations = self._collect_subclass_relationships(dump_file_path)
 
         # Extract all unique QIDs that need WikidataClass records
         all_qids = set()
@@ -70,13 +70,13 @@ class WikidataDumpProcessor:
             f"Found {len(all_qids)} unique entities in hierarchy (vs ~100M total entities)"
         )
 
-        # Pass 2: Insert WikidataClass records for filtered QIDs
-        logger.info("Pass 2: Inserting WikidataClass records...")
-        self._build_hierarchy_pass2(dump_file_path, all_qids)
+        # Step 2: Insert WikidataClass records for filtered QIDs
+        logger.info("Step 2: Inserting WikidataClass records...")
+        self._extract_and_store_entity_names(dump_file_path, all_qids)
 
-        # Pass 3: Insert SubclassRelation records
-        logger.info("Pass 3: Inserting SubclassRelation records...")
-        self._build_hierarchy_pass3(dump_file_path, subclass_relations)
+        # Step 3: Insert SubclassRelation records
+        logger.info("Step 3: Inserting SubclassRelation records...")
+        self._store_hierarchy_relationships(subclass_relations)
 
         # Extract specific trees from the complete hierarchy
         descendants = self.hierarchy_builder.get_position_and_location_descendants(
@@ -93,11 +93,13 @@ class WikidataDumpProcessor:
 
         return descendants
 
-    def _build_hierarchy_pass1(self, dump_file_path: str) -> Dict[str, Set[str]]:
+    def _collect_subclass_relationships(
+        self, dump_file_path: str
+    ) -> Dict[str, Set[str]]:
         """
-        Pass 1: Collect QIDs involved in P279 relationships (memory-efficient).
+        Collect QIDs involved in P279 relationships (memory-efficient first step).
 
-        This pass only collects relationship data without entity names,
+        This step only collects relationship data without entity names,
         dramatically reducing memory usage from 64GB+ to ~100MB.
 
         Args:
@@ -120,7 +122,7 @@ class WikidataDumpProcessor:
 
             # Each worker processes its chunk independently
             async_result = pool.starmap_async(
-                self._process_chunk_pass1,
+                self._process_chunk_for_relationships,
                 [
                     (dump_file_path, start, end, i)
                     for i, (start, end) in enumerate(chunks)
@@ -137,7 +139,7 @@ class WikidataDumpProcessor:
                     pool.join(timeout=5)
                 except Exception:
                     pass
-            raise KeyboardInterrupt("Pass 1 interrupted by user")
+            raise KeyboardInterrupt("Relationship collection interrupted by user")
         finally:
             if pool:
                 pool.close()
@@ -152,18 +154,20 @@ class WikidataDumpProcessor:
             for parent_id, children in chunk_relations.items():
                 subclass_relations[parent_id].update(children)
 
-        logger.info(f"Pass 1 complete: Processed {total_entities} entities")
+        logger.info(
+            f"Relationship collection complete: Processed {total_entities} entities"
+        )
         logger.info(f"Found {len(subclass_relations)} entities with subclasses")
 
         return dict(subclass_relations)
 
-    def _build_hierarchy_pass2(
+    def _extract_and_store_entity_names(
         self, dump_file_path: str, qids_to_extract: Set[str]
     ) -> None:
         """
-        Pass 2: Extract and insert WikidataClass records for filtered QIDs only.
+        Extract and insert WikidataClass records for filtered QIDs only.
 
-        This pass processes the dump again but only extracts names for entities
+        This step processes the dump again but only extracts names for entities
         that are involved in the hierarchy, dramatically reducing memory usage.
 
         Args:
@@ -183,7 +187,7 @@ class WikidataDumpProcessor:
 
             # Each worker processes its chunk independently
             async_result = pool.starmap_async(
-                self._process_chunk_pass2,
+                self._process_chunk_for_entity_names,
                 [
                     (dump_file_path, start, end, i, qids_to_extract)
                     for i, (start, end) in enumerate(chunks)
@@ -200,7 +204,7 @@ class WikidataDumpProcessor:
                     pool.join(timeout=5)
                 except Exception:
                     pass
-            raise KeyboardInterrupt("Pass 2 interrupted by user")
+            raise KeyboardInterrupt("Entity name extraction interrupted by user")
         finally:
             if pool:
                 pool.close()
@@ -208,22 +212,23 @@ class WikidataDumpProcessor:
 
         # Summarize results
         total_entities = sum(chunk_count for chunk_count in chunk_results)
-        logger.info(f"Pass 2 complete: Processed {total_entities} entities")
+        logger.info(
+            f"Entity name extraction complete: Processed {total_entities} entities"
+        )
         logger.info(
             f"WikidataClass records inserted for {len(qids_to_extract)} entities"
         )
 
-    def _build_hierarchy_pass3(
-        self, dump_file_path: str, subclass_relations: Dict[str, Set[str]]
+    def _store_hierarchy_relationships(
+        self, subclass_relations: Dict[str, Set[str]]
     ) -> None:
         """
-        Pass 3: Insert SubclassRelation records using existing WikidataClass records.
+        Insert SubclassRelation records using existing WikidataClass records.
 
         All required WikidataClass records now exist, so we can safely create
         SubclassRelation records with proper foreign key references.
 
         Args:
-            dump_file_path: Path to the Wikidata JSON dump file
             subclass_relations: Mapping of parent QIDs to child QID sets
         """
         logger.info(
@@ -235,13 +240,15 @@ class WikidataDumpProcessor:
                 subclass_relations, session
             )
 
-        logger.info("Pass 3 complete: All SubclassRelation records inserted")
+        logger.info(
+            "Hierarchy relationship storage complete: All SubclassRelation records inserted"
+        )
 
-    def _process_chunk_pass1(
+    def _process_chunk_for_relationships(
         self, dump_file_path: str, start_byte: int, end_byte: int, worker_id: int
     ):
         """
-        Pass 1 worker: Extract only P279 relationships, no entity names.
+        Worker process: Extract only P279 relationships, no entity names.
 
         This dramatically reduces memory usage by avoiding entity name collection.
         """
@@ -277,18 +284,18 @@ class WikidataDumpProcessor:
                     subclass_relations[parent_id].update(children)
 
             logger.info(
-                f"Worker {worker_id}: Pass 1 complete, processed {entity_count} entities"
+                f"Worker {worker_id}: Relationship extraction complete, processed {entity_count} entities"
             )
             return dict(subclass_relations), entity_count
 
         except KeyboardInterrupt:
-            logger.info(f"Worker {worker_id}: Pass 1 interrupted")
+            logger.info(f"Worker {worker_id}: Relationship extraction interrupted")
             return dict(subclass_relations), entity_count
         except Exception as e:
-            logger.error(f"Worker {worker_id}: Pass 1 error: {e}")
+            logger.error(f"Worker {worker_id}: Relationship extraction error: {e}")
             return {}, 0
 
-    def _process_chunk_pass2(
+    def _process_chunk_for_entity_names(
         self,
         dump_file_path: str,
         start_byte: int,
@@ -297,7 +304,7 @@ class WikidataDumpProcessor:
         qids_to_extract: Set[str],
     ):
         """
-        Pass 2 worker: Extract names for filtered QIDs and insert WikidataClass records.
+        Worker process: Extract names for filtered QIDs and insert WikidataClass records.
 
         Only processes entities whose QIDs are in the filter set, dramatically
         reducing memory usage and processing time.
@@ -349,15 +356,15 @@ class WikidataDumpProcessor:
                 self._insert_wikidata_classes_batch(wikidata_classes)
 
             logger.info(
-                f"Worker {worker_id}: Pass 2 complete, processed {entity_count} entities, extracted {extracted_count}"
+                f"Worker {worker_id}: Entity name extraction complete, processed {entity_count} entities, extracted {extracted_count}"
             )
             return entity_count
 
         except KeyboardInterrupt:
-            logger.info(f"Worker {worker_id}: Pass 2 interrupted")
+            logger.info(f"Worker {worker_id}: Entity name extraction interrupted")
             return entity_count
         except Exception as e:
-            logger.error(f"Worker {worker_id}: Pass 2 error: {e}")
+            logger.error(f"Worker {worker_id}: Entity name extraction error: {e}")
             return 0
 
     def _insert_wikidata_classes_batch(
