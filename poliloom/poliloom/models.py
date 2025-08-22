@@ -432,7 +432,8 @@ class WikidataClass(Base, TimestampMixin):
 
     __tablename__ = "wikidata_classes"
 
-    class_id = Column(String, primary_key=True, index=True)  # Wikidata QID
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    wikidata_id = Column(String, unique=True, index=True)  # Wikidata QID
     name = Column(String, nullable=False)  # Class name from Wikidata labels
 
     # Relationships
@@ -462,10 +463,16 @@ class SubclassRelation(Base, TimestampMixin):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     parent_class_id = Column(
-        String, ForeignKey("wikidata_classes.class_id"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("wikidata_classes.id"),
+        nullable=False,
+        index=True,
     )
     child_class_id = Column(
-        String, ForeignKey("wikidata_classes.class_id"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("wikidata_classes.id"),
+        nullable=False,
+        index=True,
     )
 
     # Relationships

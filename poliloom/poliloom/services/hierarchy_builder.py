@@ -165,24 +165,35 @@ class HierarchyBuilder:
         classes_to_insert = []
         for entity_id in all_entities:
             name = entity_names.get(entity_id, entity_id)  # Fallback to ID if no name
-            classes_to_insert.append(WikidataClass(class_id=entity_id, name=name))
+            classes_to_insert.append(WikidataClass(wikidata_id=entity_id, name=name))
 
-        # Bulk insert classes
-        session.bulk_save_objects(classes_to_insert)
+        # Add classes using ORM to get proper relationships
+        session.add_all(classes_to_insert)
+        session.flush()  # Flush to get UUIDs
 
-        # Insert SubclassRelation records
+        # Create lookup from wikidata_id to WikidataClass object
+        wikidata_id_to_class = {wc.wikidata_id: wc for wc in classes_to_insert}
+
+        # Insert SubclassRelation records using ORM relationships
         total_relations = sum(len(children) for children in subclass_relations.values())
         logger.info(f"Inserting {total_relations} subclass relations...")
 
-        relations_to_insert = []
-        for parent_id, children in subclass_relations.items():
-            for child_id in children:
-                relations_to_insert.append(
-                    SubclassRelation(parent_class_id=parent_id, child_class_id=child_id)
-                )
+        for parent_wikidata_id, children in subclass_relations.items():
+            parent_class = wikidata_id_to_class.get(parent_wikidata_id)
+            if not parent_class:
+                continue
 
-        # Bulk insert relations
-        session.bulk_save_objects(relations_to_insert)
+            for child_wikidata_id in children:
+                child_class = wikidata_id_to_class.get(child_wikidata_id)
+                if not child_class:
+                    continue
+
+                relation = SubclassRelation(
+                    parent_class=parent_class, child_class=child_class
+                )
+                session.add(relation)
+
+        session.commit()
 
         logger.info(
             f"Successfully saved hierarchy with {len(all_entities)} classes and {total_relations} relations"
@@ -204,17 +215,19 @@ class HierarchyBuilder:
 
         logger.info("Loading hierarchy from database...")
 
-        # Query all subclass relations
+        # Query all subclass relations with their class relationships
         relations = session.query(SubclassRelation).all()
 
         if not relations:
             logger.warning("No hierarchy data found in database")
             return None
 
-        # Convert to the expected format
+        # Convert to the expected format using wikidata_ids
         subclass_relations = defaultdict(set)
         for relation in relations:
-            subclass_relations[relation.parent_class_id].add(relation.child_class_id)
+            parent_wikidata_id = relation.parent_class.wikidata_id
+            child_wikidata_id = relation.child_class.wikidata_id
+            subclass_relations[parent_wikidata_id].add(child_wikidata_id)
 
         # Convert defaultdict to regular dict
         subclass_relations = dict(subclass_relations)
@@ -263,14 +276,16 @@ class HierarchyBuilder:
         sql = text("""
             WITH RECURSIVE descendants AS (
                 -- Base case: start with the root entity
-                SELECT CAST(:root_id AS VARCHAR) AS class_id
+                SELECT CAST(:root_id AS VARCHAR) AS wikidata_id
                 UNION
                 -- Recursive case: find all children
-                SELECT sr.child_class_id
+                SELECT child.wikidata_id
                 FROM subclass_relations sr
-                JOIN descendants d ON sr.parent_class_id = d.class_id
+                JOIN wikidata_classes parent ON sr.parent_class_id = parent.id
+                JOIN wikidata_classes child ON sr.child_class_id = child.id
+                JOIN descendants d ON parent.wikidata_id = d.wikidata_id
             )
-            SELECT DISTINCT class_id FROM descendants
+            SELECT DISTINCT wikidata_id FROM descendants
         """)
 
         result = session.execute(sql, {"root_id": root_id})
@@ -294,22 +309,26 @@ class HierarchyBuilder:
         # Single optimized query to get both position and location descendants
         sql = text("""
             WITH RECURSIVE position_descendants AS (
-                SELECT CAST(:position_root AS VARCHAR) AS class_id, 'position' as type
+                SELECT CAST(:position_root AS VARCHAR) AS wikidata_id, 'position' as type
                 UNION
-                SELECT sr.child_class_id, 'position' as type
+                SELECT child.wikidata_id, 'position' as type
                 FROM subclass_relations sr
-                JOIN position_descendants d ON sr.parent_class_id = d.class_id
+                JOIN wikidata_classes parent ON sr.parent_class_id = parent.id
+                JOIN wikidata_classes child ON sr.child_class_id = child.id
+                JOIN position_descendants d ON parent.wikidata_id = d.wikidata_id
             ),
             location_descendants AS (
-                SELECT CAST(:location_root AS VARCHAR) AS class_id, 'location' as type
+                SELECT CAST(:location_root AS VARCHAR) AS wikidata_id, 'location' as type
                 UNION
-                SELECT sr.child_class_id, 'location' as type
+                SELECT child.wikidata_id, 'location' as type
                 FROM subclass_relations sr
-                JOIN location_descendants d ON sr.parent_class_id = d.class_id
+                JOIN wikidata_classes parent ON sr.parent_class_id = parent.id
+                JOIN wikidata_classes child ON sr.child_class_id = child.id
+                JOIN location_descendants d ON parent.wikidata_id = d.wikidata_id
             )
-            SELECT type, class_id FROM position_descendants
+            SELECT type, wikidata_id FROM position_descendants
             UNION ALL
-            SELECT type, class_id FROM location_descendants
+            SELECT type, wikidata_id FROM location_descendants
         """)
 
         result = session.execute(
