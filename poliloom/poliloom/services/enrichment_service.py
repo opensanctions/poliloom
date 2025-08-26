@@ -9,7 +9,6 @@ import httpx
 import logging
 from openai import OpenAI
 from pydantic import BaseModel
-from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
 from unmhtml import MHTMLConverter
 import mistune
 from bs4 import BeautifulSoup
@@ -204,6 +203,9 @@ class EnrichmentService:
             db.flush()  # Insert to database to trigger events, but don't commit yet
 
             # Now the object is properly initialized with generated content_hash
+
+            # Lazy import crawl4ai to avoid cache directory creation on import
+            from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
 
             # Configure crawl4ai to capture MHTML and convert to markdown
             config = CrawlerRunConfig(
