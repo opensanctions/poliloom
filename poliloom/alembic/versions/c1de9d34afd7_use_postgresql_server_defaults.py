@@ -18,33 +18,36 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+# Tables with UUID primary keys
+TABLES_WITH_UUID = [
+    "property_evaluations",
+    "position_evaluations",
+    "birthplace_evaluations",
+    "politicians",
+    "archived_pages",
+    "wikipedia_links",
+    "properties",
+    "countries",
+    "locations",
+    "positions",
+    "holds_position",
+    "born_at",
+    "has_citizenship",
+    "subclass_relations",
+]
+
+# All tables with timestamp columns (includes wikidata_classes which has no UUID)
+ALL_TABLES_WITH_TIMESTAMPS = TABLES_WITH_UUID + ["wikidata_classes"]
+
+
 def upgrade() -> None:
     """Upgrade schema to use PostgreSQL server-side defaults."""
     # Update UUID columns to use gen_random_uuid()
-    tables_with_uuid = [
-        "property_evaluations",
-        "position_evaluations",
-        "birthplace_evaluations",
-        "politicians",
-        "archived_pages",
-        "wikipedia_links",
-        "properties",
-        "countries",
-        "locations",
-        "positions",
-        "holds_position",
-        "born_at",
-        "has_citizenship",
-        "subclass_relations",
-    ]
-
-    for table in tables_with_uuid:
+    for table in TABLES_WITH_UUID:
         op.execute(f"ALTER TABLE {table} ALTER COLUMN id SET DEFAULT gen_random_uuid()")
 
     # Update timestamp columns to use CURRENT_TIMESTAMP
-    all_tables = tables_with_uuid + ["wikidata_classes"]
-
-    for table in all_tables:
+    for table in ALL_TABLES_WITH_TIMESTAMPS:
         op.execute(
             f"ALTER TABLE {table} ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP"
         )
@@ -56,29 +59,10 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema to remove PostgreSQL server-side defaults."""
     # Remove UUID defaults
-    tables_with_uuid = [
-        "property_evaluations",
-        "position_evaluations",
-        "birthplace_evaluations",
-        "politicians",
-        "archived_pages",
-        "wikipedia_links",
-        "properties",
-        "countries",
-        "locations",
-        "positions",
-        "holds_position",
-        "born_at",
-        "has_citizenship",
-        "subclass_relations",
-    ]
-
-    for table in tables_with_uuid:
+    for table in TABLES_WITH_UUID:
         op.execute(f"ALTER TABLE {table} ALTER COLUMN id DROP DEFAULT")
 
     # Remove timestamp defaults
-    all_tables = tables_with_uuid + ["wikidata_classes"]
-
-    for table in all_tables:
+    for table in ALL_TABLES_WITH_TIMESTAMPS:
         op.execute(f"ALTER TABLE {table} ALTER COLUMN created_at DROP DEFAULT")
         op.execute(f"ALTER TABLE {table} ALTER COLUMN updated_at DROP DEFAULT")

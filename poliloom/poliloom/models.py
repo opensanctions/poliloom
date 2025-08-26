@@ -31,7 +31,6 @@ class TimestampMixin:
     updated_at = Column(
         DateTime,
         server_default=func.now(),
-        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
 
@@ -527,3 +526,6 @@ class SubclassRelation(Base, TimestampMixin):
 
 
 # Vector columns are now defined directly in the model classes using pgvector.Vector(384)
+
+# Note: PostgreSQL triggers for automatic updated_at timestamps are created via Alembic migrations
+# See migration: b18e52b53fa5_add_postgresql_triggers_for_updated_at.py
