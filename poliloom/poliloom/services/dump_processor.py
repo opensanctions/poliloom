@@ -171,7 +171,8 @@ class WikidataDumpProcessor:
         self, subclass_relations: Dict[str, Set[str]]
     ) -> None:
         """
-        Insert WikidataClass and SubclassRelation records in batches.
+        Insert WikidataClass and SubclassRelation records in smaller committed batches.
+        Each batch commits independently for better progress visibility and recovery.
 
         Args:
             subclass_relations: Mapping of parent QIDs to child QID sets
@@ -179,59 +180,62 @@ class WikidataDumpProcessor:
         total_relations = sum(len(children) for children in subclass_relations.values())
         logger.info(f"Inserting {total_relations} subclass relations")
 
-        with get_db_session() as session:
-            # 1. Collect all unique QIDs and insert WikidataClass records
-            all_qids = set(subclass_relations.keys())
-            for children in subclass_relations.values():
-                all_qids.update(children)
+        # 1. Insert WikidataClass records in committed batches
+        all_qids = set(subclass_relations.keys())
+        for children in subclass_relations.values():
+            all_qids.update(children)
 
-            logger.info(f"Inserting {len(all_qids)} WikidataClass records")
-            class_data = [{"wikidata_id": qid} for qid in all_qids]
+        logger.info(f"Inserting {len(all_qids)} WikidataClass records")
+        class_data = [{"wikidata_id": qid} for qid in all_qids]
 
-            # Insert in batches of 10,000 to stay well under PostgreSQL limits
-            batch_size = 10000
-            total_batches = (len(class_data) + batch_size - 1) // batch_size
+        batch_size = 10000
+        total_batches = (len(class_data) + batch_size - 1) // batch_size
 
-            for i in range(0, len(class_data), batch_size):
-                batch_num = i // batch_size + 1
-                batch = class_data[i : i + batch_size]
+        for i in range(0, len(class_data), batch_size):
+            batch_num = i // batch_size + 1
+            batch = class_data[i : i + batch_size]
+
+            # Each batch gets its own committed transaction
+            with get_db_session() as session:
                 stmt = insert(WikidataClass).values(batch)
                 stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
                 session.execute(stmt)
-                logger.info(
-                    f"Inserted WikidataClass batch {batch_num}/{total_batches} ({len(batch)} records)"
-                )
+                session.commit()
 
-            session.commit()
             logger.info(
-                f"✅ Completed inserting {len(class_data)} WikidataClass records"
+                f"Inserted WikidataClass batch {batch_num}/{total_batches} ({len(batch)} records)"
             )
 
-            # 2. Insert SubclassRelation records
-            relation_data = [
-                {"parent_class_id": parent_qid, "child_class_id": child_qid}
-                for parent_qid, children in subclass_relations.items()
-                for child_qid in children
-            ]
+        logger.info(f"✅ Completed inserting {len(class_data)} WikidataClass records")
 
-            total_relation_batches = (len(relation_data) + batch_size - 1) // batch_size
-            logger.info(
-                f"Starting insertion of {len(relation_data)} subclass relations in {total_relation_batches} batches"
-            )
+        # 2. Insert SubclassRelation records in committed batches
+        relation_data = [
+            {"parent_class_id": parent_qid, "child_class_id": child_qid}
+            for parent_qid, children in subclass_relations.items()
+            for child_qid in children
+        ]
 
-            for i in range(0, len(relation_data), batch_size):
-                batch_num = i // batch_size + 1
-                batch = relation_data[i : i + batch_size]
+        total_relation_batches = (len(relation_data) + batch_size - 1) // batch_size
+        logger.info(
+            f"Inserting {len(relation_data)} subclass relations in {total_relation_batches} batches"
+        )
+
+        for i in range(0, len(relation_data), batch_size):
+            batch_num = i // batch_size + 1
+            batch = relation_data[i : i + batch_size]
+
+            # Each batch gets its own committed transaction
+            with get_db_session() as session:
                 stmt = insert(SubclassRelation).values(batch)
                 stmt = stmt.on_conflict_do_nothing(
                     constraint="uq_subclass_parent_child"
                 )
                 session.execute(stmt)
-                logger.info(
-                    f"Inserted SubclassRelation batch {batch_num}/{total_relation_batches} ({len(batch)} records)"
-                )
+                session.commit()
 
-            session.commit()
+            logger.info(
+                f"Inserted SubclassRelation batch {batch_num}/{total_relation_batches} ({len(batch)} records)"
+            )
 
         logger.info(f"✅ Completed inserting {len(relation_data)} subclass relations")
 
@@ -306,7 +310,8 @@ class WikidataDumpProcessor:
 
     def _apply_name_updates_batch(self, name_updates: Dict[str, str]) -> None:
         """
-        Apply name updates to WikidataClass records in batches.
+        Apply name updates to WikidataClass records in smaller committed batches.
+        Each batch commits independently for better progress visibility and recovery.
 
         Args:
             name_updates: Mapping of wikidata_id to name
@@ -317,15 +322,16 @@ class WikidataDumpProcessor:
 
         logger.info(f"Applying {len(name_updates)} name updates to database")
 
-        with get_db_session() as session:
-            # Use a more efficient bulk update approach
-            batch_size = 10000
-            items = list(name_updates.items())
+        batch_size = 10000
+        items = list(name_updates.items())
+        total_batches = (len(items) + batch_size - 1) // batch_size
 
-            for i in range(0, len(items), batch_size):
-                batch = items[i : i + batch_size]
+        for i in range(0, len(items), batch_size):
+            batch_num = i // batch_size + 1
+            batch = items[i : i + batch_size]
 
-                # Use SQLAlchemy bulk_update_mappings for efficiency
+            # Each batch gets its own committed transaction
+            with get_db_session() as session:
                 batch_updates = [
                     {
                         "wikidata_id": wikidata_id,
@@ -338,9 +344,9 @@ class WikidataDumpProcessor:
                 session.bulk_update_mappings(WikidataClass, batch_updates)
                 session.commit()
 
-                logger.info(
-                    f"Applied name updates batch {i // batch_size + 1}/{(len(items) + batch_size - 1) // batch_size}"
-                )
+            logger.info(
+                f"Applied name updates batch {batch_num}/{total_batches} ({len(batch)} records)"
+            )
 
         logger.info(f"✅ Applied {len(name_updates)} name updates")
 
