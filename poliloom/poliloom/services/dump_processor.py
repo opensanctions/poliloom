@@ -2,8 +2,11 @@
 
 import logging
 import multiprocessing as mp
-from typing import Dict, Set, List
+from typing import Dict, Set
 from collections import defaultdict
+from datetime import datetime, timezone
+
+from sqlalchemy.dialects.postgresql import insert
 
 from .dump_reader import DumpReader
 from .hierarchy_builder import HierarchyBuilder
@@ -11,9 +14,11 @@ from .database_inserter import DatabaseInserter
 from .worker_manager import (
     init_worker_with_db,
     init_worker_with_hierarchy,
-    get_worker_session,
+    get_hierarchy_sets,
 )
 from ..database import get_db_session
+from ..models import WikidataClass, SubclassRelation
+from ..entities import WikidataEntity
 from ..entities.factory import WikidataEntityFactory
 from ..entities.politician import WikidataPolitician
 from ..entities.position import WikidataPosition
@@ -43,10 +48,9 @@ class WikidataDumpProcessor:
         """
         Build hierarchy trees for positions and locations from Wikidata dump.
 
-        Uses a memory-efficient three-step approach:
-        1. Collect QIDs involved in P279 relationships (~100MB memory)
-        2. Insert WikidataClass records for those QIDs only
-        3. Insert SubclassRelation records with proper foreign keys
+        Uses a memory-efficient two-phase approach:
+        1. Collect subclass relationships from dump
+        2. Insert WikidataClass and SubclassRelation records in batches, then update names
 
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
@@ -56,8 +60,8 @@ class WikidataDumpProcessor:
         """
         logger.info(f"Building hierarchy trees from dump file: {dump_file_path}")
 
-        # Step 1: Collect QIDs involved in P279 relationships (memory-efficient)
-        logger.info("Step 1: Collecting QIDs involved in P279 relationships...")
+        # Phase 1: Collect subclass relationships
+        logger.info("Phase 1: Collecting subclass relationships...")
         subclass_relations = self._collect_subclass_relationships(dump_file_path)
 
         # Extract all unique QIDs that need WikidataClass records
@@ -70,13 +74,15 @@ class WikidataDumpProcessor:
             f"Found {len(all_qids)} unique entities in hierarchy (vs ~100M total entities)"
         )
 
-        # Step 2: Insert WikidataClass records for filtered QIDs
-        logger.info("Step 2: Inserting WikidataClass records...")
-        self._extract_and_store_entity_names(dump_file_path, all_qids)
+        # Phase 2: Insert WikidataClass and SubclassRelation records in batches
+        logger.info("Phase 2: Inserting WikidataClass and SubclassRelation records...")
+        self._batch_insert_subclass_relations(subclass_relations)
 
-        # Step 3: Insert SubclassRelation records
-        logger.info("Step 3: Inserting SubclassRelation records...")
-        self._store_hierarchy_relationships(subclass_relations)
+        # Phase 3: Extract and batch update names for all WikidataClass records in database
+        logger.info(
+            "Phase 3: Extracting and updating names for all WikidataClass records..."
+        )
+        self._batch_update_wikidata_class_names(dump_file_path)
 
         # Extract specific trees from the complete hierarchy
         descendants = self.hierarchy_builder.get_position_and_location_descendants(
@@ -161,35 +167,89 @@ class WikidataDumpProcessor:
 
         return dict(subclass_relations)
 
-    def _extract_and_store_entity_names(
-        self, dump_file_path: str, qids_to_extract: Set[str]
+    def _batch_insert_subclass_relations(
+        self, subclass_relations: Dict[str, Set[str]]
     ) -> None:
         """
-        Extract and insert WikidataClass records for filtered QIDs only.
+        Insert WikidataClass and SubclassRelation records in batches.
 
-        This step processes the dump again but only extracts names for entities
-        that are involved in the hierarchy, dramatically reducing memory usage.
+        Args:
+            subclass_relations: Mapping of parent QIDs to child QID sets
+        """
+        total_relations = sum(len(children) for children in subclass_relations.values())
+        logger.info(f"Inserting {total_relations} subclass relations")
+
+        with get_db_session() as session:
+            # 1. Collect all unique QIDs and insert WikidataClass records
+            all_qids = set(subclass_relations.keys())
+            for children in subclass_relations.values():
+                all_qids.update(children)
+
+            logger.info(f"Inserting {len(all_qids)} WikidataClass records")
+            class_data = [{"wikidata_id": qid} for qid in all_qids]
+
+            # Insert in batches of 10,000 to stay well under PostgreSQL limits
+            batch_size = 10000
+            for i in range(0, len(class_data), batch_size):
+                batch = class_data[i : i + batch_size]
+                stmt = insert(WikidataClass).values(batch)
+                stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+                session.execute(stmt)
+
+            session.commit()
+
+            # 2. Insert SubclassRelation records
+            relation_data = [
+                {"parent_class_id": parent_qid, "child_class_id": child_qid}
+                for parent_qid, children in subclass_relations.items()
+                for child_qid in children
+            ]
+
+            for i in range(0, len(relation_data), batch_size):
+                batch = relation_data[i : i + batch_size]
+                stmt = insert(SubclassRelation).values(batch)
+                stmt = stmt.on_conflict_do_nothing(
+                    constraint="uq_subclass_parent_child"
+                )
+                session.execute(stmt)
+
+            session.commit()
+
+        logger.info(f"✅ Inserted {len(relation_data)} subclass relations")
+
+    def _batch_update_wikidata_class_names(self, dump_file_path: str) -> None:
+        """
+        Extract names from dump and batch update ALL WikidataClass records in database.
+        This ensures names are always current on every hierarchy rebuild.
 
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
-            qids_to_extract: Set of QIDs to extract names for
         """
+        # Get all QIDs currently in the database
+        with get_db_session() as session:
+            existing_classes = session.query(WikidataClass).all()
+            existing_qids = {wc.wikidata_id for wc in existing_classes}
+
+        logger.info(
+            f"Extracting names for {len(existing_qids)} WikidataClass records in database"
+        )
+
+        # Use parallel processing to extract names for all classes in database
         num_workers = mp.cpu_count()
-        logger.info(f"Using {num_workers} parallel workers")
-        logger.info(f"Extracting names for {len(qids_to_extract)} filtered entities")
+        logger.info(f"Using {num_workers} parallel workers for name extraction")
 
         # Split file into chunks for parallel processing
         chunks = self.dump_reader.calculate_file_chunks(dump_file_path)
-
         pool = None
+
         try:
             pool = mp.Pool(processes=num_workers, initializer=init_worker_with_db)
 
             # Each worker processes its chunk independently
             async_result = pool.starmap_async(
-                self._process_chunk_for_entity_names,
+                self._process_chunk_for_name_updates,
                 [
-                    (dump_file_path, start, end, i, qids_to_extract)
+                    (dump_file_path, start, end, i, existing_qids)
                     for i, (start, end) in enumerate(chunks)
                 ],
             )
@@ -204,45 +264,124 @@ class WikidataDumpProcessor:
                     pool.join(timeout=5)
                 except Exception:
                     pass
-            raise KeyboardInterrupt("Entity name extraction interrupted by user")
+            raise KeyboardInterrupt("Name extraction interrupted by user")
         finally:
             if pool:
                 pool.close()
                 pool.join()
 
-        # Summarize results
-        total_entities = sum(chunk_count for chunk_count in chunk_results)
-        logger.info(
-            f"Entity name extraction complete: Processed {total_entities} entities"
-        )
-        logger.info(
-            f"WikidataClass records inserted for {len(qids_to_extract)} entities"
-        )
+        # Merge results from all chunks
+        all_name_updates = {}
+        total_entities = 0
 
-    def _store_hierarchy_relationships(
-        self, subclass_relations: Dict[str, Set[str]]
-    ) -> None:
+        for name_updates, chunk_count in chunk_results:
+            total_entities += chunk_count
+            all_name_updates.update(name_updates)
+
+        logger.info(f"Name extraction complete: processed {total_entities} entities")
+        logger.info(f"Found names for {len(all_name_updates)} entities")
+
+        # Batch update names in database
+        self._apply_name_updates_batch(all_name_updates)
+
+        logger.info("✅ WikidataClass name updates complete")
+
+    def _apply_name_updates_batch(self, name_updates: Dict[str, str]) -> None:
         """
-        Insert SubclassRelation records using existing WikidataClass records.
-
-        All required WikidataClass records now exist, so we can safely create
-        SubclassRelation records with proper foreign key references.
+        Apply name updates to WikidataClass records in batches.
 
         Args:
-            subclass_relations: Mapping of parent QIDs to child QID sets
+            name_updates: Mapping of wikidata_id to name
         """
-        logger.info(
-            f"Inserting {sum(len(children) for children in subclass_relations.values())} subclass relations"
-        )
+        if not name_updates:
+            logger.info("No name updates to apply")
+            return
+
+        logger.info(f"Applying {len(name_updates)} name updates to database")
 
         with get_db_session() as session:
-            self.hierarchy_builder.insert_subclass_relations_batch(
-                subclass_relations, session
+            # Use a more efficient bulk update approach
+            batch_size = 10000
+            items = list(name_updates.items())
+
+            for i in range(0, len(items), batch_size):
+                batch = items[i : i + batch_size]
+
+                # Use SQLAlchemy bulk_update_mappings for efficiency
+                batch_updates = [
+                    {
+                        "wikidata_id": wikidata_id,
+                        "name": name,
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                    for wikidata_id, name in batch
+                ]
+
+                session.bulk_update_mappings(WikidataClass, batch_updates)
+                session.commit()
+
+                logger.info(
+                    f"Applied name updates batch {i // batch_size + 1}/{(len(items) + batch_size - 1) // batch_size}"
+                )
+
+        logger.info(f"✅ Applied {len(name_updates)} name updates")
+
+    def _process_chunk_for_name_updates(
+        self,
+        dump_file_path: str,
+        start_byte: int,
+        end_byte: int,
+        worker_id: int,
+        target_qids: Set[str],
+    ):
+        """
+        Worker process: Extract names only for entities in target_qids set.
+        Returns mapping of wikidata_id to name for entities found in this chunk.
+        """
+        name_updates = {}
+        entity_count = 0
+        interrupted = False
+
+        try:
+            for entity in self.dump_reader.read_chunk_entities(
+                dump_file_path, start_byte, end_byte
+            ):
+                if interrupted:
+                    break
+
+                entity_count += 1
+
+                entity_id = entity.get("id", "")
+                if not entity_id or entity_id not in target_qids:
+                    continue
+
+                # Extract name using base entity logic
+                try:
+                    name = WikidataEntity.extract_name(entity)
+                    if name:
+                        name_updates[entity_id] = name
+                except Exception as e:
+                    logger.debug(
+                        f"Worker {worker_id}: failed to extract name for {entity_id}: {e}"
+                    )
+                    continue
+
+        except KeyboardInterrupt:
+            interrupted = True
+            logger.info(f"Worker {worker_id}: name extraction interrupted")
+        except Exception as e:
+            logger.error(f"Worker {worker_id}: error during name extraction: {e}")
+
+        if interrupted:
+            logger.info(
+                f"Worker {worker_id}: interrupted, returning partial name results"
+            )
+        else:
+            logger.info(
+                f"Worker {worker_id}: extracted {len(name_updates)} names from {entity_count} entities"
             )
 
-        logger.info(
-            "Hierarchy relationship storage complete: All SubclassRelation records inserted"
-        )
+        return name_updates, entity_count
 
     def _process_chunk_for_relationships(
         self, dump_file_path: str, start_byte: int, end_byte: int, worker_id: int
@@ -295,101 +434,6 @@ class WikidataDumpProcessor:
             logger.error(f"Worker {worker_id}: Relationship extraction error: {e}")
             return {}, 0
 
-    def _process_chunk_for_entity_names(
-        self,
-        dump_file_path: str,
-        start_byte: int,
-        end_byte: int,
-        worker_id: int,
-        qids_to_extract: Set[str],
-    ):
-        """
-        Worker process: Extract names for filtered QIDs and insert WikidataClass records.
-
-        Only processes entities whose QIDs are in the filter set, dramatically
-        reducing memory usage and processing time.
-        """
-        interrupted = False
-        try:
-            wikidata_classes = []
-            entity_count = 0
-            extracted_count = 0
-            batch_size = 1000  # Process in smaller batches for memory efficiency
-
-            for entity in self.dump_reader.read_chunk_entities(
-                dump_file_path, start_byte, end_byte
-            ):
-                if interrupted:
-                    break
-
-                entity_count += 1
-
-                # Progress reporting
-                if entity_count % 100000 == 0:
-                    logger.info(
-                        f"Worker {worker_id}: processed {entity_count} entities, extracted {extracted_count}"
-                    )
-
-                # Only process entities in our filter set
-                entity_id = entity.get("id", "")
-                if entity_id not in qids_to_extract:
-                    continue
-
-                # Extract entity name
-                name = self.hierarchy_builder.extract_entity_name_from_entity(entity)
-                wikidata_classes.append(
-                    {
-                        "wikidata_id": entity_id,
-                        "name": name,  # Can be None
-                    }
-                )
-                extracted_count += 1
-
-                # Batch insert when we reach batch size
-                if len(wikidata_classes) >= batch_size:
-                    self._insert_wikidata_classes_batch(wikidata_classes)
-                    wikidata_classes = []
-
-            # Insert any remaining records
-            if wikidata_classes:
-                self._insert_wikidata_classes_batch(wikidata_classes)
-
-            logger.info(
-                f"Worker {worker_id}: Entity name extraction complete, processed {entity_count} entities, extracted {extracted_count}"
-            )
-            return entity_count
-
-        except KeyboardInterrupt:
-            logger.info(f"Worker {worker_id}: Entity name extraction interrupted")
-            return entity_count
-        except Exception as e:
-            logger.error(f"Worker {worker_id}: Entity name extraction error: {e}")
-            return 0
-
-    def _insert_wikidata_classes_batch(
-        self, wikidata_classes: List[Dict[str, str]]
-    ) -> None:
-        """Insert a batch of WikidataClass records."""
-        try:
-            from ..models import WikidataClass
-            from sqlalchemy.dialects.postgresql import insert
-
-            session = get_worker_session()
-            try:
-                # Use UPSERT to handle duplicates across workers
-                stmt = insert(WikidataClass).values(wikidata_classes)
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=["wikidata_id"], set_=dict(name=stmt.excluded.name)
-                )
-                session.execute(stmt)
-                session.commit()
-            finally:
-                session.close()
-
-        except Exception as e:
-            logger.error(f"Failed to insert WikidataClass batch: {e}")
-            raise
-
     def extract_entities_from_dump(
         self,
         dump_file_path: str,
@@ -408,8 +452,6 @@ class WikidataDumpProcessor:
         # Load only position and location descendants from database (optimized)
         with get_db_session() as session:
             # Check if hierarchy data exists first
-            from ..models import SubclassRelation
-
             relation_count = session.query(SubclassRelation).count()
             if relation_count == 0:
                 raise ValueError(
@@ -625,8 +667,6 @@ class WikidataDumpProcessor:
         Returns entity counts found in this chunk.
         """
         # Get hierarchy data from worker globals
-        from .worker_manager import get_hierarchy_sets
-
         position_descendants, location_descendants = get_hierarchy_sets()
 
         positions = []

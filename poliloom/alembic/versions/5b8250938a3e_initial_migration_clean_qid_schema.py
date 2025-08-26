@@ -1,8 +1,8 @@
-"""Initial migration with complete schema
+"""initial_migration_clean_qid_schema
 
-Revision ID: 791c7593cd8a
+Revision ID: 5b8250938a3e
 Revises:
-Create Date: 2025-08-07 16:44:52.018332
+Create Date: 2025-08-26 17:25:40.631215
 
 """
 
@@ -10,11 +10,11 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-import pgvector.sqlalchemy
+from pgvector.sqlalchemy import Vector
 
 
 # revision identifiers, used by Alembic.
-revision: str = "791c7593cd8a"
+revision: str = "5b8250938a3e"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -56,21 +56,6 @@ def upgrade() -> None:
         op.f("ix_countries_wikidata_id"), "countries", ["wikidata_id"], unique=True
     )
     op.create_table(
-        "locations",
-        sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("name", sa.String(), nullable=False),
-        sa.Column("wikidata_id", sa.String(), nullable=True),
-        sa.Column(
-            "embedding", pgvector.sqlalchemy.vector.VECTOR(dim=384), nullable=True
-        ),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(
-        op.f("ix_locations_wikidata_id"), "locations", ["wikidata_id"], unique=True
-    )
-    op.create_table(
         "politicians",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
@@ -83,19 +68,147 @@ def upgrade() -> None:
         op.f("ix_politicians_wikidata_id"), "politicians", ["wikidata_id"], unique=True
     )
     op.create_table(
+        "wikidata_classes",
+        sa.Column("wikidata_id", sa.String(), nullable=False),
+        sa.Column("name", sa.String(), nullable=True),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.PrimaryKeyConstraint("wikidata_id"),
+    )
+    op.create_table(
+        "has_citizenship",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("politician_id", sa.UUID(), nullable=False),
+        sa.Column("country_id", sa.UUID(), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["country_id"],
+            ["countries.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["politician_id"],
+            ["politicians.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_table(
+        "locations",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("name", sa.String(), nullable=False),
+        sa.Column("wikidata_id", sa.String(), nullable=True),
+        sa.Column("embedding", Vector(384), nullable=True),
+        sa.Column("wikidata_class_id", sa.String(), nullable=True),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["wikidata_class_id"],
+            ["wikidata_classes.wikidata_id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_locations_wikidata_class_id"),
+        "locations",
+        ["wikidata_class_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_locations_wikidata_id"), "locations", ["wikidata_id"], unique=True
+    )
+    op.create_table(
         "positions",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("wikidata_id", sa.String(), nullable=True),
-        sa.Column(
-            "embedding", pgvector.sqlalchemy.vector.VECTOR(dim=384), nullable=True
-        ),
+        sa.Column("embedding", Vector(384), nullable=True),
+        sa.Column("wikidata_class_id", sa.String(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["wikidata_class_id"],
+            ["wikidata_classes.wikidata_id"],
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
+        op.f("ix_positions_wikidata_class_id"),
+        "positions",
+        ["wikidata_class_id"],
+        unique=False,
+    )
+    op.create_index(
         op.f("ix_positions_wikidata_id"), "positions", ["wikidata_id"], unique=True
+    )
+    op.create_table(
+        "properties",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("politician_id", sa.UUID(), nullable=False),
+        sa.Column("type", sa.String(), nullable=False),
+        sa.Column("value", sa.String(), nullable=False),
+        sa.Column("value_precision", sa.Integer(), nullable=True),
+        sa.Column("archived_page_id", sa.UUID(), nullable=True),
+        sa.Column("proof_line", sa.String(), nullable=True),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["archived_page_id"],
+            ["archived_pages.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["politician_id"],
+            ["politicians.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "politician_id", "type", name="uq_properties_politician_type"
+        ),
+    )
+    op.create_table(
+        "subclass_relations",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("parent_class_id", sa.String(), nullable=False),
+        sa.Column("child_class_id", sa.String(), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["child_class_id"],
+            ["wikidata_classes.wikidata_id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["parent_class_id"],
+            ["wikidata_classes.wikidata_id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "parent_class_id", "child_class_id", name="uq_subclass_parent_child"
+        ),
+    )
+    op.create_index(
+        op.f("ix_subclass_relations_child_class_id"),
+        "subclass_relations",
+        ["child_class_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_subclass_relations_parent_class_id"),
+        "subclass_relations",
+        ["parent_class_id"],
+        unique=False,
+    )
+    op.create_table(
+        "wikipedia_links",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("politician_id", sa.UUID(), nullable=False),
+        sa.Column("url", sa.String(), nullable=False),
+        sa.Column("language_code", sa.String(), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["politician_id"],
+            ["politicians.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
         "born_at",
@@ -113,23 +226,6 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["location_id"],
             ["locations.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["politician_id"],
-            ["politicians.id"],
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_table(
-        "has_citizenship",
-        sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("politician_id", sa.UUID(), nullable=False),
-        sa.Column("country_id", sa.UUID(), nullable=False),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["country_id"],
-            ["countries.id"],
         ),
         sa.ForeignKeyConstraint(
             ["politician_id"],
@@ -165,40 +261,16 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
-        "properties",
+        "property_evaluations",
         sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("politician_id", sa.UUID(), nullable=False),
-        sa.Column("type", sa.String(), nullable=False),
-        sa.Column("value", sa.String(), nullable=False),
-        sa.Column("value_precision", sa.Integer(), nullable=True),
-        sa.Column("archived_page_id", sa.UUID(), nullable=True),
-        sa.Column("proof_line", sa.String(), nullable=True),
+        sa.Column("user_id", sa.String(), nullable=False),
+        sa.Column("is_confirmed", sa.Boolean(), nullable=False),
+        sa.Column("property_id", sa.UUID(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(
-            ["archived_page_id"],
-            ["archived_pages.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["politician_id"],
-            ["politicians.id"],
-        ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "politician_id", "type", name="uq_properties_politician_type"
-        ),
-    )
-    op.create_table(
-        "wikipedia_links",
-        sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("politician_id", sa.UUID(), nullable=False),
-        sa.Column("url", sa.String(), nullable=False),
-        sa.Column("language_code", sa.String(), nullable=False),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["politician_id"],
-            ["politicians.id"],
+            ["property_id"],
+            ["properties.id"],
         ),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -230,40 +302,36 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_table(
-        "property_evaluations",
-        sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("user_id", sa.String(), nullable=False),
-        sa.Column("is_confirmed", sa.Boolean(), nullable=False),
-        sa.Column("property_id", sa.UUID(), nullable=False),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["property_id"],
-            ["properties.id"],
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_table("property_evaluations")
     op.drop_table("position_evaluations")
     op.drop_table("birthplace_evaluations")
-    op.drop_table("wikipedia_links")
-    op.drop_table("properties")
+    op.drop_table("property_evaluations")
     op.drop_table("holds_position")
-    op.drop_table("has_citizenship")
     op.drop_table("born_at")
+    op.drop_table("wikipedia_links")
+    op.drop_index(
+        op.f("ix_subclass_relations_parent_class_id"), table_name="subclass_relations"
+    )
+    op.drop_index(
+        op.f("ix_subclass_relations_child_class_id"), table_name="subclass_relations"
+    )
+    op.drop_table("subclass_relations")
+    op.drop_table("properties")
     op.drop_index(op.f("ix_positions_wikidata_id"), table_name="positions")
+    op.drop_index(op.f("ix_positions_wikidata_class_id"), table_name="positions")
     op.drop_table("positions")
+    op.drop_index(op.f("ix_locations_wikidata_id"), table_name="locations")
+    op.drop_index(op.f("ix_locations_wikidata_class_id"), table_name="locations")
+    op.drop_table("locations")
+    op.drop_table("has_citizenship")
+    op.drop_table("wikidata_classes")
     op.drop_index(op.f("ix_politicians_wikidata_id"), table_name="politicians")
     op.drop_table("politicians")
-    op.drop_index(op.f("ix_locations_wikidata_id"), table_name="locations")
-    op.drop_table("locations")
     op.drop_index(op.f("ix_countries_wikidata_id"), table_name="countries")
     op.drop_index(op.f("ix_countries_iso_code"), table_name="countries")
     op.drop_table("countries")

@@ -30,61 +30,6 @@ logger = logging.getLogger(__name__)
 class DatabaseInserter:
     """Handles batch database insertions for dump processing."""
 
-    def _resolve_wikidata_class_ids(
-        self, entity_dicts: List[dict], session
-    ) -> List[dict]:
-        """
-        Resolve wikidata_class_id fields to class_id UUIDs using database lookup.
-
-        Args:
-            entity_dicts: List of entity dictionaries that may contain wikidata_class_id
-            session: Database session
-
-        Returns:
-            List of entity dictionaries with class_id UUIDs resolved
-        """
-        from ..models import WikidataClass
-
-        # Collect all unique wikidata_class_ids that need resolution
-        wikidata_class_ids = {
-            entity.get("wikidata_class_id")
-            for entity in entity_dicts
-            if entity.get("wikidata_class_id")
-        }
-
-        if not wikidata_class_ids:
-            # No class IDs to resolve, just copy dicts without wikidata_class_id
-            return [
-                {k: v for k, v in entity.items() if k != "wikidata_class_id"}
-                for entity in entity_dicts
-            ]
-
-        # Query WikidataClass records for resolution
-        wikidata_classes = (
-            session.query(WikidataClass)
-            .filter(WikidataClass.wikidata_id.in_(wikidata_class_ids))
-            .all()
-        )
-
-        # Create mapping from wikidata_id to UUID
-        class_id_map = {wc.wikidata_id: wc.id for wc in wikidata_classes}
-
-        # Resolve class IDs in entity dictionaries
-        resolved_entities = []
-        for entity in entity_dicts:
-            resolved_entity = {
-                k: v for k, v in entity.items() if k != "wikidata_class_id"
-            }
-
-            wikidata_class_id = entity.get("wikidata_class_id")
-            if wikidata_class_id and wikidata_class_id in class_id_map:
-                resolved_entity["class_id"] = class_id_map[wikidata_class_id]
-            # If wikidata_class_id not found, class_id remains None (which is allowed)
-
-            resolved_entities.append(resolved_entity)
-
-        return resolved_entities
-
     def insert_entity(
         self,
         entity: Union[
@@ -120,11 +65,6 @@ class DatabaseInserter:
 
         session = get_worker_session()
         try:
-            # Resolve wikidata_class_id to class_id UUIDs
-            resolved_positions = self._resolve_wikidata_class_ids(
-                position_dicts, session
-            )
-
             # Use PostgreSQL UPSERT for positions
             stmt = insert(Position).values(
                 [
@@ -132,18 +72,20 @@ class DatabaseInserter:
                         "wikidata_id": p["wikidata_id"],
                         "name": p["name"],
                         "embedding": None,  # Will be generated later
-                        "class_id": p.get("class_id"),  # May be None if not found
+                        "wikidata_class_id": p.get(
+                            "wikidata_class_id"
+                        ),  # May be None if not found
                     }
-                    for p in resolved_positions
+                    for p in position_dicts
                 ]
             )
 
-            # On conflict, update the name and class_id (in case it changed in Wikidata)
+            # On conflict, update the name and wikidata_class_id (in case it changed in Wikidata)
             stmt = stmt.on_conflict_do_update(
                 index_elements=["wikidata_id"],
                 set_={
                     "name": stmt.excluded.name,
-                    "class_id": stmt.excluded.class_id,
+                    "wikidata_class_id": stmt.excluded.wikidata_class_id,
                     "updated_at": stmt.excluded.updated_at,
                 },
             )
@@ -176,11 +118,6 @@ class DatabaseInserter:
 
         session = get_worker_session()
         try:
-            # Resolve wikidata_class_id to class_id UUIDs
-            resolved_locations = self._resolve_wikidata_class_ids(
-                location_dicts, session
-            )
-
             # Use PostgreSQL UPSERT for locations
             stmt = insert(Location).values(
                 [
@@ -188,18 +125,20 @@ class DatabaseInserter:
                         "wikidata_id": loc["wikidata_id"],
                         "name": loc["name"],
                         "embedding": None,  # Will be generated later
-                        "class_id": loc.get("class_id"),  # May be None if not found
+                        "wikidata_class_id": loc.get(
+                            "wikidata_class_id"
+                        ),  # May be None if not found
                     }
-                    for loc in resolved_locations
+                    for loc in location_dicts
                 ]
             )
 
-            # On conflict, update the name and class_id (in case it changed in Wikidata)
+            # On conflict, update the name and wikidata_class_id (in case it changed in Wikidata)
             stmt = stmt.on_conflict_do_update(
                 index_elements=["wikidata_id"],
                 set_={
                     "name": stmt.excluded.name,
-                    "class_id": stmt.excluded.class_id,
+                    "wikidata_class_id": stmt.excluded.wikidata_class_id,
                     "updated_at": stmt.excluded.updated_at,
                 },
             )

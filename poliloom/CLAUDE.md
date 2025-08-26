@@ -64,6 +64,7 @@ The database reproduces a subset of the Wikidata politician data model to store 
 - **Conflict Resolution:** conflict_resolved fields will be used to flag when discrepancies between extracted data and existing Wikidata values have been addressed.
 - **Embedding Workflow:** Position and Location entities have optional embedding fields that are initially NULL during import. Embeddings are generated separately in batch processing for all entities without embeddings to ensure optimal performance.
 - **Evaluation System:** Instead of direct confirmation fields, the system uses separate evaluation tables (PropertyEvaluation, PositionEvaluation, BirthplaceEvaluation) that track user evaluations with boolean confirmed/rejected flags for Properties, HoldsPosition, and BornAt entities. This allows multiple users to evaluate the same extracted data and supports threshold-based confirmation workflows.
+- **WikidataClass Architecture:** The system uses a simplified QID-based approach where `wikidata_classes` uses `wikidata_id` as the primary key (String type), eliminating the need for UUID-to-QID mapping. All foreign keys in `subclass_relations`, `positions.wikidata_class_id`, and `locations.wikidata_class_id` reference QIDs directly for optimal performance and code simplicity.
 
 ## **4\. Core Functionality**
 
@@ -126,9 +127,10 @@ This module is responsible for initially populating the local database with poli
   - Countries are identified through their entity types in the dump data
 - **Hierarchy Tree Storage:**
   - Store position and location descendant trees in database after first pass
-  - Database tables: `wikidata_classes` (entity names) and `subclass_relations` (P279 relationships)
+  - Database tables: `wikidata_classes` (with wikidata_id as primary key) and `subclass_relations` (P279 relationships using QID foreign keys)
   - Trees are rebuilt for each new dump import (no dump date tracking needed)
   - Includes subclass (P279) relationships for comprehensive hierarchy coverage
+  - Uses QIDs directly as primary/foreign keys for optimal performance
 - **Wikipedia Linkage:**
   - Extract Wikipedia article links directly from entity sitelinks in the dump
   - Prioritize English and local language versions
@@ -206,15 +208,17 @@ curl http://localhost:8000/openapi.json
   - Parallel decompression for optimal performance (~1TB uncompressed output)
   - Comprehensive error handling without fallbacks
 
-- **poliloom dump build-hierarchy --file PATH [--workers NUM]**
+- **poliloom dump build-hierarchy --file PATH**
 
-  - Build hierarchy trees for positions and locations from Wikidata dump
+  - Build hierarchy trees for positions and locations from Wikidata dump using optimized three-phase approach
   - **--file**: Path to extracted JSON dump file - local filesystem path or GCS path (gs://bucket/path)
-  - **--workers**: Number of worker processes (default: CPU count)
+  - **Phase 1**: Collect P279 relationships and batch insert WikidataClass records (without names)
+  - **Phase 2**: Batch insert SubclassRelation records using QID foreign keys for optimal performance
+  - **Phase 3**: Extract and batch update names for ALL WikidataClass records in database (ensures names stay current)
   - Uses chunk-based parallel processing - splits file into byte ranges for true parallelism
   - Extracts all P279 (subclass of) relationships to build complete descendant trees
   - Saves complete hierarchy to database in `wikidata_classes` and `subclass_relations` tables
-  - Stores entity names alongside hierarchy relationships for better usability
+  - Always updates entity names on every run to keep them current with latest dump
   - Must be run before `dump import` command
   - **Performance**: Scales linearly with CPU cores - near-linear speedup up to 32+ cores
   - **Scalability**: Each worker processes independent file chunks for optimal resource utilization

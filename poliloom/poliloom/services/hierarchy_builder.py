@@ -141,34 +141,17 @@ class HierarchyBuilder:
             subclass_relations: Dictionary mapping parent QIDs to child QID sets
             session: Database session
         """
-        from ..models import WikidataClass, SubclassRelation
+        from ..models import SubclassRelation
         from sqlalchemy.dialects.postgresql import insert
 
-        # Get all existing WikidataClass records
-        logger.info("Loading WikidataClass mappings...")
-        wikidata_classes = session.query(WikidataClass).all()
-        wikidata_id_to_class = {wc.wikidata_id: wc for wc in wikidata_classes}
-
-        logger.info(f"Found {len(wikidata_id_to_class)} WikidataClass records")
-
-        # Prepare SubclassRelation data
+        # Prepare SubclassRelation data directly using QIDs
         relations_data = []
         for parent_wikidata_id, children in subclass_relations.items():
-            parent_class = wikidata_id_to_class.get(parent_wikidata_id)
-            if not parent_class:
-                logger.warning(f"Parent class not found: {parent_wikidata_id}")
-                continue
-
             for child_wikidata_id in children:
-                child_class = wikidata_id_to_class.get(child_wikidata_id)
-                if not child_class:
-                    logger.warning(f"Child class not found: {child_wikidata_id}")
-                    continue
-
                 relations_data.append(
                     {
-                        "parent_class_id": parent_class.id,
-                        "child_class_id": child_class.id,
+                        "parent_class_id": parent_wikidata_id,
+                        "child_class_id": child_wikidata_id,
                     }
                 )
 
@@ -205,11 +188,11 @@ class HierarchyBuilder:
             logger.warning("No hierarchy data found in database")
             return None
 
-        # Convert to the expected format using wikidata_ids
+        # Convert to the expected format using QIDs directly
         subclass_relations = defaultdict(set)
         for relation in relations:
-            parent_wikidata_id = relation.parent_class.wikidata_id
-            child_wikidata_id = relation.child_class.wikidata_id
+            parent_wikidata_id = relation.parent_class_id
+            child_wikidata_id = relation.child_class_id
             subclass_relations[parent_wikidata_id].add(child_wikidata_id)
 
         # Convert defaultdict to regular dict
@@ -262,11 +245,9 @@ class HierarchyBuilder:
                 SELECT CAST(:root_id AS VARCHAR) AS wikidata_id
                 UNION
                 -- Recursive case: find all children
-                SELECT child.wikidata_id
+                SELECT sr.child_class_id AS wikidata_id
                 FROM subclass_relations sr
-                JOIN wikidata_classes parent ON sr.parent_class_id = parent.id
-                JOIN wikidata_classes child ON sr.child_class_id = child.id
-                JOIN descendants d ON parent.wikidata_id = d.wikidata_id
+                JOIN descendants d ON sr.parent_class_id = d.wikidata_id
             )
             SELECT DISTINCT wikidata_id FROM descendants
         """)
@@ -294,20 +275,16 @@ class HierarchyBuilder:
             WITH RECURSIVE position_descendants AS (
                 SELECT CAST(:position_root AS VARCHAR) AS wikidata_id, 'position' as type
                 UNION
-                SELECT child.wikidata_id, 'position' as type
+                SELECT sr.child_class_id AS wikidata_id, 'position' as type
                 FROM subclass_relations sr
-                JOIN wikidata_classes parent ON sr.parent_class_id = parent.id
-                JOIN wikidata_classes child ON sr.child_class_id = child.id
-                JOIN position_descendants d ON parent.wikidata_id = d.wikidata_id
+                JOIN position_descendants d ON sr.parent_class_id = d.wikidata_id
             ),
             location_descendants AS (
                 SELECT CAST(:location_root AS VARCHAR) AS wikidata_id, 'location' as type
                 UNION
-                SELECT child.wikidata_id, 'location' as type
+                SELECT sr.child_class_id AS wikidata_id, 'location' as type
                 FROM subclass_relations sr
-                JOIN wikidata_classes parent ON sr.parent_class_id = parent.id
-                JOIN wikidata_classes child ON sr.child_class_id = child.id
-                JOIN location_descendants d ON parent.wikidata_id = d.wikidata_id
+                JOIN location_descendants d ON sr.parent_class_id = d.wikidata_id
             )
             SELECT type, wikidata_id FROM position_descendants
             UNION ALL

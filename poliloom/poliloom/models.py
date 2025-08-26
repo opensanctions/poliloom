@@ -306,8 +306,8 @@ class Location(Base, TimestampMixin):
     name = Column(String, nullable=False)
     wikidata_id = Column(String, unique=True, index=True)
     embedding = Column(Vector(384), nullable=True)
-    class_id = Column(
-        UUID(as_uuid=True), ForeignKey("wikidata_classes.id"), nullable=True, index=True
+    wikidata_class_id = Column(
+        String, ForeignKey("wikidata_classes.wikidata_id"), nullable=True, index=True
     )
 
     # Relationships
@@ -326,8 +326,8 @@ class Position(Base, TimestampMixin):
     name = Column(String, nullable=False)
     wikidata_id = Column(String, unique=True, index=True)
     embedding = Column(Vector(384), nullable=True)
-    class_id = Column(
-        UUID(as_uuid=True), ForeignKey("wikidata_classes.id"), nullable=True, index=True
+    wikidata_class_id = Column(
+        String, ForeignKey("wikidata_classes.wikidata_id"), nullable=True, index=True
     )
 
     # Relationships
@@ -440,8 +440,7 @@ class WikidataClass(Base, TimestampMixin):
 
     __tablename__ = "wikidata_classes"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    wikidata_id = Column(String, unique=True, index=True)  # Wikidata QID
+    wikidata_id = Column(String, primary_key=True)  # Wikidata QID as primary key
     name = Column(
         String, nullable=True
     )  # Class name from Wikidata labels (can be None)
@@ -475,14 +474,14 @@ class SubclassRelation(Base, TimestampMixin):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     parent_class_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("wikidata_classes.id"),
+        String,
+        ForeignKey("wikidata_classes.wikidata_id"),
         nullable=False,
         index=True,
     )
     child_class_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("wikidata_classes.id"),
+        String,
+        ForeignKey("wikidata_classes.wikidata_id"),
         nullable=False,
         index=True,
     )
