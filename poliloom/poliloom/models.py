@@ -12,12 +12,13 @@ from sqlalchemy import (
     Integer,
     Boolean,
     UniqueConstraint,
+    text,
+    func,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy import event
 from sqlalchemy.ext.hybrid import hybrid_property
-from uuid import uuid4
 from pgvector.sqlalchemy import Vector
 
 Base = declarative_base()
@@ -26,12 +27,10 @@ Base = declarative_base()
 class TimestampMixin:
     """Mixin for adding timestamp fields."""
 
-    created_at = Column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
-    )
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
@@ -42,7 +41,9 @@ class PropertyEvaluation(Base, TimestampMixin):
 
     __tablename__ = "property_evaluations"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
     user_id = Column(String, nullable=False)
     is_confirmed = Column(Boolean, nullable=False)
     property_id = Column(
@@ -58,7 +59,9 @@ class PositionEvaluation(Base, TimestampMixin):
 
     __tablename__ = "position_evaluations"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
     user_id = Column(String, nullable=False)
     is_confirmed = Column(Boolean, nullable=False)
     holds_position_id = Column(
@@ -74,7 +77,9 @@ class BirthplaceEvaluation(Base, TimestampMixin):
 
     __tablename__ = "birthplace_evaluations"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
     user_id = Column(String, nullable=False)
     is_confirmed = Column(Boolean, nullable=False)
     born_at_id = Column(UUID(as_uuid=True), ForeignKey("born_at.id"), nullable=False)
@@ -88,7 +93,9 @@ class Politician(Base, TimestampMixin):
 
     __tablename__ = "politicians"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
     name = Column(String, nullable=False)
     wikidata_id = Column(String, unique=True, index=True)
 
@@ -120,7 +127,9 @@ class ArchivedPage(Base, TimestampMixin):
 
     __tablename__ = "archived_pages"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
     url = Column(String, nullable=False)
     content_hash = Column(
         String, nullable=False, index=True
@@ -228,7 +237,9 @@ class WikipediaLink(Base, TimestampMixin):
 
     __tablename__ = "wikipedia_links"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
     politician_id = Column(
         UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
     )
@@ -247,7 +258,9 @@ class Property(Base, TimestampMixin):
         UniqueConstraint("politician_id", "type", name="uq_properties_politician_type"),
     )
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
     politician_id = Column(
         UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
     )
@@ -286,7 +299,9 @@ class Country(Base, TimestampMixin):
 
     __tablename__ = "countries"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
     name = Column(String, nullable=False)  # Country name in English
     iso_code = Column(String, unique=True, index=True)  # ISO 3166-1 alpha-2 code
     wikidata_id = Column(String, unique=True, index=True)
@@ -302,7 +317,9 @@ class Location(Base, TimestampMixin):
 
     __tablename__ = "locations"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
     name = Column(String, nullable=False)
     wikidata_id = Column(String, unique=True, index=True)
     embedding = Column(Vector(384), nullable=True)
@@ -322,7 +339,9 @@ class Position(Base, TimestampMixin):
 
     __tablename__ = "positions"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
     name = Column(String, nullable=False)
     wikidata_id = Column(String, unique=True, index=True)
     embedding = Column(Vector(384), nullable=True)
@@ -342,7 +361,9 @@ class HoldsPosition(Base, TimestampMixin):
 
     __tablename__ = "holds_position"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
     politician_id = Column(
         UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
     )
@@ -388,7 +409,9 @@ class BornAt(Base, TimestampMixin):
 
     __tablename__ = "born_at"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
     politician_id = Column(
         UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
     )
@@ -424,7 +447,9 @@ class HasCitizenship(Base, TimestampMixin):
 
     __tablename__ = "has_citizenship"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
     politician_id = Column(
         UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
     )
@@ -472,7 +497,9 @@ class SubclassRelation(Base, TimestampMixin):
         ),
     )
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
     parent_class_id = Column(
         String,
         ForeignKey("wikidata_classes.wikidata_id"),

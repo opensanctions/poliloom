@@ -190,13 +190,22 @@ class WikidataDumpProcessor:
 
             # Insert in batches of 10,000 to stay well under PostgreSQL limits
             batch_size = 10000
+            total_batches = (len(class_data) + batch_size - 1) // batch_size
+
             for i in range(0, len(class_data), batch_size):
+                batch_num = i // batch_size + 1
                 batch = class_data[i : i + batch_size]
                 stmt = insert(WikidataClass).values(batch)
                 stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
                 session.execute(stmt)
+                logger.info(
+                    f"Inserted WikidataClass batch {batch_num}/{total_batches} ({len(batch)} records)"
+                )
 
             session.commit()
+            logger.info(
+                f"✅ Completed inserting {len(class_data)} WikidataClass records"
+            )
 
             # 2. Insert SubclassRelation records
             relation_data = [
@@ -205,17 +214,26 @@ class WikidataDumpProcessor:
                 for child_qid in children
             ]
 
+            total_relation_batches = (len(relation_data) + batch_size - 1) // batch_size
+            logger.info(
+                f"Starting insertion of {len(relation_data)} subclass relations in {total_relation_batches} batches"
+            )
+
             for i in range(0, len(relation_data), batch_size):
+                batch_num = i // batch_size + 1
                 batch = relation_data[i : i + batch_size]
                 stmt = insert(SubclassRelation).values(batch)
                 stmt = stmt.on_conflict_do_nothing(
                     constraint="uq_subclass_parent_child"
                 )
                 session.execute(stmt)
+                logger.info(
+                    f"Inserted SubclassRelation batch {batch_num}/{total_relation_batches} ({len(batch)} records)"
+                )
 
             session.commit()
 
-        logger.info(f"✅ Inserted {len(relation_data)} subclass relations")
+        logger.info(f"✅ Completed inserting {len(relation_data)} subclass relations")
 
     def _batch_update_wikidata_class_names(self, dump_file_path: str) -> None:
         """
