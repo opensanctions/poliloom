@@ -45,6 +45,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/poliloom
       - PYTHONPATH=/app
+      - PORT=8000
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,6 +67,7 @@ services:
     environment:
       - AUTH_TRUST_HOST=true
       - NEXT_PUBLIC_API_BASE_URL=http://api:8000
+      - PORT=3000
     depends_on:
       - api
     profiles:
