@@ -1,7 +1,7 @@
 """Hierarchy tree building for Wikidata entities."""
 
 import logging
-from typing import Dict, Set, Optional, List
+from typing import Dict, Set, Optional
 from collections import defaultdict
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -47,89 +47,6 @@ class HierarchyBuilder:
                     queue.append(subclass)
 
         return descendants
-
-    def _get_truthy_claims(self, entity: Dict, property_id: str) -> List[Dict]:
-        """Get truthy claims for a property using the same logic as WikidataEntity.
-
-        Args:
-            entity: Raw Wikidata entity dictionary
-            property_id: The property ID (e.g., 'P279')
-
-        Returns:
-            List of truthy claims for the property
-        """
-        claims = entity.get("claims", {}).get(property_id, [])
-
-        non_deprecated_claims = []
-        preferred_claims = []
-
-        for claim in claims:
-            try:
-                rank = claim.get("rank", "normal")
-                if rank == "deprecated":
-                    continue
-
-                non_deprecated_claims.append(claim)
-                if rank == "preferred":
-                    preferred_claims.append(claim)
-            except (KeyError, TypeError):
-                continue
-
-        # Apply truthy filtering logic
-        return preferred_claims if preferred_claims else non_deprecated_claims
-
-    def extract_subclass_relations_from_entity(
-        self, entity: Dict
-    ) -> Dict[str, Set[str]]:
-        """
-        Extract P279 (subclass of) relationships from a single entity.
-
-        Args:
-            entity: Parsed Wikidata entity
-
-        Returns:
-            Dictionary mapping parent QIDs to sets of child QIDs
-        """
-        subclass_relations = defaultdict(set)
-
-        # Extract P279 (subclass of) relationships
-        entity_id = entity.get("id", "")
-        if not entity_id:
-            return {}
-
-        # Use WikidataEntity's truthy filtering logic consistently
-        subclass_claims = self._get_truthy_claims(entity, "P279")
-
-        for claim in subclass_claims:
-            try:
-                parent_id = claim["mainsnak"]["datavalue"]["value"]["id"]
-                subclass_relations[parent_id].add(entity_id)
-            except (KeyError, TypeError):
-                continue
-
-        return dict(subclass_relations)
-
-    def extract_entity_name_from_entity(self, entity: Dict) -> Optional[str]:
-        """
-        Extract entity name from Wikidata entity labels.
-
-        Args:
-            entity: Parsed Wikidata entity
-
-        Returns:
-            Entity name (preferring English) or None
-        """
-        labels = entity.get("labels", {})
-
-        # Try English first
-        if "en" in labels:
-            return labels["en"]["value"]
-
-        # Fallback to any available language
-        if labels:
-            return next(iter(labels.values()))["value"]
-
-        return None
 
     def insert_subclass_relations_batch(
         self, subclass_relations: Dict[str, Set[str]], session: Session
@@ -239,7 +156,8 @@ class HierarchyBuilder:
             Set of all descendant QIDs (including the root)
         """
         # Use recursive CTE to find all descendants
-        sql = text("""
+        sql = text(
+            """
             WITH RECURSIVE descendants AS (
                 -- Base case: start with the root entity
                 SELECT CAST(:root_id AS VARCHAR) AS wikidata_id
@@ -250,7 +168,8 @@ class HierarchyBuilder:
                 JOIN descendants d ON sr.parent_class_id = d.wikidata_id
             )
             SELECT DISTINCT wikidata_id FROM descendants
-        """)
+        """
+        )
 
         result = session.execute(sql, {"root_id": root_id})
         return {row[0] for row in result.fetchall()}
@@ -271,7 +190,8 @@ class HierarchyBuilder:
             Dictionary with 'positions' and 'locations' keys containing descendant sets
         """
         # Single optimized query to get both position and location descendants
-        sql = text("""
+        sql = text(
+            """
             WITH RECURSIVE position_descendants AS (
                 SELECT CAST(:position_root AS VARCHAR) AS wikidata_id, 'position' as type
                 UNION
@@ -289,7 +209,8 @@ class HierarchyBuilder:
             SELECT type, wikidata_id FROM position_descendants
             UNION ALL
             SELECT type, wikidata_id FROM location_descendants
-        """)
+        """
+        )
 
         result = session.execute(
             sql,

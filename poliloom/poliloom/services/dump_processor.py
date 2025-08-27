@@ -135,7 +135,7 @@ class WikidataDumpProcessor:
             if pool:
                 pool.terminate()
                 try:
-                    pool.join(timeout=5)
+                    pool.join()
                 except Exception:
                     pass
             raise KeyboardInterrupt("Relationship collection interrupted by user")
@@ -351,7 +351,8 @@ class WikidataDumpProcessor:
 
                 # Extract name using base entity logic
                 try:
-                    name = WikidataEntity.extract_name(entity)
+                    wikidata_entity = WikidataEntity.from_raw(entity)
+                    name = wikidata_entity.get_entity_name()
                     if name:
                         name_updates[entity_id] = name
                 except Exception as e:
@@ -477,14 +478,19 @@ class WikidataDumpProcessor:
                         f"Worker {worker_id}: processed {entity_count} entities"
                     )
 
-                # Extract P279 relationships only (no entity names)
-                chunk_relations = (
-                    self.hierarchy_builder.extract_subclass_relations_from_entity(
-                        entity
-                    )
-                )
-                for parent_id, children in chunk_relations.items():
-                    subclass_relations[parent_id].update(children)
+                # Extract P279 relationships only (no entity names) using WikidataEntity logic
+                entity_id = entity.get("id", "")
+                if entity_id:
+                    # Create temporary WikidataEntity to use its truthy claims logic
+                    wikidata_entity = WikidataEntity.from_raw(entity)
+                    subclass_claims = wikidata_entity.get_truthy_claims("P279")
+
+                    for claim in subclass_claims:
+                        try:
+                            parent_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                            subclass_relations[parent_id].add(entity_id)
+                        except (KeyError, TypeError):
+                            continue
 
             logger.info(
                 f"Worker {worker_id}: Relationship extraction complete, processed {entity_count} entities"

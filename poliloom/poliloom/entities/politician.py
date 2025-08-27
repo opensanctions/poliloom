@@ -225,9 +225,8 @@ class WikidataPolitician(WikidataEntity):
         Returns:
             Dictionary with keys matching Politician table columns
         """
-        name = self.get_entity_name()
-        if not name:
-            raise ValueError(f"Politician {self.get_wikidata_id()} has no name")
+        # Get base fields from parent class
+        result = super().to_database_dict()
 
         # Extract basic data
         birth_date_result = self.extract_birth_date()
@@ -253,12 +252,15 @@ class WikidataPolitician(WikidataEntity):
                 }
             )
 
-        return {
-            "wikidata_id": self.get_wikidata_id(),
-            "name": name,
-            "properties": properties,
-            "citizenships": self.extract_citizenships(),
-            "positions": self.extract_positions(),
-            "wikipedia_links": self.extract_wikipedia_links(),
-            "birthplace": birthplace,
-        }
+        # Add politician-specific fields
+        result.update(
+            {
+                "properties": properties,
+                "citizenships": self.extract_citizenships(),
+                "positions": self.extract_positions(),
+                "wikipedia_links": self.extract_wikipedia_links(),
+                "birthplace": birthplace,
+            }
+        )
+
+        return result

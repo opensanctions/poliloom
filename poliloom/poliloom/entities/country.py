@@ -57,12 +57,10 @@ class WikidataCountry(WikidataEntity):
         Returns:
             Dictionary with keys matching Country table columns
         """
-        name = self.get_entity_name()
-        if not name:
-            raise ValueError(f"Country {self.get_wikidata_id()} has no name")
+        # Get base fields from parent class
+        result = super().to_database_dict()
 
-        return {
-            "wikidata_id": self.get_wikidata_id(),
-            "name": name,
-            "iso_code": self.extract_iso_code(),
-        }
+        # Add country-specific field
+        result["iso_code"] = self.extract_iso_code()
+
+        return result

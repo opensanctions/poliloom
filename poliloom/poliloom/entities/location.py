@@ -38,14 +38,8 @@ class WikidataLocation(WikidataEntity):
         Returns:
             Dictionary with keys matching Location table columns
         """
-        name = self.get_entity_name()
-        if not name:
-            raise ValueError(f"Location {self.get_wikidata_id()} has no name")
-
-        result = {
-            "wikidata_id": self.get_wikidata_id(),
-            "name": name,
-        }
+        # Get base fields from parent class
+        result = super().to_database_dict()
 
         # Store the most specific wikidata class ID (not UUID) for later foreign key resolution
         most_specific_class_id = self._find_most_specific_class_wikidata_id()

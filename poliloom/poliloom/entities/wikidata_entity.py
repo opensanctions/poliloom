@@ -1,13 +1,12 @@
 """Base class for Wikidata entity processing."""
 
-from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any, Set
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class WikidataEntity(ABC):
+class WikidataEntity:
     """Base class for all Wikidata entities with common extraction methods."""
 
     def __init__(self, raw_data: Dict[str, Any]):
@@ -150,14 +149,19 @@ class WikidataEntity(ABC):
 
         return subclass_ids
 
-    @abstractmethod
     def to_database_dict(self) -> Dict[str, Any]:
         """Convert entity to dictionary format for database insertion.
+
+        Default implementation returns wikidata_id and name.
+        Subclasses can override this method to add entity-specific fields.
 
         Returns:
             Dictionary with keys matching database table columns
         """
-        pass
+        return {
+            "wikidata_id": self.get_wikidata_id(),
+            "name": self.get_entity_name(),
+        }
 
     @classmethod
     def from_raw(cls, raw_data: Dict[str, Any]) -> "WikidataEntity":
