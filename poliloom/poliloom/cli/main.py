@@ -501,16 +501,7 @@ def dump_build_hierarchy(file):
         click.echo("Press Ctrl+C to interrupt...")
 
         # Build the trees (always parallel)
-        trees = processor.build_hierarchy_trees(file)
-
-        click.echo("✅ Successfully built hierarchy trees:")
-        click.echo(
-            f"  • Positions: {len(trees['positions'])} descendants of Q294414 (public office)"
-        )
-        click.echo(
-            f"  • Locations: {len(trees['locations'])} descendants of Q2221906 (geographic location)"
-        )
-        click.echo("Complete hierarchy saved to database")
+        processor.build_hierarchy_trees(file)
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
         click.echo("❌ Hierarchy tree building was cancelled.")
@@ -549,9 +540,8 @@ def dump_import_entities(file, batch_size):
     # Check if hierarchy data exists in database
     try:
         with get_db_session_no_commit() as session:
-            hierarchy_builder = HierarchyBuilder()
-            subclass_relations = hierarchy_builder.load_complete_hierarchy(session)
-            if subclass_relations is None:
+            relation_count = session.query(SubclassRelation).count()
+            if relation_count == 0:
                 click.echo("❌ Complete hierarchy not found in database!")
                 click.echo(
                     "Run 'poliloom dump build-hierarchy' first to generate the hierarchy trees."

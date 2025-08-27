@@ -9,7 +9,6 @@ from unittest.mock import patch, MagicMock
 from poliloom.database import get_db_session
 from poliloom.models import WikidataClass
 from poliloom.services.dump_processor import WikidataDumpProcessor
-from poliloom.services.hierarchy_builder import HierarchyBuilder
 from sqlalchemy.dialects.postgresql import insert
 from .conftest import load_json_fixture
 
@@ -131,18 +130,31 @@ class TestWikidataDumpProcessor:
             # Test hierarchy tree building (now saves to database)
             processor.build_hierarchy_trees(temp_file)
 
-            # Load the saved hierarchy from database to verify relationships
-
+            # Verify relationships were saved to database
             with get_db_session() as session:
-                builder = HierarchyBuilder()
-                loaded_relations = builder.load_complete_hierarchy(session)
+                from poliloom.models import SubclassRelation
 
-                # Should have captured the relationships
-                assert "Q2" in loaded_relations
-                assert "Q3" in loaded_relations
-                assert "Q1" in loaded_relations["Q2"]
-                assert "Q4" in loaded_relations["Q2"]
-                assert "Q2" in loaded_relations["Q3"]
+                # Check specific relationships exist in database
+                q1_q2_relation = (
+                    session.query(SubclassRelation)
+                    .filter_by(parent_class_id="Q2", child_class_id="Q1")
+                    .first()
+                )
+                assert q1_q2_relation is not None
+
+                q4_q2_relation = (
+                    session.query(SubclassRelation)
+                    .filter_by(parent_class_id="Q2", child_class_id="Q4")
+                    .first()
+                )
+                assert q4_q2_relation is not None
+
+                q2_q3_relation = (
+                    session.query(SubclassRelation)
+                    .filter_by(parent_class_id="Q3", child_class_id="Q2")
+                    .first()
+                )
+                assert q2_q3_relation is not None
 
         finally:
             os.unlink(temp_file)
@@ -189,17 +201,21 @@ class TestWikidataDumpProcessor:
             # Should not raise exception despite malformed claims
             processor.build_hierarchy_trees(temp_file)
 
-            # Load the saved hierarchy from database to verify only valid relationships were captured
-
+            # Verify only valid relationships were saved to database
             with get_db_session() as session:
-                builder = HierarchyBuilder()
-                loaded_relations = builder.load_complete_hierarchy(session)
+                from poliloom.models import SubclassRelation
 
                 # Should only have the valid relationship
-                assert "Q2" in loaded_relations
-                assert "Q1" in loaded_relations["Q2"]
-                # Should not have invalid relationships
-                assert len(loaded_relations) == 1
+                q1_q2_relation = (
+                    session.query(SubclassRelation)
+                    .filter_by(parent_class_id="Q2", child_class_id="Q1")
+                    .first()
+                )
+                assert q1_q2_relation is not None
+
+                # Should not have invalid relationships (total count should be 1)
+                total_relations = session.query(SubclassRelation).count()
+                assert total_relations == 1
 
         finally:
             os.unlink(temp_file)
@@ -223,13 +239,25 @@ class TestWikidataDumpProcessor:
             session.execute(stmt)
             session.commit()
 
-            # Create subclass relations
-            subclass_relations = {
-                "Q294414": {"Q1"},  # position root -> test position
-                "Q2221906": {"Q2"},  # location root -> test location
-            }
-            builder = HierarchyBuilder()
-            builder.insert_subclass_relations_batch(subclass_relations, session)
+            # Create subclass relations directly using SQLAlchemy
+            from poliloom.models import SubclassRelation
+
+            relations_data = [
+                {
+                    "parent_class_id": "Q294414",
+                    "child_class_id": "Q1",
+                },  # position root -> test position
+                {
+                    "parent_class_id": "Q2221906",
+                    "child_class_id": "Q2",
+                },  # location root -> test location
+            ]
+            stmt = insert(SubclassRelation).values(relations_data)
+            stmt = stmt.on_conflict_do_nothing(
+                index_elements=["parent_class_id", "child_class_id"]
+            )
+            session.execute(stmt)
+            session.commit()
 
         # Create test entities that should be extracted
         entities = [
