@@ -14,6 +14,7 @@ from .database_inserter import DatabaseInserter
 from .worker_manager import (
     init_worker_with_db,
     init_worker_with_hierarchy,
+    init_worker_with_db_and_qids,
     get_hierarchy_sets,
 )
 from ..database import get_db_session
@@ -82,7 +83,7 @@ class WikidataDumpProcessor:
         logger.info(
             "Phase 3: Extracting and updating names for all WikidataClass records..."
         )
-        self._batch_update_wikidata_class_names(dump_file_path)
+        self._batch_update_wikidata_class_names(dump_file_path, all_qids)
 
         # Extract specific trees from the complete hierarchy
         descendants = self.hierarchy_builder.get_position_and_location_descendants(
@@ -239,22 +240,24 @@ class WikidataDumpProcessor:
 
         logger.info(f"✅ Completed inserting {len(relation_data)} subclass relations")
 
-    def _batch_update_wikidata_class_names(self, dump_file_path: str) -> None:
+    def _batch_update_wikidata_class_names(
+        self, dump_file_path: str, target_qids: set
+    ) -> None:
         """
-        Extract names from dump and batch update ALL WikidataClass records in database.
-        This ensures names are always current on every hierarchy rebuild.
+        Extract names from dump and batch update WikidataClass records for target QIDs.
+        Uses shared memory to avoid passing millions of QIDs to each worker.
 
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
+            target_qids: Set of QIDs to extract names for (already available from hierarchy building)
         """
-        # Get all QIDs currently in the database
-        with get_db_session() as session:
-            existing_classes = session.query(WikidataClass).all()
-            existing_qids = {wc.wikidata_id for wc in existing_classes}
+        logger.info(f"Extracting names for {len(target_qids)} WikidataClass records")
 
-        logger.info(
-            f"Extracting names for {len(existing_qids)} WikidataClass records in database"
-        )
+        # Convert QIDs to a list that can be shared via process initialization
+        # This avoids creating copies for each worker process
+        qid_list = list(target_qids)
+
+        logger.info(f"Prepared QID list for sharing: {len(target_qids)} QIDs")
 
         # Use parallel processing to extract names for all classes in database
         num_workers = mp.cpu_count()
@@ -265,13 +268,17 @@ class WikidataDumpProcessor:
         pool = None
 
         try:
-            pool = mp.Pool(processes=num_workers, initializer=init_worker_with_db)
 
-            # Each worker processes its chunk independently
+            def init_worker():
+                init_worker_with_db_and_qids(qid_list)
+
+            pool = mp.Pool(processes=num_workers, initializer=init_worker)
+
+            # Each worker processes its chunk independently (no QIDs parameter needed)
             async_result = pool.starmap_async(
                 self._process_chunk_for_name_updates,
                 [
-                    (dump_file_path, start, end, i, existing_qids)
+                    (dump_file_path, start, end, i)
                     for i, (start, end) in enumerate(chunks)
                 ],
             )
@@ -311,16 +318,18 @@ class WikidataDumpProcessor:
         start_byte: int,
         end_byte: int,
         worker_id: int,
-        target_qids: Set[str],
     ):
         """
-        Worker process: Extract names only for entities in target_qids set.
+        Worker process: Extract names only for entities in shared QIDs set.
         Updates WikidataClass records directly in database at end of chunk processing.
         Returns count of updates made.
         """
-        from .worker_manager import get_worker_session
+        from .worker_manager import get_worker_session, get_shared_qids
         from sqlalchemy.dialects.postgresql import insert
         from ..models import WikidataClass
+
+        # Get QIDs from shared memory instead of function parameter
+        target_qids = get_shared_qids()
 
         name_updates = {}
         entity_count = 0

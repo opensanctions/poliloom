@@ -13,6 +13,10 @@ _worker_session = None
 _shared_position_descendants = None
 _shared_location_descendants = None
 
+# Global variables for shared QID data in worker processes
+_shared_qids_list = None
+_shared_qids_set = None
+
 
 def _init_worker_db():
     """Initialize database session for worker process using centralized database logic."""
@@ -82,3 +86,36 @@ def init_worker_with_hierarchy(
     """Initialize worker process with both database and hierarchy data."""
     _init_worker_db()
     init_worker_hierarchy(position_descendants, location_descendants)
+
+
+def init_worker_shared_qids(shared_qids_list):
+    """Initialize shared QID data in worker process."""
+    global _shared_qids_list, _shared_qids_set
+
+    try:
+        _shared_qids_list = shared_qids_list
+        # Convert list to set for fast lookup
+        _shared_qids_set = set(_shared_qids_list)
+
+        logger.info(f"Worker {os.getpid()}: Loaded {len(_shared_qids_set)} shared QIDs")
+
+    except Exception as e:
+        logger.error(f"Worker {os.getpid()}: Failed to initialize shared QID data: {e}")
+        raise
+
+
+def get_shared_qids() -> Set[str]:
+    """Get shared QID set for current worker."""
+    global _shared_qids_set
+
+    if _shared_qids_set is None:
+        # Return empty set if not initialized
+        return set()
+
+    return _shared_qids_set
+
+
+def init_worker_with_db_and_qids(shared_qids_list):
+    """Initialize worker process with database session and shared QIDs."""
+    _init_worker_db()
+    init_worker_shared_qids(shared_qids_list)

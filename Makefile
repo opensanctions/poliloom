@@ -23,5 +23,5 @@ stop-pgadmin:
 # Truncate main database tables (cascades will handle related tables)
 truncate-db:
 	@echo "Truncating main database tables..."
-	@cd .. && docker-compose exec -T postgres psql -U postgres -d poliloom -c "TRUNCATE TABLE politicians, countries, locations, positions CASCADE;"
+	@docker-compose exec -T postgres psql -U postgres -d poliloom -c "TRUNCATE TABLE politicians, countries, locations, positions, wikidata_classes CASCADE;"
 	@echo "Database tables truncated successfully."
