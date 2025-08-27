@@ -1,11 +1,13 @@
 """Database batch insertion operations for dump processing."""
 
 import logging
+import os
 from datetime import datetime, timezone
 from typing import List, Union
 
 from sqlalchemy.dialects.postgresql import insert
-from .worker_manager import get_worker_session
+from sqlalchemy.orm import sessionmaker
+from ..database import get_engine
 from ..models import (
     Position,
     Location,
@@ -25,6 +27,34 @@ from ..entities import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Global variable to store worker-specific database session
+_worker_session = None
+
+
+def _init_worker_db():
+    """Initialize database session for worker process using centralized database logic."""
+    global _worker_session
+
+    # Use the centralized engine from database.py but create a separate sessionmaker for workers
+    # This ensures consistent connection logic across the application
+    worker_engine = get_engine()
+
+    # Create sessionmaker for this worker with appropriate settings for multiprocessing
+    WorkerSessionLocal = sessionmaker(
+        autocommit=False, autoflush=False, bind=worker_engine
+    )
+    _worker_session = WorkerSessionLocal
+
+    logger.info(f"Initialized database session for worker process {os.getpid()}")
+
+
+def get_worker_session():
+    """Get the worker-specific database session."""
+    global _worker_session
+    if _worker_session is None:
+        _init_worker_db()
+    return _worker_session()
 
 
 class DatabaseInserter:

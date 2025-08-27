@@ -473,7 +473,7 @@ class TestWikidataDumpProcessor:
 
                 # Mock hierarchy sets only (database will use test DB automatically)
                 with patch(
-                    "poliloom.services.worker_manager.get_hierarchy_sets"
+                    "poliloom.services.dump_processor.get_hierarchy_sets"
                 ) as mock_get_hierarchy:
                     mock_get_hierarchy.return_value = (
                         set(),
@@ -559,7 +559,7 @@ class TestWikidataDumpProcessor:
         try:
             # Mock hierarchy sets only (database will use test DB automatically)
             with patch(
-                "poliloom.services.worker_manager.get_hierarchy_sets"
+                "poliloom.services.dump_processor.get_hierarchy_sets"
             ) as mock_get_hierarchy:
                 mock_get_hierarchy.return_value = (set(), set())  # Empty sets
 
@@ -638,7 +638,7 @@ class TestWikidataDumpProcessor:
         try:
             # Mock hierarchy sets only (database will use test DB automatically)
             with patch(
-                "poliloom.services.worker_manager.get_hierarchy_sets"
+                "poliloom.services.dump_processor.get_hierarchy_sets"
             ) as mock_get_hierarchy:
                 mock_get_hierarchy.return_value = (set(), set())  # Empty sets
 

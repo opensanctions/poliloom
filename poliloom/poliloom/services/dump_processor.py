@@ -2,7 +2,8 @@
 
 import logging
 import multiprocessing as mp
-from typing import Dict, Set
+import os
+from typing import Dict, Set, Tuple
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -11,12 +12,6 @@ from sqlalchemy.dialects.postgresql import insert
 from .dump_reader import DumpReader
 from .hierarchy_builder import HierarchyBuilder
 from .database_inserter import DatabaseInserter
-from .worker_manager import (
-    init_worker_with_db,
-    init_worker_with_hierarchy,
-    init_worker_with_db_and_qids,
-    get_hierarchy_sets,
-)
 from ..database import get_db_session
 from ..models import WikidataClass, SubclassRelation
 from ..entities import WikidataEntity
@@ -27,6 +22,96 @@ from ..entities.location import WikidataLocation
 from ..entities.country import WikidataCountry
 
 logger = logging.getLogger(__name__)
+
+# Global variables for hierarchy data in worker processes
+_shared_position_descendants = None
+_shared_location_descendants = None
+
+# Global variables for shared QID data in worker processes
+_shared_qids_list = None
+_shared_qids_set = None
+
+
+def init_worker_hierarchy(
+    position_descendants: Set[str], location_descendants: Set[str]
+):
+    """Initialize hierarchy data in worker process."""
+    global _shared_position_descendants, _shared_location_descendants
+
+    try:
+        _shared_position_descendants = position_descendants or set()
+        _shared_location_descendants = location_descendants or set()
+
+        logger.info(
+            f"Worker {os.getpid()}: Loaded {len(_shared_position_descendants)} position descendants and {len(_shared_location_descendants)} location descendants"
+        )
+
+    except Exception as e:
+        logger.error(f"Worker {os.getpid()}: Failed to initialize hierarchy data: {e}")
+        raise
+
+
+def get_hierarchy_sets() -> Tuple[Set[str], Set[str]]:
+    """Get hierarchy sets for current worker."""
+    global _shared_position_descendants, _shared_location_descendants
+
+    if _shared_position_descendants is None or _shared_location_descendants is None:
+        # Return empty sets if not initialized
+        return set(), set()
+
+    return _shared_position_descendants, _shared_location_descendants
+
+
+def init_worker_with_db():
+    """Initialize worker process with database session only."""
+    from .database_inserter import _init_worker_db
+
+    _init_worker_db()
+
+
+def init_worker_with_hierarchy(
+    position_descendants: Set[str], location_descendants: Set[str]
+):
+    """Initialize worker process with both database and hierarchy data."""
+    from .database_inserter import _init_worker_db
+
+    _init_worker_db()
+    init_worker_hierarchy(position_descendants, location_descendants)
+
+
+def init_worker_shared_qids(shared_qids_list):
+    """Initialize shared QID data in worker process."""
+    global _shared_qids_list, _shared_qids_set
+
+    try:
+        _shared_qids_list = shared_qids_list
+        # Convert list to set for fast lookup
+        _shared_qids_set = set(_shared_qids_list)
+
+        logger.info(f"Worker {os.getpid()}: Loaded {len(_shared_qids_set)} shared QIDs")
+
+    except Exception as e:
+        logger.error(f"Worker {os.getpid()}: Failed to initialize shared QID data: {e}")
+        raise
+
+
+def get_shared_qids() -> Set[str]:
+    """Get shared QID set for current worker."""
+    global _shared_qids_set
+
+    if _shared_qids_set is None:
+        # Return empty set if not initialized
+        return set()
+
+    return _shared_qids_set
+
+
+def init_worker_with_db_and_qids(shared_qids_list):
+    """Initialize worker process with database session and shared QIDs."""
+    from .database_inserter import _init_worker_db
+
+    _init_worker_db()
+    init_worker_shared_qids(shared_qids_list)
 
 
 class WikidataDumpProcessor:
@@ -324,7 +409,7 @@ class WikidataDumpProcessor:
         Updates WikidataClass records directly in database at end of chunk processing.
         Returns count of updates made.
         """
-        from .worker_manager import get_worker_session, get_shared_qids
+        from .database_inserter import get_worker_session
         from sqlalchemy.dialects.postgresql import insert
         from ..models import WikidataClass
 

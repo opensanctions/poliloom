@@ -7,6 +7,9 @@ import numpy as np
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from sqlalchemy import text
+from alembic.config import Config
+from alembic import command
 
 from poliloom.models import (
     Base,
@@ -14,7 +17,7 @@ from poliloom.models import (
     Location,
 )
 from poliloom.embeddings import generate_embedding
-from poliloom.database import get_db_session
+from poliloom.database import get_engine, get_db_session
 
 
 class MockSentenceTransformer:
@@ -79,30 +82,21 @@ def load_json_fixture(filename):
 
 @pytest.fixture(autouse=True)
 def setup_test_database():
-    """Setup test database for each test."""
-    # Reset database globals to ensure test database URL is used
-    import poliloom.database
-
-    poliloom.database._engine = None
-    poliloom.database._SessionLocal = None
-
-    # Import all models to ensure they're registered with Base
-    import poliloom.models  # noqa: F401
-    from poliloom.database import get_engine
-
-    engine = get_engine()
-
-    # Create all tables
-    Base.metadata.create_all(engine)
+    """Setup test database for each test using Alembic migrations."""
+    # Run Alembic migrations to create tables with triggers
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
 
     yield
 
-    # Clean up after test
+    # Clean up after test - drop all tables
+    engine = get_engine()
     Base.metadata.drop_all(engine)
 
-    # Reset globals again after test
-    poliloom.database._engine = None
-    poliloom.database._SessionLocal = None
+    # Also clean up alembic version table
+    with engine.connect() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
+        conn.commit()
 
 
 @pytest.fixture
