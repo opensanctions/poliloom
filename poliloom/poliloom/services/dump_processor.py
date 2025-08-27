@@ -292,63 +292,18 @@ class WikidataDumpProcessor:
                 pool.close()
                 pool.join()
 
-        # Merge results from all chunks
-        all_name_updates = {}
+        # Merge results from all chunks (workers now handle their own database updates)
+        total_updates = 0
         total_entities = 0
 
-        for name_updates, chunk_count in chunk_results:
+        for updates_count, chunk_count in chunk_results:
             total_entities += chunk_count
-            all_name_updates.update(name_updates)
+            total_updates += updates_count
 
         logger.info(f"Name extraction complete: processed {total_entities} entities")
-        logger.info(f"Found names for {len(all_name_updates)} entities")
-
-        # Batch update names in database
-        self._apply_name_updates_batch(all_name_updates)
+        logger.info(f"Updated names for {total_updates} entities")
 
         logger.info("✅ WikidataClass name updates complete")
-
-    def _apply_name_updates_batch(self, name_updates: Dict[str, str]) -> None:
-        """
-        Apply name updates to WikidataClass records in smaller committed batches.
-        Each batch commits independently for better progress visibility and recovery.
-
-        Args:
-            name_updates: Mapping of wikidata_id to name
-        """
-        if not name_updates:
-            logger.info("No name updates to apply")
-            return
-
-        logger.info(f"Applying {len(name_updates)} name updates to database")
-
-        batch_size = 10000
-        items = list(name_updates.items())
-        total_batches = (len(items) + batch_size - 1) // batch_size
-
-        for i in range(0, len(items), batch_size):
-            batch_num = i // batch_size + 1
-            batch = items[i : i + batch_size]
-
-            # Each batch gets its own committed transaction
-            with get_db_session() as session:
-                batch_updates = [
-                    {
-                        "wikidata_id": wikidata_id,
-                        "name": name,
-                        "updated_at": datetime.now(timezone.utc),
-                    }
-                    for wikidata_id, name in batch
-                ]
-
-                session.bulk_update_mappings(WikidataClass, batch_updates)
-                session.commit()
-
-            logger.info(
-                f"Applied name updates batch {batch_num}/{total_batches} ({len(batch)} records)"
-            )
-
-        logger.info(f"✅ Applied {len(name_updates)} name updates")
 
     def _process_chunk_for_name_updates(
         self,
@@ -360,8 +315,13 @@ class WikidataDumpProcessor:
     ):
         """
         Worker process: Extract names only for entities in target_qids set.
-        Returns mapping of wikidata_id to name for entities found in this chunk.
+        Updates WikidataClass records directly in database at end of chunk processing.
+        Returns count of updates made.
         """
+        from .worker_manager import get_worker_session
+        from sqlalchemy.dialects.postgresql import insert
+        from ..models import WikidataClass
+
         name_updates = {}
         entity_count = 0
         interrupted = False
@@ -396,16 +356,60 @@ class WikidataDumpProcessor:
         except Exception as e:
             logger.error(f"Worker {worker_id}: error during name extraction: {e}")
 
+        # Update database with collected names at end of chunk processing
+        updates_count = 0
+        if name_updates and not interrupted:
+            try:
+                session = get_worker_session()
+                try:
+                    # Bulk update using PostgreSQL upsert
+                    batch_updates = [
+                        {
+                            "wikidata_id": wikidata_id,
+                            "name": name,
+                            "updated_at": datetime.now(timezone.utc),
+                        }
+                        for wikidata_id, name in name_updates.items()
+                    ]
+
+                    stmt = insert(WikidataClass).values(batch_updates)
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=["wikidata_id"],
+                        set_={
+                            "name": stmt.excluded.name,
+                            "updated_at": stmt.excluded.updated_at,
+                        },
+                    )
+
+                    session.execute(stmt)
+                    session.commit()
+                    updates_count = len(name_updates)
+
+                    logger.info(
+                        f"Worker {worker_id}: updated {updates_count} WikidataClass names in database"
+                    )
+
+                except Exception as db_error:
+                    session.rollback()
+                    logger.error(
+                        f"Worker {worker_id}: database update failed: {db_error}"
+                    )
+                finally:
+                    session.close()
+
+            except Exception as session_error:
+                logger.error(
+                    f"Worker {worker_id}: failed to get database session: {session_error}"
+                )
+
         if interrupted:
-            logger.info(
-                f"Worker {worker_id}: interrupted, returning partial name results"
-            )
+            logger.info(f"Worker {worker_id}: interrupted, returning partial results")
         else:
             logger.info(
                 f"Worker {worker_id}: extracted {len(name_updates)} names from {entity_count} entities"
             )
 
-        return name_updates, entity_count
+        return updates_count, entity_count
 
     def _process_chunk_for_relationships(
         self, dump_file_path: str, start_byte: int, end_byte: int, worker_id: int
