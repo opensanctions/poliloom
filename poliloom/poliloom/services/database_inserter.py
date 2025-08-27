@@ -1,13 +1,12 @@
 """Database batch insertion operations for dump processing."""
 
 import logging
-import os
 from datetime import datetime, timezone
 from typing import List, Union
 
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import sessionmaker
-from ..database import get_engine
+
+from ..database import get_db_session
 from ..models import (
     Position,
     Location,
@@ -27,34 +26,6 @@ from ..entities import (
 )
 
 logger = logging.getLogger(__name__)
-
-# Global variable to store worker-specific database session
-_worker_session = None
-
-
-def _init_worker_db():
-    """Initialize database session for worker process using centralized database logic."""
-    global _worker_session
-
-    # Use the centralized engine from database.py but create a separate sessionmaker for workers
-    # This ensures consistent connection logic across the application
-    worker_engine = get_engine()
-
-    # Create sessionmaker for this worker with appropriate settings for multiprocessing
-    WorkerSessionLocal = sessionmaker(
-        autocommit=False, autoflush=False, bind=worker_engine
-    )
-    _worker_session = WorkerSessionLocal
-
-    logger.info(f"Initialized database session for worker process {os.getpid()}")
-
-
-def get_worker_session():
-    """Get the worker-specific database session."""
-    global _worker_session
-    if _worker_session is None:
-        _init_worker_db()
-    return _worker_session()
 
 
 class DatabaseInserter:
@@ -93,8 +64,7 @@ class DatabaseInserter:
             else:
                 position_dicts.append(p)
 
-        session = get_worker_session()
-        try:
+        with get_db_session() as session:
             # Use PostgreSQL UPSERT for positions
             stmt = insert(Position).values(
                 [
@@ -125,12 +95,6 @@ class DatabaseInserter:
             logger.debug(f"Processed {len(position_dicts)} positions (upserted)")
             # Skip logging when no new positions - this is normal
 
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
-
     def insert_locations_batch(
         self, locations: List[Union[dict, WikidataLocation]]
     ) -> None:
@@ -146,8 +110,7 @@ class DatabaseInserter:
             else:
                 location_dicts.append(loc)
 
-        session = get_worker_session()
-        try:
+        with get_db_session() as session:
             # Use PostgreSQL UPSERT for locations
             stmt = insert(Location).values(
                 [
@@ -178,12 +141,6 @@ class DatabaseInserter:
             logger.debug(f"Processed {len(location_dicts)} locations (upserted)")
             # Skip logging when no new locations - this is normal
 
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
-
     def insert_countries_batch(
         self, countries: List[Union[dict, WikidataCountry]]
     ) -> None:
@@ -199,8 +156,7 @@ class DatabaseInserter:
             else:
                 country_dicts.append(c)
 
-        session = get_worker_session()
-        try:
+        with get_db_session() as session:
             # Prepare data for bulk insert
             country_data = [
                 {
@@ -231,12 +187,6 @@ class DatabaseInserter:
 
             logger.debug(f"Processed {len(country_dicts)} countries (upserted)")
 
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
-
     def insert_politicians_batch(
         self, politicians: List[Union[dict, WikidataPolitician]]
     ) -> None:
@@ -252,8 +202,7 @@ class DatabaseInserter:
             else:
                 politician_dicts.append(p)
 
-        session = get_worker_session()
-        try:
+        with get_db_session() as session:
             # Use PostgreSQL UPSERT for politicians
             stmt = insert(Politician).values(
                 [
@@ -440,9 +389,3 @@ class DatabaseInserter:
 
             session.commit()
             logger.debug(f"Processed {len(politician_dicts)} politicians (upserted)")
-
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()

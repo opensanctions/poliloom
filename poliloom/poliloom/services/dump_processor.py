@@ -2,8 +2,7 @@
 
 import logging
 import multiprocessing as mp
-import os
-from typing import Dict, Set, Tuple
+from typing import Dict, Set
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -22,96 +21,6 @@ from ..entities.location import WikidataLocation
 from ..entities.country import WikidataCountry
 
 logger = logging.getLogger(__name__)
-
-# Global variables for hierarchy data in worker processes
-_shared_position_descendants = None
-_shared_location_descendants = None
-
-# Global variables for shared QID data in worker processes
-_shared_qids_list = None
-_shared_qids_set = None
-
-
-def init_worker_hierarchy(
-    position_descendants: Set[str], location_descendants: Set[str]
-):
-    """Initialize hierarchy data in worker process."""
-    global _shared_position_descendants, _shared_location_descendants
-
-    try:
-        _shared_position_descendants = position_descendants or set()
-        _shared_location_descendants = location_descendants or set()
-
-        logger.info(
-            f"Worker {os.getpid()}: Loaded {len(_shared_position_descendants)} position descendants and {len(_shared_location_descendants)} location descendants"
-        )
-
-    except Exception as e:
-        logger.error(f"Worker {os.getpid()}: Failed to initialize hierarchy data: {e}")
-        raise
-
-
-def get_hierarchy_sets() -> Tuple[Set[str], Set[str]]:
-    """Get hierarchy sets for current worker."""
-    global _shared_position_descendants, _shared_location_descendants
-
-    if _shared_position_descendants is None or _shared_location_descendants is None:
-        # Return empty sets if not initialized
-        return set(), set()
-
-    return _shared_position_descendants, _shared_location_descendants
-
-
-def init_worker_with_db():
-    """Initialize worker process with database session only."""
-    from .database_inserter import _init_worker_db
-
-    _init_worker_db()
-
-
-def init_worker_with_hierarchy(
-    position_descendants: Set[str], location_descendants: Set[str]
-):
-    """Initialize worker process with both database and hierarchy data."""
-    from .database_inserter import _init_worker_db
-
-    _init_worker_db()
-    init_worker_hierarchy(position_descendants, location_descendants)
-
-
-def init_worker_shared_qids(shared_qids_list):
-    """Initialize shared QID data in worker process."""
-    global _shared_qids_list, _shared_qids_set
-
-    try:
-        _shared_qids_list = shared_qids_list
-        # Convert list to set for fast lookup
-        _shared_qids_set = set(_shared_qids_list)
-
-        logger.info(f"Worker {os.getpid()}: Loaded {len(_shared_qids_set)} shared QIDs")
-
-    except Exception as e:
-        logger.error(f"Worker {os.getpid()}: Failed to initialize shared QID data: {e}")
-        raise
-
-
-def get_shared_qids() -> Set[str]:
-    """Get shared QID set for current worker."""
-    global _shared_qids_set
-
-    if _shared_qids_set is None:
-        # Return empty set if not initialized
-        return set()
-
-    return _shared_qids_set
-
-
-def init_worker_with_db_and_qids(shared_qids_list):
-    """Initialize worker process with database session and shared QIDs."""
-    from .database_inserter import _init_worker_db
-
-    _init_worker_db()
-    init_worker_shared_qids(shared_qids_list)
 
 
 class WikidataDumpProcessor:
@@ -338,9 +247,7 @@ class WikidataDumpProcessor:
         """
         logger.info(f"Extracting names for {len(target_qids)} WikidataClass records")
 
-        # Convert QIDs to a list that can be shared via process initialization
-        # This avoids creating copies for each worker process
-        qid_list = list(target_qids)
+        qid_set = set(target_qids)
 
         logger.info(f"Prepared QID list for sharing: {len(target_qids)} QIDs")
 
@@ -353,17 +260,13 @@ class WikidataDumpProcessor:
         pool = None
 
         try:
+            pool = mp.Pool(processes=num_workers)
 
-            def init_worker():
-                init_worker_with_db_and_qids(qid_list)
-
-            pool = mp.Pool(processes=num_workers, initializer=init_worker)
-
-            # Each worker processes its chunk independently (no QIDs parameter needed)
+            # Each worker processes its chunk independently
             async_result = pool.starmap_async(
                 self._process_chunk_for_name_updates,
                 [
-                    (dump_file_path, start, end, i)
+                    (dump_file_path, start, end, i, qid_set)
                     for i, (start, end) in enumerate(chunks)
                 ],
             )
@@ -403,18 +306,16 @@ class WikidataDumpProcessor:
         start_byte: int,
         end_byte: int,
         worker_id: int,
+        target_qids: Set[str],
     ):
         """
-        Worker process: Extract names only for entities in shared QIDs set.
+        Worker process: Extract names only for entities in target QIDs set.
         Updates WikidataClass records directly in database at end of chunk processing.
         Returns count of updates made.
         """
-        from .database_inserter import get_worker_session
+        from ..database import get_db_session
         from sqlalchemy.dialects.postgresql import insert
         from ..models import WikidataClass
-
-        # Get QIDs from shared memory instead of function parameter
-        target_qids = get_shared_qids()
 
         name_updates = {}
         entity_count = 0
@@ -454,8 +355,7 @@ class WikidataDumpProcessor:
         updates_count = 0
         if name_updates and not interrupted:
             try:
-                session = get_worker_session()
-                try:
+                with get_db_session() as session:
                     # Bulk update using PostgreSQL upsert
                     batch_updates = [
                         {
@@ -483,18 +383,8 @@ class WikidataDumpProcessor:
                         f"Worker {worker_id}: updated {updates_count} WikidataClass names in database"
                     )
 
-                except Exception as db_error:
-                    session.rollback()
-                    logger.error(
-                        f"Worker {worker_id}: database update failed: {db_error}"
-                    )
-                finally:
-                    session.close()
-
-            except Exception as session_error:
-                logger.error(
-                    f"Worker {worker_id}: failed to get database session: {session_error}"
-                )
+            except Exception as db_error:
+                logger.error(f"Worker {worker_id}: database update failed: {db_error}")
 
         if interrupted:
             logger.info(f"Worker {worker_id}: interrupted, returning partial results")
@@ -642,14 +532,7 @@ class WikidataDumpProcessor:
         # Process chunks in parallel with proper KeyboardInterrupt handling
         pool = None
         try:
-            # Initialize workers with hierarchy data
-            def init_worker():
-                init_worker_with_hierarchy(
-                    position_descendants,
-                    location_descendants,
-                )
-
-            pool = mp.Pool(processes=num_workers, initializer=init_worker)
+            pool = mp.Pool(processes=num_workers)
 
             # Each worker processes its chunk independently
             async_result = pool.starmap_async(
@@ -661,6 +544,8 @@ class WikidataDumpProcessor:
                         end,
                         i,
                         batch_size,
+                        position_descendants,
+                        location_descendants,
                     )
                     for i, (start, end) in enumerate(chunks)
                 ],
@@ -720,8 +605,7 @@ class WikidataDumpProcessor:
         # Process chunks in parallel with proper KeyboardInterrupt handling
         pool = None
         try:
-            # Initialize workers with database only (politicians don't need hierarchy)
-            pool = mp.Pool(processes=num_workers, initializer=init_worker_with_db)
+            pool = mp.Pool(processes=num_workers)
 
             # Each worker processes its chunk independently
             async_result = pool.starmap_async(
@@ -781,6 +665,8 @@ class WikidataDumpProcessor:
         end_byte: int,
         worker_id: int,
         batch_size: int,
+        position_descendants: Set[str],
+        location_descendants: Set[str],
     ):
         """
         Process a specific byte range of the dump file for supporting entities extraction.
@@ -788,8 +674,6 @@ class WikidataDumpProcessor:
         Each worker independently reads and parses its assigned chunk.
         Returns entity counts found in this chunk.
         """
-        # Get hierarchy data from worker globals
-        position_descendants, location_descendants = get_hierarchy_sets()
 
         positions = []
         locations = []
