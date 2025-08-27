@@ -485,7 +485,7 @@ class TestWikidataPosition:
                 ]  # public office
             },
         }
-        position_descendants = {"Q294414", "Q30185"}
+        position_descendants = {"Q294414": True, "Q30185": True}
         assert WikidataPosition.is_position(entity_data, position_descendants) is True
 
     def test_is_position_false(self):
@@ -501,7 +501,7 @@ class TestWikidataPosition:
                 ]  # human
             },
         }
-        position_descendants = {"Q294414", "Q30185"}
+        position_descendants = {"Q294414": True, "Q30185": True}
         assert WikidataPosition.is_position(entity_data, position_descendants) is False
 
     def test_to_database_dict(self):
@@ -534,7 +534,7 @@ class TestWikidataLocation:
                 ]  # city
             },
         }
-        location_descendants = {"Q515", "Q6256"}
+        location_descendants = {"Q515": True, "Q6256": True}
         assert WikidataLocation.is_location(entity_data, location_descendants) is True
 
     def test_is_location_false(self):
@@ -550,7 +550,7 @@ class TestWikidataLocation:
                 ]  # human
             },
         }
-        location_descendants = {"Q515", "Q6256"}
+        location_descendants = {"Q515": True, "Q6256": True}
         assert WikidataLocation.is_location(entity_data, location_descendants) is False
 
     def test_to_database_dict(self):
@@ -687,7 +687,7 @@ class TestWikidataEntityFactory:
                 ]  # public office
             },
         }
-        position_descendants = {"Q294414", "Q30185"}
+        position_descendants = {"Q294414": True, "Q30185": True}
 
         entity = WikidataEntityFactory.create_entity(
             entity_data, position_descendants, set()
@@ -707,7 +707,7 @@ class TestWikidataEntityFactory:
                 ]  # city
             },
         }
-        location_descendants = {"Q515", "Q6256"}
+        location_descendants = {"Q515": True, "Q6256": True}
 
         entity = WikidataEntityFactory.create_entity(
             entity_data, set(), location_descendants

@@ -2,9 +2,10 @@
 
 import logging
 import multiprocessing as mp
-from typing import Dict, Set
+from typing import Dict, Set, Tuple
 from collections import defaultdict
 from datetime import datetime, timezone
+from multiprocessing import Manager
 
 from sqlalchemy.dialects.postgresql import insert
 
@@ -22,16 +23,15 @@ from ..entities.country import WikidataCountry
 
 logger = logging.getLogger(__name__)
 
+# Progress reporting frequency for chunk processing
+PROGRESS_REPORT_FREQUENCY = 50000
+
 
 class WikidataDumpProcessor:
     """Process Wikidata JSON dumps to extract entities and build hierarchy trees."""
 
-    def __init__(self, session=None):
-        """Initialize the dump processor.
-
-        Args:
-            session: Database session (optional, not used for hierarchy building)
-        """
+    def __init__(self):
+        """Initialize the dump processor."""
         self.dump_reader = DumpReader()
         self.hierarchy_builder = HierarchyBuilder()
         self.database_inserter = DatabaseInserter()
@@ -65,9 +65,7 @@ class WikidataDumpProcessor:
             all_qids.add(parent_qid)
             all_qids.update(children)
 
-        logger.info(
-            f"Found {len(all_qids)} unique entities in hierarchy (vs ~100M total entities)"
-        )
+        logger.info(f"Found {len(all_qids)} unique entities in hierarchy")
 
         # Phase 2: Insert WikidataClass and SubclassRelation records in batches
         logger.info("Phase 2: Inserting WikidataClass and SubclassRelation records...")
@@ -239,7 +237,7 @@ class WikidataDumpProcessor:
     ) -> None:
         """
         Extract names from dump and batch update WikidataClass records for target QIDs.
-        Uses shared memory to avoid passing millions of QIDs to each worker.
+        Uses Manager dictionary to efficiently share QIDs between workers with O(1) lookups.
 
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
@@ -247,56 +245,63 @@ class WikidataDumpProcessor:
         """
         logger.info(f"Extracting names for {len(target_qids)} WikidataClass records")
 
-        qid_set = set(target_qids)
+        # Use Manager for shared dictionary with O(1) lookups
+        with Manager() as manager:
+            # Create shared dictionary from QIDs for O(1) membership testing
+            logger.info(f"Creating shared dictionary for {len(target_qids)} QIDs")
+            shared_qids = manager.dict()
+            for qid in target_qids:
+                shared_qids[qid] = True
 
-        logger.info(f"Prepared QID list for sharing: {len(target_qids)} QIDs")
+            num_workers = mp.cpu_count()
+            logger.info(f"Using {num_workers} parallel workers for name extraction")
 
-        # Use parallel processing to extract names for all classes in database
-        num_workers = mp.cpu_count()
-        logger.info(f"Using {num_workers} parallel workers for name extraction")
+            # Split file into chunks for parallel processing
+            chunks = self.dump_reader.calculate_file_chunks(dump_file_path)
+            pool = None
 
-        # Split file into chunks for parallel processing
-        chunks = self.dump_reader.calculate_file_chunks(dump_file_path)
-        pool = None
+            try:
+                pool = mp.Pool(processes=num_workers)
 
-        try:
-            pool = mp.Pool(processes=num_workers)
+                # Pass shared dictionary to workers
+                async_result = pool.starmap_async(
+                    self._process_chunk_for_name_updates,
+                    [
+                        (dump_file_path, start, end, i, shared_qids)
+                        for i, (start, end) in enumerate(chunks)
+                    ],
+                )
 
-            # Each worker processes its chunk independently
-            async_result = pool.starmap_async(
-                self._process_chunk_for_name_updates,
-                [
-                    (dump_file_path, start, end, i, qid_set)
-                    for i, (start, end) in enumerate(chunks)
-                ],
+                chunk_results = async_result.get()
+
+            except KeyboardInterrupt:
+                logger.info("Received interrupt signal, cleaning up workers...")
+                if pool:
+                    pool.terminate()
+                    try:
+                        pool.join(timeout=5)
+                    except Exception:
+                        pass
+                raise KeyboardInterrupt("Name extraction interrupted by user")
+            finally:
+                if pool:
+                    pool.close()
+                    pool.join()
+
+            # Manager automatically cleans up shared dictionary
+
+            # Merge results from all chunks (workers now handle their own database updates)
+            total_updates = 0
+            total_entities = 0
+
+            for updates_count, chunk_count in chunk_results:
+                total_entities += chunk_count
+                total_updates += updates_count
+
+            logger.info(
+                f"Name extraction complete: processed {total_entities} entities"
             )
-
-            chunk_results = async_result.get()
-
-        except KeyboardInterrupt:
-            logger.info("Received interrupt signal, cleaning up workers...")
-            if pool:
-                pool.terminate()
-                try:
-                    pool.join(timeout=5)
-                except Exception:
-                    pass
-            raise KeyboardInterrupt("Name extraction interrupted by user")
-        finally:
-            if pool:
-                pool.close()
-                pool.join()
-
-        # Merge results from all chunks (workers now handle their own database updates)
-        total_updates = 0
-        total_entities = 0
-
-        for updates_count, chunk_count in chunk_results:
-            total_entities += chunk_count
-            total_updates += updates_count
-
-        logger.info(f"Name extraction complete: processed {total_entities} entities")
-        logger.info(f"Updated names for {total_updates} entities")
+            logger.info(f"Updated names for {total_updates} entities")
 
         logger.info("✅ WikidataClass name updates complete")
 
@@ -306,16 +311,18 @@ class WikidataDumpProcessor:
         start_byte: int,
         end_byte: int,
         worker_id: int,
-        target_qids: Set[str],
-    ):
+        shared_qids: dict,
+    ) -> Tuple[int, int]:
         """
-        Worker process: Extract names only for entities in target QIDs set.
+        Worker process: Extract names only for entities in target QIDs dictionary.
         Updates WikidataClass records directly in database at end of chunk processing.
         Returns count of updates made.
         """
         from ..database import get_db_session
         from sqlalchemy.dialects.postgresql import insert
         from ..models import WikidataClass
+
+        # Use shared dictionary directly for O(1) membership testing
 
         name_updates = {}
         entity_count = 0
@@ -330,8 +337,14 @@ class WikidataDumpProcessor:
 
                 entity_count += 1
 
+                # Progress reporting for large chunks
+                if entity_count % PROGRESS_REPORT_FREQUENCY == 0:
+                    logger.info(
+                        f"Worker {worker_id}: processed {entity_count} entities, found {len(name_updates)} name updates"
+                    )
+
                 entity_id = entity.get("id", "")
-                if not entity_id or entity_id not in target_qids:
+                if not entity_id or entity_id not in shared_qids:
                     continue
 
                 # Extract name using base entity logic
@@ -397,7 +410,7 @@ class WikidataDumpProcessor:
 
     def _process_chunk_for_relationships(
         self, dump_file_path: str, start_byte: int, end_byte: int, worker_id: int
-    ):
+    ) -> Tuple[Dict[str, Set[str]], int]:
         """
         Worker process: Extract only P279 relationships, no entity names.
 
@@ -418,9 +431,7 @@ class WikidataDumpProcessor:
                 entity_count += 1
 
                 # Progress reporting for large chunks
-                if (
-                    entity_count % 100000 == 0
-                ):  # Increased frequency since no name processing
+                if entity_count % PROGRESS_REPORT_FREQUENCY == 0:
                     logger.info(
                         f"Worker {worker_id}: processed {entity_count} entities"
                     )
@@ -453,6 +464,7 @@ class WikidataDumpProcessor:
     ) -> Dict[str, int]:
         """
         Extract supporting entities from the Wikidata dump using parallel processing.
+        Uses Manager dictionaries to efficiently share descendant QIDs across workers with O(1) lookups.
 
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
@@ -484,12 +496,90 @@ class WikidataDumpProcessor:
         num_workers = mp.cpu_count()
         logger.info(f"Using parallel processing with {num_workers} workers")
 
-        return self._extract_supporting_entities_parallel(
-            dump_file_path,
-            batch_size,
-            position_descendants,
-            location_descendants,
-        )
+        # Use Manager to share descendant dictionaries across workers
+        with Manager() as manager:
+            logger.info(
+                f"Creating shared dictionary for {len(position_descendants)} position descendants"
+            )
+            shared_position_descendants = manager.dict()
+            for qid in position_descendants:
+                shared_position_descendants[qid] = True
+
+            logger.info(
+                f"Creating shared dictionary for {len(location_descendants)} location descendants"
+            )
+            shared_location_descendants = manager.dict()
+            for qid in location_descendants:
+                shared_location_descendants[qid] = True
+
+            # Split file into chunks for parallel processing
+            logger.info("Calculating file chunks for parallel processing...")
+            chunks = self.dump_reader.calculate_file_chunks(dump_file_path)
+            logger.info(
+                f"Split file into {len(chunks)} chunks for {num_workers} workers"
+            )
+
+            # Process chunks in parallel with proper KeyboardInterrupt handling
+            pool = None
+            try:
+                pool = mp.Pool(processes=num_workers)
+
+                # Pass shared dictionaries to workers
+                async_result = pool.starmap_async(
+                    self._process_supporting_entities_chunk,
+                    [
+                        (
+                            dump_file_path,
+                            start,
+                            end,
+                            i,
+                            batch_size,
+                            shared_position_descendants,
+                            shared_location_descendants,
+                        )
+                        for i, (start, end) in enumerate(chunks)
+                    ],
+                )
+
+                # Wait for completion with proper interrupt handling
+                chunk_results = async_result.get()
+
+            except KeyboardInterrupt:
+                logger.info("Received interrupt signal, cleaning up workers...")
+                if pool:
+                    pool.terminate()
+                    try:
+                        pool.join(
+                            timeout=5
+                        )  # Wait up to 5 seconds for workers to finish
+                    except Exception:
+                        pass  # If join times out, continue anyway
+                raise KeyboardInterrupt("Entity extraction interrupted by user")
+            finally:
+                if pool:
+                    pool.close()
+                    pool.join()
+
+            # Merge results from all chunks
+            total_counts = {
+                "positions": 0,
+                "locations": 0,
+                "countries": 0,
+                "politicians": 0,
+            }
+            total_entities = 0
+
+            for counts, chunk_count in chunk_results:
+                total_entities += chunk_count
+                for key in total_counts:
+                    total_counts[key] += counts[key]
+
+            logger.info(f"Extraction complete. Total processed: {total_entities}")
+            logger.info(
+                f"Extracted: {total_counts['positions']} positions, {total_counts['locations']} locations, {total_counts['countries']} countries"
+            )
+
+            return total_counts
 
     def extract_politicians_from_dump(
         self,
@@ -508,94 +598,6 @@ class WikidataDumpProcessor:
         """
         num_workers = mp.cpu_count()
         logger.info(f"Using parallel processing with {num_workers} workers")
-
-        return self._extract_politicians_parallel(
-            dump_file_path,
-            batch_size,
-        )
-
-    def _extract_supporting_entities_parallel(
-        self,
-        dump_file_path: str,
-        batch_size: int,
-        position_descendants: Set[str],
-        location_descendants: Set[str],
-    ) -> Dict[str, int]:
-        """Parallel implementation for supporting entities extraction (positions, locations, countries)."""
-        num_workers = mp.cpu_count()
-
-        # Split file into chunks for parallel processing
-        logger.info("Calculating file chunks for parallel processing...")
-        chunks = self.dump_reader.calculate_file_chunks(dump_file_path)
-        logger.info(f"Split file into {len(chunks)} chunks for {num_workers} workers")
-
-        # Process chunks in parallel with proper KeyboardInterrupt handling
-        pool = None
-        try:
-            pool = mp.Pool(processes=num_workers)
-
-            # Each worker processes its chunk independently
-            async_result = pool.starmap_async(
-                self._process_supporting_entities_chunk,
-                [
-                    (
-                        dump_file_path,
-                        start,
-                        end,
-                        i,
-                        batch_size,
-                        position_descendants,
-                        location_descendants,
-                    )
-                    for i, (start, end) in enumerate(chunks)
-                ],
-            )
-
-            # Wait for completion with proper interrupt handling
-            chunk_results = async_result.get()
-
-        except KeyboardInterrupt:
-            logger.info("Received interrupt signal, cleaning up workers...")
-            if pool:
-                pool.terminate()
-                try:
-                    pool.join(timeout=5)  # Wait up to 5 seconds for workers to finish
-                except Exception:
-                    pass  # If join times out, continue anyway
-            raise KeyboardInterrupt("Entity extraction interrupted by user")
-        finally:
-            if pool:
-                pool.close()
-                pool.join()
-
-        # Merge results from all chunks
-        total_counts = {
-            "positions": 0,
-            "locations": 0,
-            "countries": 0,
-            "politicians": 0,
-        }
-        total_entities = 0
-
-        for counts, chunk_count in chunk_results:
-            total_entities += chunk_count
-            for key in total_counts:
-                total_counts[key] += counts[key]
-
-        logger.info(f"Extraction complete. Total processed: {total_entities}")
-        logger.info(
-            f"Extracted: {total_counts['positions']} positions, {total_counts['locations']} locations, {total_counts['countries']} countries"
-        )
-
-        return total_counts
-
-    def _extract_politicians_parallel(
-        self,
-        dump_file_path: str,
-        batch_size: int,
-    ) -> Dict[str, int]:
-        """Parallel implementation for politician extraction."""
-        num_workers = mp.cpu_count()
 
         # Split file into chunks for parallel processing
         logger.info("Calculating file chunks for parallel processing...")
@@ -665,15 +667,18 @@ class WikidataDumpProcessor:
         end_byte: int,
         worker_id: int,
         batch_size: int,
-        position_descendants: Set[str],
-        location_descendants: Set[str],
-    ):
+        shared_position_descendants: dict,
+        shared_location_descendants: dict,
+    ) -> Tuple[Dict[str, int], int]:
         """
         Process a specific byte range of the dump file for supporting entities extraction.
+        Uses Manager dictionaries for descendant QID lookups with O(1) membership testing.
 
         Each worker independently reads and parses its assigned chunk.
         Returns entity counts found in this chunk.
         """
+
+        # Use shared dictionaries directly for O(1) membership testing
 
         positions = []
         locations = []
@@ -689,7 +694,7 @@ class WikidataDumpProcessor:
                 entity_count += 1
 
                 # Progress reporting for large chunks
-                if entity_count % 50000 == 0:
+                if entity_count % PROGRESS_REPORT_FREQUENCY == 0:
                     logger.info(
                         f"Worker {worker_id}: processed {entity_count} entities"
                     )
@@ -703,8 +708,8 @@ class WikidataDumpProcessor:
                     # For supporting entities, create position/location/country entities
                     wikidata_entity = WikidataEntityFactory.create_entity(
                         entity,
-                        position_descendants,
-                        location_descendants,
+                        shared_position_descendants,
+                        shared_location_descendants,
                         allowed_types=["position", "location", "country"],
                     )
 
@@ -784,7 +789,7 @@ class WikidataDumpProcessor:
         end_byte: int,
         worker_id: int,
         batch_size: int,
-    ):
+    ) -> Tuple[Dict[str, int], int]:
         """
         Process a specific byte range of the dump file for politician extraction.
 
@@ -803,7 +808,7 @@ class WikidataDumpProcessor:
                 entity_count += 1
 
                 # Progress reporting for large chunks
-                if entity_count % 50000 == 0:
+                if entity_count % PROGRESS_REPORT_FREQUENCY == 0:
                     logger.info(
                         f"Worker {worker_id}: processed {entity_count} entities"
                     )

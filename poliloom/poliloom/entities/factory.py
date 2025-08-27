@@ -1,6 +1,6 @@
 """Factory pattern for creating appropriate WikidataEntity instances."""
 
-from typing import Dict, Set, Optional, Any, List
+from typing import Dict, Optional, Any, List
 import logging
 
 from .wikidata_entity import WikidataEntity
@@ -19,16 +19,16 @@ class WikidataEntityFactory:
     def create_entity(
         cls,
         raw_data: Dict[str, Any],
-        position_descendants: Optional[Set[str]] = None,
-        location_descendants: Optional[Set[str]] = None,
+        position_descendants: Optional[Dict[str, Any]] = None,
+        location_descendants: Optional[Dict[str, Any]] = None,
         allowed_types: Optional[List[str]] = None,
     ) -> Optional[WikidataEntity]:
         """Create appropriate entity instance based on entity type.
 
         Args:
             raw_data: Raw Wikidata entity JSON data
-            position_descendants: Set of Wikidata IDs that are descendants of Q294414 (public office)
-            location_descendants: Set of Wikidata IDs that are descendants of Q2221906 (geographic location)
+            position_descendants: Dict of Wikidata IDs that are descendants of Q294414 (public office)
+            location_descendants: Dict of Wikidata IDs that are descendants of Q2221906 (geographic location)
             allowed_types: List of entity types to create (e.g., ['politician', 'position', 'location', 'country'])
                           If None, all types are allowed
 

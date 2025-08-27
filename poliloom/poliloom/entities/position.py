@@ -1,6 +1,6 @@
 """WikidataPosition entity class for position-specific extraction."""
 
-from typing import Dict, Set, Any, Optional
+from typing import Dict, Any, Optional
 from .wikidata_entity import WikidataEntity
 
 
@@ -9,13 +9,13 @@ class WikidataPosition(WikidataEntity):
 
     @classmethod
     def is_position(
-        cls, raw_data: Dict[str, Any], position_descendants: Set[str]
+        cls, raw_data: Dict[str, Any], position_descendants: Dict[str, Any]
     ) -> bool:
         """Check if an entity is a position based on instance of (P31) properties.
 
         Args:
             raw_data: Raw Wikidata entity JSON data
-            position_descendants: Set of Wikidata IDs that are descendants of Q294414 (public office)
+            position_descendants: Dict of Wikidata IDs that are descendants of Q294414 (public office)
 
         Returns:
             True if the entity is a position, False otherwise
@@ -26,8 +26,8 @@ class WikidataPosition(WikidataEntity):
         # Check if this entity is an instance of any position type
         instance_ids = temp_entity.get_instance_of_ids()
 
-        # Check if any instance type is in position descendants
-        return bool(instance_ids.intersection(position_descendants))
+        # Check if any instance type is in position descendants dict
+        return any(instance_id in position_descendants for instance_id in instance_ids)
 
     def to_database_dict(self, class_lookup: Dict[str, str] = None) -> Dict[str, Any]:
         """Convert position to dictionary format for database insertion.
