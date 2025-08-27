@@ -550,9 +550,7 @@ def dump_import_entities(file, batch_size):
     try:
         with get_db_session_no_commit() as session:
             hierarchy_builder = HierarchyBuilder()
-            subclass_relations = (
-                hierarchy_builder.load_complete_hierarchy_from_database(session)
-            )
+            subclass_relations = hierarchy_builder.load_complete_hierarchy(session)
             if subclass_relations is None:
                 click.echo("❌ Complete hierarchy not found in database!")
                 click.echo(
@@ -679,9 +677,7 @@ def dump_query_hierarchy(entity_id):
                 exit(1)
 
             # Get all descendants of the given entity using direct database query
-            descendants = hierarchy_builder.query_descendants_from_database(
-                entity_id, session
-            )
+            descendants = hierarchy_builder.query_descendants(entity_id, session)
 
             # Output one entity ID per line
             for descendant in sorted(descendants):

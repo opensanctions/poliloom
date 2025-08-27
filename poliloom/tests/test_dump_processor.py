@@ -40,53 +40,6 @@ class TestWikidataDumpProcessor:
 
         return "".join(lines)
 
-    def test_build_hierarchy_trees(self, processor, sample_dump_content, db_session):
-        """Test building hierarchy trees from dump."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            f.write(sample_dump_content)
-            temp_file = f.name
-
-        try:
-            # Test hierarchy tree building (now saves to database)
-            result = processor.build_hierarchy_trees(temp_file)
-
-            # Should return position and location descendants
-            assert "positions" in result
-            assert "locations" in result
-            assert isinstance(result["positions"], set)
-            assert isinstance(result["locations"], set)
-
-            # Should save hierarchy to database (we can verify by loading it back)
-
-            with get_db_session() as session:
-                builder = HierarchyBuilder()
-                loaded_hierarchy = builder.load_complete_hierarchy_from_database(
-                    session
-                )
-                assert loaded_hierarchy is not None
-
-        finally:
-            os.unlink(temp_file)
-
-    def test_build_hierarchy_trees_different_worker_counts(
-        self, processor, sample_dump_content, db_session
-    ):
-        """Test building hierarchy trees with different worker counts."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            f.write(sample_dump_content)
-            temp_file = f.name
-
-        try:
-            # Test hierarchy tree building (now saves to database)
-            result = processor.build_hierarchy_trees(temp_file)
-
-            # Should return position and location descendants
-            assert "positions" in result
-            assert "locations" in result
-
-        finally:
-            os.unlink(temp_file)
-
     def test_process_chunk_for_relationships(self, processor):
         """Test processing a chunk of the dump file to extract relationships."""
         # Create test content for chunk processing
@@ -176,19 +129,13 @@ class TestWikidataDumpProcessor:
 
         try:
             # Test hierarchy tree building (now saves to database)
-            result = processor.build_hierarchy_trees(temp_file)
-
-            # Should return position and location descendants
-            assert "positions" in result
-            assert "locations" in result
+            processor.build_hierarchy_trees(temp_file)
 
             # Load the saved hierarchy from database to verify relationships
 
             with get_db_session() as session:
                 builder = HierarchyBuilder()
-                loaded_relations = builder.load_complete_hierarchy_from_database(
-                    session
-                )
+                loaded_relations = builder.load_complete_hierarchy(session)
 
                 # Should have captured the relationships
                 assert "Q2" in loaded_relations
@@ -240,19 +187,13 @@ class TestWikidataDumpProcessor:
 
         try:
             # Should not raise exception despite malformed claims
-            result = processor.build_hierarchy_trees(temp_file)
-
-            # Should return position and location descendants
-            assert "positions" in result
-            assert "locations" in result
+            processor.build_hierarchy_trees(temp_file)
 
             # Load the saved hierarchy from database to verify only valid relationships were captured
 
             with get_db_session() as session:
                 builder = HierarchyBuilder()
-                loaded_relations = builder.load_complete_hierarchy_from_database(
-                    session
-                )
+                loaded_relations = builder.load_complete_hierarchy(session)
 
                 # Should only have the valid relationship
                 assert "Q2" in loaded_relations

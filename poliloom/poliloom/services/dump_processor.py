@@ -39,19 +39,17 @@ class WikidataDumpProcessor:
     def build_hierarchy_trees(
         self,
         dump_file_path: str,
-    ) -> Dict[str, Set[str]]:
+    ) -> None:
         """
         Build hierarchy trees for positions and locations from Wikidata dump.
 
-        Uses a memory-efficient two-phase approach:
+        Uses a memory-efficient three-phase approach:
         1. Collect subclass relationships from dump
-        2. Insert WikidataClass and SubclassRelation records in batches, then update names
+        2. Insert WikidataClass and SubclassRelation records in batches
+        3. Update names for all WikidataClass records
 
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
-
-        Returns:
-            Dictionary with 'positions' and 'locations' keys containing sets of QIDs
         """
         logger.info(f"Building hierarchy trees from dump file: {dump_file_path}")
 
@@ -77,20 +75,7 @@ class WikidataDumpProcessor:
         )
         self._batch_update_wikidata_class_names(dump_file_path, all_qids)
 
-        # Extract specific trees from the complete hierarchy
-        descendants = self.hierarchy_builder.get_position_and_location_descendants(
-            subclass_relations
-        )
-
         logger.info("✅ Hierarchy building complete")
-        logger.info(
-            f"  • Positions: {len(descendants['positions'])} descendants of Q294414"
-        )
-        logger.info(
-            f"  • Locations: {len(descendants['locations'])} descendants of Q2221906"
-        )
-
-        return descendants
 
     def _collect_subclass_relationships(
         self, dump_file_path: str
@@ -530,11 +515,12 @@ class WikidataDumpProcessor:
                 )
 
             # Get descendant sets for filtering (optimized - only loads what we need)
-            descendants = self.hierarchy_builder.get_position_and_location_descendants_from_database(
-                session
+            position_descendants = self.hierarchy_builder.query_descendants(
+                "Q294414", session
             )
-            position_descendants = descendants["positions"]
-            location_descendants = descendants["locations"]
+            location_descendants = self.hierarchy_builder.query_descendants(
+                "Q2221906", session
+            )
 
             logger.info(
                 f"Filtering for {len(position_descendants)} position types and {len(location_descendants)} location types"

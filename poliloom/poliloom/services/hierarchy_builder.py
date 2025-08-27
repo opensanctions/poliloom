@@ -18,36 +18,6 @@ class HierarchyBuilder:
         self.position_root = "Q294414"  # public office
         self.location_root = "Q2221906"  # geographic location
 
-    def get_all_descendants(
-        self,
-        root_id: str,
-        subclass_relations: Dict[str, Set[str]],
-    ) -> Set[str]:
-        """
-        Get all descendants of a root entity using BFS, traversing only subclass relationships.
-
-        Args:
-            root_id: The root entity QID
-            subclass_relations: Dict mapping parent QIDs to sets of child QIDs (P279)
-
-        Returns:
-            Set of all descendant QIDs (including the root and its subclasses)
-        """
-        descendants = {root_id}
-        queue = [root_id]
-
-        while queue:
-            current = queue.pop(0)
-
-            # Get direct subclasses
-            subclasses = subclass_relations.get(current, set())
-            for subclass in subclasses:
-                if subclass not in descendants:
-                    descendants.add(subclass)
-                    queue.append(subclass)
-
-        return descendants
-
     def insert_subclass_relations_batch(
         self, subclass_relations: Dict[str, Set[str]], session: Session
     ) -> None:
@@ -82,7 +52,7 @@ class HierarchyBuilder:
 
         logger.info("SubclassRelation batch insert complete")
 
-    def load_complete_hierarchy_from_database(
+    def load_complete_hierarchy(
         self, session: Session
     ) -> Optional[Dict[str, Set[str]]]:
         """
@@ -121,30 +91,7 @@ class HierarchyBuilder:
 
         return subclass_relations
 
-    def get_position_and_location_descendants(
-        self, subclass_relations: Dict[str, Set[str]]
-    ) -> Dict[str, Set[str]]:
-        """
-        Get descendant sets for positions and locations from complete hierarchy.
-
-        Args:
-            subclass_relations: Complete hierarchy mapping
-
-        Returns:
-            Dictionary with 'positions' and 'locations' keys containing descendant sets
-        """
-        position_descendants = self.get_all_descendants(
-            self.position_root, subclass_relations
-        )
-        location_descendants = self.get_all_descendants(
-            self.location_root, subclass_relations
-        )
-
-        return {"positions": position_descendants, "locations": location_descendants}
-
-    def query_descendants_from_database(
-        self, root_id: str, session: Session
-    ) -> Set[str]:
+    def query_descendants(self, root_id: str, session: Session) -> Set[str]:
         """
         Query all descendants of a root entity from database using recursive SQL.
 
@@ -173,61 +120,3 @@ class HierarchyBuilder:
 
         result = session.execute(sql, {"root_id": root_id})
         return {row[0] for row in result.fetchall()}
-
-    def get_position_and_location_descendants_from_database(
-        self, session: Session
-    ) -> Dict[str, Set[str]]:
-        """
-        Get descendant sets for positions and locations from database using optimized query.
-
-        This loads ONLY position and location descendants, not the entire hierarchy,
-        making it much more memory efficient for dump processing.
-
-        Args:
-            session: Database session
-
-        Returns:
-            Dictionary with 'positions' and 'locations' keys containing descendant sets
-        """
-        # Single optimized query to get both position and location descendants
-        sql = text(
-            """
-            WITH RECURSIVE position_descendants AS (
-                SELECT CAST(:position_root AS VARCHAR) AS wikidata_id, 'position' as type
-                UNION
-                SELECT sr.child_class_id AS wikidata_id, 'position' as type
-                FROM subclass_relations sr
-                JOIN position_descendants d ON sr.parent_class_id = d.wikidata_id
-            ),
-            location_descendants AS (
-                SELECT CAST(:location_root AS VARCHAR) AS wikidata_id, 'location' as type
-                UNION
-                SELECT sr.child_class_id AS wikidata_id, 'location' as type
-                FROM subclass_relations sr
-                JOIN location_descendants d ON sr.parent_class_id = d.wikidata_id
-            )
-            SELECT type, wikidata_id FROM position_descendants
-            UNION ALL
-            SELECT type, wikidata_id FROM location_descendants
-        """
-        )
-
-        result = session.execute(
-            sql,
-            {"position_root": self.position_root, "location_root": self.location_root},
-        )
-
-        positions = set()
-        locations = set()
-
-        for row in result.fetchall():
-            if row[0] == "position":
-                positions.add(row[1])
-            else:  # location
-                locations.add(row[1])
-
-        logger.info(
-            f"Loaded {len(positions)} position descendants and {len(locations)} location descendants"
-        )
-
-        return {"positions": positions, "locations": locations}
