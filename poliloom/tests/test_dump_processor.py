@@ -395,10 +395,7 @@ class TestWikidataDumpProcessor:
             result = processor.extract_politicians_from_dump(temp_file, batch_size=10)
 
             # Should have extracted both politicians
-            assert result["politicians"] == 2  # John Doe and Jane Smith
-            assert result["positions"] == 0
-            assert result["locations"] == 0
-            assert result["countries"] == 0
+            assert result == 2  # John Doe and Jane Smith
 
         finally:
             os.unlink(temp_file)

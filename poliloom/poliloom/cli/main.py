@@ -620,10 +620,12 @@ def dump_import_politicians(file, batch_size):
         click.echo("Press Ctrl+C to interrupt...")
 
         # Extract politicians only
-        counts = processor.extract_politicians_from_dump(file, batch_size=batch_size)
+        politicians_count = processor.extract_politicians_from_dump(
+            file, batch_size=batch_size
+        )
 
         click.echo("✅ Successfully imported politicians from dump:")
-        click.echo(f"  • Politicians: {counts['politicians']}")
+        click.echo(f"  • Politicians: {politicians_count}")
 
         # Suggest next steps
         click.echo()

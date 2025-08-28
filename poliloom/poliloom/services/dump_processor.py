@@ -571,11 +571,9 @@ class WikidataDumpProcessor:
                 if pool:
                     pool.terminate()
                     try:
-                        pool.join(
-                            timeout=5
-                        )  # Wait up to 5 seconds for workers to finish
+                        pool.join()
                     except Exception:
-                        pass  # If join times out, continue anyway
+                        pass
                 raise KeyboardInterrupt("Entity extraction interrupted by user")
             finally:
                 if pool:
@@ -606,7 +604,7 @@ class WikidataDumpProcessor:
         self,
         dump_file_path: str,
         batch_size: int = 100,
-    ) -> Dict[str, int]:
+    ) -> int:
         """
         Extract politicians from the Wikidata dump using parallel processing.
 
@@ -615,7 +613,7 @@ class WikidataDumpProcessor:
             batch_size: Number of entities to process in each database batch
 
         Returns:
-            Dictionary with counts of extracted entities
+            Total count of extracted politicians
         """
         num_workers = mp.cpu_count()
         logger.info(f"Using parallel processing with {num_workers} workers")
@@ -653,7 +651,7 @@ class WikidataDumpProcessor:
             if pool:
                 pool.terminate()
                 try:
-                    pool.join(timeout=5)  # Wait up to 5 seconds for workers to finish
+                    pool.join()  # Wait up to 5 seconds for workers to finish
                 except Exception:
                     pass  # If join times out, continue anyway
             raise KeyboardInterrupt("Entity extraction interrupted by user")
@@ -663,23 +661,17 @@ class WikidataDumpProcessor:
                 pool.join()
 
         # Merge results from all chunks
-        total_counts = {
-            "positions": 0,
-            "locations": 0,
-            "countries": 0,
-            "politicians": 0,
-        }
+        total_politicians = 0
         total_entities = 0
 
-        for counts, chunk_count in chunk_results:
+        for politician_count, chunk_count in chunk_results:
             total_entities += chunk_count
-            for key in total_counts:
-                total_counts[key] += counts[key]
+            total_politicians += politician_count
 
         logger.info(f"Extraction complete. Total processed: {total_entities}")
-        logger.info(f"Extracted: {total_counts['politicians']} politicians")
+        logger.info(f"Extracted: {total_politicians} politicians")
 
-        return total_counts
+        return total_politicians
 
     def _process_supporting_entities_chunk(
         self,
@@ -808,7 +800,7 @@ class WikidataDumpProcessor:
         end_byte: int,
         worker_id: int,
         batch_size: int,
-    ) -> Tuple[Dict[str, int], int]:
+    ) -> Tuple[int, int]:
         """
         Process a specific byte range of the dump file for politician extraction.
 
@@ -821,7 +813,7 @@ class WikidataDumpProcessor:
         engine.dispose(close=False)
 
         politicians = []
-        counts = {"positions": 0, "locations": 0, "countries": 0, "politicians": 0}
+        politician_count = 0
         entity_count = 0
         interrupted = False
 
@@ -854,7 +846,7 @@ class WikidataDumpProcessor:
                         politician_data = wikidata_entity.to_database_dict()
                         if politician_data:
                             politicians.append(politician_data)
-                            counts["politicians"] += 1
+                            politician_count += 1
                 except Exception as e:
                     # Log entity processing errors but continue processing
                     logger.debug(
@@ -891,4 +883,4 @@ class WikidataDumpProcessor:
                     f"Worker {worker_id}: finished processing {entity_count} entities"
                 )
 
-        return counts, entity_count
+        return politician_count, entity_count
