@@ -19,6 +19,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy import event
 from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy import exists
 from pgvector.sqlalchemy import Vector
 
 Base = declarative_base()
@@ -102,6 +103,83 @@ class Politician(Base, TimestampMixin):
     def is_deceased(self) -> bool:
         """Check if politician is deceased based on DeathDate property."""
         return any(prop.type == "DeathDate" for prop in self.properties)
+
+    @hybrid_property
+    def has_unevaluated_extracted_data(self) -> bool:
+        """Check if politician has any unevaluated extracted data."""
+        return (
+            any(prop.is_extracted and not prop.evaluations for prop in self.properties)
+            or any(
+                pos.is_extracted and not pos.evaluations for pos in self.positions_held
+            )
+            or any(bp.is_extracted and not bp.evaluations for bp in self.birthplaces)
+        )
+
+    @has_unevaluated_extracted_data.expression
+    def has_unevaluated_extracted_data(cls):
+        """SQL expression for has_unevaluated_extracted_data."""
+        return (
+            (
+                exists()
+                .where(Property.politician_id == cls.id)
+                .where(Property.archived_page_id.isnot(None))
+                .where(~exists().where(PropertyEvaluation.property_id == Property.id))
+            )
+            | (
+                exists()
+                .where(HoldsPosition.politician_id == cls.id)
+                .where(HoldsPosition.archived_page_id.isnot(None))
+                .where(
+                    ~exists().where(
+                        PositionEvaluation.holds_position_id == HoldsPosition.id
+                    )
+                )
+            )
+            | (
+                exists()
+                .where(BornAt.politician_id == cls.id)
+                .where(BornAt.archived_page_id.isnot(None))
+                .where(~exists().where(BirthplaceEvaluation.born_at_id == BornAt.id))
+            )
+        )
+
+    @property
+    def unevaluated_properties(self):
+        """Get unevaluated extracted properties."""
+        return [
+            prop
+            for prop in self.properties
+            if prop.is_extracted and not prop.evaluations
+        ]
+
+    @property
+    def unevaluated_positions(self):
+        """Get unevaluated extracted positions."""
+        return [
+            pos
+            for pos in self.positions_held
+            if pos.is_extracted and not pos.evaluations
+        ]
+
+    @property
+    def unevaluated_birthplaces(self):
+        """Get unevaluated extracted birthplaces."""
+        return [bp for bp in self.birthplaces if bp.is_extracted and not bp.evaluations]
+
+    @property
+    def wikidata_properties(self):
+        """Get Wikidata (non-extracted) properties."""
+        return [prop for prop in self.properties if not prop.is_extracted]
+
+    @property
+    def wikidata_positions(self):
+        """Get Wikidata (non-extracted) positions."""
+        return [pos for pos in self.positions_held if not pos.is_extracted]
+
+    @property
+    def wikidata_birthplaces(self):
+        """Get Wikidata (non-extracted) birthplaces."""
+        return [bp for bp in self.birthplaces if not bp.is_extracted]
 
     # Relationships
     properties = relationship(
@@ -523,9 +601,3 @@ class SubclassRelation(Base, TimestampMixin):
         foreign_keys=[child_class_id],
         back_populates="parent_relations",
     )
-
-
-# Vector columns are now defined directly in the model classes using pgvector.Vector(384)
-
-# Note: PostgreSQL triggers for automatic updated_at timestamps are created via Alembic migrations
-# See migration: b18e52b53fa5_add_postgresql_triggers_for_updated_at.py

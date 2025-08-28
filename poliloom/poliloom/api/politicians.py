@@ -47,7 +47,7 @@ async def get_politicians(
     and unevaluated extracted data for review and evaluation.
     """
     with Session(get_engine()) as db:
-        # Query for politicians that have either unevaluated properties or positions
+        # Query for politicians that have unevaluated extracted data
         query = (
             select(Politician)
             .options(
@@ -69,11 +69,7 @@ async def get_politicians(
                 selectinload(Politician.birthplaces).selectinload(BornAt.archived_page),
                 selectinload(Politician.wikipedia_links),
             )
-            .where(
-                (Politician.properties.any(Property.is_extracted))
-                | (Politician.positions_held.any(HoldsPosition.is_extracted))
-                | (Politician.birthplaces.any(BornAt.is_extracted))
-            )
+            .where(Politician.has_unevaluated_extracted_data)
             .offset(offset)
             .limit(limit)
         )
@@ -82,116 +78,72 @@ async def get_politicians(
 
         result = []
         for politician in politicians:
-            # Filter unevaluated properties (extracted but not evaluated)
-            unevaluated_properties = [
-                prop
-                for prop in politician.properties
-                if prop.is_extracted and not prop.evaluations
-            ]
-
-            # Filter unevaluated positions (extracted but not evaluated)
-            unevaluated_positions = [
-                pos
-                for pos in politician.positions_held
-                if pos.is_extracted and not pos.evaluations
-            ]
-
-            # Filter unevaluated birthplaces (extracted but not evaluated)
-            unevaluated_birthplaces = [
-                birthplace
-                for birthplace in politician.birthplaces
-                if birthplace.is_extracted and not birthplace.evaluations
-            ]
-
-            # Filter Wikidata properties (not extracted from web sources)
-            wikidata_properties = [
-                prop for prop in politician.properties if not prop.is_extracted
-            ]
-
-            # Filter Wikidata positions (not extracted from web sources)
-            wikidata_positions = [
-                pos for pos in politician.positions_held if not pos.is_extracted
-            ]
-
-            # Filter Wikidata birthplaces (not extracted from web sources)
-            wikidata_birthplaces = [
-                birthplace
-                for birthplace in politician.birthplaces
-                if not birthplace.is_extracted
-            ]
-
-            # Only include politicians that actually have unevaluated data
-            if (
-                unevaluated_properties
-                or unevaluated_positions
-                or unevaluated_birthplaces
-            ):
-                politician_response = PoliticianResponse(
-                    id=politician.id,
-                    name=politician.name,
-                    wikidata_id=politician.wikidata_id,
-                    wikidata_properties=[
-                        WikidataPropertyResponse(
-                            id=prop.id,
-                            type=prop.type,
-                            value=prop.value,
-                            value_precision=prop.value_precision,
-                        )
-                        for prop in wikidata_properties
-                    ],
-                    wikidata_positions=[
-                        WikidataPositionResponse(
-                            id=pos.id,
-                            position_name=pos.position.name,
-                            wikidata_id=pos.position.wikidata_id,
-                            start_date=pos.start_date,
-                            start_date_precision=pos.start_date_precision,
-                            end_date=pos.end_date,
-                            end_date_precision=pos.end_date_precision,
-                        )
-                        for pos in wikidata_positions
-                    ],
-                    wikidata_birthplaces=[
-                        WikidataBirthplaceResponse(
-                            id=birthplace.id,
-                            location_name=birthplace.location.name,
-                            wikidata_id=birthplace.location.wikidata_id,
-                        )
-                        for birthplace in wikidata_birthplaces
-                    ],
-                    extracted_properties=[
-                        ExtractedPropertyResponse(
-                            id=prop.id,
-                            type=prop.type,
-                            value=prop.value,
-                            proof_line=prop.proof_line,
-                            archived_page=prop.archived_page,
-                        )
-                        for prop in unevaluated_properties
-                    ],
-                    extracted_positions=[
-                        ExtractedPositionResponse(
-                            id=pos.id,
-                            position_name=pos.position.name,
-                            wikidata_id=pos.position.wikidata_id,
-                            start_date=pos.start_date,
-                            end_date=pos.end_date,
-                            proof_line=pos.proof_line,
-                            archived_page=pos.archived_page,
-                        )
-                        for pos in unevaluated_positions
-                    ],
-                    extracted_birthplaces=[
-                        ExtractedBirthplaceResponse(
-                            id=birthplace.id,
-                            location_name=birthplace.location.name,
-                            wikidata_id=birthplace.location.wikidata_id,
-                            proof_line=birthplace.proof_line,
-                            archived_page=birthplace.archived_page,
-                        )
-                        for birthplace in unevaluated_birthplaces
-                    ],
-                )
+            politician_response = PoliticianResponse(
+                id=politician.id,
+                name=politician.name,
+                wikidata_id=politician.wikidata_id,
+                wikidata_properties=[
+                    WikidataPropertyResponse(
+                        id=prop.id,
+                        type=prop.type,
+                        value=prop.value,
+                        value_precision=prop.value_precision,
+                    )
+                    for prop in politician.wikidata_properties
+                ],
+                wikidata_positions=[
+                    WikidataPositionResponse(
+                        id=pos.id,
+                        position_name=pos.position.name,
+                        wikidata_id=pos.position.wikidata_id,
+                        start_date=pos.start_date,
+                        start_date_precision=pos.start_date_precision,
+                        end_date=pos.end_date,
+                        end_date_precision=pos.end_date_precision,
+                    )
+                    for pos in politician.wikidata_positions
+                ],
+                wikidata_birthplaces=[
+                    WikidataBirthplaceResponse(
+                        id=birthplace.id,
+                        location_name=birthplace.location.name,
+                        wikidata_id=birthplace.location.wikidata_id,
+                    )
+                    for birthplace in politician.wikidata_birthplaces
+                ],
+                extracted_properties=[
+                    ExtractedPropertyResponse(
+                        id=prop.id,
+                        type=prop.type,
+                        value=prop.value,
+                        proof_line=prop.proof_line,
+                        archived_page=prop.archived_page,
+                    )
+                    for prop in politician.unevaluated_properties
+                ],
+                extracted_positions=[
+                    ExtractedPositionResponse(
+                        id=pos.id,
+                        position_name=pos.position.name,
+                        wikidata_id=pos.position.wikidata_id,
+                        start_date=pos.start_date,
+                        end_date=pos.end_date,
+                        proof_line=pos.proof_line,
+                        archived_page=pos.archived_page,
+                    )
+                    for pos in politician.unevaluated_positions
+                ],
+                extracted_birthplaces=[
+                    ExtractedBirthplaceResponse(
+                        id=birthplace.id,
+                        location_name=birthplace.location.name,
+                        wikidata_id=birthplace.location.wikidata_id,
+                        proof_line=birthplace.proof_line,
+                        archived_page=birthplace.archived_page,
+                    )
+                    for birthplace in politician.unevaluated_birthplaces
+                ],
+            )
             result.append(politician_response)
 
     return result
