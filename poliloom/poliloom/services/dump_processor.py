@@ -516,7 +516,7 @@ class WikidataDumpProcessor:
     def extract_entities_from_dump(
         self,
         dump_file_path: str,
-        batch_size: int = 100,
+        batch_size: int = 1000,
     ) -> Dict[str, int]:
         """
         Extract supporting entities from the Wikidata dump using parallel processing.
@@ -634,7 +634,7 @@ class WikidataDumpProcessor:
     def extract_politicians_from_dump(
         self,
         dump_file_path: str,
-        batch_size: int = 100,
+        batch_size: int = 1000,
     ) -> int:
         """
         Extract politicians from the Wikidata dump using parallel processing.
@@ -757,14 +757,14 @@ class WikidataDumpProcessor:
                     continue  # Skip entities without names - needed for embeddings in enrichment
 
                 entity_data = {
-                    "wikidata_id": entity.get_wikidata_id(),
+                    "wikidata_id": entity_id,
                     "name": entity_name,
                 }
 
                 # Check entity type and add type-specific fields
                 if entity.is_position(shared_position_classes):
-                    most_specific_class_id = (
-                        entity.get_most_specific_class_wikidata_id()
+                    most_specific_class_id = entity.get_most_specific_class_wikidata_id(
+                        shared_position_classes
                     )
                     if most_specific_class_id:
                         entity_data["wikidata_class_id"] = most_specific_class_id
@@ -772,8 +772,8 @@ class WikidataDumpProcessor:
                     positions.append(entity_data)
                     counts["positions"] += 1
                 elif entity.is_location(shared_location_classes):
-                    most_specific_class_id = (
-                        entity.get_most_specific_class_wikidata_id()
+                    most_specific_class_id = entity.get_most_specific_class_wikidata_id(
+                        shared_location_classes
                     )
                     if most_specific_class_id:
                         entity_data["wikidata_class_id"] = most_specific_class_id

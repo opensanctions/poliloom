@@ -236,7 +236,6 @@ class TestWikidataDumpProcessor:
 
         with Session(get_engine()) as session:
             stmt = insert(WikidataClass).values(wikidata_classes_data)
-            stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
             session.execute(stmt)
             session.commit()
 
@@ -254,9 +253,6 @@ class TestWikidataDumpProcessor:
                 },  # location root -> test location
             ]
             stmt = insert(SubclassRelation).values(relations_data)
-            stmt = stmt.on_conflict_do_nothing(
-                index_elements=["parent_class_id", "child_class_id"]
-            )
             session.execute(stmt)
             session.commit()
 
@@ -414,7 +410,6 @@ class TestWikidataDumpProcessor:
         ]
 
         stmt = insert(WikidataClass).values(wikidata_classes_data)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
         db_session.commit()
 
@@ -429,9 +424,6 @@ class TestWikidataDumpProcessor:
         ]
 
         stmt = insert(SubclassRelation).values(relations_data)
-        stmt = stmt.on_conflict_do_nothing(
-            index_elements=["parent_class_id", "child_class_id"]
-        )
         db_session.execute(stmt)
         db_session.commit()
 
@@ -451,7 +443,6 @@ class TestWikidataDumpProcessor:
         ]
 
         stmt = insert(WikidataClass).values(wikidata_classes_data)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
         db_session.commit()
 
@@ -475,7 +466,6 @@ class TestWikidataDumpProcessor:
         ]
 
         stmt = insert(WikidataClass).values(wikidata_classes_data)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
         db_session.commit()
 
@@ -488,9 +478,6 @@ class TestWikidataDumpProcessor:
         ]
 
         stmt = insert(SubclassRelation).values(relations_data)
-        stmt = stmt.on_conflict_do_nothing(
-            index_elements=["parent_class_id", "child_class_id"]
-        )
         db_session.execute(stmt)
         db_session.commit()
 

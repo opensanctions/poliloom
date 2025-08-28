@@ -208,9 +208,17 @@ class WikidataEntity:
                 continue
         return None
 
-    def get_most_specific_class_wikidata_id(self) -> Optional[str]:
+    def get_most_specific_class_wikidata_id(
+        self, valid_classes: Dict[str, bool] = None
+    ) -> Optional[str]:
         """Find most specific wikidata class for positions/locations."""
         instance_ids = self.get_instance_of_ids()
+        if valid_classes:
+            # Only return class IDs that exist in the valid_classes dictionary
+            for instance_id in instance_ids:
+                if instance_id in valid_classes:
+                    return instance_id
+            return None
         return next(iter(instance_ids), None) if instance_ids else None
 
     @classmethod
