@@ -587,7 +587,6 @@ class WikidataDumpProcessor:
                 "positions": 0,
                 "locations": 0,
                 "countries": 0,
-                "politicians": 0,
             }
             total_entities = 0
 
@@ -709,7 +708,7 @@ class WikidataDumpProcessor:
         positions = []
         locations = []
         countries = []
-        counts = {"positions": 0, "locations": 0, "countries": 0, "politicians": 0}
+        counts = {"positions": 0, "locations": 0, "countries": 0}
         entity_count = 0
         interrupted = False
 

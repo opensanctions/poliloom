@@ -327,7 +327,6 @@ class TestWikidataDumpProcessor:
                 assert "positions" in result
                 assert "locations" in result
                 assert "countries" in result
-                assert "politicians" in result
 
         finally:
             os.unlink(temp_file)
