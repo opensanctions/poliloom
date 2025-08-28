@@ -47,6 +47,11 @@ class StorageBackend(ABC):
         """Stream lines from a file."""
         pass
 
+    @abstractmethod
+    def stream_lines_range(self, path: str, start: int, end: int) -> Iterator[bytes]:
+        """Stream lines from a specific byte range of a file."""
+        pass
+
 
 class LocalStorage(StorageBackend):
     """Local filesystem storage backend."""
@@ -77,6 +82,20 @@ class LocalStorage(StorageBackend):
         """Stream lines from a local file."""
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
+                yield line
+
+    def stream_lines_range(self, path: str, start: int, end: int) -> Iterator[bytes]:
+        """Stream lines from a specific byte range of a local file."""
+        with open(path, "rb") as f:
+            f.seek(start)
+            current_pos = start
+
+            while current_pos < end:
+                line = f.readline()
+                if not line:
+                    break
+
+                current_pos = f.tell()
                 yield line
 
 
@@ -186,6 +205,24 @@ class GCSStorage(StorageBackend):
         # Stream the file content
         with blob.open("r") as f:
             for line in f:
+                yield line
+
+    def stream_lines_range(self, path: str, start: int, end: int) -> Iterator[bytes]:
+        """Stream lines from a specific byte range of a GCS file."""
+        bucket_name, blob_name = self._parse_gcs_path(path)
+        bucket = self.client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+
+        with blob.open("rb") as f:
+            f.seek(start)
+            current_pos = start
+
+            while current_pos < end:
+                line = f.readline()
+                if not line:
+                    break
+
+                current_pos = f.tell()
                 yield line
 
 

@@ -35,53 +35,6 @@ class TestDumpReader:
 
         return "".join(lines)
 
-    def test_stream_dump_entities(self, reader, sample_dump_content):
-        """Test streaming entities from dump file."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            f.write(sample_dump_content)
-            temp_file = f.name
-
-        try:
-            entities = list(reader.stream_dump_entities(temp_file))
-
-            assert len(entities) == 8
-            assert entities[0]["id"] == "Q294414"
-            assert entities[1]["id"] == "Q2221906"
-            assert entities[7]["id"] == "Q5"
-
-            # Check that all entities have required fields
-            for entity in entities:
-                assert "id" in entity
-                assert "type" in entity
-                assert "labels" in entity
-                assert "claims" in entity
-
-        finally:
-            os.unlink(temp_file)
-
-    def test_stream_dump_entities_with_malformed_json(self, reader):
-        """Test handling of malformed JSON lines."""
-        content = """[
-{"id": "Q1", "type": "item", "labels": {}, "claims": {}},
-MALFORMED_JSON_LINE,
-{"id": "Q2", "type": "item", "labels": {}, "claims": {}},
-]"""
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            f.write(content)
-            temp_file = f.name
-
-        try:
-            entities = list(reader.stream_dump_entities(temp_file))
-
-            # Should skip malformed line and continue
-            assert len(entities) == 2
-            assert entities[0]["id"] == "Q1"
-            assert entities[1]["id"] == "Q2"
-
-        finally:
-            os.unlink(temp_file)
-
     def test_calculate_file_chunks(self, reader):
         """Test calculating file chunks for parallel processing."""
         # Create a larger test file to ensure chunking

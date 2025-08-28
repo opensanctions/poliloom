@@ -89,43 +89,31 @@ class DumpReader:
 
         return chunks
 
-    def stream_dump_entities(self, dump_file_path: str) -> Iterator[Dict[str, Any]]:
+    def _process_dump_line(self, line: bytes) -> Optional[Dict[str, Any]]:
         """
-        Stream entities from a Wikidata JSON dump file.
-
-        The dump format has one JSON object per line, with a trailing comma.
-        First line is '[', last line is ']'.
+        Process a single line from the dump file.
 
         Args:
-            dump_file_path: Path to the JSON dump file (local or gs://)
+            line: Raw line bytes from the dump file
 
-        Yields:
-            Parsed entity dictionaries
+        Returns:
+            Parsed entity dictionary or None if line should be skipped
         """
-        # Get the appropriate storage backend
-        backend = StorageFactory.get_backend(dump_file_path)
+        line = line.strip()
 
-        for line in backend.stream_lines(dump_file_path):
-            line = line.strip()
+        # Skip array brackets and empty lines
+        if line in [b"[", b"]"] or not line:
+            return None
 
-            # Skip array brackets
-            if line in ["[", "]"]:
-                continue
+        # Remove trailing comma if present
+        if line.endswith(b","):
+            line = line[:-1]
 
-            # Remove trailing comma if present
-            if line.endswith(","):
-                line = line[:-1]
-
-            # Skip empty lines
-            if not line:
-                continue
-
-            try:
-                entity = json.loads(line)
-                yield entity
-            except json.JSONDecodeError as e:
-                logger.warning(f"Failed to parse JSON line: {e}")
-                continue
+        try:
+            return json.loads(line.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # Skip malformed lines
+            return None
 
     def read_chunk_entities(
         self, dump_file_path: str, start_byte: int, end_byte: int
@@ -144,56 +132,8 @@ class DumpReader:
         # Get the appropriate storage backend
         backend = StorageFactory.get_backend(dump_file_path)
 
-        # For GCS, we need to handle this differently
-        if StorageFactory.is_gcs_path(dump_file_path):
-            # Read the entire chunk at once for GCS
-            # This is more efficient than many small reads
-            chunk_data = backend.read_range(dump_file_path, start_byte, end_byte)
-
-            # Process lines from the chunk
-            lines = chunk_data.split(b"\n")
-            for line in lines:
-                line = line.strip()
-
-                # Skip array brackets and empty lines
-                if line in [b"[", b"]"] or not line:
-                    continue
-
-                # Remove trailing comma if present
-                if line.endswith(b","):
-                    line = line[:-1]
-
-                try:
-                    entity = json.loads(line.decode("utf-8"))
-                    yield entity
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    # Skip malformed lines
-                    continue
-        else:
-            # For local files, use the existing approach
-            with open(dump_file_path, "rb") as f:
-                f.seek(start_byte)
-                current_pos = start_byte
-
-                while current_pos < end_byte:
-                    line = f.readline()
-                    if not line:
-                        break
-
-                    current_pos = f.tell()
-
-                    # Skip array brackets and empty lines
-                    line = line.strip()
-                    if line in [b"[", b"]"] or not line:
-                        continue
-
-                    # Remove trailing comma if present
-                    if line.endswith(b","):
-                        line = line[:-1]
-
-                    try:
-                        entity = json.loads(line.decode("utf-8"))
-                        yield entity
-                    except (json.JSONDecodeError, UnicodeDecodeError):
-                        # Skip malformed lines
-                        continue
+        # Stream lines from the byte range
+        for line in backend.stream_lines_range(dump_file_path, start_byte, end_byte):
+            entity = self._process_dump_line(line)
+            if entity is not None:
+                yield entity
