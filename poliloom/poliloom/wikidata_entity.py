@@ -13,8 +13,8 @@ class WikidataEntity:
     def __init__(
         self,
         raw_data: Dict[str, Any],
-        position_descendants: Optional[Dict[str, Any]] = None,
-        location_descendants: Optional[Dict[str, Any]] = None,
+        position_classes: Optional[Set[str]] = None,
+        location_classes: Optional[Set[str]] = None,
     ):
         """Initialize with raw Wikidata entity JSON data and determine entity type."""
         self.raw_data = raw_data
@@ -23,23 +23,23 @@ class WikidataEntity:
         self._labels = raw_data.get("labels", {})
         self._sitelinks = raw_data.get("sitelinks", {})
         self._entity_type = self._determine_entity_type(
-            position_descendants, location_descendants
+            position_classes, location_classes
         )
 
     def _determine_entity_type(
         self,
-        position_descendants: Optional[Dict[str, Any]] = None,
-        location_descendants: Optional[Dict[str, Any]] = None,
+        position_classes: Optional[Set[str]] = None,
+        location_classes: Optional[Set[str]] = None,
     ) -> Optional[str]:
         """Determine the entity type based on Wikidata properties."""
         # Check politician first (highest priority)
         if self._is_politician():
             return "politician"
         # Check position (requires hierarchy data)
-        elif position_descendants and self._is_position(position_descendants):
+        elif position_classes and self._is_position(position_classes):
             return "position"
         # Check location (requires hierarchy data)
-        elif location_descendants and self._is_location(location_descendants):
+        elif location_classes and self._is_location(location_classes):
             return "location"
         # Check country (no hierarchy data needed)
         elif self._is_country():
@@ -219,15 +219,15 @@ class WikidataEntity:
         position_claims = self.get_truthy_claims("P39")
         return len(position_claims) > 0
 
-    def _is_position(self, position_descendants: Dict[str, Any]) -> bool:
+    def _is_position(self, position_classes: Set[str]) -> bool:
         """Check if entity is a position based on instance hierarchy."""
         instance_ids = self.get_instance_of_ids()
-        return any(instance_id in position_descendants for instance_id in instance_ids)
+        return any(instance_id in position_classes for instance_id in instance_ids)
 
-    def _is_location(self, location_descendants: Dict[str, Any]) -> bool:
+    def _is_location(self, location_classes: Set[str]) -> bool:
         """Check if entity is a location based on instance hierarchy."""
         instance_ids = self.get_instance_of_ids()
-        return any(instance_id in location_descendants for instance_id in instance_ids)
+        return any(instance_id in location_classes for instance_id in instance_ids)
 
     def _is_country(self) -> bool:
         """Check if entity is a country based on instance types."""

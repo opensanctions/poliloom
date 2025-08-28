@@ -508,11 +508,11 @@ class WikidataDumpProcessor:
                 )
 
             # Get descendant sets for filtering (optimized - only loads what we need)
-            position_descendants = query_hierarchy_descendants("Q294414", session)
-            location_descendants = query_hierarchy_descendants("Q2221906", session)
+            position_classes = query_hierarchy_descendants("Q294414", session)
+            location_classes = query_hierarchy_descendants("Q2221906", session)
 
             logger.info(
-                f"Filtering for {len(position_descendants)} position types and {len(location_descendants)} location types"
+                f"Filtering for {len(position_classes)} position types and {len(location_classes)} location types"
             )
 
         num_workers = mp.cpu_count()
@@ -521,18 +521,18 @@ class WikidataDumpProcessor:
         # Use Manager to share descendant dictionaries across workers
         with Manager() as manager:
             logger.info(
-                f"Creating shared dictionary for {len(position_descendants)} position descendants"
+                f"Creating shared dictionary for {len(position_classes)} position classes"
             )
-            shared_position_descendants = manager.dict()
-            for qid in position_descendants:
-                shared_position_descendants[qid] = True
+            shared_position_classes = manager.dict()
+            for qid in position_classes:
+                shared_position_classes[qid] = True
 
             logger.info(
-                f"Creating shared dictionary for {len(location_descendants)} location descendants"
+                f"Creating shared dictionary for {len(location_classes)} location classes"
             )
-            shared_location_descendants = manager.dict()
-            for qid in location_descendants:
-                shared_location_descendants[qid] = True
+            shared_location_classes = manager.dict()
+            for qid in location_classes:
+                shared_location_classes[qid] = True
 
             # Split file into chunks for parallel processing
             logger.info("Calculating file chunks for parallel processing...")
@@ -556,8 +556,8 @@ class WikidataDumpProcessor:
                             end,
                             i,
                             batch_size,
-                            shared_position_descendants,
-                            shared_location_descendants,
+                            shared_position_classes,
+                            shared_location_classes,
                         )
                         for i, (start, end) in enumerate(chunks)
                     ],
@@ -688,8 +688,8 @@ class WikidataDumpProcessor:
         end_byte: int,
         worker_id: int,
         batch_size: int,
-        shared_position_descendants: dict,
-        shared_location_descendants: dict,
+        shared_position_classes: dict,
+        shared_location_classes: dict,
     ) -> Tuple[Dict[str, int], int]:
         """
         Process a specific byte range of the dump file for supporting entities extraction.
@@ -732,7 +732,7 @@ class WikidataDumpProcessor:
                 try:
                     # For supporting entities, create position/location/country entities
                     wikidata_entity = WikidataEntity(
-                        entity, shared_position_descendants, shared_location_descendants
+                        entity, shared_position_classes, shared_location_classes
                     )
 
                     if not wikidata_entity.should_import():

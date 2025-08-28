@@ -67,7 +67,7 @@ class TestWikidataEntity:
                         ]
                     },
                 },
-                {"position_descendants": {"Q294414": True}},
+                {"position_classes": {"Q294414"}},
                 "position",
             ),
             # Location
@@ -83,7 +83,7 @@ class TestWikidataEntity:
                         ]
                     },
                 },
-                {"location_descendants": {"Q515": True}},
+                {"location_classes": {"Q515"}},
                 "location",
             ),
             # Country
