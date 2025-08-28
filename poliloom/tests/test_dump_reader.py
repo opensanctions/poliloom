@@ -94,10 +94,13 @@ class TestDumpReader:
             # Should get some entities (exact number depends on where split falls)
             assert len(entities) >= 0
 
-            # All entities should be valid
+            # All entities should be valid WikidataEntity instances
             for entity in entities:
-                assert "id" in entity
-                assert "type" in entity
+                assert entity.get_wikidata_id()
+                assert (
+                    entity.get_entity_name() is not None
+                    or entity.get_entity_name() == ""
+                )
 
         finally:
             os.unlink(temp_file)
@@ -120,8 +123,8 @@ MALFORMED_JSON_LINE,
 
             # Should skip malformed line and continue
             assert len(entities) == 2
-            assert entities[0]["id"] == "Q1"
-            assert entities[1]["id"] == "Q2"
+            assert entities[0].get_wikidata_id() == "Q1"
+            assert entities[1].get_wikidata_id() == "Q2"
 
         finally:
             os.unlink(temp_file)

@@ -1,7 +1,6 @@
 """Unified Wikidata entity processing class."""
 
 from typing import Dict, List, Optional, Any, Set
-from datetime import datetime, date
 import logging
 
 logger = logging.getLogger(__name__)
@@ -10,41 +9,13 @@ logger = logging.getLogger(__name__)
 class WikidataEntity:
     """Unified class for all Wikidata entities with type-specific processing."""
 
-    def __init__(
-        self,
-        raw_data: Dict[str, Any],
-        position_classes: Optional[Set[str]] = None,
-        location_classes: Optional[Set[str]] = None,
-    ):
-        """Initialize with raw Wikidata entity JSON data and determine entity type."""
+    def __init__(self, raw_data: Dict[str, Any]):
+        """Initialize with raw Wikidata entity JSON data."""
         self.raw_data = raw_data
         self._entity_id = raw_data.get("id", "")
         self._claims = raw_data.get("claims", {})
         self._labels = raw_data.get("labels", {})
         self._sitelinks = raw_data.get("sitelinks", {})
-        self._entity_type = self._determine_entity_type(
-            position_classes, location_classes
-        )
-
-    def _determine_entity_type(
-        self,
-        position_classes: Optional[Set[str]] = None,
-        location_classes: Optional[Set[str]] = None,
-    ) -> Optional[str]:
-        """Determine the entity type based on Wikidata properties."""
-        # Check politician first (highest priority)
-        if self._is_politician():
-            return "politician"
-        # Check position (requires hierarchy data)
-        elif position_classes and self._is_position(position_classes):
-            return "position"
-        # Check location (requires hierarchy data)
-        elif location_classes and self._is_location(location_classes):
-            return "location"
-        # Check country (no hierarchy data needed)
-        elif self._is_country():
-            return "country"
-        return None
 
     def get_wikidata_id(self) -> str:
         """Get the Wikidata entity ID (QID)."""
@@ -178,27 +149,7 @@ class WikidataEntity:
 
         return subclass_ids
 
-    def should_import(self) -> bool:
-        """Check if entity should be imported based on its type and additional rules.
-
-        Returns:
-            True if should be imported, False otherwise
-        """
-        if self._entity_type is None:
-            return False
-
-        # Apply politician-specific import rules (death date filtering)
-        if self._entity_type == "politician":
-            return self._should_import_politician()
-
-        return True
-
-    @property
-    def entity_type(self) -> Optional[str]:
-        """Get the entity type."""
-        return self._entity_type
-
-    def _is_politician(self) -> bool:
+    def is_politician(self) -> bool:
         """Check if entity is a politician based on occupation or positions held."""
         # Must be human first
         instance_ids = self.get_instance_of_ids()
@@ -219,17 +170,17 @@ class WikidataEntity:
         position_claims = self.get_truthy_claims("P39")
         return len(position_claims) > 0
 
-    def _is_position(self, position_classes: Set[str]) -> bool:
+    def is_position(self, position_classes: Dict[str, bool]) -> bool:
         """Check if entity is a position based on instance hierarchy."""
         instance_ids = self.get_instance_of_ids()
         return any(instance_id in position_classes for instance_id in instance_ids)
 
-    def _is_location(self, location_classes: Set[str]) -> bool:
+    def is_location(self, location_classes: Dict[str, bool]) -> bool:
         """Check if entity is a location based on instance hierarchy."""
         instance_ids = self.get_instance_of_ids()
         return any(instance_id in location_classes for instance_id in instance_ids)
 
-    def _is_country(self) -> bool:
+    def is_country(self) -> bool:
         """Check if entity is a country based on instance types."""
         country_types = {
             "Q6256",  # country
@@ -247,39 +198,6 @@ class WikidataEntity:
         death_claims = self.get_truthy_claims("P570")
         return len(death_claims) > 0
 
-    def _should_import_politician(self) -> bool:
-        """Check if politician should be imported based on death date."""
-        if not self.is_deceased:
-            return True
-
-        death_claims = self.get_truthy_claims("P570")
-        death_info = self.extract_date_from_claims(death_claims)
-        if not death_info:
-            return True
-
-        try:
-            death_date_str = death_info["date"]
-            precision = death_info["precision"]
-
-            # Parse date based on precision
-            if precision >= 11:  # day precision
-                death_date = datetime.strptime(death_date_str, "%Y-%m-%d").date()
-            elif precision == 10:  # month precision
-                death_date = datetime.strptime(
-                    death_date_str + "-01", "%Y-%m-%d"
-                ).date()
-            elif precision == 9:  # year precision
-                death_date = datetime.strptime(
-                    death_date_str + "-01-01", "%Y-%m-%d"
-                ).date()
-            else:
-                return True
-
-            # Only import if died after 1950
-            return death_date >= date(1950, 1, 1)
-        except (ValueError, TypeError):
-            return True
-
     def extract_iso_code(self) -> Optional[str]:
         """Extract ISO 3166-1 alpha-2 code for countries."""
         iso_claims = self.get_truthy_claims("P297")
@@ -290,32 +208,10 @@ class WikidataEntity:
                 continue
         return None
 
-    def _find_most_specific_class_wikidata_id(self) -> Optional[str]:
+    def get_most_specific_class_wikidata_id(self) -> Optional[str]:
         """Find most specific wikidata class for positions/locations."""
         instance_ids = self.get_instance_of_ids()
         return next(iter(instance_ids), None) if instance_ids else None
-
-    def to_database_dict(self) -> Dict[str, Any]:
-        """Convert entity to dictionary format for database insertion.
-
-        Returns:
-            Dictionary with keys matching appropriate database table columns
-        """
-        # Base fields for all entities
-        result = {
-            "wikidata_id": self.get_wikidata_id(),
-            "name": self.get_entity_name(),
-        }
-
-        # Add entity-specific fields
-        if self._entity_type == "country":
-            result["iso_code"] = self.extract_iso_code()
-        elif self._entity_type in ["position", "location"]:
-            most_specific_class_id = self._find_most_specific_class_wikidata_id()
-            if most_specific_class_id:
-                result["wikidata_class_id"] = most_specific_class_id
-
-        return result
 
     @classmethod
     def from_raw(cls, raw_data: Dict[str, Any]) -> "WikidataEntity":

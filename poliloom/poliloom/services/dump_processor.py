@@ -5,6 +5,7 @@ import multiprocessing as mp
 from typing import Dict, Set, Tuple
 from collections import defaultdict
 from multiprocessing import Manager
+from datetime import datetime, date
 
 from sqlalchemy.dialects.postgresql import insert
 
@@ -14,7 +15,6 @@ from .database_inserter import DatabaseInserter
 from ..database import get_engine
 from sqlalchemy.orm import Session
 from ..models import WikidataClass, SubclassRelation
-from ..wikidata_entity import WikidataEntity
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +258,7 @@ class WikidataDumpProcessor:
                 if pool:
                     pool.terminate()
                     try:
-                        pool.join(timeout=5)
+                        pool.join()
                     except Exception:
                         pass
                 raise KeyboardInterrupt("Name extraction interrupted by user")
@@ -326,17 +326,16 @@ class WikidataDumpProcessor:
                 # Progress reporting for large chunks
                 if entity_count % PROGRESS_REPORT_FREQUENCY == 0:
                     logger.info(
-                        f"Worker {worker_id}: processed {entity_count} entities, found {len(name_updates)} name updates"
+                        f"Worker {worker_id}: processed {entity_count} entities"
                     )
 
-                entity_id = entity.get("id", "")
+                entity_id = entity.get_wikidata_id()
                 if not entity_id or entity_id not in shared_qids:
                     continue
 
                 # Extract name using base entity logic
                 try:
-                    wikidata_entity = WikidataEntity.from_raw(entity)
-                    name = wikidata_entity.get_entity_name()
+                    name = entity.get_entity_name()
                     if name:
                         name_updates[entity_id] = name
                 except Exception as e:
@@ -456,12 +455,10 @@ class WikidataDumpProcessor:
                         f"Worker {worker_id}: processed {entity_count} entities"
                     )
 
-                # Extract P279 relationships only (no entity names) using WikidataEntity logic
-                entity_id = entity.get("id", "")
+                # Extract P279 relationships using WikidataEntity logic
+                entity_id = entity.get_wikidata_id()
                 if entity_id:
-                    # Create temporary WikidataEntity to use its truthy claims logic
-                    wikidata_entity = WikidataEntity.from_raw(entity)
-                    subclass_claims = wikidata_entity.get_truthy_claims("P279")
+                    subclass_claims = entity.get_truthy_claims("P279")
 
                     for claim in subclass_claims:
                         try:
@@ -716,39 +713,39 @@ class WikidataDumpProcessor:
                         f"Worker {worker_id}: processed {entity_count} entities"
                     )
 
-                entity_id = entity.get("id", "")
+                entity_id = entity.get_wikidata_id()
                 if not entity_id:
                     continue
 
-                # Use factory to create appropriate entity instance
-                try:
-                    # For supporting entities, create position/location/country entities
-                    wikidata_entity = WikidataEntity(
-                        entity, shared_position_classes, shared_location_classes
-                    )
+                # Create shared entity data
+                entity_data = {
+                    "wikidata_id": entity.get_wikidata_id(),
+                    "name": entity.get_entity_name(),
+                }
 
-                    if not wikidata_entity.should_import():
-                        continue
-
-                    # Route entity to appropriate batch based on type
-                    # Create database dict and route to appropriate collection
-                    entity_data = wikidata_entity.to_database_dict()
-                    if entity_data:
-                        if wikidata_entity.entity_type == "position":
-                            positions.append(entity_data)
-                            counts["positions"] += 1
-                        elif wikidata_entity.entity_type == "location":
-                            locations.append(entity_data)
-                            counts["locations"] += 1
-                        elif wikidata_entity.entity_type == "country":
-                            countries.append(entity_data)
-                            counts["countries"] += 1
-                except Exception as e:
-                    # Log entity processing errors but continue processing
-                    logger.debug(
-                        f"Worker {worker_id}: skipping entity {entity_id} due to error: {e}"
+                # Check entity type and add type-specific fields
+                if entity.is_position(shared_position_classes):
+                    most_specific_class_id = (
+                        entity.get_most_specific_class_wikidata_id()
                     )
-                    continue
+                    if most_specific_class_id:
+                        entity_data["wikidata_class_id"] = most_specific_class_id
+
+                    positions.append(entity_data)
+                    counts["positions"] += 1
+                elif entity.is_location(shared_location_classes):
+                    most_specific_class_id = (
+                        entity.get_most_specific_class_wikidata_id()
+                    )
+                    if most_specific_class_id:
+                        entity_data["wikidata_class_id"] = most_specific_class_id
+
+                    locations.append(entity_data)
+                    counts["locations"] += 1
+                elif entity.is_country():
+                    entity_data["iso_code"] = entity.extract_iso_code()
+                    countries.append(entity_data)
+                    counts["countries"] += 1
 
                 # Process batches when they reach the batch size
                 if len(positions) >= batch_size:
@@ -829,30 +826,49 @@ class WikidataDumpProcessor:
                         f"Worker {worker_id}: processed {entity_count} entities"
                     )
 
-                entity_id = entity.get("id", "")
+                entity_id = entity.get_wikidata_id()
                 if not entity_id:
                     continue
 
-                # Use factory to create appropriate entity instance
-                try:
-                    # For politicians, only create politician entities
-                    wikidata_entity = WikidataEntity(entity)
+                # Check if it's a politician
+                if entity.is_politician():
+                    # Skip deceased politicians who died before 1950
+                    if entity.is_deceased:
+                        death_claims = entity.get_truthy_claims("P570")
+                        death_info = entity.extract_date_from_claims(death_claims)
+                        if death_info:
+                            try:
+                                death_date_str = death_info["date"]
+                                precision = death_info["precision"]
 
-                    if not wikidata_entity.should_import():
-                        continue
+                                # Parse date based on precision
+                                if precision >= 11:  # day precision
+                                    death_date = datetime.strptime(
+                                        death_date_str, "%Y-%m-%d"
+                                    ).date()
+                                elif precision == 10:  # month precision
+                                    death_date = datetime.strptime(
+                                        death_date_str + "-01", "%Y-%m-%d"
+                                    ).date()
+                                elif precision == 9:  # year precision
+                                    death_date = datetime.strptime(
+                                        death_date_str + "-01-01", "%Y-%m-%d"
+                                    ).date()
+                                else:
+                                    death_date = None
 
-                    # Route entity to appropriate batch based on type
-                    if wikidata_entity.entity_type == "politician":
-                        politician_data = wikidata_entity.to_database_dict()
-                        if politician_data:
-                            politicians.append(politician_data)
-                            politician_count += 1
-                except Exception as e:
-                    # Log entity processing errors but continue processing
-                    logger.debug(
-                        f"Worker {worker_id}: skipping entity {entity_id} due to error: {e}"
-                    )
-                    continue
+                                # Skip if died before 1950
+                                if death_date and death_date < date(1950, 1, 1):
+                                    continue
+                            except (ValueError, TypeError):
+                                pass  # Include if we can't parse the date
+
+                    politician_data = {
+                        "wikidata_id": entity.get_wikidata_id(),
+                        "name": entity.get_entity_name(),
+                    }
+                    politicians.append(politician_data)
+                    politician_count += 1
 
                 # Process batches when they reach the batch size
                 if len(politicians) >= batch_size:

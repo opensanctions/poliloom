@@ -6,6 +6,7 @@ import multiprocessing as mp
 from typing import Dict, Any, Iterator, List, Tuple, Optional
 
 from .storage import StorageFactory
+from ..wikidata_entity import WikidataEntity
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,7 @@ class DumpReader:
 
     def read_chunk_entities(
         self, dump_file_path: str, start_byte: int, end_byte: int
-    ) -> Iterator[Dict[str, Any]]:
+    ) -> Iterator[WikidataEntity]:
         """
         Read entities from a specific byte range of the dump file.
 
@@ -127,13 +128,13 @@ class DumpReader:
             end_byte: Ending byte position
 
         Yields:
-            Parsed entity dictionaries
+            WikidataEntity instances
         """
         # Get the appropriate storage backend
         backend = StorageFactory.get_backend(dump_file_path)
 
         # Stream lines from the byte range
         for line in backend.stream_lines_range(dump_file_path, start_byte, end_byte):
-            entity = self._process_dump_line(line)
-            if entity is not None:
-                yield entity
+            entity_dict = self._process_dump_line(line)
+            if entity_dict is not None:
+                yield WikidataEntity.from_raw(entity_dict)
