@@ -5,7 +5,8 @@ import tempfile
 import os
 from pathlib import Path
 
-from poliloom.database import get_db_session
+from poliloom.database import get_engine
+from sqlalchemy.orm import Session
 from poliloom.models import Country, Position
 from poliloom.services.import_service import ImportService
 from .conftest import load_json_fixture
@@ -34,7 +35,7 @@ class TestCSVImport:
             for c in country_data
         ]
 
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             for country in countries:
                 session.add(country)
             session.commit()
@@ -55,7 +56,7 @@ class TestCSVImport:
 
         # Verify positions were created
 
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             positions = session.query(Position).all()
             assert len(positions) == 7
 
@@ -90,7 +91,7 @@ class TestCSVImport:
 
         filtered_positions = ["Q89279295", "Q134765299"]  # These have is_pep=FALSE
 
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             for wikidata_id in filtered_positions:
                 position = (
                     session.query(Position).filter_by(wikidata_id=wikidata_id).first()
@@ -109,7 +110,7 @@ class TestCSVImport:
 
         # Check position with empty countries array
 
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             position_empty_countries = (
                 session.query(Position).filter_by(wikidata_id="Q134758719").first()
             )
@@ -129,7 +130,7 @@ class TestCSVImport:
 
         # Check position with multiple countries - should exist
 
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             position_multi_countries = (
                 session.query(Position).filter_by(wikidata_id="Q134758625").first()
             )
@@ -145,7 +146,7 @@ class TestCSVImport:
 
         invalid_positions = ["Q134758429"]  # Empty caption only
 
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             for wikidata_id in invalid_positions:
                 position = (
                     session.query(Position).filter_by(wikidata_id=wikidata_id).first()
@@ -168,7 +169,7 @@ class TestCSVImport:
 
         # Create existing position
 
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             existing_position = Position(
                 name="Existing Mayor",
                 wikidata_id="Q110118256",  # Same as one in CSV
@@ -182,7 +183,7 @@ class TestCSVImport:
         assert result == 6
 
         # Verify existing position wasn't updated
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             existing = (
                 session.query(Position).filter_by(wikidata_id="Q110118256").first()
             )
@@ -201,7 +202,7 @@ class TestCSVImport:
 
         # Check that positions were created
 
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             positions = session.query(Position).all()
             assert len(positions) == 7
 
@@ -215,7 +216,7 @@ class TestCSVImport:
 
         # Verify no positions were created
 
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             positions = session.query(Position).all()
             assert len(positions) == 0
 

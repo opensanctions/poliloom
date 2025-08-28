@@ -4,7 +4,8 @@ import logging
 import csv
 
 from ..models import Position
-from ..database import get_db_session
+from ..database import get_engine
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class ImportService:
             Number of positions imported.
         """
         try:
-            with get_db_session() as db:
+            with Session(get_engine()) as db:
                 imported_count = 0
 
                 with open(csv_file_path, "r", encoding="utf-8") as csvfile:
@@ -80,7 +81,8 @@ class ImportService:
                                 f"Imported {imported_count} positions so far..."
                             )
 
-                # Commit remaining positions (handled by context manager)
+                # Commit remaining positions
+                db.commit()
                 logger.info(
                     f"Successfully imported {imported_count} positions from CSV"
                 )

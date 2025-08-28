@@ -11,7 +11,8 @@ from sqlalchemy.dialects.postgresql import insert
 from .dump_reader import DumpReader
 from .class_hierarchy import query_hierarchy_descendants
 from .database_inserter import DatabaseInserter
-from ..database import get_db_session
+from ..database import get_engine
+from sqlalchemy.orm import Session
 from ..models import WikidataClass, SubclassRelation
 from ..entities import WikidataEntity
 from ..entities.factory import WikidataEntityFactory
@@ -172,7 +173,7 @@ class WikidataDumpProcessor:
             batch = class_data[i : i + batch_size]
 
             # Each batch gets its own committed transaction
-            with get_db_session() as session:
+            with Session(get_engine()) as session:
                 stmt = insert(WikidataClass).values(batch)
                 stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
                 session.execute(stmt)
@@ -201,7 +202,7 @@ class WikidataDumpProcessor:
             batch = relation_data[i : i + batch_size]
 
             # Each batch gets its own committed transaction
-            with get_db_session() as session:
+            with Session(get_engine()) as session:
                 stmt = insert(SubclassRelation).values(batch)
                 stmt = stmt.on_conflict_do_nothing(
                     constraint="uq_subclass_parent_child"
@@ -301,7 +302,8 @@ class WikidataDumpProcessor:
         Updates WikidataClass records in batches to reduce memory usage.
         Returns count of updates made.
         """
-        from ..database import get_db_session
+        from ..database import get_engine
+        from sqlalchemy.orm import Session
         from sqlalchemy.dialects.postgresql import insert
         from ..models import WikidataClass
 
@@ -347,7 +349,7 @@ class WikidataDumpProcessor:
                 # Process batches when they reach the batch size
                 if len(name_updates) >= batch_size:
                     try:
-                        with get_db_session() as session:
+                        with Session(get_engine()) as session:
                             # Bulk update using PostgreSQL upsert
                             batch_updates = [
                                 {
@@ -387,7 +389,7 @@ class WikidataDumpProcessor:
             # Always process remaining entities in final batch
             try:
                 if name_updates and not interrupted:
-                    with get_db_session() as session:
+                    with Session(get_engine()) as session:
                         # Bulk update using PostgreSQL upsert
                         batch_updates = [
                             {
@@ -498,7 +500,7 @@ class WikidataDumpProcessor:
             Dictionary with counts of extracted entities (positions, locations, countries)
         """
         # Load only position and location descendants from database (optimized)
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             # Check if hierarchy data exists first
             relation_count = session.query(SubclassRelation).count()
             if relation_count == 0:

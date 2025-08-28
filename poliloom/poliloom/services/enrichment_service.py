@@ -22,7 +22,7 @@ from ..models import (
     BornAt,
     ArchivedPage,
 )
-from ..database import get_db_session, get_db_session_no_commit
+from ..database import get_engine
 from .position_extraction_service import PositionExtractionService, ExtractedPosition
 from .birthplace_extraction_service import (
     BirthplaceExtractionService,
@@ -97,7 +97,7 @@ class EnrichmentService:
             True if enrichment was successful, False otherwise
         """
         try:
-            with get_db_session() as db:
+            with Session(get_engine()) as db:
                 # Normalize Wikidata ID
                 if not wikidata_id.upper().startswith("Q"):
                     wikidata_id = f"Q{wikidata_id}"
@@ -373,7 +373,7 @@ Politician name: {politician_name}"""
     ) -> Optional[List[ExtractedPosition]]:
         """Extract positions using two-stage approach: free-form extraction + Wikidata mapping."""
         try:
-            with get_db_session_no_commit() as db:
+            with Session(get_engine()) as db:
                 return self.position_extraction_service.extract_and_map(
                     db,
                     content,
@@ -395,7 +395,7 @@ Politician name: {politician_name}"""
     ) -> Optional[List[ExtractedBirthplace]]:
         """Extract birthplaces using two-stage approach: free-form extraction + Wikidata mapping."""
         try:
-            with get_db_session_no_commit() as db:
+            with Session(get_engine()) as db:
                 return self.birthplace_extraction_service.extract_and_map(
                     db,
                     content,

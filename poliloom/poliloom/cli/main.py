@@ -12,7 +12,8 @@ from ..services.enrichment_service import EnrichmentService
 from ..services.storage import StorageFactory
 from ..services.dump_processor import WikidataDumpProcessor
 from ..services.class_hierarchy import query_hierarchy_descendants
-from ..database import get_db_session, get_db_session_no_commit
+from ..database import get_engine
+from sqlalchemy.orm import Session
 from ..models import (
     Politician,
     HoldsPosition,
@@ -169,7 +170,7 @@ def politicians_show(wikidata_id):
     click.echo(f"Showing information for politician with Wikidata ID: {wikidata_id}")
 
     try:
-        with get_db_session_no_commit() as session:
+        with Session(get_engine()) as session:
             # Query politician with all related data
             politician = (
                 session.query(Politician)
@@ -405,7 +406,7 @@ def positions_embed(batch_size):
     click.echo("Generating embeddings for positions without embeddings...")
 
     try:
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             generate_embeddings_for_entities(
                 session=session,
                 model_class=Position,
@@ -460,7 +461,7 @@ def locations_embed(batch_size):
     click.echo("Generating embeddings for locations without embeddings...")
 
     try:
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             generate_embeddings_for_entities(
                 session=session,
                 model_class=Location,
@@ -539,7 +540,7 @@ def dump_import_entities(file, batch_size):
 
     # Check if hierarchy data exists in database
     try:
-        with get_db_session_no_commit() as session:
+        with Session(get_engine()) as session:
             relation_count = session.query(SubclassRelation).count()
             if relation_count == 0:
                 click.echo("❌ Complete hierarchy not found in database!")
@@ -653,7 +654,7 @@ def dump_query_hierarchy(entity_id):
 
     try:
         # Check if hierarchy data exists in database and query descendants directly
-        with get_db_session_no_commit() as session:
+        with Session(get_engine()) as session:
             # Check if hierarchy data exists (efficient count check)
             relation_count = session.query(SubclassRelation).count()
 

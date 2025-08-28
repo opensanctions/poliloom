@@ -5,7 +5,8 @@ from typing import List, Union
 
 from sqlalchemy.dialects.postgresql import insert
 
-from ..database import get_db_session
+from ..database import get_engine
+from sqlalchemy.orm import Session
 from ..models import (
     Position,
     Location,
@@ -63,7 +64,7 @@ class DatabaseInserter:
             else:
                 position_dicts.append(p)
 
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             # Use PostgreSQL UPSERT for positions
             stmt = insert(Position).values(
                 [
@@ -108,7 +109,7 @@ class DatabaseInserter:
             else:
                 location_dicts.append(loc)
 
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             # Use PostgreSQL UPSERT for locations
             stmt = insert(Location).values(
                 [
@@ -153,7 +154,7 @@ class DatabaseInserter:
             else:
                 country_dicts.append(c)
 
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             # Prepare data for bulk insert
             country_data = [
                 {
@@ -196,7 +197,7 @@ class DatabaseInserter:
             else:
                 politician_dicts.append(p)
 
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             # Use PostgreSQL UPSERT for politicians
             stmt = insert(Politician).values(
                 [

@@ -17,7 +17,8 @@ from poliloom.models import (
     Location,
 )
 from poliloom.embeddings import generate_embedding
-from poliloom.database import get_engine, get_db_session
+from poliloom.database import get_engine
+from sqlalchemy.orm import Session
 
 
 class MockSentenceTransformer:
@@ -206,7 +207,7 @@ def assert_model_fields(model, expected_fields):
 @pytest.fixture
 def db_session():
     """Provide a database session for tests."""
-    with get_db_session() as session:
+    with Session(get_engine()) as session:
         yield session
 
 

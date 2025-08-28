@@ -6,7 +6,8 @@ import tempfile
 import os
 from unittest.mock import patch, MagicMock
 
-from poliloom.database import get_db_session
+from poliloom.database import get_engine
+from sqlalchemy.orm import Session
 from poliloom.models import WikidataClass
 from poliloom.services.dump_processor import WikidataDumpProcessor
 from sqlalchemy.dialects.postgresql import insert
@@ -131,7 +132,7 @@ class TestWikidataDumpProcessor:
             processor.build_hierarchy_trees(temp_file)
 
             # Verify relationships were saved to database
-            with get_db_session() as session:
+            with Session(get_engine()) as session:
                 from poliloom.models import SubclassRelation
 
                 # Check specific relationships exist in database
@@ -202,7 +203,7 @@ class TestWikidataDumpProcessor:
             processor.build_hierarchy_trees(temp_file)
 
             # Verify only valid relationships were saved to database
-            with get_db_session() as session:
+            with Session(get_engine()) as session:
                 from poliloom.models import SubclassRelation
 
                 # Should only have the valid relationship
@@ -233,7 +234,7 @@ class TestWikidataDumpProcessor:
             {"wikidata_id": "Q3", "name": "Test Country"},
         ]
 
-        with get_db_session() as session:
+        with Session(get_engine()) as session:
             stmt = insert(WikidataClass).values(wikidata_classes_data)
             stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
             session.execute(stmt)
