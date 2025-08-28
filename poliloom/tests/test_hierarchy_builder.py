@@ -1,21 +1,15 @@
-"""Tests for HierarchyBuilder."""
+"""Tests for hierarchy builder functionality."""
 
-import pytest
 from sqlalchemy.dialects.postgresql import insert
 
 from poliloom.models import WikidataClass
-from poliloom.services.hierarchy_builder import HierarchyBuilder
+from poliloom.services.class_hierarchy import query_hierarchy_descendants
 
 
 class TestHierarchyBuilder:
-    """Test HierarchyBuilder functionality."""
+    """Test hierarchy builder functionality."""
 
-    @pytest.fixture
-    def builder(self, db_session):
-        """Create a HierarchyBuilder instance."""
-        return HierarchyBuilder(db_session)
-
-    def test_query_descendants(self, builder, db_session):
+    def test_query_descendants(self, db_session):
         """Test querying descendants from database using recursive SQL."""
         from poliloom.models import SubclassRelation
 
@@ -52,23 +46,23 @@ class TestHierarchyBuilder:
         db_session.commit()
 
         # Query descendants of Q1
-        descendants = builder.query_descendants("Q1", db_session)
+        descendants = query_hierarchy_descendants("Q1", db_session)
 
         # Should include root and all descendants
         expected = {"Q1", "Q2", "Q3", "Q4", "Q5", "Q6"}
         assert descendants == expected
 
-    def test_query_descendants_single_node(self, builder, db_session):
+    def test_query_descendants_single_node(self, db_session):
         """Test querying descendants for single node with no children."""
 
         # Query descendants of Q1 with no subclass relations in database
-        descendants = builder.query_descendants("Q1", db_session)
+        descendants = query_hierarchy_descendants("Q1", db_session)
 
         # Should include only the root (base case of recursive query)
         expected = {"Q1"}
         assert descendants == expected
 
-    def test_query_descendants_partial_tree(self, builder, db_session):
+    def test_query_descendants_partial_tree(self, db_session):
         """Test querying descendants for a subtree in a larger hierarchy."""
         from poliloom.models import SubclassRelation
 
@@ -102,12 +96,12 @@ class TestHierarchyBuilder:
         db_session.commit()
 
         # Query descendants of Q2 (should not include Q1 or Q3)
-        descendants = builder.query_descendants("Q2", db_session)
+        descendants = query_hierarchy_descendants("Q2", db_session)
 
         expected = {"Q2", "Q4", "Q5"}  # Q2 and its children only
         assert descendants == expected
 
         # Query descendants of Q3 (leaf node)
-        descendants_q3 = builder.query_descendants("Q3", db_session)
+        descendants_q3 = query_hierarchy_descendants("Q3", db_session)
         expected_q3 = {"Q3"}  # Only itself
         assert descendants_q3 == expected_q3

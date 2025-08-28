@@ -11,7 +11,7 @@ from ..services.import_service import ImportService
 from ..services.enrichment_service import EnrichmentService
 from ..services.storage import StorageFactory
 from ..services.dump_processor import WikidataDumpProcessor
-from ..services.hierarchy_builder import HierarchyBuilder
+from ..services.class_hierarchy import query_hierarchy_descendants
 from ..database import get_db_session, get_db_session_no_commit
 from ..models import (
     Politician,
@@ -654,8 +654,6 @@ def dump_query_hierarchy(entity_id):
     try:
         # Check if hierarchy data exists in database and query descendants directly
         with get_db_session_no_commit() as session:
-            hierarchy_builder = HierarchyBuilder()
-
             # Check if hierarchy data exists (efficient count check)
             relation_count = session.query(SubclassRelation).count()
 
@@ -667,7 +665,7 @@ def dump_query_hierarchy(entity_id):
                 exit(1)
 
             # Get all descendants of the given entity using direct database query
-            descendants = hierarchy_builder.query_descendants(entity_id, session)
+            descendants = query_hierarchy_descendants(entity_id, session)
 
             # Output one entity ID per line
             for descendant in sorted(descendants):

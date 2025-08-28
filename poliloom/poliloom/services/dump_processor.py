@@ -9,7 +9,7 @@ from multiprocessing import Manager
 from sqlalchemy.dialects.postgresql import insert
 
 from .dump_reader import DumpReader
-from .hierarchy_builder import HierarchyBuilder
+from .class_hierarchy import query_hierarchy_descendants
 from .database_inserter import DatabaseInserter
 from ..database import get_db_session
 from ..models import WikidataClass, SubclassRelation
@@ -32,7 +32,6 @@ class WikidataDumpProcessor:
     def __init__(self):
         """Initialize the dump processor."""
         self.dump_reader = DumpReader()
-        self.hierarchy_builder = HierarchyBuilder()
         self.database_inserter = DatabaseInserter()
 
     def build_hierarchy_trees(
@@ -508,12 +507,8 @@ class WikidataDumpProcessor:
                 )
 
             # Get descendant sets for filtering (optimized - only loads what we need)
-            position_descendants = self.hierarchy_builder.query_descendants(
-                "Q294414", session
-            )
-            location_descendants = self.hierarchy_builder.query_descendants(
-                "Q2221906", session
-            )
+            position_descendants = query_hierarchy_descendants("Q294414", session)
+            location_descendants = query_hierarchy_descendants("Q2221906", session)
 
             logger.info(
                 f"Filtering for {len(position_descendants)} position types and {len(location_descendants)} location types"
