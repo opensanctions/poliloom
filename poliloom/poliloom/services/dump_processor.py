@@ -4,7 +4,6 @@ import logging
 import multiprocessing as mp
 from typing import Dict, Set, Tuple
 from collections import defaultdict
-from datetime import datetime, timezone
 from multiprocessing import Manager
 
 from sqlalchemy.dialects.postgresql import insert
@@ -355,7 +354,6 @@ class WikidataDumpProcessor:
                                 {
                                     "wikidata_id": wikidata_id,
                                     "name": name,
-                                    "updated_at": datetime.now(timezone.utc),
                                 }
                                 for wikidata_id, name in name_updates.items()
                             ]
@@ -363,10 +361,7 @@ class WikidataDumpProcessor:
                             stmt = insert(WikidataClass).values(batch_updates)
                             stmt = stmt.on_conflict_do_update(
                                 index_elements=["wikidata_id"],
-                                set_={
-                                    "name": stmt.excluded.name,
-                                    "updated_at": stmt.excluded.updated_at,
-                                },
+                                set_={"name": stmt.excluded.name},
                             )
 
                             session.execute(stmt)
@@ -399,7 +394,6 @@ class WikidataDumpProcessor:
                             {
                                 "wikidata_id": wikidata_id,
                                 "name": name,
-                                "updated_at": datetime.now(timezone.utc),
                             }
                             for wikidata_id, name in name_updates.items()
                         ]
@@ -409,7 +403,6 @@ class WikidataDumpProcessor:
                             index_elements=["wikidata_id"],
                             set_={
                                 "name": stmt.excluded.name,
-                                "updated_at": stmt.excluded.updated_at,
                             },
                         )
 

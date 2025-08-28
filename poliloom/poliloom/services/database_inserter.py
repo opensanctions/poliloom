@@ -1,7 +1,6 @@
 """Database batch insertion operations for dump processing."""
 
 import logging
-from datetime import datetime, timezone
 from typing import List, Union
 
 from sqlalchemy.dialects.postgresql import insert
@@ -86,7 +85,6 @@ class DatabaseInserter:
                 set_={
                     "name": stmt.excluded.name,
                     "wikidata_class_id": stmt.excluded.wikidata_class_id,
-                    "updated_at": stmt.excluded.updated_at,
                 },
             )
 
@@ -132,7 +130,6 @@ class DatabaseInserter:
                 set_={
                     "name": stmt.excluded.name,
                     "wikidata_class_id": stmt.excluded.wikidata_class_id,
-                    "updated_at": stmt.excluded.updated_at,
                 },
             )
 
@@ -163,8 +160,6 @@ class DatabaseInserter:
                     "wikidata_id": c["wikidata_id"],
                     "name": c["name"],
                     "iso_code": c["iso_code"],
-                    "created_at": datetime.now(timezone.utc),
-                    "updated_at": datetime.now(timezone.utc),
                 }
                 for c in country_dicts
             ]
@@ -178,7 +173,6 @@ class DatabaseInserter:
                 set_={
                     "name": stmt.excluded.name,
                     "iso_code": stmt.excluded.iso_code,
-                    "updated_at": stmt.excluded.updated_at,
                 },
             )
 
@@ -219,7 +213,6 @@ class DatabaseInserter:
                 index_elements=["wikidata_id"],
                 set_={
                     "name": stmt.excluded.name,
-                    "updated_at": stmt.excluded.updated_at,
                 },
             )
 
