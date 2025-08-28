@@ -10,7 +10,9 @@ from sqlalchemy.orm import joinedload
 from ..services.import_service import ImportService
 from ..services.enrichment_service import EnrichmentService
 from ..services.storage import StorageFactory
-from ..services.dump_processor import WikidataDumpProcessor
+from ..services.hierarchy_builder import WikidataHierarchyBuilder
+from ..services.entity_importer import WikidataEntityImporter
+from ..services.politician_importer import WikidataPoliticianImporter
 from ..database import get_engine
 from sqlalchemy.orm import Session
 from ..models import (
@@ -493,7 +495,7 @@ def dump_build_hierarchy(file):
         )
         raise SystemExit(1)
 
-    processor = WikidataDumpProcessor()
+    hierarchy_builder = WikidataHierarchyBuilder()
 
     try:
         click.echo("⏳ Extracting P279 (subclass of) relationships...")
@@ -501,7 +503,7 @@ def dump_build_hierarchy(file):
         click.echo("Press Ctrl+C to interrupt...")
 
         # Build the trees (always parallel)
-        processor.build_hierarchy_trees(file)
+        hierarchy_builder.build_hierarchy_trees(file)
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
         click.echo("❌ Hierarchy tree building was cancelled.")
@@ -551,7 +553,7 @@ def dump_import_entities(file, batch_size):
         click.echo(f"❌ Error checking hierarchy data: {e}")
         raise SystemExit(1)
 
-    processor = WikidataDumpProcessor()
+    entity_importer = WikidataEntityImporter()
 
     try:
         click.echo("⏳ Extracting supporting entities from dump...")
@@ -559,7 +561,7 @@ def dump_import_entities(file, batch_size):
         click.echo("Press Ctrl+C to interrupt...")
 
         # Extract supporting entities only
-        counts = processor.extract_entities_from_dump(file, batch_size=batch_size)
+        counts = entity_importer.extract_entities_from_dump(file, batch_size=batch_size)
 
         click.echo("✅ Successfully imported supporting entities from dump:")
         click.echo(f"  • Positions: {counts['positions']}")
@@ -611,7 +613,7 @@ def dump_import_politicians(file, batch_size):
         )
         raise SystemExit(1)
 
-    processor = WikidataDumpProcessor()
+    politician_importer = WikidataPoliticianImporter()
 
     try:
         click.echo("⏳ Extracting politicians from dump...")
@@ -619,7 +621,7 @@ def dump_import_politicians(file, batch_size):
         click.echo("Press Ctrl+C to interrupt...")
 
         # Extract politicians only
-        politicians_count = processor.extract_politicians_from_dump(
+        politicians_count = politician_importer.extract_politicians_from_dump(
             file, batch_size=batch_size
         )
 

@@ -170,12 +170,12 @@ class WikidataEntity:
         position_claims = self.get_truthy_claims("P39")
         return len(position_claims) > 0
 
-    def is_position(self, position_classes: Dict[str, bool]) -> bool:
+    def is_position(self, position_classes: frozenset[str]) -> bool:
         """Check if entity is a position based on instance hierarchy."""
         instance_ids = self.get_instance_of_ids()
         return any(instance_id in position_classes for instance_id in instance_ids)
 
-    def is_location(self, location_classes: Dict[str, bool]) -> bool:
+    def is_location(self, location_classes: frozenset[str]) -> bool:
         """Check if entity is a location based on instance hierarchy."""
         instance_ids = self.get_instance_of_ids()
         return any(instance_id in location_classes for instance_id in instance_ids)
@@ -209,12 +209,12 @@ class WikidataEntity:
         return None
 
     def get_most_specific_class_wikidata_id(
-        self, valid_classes: Dict[str, bool] = None
+        self, valid_classes: frozenset[str] = None
     ) -> Optional[str]:
         """Find most specific wikidata class for positions/locations."""
         instance_ids = self.get_instance_of_ids()
         if valid_classes:
-            # Only return class IDs that exist in the valid_classes dictionary
+            # Only return class IDs that exist in the valid_classes frozenset
             for instance_id in instance_ids:
                 if instance_id in valid_classes:
                     return instance_id

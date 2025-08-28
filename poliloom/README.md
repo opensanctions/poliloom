@@ -11,6 +11,12 @@ PoliLoom is a Python API and CLI tool for extracting politician metadata from Wi
 - **SentenceTransformers** with **pgvector** for vector search
 - **MediaWiki OAuth 2.0** for authentication
 
+## Platform Requirements
+
+**This project requires Linux or macOS. Windows is not supported.**
+
+The dump processing pipeline relies on Unix-style multiprocessing with copy-on-write memory sharing. When processing the Wikidata dump, we share large frozensets across worker processes. On Unix systems, these are efficiently shared via fork() without duplication. Windows would duplicate this data for each worker, making the memory requirements impractical.
+
 ## Installation
 
 ```bash
@@ -80,16 +86,19 @@ uv run poliloom serve
 ## Core Features
 
 ### Three-Pass Dump Processing
+
 1. **Build Hierarchy Trees** - Extract entity relationships for efficient filtering
 2. **Import Supporting Entities** - Import positions, locations, and countries first
 3. **Import Politicians** - Link politicians to existing entities to prevent deadlocks
 
 ### LLM-Based Data Extraction
+
 - **Two-stage extraction** for positions and birthplaces to handle large datasets
 - **Stage 1**: Free-form extraction from Wikipedia content
 - **Stage 2**: Vector similarity search + OpenAI mapping to Wikidata entities
 
 ### Vector Search
+
 - **SentenceTransformers** with 'all-MiniLM-L6-v2' model for embeddings
 - **pgvector** extension for efficient similarity search
 - Supports mapping extracted text to existing Wikidata entities
@@ -114,6 +123,7 @@ cp .env.example .env
 Key configuration variables:
 
 **Database (Local Development):**
+
 ```bash
 DB_HOST=localhost
 DB_PORT=5432
@@ -123,6 +133,7 @@ DB_PASSWORD=postgres
 ```
 
 **Database (Google Cloud SQL):**
+
 ```bash
 INSTANCE_CONNECTION_NAME=project:region:instance
 DB_IAM_USER=your-iam-user
@@ -130,6 +141,7 @@ DB_NAME=poliloom
 ```
 
 **External Services:**
+
 ```bash
 OPENAI_API_KEY=your_openai_api_key
 MEDIAWIKI_OAUTH_CLIENT_ID=your-client-id
