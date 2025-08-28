@@ -11,7 +11,6 @@ from ..services.import_service import ImportService
 from ..services.enrichment_service import EnrichmentService
 from ..services.storage import StorageFactory
 from ..services.dump_processor import WikidataDumpProcessor
-from ..services.class_hierarchy import query_hierarchy_descendants
 from ..database import get_engine
 from sqlalchemy.orm import Session
 from ..models import (
@@ -643,40 +642,6 @@ def dump_import_politicians(file, batch_size):
     except Exception as e:
         click.echo(f"❌ Error importing politicians: {e}")
         raise SystemExit(1)
-
-
-@dump.command("query-hierarchy")
-@click.option(
-    "--entity-id",
-    required=True,
-    help="Wikidata entity ID to get descendants for (e.g., Q2221906)",
-)
-def dump_query_hierarchy(entity_id):
-    """Query hierarchy descendants for a given entity ID."""
-
-    try:
-        # Check if hierarchy data exists in database and query descendants directly
-        with Session(get_engine()) as session:
-            # Check if hierarchy data exists (efficient count check)
-            relation_count = session.query(SubclassRelation).count()
-
-            if relation_count == 0:
-                click.echo("❌ No hierarchy data found in database!")
-                click.echo(
-                    "Run 'poliloom dump build-hierarchy' first to generate the hierarchy."
-                )
-                exit(1)
-
-            # Get all descendants of the given entity using direct database query
-            descendants = query_hierarchy_descendants(entity_id, session)
-
-            # Output one entity ID per line
-            for descendant in sorted(descendants):
-                click.echo(descendant)
-
-    except Exception as e:
-        click.echo(f"❌ Error querying hierarchy: {e}")
-        exit(1)
 
 
 @main.command("serve")

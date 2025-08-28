@@ -8,9 +8,9 @@ from multiprocessing import Manager
 from datetime import datetime, date
 
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import text
 
 from .dump_reader import DumpReader
-from .class_hierarchy import query_hierarchy_descendants
 from .database_inserter import DatabaseInserter
 from ..database import get_engine
 from sqlalchemy.orm import Session
@@ -29,6 +29,40 @@ class WikidataDumpProcessor:
         """Initialize the dump processor."""
         self.dump_reader = DumpReader()
         self.database_inserter = DatabaseInserter()
+
+    def _query_hierarchy_descendants(self, root_id: str, session: Session) -> Set[str]:
+        """
+        Query all descendants of a root entity from database using recursive SQL.
+        Only returns classes that have names (needed for embeddings in enrichment).
+
+        Args:
+            root_id: The root entity QID
+            session: Database session
+
+        Returns:
+            Set of all descendant QIDs (including the root) that have names
+        """
+        # Use recursive CTE to find all descendants, filtered by classes with names
+        sql = text(
+            """
+            WITH RECURSIVE descendants AS (
+                -- Base case: start with the root entity
+                SELECT CAST(:root_id AS VARCHAR) AS wikidata_id
+                UNION
+                -- Recursive case: find all children
+                SELECT sr.child_class_id AS wikidata_id
+                FROM subclass_relations sr
+                JOIN descendants d ON sr.parent_class_id = d.wikidata_id
+            )
+            SELECT DISTINCT d.wikidata_id 
+            FROM descendants d
+            JOIN wikidata_classes wc ON d.wikidata_id = wc.wikidata_id
+            WHERE wc.name IS NOT NULL
+        """
+        )
+
+        result = session.execute(sql, {"root_id": root_id})
+        return {row[0] for row in result.fetchall()}
 
     def build_hierarchy_trees(
         self,
@@ -505,8 +539,8 @@ class WikidataDumpProcessor:
                 )
 
             # Get descendant sets for filtering (optimized - only loads what we need)
-            position_classes = query_hierarchy_descendants("Q294414", session)
-            location_classes = query_hierarchy_descendants("Q2221906", session)
+            position_classes = self._query_hierarchy_descendants("Q294414", session)
+            location_classes = self._query_hierarchy_descendants("Q2221906", session)
 
             logger.info(
                 f"Filtering for {len(position_classes)} position types and {len(location_classes)} location types"
@@ -718,9 +752,13 @@ class WikidataDumpProcessor:
                     continue
 
                 # Create shared entity data
+                entity_name = entity.get_entity_name()
+                if not entity_name:
+                    continue  # Skip entities without names - needed for embeddings in enrichment
+
                 entity_data = {
                     "wikidata_id": entity.get_wikidata_id(),
-                    "name": entity.get_entity_name(),
+                    "name": entity_name,
                 }
 
                 # Check entity type and add type-specific fields
