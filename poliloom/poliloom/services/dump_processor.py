@@ -14,12 +14,7 @@ from .database_inserter import DatabaseInserter
 from ..database import get_engine
 from sqlalchemy.orm import Session
 from ..models import WikidataClass, SubclassRelation
-from ..entities import WikidataEntity
-from ..entities.factory import WikidataEntityFactory
-from ..entities.politician import WikidataPolitician
-from ..entities.position import WikidataPosition
-from ..entities.location import WikidataLocation
-from ..entities.country import WikidataCountry
+from ..wikidata_entity import WikidataEntity
 
 logger = logging.getLogger(__name__)
 
@@ -302,10 +297,14 @@ class WikidataDumpProcessor:
         Updates WikidataClass records in batches to reduce memory usage.
         Returns count of updates made.
         """
-        from ..database import get_engine
         from sqlalchemy.orm import Session
         from sqlalchemy.dialects.postgresql import insert
         from ..models import WikidataClass
+
+        # Fix multiprocessing connection issues per SQLAlchemy docs:
+        # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork
+        engine = get_engine()
+        engine.dispose(close=False)
 
         # Use shared dictionary directly for O(1) membership testing
 
@@ -700,6 +699,10 @@ class WikidataDumpProcessor:
         Each worker independently reads and parses its assigned chunk.
         Returns entity counts found in this chunk.
         """
+        # Fix multiprocessing connection issues per SQLAlchemy docs:
+        # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork
+        engine = get_engine()
+        engine.dispose(close=False)
 
         # Use shared dictionaries directly for O(1) membership testing
 
@@ -729,31 +732,25 @@ class WikidataDumpProcessor:
                 # Use factory to create appropriate entity instance
                 try:
                     # For supporting entities, create position/location/country entities
-                    wikidata_entity = WikidataEntityFactory.create_entity(
-                        entity,
-                        shared_position_descendants,
-                        shared_location_descendants,
-                        allowed_types=["position", "location", "country"],
+                    wikidata_entity = WikidataEntity(
+                        entity, shared_position_descendants, shared_location_descendants
                     )
 
-                    if wikidata_entity is None:
+                    if not wikidata_entity.should_import():
                         continue
 
                     # Route entity to appropriate batch based on type
-                    if isinstance(wikidata_entity, WikidataPosition):
-                        position_data = wikidata_entity.to_database_dict()
-                        if position_data:
-                            positions.append(position_data)
+                    # Create database dict and route to appropriate collection
+                    entity_data = wikidata_entity.to_database_dict()
+                    if entity_data:
+                        if wikidata_entity.entity_type == "position":
+                            positions.append(entity_data)
                             counts["positions"] += 1
-                    elif isinstance(wikidata_entity, WikidataLocation):
-                        location_data = wikidata_entity.to_database_dict()
-                        if location_data:
-                            locations.append(location_data)
+                        elif wikidata_entity.entity_type == "location":
+                            locations.append(entity_data)
                             counts["locations"] += 1
-                    elif isinstance(wikidata_entity, WikidataCountry):
-                        country_data = wikidata_entity.to_database_dict()
-                        if country_data:
-                            countries.append(country_data)
+                        elif wikidata_entity.entity_type == "country":
+                            countries.append(entity_data)
                             counts["countries"] += 1
                 except Exception as e:
                     # Log entity processing errors but continue processing
@@ -819,6 +816,11 @@ class WikidataDumpProcessor:
         Each worker independently reads and parses its assigned chunk.
         Returns entity counts found in this chunk.
         """
+        # Fix multiprocessing connection issues per SQLAlchemy docs:
+        # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork
+        engine = get_engine()
+        engine.dispose(close=False)
+
         politicians = []
         counts = {"positions": 0, "locations": 0, "countries": 0, "politicians": 0}
         entity_count = 0
@@ -843,15 +845,13 @@ class WikidataDumpProcessor:
                 # Use factory to create appropriate entity instance
                 try:
                     # For politicians, only create politician entities
-                    wikidata_entity = WikidataEntityFactory.create_entity(
-                        entity, set(), set(), allowed_types=["politician"]
-                    )
+                    wikidata_entity = WikidataEntity(entity)
 
-                    if wikidata_entity is None:
+                    if not wikidata_entity.should_import():
                         continue
 
                     # Route entity to appropriate batch based on type
-                    if isinstance(wikidata_entity, WikidataPolitician):
+                    if wikidata_entity.entity_type == "politician":
                         politician_data = wikidata_entity.to_database_dict()
                         if politician_data:
                             politicians.append(politician_data)

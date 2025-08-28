@@ -18,12 +18,7 @@ from ..models import (
     BornAt,
     WikipediaLink,
 )
-from ..entities import (
-    WikidataPolitician,
-    WikidataPosition,
-    WikidataLocation,
-    WikidataCountry,
-)
+from ..wikidata_entity import WikidataEntity
 
 logger = logging.getLogger(__name__)
 
@@ -33,24 +28,22 @@ class DatabaseInserter:
 
     def insert_entity(
         self,
-        entity: Union[
-            WikidataPolitician, WikidataPosition, WikidataLocation, WikidataCountry
-        ],
+        entity: WikidataEntity,
     ) -> None:
         """Insert a single entity into the database based on its type."""
-        if isinstance(entity, WikidataPolitician):
+        if entity.entity_type == "politician":
             self.insert_politicians_batch([entity])
-        elif isinstance(entity, WikidataPosition):
+        elif entity.entity_type == "position":
             self.insert_positions_batch([entity])
-        elif isinstance(entity, WikidataLocation):
+        elif entity.entity_type == "location":
             self.insert_locations_batch([entity])
-        elif isinstance(entity, WikidataCountry):
+        elif entity.entity_type == "country":
             self.insert_countries_batch([entity])
         else:
-            raise ValueError(f"Unknown entity type: {type(entity)}")
+            raise ValueError(f"Unknown entity type: {entity.entity_type}")
 
     def insert_positions_batch(
-        self, positions: List[Union[dict, WikidataPosition]]
+        self, positions: List[Union[dict, WikidataEntity]]
     ) -> None:
         """Insert a batch of positions into the database."""
         if not positions:
@@ -59,7 +52,7 @@ class DatabaseInserter:
         # Convert entity objects to database dicts
         position_dicts = []
         for p in positions:
-            if isinstance(p, WikidataPosition):
+            if isinstance(p, WikidataEntity):
                 position_dicts.append(p.to_database_dict())
             else:
                 position_dicts.append(p)
@@ -95,7 +88,7 @@ class DatabaseInserter:
             # Skip logging when no new positions - this is normal
 
     def insert_locations_batch(
-        self, locations: List[Union[dict, WikidataLocation]]
+        self, locations: List[Union[dict, WikidataEntity]]
     ) -> None:
         """Insert a batch of locations into the database."""
         if not locations:
@@ -104,7 +97,7 @@ class DatabaseInserter:
         # Convert entity objects to database dicts
         location_dicts = []
         for loc in locations:
-            if isinstance(loc, WikidataLocation):
+            if isinstance(loc, WikidataEntity):
                 location_dicts.append(loc.to_database_dict())
             else:
                 location_dicts.append(loc)
@@ -140,7 +133,7 @@ class DatabaseInserter:
             # Skip logging when no new locations - this is normal
 
     def insert_countries_batch(
-        self, countries: List[Union[dict, WikidataCountry]]
+        self, countries: List[Union[dict, WikidataEntity]]
     ) -> None:
         """Insert a batch of countries into the database using ON CONFLICT."""
         if not countries:
@@ -149,7 +142,7 @@ class DatabaseInserter:
         # Convert entity objects to database dicts
         country_dicts = []
         for c in countries:
-            if isinstance(c, WikidataCountry):
+            if isinstance(c, WikidataEntity):
                 country_dicts.append(c.to_database_dict())
             else:
                 country_dicts.append(c)
@@ -183,7 +176,7 @@ class DatabaseInserter:
             logger.debug(f"Processed {len(country_dicts)} countries (upserted)")
 
     def insert_politicians_batch(
-        self, politicians: List[Union[dict, WikidataPolitician]]
+        self, politicians: List[Union[dict, WikidataEntity]]
     ) -> None:
         """Insert a batch of politicians into the database."""
         if not politicians:
@@ -192,7 +185,7 @@ class DatabaseInserter:
         # Convert entity objects to database dicts
         politician_dicts = []
         for p in politicians:
-            if isinstance(p, WikidataPolitician):
+            if isinstance(p, WikidataEntity):
                 politician_dicts.append(p.to_database_dict())
             else:
                 politician_dicts.append(p)
