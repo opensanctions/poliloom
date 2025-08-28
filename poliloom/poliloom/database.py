@@ -1,6 +1,7 @@
 """Database configuration and session management."""
 
 import os
+import multiprocessing as mp
 from typing import Optional
 
 import pg8000
@@ -69,11 +70,16 @@ def get_engine() -> Engine:
         else:
             creator = _get_local_connection
 
+        # Scale connection pool with CPU count to support multiprocessing workers
+        cpu_count = mp.cpu_count()
+        pool_size = cpu_count * 2
+        max_overflow = cpu_count * 3
+
         _engine = create_engine(
             "postgresql+pg8000://",
             creator=creator,
-            pool_size=20,
-            max_overflow=30,
+            pool_size=pool_size,
+            max_overflow=max_overflow,
             pool_timeout=30,
             pool_recycle=3600,
             pool_pre_ping=True,
