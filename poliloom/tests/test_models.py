@@ -310,7 +310,7 @@ class TestHoldsPosition:
         # Create holds position
         holds_pos = HoldsPosition(
             politician_id=politician.id,
-            position_id=position.id,
+            position_id=position.wikidata_id,
             start_date="2019-01",
             end_date="2023-12-31",
             archived_page_id=None,
@@ -323,7 +323,7 @@ class TestHoldsPosition:
             holds_pos,
             {
                 "politician_id": politician.id,
-                "position_id": position.id,
+                "position_id": position.wikidata_id,
                 "start_date": "2019-01",
                 "end_date": "2023-12-31",
                 "archived_page_id": None,
@@ -354,7 +354,7 @@ class TestHoldsPosition:
         for start_date, end_date in test_cases:
             holds_pos = HoldsPosition(
                 politician_id=politician.id,
-                position_id=position.id,
+                position_id=position.wikidata_id,
                 start_date=start_date,
                 end_date=end_date,
             )
@@ -381,7 +381,9 @@ class TestHoldsPosition:
         db_session.refresh(position)
 
         # Create holds position with minimal data
-        holds_pos = HoldsPosition(politician_id=politician.id, position_id=position.id)
+        holds_pos = HoldsPosition(
+            politician_id=politician.id, position_id=position.wikidata_id
+        )
         db_session.add(holds_pos)
         db_session.commit()
         db_session.refresh(holds_pos)
@@ -390,7 +392,7 @@ class TestHoldsPosition:
             holds_pos,
             {
                 "politician_id": politician.id,
-                "position_id": position.id,
+                "position_id": position.wikidata_id,
                 "archived_page_id": None,
                 "start_date": None,
                 "end_date": None,
@@ -417,14 +419,16 @@ class TestHasCitizenship:
         db_session.refresh(country)
 
         # Create citizenship
-        citizenship = HasCitizenship(politician_id=politician.id, country_id=country.id)
+        citizenship = HasCitizenship(
+            politician_id=politician.id, country_id=country.wikidata_id
+        )
         db_session.add(citizenship)
         db_session.commit()
         db_session.refresh(citizenship)
 
         assert_model_fields(
             citizenship,
-            {"politician_id": politician.id, "country_id": country.id},
+            {"politician_id": politician.id, "country_id": country.wikidata_id},
         )
 
     def test_has_citizenship_multiple_citizenships_per_politician(
@@ -433,8 +437,8 @@ class TestHasCitizenship:
         """Test that a politician can have multiple citizenships."""
         # Create politician and two countries
         politician = Politician(**sample_politician_data)
-        country1 = Country(name="United States", iso_code="US")
-        country2 = Country(name="Canada", iso_code="CA")
+        country1 = Country(name="United States", iso_code="US", wikidata_id="Q30")
+        country2 = Country(name="Canada", iso_code="CA", wikidata_id="Q16")
 
         db_session.add_all([politician, country1, country2])
         db_session.commit()
@@ -444,10 +448,10 @@ class TestHasCitizenship:
 
         # Create two citizenships for the same politician
         citizenship1 = HasCitizenship(
-            politician_id=politician.id, country_id=country1.id
+            politician_id=politician.id, country_id=country1.wikidata_id
         )
         citizenship2 = HasCitizenship(
-            politician_id=politician.id, country_id=country2.id
+            politician_id=politician.id, country_id=country2.wikidata_id
         )
 
         db_session.add_all([citizenship1, citizenship2])
@@ -487,10 +491,10 @@ class TestHasCitizenship:
 
         # Create two citizenships for the same country
         citizenship1 = HasCitizenship(
-            politician_id=politician1.id, country_id=country.id
+            politician_id=politician1.id, country_id=country.wikidata_id
         )
         citizenship2 = HasCitizenship(
-            politician_id=politician2.id, country_id=country.id
+            politician_id=politician2.id, country_id=country.wikidata_id
         )
 
         db_session.add_all([citizenship1, citizenship2])
@@ -498,12 +502,16 @@ class TestHasCitizenship:
 
         # Verify both citizenships exist
         citizenships = (
-            db_session.query(HasCitizenship).filter_by(country_id=country.id).all()
+            db_session.query(HasCitizenship)
+            .filter_by(country_id=country.wikidata_id)
+            .all()
         )
         assert len(citizenships) == 2
 
         # Verify relationships
-        country_refreshed = db_session.query(Country).filter_by(id=country.id).first()
+        country_refreshed = (
+            db_session.query(Country).filter_by(wikidata_id=country.wikidata_id).first()
+        )
         assert len(country_refreshed.citizens) == 2
         politician_names = {c.politician.name for c in country_refreshed.citizens}
         assert "Alice Smith" in politician_names
@@ -523,14 +531,14 @@ class TestHasCitizenship:
 
         # Create first citizenship
         citizenship1 = HasCitizenship(
-            politician_id=politician.id, country_id=country.id
+            politician_id=politician.id, country_id=country.wikidata_id
         )
         db_session.add(citizenship1)
         db_session.commit()
 
         # Attempt to create duplicate
         citizenship2 = HasCitizenship(
-            politician_id=politician.id, country_id=country.id
+            politician_id=politician.id, country_id=country.wikidata_id
         )
         db_session.add(citizenship2)
 
@@ -541,7 +549,7 @@ class TestHasCitizenship:
             # If no constraint exists, verify at least that the application logic prevents duplicates
             citizenships = (
                 db_session.query(HasCitizenship)
-                .filter_by(politician_id=politician.id, country_id=country.id)
+                .filter_by(politician_id=politician.id, country_id=country.wikidata_id)
                 .all()
             )
             # This should be handled by application logic in import_service._create_citizenships
@@ -831,7 +839,7 @@ class TestPositionEvaluation:
         # Create holds position
         holds_pos = HoldsPosition(
             politician_id=politician.id,
-            position_id=position.id,
+            position_id=position.wikidata_id,
             start_date="2020-01",
             archived_page_id=None,
         )
@@ -884,7 +892,7 @@ class TestBirthplaceEvaluation:
         # Create born at
         born_at = BornAt(
             politician_id=politician.id,
-            location_id=location.id,
+            location_id=location.wikidata_id,
             archived_page_id=None,
         )
         db_session.add(born_at)
@@ -996,7 +1004,7 @@ class TestBornAt:
         # Create born at
         born_at = BornAt(
             politician_id=politician.id,
-            location_id=location.id,
+            location_id=location.wikidata_id,
             archived_page_id=None,
         )
         db_session.add(born_at)
@@ -1007,7 +1015,7 @@ class TestBornAt:
             born_at,
             {
                 "politician_id": politician.id,
-                "location_id": location.id,
+                "location_id": location.wikidata_id,
                 "archived_page_id": None,
             },
         )
@@ -1027,7 +1035,7 @@ class TestBornAt:
         db_session.refresh(location)
 
         # Create born at
-        born_at = BornAt(politician_id=politician.id, location_id=location.id)
+        born_at = BornAt(politician_id=politician.id, location_id=location.wikidata_id)
         db_session.add(born_at)
         db_session.commit()
         db_session.refresh(born_at)
@@ -1036,7 +1044,7 @@ class TestBornAt:
             born_at,
             {
                 "politician_id": politician.id,
-                "location_id": location.id,
+                "location_id": location.wikidata_id,
                 "archived_page_id": None,
             },
         )
@@ -1058,7 +1066,7 @@ class TestBornAt:
         # Create born at
         born_at = BornAt(
             politician_id=politician.id,
-            location_id=location.id,
+            location_id=location.wikidata_id,
             archived_page_id=None,
         )
         db_session.add(born_at)
@@ -1097,7 +1105,7 @@ class TestBornAt:
         db_session.refresh(location)
 
         # Create born at
-        born_at = BornAt(politician_id=politician.id, location_id=location.id)
+        born_at = BornAt(politician_id=politician.id, location_id=location.wikidata_id)
         db_session.add(born_at)
         db_session.commit()
         db_session.refresh(born_at)
@@ -1107,7 +1115,7 @@ class TestBornAt:
         assert born_at.politician.name == politician.name
 
         # Test location relationship
-        assert born_at.location.id == location.id
+        assert born_at.location.wikidata_id == location.wikidata_id
         assert born_at.location.name == "Tokyo"
 
         # Test reverse relationships
@@ -1131,11 +1139,11 @@ class TestBornAt:
         db_session.refresh(location)
 
         # Create born at
-        born_at = BornAt(politician_id=politician.id, location_id=location.id)
+        born_at = BornAt(politician_id=politician.id, location_id=location.wikidata_id)
         db_session.add(born_at)
         db_session.commit()
         born_at_id = born_at.id
-        location_id = location.id
+        location_id = location.wikidata_id
 
         # Delete politician should cascade to BornAt
         db_session.delete(politician)

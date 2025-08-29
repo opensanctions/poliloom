@@ -37,6 +37,15 @@ class WikidataEntity:
 
         return None
 
+    @property
+    def sitelinks(self) -> Dict[str, Any]:
+        """Get the sitelinks for this entity.
+
+        Returns:
+            Dictionary of sitelinks (site_key -> sitelink data)
+        """
+        return self._sitelinks
+
     def get_truthy_claims(self, property_id: str) -> List[Dict[str, Any]]:
         """Get truthy claims for a property using rank-based filtering.
 
@@ -148,34 +157,6 @@ class WikidataEntity:
                 continue
 
         return subclass_ids
-
-    def is_politician(self, relevant_position_qids: frozenset[str]) -> bool:
-        """Check if entity is a politician based on occupation or positions held in our database."""
-        # Must be human first
-        instance_ids = self.get_instance_of_ids()
-        if "Q5" not in instance_ids:
-            return False
-
-        # Check occupation for politician
-        occupation_claims = self.get_truthy_claims("P106")
-        for claim in occupation_claims:
-            try:
-                occupation_id = claim["mainsnak"]["datavalue"]["value"]["id"]
-                if occupation_id == "Q82955":  # politician
-                    return True
-            except (KeyError, TypeError):
-                continue
-
-        # Check if they have any position held that exists in our database
-        position_claims = self.get_truthy_claims("P39")
-        for claim in position_claims:
-            try:
-                position_id = claim["mainsnak"]["datavalue"]["value"]["id"]
-                if position_id in relevant_position_qids:
-                    return True
-            except (KeyError, TypeError):
-                continue
-        return False
 
     @classmethod
     def from_raw(cls, raw_data: Dict[str, Any]) -> "WikidataEntity":

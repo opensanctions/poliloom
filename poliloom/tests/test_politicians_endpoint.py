@@ -65,7 +65,7 @@ def politician_with_unevaluated_data(db_session):
 
     extracted_position = HoldsPosition(
         politician_id=politician.id,
-        position_id=position.id,
+        position_id=position.wikidata_id,
         start_date="2020",
         end_date="2024",
         archived_page_id=archived_page.id,
@@ -74,7 +74,7 @@ def politician_with_unevaluated_data(db_session):
 
     extracted_birthplace = BornAt(
         politician_id=politician.id,
-        location_id=location.id,
+        location_id=location.wikidata_id,
         archived_page_id=archived_page.id,
         proof_line="Born in Springfield",
     )
@@ -89,7 +89,7 @@ def politician_with_unevaluated_data(db_session):
 
     wikidata_position = HoldsPosition(
         politician_id=politician.id,
-        position_id=position.id,
+        position_id=position.wikidata_id,
         start_date="2018",
         end_date="2020",
         archived_page_id=None,  # This makes it Wikidata data
@@ -97,7 +97,7 @@ def politician_with_unevaluated_data(db_session):
 
     wikidata_birthplace = BornAt(
         politician_id=politician.id,
-        location_id=location.id,
+        location_id=location.wikidata_id,
         archived_page_id=None,  # This makes it Wikidata data
     )
 
@@ -180,7 +180,7 @@ def politician_with_only_wikidata(db_session):
 
     wikidata_position = HoldsPosition(
         politician_id=politician.id,
-        position_id=position.id,
+        position_id=position.wikidata_id,
         start_date="2016",
         archived_page_id=None,  # This makes it Wikidata data
     )
@@ -390,7 +390,7 @@ class TestGetPoliticiansEndpoint:
         # Add unevaluated extracted position
         unevaluated_pos = HoldsPosition(
             politician_id=politician.id,
-            position_id=position.id,
+            position_id=position.wikidata_id,
             start_date="2020",
             archived_page_id=archived_page.id,
         )
@@ -432,7 +432,7 @@ class TestGetPoliticiansEndpoint:
 
         birthplace = BornAt(
             politician_id=politician.id,
-            location_id=location.id,
+            location_id=location.wikidata_id,
             archived_page_id=archived_page.id,
         )
         db_session.add(birthplace)

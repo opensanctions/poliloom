@@ -69,7 +69,9 @@ class TestEnrichmentService:
         db_session.refresh(politician)
 
         # Add citizenship
-        citizenship = HasCitizenship(politician_id=politician.id, country_id=country.id)
+        citizenship = HasCitizenship(
+            politician_id=politician.id, country_id=country.wikidata_id
+        )
         db_session.add(citizenship)
 
         # Add Wikipedia link
@@ -201,7 +203,9 @@ class TestEnrichmentService:
         db_session.commit()
 
         # Add citizenship and Wikipedia link
-        citizenship = HasCitizenship(politician_id=politician.id, country_id=country.id)
+        citizenship = HasCitizenship(
+            politician_id=politician.id, country_id=country.wikidata_id
+        )
         wikipedia_link = WikipediaLink(
             politician_id=politician.id,
             url="https://en.wikipedia.org/wiki/Test_Politician",
@@ -262,7 +266,9 @@ class TestEnrichmentService:
         db_session.commit()
 
         # Add citizenship and Wikipedia link
-        citizenship = HasCitizenship(politician_id=politician.id, country_id=country.id)
+        citizenship = HasCitizenship(
+            politician_id=politician.id, country_id=country.wikidata_id
+        )
         wikipedia_link = WikipediaLink(
             politician_id=politician.id,
             url="https://en.wikipedia.org/wiki/Test_Politician",
@@ -296,7 +302,7 @@ class TestEnrichmentService:
             db_session.query(HoldsPosition)
             .filter_by(
                 politician_id=politician.id,
-                position_id=position.id,
+                position_id=position.wikidata_id,
             )
             .first()
         )
@@ -328,7 +334,9 @@ class TestEnrichmentService:
         db_session.commit()
 
         # Add citizenship and Wikipedia link
-        citizenship = HasCitizenship(politician_id=politician.id, country_id=country.id)
+        citizenship = HasCitizenship(
+            politician_id=politician.id, country_id=country.wikidata_id
+        )
         wikipedia_link = WikipediaLink(
             politician_id=politician.id,
             url="https://en.wikipedia.org/wiki/Test_Politician",
@@ -357,7 +365,7 @@ class TestEnrichmentService:
         # Verify birthplace was stored
         born_at = (
             db_session.query(BornAt)
-            .filter_by(politician_id=politician.id, location_id=location.id)
+            .filter_by(politician_id=politician.id, location_id=location.wikidata_id)
             .first()
         )
         assert born_at is not None
@@ -383,7 +391,9 @@ class TestEnrichmentService:
         db_session.commit()
 
         # Add citizenship and Wikipedia link
-        citizenship = HasCitizenship(politician_id=politician.id, country_id=country.id)
+        citizenship = HasCitizenship(
+            politician_id=politician.id, country_id=country.wikidata_id
+        )
         wikipedia_link = WikipediaLink(
             politician_id=politician.id,
             url="https://en.wikipedia.org/wiki/Test_Politician",
@@ -438,7 +448,9 @@ class TestEnrichmentService:
         db_session.commit()
 
         # Add citizenship and Wikipedia link
-        citizenship = HasCitizenship(politician_id=politician.id, country_id=country.id)
+        citizenship = HasCitizenship(
+            politician_id=politician.id, country_id=country.wikidata_id
+        )
         wikipedia_link = WikipediaLink(
             politician_id=politician.id,
             url="https://en.wikipedia.org/wiki/Test_Politician",
@@ -488,7 +500,9 @@ class TestEnrichmentService:
         db_session.commit()
 
         # Add citizenship and Wikipedia link
-        citizenship = HasCitizenship(politician_id=politician.id, country_id=country.id)
+        citizenship = HasCitizenship(
+            politician_id=politician.id, country_id=country.wikidata_id
+        )
         wikipedia_link = WikipediaLink(
             politician_id=politician.id,
             url="https://en.wikipedia.org/wiki/Test_Politician",

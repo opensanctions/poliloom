@@ -242,12 +242,16 @@ class TestWikidataEntityImporter:
             position = positions[0]
             assert position.wikidata_id == "Q123456"
             assert position.name == "Test Office Position"
-            assert position.wikidata_class_id == "Q4164871"
+            assert len(position.wikidata_classes) > 0
+            assert any(
+                cls.wikidata_id == "Q4164871" for cls in position.wikidata_classes
+            )
 
             location = locations[0]
             assert location.wikidata_id == "Q789012"
             assert location.name == "Test City Location"
-            assert location.wikidata_class_id == "Q515"
+            assert len(location.wikidata_classes) > 0
+            assert any(cls.wikidata_id == "Q515" for cls in location.wikidata_classes)
 
             country = countries[0]
             assert country.wikidata_id == "Q345678"

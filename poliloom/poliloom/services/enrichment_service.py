@@ -513,7 +513,7 @@ Politician name: {politician_name}"""
                             db.query(HoldsPosition)
                             .filter_by(
                                 politician_id=politician.id,
-                                position_id=position.id,
+                                position_id=position.wikidata_id,
                                 start_date=pos_data.start_date,
                                 end_date=pos_data.end_date,
                             )
@@ -523,7 +523,7 @@ Politician name: {politician_name}"""
                         if not existing_holds:
                             holds_position = HoldsPosition(
                                 politician_id=politician.id,
-                                position_id=position.id,
+                                position_id=position.wikidata_id,
                                 start_date=pos_data.start_date,
                                 end_date=pos_data.end_date,
                                 archived_page_id=archived_page.id,
@@ -568,7 +568,7 @@ Politician name: {politician_name}"""
                             db.query(BornAt)
                             .filter_by(
                                 politician_id=politician.id,
-                                location_id=location.id,
+                                location_id=location.wikidata_id,
                             )
                             .first()
                         )
@@ -576,7 +576,7 @@ Politician name: {politician_name}"""
                         if not existing_birth:
                             born_at = BornAt(
                                 politician_id=politician.id,
-                                location_id=location.id,
+                                location_id=location.wikidata_id,
                                 archived_page_id=archived_page.id,
                                 proof_line=birth_data.proof,
                             )

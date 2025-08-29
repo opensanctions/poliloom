@@ -12,6 +12,7 @@ from sqlalchemy import (
     Integer,
     Boolean,
     UniqueConstraint,
+    Index,
     text,
     func,
 )
@@ -332,7 +333,13 @@ class Property(Base, TimestampMixin):
 
     __tablename__ = "properties"
     __table_args__ = (
-        UniqueConstraint("politician_id", "type", name="uq_properties_politician_type"),
+        Index(
+            "uq_property_wikidata_only",
+            "politician_id",
+            "type",
+            unique=True,
+            postgresql_where=Column("archived_page_id").is_(None),
+        ),
     )
 
     id = Column(
@@ -481,6 +488,17 @@ class HoldsPosition(Base, TimestampMixin):
         """SQL expression for is_extracted."""
         return cls.archived_page_id.isnot(None)
 
+    # Constraints - only one non-extracted (Wikidata) relationship per politician-position pair
+    __table_args__ = (
+        Index(
+            "uq_holds_position_wikidata_only",
+            "politician_id",
+            "position_id",
+            unique=True,
+            postgresql_where=Column("archived_page_id").is_(None),
+        ),
+    )
+
     # Relationships
     politician = relationship("Politician", back_populates="positions_held")
     position = relationship("Position", back_populates="held_by")
@@ -521,6 +539,17 @@ class BornAt(Base, TimestampMixin):
         """SQL expression for is_extracted."""
         return cls.archived_page_id.isnot(None)
 
+    # Constraints - only one non-extracted (Wikidata) relationship per politician-location pair
+    __table_args__ = (
+        Index(
+            "uq_born_at_wikidata_only",
+            "politician_id",
+            "location_id",
+            unique=True,
+            postgresql_where=Column("archived_page_id").is_(None),
+        ),
+    )
+
     # Relationships
     politician = relationship("Politician", back_populates="birthplaces")
     location = relationship("Location", back_populates="born_here")
@@ -542,6 +571,11 @@ class HasCitizenship(Base, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
     )
     country_id = Column(String, ForeignKey("countries.wikidata_id"), nullable=False)
+
+    # Constraints
+    __table_args__ = (
+        UniqueConstraint("politician_id", "country_id", name="uq_politician_country"),
+    )
 
     # Relationships
     politician = relationship("Politician", back_populates="citizenships")

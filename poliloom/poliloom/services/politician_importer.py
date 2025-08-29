@@ -7,6 +7,7 @@ from datetime import datetime, date
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from .dump_reader import DumpReader
 from ..database import get_engine
@@ -44,6 +45,37 @@ def init_politician_worker(
     shared_position_qids = position_qids
     shared_location_qids = location_qids
     shared_country_qids = country_qids
+
+
+def _is_politician(
+    entity: WikidataEntity, relevant_position_qids: frozenset[str]
+) -> bool:
+    """Check if entity is a politician based on occupation or positions held in our database."""
+    # Must be human first
+    instance_ids = entity.get_instance_of_ids()
+    if "Q5" not in instance_ids:
+        return False
+
+    # Check occupation for politician
+    occupation_claims = entity.get_truthy_claims("P106")
+    for claim in occupation_claims:
+        try:
+            occupation_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+            if occupation_id == "Q82955":  # politician
+                return True
+        except (KeyError, TypeError):
+            continue
+
+    # Check if they have any position held that exists in our database
+    position_claims = entity.get_truthy_claims("P39")
+    for claim in position_claims:
+        try:
+            position_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+            if position_id in relevant_position_qids:
+                return True
+        except (KeyError, TypeError):
+            continue
+    return False
 
 
 def _insert_politicians_batch(politicians: list[dict]) -> None:
@@ -107,12 +139,12 @@ def _insert_politicians_batch(politicians: list[dict]) -> None:
                 stmt = insert(Property).values(property_batch)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=["politician_id", "type"],
+                    index_where=text("archived_page_id IS NULL"),
                     set_={
                         "value": stmt.excluded.value,
                         "value_precision": stmt.excluded.value_precision,
                         "updated_at": stmt.excluded.updated_at,
                     },
-                    where=Property.archived_page_id.is_(None),
                 )
                 session.execute(stmt)
 
@@ -134,13 +166,13 @@ def _insert_politicians_batch(politicians: list[dict]) -> None:
                 stmt = insert(HoldsPosition).values(position_batch)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=["politician_id", "position_id"],
+                    index_where=text("archived_page_id IS NULL"),
                     set_={
                         "start_date": stmt.excluded.start_date,
                         "start_date_precision": stmt.excluded.start_date_precision,
                         "end_date": stmt.excluded.end_date,
                         "end_date_precision": stmt.excluded.end_date_precision,
                     },
-                    where=HoldsPosition.archived_page_id.is_(None),
                 )
                 session.execute(stmt)
 
@@ -173,7 +205,8 @@ def _insert_politicians_batch(politicians: list[dict]) -> None:
 
                 stmt = insert(BornAt).values(birthplace_batch)
                 stmt = stmt.on_conflict_do_nothing(
-                    index_elements=["politician_id", "location_id"]
+                    index_elements=["politician_id", "location_id"],
+                    index_where=text("archived_page_id IS NULL"),
                 )
                 session.execute(stmt)
 
@@ -240,7 +273,7 @@ def _process_politicians_chunk(
                 continue
 
             # Check if it's a politician
-            if entity.is_politician(shared_position_qids):
+            if _is_politician(entity, shared_position_qids):
                 # Skip deceased politicians who died before 1950
                 # Check if politician is deceased (has death date P570)
                 death_claims = entity.get_truthy_claims("P570")
@@ -387,8 +420,8 @@ def _process_politicians_chunk(
                             politician_data["birthplace"] = birthplace_id
 
                 # Extract Wikipedia links from sitelinks
-                if hasattr(entity, "entity_data") and "sitelinks" in entity.entity_data:
-                    for site_key, sitelink in entity.entity_data["sitelinks"].items():
+                if entity.sitelinks:
+                    for site_key, sitelink in entity.sitelinks.items():
                         if site_key.endswith("wiki"):  # Wikipedia sites
                             language = site_key.replace("wiki", "")
                             url = f"https://{language}.wikipedia.org/wiki/{sitelink['title'].replace(' ', '_')}"

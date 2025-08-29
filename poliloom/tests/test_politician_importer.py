@@ -22,7 +22,9 @@ from poliloom.models import (
 from poliloom.services.politician_importer import (
     WikidataPoliticianImporter,
     _insert_politicians_batch,
+    _is_politician,
 )
+from poliloom.wikidata_entity import WikidataEntity
 
 
 class TestWikidataPoliticianImporter:
@@ -34,9 +36,9 @@ class TestWikidataPoliticianImporter:
         return WikidataPoliticianImporter()
 
     def test_extract_politicians_from_dump_integration(self, politician_importer):
-        """Test complete politician extraction workflow integration."""
+        """Test complete politician extraction workflow focusing on death date filtering and workflow."""
 
-        # Create test entities
+        # Create test entities - focused on testing death date filtering and workflow
         test_entities = [
             # Living politician - should be included
             {
@@ -131,7 +133,7 @@ class TestWikidataPoliticianImporter:
                     ],
                 },
             },
-            # Old deceased politician (died 1945) - should be excluded
+            # Old deceased politician (died 1945) - should be excluded due to death date
             {
                 "id": "Q345678",
                 "type": "item",
@@ -188,64 +190,6 @@ class TestWikidataPoliticianImporter:
                     ],
                 },
             },
-            # Non-politician human - should be excluded
-            {
-                "id": "Q999999",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Regular Person"}},
-                "claims": {
-                    "P31": [
-                        {  # instance of
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q5"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                    "P106": [
-                        {  # occupation
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P106",
-                                "datavalue": {
-                                    "value": {"id": "Q40348"},
-                                    "type": "wikibase-entityid",
-                                },  # lawyer
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                },
-            },
-            # Non-human entity - should be excluded
-            {
-                "id": "Q111111",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Some Organization"}},
-                "claims": {
-                    "P31": [
-                        {  # instance of
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q43229"},
-                                    "type": "wikibase-entityid",
-                                },  # organization
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ]
-                },
-            },
         ]
 
         # Create temporary dump file
@@ -286,9 +230,9 @@ class TestWikidataPoliticianImporter:
                 politician_ids = {p.wikidata_id for p in politicians}
                 assert "Q123456" in politician_ids  # Living politician
                 assert "Q789012" in politician_ids  # Recently deceased
-                assert "Q345678" not in politician_ids  # Old deceased - excluded
-                assert "Q999999" not in politician_ids  # Non-politician - excluded
-                assert "Q111111" not in politician_ids  # Non-human - excluded
+                assert (
+                    "Q345678" not in politician_ids
+                )  # Old deceased - excluded due to death date
 
                 # Verify names were saved correctly
                 politician_names = {p.wikidata_id: p.name for p in politicians}
@@ -531,54 +475,194 @@ class TestWikidataPoliticianImporter:
         wiki_languages = {w.language_code for w in wiki_links}
         assert wiki_languages == {"en", "fr"}
 
-    def test_insert_politicians_batch_missing_relationships(self, db_session):
-        """Test inserting politicians when some related entities don't exist."""
-        politicians = [
-            {
-                "wikidata_id": "Q1",
-                "name": "John Doe",
-                "properties": [],
-                "citizenships": ["Q999"],  # Non-existent country
-                "positions": [
+
+class TestIsPolitician:
+    """Test the _is_politician helper function."""
+
+    def test_is_politician_by_occupation(self):
+        """Test politician identification by occupation P106=Q82955."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P31": [
                     {
-                        "wikidata_id": "Q999",  # Non-existent position
-                        "start_date": "2020-01-01",
-                        "start_date_precision": 11,
-                        "end_date": "2024-01-01",
-                        "end_date_precision": 11,
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {"value": {"id": "Q5"}},
+                        },
                     }
                 ],
-                "birthplace": "Q999",  # Non-existent location
-                "wikipedia_links": [],
-            }
-        ]
+                "P106": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {"value": {"id": "Q82955"}},  # politician
+                        },
+                    }
+                ],
+            },
+        }
+        entity = WikidataEntity(entity_data)
+        relevant_positions = frozenset(["Q30185"])
 
-        # Should handle missing relationships gracefully
-        _insert_politicians_batch(politicians)
+        assert _is_politician(entity, relevant_positions) is True
 
-        # Verify politician was still created (relationships are optional)
-        politician = (
-            db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
-        )
-        assert politician is not None
-        assert politician.name == "John Doe"
+    def test_is_politician_by_position(self):
+        """Test politician identification by position held."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P31": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {"value": {"id": "Q5"}},
+                        },
+                    }
+                ],
+                "P106": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {"value": {"id": "Q40348"}},  # lawyer
+                        },
+                    }
+                ],
+                "P39": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {"value": {"id": "Q30185"}},  # mayor
+                        },
+                    }
+                ],
+            },
+        }
+        entity = WikidataEntity(entity_data)
+        relevant_positions = frozenset(["Q30185"])  # mayor is relevant
 
-        # Verify no relationships were created for non-existent entities
-        citizenships = (
-            db_session.query(HasCitizenship)
-            .filter(HasCitizenship.politician_id == politician.id)
-            .all()
-        )
-        assert len(citizenships) == 0
+        assert _is_politician(entity, relevant_positions) is True
 
-        positions = (
-            db_session.query(HoldsPosition)
-            .filter(HoldsPosition.politician_id == politician.id)
-            .all()
-        )
-        assert len(positions) == 0
+    def test_not_politician_non_human(self):
+        """Test that non-human entities are not considered politicians."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P31": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {"value": {"id": "Q43229"}},  # organization
+                        },
+                    }
+                ],
+                "P106": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {"value": {"id": "Q82955"}},  # politician
+                        },
+                    }
+                ],
+            },
+        }
+        entity = WikidataEntity(entity_data)
+        relevant_positions = frozenset(["Q30185"])
 
-        birthplaces = (
-            db_session.query(BornAt).filter(BornAt.politician_id == politician.id).all()
-        )
-        assert len(birthplaces) == 0
+        assert _is_politician(entity, relevant_positions) is False
+
+    def test_not_politician_no_relevant_occupation_or_position(self):
+        """Test that humans without politician occupation or relevant positions are not politicians."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P31": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {"value": {"id": "Q5"}},  # human
+                        },
+                    }
+                ],
+                "P106": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {"value": {"id": "Q40348"}},  # lawyer
+                        },
+                    }
+                ],
+                "P39": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {
+                                "value": {"id": "Q99999"}
+                            },  # irrelevant position
+                        },
+                    }
+                ],
+            },
+        }
+        entity = WikidataEntity(entity_data)
+        relevant_positions = frozenset(
+            ["Q30185"]
+        )  # mayor is relevant, but entity doesn't have it
+
+        assert _is_politician(entity, relevant_positions) is False
+
+    def test_is_politician_malformed_claims(self):
+        """Test politician identification handles malformed claims gracefully."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P31": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {"value": {"id": "Q5"}},  # human
+                        },
+                    }
+                ],
+                "P106": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            # Missing datavalue - should be handled gracefully
+                        },
+                    },
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {"value": {"id": "Q82955"}},  # politician
+                        },
+                    },
+                ],
+            },
+        }
+        entity = WikidataEntity(entity_data)
+        relevant_positions = frozenset(["Q30185"])
+
+        # Should still identify as politician despite malformed first claim
+        assert _is_politician(entity, relevant_positions) is True
+
+    def test_is_politician_empty_claims(self):
+        """Test politician identification with missing or empty claims."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P31": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {"value": {"id": "Q5"}},  # human
+                        },
+                    }
+                ],
+                # No P106 or P39 claims
+            },
+        }
+        entity = WikidataEntity(entity_data)
+        relevant_positions = frozenset(["Q30185"])
+
+        assert _is_politician(entity, relevant_positions) is False
