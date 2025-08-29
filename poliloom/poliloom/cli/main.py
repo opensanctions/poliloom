@@ -118,7 +118,12 @@ def dump_extract(input, output):
         click.echo("⏳ Extracting dump file...")
         click.echo("This will produce a file ~10x larger than the compressed version.")
 
-        StorageFactory.extract_bz2(input, output, use_parallel=True)
+        # Get storage backends for source and destination
+        source_backend = StorageFactory.get_backend(input)
+        dest_backend = StorageFactory.get_backend(output)
+
+        # Extract using source backend
+        source_backend.extract_bz2_to(input, dest_backend, output)
         click.echo(f"✅ Successfully extracted dump to {output}")
     except Exception as e:
         click.echo(f"❌ Extraction failed: {e}")

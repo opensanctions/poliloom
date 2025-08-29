@@ -4,7 +4,6 @@ import logging
 import os
 import shutil
 import subprocess
-import tempfile
 from abc import ABC, abstractmethod
 from typing import BinaryIO, Iterator, Tuple
 from urllib.parse import urlparse
@@ -52,6 +51,13 @@ class StorageBackend(ABC):
         """Stream lines from a specific byte range of a file."""
         pass
 
+    @abstractmethod
+    def extract_bz2_to(
+        self, source_path: str, dest_backend: "StorageBackend", dest_path: str
+    ) -> None:
+        """Extract a bz2 file from this backend to another backend."""
+        pass
+
 
 class LocalStorage(StorageBackend):
     """Local filesystem storage backend."""
@@ -97,6 +103,35 @@ class LocalStorage(StorageBackend):
 
                 current_pos = f.tell()
                 yield line
+
+    def extract_bz2_to(
+        self, source_path: str, dest_backend: "StorageBackend", dest_path: str
+    ) -> None:
+        """Extract a local bz2 file to another backend using lbzip2."""
+
+        logger.info(f"Extracting {source_path} to {dest_path}...")
+
+        # If both are local, use direct file extraction
+        if isinstance(dest_backend, LocalStorage):
+            cmd = ["lbzip2", "-d", "-c", source_path]
+            with open(dest_path, "wb") as out_file:
+                subprocess.run(cmd, stdout=out_file, check=True)
+        else:
+            # Stream to remote backend
+            cmd = ["lbzip2", "-d", "-c", source_path]
+            with dest_backend.open(dest_path, "wb") as dest_file:
+                process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+
+                chunk_size = 64 * 1024 * 1024  # 64MB chunks
+                while True:
+                    chunk = process.stdout.read(chunk_size)
+                    if not chunk:
+                        break
+                    dest_file.write(chunk)
+
+                process.wait()
+
+        logger.info(f"✅ Successfully extracted {source_path} to {dest_path}")
 
 
 class GCSStorage(StorageBackend):
@@ -225,6 +260,76 @@ class GCSStorage(StorageBackend):
                 current_pos = f.tell()
                 yield line
 
+    def extract_bz2_to(
+        self, source_path: str, dest_backend: "StorageBackend", dest_path: str
+    ) -> None:
+        """Extract a GCS bz2 file to another backend using lbzip2 with streaming."""
+        import threading
+
+        logger.info(f"Streaming extraction from {source_path} to {dest_path}...")
+
+        cmd = ["lbzip2", "-d", "-c"]
+        exception_holder = [None]
+
+        def stream_to_lbzip2(source_file, process_stdin):
+            """Stream from GCS to lbzip2 stdin."""
+            try:
+                chunk_size = 64 * 1024 * 1024
+                while True:
+                    chunk = source_file.read(chunk_size)
+                    if not chunk:
+                        break
+                    process_stdin.write(chunk)
+            except Exception as e:
+                exception_holder[0] = e
+            finally:
+                process_stdin.close()
+
+        def stream_from_lbzip2(process_stdout, dest_file):
+            """Stream from lbzip2 stdout to destination."""
+            try:
+                chunk_size = 64 * 1024 * 1024
+                while True:
+                    chunk = process_stdout.read(chunk_size)
+                    if not chunk:
+                        break
+                    dest_file.write(chunk)
+            except Exception as e:
+                exception_holder[0] = e
+
+        with self.open(source_path, "rb") as source_file:
+            with dest_backend.open(dest_path, "wb") as dest_file:
+                process = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+
+                input_thread = threading.Thread(
+                    target=stream_to_lbzip2, args=(source_file, process.stdin)
+                )
+                output_thread = threading.Thread(
+                    target=stream_from_lbzip2, args=(process.stdout, dest_file)
+                )
+
+                input_thread.start()
+                output_thread.start()
+
+                input_thread.join()
+                output_thread.join()
+
+                return_code = process.wait()
+
+                if exception_holder[0]:
+                    raise exception_holder[0]
+
+                if return_code != 0:
+                    stderr = process.stderr.read().decode()
+                    raise RuntimeError(f"lbzip2 failed: {stderr}")
+
+        logger.info(f"✅ Successfully extracted {source_path} to {dest_path}")
+
 
 class StorageFactory:
     """Factory for creating storage backends based on path format."""
@@ -272,76 +377,3 @@ class StorageFactory:
             with backend.open(destination, "wb") as f:
                 for chunk in response.iter_bytes(chunk_size=1024 * 1024):  # 1MB chunks
                     f.write(chunk)
-
-    @classmethod
-    def extract_bz2(
-        cls,
-        source: str,
-        destination: str,
-        use_parallel: bool = True,
-    ) -> None:
-        """Extract a bz2 file to a destination.
-
-        Args:
-            source: Source bz2 file path (local or gs://)
-            destination: Destination path (local or gs://)
-            use_parallel: Whether to use parallel decompression (lbzip2)
-        """
-        source_backend = cls.get_backend(source)
-        dest_backend = cls.get_backend(destination)
-
-        # Check if we need temporary files
-        needs_temp_source = cls.is_gcs_path(source)
-        needs_temp_dest = cls.is_gcs_path(destination)
-
-        # Download source if needed
-        if needs_temp_source:
-            with tempfile.NamedTemporaryFile(suffix=".bz2", delete=False) as tmp:
-                tmp_source = tmp.name
-            logger.info(f"Downloading {source} to temporary file for extraction...")
-            source_backend.download(source, tmp_source)
-            actual_source = tmp_source
-        else:
-            actual_source = source
-
-        # Determine actual destination
-        if needs_temp_dest:
-            with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
-                tmp_dest = tmp.name
-            actual_dest = tmp_dest
-        else:
-            actual_dest = destination
-
-        # Check for lbzip2 if parallel extraction requested
-        if use_parallel:
-            if subprocess.run(["which", "lbzip2"], capture_output=True).returncode != 0:
-                raise RuntimeError(
-                    "lbzip2 not found. Please install lbzip2 for parallel extraction."
-                )
-            cmd = ["lbzip2", "-d", "-c", actual_source]
-        else:
-            cmd = ["bunzip2", "-c", actual_source]
-
-        # Perform extraction
-        logger.info(f"Extracting {source} to {destination}...")
-        with open(actual_dest, "wb") as out_file:
-            subprocess.run(cmd, stdout=out_file, check=True)
-
-        # Upload to GCS if needed
-        if needs_temp_dest:
-            logger.info(f"Uploading extracted file to {destination}...")
-            with open(actual_dest, "rb") as f:
-                with dest_backend.open(destination, "wb") as dest_f:
-                    # Stream file in chunks to avoid loading entire file into memory
-                    chunk_size = 64 * 1024 * 1024  # 64MB chunks
-                    while True:
-                        chunk = f.read(chunk_size)
-                        if not chunk:
-                            break
-                        dest_f.write(chunk)
-
-        # Clean up temporary files
-        if needs_temp_source:
-            os.unlink(tmp_source)
-        if needs_temp_dest:
-            os.unlink(tmp_dest)
