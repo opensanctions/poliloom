@@ -7,7 +7,12 @@ import os
 from unittest.mock import patch
 
 from poliloom.models import WikidataClass, SubclassRelation, Position, Location, Country
-from poliloom.services.entity_importer import WikidataEntityImporter
+from poliloom.services.entity_importer import (
+    WikidataEntityImporter,
+    _insert_positions_batch,
+    _insert_locations_batch,
+    _insert_countries_batch,
+)
 from sqlalchemy.dialects.postgresql import insert
 
 
@@ -251,3 +256,162 @@ class TestWikidataEntityImporter:
 
         finally:
             os.unlink(temp_file_path)
+
+    def test_insert_positions_batch(self, db_session):
+        """Test inserting a batch of positions."""
+        positions = [
+            {"wikidata_id": "Q1", "name": "Position 1"},
+            {"wikidata_id": "Q2", "name": "Position 2"},
+        ]
+
+        _insert_positions_batch(positions)
+
+        # Verify positions were inserted
+        inserted_positions = db_session.query(Position).all()
+        assert len(inserted_positions) == 2
+        wikidata_ids = {pos.wikidata_id for pos in inserted_positions}
+        assert wikidata_ids == {"Q1", "Q2"}
+
+    def test_insert_positions_batch_with_duplicates(self, db_session):
+        """Test inserting positions with some duplicates."""
+        # Insert initial batch
+        initial_positions = [
+            {"wikidata_id": "Q1", "name": "Position 1"},
+            {"wikidata_id": "Q2", "name": "Position 2"},
+        ]
+        _insert_positions_batch(initial_positions)
+
+        # Insert batch with some duplicates and new items
+        positions_with_duplicates = [
+            {
+                "wikidata_id": "Q1",
+                "name": "Position 1 Updated",
+            },  # Duplicate (should update)
+            {"wikidata_id": "Q2", "name": "Position 2"},  # Duplicate (no change)
+            {"wikidata_id": "Q3", "name": "Position 3"},  # New
+        ]
+        _insert_positions_batch(positions_with_duplicates)
+
+        # Verify all positions exist with correct data
+        inserted_positions = db_session.query(Position).all()
+        assert len(inserted_positions) == 3
+        wikidata_ids = {pos.wikidata_id for pos in inserted_positions}
+        assert wikidata_ids == {"Q1", "Q2", "Q3"}
+
+        # Verify Q1 was updated
+        q1_position = (
+            db_session.query(Position).filter(Position.wikidata_id == "Q1").first()
+        )
+        assert q1_position.name == "Position 1 Updated"
+
+    def test_insert_positions_batch_empty(self, db_session):
+        """Test inserting empty batch of positions."""
+        positions = []
+
+        # Should handle empty batch gracefully without errors
+        _insert_positions_batch(positions)
+
+        # Verify no positions were inserted
+        inserted_positions = db_session.query(Position).all()
+        assert len(inserted_positions) == 0
+
+    def test_insert_locations_batch(self, db_session):
+        """Test inserting a batch of locations."""
+        locations = [
+            {"wikidata_id": "Q1", "name": "Location 1"},
+            {"wikidata_id": "Q2", "name": "Location 2"},
+        ]
+
+        _insert_locations_batch(locations)
+
+        # Verify locations were inserted
+        inserted_locations = db_session.query(Location).all()
+        assert len(inserted_locations) == 2
+        wikidata_ids = {loc.wikidata_id for loc in inserted_locations}
+        assert wikidata_ids == {"Q1", "Q2"}
+
+    def test_insert_locations_batch_with_duplicates(self, db_session):
+        """Test inserting locations with some duplicates."""
+        locations = [
+            {"wikidata_id": "Q1", "name": "Location 1"},
+            {"wikidata_id": "Q2", "name": "Location 2"},
+            {"wikidata_id": "Q3", "name": "Location 3"},
+        ]
+
+        _insert_locations_batch(locations)
+
+        # Insert again with some duplicates - should handle gracefully
+        locations_with_duplicates = [
+            {"wikidata_id": "Q1", "name": "Location 1 Updated"},  # Duplicate
+            {"wikidata_id": "Q4", "name": "Location 4"},  # New
+        ]
+        _insert_locations_batch(locations_with_duplicates)
+
+        # Should now have 4 total locations
+        all_locations = db_session.query(Location).all()
+        assert len(all_locations) == 4
+        wikidata_ids = {loc.wikidata_id for loc in all_locations}
+        assert wikidata_ids == {"Q1", "Q2", "Q3", "Q4"}
+
+    def test_insert_locations_batch_empty(self, db_session):
+        """Test inserting empty batch of locations."""
+        locations = []
+
+        # Should handle empty batch gracefully without errors
+        _insert_locations_batch(locations)
+
+        # Verify no locations were inserted
+        inserted_locations = db_session.query(Location).all()
+        assert len(inserted_locations) == 0
+
+    def test_insert_countries_batch(self, db_session):
+        """Test inserting a batch of countries."""
+        countries = [
+            {"wikidata_id": "Q1", "name": "Country 1", "iso_code": "C1"},
+            {"wikidata_id": "Q2", "name": "Country 2", "iso_code": "C2"},
+        ]
+
+        _insert_countries_batch(countries)
+
+        # Verify countries were inserted
+        inserted_countries = db_session.query(Country).all()
+        assert len(inserted_countries) == 2
+        wikidata_ids = {country.wikidata_id for country in inserted_countries}
+        assert wikidata_ids == {"Q1", "Q2"}
+
+        # Verify specific country data
+        country1 = db_session.query(Country).filter(Country.wikidata_id == "Q1").first()
+        assert country1.name == "Country 1"
+        assert country1.iso_code == "C1"
+
+    def test_insert_countries_batch_empty(self, db_session):
+        """Test inserting empty batch of countries."""
+        countries = []
+
+        # Should handle empty batch gracefully without errors
+        _insert_countries_batch(countries)
+
+        # Verify no countries were inserted
+        inserted_countries = db_session.query(Country).all()
+        assert len(inserted_countries) == 0
+
+    def test_insert_countries_batch_with_duplicates_handling(self, db_session):
+        """Test that countries batch uses ON CONFLICT DO UPDATE."""
+        countries = [
+            {"wikidata_id": "Q1", "name": "Country 1", "iso_code": "C1"},
+        ]
+
+        # Insert first time
+        _insert_countries_batch(countries)
+
+        # Insert again with updated name - should update
+        updated_countries = [
+            {"wikidata_id": "Q1", "name": "Country 1 Updated", "iso_code": "C1"},
+        ]
+        _insert_countries_batch(updated_countries)
+
+        # Should still have only one country but with updated name
+        final_countries = db_session.query(Country).all()
+        assert len(final_countries) == 1
+        assert final_countries[0].wikidata_id == "Q1"
+        assert final_countries[0].name == "Country 1 Updated"

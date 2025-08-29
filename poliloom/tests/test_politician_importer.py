@@ -8,8 +8,21 @@ from unittest.mock import patch
 
 from poliloom.database import get_engine
 from sqlalchemy.orm import Session
-from poliloom.models import Politician
-from poliloom.services.politician_importer import WikidataPoliticianImporter
+from poliloom.models import (
+    Politician,
+    Position,
+    Location,
+    Country,
+    Property,
+    HoldsPosition,
+    HasCitizenship,
+    BornAt,
+    WikipediaLink,
+)
+from poliloom.services.politician_importer import (
+    WikidataPoliticianImporter,
+    _insert_politicians_batch,
+)
 
 
 class TestWikidataPoliticianImporter:
@@ -284,3 +297,288 @@ class TestWikidataPoliticianImporter:
 
         finally:
             os.unlink(temp_file_path)
+
+    def test_insert_politicians_batch_basic(self, db_session):
+        """Test inserting a batch of politicians with basic data."""
+        politicians = [
+            {
+                "wikidata_id": "Q1",
+                "name": "John Doe",
+                "properties": [],
+                "positions": [],
+                "citizenships": [],
+                "birthplace": None,
+                "wikipedia_links": [],
+            },
+            {
+                "wikidata_id": "Q2",
+                "name": "Jane Smith",
+                "properties": [],
+                "positions": [],
+                "citizenships": [],
+                "birthplace": None,
+                "wikipedia_links": [],
+            },
+        ]
+
+        _insert_politicians_batch(politicians)
+
+        # Verify politicians were inserted
+        inserted_politicians = db_session.query(Politician).all()
+        assert len(inserted_politicians) == 2
+        wikidata_ids = {pol.wikidata_id for pol in inserted_politicians}
+        assert wikidata_ids == {"Q1", "Q2"}
+
+    def test_insert_politicians_batch_with_duplicates(self, db_session):
+        """Test inserting politicians with some duplicates."""
+        politicians = [
+            {
+                "wikidata_id": "Q1",
+                "name": "John Doe",
+                "properties": [],
+                "positions": [],
+                "citizenships": [],
+                "birthplace": None,
+                "wikipedia_links": [],
+            }
+        ]
+
+        # Insert first batch
+        _insert_politicians_batch(politicians)
+
+        # Insert again with updated name - should update
+        updated_politicians = [
+            {
+                "wikidata_id": "Q1",
+                "name": "John Doe Updated",
+                "properties": [],
+                "positions": [],
+                "citizenships": [],
+                "birthplace": None,
+                "wikipedia_links": [],
+            }
+        ]
+        _insert_politicians_batch(updated_politicians)
+
+        # Should still have only 1 politician with updated name
+        final_politicians = db_session.query(Politician).all()
+        assert len(final_politicians) == 1
+        assert final_politicians[0].wikidata_id == "Q1"
+        assert final_politicians[0].name == "John Doe Updated"
+
+    def test_insert_politicians_batch_empty(self, db_session):
+        """Test inserting empty batch of politicians."""
+        politicians = []
+
+        # Should handle empty batch gracefully without errors
+        _insert_politicians_batch(politicians)
+
+        # Verify no politicians were inserted
+        inserted_politicians = db_session.query(Politician).all()
+        assert len(inserted_politicians) == 0
+
+    def test_insert_politicians_batch_with_properties(self, db_session):
+        """Test inserting politicians with properties."""
+        politicians = [
+            {
+                "wikidata_id": "Q1",
+                "name": "John Doe",
+                "properties": [
+                    {
+                        "type": "birth_date",
+                        "value": "1970-01-01",
+                        "value_precision": 11,
+                    },
+                    {
+                        "type": "death_date",
+                        "value": "2020-01-01",
+                        "value_precision": 11,
+                    },
+                ],
+                "positions": [],
+                "citizenships": [],
+                "birthplace": None,
+                "wikipedia_links": [],
+            }
+        ]
+
+        _insert_politicians_batch(politicians)
+
+        # Verify politician and properties were created
+        politician = (
+            db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
+        )
+        assert politician is not None
+        assert politician.name == "John Doe"
+
+        properties = (
+            db_session.query(Property)
+            .filter(Property.politician_id == politician.id)
+            .all()
+        )
+        assert len(properties) == 2
+
+        prop_types = {prop.type for prop in properties}
+        assert prop_types == {"birth_date", "death_date"}
+
+    def test_insert_politicians_batch_with_relationships(self, db_session):
+        """Test inserting politicians with full relationship data."""
+        # First create the required related entities
+        position1 = Position(name="Mayor", wikidata_id="Q30185")
+        position2 = Position(name="President", wikidata_id="Q11696")
+        country1 = Country(name="United States", wikidata_id="Q30", iso_code="US")
+        country2 = Country(name="Canada", wikidata_id="Q16", iso_code="CA")
+        location = Location(name="New York City", wikidata_id="Q60")
+
+        db_session.add_all([position1, position2, country1, country2, location])
+        db_session.commit()
+
+        politicians = [
+            {
+                "wikidata_id": "Q1",
+                "name": "John Doe",
+                "properties": [
+                    {
+                        "type": "birth_date",
+                        "value": "1970-01-01",
+                        "value_precision": 11,
+                    },
+                ],
+                "citizenships": ["Q30", "Q16"],  # US and Canada
+                "positions": [
+                    {
+                        "wikidata_id": "Q30185",
+                        "start_date": "2020-01-01",
+                        "start_date_precision": 11,
+                        "end_date": "2024-01-01",
+                        "end_date_precision": 11,
+                    },
+                    {
+                        "wikidata_id": "Q11696",
+                        "start_date": "2018-01-01",
+                        "start_date_precision": 11,
+                        "end_date": "2020-01-01",
+                        "end_date_precision": 11,
+                    },
+                ],
+                "birthplace": "Q60",
+                "wikipedia_links": [
+                    {
+                        "url": "https://en.wikipedia.org/wiki/John_Doe",
+                        "language": "en",
+                    },
+                    {
+                        "url": "https://fr.wikipedia.org/wiki/John_Doe",
+                        "language": "fr",
+                    },
+                ],
+            }
+        ]
+
+        _insert_politicians_batch(politicians)
+
+        # Verify politician was created with all relationships
+        politician = (
+            db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
+        )
+        assert politician is not None
+        assert politician.name == "John Doe"
+
+        # Check properties
+        properties = (
+            db_session.query(Property)
+            .filter(Property.politician_id == politician.id)
+            .all()
+        )
+        assert len(properties) == 1
+        assert properties[0].type == "birth_date"
+        assert properties[0].value == "1970-01-01"
+
+        # Check citizenships
+        citizenships = (
+            db_session.query(HasCitizenship)
+            .filter(HasCitizenship.politician_id == politician.id)
+            .all()
+        )
+        assert len(citizenships) == 2
+        citizenship_countries = {c.country.wikidata_id for c in citizenships}
+        assert citizenship_countries == {"Q30", "Q16"}
+
+        # Check positions
+        positions = (
+            db_session.query(HoldsPosition)
+            .filter(HoldsPosition.politician_id == politician.id)
+            .all()
+        )
+        assert len(positions) == 2
+        position_ids = {p.position.wikidata_id for p in positions}
+        assert position_ids == {"Q30185", "Q11696"}
+
+        # Check birthplace
+        birthplaces = (
+            db_session.query(BornAt).filter(BornAt.politician_id == politician.id).all()
+        )
+        assert len(birthplaces) == 1
+        assert birthplaces[0].location.wikidata_id == "Q60"
+
+        # Check Wikipedia links
+        wiki_links = (
+            db_session.query(WikipediaLink)
+            .filter(WikipediaLink.politician_id == politician.id)
+            .all()
+        )
+        assert len(wiki_links) == 2
+        wiki_languages = {w.language_code for w in wiki_links}
+        assert wiki_languages == {"en", "fr"}
+
+    def test_insert_politicians_batch_missing_relationships(self, db_session):
+        """Test inserting politicians when some related entities don't exist."""
+        politicians = [
+            {
+                "wikidata_id": "Q1",
+                "name": "John Doe",
+                "properties": [],
+                "citizenships": ["Q999"],  # Non-existent country
+                "positions": [
+                    {
+                        "wikidata_id": "Q999",  # Non-existent position
+                        "start_date": "2020-01-01",
+                        "start_date_precision": 11,
+                        "end_date": "2024-01-01",
+                        "end_date_precision": 11,
+                    }
+                ],
+                "birthplace": "Q999",  # Non-existent location
+                "wikipedia_links": [],
+            }
+        ]
+
+        # Should handle missing relationships gracefully
+        _insert_politicians_batch(politicians)
+
+        # Verify politician was still created (relationships are optional)
+        politician = (
+            db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
+        )
+        assert politician is not None
+        assert politician.name == "John Doe"
+
+        # Verify no relationships were created for non-existent entities
+        citizenships = (
+            db_session.query(HasCitizenship)
+            .filter(HasCitizenship.politician_id == politician.id)
+            .all()
+        )
+        assert len(citizenships) == 0
+
+        positions = (
+            db_session.query(HoldsPosition)
+            .filter(HoldsPosition.politician_id == politician.id)
+            .all()
+        )
+        assert len(positions) == 0
+
+        birthplaces = (
+            db_session.query(BornAt).filter(BornAt.politician_id == politician.id).all()
+        )
+        assert len(birthplaces) == 0

@@ -6,11 +6,11 @@ from typing import Dict, Set, Tuple
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from sqlalchemy.dialects.postgresql import insert
 
 from .dump_reader import DumpReader
-from .database_inserter import DatabaseInserter
 from ..database import get_engine
-from ..models import SubclassRelation
+from ..models import SubclassRelation, Position, Location, Country
 from ..wikidata_entity import WikidataEntity
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,109 @@ def init_entity_worker(
     global shared_position_classes, shared_location_classes
     shared_position_classes = pos_classes
     shared_location_classes = loc_classes
+
+
+def _insert_positions_batch(positions: list[dict]) -> None:
+    """Insert a batch of positions into the database."""
+    if not positions:
+        return
+
+    with Session(get_engine()) as session:
+        # Use PostgreSQL UPSERT for positions
+        stmt = insert(Position).values(
+            [
+                {
+                    "wikidata_id": p["wikidata_id"],
+                    "name": p["name"],
+                    "embedding": None,  # Will be generated later
+                    "wikidata_class_id": p.get(
+                        "wikidata_class_id"
+                    ),  # May be None if not found
+                }
+                for p in positions
+            ]
+        )
+
+        # On conflict, update the name and wikidata_class_id (in case it changed in Wikidata)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["wikidata_id"],
+            set_={
+                "name": stmt.excluded.name,
+                "wikidata_class_id": stmt.excluded.wikidata_class_id,
+            },
+        )
+
+        session.execute(stmt)
+        session.commit()
+        logger.debug(f"Processed {len(positions)} positions (upserted)")
+
+
+def _insert_locations_batch(locations: list[dict]) -> None:
+    """Insert a batch of locations into the database."""
+    if not locations:
+        return
+
+    with Session(get_engine()) as session:
+        # Use PostgreSQL UPSERT for locations
+        stmt = insert(Location).values(
+            [
+                {
+                    "wikidata_id": loc["wikidata_id"],
+                    "name": loc["name"],
+                    "embedding": None,  # Will be generated later
+                    "wikidata_class_id": loc.get(
+                        "wikidata_class_id"
+                    ),  # May be None if not found
+                }
+                for loc in locations
+            ]
+        )
+
+        # On conflict, update the name and wikidata_class_id (in case it changed in Wikidata)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["wikidata_id"],
+            set_={
+                "name": stmt.excluded.name,
+                "wikidata_class_id": stmt.excluded.wikidata_class_id,
+            },
+        )
+
+        session.execute(stmt)
+        session.commit()
+        logger.debug(f"Processed {len(locations)} locations (upserted)")
+
+
+def _insert_countries_batch(countries: list[dict]) -> None:
+    """Insert a batch of countries into the database using ON CONFLICT."""
+    if not countries:
+        return
+
+    with Session(get_engine()) as session:
+        # Prepare data for bulk insert
+        country_data = [
+            {
+                "wikidata_id": c["wikidata_id"],
+                "name": c["name"],
+                "iso_code": c["iso_code"],
+            }
+            for c in countries
+        ]
+
+        # Use PostgreSQL's ON CONFLICT to handle duplicates
+        # We need to handle both wikidata_id and iso_code constraints
+        # Use ON CONFLICT DO UPDATE for wikidata_id to allow name updates
+        stmt = insert(Country).values(country_data)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["wikidata_id"],
+            set_={
+                "name": stmt.excluded.name,
+                "iso_code": stmt.excluded.iso_code,
+            },
+        )
+
+        session.execute(stmt)
+        session.commit()
+        logger.debug(f"Processed {len(countries)} countries (upserted)")
 
 
 def _process_supporting_entities_chunk(
@@ -54,7 +157,6 @@ def _process_supporting_entities_chunk(
     engine.dispose(close=False)
 
     dump_reader = DumpReader()
-    database_inserter = DatabaseInserter()
 
     positions = []
     locations = []
@@ -112,15 +214,15 @@ def _process_supporting_entities_chunk(
 
             # Process batches when they reach the batch size
             if len(positions) >= batch_size:
-                database_inserter.insert_positions_batch(positions)
+                _insert_positions_batch(positions)
                 positions = []
 
             if len(locations) >= batch_size:
-                database_inserter.insert_locations_batch(locations)
+                _insert_locations_batch(locations)
                 locations = []
 
             if len(countries) >= batch_size:
-                database_inserter.insert_countries_batch(countries)
+                _insert_countries_batch(countries)
                 countries = []
 
     except Exception as e:
@@ -129,11 +231,11 @@ def _process_supporting_entities_chunk(
 
     # Process remaining entities in final batches on successful completion
     if positions:
-        database_inserter.insert_positions_batch(positions)
+        _insert_positions_batch(positions)
     if locations:
-        database_inserter.insert_locations_batch(locations)
+        _insert_locations_batch(locations)
     if countries:
-        database_inserter.insert_countries_batch(countries)
+        _insert_countries_batch(countries)
 
     logger.info(f"Worker {worker_id}: finished processing {entity_count} entities")
 
