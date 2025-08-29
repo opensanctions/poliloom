@@ -165,7 +165,12 @@ def _insert_politicians_batch(politicians: list[dict]) -> None:
             if position_batch:
                 stmt = insert(HoldsPosition).values(position_batch)
                 stmt = stmt.on_conflict_do_update(
-                    index_elements=["politician_id", "position_id"],
+                    index_elements=[
+                        "politician_id",
+                        "position_id",
+                        "start_date",
+                        "end_date",
+                    ],
                     index_where=text("archived_page_id IS NULL"),
                     set_={
                         "start_date": stmt.excluded.start_date,
@@ -309,7 +314,7 @@ def _process_politicians_chunk(
                 # Build complete politician dict with all relationships
                 politician_data = {
                     "wikidata_id": entity.get_wikidata_id(),
-                    "name": entity.get_entity_name(),
+                    "name": entity.get_entity_name() or entity.get_wikidata_id(),
                     "properties": [],
                     "positions": [],
                     "citizenships": [],
@@ -344,6 +349,12 @@ def _process_politicians_chunk(
 
                 # Extract positions held - only include positions that exist in our database
                 position_claims = entity.get_truthy_claims("P39")
+                # Wikidata can contain duplicate P39 statements for the same position with identical qualifiers
+                # This happens due to multiple statement IDs or data quality issues, so we deduplicate here
+                seen_positions = (
+                    set()
+                )  # Track unique (position_id, start_date, end_date) combinations
+
                 for claim in position_claims:
                     if "mainsnak" in claim and "datavalue" in claim["mainsnak"]:
                         position_id = claim["mainsnak"]["datavalue"]["value"]["id"]
@@ -366,8 +377,8 @@ def _process_politicians_chunk(
                             if "P580" in claim["qualifiers"]:
                                 start_qual = claim["qualifiers"]["P580"][0]
                                 if "datavalue" in start_qual:
-                                    start_info = entity.extract_date_from_datavalue(
-                                        start_qual["datavalue"]
+                                    start_info = entity.extract_date_from_claims(
+                                        [start_qual]
                                     )
                                     if start_info:
                                         start_date = start_info["date"]
@@ -377,22 +388,26 @@ def _process_politicians_chunk(
                             if "P582" in claim["qualifiers"]:
                                 end_qual = claim["qualifiers"]["P582"][0]
                                 if "datavalue" in end_qual:
-                                    end_info = entity.extract_date_from_datavalue(
-                                        end_qual["datavalue"]
+                                    end_info = entity.extract_date_from_claims(
+                                        [end_qual]
                                     )
                                     if end_info:
                                         end_date = end_info["date"]
                                         end_date_precision = end_info["precision"]
 
-                        politician_data["positions"].append(
-                            {
-                                "wikidata_id": position_id,
-                                "start_date": start_date,
-                                "start_date_precision": start_date_precision,
-                                "end_date": end_date,
-                                "end_date_precision": end_date_precision,
-                            }
-                        )
+                        # Create unique key for deduplication
+                        position_key = (position_id, start_date, end_date)
+                        if position_key not in seen_positions:
+                            seen_positions.add(position_key)
+                            politician_data["positions"].append(
+                                {
+                                    "wikidata_id": position_id,
+                                    "start_date": start_date,
+                                    "start_date_precision": start_date_precision,
+                                    "end_date": end_date,
+                                    "end_date_precision": end_date_precision,
+                                }
+                            )
 
                 # Extract citizenships - only include countries that exist in our database
                 citizenship_claims = entity.get_truthy_claims("P27")

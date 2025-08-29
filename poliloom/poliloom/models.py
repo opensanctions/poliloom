@@ -488,12 +488,14 @@ class HoldsPosition(Base, TimestampMixin):
         """SQL expression for is_extracted."""
         return cls.archived_page_id.isnot(None)
 
-    # Constraints - only one non-extracted (Wikidata) relationship per politician-position pair
+    # Constraints - unique constraint including dates to allow multiple time periods
     __table_args__ = (
         Index(
             "uq_holds_position_wikidata_only",
             "politician_id",
             "position_id",
+            "start_date",
+            "end_date",
             unique=True,
             postgresql_where=Column("archived_page_id").is_(None),
         ),

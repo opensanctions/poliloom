@@ -330,28 +330,33 @@ class TestHoldsPosition:
             },
         )
 
-    def test_holds_position_incomplete_dates(
-        self, db_session, sample_politician_data, sample_position_data
-    ):
+    def test_holds_position_incomplete_dates(self, db_session, sample_politician_data):
         """Test handling of incomplete dates in HoldsPosition."""
-        # Create politician and position once
+        # Create politician
         politician = Politician(**sample_politician_data)
-        position = Position(**sample_position_data)
-        db_session.add_all([politician, position])
+        db_session.add(politician)
         db_session.commit()
         db_session.refresh(politician)
-        db_session.refresh(position)
 
-        # Test various incomplete date formats
+        # Test various incomplete date formats - each with a different position or archived_page_id
+        # to avoid unique constraint violations
         test_cases = [
-            ("2020", None),  # Only year
-            ("2020-03", "2021"),  # Year-month to year
-            ("1995", "2000-06-15"),  # Year to full date
-            (None, "2024"),  # No start date
-            ("2022", None),  # No end date
+            ("2020", None, "Q1001"),  # Only year
+            ("2020-03", "2021", "Q1002"),  # Year-month to year
+            ("1995", "2000-06-15", "Q1003"),  # Year to full date
+            (None, "2024", "Q1004"),  # No start date
+            ("2022", None, "Q1005"),  # No end date
         ]
 
-        for start_date, end_date in test_cases:
+        for start_date, end_date, position_qid in test_cases:
+            # Create a unique position for each test case
+            position = Position(
+                name=f"Test Position {position_qid}", wikidata_id=position_qid
+            )
+            db_session.add(position)
+            db_session.commit()
+            db_session.refresh(position)
+
             holds_pos = HoldsPosition(
                 politician_id=politician.id,
                 position_id=position.wikidata_id,
@@ -542,21 +547,12 @@ class TestHasCitizenship:
         )
         db_session.add(citizenship2)
 
-        # Note: If there are no unique constraints in the model, this might not raise an error
-        # This test verifies the current behavior - you might want to add unique constraints
-        try:
+        # Should raise IntegrityError due to unique constraint
+        with pytest.raises(IntegrityError):
             db_session.commit()
-            # If no constraint exists, verify at least that the application logic prevents duplicates
-            citizenships = (
-                db_session.query(HasCitizenship)
-                .filter_by(politician_id=politician.id, country_id=country.wikidata_id)
-                .all()
-            )
-            # This should be handled by application logic in import_service._create_citizenships
-            assert len(citizenships) >= 1  # At least one exists
-        except IntegrityError:
-            # If database has unique constraint, this is expected
-            db_session.rollback()
+
+        # Clean up failed transaction
+        db_session.rollback()
 
 
 class TestWikipediaLinkRelationships:
@@ -1154,5 +1150,7 @@ class TestBornAt:
         assert deleted_born_at is None
 
         # Location should still exist
-        existing_location = db_session.query(Location).filter_by(id=location_id).first()
+        existing_location = (
+            db_session.query(Location).filter_by(wikidata_id=location_id).first()
+        )
         assert existing_location is not None
