@@ -40,8 +40,6 @@ def _process_politicians_chunk(
     politicians = []
     politician_count = 0
     entity_count = 0
-    interrupted = False
-
     try:
         for entity in dump_reader.read_chunk_entities(
             dump_file_path, start_byte, end_byte
@@ -102,25 +100,15 @@ def _process_politicians_chunk(
                 database_inserter.insert_politicians_batch(politicians)
                 politicians = []
 
-    except KeyboardInterrupt:
-        interrupted = True
-        logger.info(f"Worker {worker_id}: interrupted")
     except Exception as e:
         logger.error(f"Worker {worker_id}: error processing chunk: {e}")
-    finally:
-        # Always process remaining entities in final batches
-        try:
-            if politicians:
-                database_inserter.insert_politicians_batch(politicians)
-        except Exception as cleanup_error:
-            logger.warning(f"Worker {worker_id}: error during cleanup: {cleanup_error}")
+        raise
 
-        if interrupted:
-            logger.info(f"Worker {worker_id}: interrupted, returning partial results")
-        else:
-            logger.info(
-                f"Worker {worker_id}: finished processing {entity_count} entities"
-            )
+    # Process remaining entities in final batch on successful completion
+    if politicians:
+        database_inserter.insert_politicians_batch(politicians)
+
+    logger.info(f"Worker {worker_id}: finished processing {entity_count} entities")
 
     return politician_count, entity_count
 

@@ -26,22 +26,6 @@ logger = logging.getLogger(__name__)
 class DatabaseInserter:
     """Handles batch database insertions for dump processing."""
 
-    def insert_entity(
-        self,
-        entity: WikidataEntity,
-    ) -> None:
-        """Insert a single entity into the database based on its type."""
-        if entity.entity_type == "politician":
-            self.insert_politicians_batch([entity])
-        elif entity.entity_type == "position":
-            self.insert_positions_batch([entity])
-        elif entity.entity_type == "location":
-            self.insert_locations_batch([entity])
-        elif entity.entity_type == "country":
-            self.insert_countries_batch([entity])
-        else:
-            raise ValueError(f"Unknown entity type: {entity.entity_type}")
-
     def insert_positions_batch(
         self, positions: List[Union[dict, WikidataEntity]]
     ) -> None:

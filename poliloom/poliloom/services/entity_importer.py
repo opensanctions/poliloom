@@ -61,8 +61,6 @@ def _process_supporting_entities_chunk(
     countries = []
     counts = {"positions": 0, "locations": 0, "countries": 0}
     entity_count = 0
-    interrupted = False
-
     try:
         for entity in dump_reader.read_chunk_entities(
             dump_file_path, start_byte, end_byte
@@ -125,29 +123,19 @@ def _process_supporting_entities_chunk(
                 database_inserter.insert_countries_batch(countries)
                 countries = []
 
-    except KeyboardInterrupt:
-        interrupted = True
-        logger.info(f"Worker {worker_id}: interrupted")
     except Exception as e:
         logger.error(f"Worker {worker_id}: error processing chunk: {e}")
-    finally:
-        # Always process remaining entities in final batches
-        try:
-            if positions:
-                database_inserter.insert_positions_batch(positions)
-            if locations:
-                database_inserter.insert_locations_batch(locations)
-            if countries:
-                database_inserter.insert_countries_batch(countries)
-        except Exception as cleanup_error:
-            logger.warning(f"Worker {worker_id}: error during cleanup: {cleanup_error}")
+        raise
 
-        if interrupted:
-            logger.info(f"Worker {worker_id}: interrupted, returning partial results")
-        else:
-            logger.info(
-                f"Worker {worker_id}: finished processing {entity_count} entities"
-            )
+    # Process remaining entities in final batches on successful completion
+    if positions:
+        database_inserter.insert_positions_batch(positions)
+    if locations:
+        database_inserter.insert_locations_batch(locations)
+    if countries:
+        database_inserter.insert_countries_batch(countries)
+
+    logger.info(f"Worker {worker_id}: finished processing {entity_count} entities")
 
     return counts, entity_count
 

@@ -52,16 +52,12 @@ def _process_chunk_for_name_updates(
     name_updates = {}
     total_updates_count = 0
     entity_count = 0
-    interrupted = False
 
     try:
         for entity in dump_reader.read_chunk_entities(
             dump_file_path, start_byte, end_byte
         ):
             entity: WikidataEntity
-            if interrupted:
-                break
-
             entity_count += 1
 
             # Progress reporting for large chunks
@@ -117,50 +113,41 @@ def _process_chunk_for_name_updates(
 
                 name_updates = {}
 
-    except KeyboardInterrupt:
-        interrupted = True
-        logger.info(f"Worker {worker_id}: name extraction interrupted")
     except Exception as e:
         logger.error(f"Worker {worker_id}: error during name extraction: {e}")
-    finally:
-        # Always process remaining entities in final batch
-        try:
-            if name_updates and not interrupted:
-                with Session(get_engine()) as session:
-                    # Bulk update using PostgreSQL upsert
-                    batch_updates = [
-                        {
-                            "wikidata_id": wikidata_id,
-                            "name": name,
-                        }
-                        for wikidata_id, name in name_updates.items()
-                    ]
+        raise
 
-                    stmt = insert(WikidataClass).values(batch_updates)
-                    stmt = stmt.on_conflict_do_update(
-                        index_elements=["wikidata_id"],
-                        set_={
-                            "name": stmt.excluded.name,
-                        },
-                    )
+    # Process remaining entities in final batch on successful completion
+    if name_updates:
+        with Session(get_engine()) as session:
+            # Bulk update using PostgreSQL upsert
+            batch_updates = [
+                {
+                    "wikidata_id": wikidata_id,
+                    "name": name,
+                }
+                for wikidata_id, name in name_updates.items()
+            ]
 
-                    session.execute(stmt)
-                    session.commit()
-                    total_updates_count += len(name_updates)
+            stmt = insert(WikidataClass).values(batch_updates)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["wikidata_id"],
+                set_={
+                    "name": stmt.excluded.name,
+                },
+            )
 
-                    logger.info(
-                        f"Worker {worker_id}: updated final batch of {len(name_updates)} WikidataClass names in database"
-                    )
+            session.execute(stmt)
+            session.commit()
+            total_updates_count += len(name_updates)
 
-        except Exception as cleanup_error:
-            logger.warning(f"Worker {worker_id}: error during cleanup: {cleanup_error}")
+            logger.info(
+                f"Worker {worker_id}: updated final batch of {len(name_updates)} WikidataClass names in database"
+            )
 
-    if interrupted:
-        logger.info(f"Worker {worker_id}: interrupted, returning partial results")
-    else:
-        logger.info(
-            f"Worker {worker_id}: extracted {total_updates_count} names from {entity_count} entities"
-        )
+    logger.info(
+        f"Worker {worker_id}: extracted {total_updates_count} names from {entity_count} entities"
+    )
 
     return total_updates_count, entity_count
 
@@ -174,7 +161,6 @@ def _process_chunk_for_relationships(
     This dramatically reduces memory usage by avoiding entity name collection.
     """
     dump_reader = DumpReader()
-    interrupted = False
 
     try:
         subclass_relations = defaultdict(set)
@@ -184,8 +170,6 @@ def _process_chunk_for_relationships(
             dump_file_path, start_byte, end_byte
         ):
             entity: WikidataEntity
-            if interrupted:
-                break
 
             entity_count += 1
 
@@ -205,17 +189,14 @@ def _process_chunk_for_relationships(
                     except (KeyError, TypeError):
                         continue
 
-        logger.info(
-            f"Worker {worker_id}: Relationship extraction complete, processed {entity_count} entities"
-        )
-        return dict(subclass_relations), entity_count
-
-    except KeyboardInterrupt:
-        logger.info(f"Worker {worker_id}: Relationship extraction interrupted")
-        return dict(subclass_relations), entity_count
     except Exception as e:
         logger.error(f"Worker {worker_id}: Relationship extraction error: {e}")
-        return {}, 0
+        raise
+
+    logger.info(
+        f"Worker {worker_id}: Relationship extraction complete, processed {entity_count} entities"
+    )
+    return dict(subclass_relations), entity_count
 
 
 class WikidataHierarchyBuilder:
