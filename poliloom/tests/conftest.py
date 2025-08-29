@@ -196,10 +196,7 @@ def enrichment_wikipedia_content():
 
 
 def assert_model_fields(model, expected_fields):
-    """Assert that model has expected basic fields."""
-    assert model.id is not None
-    assert model.created_at is not None
-    assert model.updated_at is not None
+    """Assert that model has expected fields."""
     for field, value in expected_fields.items():
         assert getattr(model, field) == value
 

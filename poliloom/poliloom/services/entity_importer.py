@@ -10,7 +10,14 @@ from sqlalchemy.dialects.postgresql import insert
 
 from .dump_reader import DumpReader
 from ..database import get_engine
-from ..models import SubclassRelation, Position, Location, Country
+from ..models import (
+    SubclassRelation,
+    Position,
+    Location,
+    Country,
+    PositionClass,
+    LocationClass,
+)
 from ..wikidata_entity import WikidataEntity
 
 logger = logging.getLogger(__name__)
@@ -38,33 +45,50 @@ def _insert_positions_batch(positions: list[dict]) -> None:
         return
 
     with Session(get_engine()) as session:
-        # Use PostgreSQL UPSERT for positions
+        # Insert positions first
         stmt = insert(Position).values(
             [
                 {
                     "wikidata_id": p["wikidata_id"],
                     "name": p["name"],
                     "embedding": None,  # Will be generated later
-                    "wikidata_class_id": p.get(
-                        "wikidata_class_id"
-                    ),  # May be None if not found
                 }
                 for p in positions
             ]
         )
 
-        # On conflict, update the name and wikidata_class_id (in case it changed in Wikidata)
+        # On conflict, update the name (in case it changed in Wikidata)
         stmt = stmt.on_conflict_do_update(
             index_elements=["wikidata_id"],
-            set_={
-                "name": stmt.excluded.name,
-                "wikidata_class_id": stmt.excluded.wikidata_class_id,
-            },
+            set_={"name": stmt.excluded.name},
         )
 
         session.execute(stmt)
+
+        # Insert position-class relationships
+        position_class_data = []
+        for p in positions:
+            for class_id in p.get("wikidata_class_ids", []):
+                position_class_data.append(
+                    {"position_id": p["wikidata_id"], "class_id": class_id}
+                )
+
+        if position_class_data:
+            # Clear existing relationships for these positions first
+            position_ids = [p["wikidata_id"] for p in positions]
+            session.query(PositionClass).filter(
+                PositionClass.position_id.in_(position_ids)
+            ).delete()
+
+            # Insert new relationships
+            stmt = insert(PositionClass).values(position_class_data)
+            stmt = stmt.on_conflict_do_nothing()  # In case of duplicates
+            session.execute(stmt)
+
         session.commit()
-        logger.debug(f"Processed {len(positions)} positions (upserted)")
+        logger.debug(
+            f"Processed {len(positions)} positions with {len(position_class_data)} class relationships"
+        )
 
 
 def _insert_locations_batch(locations: list[dict]) -> None:
@@ -73,33 +97,50 @@ def _insert_locations_batch(locations: list[dict]) -> None:
         return
 
     with Session(get_engine()) as session:
-        # Use PostgreSQL UPSERT for locations
+        # Insert locations first
         stmt = insert(Location).values(
             [
                 {
                     "wikidata_id": loc["wikidata_id"],
                     "name": loc["name"],
                     "embedding": None,  # Will be generated later
-                    "wikidata_class_id": loc.get(
-                        "wikidata_class_id"
-                    ),  # May be None if not found
                 }
                 for loc in locations
             ]
         )
 
-        # On conflict, update the name and wikidata_class_id (in case it changed in Wikidata)
+        # On conflict, update the name (in case it changed in Wikidata)
         stmt = stmt.on_conflict_do_update(
             index_elements=["wikidata_id"],
-            set_={
-                "name": stmt.excluded.name,
-                "wikidata_class_id": stmt.excluded.wikidata_class_id,
-            },
+            set_={"name": stmt.excluded.name},
         )
 
         session.execute(stmt)
+
+        # Insert location-class relationships
+        location_class_data = []
+        for loc in locations:
+            for class_id in loc.get("wikidata_class_ids", []):
+                location_class_data.append(
+                    {"location_id": loc["wikidata_id"], "class_id": class_id}
+                )
+
+        if location_class_data:
+            # Clear existing relationships for these locations first
+            location_ids = [loc["wikidata_id"] for loc in locations]
+            session.query(LocationClass).filter(
+                LocationClass.location_id.in_(location_ids)
+            ).delete()
+
+            # Insert new relationships
+            stmt = insert(LocationClass).values(location_class_data)
+            stmt = stmt.on_conflict_do_nothing()  # In case of duplicates
+            session.execute(stmt)
+
         session.commit()
-        logger.debug(f"Processed {len(locations)} locations (upserted)")
+        logger.debug(
+            f"Processed {len(locations)} locations with {len(location_class_data)} class relationships"
+        )
 
 
 def _insert_countries_batch(countries: list[dict]) -> None:
@@ -190,20 +231,26 @@ def _process_supporting_entities_chunk(
 
             # Check entity type and add type-specific fields
             if entity.is_position(shared_position_classes):
-                most_specific_class_id = entity.get_most_specific_class_wikidata_id(
-                    shared_position_classes
-                )
-                if most_specific_class_id:
-                    entity_data["wikidata_class_id"] = most_specific_class_id
+                # Get all valid class IDs for this position
+                instance_ids = entity.get_instance_of_ids()
+                valid_class_ids = [
+                    class_id
+                    for class_id in instance_ids
+                    if class_id in shared_position_classes
+                ]
+                entity_data["wikidata_class_ids"] = valid_class_ids
 
                 positions.append(entity_data)
                 counts["positions"] += 1
             elif entity.is_location(shared_location_classes):
-                most_specific_class_id = entity.get_most_specific_class_wikidata_id(
-                    shared_location_classes
-                )
-                if most_specific_class_id:
-                    entity_data["wikidata_class_id"] = most_specific_class_id
+                # Get all valid class IDs for this location
+                instance_ids = entity.get_instance_of_ids()
+                valid_class_ids = [
+                    class_id
+                    for class_id in instance_ids
+                    if class_id in shared_location_classes
+                ]
+                entity_data["wikidata_class_ids"] = valid_class_ids
 
                 locations.append(entity_data)
                 counts["locations"] += 1

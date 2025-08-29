@@ -149,8 +149,8 @@ class WikidataEntity:
 
         return subclass_ids
 
-    def is_politician(self) -> bool:
-        """Check if entity is a politician based on occupation or positions held."""
+    def is_politician(self, relevant_position_qids: frozenset[str]) -> bool:
+        """Check if entity is a politician based on occupation or positions held in our database."""
         # Must be human first
         instance_ids = self.get_instance_of_ids()
         if "Q5" not in instance_ids:
@@ -166,9 +166,16 @@ class WikidataEntity:
             except (KeyError, TypeError):
                 continue
 
-        # Check if they have any position held
+        # Check if they have any position held that exists in our database
         position_claims = self.get_truthy_claims("P39")
-        return len(position_claims) > 0
+        for claim in position_claims:
+            try:
+                position_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                if position_id in relevant_position_qids:
+                    return True
+            except (KeyError, TypeError):
+                continue
+        return False
 
     def is_position(self, position_classes: frozenset[str]) -> bool:
         """Check if entity is a position based on instance hierarchy."""
@@ -207,19 +214,6 @@ class WikidataEntity:
             except (KeyError, TypeError):
                 continue
         return None
-
-    def get_most_specific_class_wikidata_id(
-        self, valid_classes: frozenset[str] = None
-    ) -> Optional[str]:
-        """Find most specific wikidata class for positions/locations."""
-        instance_ids = self.get_instance_of_ids()
-        if valid_classes:
-            # Only return class IDs that exist in the valid_classes frozenset
-            for instance_id in instance_ids:
-                if instance_id in valid_classes:
-                    return instance_id
-            return None
-        return next(iter(instance_ids), None) if instance_ids else None
 
     @classmethod
     def from_raw(cls, raw_data: Dict[str, Any]) -> "WikidataEntity":

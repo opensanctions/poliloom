@@ -376,16 +376,24 @@ class Country(Base, TimestampMixin):
 
     __tablename__ = "countries"
 
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
+    wikidata_id = Column(String, primary_key=True)
     name = Column(String, nullable=False)  # Country name in English
     iso_code = Column(String, unique=True, index=True)  # ISO 3166-1 alpha-2 code
-    wikidata_id = Column(String, unique=True, index=True)
 
     # Relationships
     citizens = relationship(
         "HasCitizenship", back_populates="country", cascade="all, delete-orphan"
+    )
+
+
+class LocationClass(Base):
+    """Junction table for Location-WikidataClass many-to-many relationship."""
+
+    __tablename__ = "location_classes"
+
+    location_id = Column(String, ForeignKey("locations.wikidata_id"), primary_key=True)
+    class_id = Column(
+        String, ForeignKey("wikidata_classes.wikidata_id"), primary_key=True
     )
 
 
@@ -394,21 +402,28 @@ class Location(Base, TimestampMixin):
 
     __tablename__ = "locations"
 
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
+    wikidata_id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
-    wikidata_id = Column(String, unique=True, index=True)
     embedding = Column(Vector(384), nullable=True)
-    wikidata_class_id = Column(
-        String, ForeignKey("wikidata_classes.wikidata_id"), nullable=True, index=True
-    )
 
     # Relationships
     born_here = relationship(
         "BornAt", back_populates="location", cascade="all, delete-orphan"
     )
-    wikidata_class = relationship("WikidataClass", back_populates="locations")
+    wikidata_classes = relationship(
+        "WikidataClass", secondary="location_classes", back_populates="locations"
+    )
+
+
+class PositionClass(Base):
+    """Junction table for Position-WikidataClass many-to-many relationship."""
+
+    __tablename__ = "position_classes"
+
+    position_id = Column(String, ForeignKey("positions.wikidata_id"), primary_key=True)
+    class_id = Column(
+        String, ForeignKey("wikidata_classes.wikidata_id"), primary_key=True
+    )
 
 
 class Position(Base, TimestampMixin):
@@ -416,21 +431,17 @@ class Position(Base, TimestampMixin):
 
     __tablename__ = "positions"
 
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
+    wikidata_id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
-    wikidata_id = Column(String, unique=True, index=True)
     embedding = Column(Vector(384), nullable=True)
-    wikidata_class_id = Column(
-        String, ForeignKey("wikidata_classes.wikidata_id"), nullable=True, index=True
-    )
 
     # Relationships
     held_by = relationship(
         "HoldsPosition", back_populates="position", cascade="all, delete-orphan"
     )
-    wikidata_class = relationship("WikidataClass", back_populates="positions")
+    wikidata_classes = relationship(
+        "WikidataClass", secondary="position_classes", back_populates="positions"
+    )
 
 
 class HoldsPosition(Base, TimestampMixin):
@@ -444,7 +455,7 @@ class HoldsPosition(Base, TimestampMixin):
     politician_id = Column(
         UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
     )
-    position_id = Column(UUID(as_uuid=True), ForeignKey("positions.id"), nullable=False)
+    position_id = Column(String, ForeignKey("positions.wikidata_id"), nullable=False)
     start_date = Column(String)  # Allowing incomplete dates as strings
     start_date_precision = Column(
         Integer
@@ -492,7 +503,7 @@ class BornAt(Base, TimestampMixin):
     politician_id = Column(
         UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
     )
-    location_id = Column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=False)
+    location_id = Column(String, ForeignKey("locations.wikidata_id"), nullable=False)
     archived_page_id = Column(
         UUID(as_uuid=True), ForeignKey("archived_pages.id"), nullable=True
     )  # NULL for Wikidata imports, set for extracted data
@@ -530,7 +541,7 @@ class HasCitizenship(Base, TimestampMixin):
     politician_id = Column(
         UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
     )
-    country_id = Column(UUID(as_uuid=True), ForeignKey("countries.id"), nullable=False)
+    country_id = Column(String, ForeignKey("countries.wikidata_id"), nullable=False)
 
     # Relationships
     politician = relationship("Politician", back_populates="citizenships")
@@ -560,8 +571,12 @@ class WikidataClass(Base, TimestampMixin):
         back_populates="parent_class",
         cascade="all, delete-orphan",
     )
-    locations = relationship("Location", back_populates="wikidata_class")
-    positions = relationship("Position", back_populates="wikidata_class")
+    locations = relationship(
+        "Location", secondary="location_classes", back_populates="wikidata_classes"
+    )
+    positions = relationship(
+        "Position", secondary="position_classes", back_populates="wikidata_classes"
+    )
 
 
 class SubclassRelation(Base, TimestampMixin):

@@ -28,6 +28,23 @@ logger = logging.getLogger(__name__)
 # Progress reporting frequency for chunk processing
 PROGRESS_REPORT_FREQUENCY = 50000
 
+# Define globals for workers
+shared_position_qids: frozenset[str] | None = None
+shared_location_qids: frozenset[str] | None = None
+shared_country_qids: frozenset[str] | None = None
+
+
+def init_politician_worker(
+    position_qids: frozenset[str],
+    location_qids: frozenset[str],
+    country_qids: frozenset[str],
+) -> None:
+    """Initializer runs in each worker process once at startup."""
+    global shared_position_qids, shared_location_qids, shared_country_qids
+    shared_position_qids = position_qids
+    shared_location_qids = location_qids
+    shared_country_qids = country_qids
+
 
 def _insert_politicians_batch(politicians: list[dict]) -> None:
     """Insert a batch of politicians into the database."""
@@ -74,121 +91,91 @@ def _insert_politicians_batch(politicians: list[dict]) -> None:
             # Handle relationships: need to check if they already exist to avoid duplicates
             # For re-imports, we want to add new relationships but not duplicate existing ones
 
-            # Add properties using UPSERT - update only if NOT extracted (preserve user evaluations)
-            for prop in politician_data.get("properties", []):
-                prop_stmt = insert(Property).values(
-                    politician_id=politician_obj.id,
-                    type=prop["type"],
-                    value=prop["value"],
-                    value_precision=prop.get("value_precision"),
-                    archived_page_id=None,
-                )
+            # Add properties using batch UPSERT - update only if NOT extracted (preserve user evaluations)
+            property_batch = [
+                {
+                    "politician_id": politician_obj.id,
+                    "type": prop["type"],
+                    "value": prop["value"],
+                    "value_precision": prop.get("value_precision"),
+                    "archived_page_id": None,
+                }
+                for prop in politician_data.get("properties", [])
+            ]
 
-                # Update only if archived_page_id is None (preserve extracted data)
-                prop_stmt = prop_stmt.on_conflict_do_update(
+            if property_batch:
+                stmt = insert(Property).values(property_batch)
+                stmt = stmt.on_conflict_do_update(
                     index_elements=["politician_id", "type"],
                     set_={
-                        "value": prop_stmt.excluded.value,
-                        "value_precision": prop_stmt.excluded.value_precision,
-                        "updated_at": prop_stmt.excluded.updated_at,
+                        "value": stmt.excluded.value,
+                        "value_precision": stmt.excluded.value_precision,
+                        "updated_at": stmt.excluded.updated_at,
                     },
                     where=Property.archived_page_id.is_(None),
                 )
+                session.execute(stmt)
 
-                session.execute(prop_stmt)
+            # Add positions using batch UPSERT - we already filtered during extraction so we know they exist
+            position_batch = [
+                {
+                    "politician_id": politician_obj.id,
+                    "position_id": pos["wikidata_id"],
+                    "start_date": pos.get("start_date"),
+                    "start_date_precision": pos.get("start_date_precision"),
+                    "end_date": pos.get("end_date"),
+                    "end_date_precision": pos.get("end_date_precision"),
+                    "archived_page_id": None,
+                }
+                for pos in politician_data.get("positions", [])
+            ]
 
-            # Add positions - only link to existing positions
-            for pos in politician_data.get("positions", []):
-                position_obj = (
-                    session.query(Position)
-                    .filter_by(wikidata_id=pos["wikidata_id"])
-                    .first()
+            if position_batch:
+                stmt = insert(HoldsPosition).values(position_batch)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["politician_id", "position_id"],
+                    set_={
+                        "start_date": stmt.excluded.start_date,
+                        "start_date_precision": stmt.excluded.start_date_precision,
+                        "end_date": stmt.excluded.end_date,
+                        "end_date_precision": stmt.excluded.end_date_precision,
+                    },
+                    where=HoldsPosition.archived_page_id.is_(None),
                 )
+                session.execute(stmt)
 
-                if position_obj:
-                    # Check if this exact relationship already exists
-                    existing_position = (
-                        session.query(HoldsPosition)
-                        .filter_by(
-                            politician_id=politician_obj.id,
-                            position_id=position_obj.id,
-                            start_date=pos.get("start_date"),
-                            end_date=pos.get("end_date"),
-                        )
-                        .first()
-                    )
+            # Add citizenships using batch UPSERT - we already filtered during extraction so we know they exist
+            citizenship_batch = [
+                {
+                    "politician_id": politician_obj.id,
+                    "country_id": citizenship_id,
+                }
+                for citizenship_id in politician_data.get("citizenships", [])
+            ]
 
-                    if existing_position:
-                        # Update precision if this is NOT extracted data (preserve user evaluations)
-                        if existing_position.archived_page_id is None:
-                            existing_position.start_date_precision = pos.get(
-                                "start_date_precision"
-                            )
-                            existing_position.end_date_precision = pos.get(
-                                "end_date_precision"
-                            )
-                    else:
-                        # Insert new position relationship
-                        holds_position = HoldsPosition(
-                            politician_id=politician_obj.id,
-                            position_id=position_obj.id,
-                            start_date=pos.get("start_date"),
-                            start_date_precision=pos.get("start_date_precision"),
-                            end_date=pos.get("end_date"),
-                            end_date_precision=pos.get("end_date_precision"),
-                            archived_page_id=None,
-                        )
-                        session.add(holds_position)
-
-            # Add citizenships - only link to existing countries
-            for citizenship_id in politician_data.get("citizenships", []):
-                country_obj = (
-                    session.query(Country).filter_by(wikidata_id=citizenship_id).first()
+            if citizenship_batch:
+                stmt = insert(HasCitizenship).values(citizenship_batch)
+                stmt = stmt.on_conflict_do_nothing(
+                    index_elements=["politician_id", "country_id"]
                 )
+                session.execute(stmt)
 
-                if country_obj:
-                    # Check if this citizenship already exists
-                    existing_citizenship = (
-                        session.query(HasCitizenship)
-                        .filter_by(
-                            politician_id=politician_obj.id,
-                            country_id=country_obj.id,
-                        )
-                        .first()
-                    )
-
-                    if not existing_citizenship:
-                        has_citizenship = HasCitizenship(
-                            politician_id=politician_obj.id,
-                            country_id=country_obj.id,
-                        )
-                        session.add(has_citizenship)
-
-            # Add birthplace - only link to existing locations
+            # Add birthplace using UPSERT - we already filtered during extraction so we know it exists
             birthplace_id = politician_data.get("birthplace")
             if birthplace_id:
-                location_obj = (
-                    session.query(Location).filter_by(wikidata_id=birthplace_id).first()
+                birthplace_batch = [
+                    {
+                        "politician_id": politician_obj.id,
+                        "location_id": birthplace_id,
+                        "archived_page_id": None,
+                    }
+                ]
+
+                stmt = insert(BornAt).values(birthplace_batch)
+                stmt = stmt.on_conflict_do_nothing(
+                    index_elements=["politician_id", "location_id"]
                 )
-
-                if location_obj:
-                    # Check if this birthplace already exists
-                    existing_birthplace = (
-                        session.query(BornAt)
-                        .filter_by(
-                            politician_id=politician_obj.id,
-                            location_id=location_obj.id,
-                        )
-                        .first()
-                    )
-
-                    if not existing_birthplace:
-                        born_at = BornAt(
-                            politician_id=politician_obj.id,
-                            location_id=location_obj.id,
-                            archived_page_id=None,
-                        )
-                        session.add(born_at)
+                session.execute(stmt)
 
             # Add Wikipedia links
             for wiki_link in politician_data.get("wikipedia_links", []):
@@ -253,7 +240,7 @@ def _process_politicians_chunk(
                 continue
 
             # Check if it's a politician
-            if entity.is_politician():
+            if entity.is_politician(shared_position_qids):
                 # Skip deceased politicians who died before 1950
                 if entity.is_deceased:
                     death_claims = entity.get_truthy_claims("P570")
@@ -321,11 +308,18 @@ def _process_politicians_chunk(
                             }
                         )
 
-                # Extract positions held
+                # Extract positions held - only include positions that exist in our database
                 position_claims = entity.get_truthy_claims("P39")
                 for claim in position_claims:
                     if "mainsnak" in claim and "datavalue" in claim["mainsnak"]:
                         position_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+
+                        # Only include positions that are in our database
+                        if (
+                            not shared_position_qids
+                            or position_id not in shared_position_qids
+                        ):
+                            continue
 
                         # Extract start and end dates from qualifiers
                         start_date = None
@@ -366,20 +360,30 @@ def _process_politicians_chunk(
                             }
                         )
 
-                # Extract citizenships
+                # Extract citizenships - only include countries that exist in our database
                 citizenship_claims = entity.get_truthy_claims("P27")
                 for claim in citizenship_claims:
                     if "mainsnak" in claim and "datavalue" in claim["mainsnak"]:
                         citizenship_id = claim["mainsnak"]["datavalue"]["value"]["id"]
-                        politician_data["citizenships"].append(citizenship_id)
+                        # Only include countries that are in our database
+                        if (
+                            shared_country_qids
+                            and citizenship_id in shared_country_qids
+                        ):
+                            politician_data["citizenships"].append(citizenship_id)
 
-                # Extract birthplace
+                # Extract birthplace - only include locations that exist in our database
                 birthplace_claims = entity.get_truthy_claims("P19")
                 if birthplace_claims:
                     claim = birthplace_claims[0]  # Take first birthplace
                     if "mainsnak" in claim and "datavalue" in claim["mainsnak"]:
                         birthplace_id = claim["mainsnak"]["datavalue"]["value"]["id"]
-                        politician_data["birthplace"] = birthplace_id
+                        # Only include locations that are in our database
+                        if (
+                            shared_location_qids
+                            and birthplace_id in shared_location_qids
+                        ):
+                            politician_data["birthplace"] = birthplace_id
 
                 # Extract Wikipedia links from sitelinks
                 if hasattr(entity, "entity_data") and "sitelinks" in entity.entity_data:
@@ -437,6 +441,38 @@ class WikidataPoliticianImporter:
         Returns:
             Total count of extracted politicians
         """
+        # Load existing entity QIDs from database for filtering
+        with Session(get_engine()) as session:
+            position_qids = set(
+                session.query(Position.wikidata_id)
+                .filter(Position.wikidata_id.isnot(None))
+                .all()
+            )
+            location_qids = set(
+                session.query(Location.wikidata_id)
+                .filter(Location.wikidata_id.isnot(None))
+                .all()
+            )
+            country_qids = set(
+                session.query(Country.wikidata_id)
+                .filter(Country.wikidata_id.isnot(None))
+                .all()
+            )
+
+            # Convert to sets of strings (flatten tuples)
+            position_qids = {qid[0] for qid in position_qids}
+            location_qids = {qid[0] for qid in location_qids}
+            country_qids = {qid[0] for qid in country_qids}
+
+            logger.info(f"Filtering for {len(position_qids)} positions")
+            logger.info(f"Filtering for {len(location_qids)} locations")
+            logger.info(f"Filtering for {len(country_qids)} countries")
+
+        # Build frozensets once in parent, BEFORE starting Pool
+        position_qids = frozenset(position_qids)
+        location_qids = frozenset(location_qids)
+        country_qids = frozenset(country_qids)
+
         num_workers = mp.cpu_count()
         logger.info(f"Using parallel processing with {num_workers} workers")
 
@@ -448,7 +484,11 @@ class WikidataPoliticianImporter:
         # Process chunks in parallel with proper KeyboardInterrupt handling
         pool = None
         try:
-            pool = mp.Pool(processes=num_workers)
+            pool = mp.Pool(
+                processes=num_workers,
+                initializer=init_politician_worker,
+                initargs=(position_qids, location_qids, country_qids),
+            )
 
             # Each worker processes its chunk independently
             async_result = pool.starmap_async(

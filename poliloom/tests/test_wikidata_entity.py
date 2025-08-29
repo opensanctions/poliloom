@@ -210,27 +210,6 @@ class TestWikidataEntity:
         entity = WikidataEntity(entity_data)
         assert entity.extract_iso_code() is None
 
-    def test_get_most_specific_class_wikidata_id(self):
-        """Test getting most specific class ID."""
-        entity_data = {
-            "id": "Q133",
-            "claims": {
-                "P31": [
-                    {
-                        "rank": "normal",
-                        "mainsnak": {"datavalue": {"value": {"id": "Q515"}}},  # city
-                    }
-                ]
-            },
-        }
-        entity = WikidataEntity(entity_data)
-        assert entity.get_most_specific_class_wikidata_id() == "Q515"
-
-        # No instance claims
-        entity_data = {"id": "Q134", "claims": {}}
-        entity = WikidataEntity(entity_data)
-        assert entity.get_most_specific_class_wikidata_id() is None
-
     def test_truthy_claims_filtering(self):
         """Test truthy claims filtering with rank precedence."""
         entity_data = {
