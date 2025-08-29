@@ -252,16 +252,34 @@ class GCSStorage(StorageBackend):
     def extract_bz2_to(
         self, source_path: str, dest_backend: "StorageBackend", dest_path: str
     ) -> None:
-        """Extract a GCS bz2 file to another backend using indexed_bzip2 for parallel processing."""
-        logger.info(
-            f"Parallel streaming extraction from {source_path} to {dest_path}..."
-        )
+        """Extract a GCS bz2 file to another backend using indexed_bzip2 for parallel processing.
 
-        with self.open(source_path, "rb") as source_file:
-            with dest_backend.open(dest_path, "wb") as dest_file:
-                # Use indexed_bzip2 for parallel decompression
-                with ibz2.open(source_file, parallelization=os.cpu_count()) as bz2_file:
-                    # Stream in larger chunks for better GCS performance
+        Streams compressed file to local disk first to enable seekable access for parallel decompression.
+        """
+        import tempfile
+        import shutil
+
+        logger.info(f"Parallel extraction from {source_path} to {dest_path}...")
+
+        # Stream GCS file to local temporary file for seekable access
+        with tempfile.NamedTemporaryFile(delete=True) as temp_file:
+            logger.info(
+                f"Streaming {source_path} to local temp file for parallel processing..."
+            )
+
+            # Download compressed file to local disk
+            with self.open(source_path, "rb") as source_file:
+                shutil.copyfileobj(
+                    source_file, temp_file, length=64 * 1024 * 1024
+                )  # 64MB chunks
+
+            temp_file.flush()
+            logger.info("Local temp file ready, starting parallel decompression...")
+
+            # Now use indexed_bzip2 on seekable local file for parallel processing
+            with ibz2.open(temp_file.name, parallelization=os.cpu_count()) as bz2_file:
+                with dest_backend.open(dest_path, "wb") as dest_file:
+                    # Stream decompressed data in large chunks
                     chunk_size = 256 * 1024 * 1024  # 256MB chunks
                     while True:
                         chunk = bz2_file.read(chunk_size)
