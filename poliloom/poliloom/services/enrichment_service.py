@@ -162,10 +162,11 @@ class EnrichmentService:
                 success = self._store_extracted_data(db, politician, extracted_data)
 
                 if success:
+                    db.commit()
                     logger.info(f"Successfully enriched politician {politician.name}")
                     return True
                 else:
-                    # Context manager will handle rollback
+                    db.rollback()
                     return False
 
         except Exception as e:
