@@ -110,6 +110,10 @@ class LocalStorage(StorageBackend):
         """Extract a local bz2 file to another backend using indexed_bzip2 for parallel processing."""
         logger.info(f"Parallel extraction from {source_path} to {dest_path}...")
 
+        # Ensure destination directory exists for local paths
+        if not dest_path.startswith("gs://"):
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
         with ibz2.open(source_path, parallelization=os.cpu_count()) as source_file:
             with dest_backend.open(dest_path, "wb") as dest_file:
                 # Stream in larger chunks for better performance
@@ -260,6 +264,10 @@ class GCSStorage(StorageBackend):
         import shutil
 
         logger.info(f"Parallel extraction from {source_path} to {dest_path}...")
+
+        # Ensure destination directory exists for local paths
+        if not dest_path.startswith("gs://"):
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
         # Stream GCS file to local temporary file for seekable access
         with tempfile.NamedTemporaryFile(delete=True) as temp_file:
