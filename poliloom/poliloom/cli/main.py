@@ -1,7 +1,6 @@
 """Main CLI interface for PoliLoom."""
 
 import asyncio
-import subprocess
 import click
 import logging
 import uvicorn
@@ -105,13 +104,6 @@ def dump_extract(input, output):
     if not backend.exists(input):
         click.echo(f"❌ Source file not found: {input}")
         click.echo("Run 'poliloom dump download' first")
-        raise SystemExit(1)
-
-    # Check for lbzip2 (required for parallel decompression)
-    if subprocess.run(["which", "lbzip2"], capture_output=True).returncode != 0:
-        click.echo("❌ lbzip2 not found. Please install lbzip2:")
-        click.echo("  On Ubuntu/Debian: sudo apt-get install lbzip2")
-        click.echo("  On macOS: brew install lbzip2")
         raise SystemExit(1)
 
     try:

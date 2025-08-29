@@ -30,10 +30,6 @@ cd .. && docker-compose up -d postgres
 
 # Set up database
 uv run alembic upgrade head
-
-# Install system dependencies for dump processing
-# Ubuntu/Debian: sudo apt-get install lbzip2
-# macOS: brew install lbzip2
 ```
 
 ## Quick Start

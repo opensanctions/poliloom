@@ -24,10 +24,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM python:3.12-slim AS runtime
 
-# Install required system packages
-RUN apt-get update && apt-get install -y \
-    lbzip2 \
-    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app

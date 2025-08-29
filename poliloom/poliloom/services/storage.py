@@ -3,12 +3,12 @@
 import logging
 import os
 import shutil
-import subprocess
 from abc import ABC, abstractmethod
 from typing import BinaryIO, Iterator, Tuple
 from urllib.parse import urlparse
 
 import httpx
+import indexed_bzip2 as ibz2
 
 logger = logging.getLogger(__name__)
 
@@ -107,29 +107,18 @@ class LocalStorage(StorageBackend):
     def extract_bz2_to(
         self, source_path: str, dest_backend: "StorageBackend", dest_path: str
     ) -> None:
-        """Extract a local bz2 file to another backend using lbzip2."""
+        """Extract a local bz2 file to another backend using indexed_bzip2 for parallel processing."""
+        logger.info(f"Parallel extraction from {source_path} to {dest_path}...")
 
-        logger.info(f"Extracting {source_path} to {dest_path}...")
-
-        # If both are local, use direct file extraction
-        if isinstance(dest_backend, LocalStorage):
-            cmd = ["lbzip2", "-d", "-c", source_path]
-            with open(dest_path, "wb") as out_file:
-                subprocess.run(cmd, stdout=out_file, check=True)
-        else:
-            # Stream to remote backend
-            cmd = ["lbzip2", "-d", "-c", source_path]
+        with ibz2.open(source_path, parallelization=os.cpu_count()) as source_file:
             with dest_backend.open(dest_path, "wb") as dest_file:
-                process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-
-                chunk_size = 64 * 1024 * 1024  # 64MB chunks
+                # Stream in larger chunks for better performance
+                chunk_size = 256 * 1024 * 1024  # 256MB chunks
                 while True:
-                    chunk = process.stdout.read(chunk_size)
+                    chunk = source_file.read(chunk_size)
                     if not chunk:
                         break
                     dest_file.write(chunk)
-
-                process.wait()
 
         logger.info(f"✅ Successfully extracted {source_path} to {dest_path}")
 
@@ -263,70 +252,22 @@ class GCSStorage(StorageBackend):
     def extract_bz2_to(
         self, source_path: str, dest_backend: "StorageBackend", dest_path: str
     ) -> None:
-        """Extract a GCS bz2 file to another backend using lbzip2 with streaming."""
-        import threading
-
-        logger.info(f"Streaming extraction from {source_path} to {dest_path}...")
-
-        cmd = ["lbzip2", "-d", "-c"]
-        exception_holder = [None]
-
-        def stream_to_lbzip2(source_file, process_stdin):
-            """Stream from GCS to lbzip2 stdin."""
-            try:
-                chunk_size = 64 * 1024 * 1024
-                while True:
-                    chunk = source_file.read(chunk_size)
-                    if not chunk:
-                        break
-                    process_stdin.write(chunk)
-            except Exception as e:
-                exception_holder[0] = e
-            finally:
-                process_stdin.close()
-
-        def stream_from_lbzip2(process_stdout, dest_file):
-            """Stream from lbzip2 stdout to destination."""
-            try:
-                chunk_size = 64 * 1024 * 1024
-                while True:
-                    chunk = process_stdout.read(chunk_size)
-                    if not chunk:
-                        break
-                    dest_file.write(chunk)
-            except Exception as e:
-                exception_holder[0] = e
+        """Extract a GCS bz2 file to another backend using indexed_bzip2 for parallel processing."""
+        logger.info(
+            f"Parallel streaming extraction from {source_path} to {dest_path}..."
+        )
 
         with self.open(source_path, "rb") as source_file:
             with dest_backend.open(dest_path, "wb") as dest_file:
-                process = subprocess.Popen(
-                    cmd,
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                )
-
-                input_thread = threading.Thread(
-                    target=stream_to_lbzip2, args=(source_file, process.stdin)
-                )
-                output_thread = threading.Thread(
-                    target=stream_from_lbzip2, args=(process.stdout, dest_file)
-                )
-
-                input_thread.start()
-                output_thread.start()
-
-                input_thread.join()
-                output_thread.join()
-
-                return_code = process.wait()
-
-                if exception_holder[0]:
-                    raise exception_holder[0]
-
-                if return_code != 0:
-                    stderr = process.stderr.read().decode()
-                    raise RuntimeError(f"lbzip2 failed: {stderr}")
+                # Use indexed_bzip2 for parallel decompression
+                with ibz2.open(source_file, parallelization=os.cpu_count()) as bz2_file:
+                    # Stream in larger chunks for better GCS performance
+                    chunk_size = 256 * 1024 * 1024  # 256MB chunks
+                    while True:
+                        chunk = bz2_file.read(chunk_size)
+                        if not chunk:
+                            break
+                        dest_file.write(chunk)
 
         logger.info(f"✅ Successfully extracted {source_path} to {dest_path}")
 
