@@ -230,9 +230,12 @@ def _process_supporting_entities_chunk(
             }
 
             # Check entity type and add type-specific fields
-            if entity.is_position(shared_position_classes):
+            # Check if entity is a position based on instance hierarchy
+            instance_ids = entity.get_instance_of_ids()
+            if any(
+                instance_id in shared_position_classes for instance_id in instance_ids
+            ):
                 # Get all valid class IDs for this position
-                instance_ids = entity.get_instance_of_ids()
                 valid_class_ids = [
                     class_id
                     for class_id in instance_ids
@@ -242,9 +245,10 @@ def _process_supporting_entities_chunk(
 
                 positions.append(entity_data)
                 counts["positions"] += 1
-            elif entity.is_location(shared_location_classes):
+            elif any(
+                instance_id in shared_location_classes for instance_id in instance_ids
+            ):
                 # Get all valid class IDs for this location
-                instance_ids = entity.get_instance_of_ids()
                 valid_class_ids = [
                     class_id
                     for class_id in instance_ids
@@ -254,8 +258,21 @@ def _process_supporting_entities_chunk(
 
                 locations.append(entity_data)
                 counts["locations"] += 1
-            elif entity.is_country():
-                entity_data["iso_code"] = entity.extract_iso_code()
+            elif bool(
+                instance_ids.intersection(
+                    {"Q6256", "Q3624078", "Q20181813", "Q1520223", "Q1489259"}
+                )
+            ):
+                # Extract ISO 3166-1 alpha-2 code for countries
+                iso_code = None
+                iso_claims = entity.get_truthy_claims("P297")
+                for claim in iso_claims:
+                    try:
+                        iso_code = claim["mainsnak"]["datavalue"]["value"]
+                        break
+                    except (KeyError, TypeError):
+                        continue
+                entity_data["iso_code"] = iso_code
                 countries.append(entity_data)
                 counts["countries"] += 1
 

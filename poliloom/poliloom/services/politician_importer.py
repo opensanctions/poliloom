@@ -242,8 +242,9 @@ def _process_politicians_chunk(
             # Check if it's a politician
             if entity.is_politician(shared_position_qids):
                 # Skip deceased politicians who died before 1950
-                if entity.is_deceased:
-                    death_claims = entity.get_truthy_claims("P570")
+                # Check if politician is deceased (has death date P570)
+                death_claims = entity.get_truthy_claims("P570")
+                if len(death_claims) > 0:
                     death_info = entity.extract_date_from_claims(death_claims)
                     if death_info:
                         try:

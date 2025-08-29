@@ -177,44 +177,6 @@ class WikidataEntity:
                 continue
         return False
 
-    def is_position(self, position_classes: frozenset[str]) -> bool:
-        """Check if entity is a position based on instance hierarchy."""
-        instance_ids = self.get_instance_of_ids()
-        return any(instance_id in position_classes for instance_id in instance_ids)
-
-    def is_location(self, location_classes: frozenset[str]) -> bool:
-        """Check if entity is a location based on instance hierarchy."""
-        instance_ids = self.get_instance_of_ids()
-        return any(instance_id in location_classes for instance_id in instance_ids)
-
-    def is_country(self) -> bool:
-        """Check if entity is a country based on instance types."""
-        country_types = {
-            "Q6256",  # country
-            "Q3624078",  # sovereign state
-            "Q20181813",  # historic country
-            "Q1520223",  # independent city
-            "Q1489259",  # city-state
-        }
-        instance_ids = self.get_instance_of_ids()
-        return bool(instance_ids.intersection(country_types))
-
-    @property
-    def is_deceased(self) -> bool:
-        """Check if politician is deceased (only applicable to politicians)."""
-        death_claims = self.get_truthy_claims("P570")
-        return len(death_claims) > 0
-
-    def extract_iso_code(self) -> Optional[str]:
-        """Extract ISO 3166-1 alpha-2 code for countries."""
-        iso_claims = self.get_truthy_claims("P297")
-        for claim in iso_claims:
-            try:
-                return claim["mainsnak"]["datavalue"]["value"]
-            except (KeyError, TypeError):
-                continue
-        return None
-
     @classmethod
     def from_raw(cls, raw_data: Dict[str, Any]) -> "WikidataEntity":
         """Create entity instance from raw Wikidata JSON data.
