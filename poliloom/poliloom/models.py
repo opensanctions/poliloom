@@ -584,6 +584,33 @@ class HasCitizenship(Base, TimestampMixin):
     country = relationship("Country", back_populates="citizens")
 
 
+class WikidataDump(Base, TimestampMixin):
+    """WikidataDump entity for tracking dump download and processing stages."""
+
+    __tablename__ = "wikidata_dumps"
+
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    url = Column(String, nullable=False)  # Full URL to the dump file
+    last_modified = Column(
+        DateTime, nullable=False
+    )  # From HEAD request Last-Modified header
+
+    # Processing timestamps
+    downloaded_at = Column(DateTime, nullable=True)  # When download completed
+    extracted_at = Column(DateTime, nullable=True)  # When extraction completed
+    imported_hierarchy_at = Column(
+        DateTime, nullable=True
+    )  # When hierarchy import completed
+    imported_entities_at = Column(
+        DateTime, nullable=True
+    )  # When entities import completed
+    imported_politicians_at = Column(
+        DateTime, nullable=True
+    )  # When politicians import completed
+
+
 class WikidataClass(Base, TimestampMixin):
     """Wikidata class entity for hierarchy storage."""
 

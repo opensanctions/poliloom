@@ -5,6 +5,8 @@ import click
 import logging
 import uvicorn
 from sqlalchemy.orm import joinedload
+from datetime import datetime, timezone
+import httpx
 
 from ..services.import_service import ImportService
 from ..services.enrichment_service import EnrichmentService
@@ -21,8 +23,8 @@ from ..models import (
     BornAt,
     Position,
     Location,
-    SubclassRelation,
     Property,
+    WikidataDump,
 )
 from ..embeddings import generate_embeddings_for_entities
 
@@ -30,6 +32,19 @@ from ..embeddings import generate_embeddings_for_entities
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
+
+
+def get_latest_dump(session):
+    """Get the latest dump from the database."""
+    latest_dump = (
+        session.query(WikidataDump).order_by(WikidataDump.last_modified.desc()).first()
+    )
+
+    if not latest_dump:
+        click.echo("❌ No dump found. Run 'poliloom dump download' first")
+        raise SystemExit(1)
+
+    return latest_dump
 
 
 @click.group()
@@ -74,12 +89,69 @@ def dump_download(output):
     """Download latest Wikidata dump from Wikidata to specified location."""
     url = "https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.bz2"
 
-    click.echo(f"Downloading Wikidata dump from {url} to {output}...")
-    click.echo("This is a large file (~100GB compressed) and may take several hours.")
+    click.echo(f"Checking for new Wikidata dump at {url}...")
 
     try:
+        # Send HEAD request to get metadata
+        with httpx.Client(timeout=30.0) as client:
+            response = client.head(url, follow_redirects=True)
+            response.raise_for_status()
+
+            # Parse Last-Modified header
+            last_modified_str = response.headers.get("last-modified")
+            if not last_modified_str:
+                click.echo(
+                    "❌ No Last-Modified header in response. Cannot track dump version."
+                )
+                raise SystemExit(1)
+
+            # Parse HTTP date format using httpx's built-in parser
+            last_modified = httpx._utils.parse_header_date(last_modified_str)
+
+        # Check if we already have this dump
+        with Session(get_engine()) as session:
+            existing_dump = (
+                session.query(WikidataDump)
+                .filter(WikidataDump.url == url)
+                .filter(WikidataDump.last_modified == last_modified)
+                .filter(WikidataDump.downloaded_at.isnot(None))
+                .first()
+            )
+
+            if existing_dump:
+                click.echo(
+                    f"✅ Dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already downloaded"
+                )
+                click.echo("No new dump available. Exiting.")
+                return
+
+            # Create new dump record
+            click.echo(
+                f"📝 New dump found from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC"
+            )
+            new_dump = WikidataDump(url=url, last_modified=last_modified)
+            session.add(new_dump)
+            session.commit()
+            dump_id = new_dump.id
+
+        # Download the file
+        click.echo(f"Downloading Wikidata dump to {output}...")
+        click.echo(
+            "This is a large file (~100GB compressed) and may take several hours."
+        )
+
         StorageFactory.download_from_url(url, output)
+
+        # Mark as downloaded
+        with Session(get_engine()) as session:
+            dump_record = (
+                session.query(WikidataDump).filter(WikidataDump.id == dump_id).first()
+            )
+            dump_record.downloaded_at = datetime.now(timezone.utc)
+            session.commit()
+
         click.echo(f"✅ Successfully downloaded dump to {output}")
+
     except Exception as e:
         click.echo(f"❌ Download failed: {e}")
         raise SystemExit(1)
@@ -98,6 +170,25 @@ def dump_download(output):
 )
 def dump_extract(input, output):
     """Extract compressed Wikidata dump to JSON format."""
+
+    # Get the latest dump and check its status
+    with Session(get_engine()) as session:
+        latest_dump = get_latest_dump(session)
+
+        if not latest_dump.downloaded_at:
+            click.echo(
+                f"❌ Dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC not fully downloaded yet"
+            )
+            raise SystemExit(1)
+
+        if latest_dump.extracted_at:
+            click.echo(
+                f"❌ Dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already extracted"
+            )
+            raise SystemExit(1)
+
+        dump_id = latest_dump.id
+
     click.echo(f"Extracting {input} to {output}...")
 
     # Check if source exists
@@ -117,6 +208,15 @@ def dump_extract(input, output):
 
         # Extract using source backend
         source_backend.extract_bz2_to(input, dest_backend, output)
+
+        # Mark as extracted
+        with Session(get_engine()) as session:
+            dump_record = (
+                session.query(WikidataDump).filter(WikidataDump.id == dump_id).first()
+            )
+            dump_record.extracted_at = datetime.now(timezone.utc)
+            session.commit()
+
         click.echo(f"✅ Successfully extracted dump to {output}")
     except Exception as e:
         click.echo(f"❌ Extraction failed: {e}")
@@ -486,6 +586,23 @@ def locations_embed(batch_size):
 )
 def dump_import_hierarchy(file):
     """Import hierarchy trees for positions and locations from Wikidata dump."""
+
+    # Get the latest dump and check its status
+    with Session(get_engine()) as session:
+        latest_dump = get_latest_dump(session)
+
+        if not latest_dump.extracted_at:
+            click.echo("❌ Dump not extracted yet. Run 'poliloom dump extract' first")
+            raise SystemExit(1)
+
+        if latest_dump.imported_hierarchy_at:
+            click.echo(
+                f"⚠️  Warning: Hierarchy for dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already imported"
+            )
+            click.echo("Continuing anyway...")
+
+        dump_id = latest_dump.id
+
     click.echo(f"Importing hierarchy trees from dump file: {file}")
 
     # Check if dump file exists using storage backend
@@ -506,6 +623,15 @@ def dump_import_hierarchy(file):
 
         # Import the trees (always parallel)
         hierarchy_importer.import_hierarchy_trees(file)
+
+        # Mark as imported
+        with Session(get_engine()) as session:
+            dump_record = (
+                session.query(WikidataDump).filter(WikidataDump.id == dump_id).first()
+            )
+            dump_record.imported_hierarchy_at = datetime.now(timezone.utc)
+            session.commit()
+
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
         click.echo("❌ Hierarchy tree import was cancelled.")
@@ -529,6 +655,25 @@ def dump_import_hierarchy(file):
 )
 def dump_import_entities(file, batch_size):
     """Import supporting entities (positions, locations, countries) from a Wikidata dump file."""
+
+    # Get the latest dump and check its status
+    with Session(get_engine()) as session:
+        latest_dump = get_latest_dump(session)
+
+        if not latest_dump.imported_hierarchy_at:
+            click.echo(
+                "❌ Hierarchy not imported yet. Run 'poliloom dump import-hierarchy' first"
+            )
+            raise SystemExit(1)
+
+        if latest_dump.imported_entities_at:
+            click.echo(
+                f"⚠️  Warning: Entities for dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already imported"
+            )
+            click.echo("Continuing anyway...")
+
+        dump_id = latest_dump.id
+
     click.echo(f"Importing supporting entities from dump file: {file}")
     click.echo(f"Using batch size: {batch_size}")
 
@@ -541,20 +686,6 @@ def dump_import_entities(file, batch_size):
         )
         raise SystemExit(1)
 
-    # Check if hierarchy data exists in database
-    try:
-        with Session(get_engine()) as session:
-            relation_count = session.query(SubclassRelation).count()
-            if relation_count == 0:
-                click.echo("❌ Complete hierarchy not found in database!")
-                click.echo(
-                    "Run 'poliloom dump import-hierarchy' first to generate the hierarchy trees."
-                )
-                raise SystemExit(1)
-    except Exception as e:
-        click.echo(f"❌ Error checking hierarchy data: {e}")
-        raise SystemExit(1)
-
     entity_importer = WikidataEntityImporter()
 
     try:
@@ -564,6 +695,14 @@ def dump_import_entities(file, batch_size):
 
         # Extract supporting entities only
         counts = entity_importer.extract_entities_from_dump(file, batch_size=batch_size)
+
+        # Mark as imported
+        with Session(get_engine()) as session:
+            dump_record = (
+                session.query(WikidataDump).filter(WikidataDump.id == dump_id).first()
+            )
+            dump_record.imported_entities_at = datetime.now(timezone.utc)
+            session.commit()
 
         click.echo("✅ Successfully imported supporting entities from dump:")
         click.echo(f"  • Positions: {counts['positions']}")
@@ -603,6 +742,25 @@ def dump_import_entities(file, batch_size):
 )
 def dump_import_politicians(file, batch_size):
     """Import politicians from a Wikidata dump file, linking them to existing entities."""
+
+    # Get the latest dump and check its status
+    with Session(get_engine()) as session:
+        latest_dump = get_latest_dump(session)
+
+        if not latest_dump.imported_entities_at:
+            click.echo(
+                "❌ Entities not imported yet. Run 'poliloom dump import-entities' first"
+            )
+            raise SystemExit(1)
+
+        if latest_dump.imported_politicians_at:
+            click.echo(
+                f"⚠️  Warning: Politicians for dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already imported"
+            )
+            click.echo("Continuing anyway...")
+
+        dump_id = latest_dump.id
+
     click.echo(f"Importing politicians from dump file: {file}")
     click.echo(f"Using batch size: {batch_size}")
 
@@ -626,6 +784,14 @@ def dump_import_politicians(file, batch_size):
         politicians_count = politician_importer.extract_politicians_from_dump(
             file, batch_size=batch_size
         )
+
+        # Mark as imported
+        with Session(get_engine()) as session:
+            dump_record = (
+                session.query(WikidataDump).filter(WikidataDump.id == dump_id).first()
+            )
+            dump_record.imported_politicians_at = datetime.now(timezone.utc)
+            session.commit()
 
         click.echo("✅ Successfully imported politicians from dump:")
         click.echo(f"  • Politicians: {politicians_count}")
