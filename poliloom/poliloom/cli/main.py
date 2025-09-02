@@ -33,13 +33,18 @@ logging.basicConfig(
 )
 
 
-def get_latest_dump(session):
+def get_latest_dump(session, allow_none=False):
     """Get the latest dump from the database."""
     latest_dump = (
         session.query(WikidataDump).order_by(WikidataDump.last_modified.desc()).first()
     )
 
     if not latest_dump:
+        if allow_none:
+            click.echo(
+                "⚠️  No dump record found in database. Continuing without tracking..."
+            )
+            return None
         click.echo("❌ No dump found. Run 'poliloom dump-download' first")
         raise SystemExit(1)
 
@@ -582,19 +587,20 @@ def dump_import_hierarchy(file):
 
     # Get the latest dump and check its status
     with Session(get_engine()) as session:
-        latest_dump = get_latest_dump(session)
+        latest_dump = get_latest_dump(session, allow_none=True)
 
-        if not latest_dump.extracted_at:
-            click.echo("❌ Dump not extracted yet. Run 'poliloom dump-extract' first")
-            raise SystemExit(1)
+        if latest_dump is not None:
+            if not latest_dump.extracted_at:
+                click.echo(
+                    "❌ Dump not extracted yet. Run 'poliloom dump-extract' first"
+                )
+                raise SystemExit(1)
 
-        if latest_dump.imported_hierarchy_at:
-            click.echo(
-                f"⚠️  Warning: Hierarchy for dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already imported"
-            )
-            click.echo("Continuing anyway...")
-
-        dump_id = latest_dump.id
+            if latest_dump.imported_hierarchy_at:
+                click.echo(
+                    f"⚠️  Warning: Hierarchy for dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already imported"
+                )
+                click.echo("Continuing anyway...")
 
     click.echo(f"Importing hierarchy trees from dump file: {file}")
 
@@ -618,12 +624,15 @@ def dump_import_hierarchy(file):
         hierarchy_importer.import_hierarchy_trees(file)
 
         # Mark as imported
-        with Session(get_engine()) as session:
-            dump_record = (
-                session.query(WikidataDump).filter(WikidataDump.id == dump_id).first()
-            )
-            dump_record.imported_hierarchy_at = datetime.now(timezone.utc)
-            session.commit()
+        if latest_dump is not None:
+            with Session(get_engine()) as session:
+                dump_record = (
+                    session.query(WikidataDump)
+                    .filter(WikidataDump.id == latest_dump.id)
+                    .first()
+                )
+                dump_record.imported_hierarchy_at = datetime.now(timezone.utc)
+                session.commit()
 
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
@@ -651,21 +660,20 @@ def dump_import_entities(file, batch_size):
 
     # Get the latest dump and check its status
     with Session(get_engine()) as session:
-        latest_dump = get_latest_dump(session)
+        latest_dump = get_latest_dump(session, allow_none=True)
 
-        if not latest_dump.imported_hierarchy_at:
-            click.echo(
-                "❌ Hierarchy not imported yet. Run 'poliloom import-hierarchy' first"
-            )
-            raise SystemExit(1)
+        if latest_dump is not None:
+            if not latest_dump.imported_hierarchy_at:
+                click.echo(
+                    "❌ Hierarchy not imported yet. Run 'poliloom import-hierarchy' first"
+                )
+                raise SystemExit(1)
 
-        if latest_dump.imported_entities_at:
-            click.echo(
-                f"⚠️  Warning: Entities for dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already imported"
-            )
-            click.echo("Continuing anyway...")
-
-        dump_id = latest_dump.id
+            if latest_dump.imported_entities_at:
+                click.echo(
+                    f"⚠️  Warning: Entities for dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already imported"
+                )
+                click.echo("Continuing anyway...")
 
     click.echo(f"Importing supporting entities from dump file: {file}")
     click.echo(f"Using batch size: {batch_size}")
@@ -690,12 +698,15 @@ def dump_import_entities(file, batch_size):
         counts = entity_importer.extract_entities_from_dump(file, batch_size=batch_size)
 
         # Mark as imported
-        with Session(get_engine()) as session:
-            dump_record = (
-                session.query(WikidataDump).filter(WikidataDump.id == dump_id).first()
-            )
-            dump_record.imported_entities_at = datetime.now(timezone.utc)
-            session.commit()
+        if latest_dump is not None:
+            with Session(get_engine()) as session:
+                dump_record = (
+                    session.query(WikidataDump)
+                    .filter(WikidataDump.id == latest_dump.id)
+                    .first()
+                )
+                dump_record.imported_entities_at = datetime.now(timezone.utc)
+                session.commit()
 
         click.echo("✅ Successfully imported supporting entities from dump:")
         click.echo(f"  • Positions: {counts['positions']}")
@@ -738,21 +749,20 @@ def dump_import_politicians(file, batch_size):
 
     # Get the latest dump and check its status
     with Session(get_engine()) as session:
-        latest_dump = get_latest_dump(session)
+        latest_dump = get_latest_dump(session, allow_none=True)
 
-        if not latest_dump.imported_entities_at:
-            click.echo(
-                "❌ Entities not imported yet. Run 'poliloom import-entities' first"
-            )
-            raise SystemExit(1)
+        if latest_dump is not None:
+            if not latest_dump.imported_entities_at:
+                click.echo(
+                    "❌ Entities not imported yet. Run 'poliloom import-entities' first"
+                )
+                raise SystemExit(1)
 
-        if latest_dump.imported_politicians_at:
-            click.echo(
-                f"⚠️  Warning: Politicians for dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already imported"
-            )
-            click.echo("Continuing anyway...")
-
-        dump_id = latest_dump.id
+            if latest_dump.imported_politicians_at:
+                click.echo(
+                    f"⚠️  Warning: Politicians for dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already imported"
+                )
+                click.echo("Continuing anyway...")
 
     click.echo(f"Importing politicians from dump file: {file}")
     click.echo(f"Using batch size: {batch_size}")
@@ -779,12 +789,15 @@ def dump_import_politicians(file, batch_size):
         )
 
         # Mark as imported
-        with Session(get_engine()) as session:
-            dump_record = (
-                session.query(WikidataDump).filter(WikidataDump.id == dump_id).first()
-            )
-            dump_record.imported_politicians_at = datetime.now(timezone.utc)
-            session.commit()
+        if latest_dump is not None:
+            with Session(get_engine()) as session:
+                dump_record = (
+                    session.query(WikidataDump)
+                    .filter(WikidataDump.id == latest_dump.id)
+                    .first()
+                )
+                dump_record.imported_politicians_at = datetime.now(timezone.utc)
+                session.commit()
 
         click.echo("✅ Successfully imported politicians from dump:")
         click.echo(f"  • Politicians: {politicians_count}")
