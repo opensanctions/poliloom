@@ -250,7 +250,8 @@ def _process_supporting_entities_chunk(
 
                 positions.append(entity_data)
                 counts["positions"] += 1
-            elif any(
+
+            if any(
                 instance_id in shared_location_classes for instance_id in instance_ids
             ):
                 # Get all valid class IDs for this location
@@ -263,7 +264,8 @@ def _process_supporting_entities_chunk(
 
                 locations.append(entity_data)
                 counts["locations"] += 1
-            elif bool(
+
+            if bool(
                 instance_ids.intersection(
                     {"Q6256", "Q3624078", "Q20181813", "Q1520223", "Q1489259"}
                 )
@@ -413,7 +415,10 @@ class WikidataEntityImporter:
             position_classes = self._query_hierarchy_descendants(
                 position_root_ids, session, ignore_ids
             )
-            location_classes = self._query_hierarchy_descendants(["Q2221906"], session)
+            location_root_ids = ["Q27096213"]  # geographic entity
+            location_classes = self._query_hierarchy_descendants(
+                location_root_ids, session
+            )
 
             logger.info(
                 f"Filtering for {len(position_classes)} position types and {len(location_classes)} location types"

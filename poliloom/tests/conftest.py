@@ -3,10 +3,9 @@
 import json
 import pytest
 import hashlib
-import numpy as np
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from sqlalchemy import text
 from alembic.config import Config
 from alembic import command
@@ -16,61 +15,29 @@ from poliloom.models import (
     Position,
     Location,
 )
-from poliloom.embeddings import generate_embedding
+from poliloom.services.extraction_service import generate_embedding
 from poliloom.database import get_engine
 from sqlalchemy.orm import Session
 
 
-class MockSentenceTransformer:
-    """Mock SentenceTransformer for tests."""
+@pytest.fixture(autouse=True)
+def mock_generate_embedding():
+    """Mock generate_embedding to avoid loading models in tests."""
 
-    def __init__(self, model_name, device=None):
-        self.model_name = model_name
-        self.device = device
-
-    def encode(self, text, convert_to_tensor=False, batch_size=None):
-        """Mock embedding generation for single text or batch of texts."""
-
-        # Handle batch processing (list of texts)
-        if isinstance(text, list):
-            embeddings = []
-            for single_text in text:
-                embedding = self._generate_single_embedding(single_text)
-                embeddings.append(embedding)
-            return np.array(embeddings)
-        else:
-            # Handle single text
-            return self._generate_single_embedding(text)
-
-    def _generate_single_embedding(self, text):
-        """Generate a single embedding for text."""
-
-        # Create a deterministic embedding based on text hash
+    def mock_embedding(text: str):
+        """Generate a deterministic embedding based on text hash."""
         text_hash = hashlib.md5(text.encode()).digest()
-        # Convert hash to numbers for embedding
         dummy_embedding = []
         for i in range(384):
-            # Use hash bytes cyclically to generate 384 dimensions
             byte_val = text_hash[i % len(text_hash)]
-            # Normalize to [-1, 1] range
             val = (byte_val / 127.5) - 1.0
             dummy_embedding.append(val)
         return dummy_embedding
 
-
-@pytest.fixture(autouse=True)
-def mock_sentence_transformers():
-    """Mock sentence transformers to avoid downloading models in tests."""
-    with patch("sentence_transformers.SentenceTransformer", MockSentenceTransformer):
-        yield
-
-
-@pytest.fixture(autouse=True)
-def mock_torch():
-    """Mock torch to prevent CUDA initialization in tests."""
-    mock_torch = MagicMock()
-    mock_torch.cuda.is_available.return_value = False
-    with patch("poliloom.embeddings.torch", mock_torch):
+    with patch(
+        "poliloom.services.extraction_service.generate_embedding",
+        side_effect=mock_embedding,
+    ):
         yield
 
 

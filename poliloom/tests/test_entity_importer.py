@@ -35,17 +35,17 @@ class TestWikidataEntityImporter:
                 "wikidata_id": "Q4164871",
                 "name": "office",
             },  # Office (subclass of position)
-            # Location hierarchy: Q2221906 (location) -> Q515 (city)
+            # Location hierarchy: Q27096213 (geographic entity) -> Q515 (city)
             {
-                "wikidata_id": "Q2221906",
-                "name": "geographic location",
+                "wikidata_id": "Q27096213",
+                "name": "geographic entity",
             },  # Root location class
             {"wikidata_id": "Q515", "name": "city"},  # City (subclass of location)
         ]
 
         hierarchy_relations = [
             {"parent_class_id": "Q294414", "child_class_id": "Q4164871"},
-            {"parent_class_id": "Q2221906", "child_class_id": "Q515"},
+            {"parent_class_id": "Q27096213", "child_class_id": "Q515"},
         ]
 
         # Insert hierarchy data first

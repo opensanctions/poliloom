@@ -69,7 +69,10 @@ class TestBirthplaceExtractionService:
         ]
 
         # Mock embedding generation
-        with patch("poliloom.embeddings.generate_embedding", return_value=[0.2] * 384):
+        with patch(
+            "poliloom.services.extraction_service.generate_embedding",
+            return_value=[0.2] * 384,
+        ):
             result = birthplace_extraction_service.extract_and_map(
                 db_session,
                 sample_wikipedia_content,

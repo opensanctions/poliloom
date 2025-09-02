@@ -71,7 +71,10 @@ class TestPositionExtractionService:
         ]
 
         # Mock embedding generation
-        with patch("poliloom.embeddings.generate_embedding", return_value=[0.1] * 384):
+        with patch(
+            "poliloom.services.extraction_service.generate_embedding",
+            return_value=[0.1] * 384,
+        ):
             result = position_extraction_service.extract_and_map(
                 db_session,
                 sample_wikipedia_content,
