@@ -41,8 +41,8 @@ PoliLoom uses a three-pass strategy to process Wikidata dumps:
 make download-wikidata-dump  # Downloads ~100GB compressed dump
 make extract-wikidata-dump   # Extracts to ~1TB JSON file
 
-# 2. Build hierarchy trees (required once per dump)
-uv run poliloom dump build-hierarchy
+# 2. Import hierarchy trees (required once per dump)
+uv run poliloom dump import-hierarchy
 
 # 3. Import entities in order
 uv run poliloom dump import-entities     # Import positions, locations, countries
@@ -63,7 +63,7 @@ uv run poliloom serve
 
 ### Dump Processing
 
-- `poliloom dump build-hierarchy [--file FILE] [--workers NUM]` - Build position/location hierarchy trees
+- `poliloom dump import-hierarchy [--file FILE] [--workers NUM]` - Import position/location hierarchy trees
 - `poliloom dump import-entities [--file FILE] [--batch-size SIZE]` - Import supporting entities
 - `poliloom dump import-politicians [--file FILE] [--batch-size SIZE]` - Import politicians
 
@@ -83,7 +83,7 @@ uv run poliloom serve
 
 ### Three-Pass Dump Processing
 
-1. **Build Hierarchy Trees** - Extract entity relationships for efficient filtering
+1. **Import Hierarchy Trees** - Extract entity relationships for efficient filtering
 2. **Import Supporting Entities** - Import positions, locations, and countries first
 3. **Import Politicians** - Link politicians to existing entities to prevent deadlocks
 

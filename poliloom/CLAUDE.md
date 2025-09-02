@@ -62,7 +62,7 @@ For positions and birthplaces (OpenAI's 500 enum limit):
 
 ### **CLI Structure**
 Key commands organized by domain:
-- **dump:** download, extract, build-hierarchy, import-entities, import-politicians, query-hierarchy
+- **dump:** download, extract, import-hierarchy, import-entities, import-politicians, query-hierarchy
 - **politicians:** enrich, show
 - **positions/locations:** embed, import-csv
 - **serve:** Start FastAPI server
@@ -144,7 +144,7 @@ uv run poliloom serve --reload
 # Import data workflow
 uv run poliloom dump download --output ./dump.json.bz2
 uv run poliloom dump extract --input ./dump.json.bz2 --output ./dump.json
-uv run poliloom dump build-hierarchy --file ./dump.json
+uv run poliloom dump import-hierarchy --file ./dump.json
 uv run poliloom dump import-entities --file ./dump.json
 uv run poliloom dump import-politicians --file ./dump.json
 

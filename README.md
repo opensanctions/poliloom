@@ -56,8 +56,8 @@ npm run dev
 make download-wikidata-dump  # ~100GB compressed
 make extract-wikidata-dump   # Requires lbzip2, ~1TB uncompressed
 
-# Build entity hierarchies (required first)
-poliloom dump build-hierarchy
+# Import entity hierarchies (required first)
+poliloom dump import-hierarchy
 
 # Import entities
 poliloom dump import-entities

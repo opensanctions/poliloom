@@ -9,7 +9,7 @@ from sqlalchemy.orm import joinedload
 from ..services.import_service import ImportService
 from ..services.enrichment_service import EnrichmentService
 from ..services.storage import StorageFactory
-from ..services.hierarchy_builder import WikidataHierarchyBuilder
+from ..services.hierarchy_importer import WikidataHierarchyImporter
 from ..services.entity_importer import WikidataEntityImporter
 from ..services.politician_importer import WikidataPoliticianImporter
 from ..database import get_engine
@@ -478,15 +478,15 @@ def locations_embed(batch_size):
         exit(1)
 
 
-@dump.command("build-hierarchy")
+@dump.command("import-hierarchy")
 @click.option(
     "--file",
     required=True,
     help="Path to extracted JSON dump file - local filesystem path or GCS path (gs://bucket/path)",
 )
-def dump_build_hierarchy(file):
-    """Build hierarchy trees for positions and locations from Wikidata dump."""
-    click.echo(f"Building hierarchy trees from dump file: {file}")
+def dump_import_hierarchy(file):
+    """Import hierarchy trees for positions and locations from Wikidata dump."""
+    click.echo(f"Importing hierarchy trees from dump file: {file}")
 
     # Check if dump file exists using storage backend
     backend = StorageFactory.get_backend(file)
@@ -497,21 +497,21 @@ def dump_build_hierarchy(file):
         )
         raise SystemExit(1)
 
-    hierarchy_builder = WikidataHierarchyBuilder()
+    hierarchy_importer = WikidataHierarchyImporter()
 
     try:
         click.echo("⏳ Extracting P279 (subclass of) relationships...")
         click.echo("This may take a while for the full dump...")
         click.echo("Press Ctrl+C to interrupt...")
 
-        # Build the trees (always parallel)
-        hierarchy_builder.build_hierarchy_trees(file)
+        # Import the trees (always parallel)
+        hierarchy_importer.import_hierarchy_trees(file)
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
-        click.echo("❌ Hierarchy tree building was cancelled.")
+        click.echo("❌ Hierarchy tree import was cancelled.")
         raise SystemExit(1)
     except Exception as e:
-        click.echo(f"❌ Error building hierarchy trees: {e}")
+        click.echo(f"❌ Error importing hierarchy trees: {e}")
         raise SystemExit(1)
 
 
@@ -548,7 +548,7 @@ def dump_import_entities(file, batch_size):
             if relation_count == 0:
                 click.echo("❌ Complete hierarchy not found in database!")
                 click.echo(
-                    "Run 'poliloom dump build-hierarchy' first to generate the hierarchy trees."
+                    "Run 'poliloom dump import-hierarchy' first to generate the hierarchy trees."
                 )
                 raise SystemExit(1)
     except Exception as e:

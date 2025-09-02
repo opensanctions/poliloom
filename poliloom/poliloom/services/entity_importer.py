@@ -391,7 +391,7 @@ class WikidataEntityImporter:
             relation_count = session.query(SubclassRelation).count()
             if relation_count == 0:
                 raise ValueError(
-                    "Complete hierarchy not found in database. Run 'poliloom dump build-hierarchy' first."
+                    "Complete hierarchy not found in database. Run 'poliloom dump import-hierarchy' first."
                 )
 
             # Use position basics approach with ignore IDs

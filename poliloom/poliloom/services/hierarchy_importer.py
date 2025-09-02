@@ -1,4 +1,4 @@
-"""Wikidata hierarchy building service for positions and locations."""
+"""Wikidata hierarchy importing service for positions and locations."""
 
 import logging
 import multiprocessing as mp
@@ -198,19 +198,19 @@ def _process_chunk_for_relationships(
     return dict(subclass_relations), entity_count
 
 
-class WikidataHierarchyBuilder:
+class WikidataHierarchyImporter:
     """Build hierarchy trees for positions and locations from Wikidata dump."""
 
     def __init__(self):
-        """Initialize the hierarchy builder."""
+        """Initialize the hierarchy importer."""
         self.dump_reader = DumpReader()
 
-    def build_hierarchy_trees(
+    def import_hierarchy_trees(
         self,
         dump_file_path: str,
     ) -> None:
         """
-        Build hierarchy trees for positions and locations from Wikidata dump.
+        Import hierarchy trees for positions and locations from Wikidata dump.
 
         Uses a memory-efficient three-phase approach:
         1. Collect subclass relationships from dump
@@ -220,7 +220,7 @@ class WikidataHierarchyBuilder:
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
         """
-        logger.info(f"Building hierarchy trees from dump file: {dump_file_path}")
+        logger.info(f"Importing hierarchy trees from dump file: {dump_file_path}")
 
         # Phase 1: Collect subclass relationships
         logger.info("Phase 1: Collecting subclass relationships...")
@@ -244,7 +244,7 @@ class WikidataHierarchyBuilder:
         )
         self._batch_update_wikidata_class_names(dump_file_path, all_qids)
 
-        logger.info("✅ Hierarchy building complete")
+        logger.info("✅ Hierarchy import complete")
 
     def _collect_subclass_relationships(
         self, dump_file_path: str
@@ -395,7 +395,7 @@ class WikidataHierarchyBuilder:
 
         Args:
             dump_file_path: Path to the Wikidata JSON dump file
-            target_qids: Set of QIDs to extract names for (already available from hierarchy building)
+            target_qids: Set of QIDs to extract names for (already available from hierarchy import)
         """
         logger.info(f"Extracting names for {len(target_qids)} WikidataClass records")
 
