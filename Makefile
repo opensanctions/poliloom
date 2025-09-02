@@ -1,4 +1,4 @@
-.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump extract-wikidata-dump truncate-db db-dump db-restore
+.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump extract-wikidata-dump truncate-db db-dump db-restore export-positions-csv
 
 # Start pgAdmin4 container for database inspection
 pgadmin:
@@ -53,3 +53,9 @@ db-restore:
 	@docker-compose exec -T postgres psql -U postgres -d poliloom < init-db.sql
 	@docker-compose exec -T postgres psql -U postgres -d poliloom < poliloom_db_dump.sql
 	@echo "Database restored successfully from poliloom_db_dump.sql"
+
+# Export all positions to CSV file
+export-positions-csv:
+	@echo "Exporting all positions to positions.csv..."
+	@docker-compose exec -T postgres psql -U postgres -d poliloom -c "\COPY (SELECT wikidata_id, name FROM positions ORDER BY wikidata_id) TO STDOUT WITH CSV HEADER" > positions.csv
+	@echo "Positions exported successfully to positions.csv"
