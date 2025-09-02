@@ -61,11 +61,6 @@ For positions and birthplaces (OpenAI's 500 enum limit):
 - **Authentication:** MediaWiki OAuth 2.0 JWT tokens
 
 ### **CLI Structure**
-Key commands organized by domain:
-- **dump:** download, extract, import-hierarchy, import-entities, import-politicians, query-hierarchy
-- **politicians:** enrich, show
-- **positions/locations:** embed, import-csv
-
 *Use `--help` for detailed command documentation.*
 
 ## **5. Key Design Decisions**
@@ -148,8 +143,7 @@ uv run poliloom import-entities --file ./dump.json
 uv run poliloom import-politicians --file ./dump.json
 
 # Generate embeddings
-uv run poliloom positions embed
-uv run poliloom locations embed
+uv run poliloom embed-entities
 ```
 
 ## **8. Code Style & Development Practices**

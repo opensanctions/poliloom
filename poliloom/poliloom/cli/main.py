@@ -6,6 +6,8 @@ import logging
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timezone
 import httpx
+import torch
+from sentence_transformers import SentenceTransformer
 
 from ..services.import_service import ImportService
 from ..services.enrichment_service import EnrichmentService
@@ -25,7 +27,6 @@ from ..models import (
     Property,
     WikidataDump,
 )
-from ..embeddings import generate_embeddings_for_entities
 
 # Configure logging
 logging.basicConfig(
@@ -68,12 +69,6 @@ def politicians():
 @main.group()
 def positions():
     """Commands for managing political positions."""
-    pass
-
-
-@main.group()
-def locations():
-    """Commands for managing geographic locations."""
     pass
 
 
@@ -491,23 +486,72 @@ def politicians_show(wikidata_id):
         exit(1)
 
 
-@positions.command("embed")
+@main.command("embed-entities")
 @click.option(
-    "--batch-size", default=100000, help="Number of positions to process in each batch"
+    "--batch-size",
+    default=2048 * 50,
+    help="Number of entities to process in each batch",
 )
-def positions_embed(batch_size):
-    """Generate embeddings for all positions that don't have embeddings yet."""
-    click.echo("Generating embeddings for positions without embeddings...")
+@click.option(
+    "--gpu-batch-size", default=2048, help="Number of texts to encode at once on GPU"
+)
+def embed_entities(batch_size, gpu_batch_size):
+    """Generate embeddings for all positions and locations that don't have embeddings yet."""
+    # Use GPU if available
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    click.echo(f"Using device: {device}")
+
+    model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
 
     try:
         with Session(get_engine()) as session:
-            generate_embeddings_for_entities(
-                session=session,
-                model_class=Position,
-                entity_name="positions",
-                batch_size=batch_size,
-                progress_callback=click.echo,
-            )
+            for model_class, entity_name in [
+                (Position, "positions"),
+                (Location, "locations"),
+            ]:
+                click.echo(f"Processing {entity_name}...")
+
+                # Get total count
+                total_count = (
+                    session.query(model_class)
+                    .filter(model_class.embedding.is_(None))
+                    .count()
+                )
+
+                if total_count == 0:
+                    click.echo(f"✅ All {entity_name} already have embeddings")
+                    continue
+
+                click.echo(f"Found {total_count} {entity_name} without embeddings")
+                processed = 0
+
+                while processed < total_count:
+                    # Get batch of entities without embeddings
+                    batch = (
+                        session.query(model_class)
+                        .filter(model_class.embedding.is_(None))
+                        .limit(batch_size)
+                        .all()
+                    )
+
+                    if not batch:
+                        break
+
+                    # Generate embeddings
+                    names = [entity.name for entity in batch]
+                    embeddings = model.encode(
+                        names, convert_to_tensor=False, batch_size=gpu_batch_size
+                    )
+
+                    # Update entities
+                    for entity, embedding in zip(batch, embeddings):
+                        entity.embedding = embedding.tolist()
+
+                    session.commit()
+                    processed += len(batch)
+                    click.echo(f"Processed {processed}/{total_count} {entity_name}")
+
+                click.echo(f"✅ Generated embeddings for {processed} {entity_name}")
 
     except Exception as e:
         click.echo(f"❌ Error generating embeddings: {e}")
@@ -544,29 +588,6 @@ def positions_import_csv(csv_file):
 
     finally:
         import_service.close()
-
-
-@locations.command("embed")
-@click.option(
-    "--batch-size", default=100000, help="Number of locations to process in each batch"
-)
-def locations_embed(batch_size):
-    """Generate embeddings for all locations that don't have embeddings yet."""
-    click.echo("Generating embeddings for locations without embeddings...")
-
-    try:
-        with Session(get_engine()) as session:
-            generate_embeddings_for_entities(
-                session=session,
-                model_class=Location,
-                entity_name="locations",
-                batch_size=batch_size,
-                progress_callback=click.echo,
-            )
-
-    except Exception as e:
-        click.echo(f"❌ Error generating embeddings: {e}")
-        exit(1)
 
 
 @main.command("import-hierarchy")

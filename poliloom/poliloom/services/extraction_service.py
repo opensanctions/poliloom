@@ -6,11 +6,38 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, create_model
 from typing import Literal
 from openai import OpenAI
+import torch
+from sentence_transformers import SentenceTransformer
 
 from ..models import Position, Location, Politician
-from ..embeddings import generate_embedding
 
 logger = logging.getLogger(__name__)
+
+# Global cached embedding model
+_embedding_model = None
+
+
+def get_embedding_model():
+    """Get or create the cached SentenceTransformer model."""
+    global _embedding_model
+    if _embedding_model is None:
+        logger.info("Loading SentenceTransformer model...")
+
+        # Use GPU if available
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info(f"Using device: {device}")
+
+        _embedding_model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
+        logger.info("SentenceTransformer model loaded and cached successfully")
+    return _embedding_model
+
+
+def generate_embedding(text: str) -> List[float]:
+    """Generate embedding for a single text string."""
+    model = get_embedding_model()
+    embedding = model.encode(text, convert_to_tensor=False)
+    return embedding.tolist()
+
 
 # Type variables for generic extraction
 ExtractedT = TypeVar("ExtractedT", bound=BaseModel)
