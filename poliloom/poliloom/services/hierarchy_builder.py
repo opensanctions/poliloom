@@ -6,7 +6,6 @@ from typing import Dict, Set, Tuple
 from collections import defaultdict
 
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .dump_reader import DumpReader
@@ -205,40 +204,6 @@ class WikidataHierarchyBuilder:
     def __init__(self):
         """Initialize the hierarchy builder."""
         self.dump_reader = DumpReader()
-
-    def _query_hierarchy_descendants(self, root_id: str, session: Session) -> Set[str]:
-        """
-        Query all descendants of a root entity from database using recursive SQL.
-        Only returns classes that have names (needed for embeddings in enrichment).
-
-        Args:
-            root_id: The root entity QID
-            session: Database session
-
-        Returns:
-            Set of all descendant QIDs (including the root) that have names
-        """
-        # Use recursive CTE to find all descendants, filtered by classes with names
-        sql = text(
-            """
-            WITH RECURSIVE descendants AS (
-                -- Base case: start with the root entity
-                SELECT CAST(:root_id AS VARCHAR) AS wikidata_id
-                UNION
-                -- Recursive case: find all children
-                SELECT sr.child_class_id AS wikidata_id
-                FROM subclass_relations sr
-                JOIN descendants d ON sr.parent_class_id = d.wikidata_id
-            )
-            SELECT DISTINCT d.wikidata_id 
-            FROM descendants d
-            JOIN wikidata_classes wc ON d.wikidata_id = wc.wikidata_id
-            WHERE wc.name IS NOT NULL
-        """
-        )
-
-        result = session.execute(sql, {"root_id": root_id})
-        return {row[0] for row in result.fetchall()}
 
     def build_hierarchy_trees(
         self,

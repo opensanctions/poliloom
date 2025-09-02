@@ -2,7 +2,7 @@
 
 import logging
 import multiprocessing as mp
-from typing import Dict, Set, Tuple
+from typing import Dict, Set, Tuple, List
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -313,38 +313,60 @@ class WikidataEntityImporter:
         """Initialize the entity importer."""
         self.dump_reader = DumpReader()
 
-    def _query_hierarchy_descendants(self, root_id: str, session: Session) -> Set[str]:
+    def _query_hierarchy_descendants(
+        self, root_ids: List[str], session: Session, ignore_ids: List[str] = None
+    ) -> Set[str]:
         """
-        Query all descendants of a root entity from database using recursive SQL.
-        Only returns classes that have names (needed for embeddings in enrichment).
+        Query all descendants of multiple root entities from database using recursive SQL.
+        Only returns classes that have names and excludes ignored IDs and their descendants.
 
         Args:
-            root_id: The root entity QID
+            root_ids: List of root entity QIDs
             session: Database session
+            ignore_ids: List of entity QIDs to exclude along with their descendants
 
         Returns:
-            Set of all descendant QIDs (including the root) that have names
+            Set of all descendant QIDs (including the roots) that have names
         """
-        # Use recursive CTE to find all descendants, filtered by classes with names
+        if not root_ids:
+            return set()
+
+        ignore_ids = ignore_ids or []
+
+        # Use recursive CTEs - one for descendants, one for ignored descendants
         sql = text(
             """
             WITH RECURSIVE descendants AS (
-                -- Base case: start with the root entity
-                SELECT CAST(:root_id AS VARCHAR) AS wikidata_id
+                -- Base case: start with all root entities
+                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
+                FROM wikidata_classes 
+                WHERE wikidata_id = ANY(:root_ids)
                 UNION
                 -- Recursive case: find all children
                 SELECT sr.child_class_id AS wikidata_id
                 FROM subclass_relations sr
                 JOIN descendants d ON sr.parent_class_id = d.wikidata_id
+            ),
+            ignored_descendants AS (
+                -- Base case: start with ignored IDs
+                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
+                FROM wikidata_classes 
+                WHERE wikidata_id = ANY(:ignore_ids)
+                UNION
+                -- Recursive case: find all children of ignored IDs
+                SELECT sr.child_class_id AS wikidata_id
+                FROM subclass_relations sr
+                JOIN ignored_descendants id ON sr.parent_class_id = id.wikidata_id
             )
             SELECT DISTINCT d.wikidata_id 
             FROM descendants d
             JOIN wikidata_classes wc ON d.wikidata_id = wc.wikidata_id
             WHERE wc.name IS NOT NULL
+            AND d.wikidata_id NOT IN (SELECT wikidata_id FROM ignored_descendants)
         """
         )
 
-        result = session.execute(sql, {"root_id": root_id})
+        result = session.execute(sql, {"root_ids": root_ids, "ignore_ids": ignore_ids})
         return {row[0] for row in result.fetchall()}
 
     def extract_entities_from_dump(
@@ -372,9 +394,26 @@ class WikidataEntityImporter:
                     "Complete hierarchy not found in database. Run 'poliloom dump build-hierarchy' first."
                 )
 
-            # Get descendant sets for filtering (optimized - only loads what we need)
-            position_classes = self._query_hierarchy_descendants("Q294414", session)
-            location_classes = self._query_hierarchy_descendants("Q2221906", session)
+            # Use position basics approach with ignore IDs
+            position_root_ids = [
+                "Q4164871",  # position
+                "Q29645880",  # ambassador of a country
+                "Q29645886",  # ambassador to a country
+                "Q707492",  # military chief of staff
+            ]
+            ignore_ids = [
+                "Q114962596",  # historical position
+                "Q193622",  # order
+                "Q60754876",  # grade of an order
+                "Q618779",  # award
+                "Q4240305",  # cross
+                "Q120560",  # minor basilica
+                "Q2977",  # cathedral
+            ]
+            position_classes = self._query_hierarchy_descendants(
+                position_root_ids, session, ignore_ids
+            )
+            location_classes = self._query_hierarchy_descendants(["Q2221906"], session)
 
             logger.info(
                 f"Filtering for {len(position_classes)} position types and {len(location_classes)} location types"
