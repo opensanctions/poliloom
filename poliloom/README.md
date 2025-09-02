@@ -42,11 +42,11 @@ make download-wikidata-dump  # Downloads ~100GB compressed dump
 make extract-wikidata-dump   # Extracts to ~1TB JSON file
 
 # 2. Import hierarchy trees (required once per dump)
-uv run poliloom dump import-hierarchy
+uv run poliloom import-hierarchy
 
 # 3. Import entities in order
-uv run poliloom dump import-entities     # Import positions, locations, countries
-uv run poliloom dump import-politicians  # Import politicians linking to entities
+uv run poliloom import-entities     # Import positions, locations, countries
+uv run poliloom import-politicians  # Import politicians linking to entities
 
 # 4. Generate embeddings for vector search
 uv run poliloom positions embed
@@ -56,16 +56,16 @@ uv run poliloom locations embed
 uv run poliloom politicians enrich --id Q6279
 
 # 6. Start API server
-uv run poliloom serve
+uv run uvicorn poliloom.api:app --reload
 ```
 
 ## CLI Commands
 
 ### Dump Processing
 
-- `poliloom dump import-hierarchy [--file FILE] [--workers NUM]` - Import position/location hierarchy trees
-- `poliloom dump import-entities [--file FILE] [--batch-size SIZE]` - Import supporting entities
-- `poliloom dump import-politicians [--file FILE] [--batch-size SIZE]` - Import politicians
+- `poliloom import-hierarchy [--file FILE]` - Import position/location hierarchy trees
+- `poliloom import-entities [--file FILE] [--batch-size SIZE]` - Import supporting entities
+- `poliloom import-politicians [--file FILE] [--batch-size SIZE]` - Import politicians
 
 ### Data Management
 
@@ -77,7 +77,7 @@ uv run poliloom serve
 
 ### Server
 
-- `poliloom serve [--host HOST] [--port PORT] [--reload]` - Start FastAPI server
+- `uvicorn poliloom.api:app --reload` - Start FastAPI server with auto-reload
 
 ## Core Features
 

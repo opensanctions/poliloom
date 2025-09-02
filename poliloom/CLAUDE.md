@@ -65,7 +65,6 @@ Key commands organized by domain:
 - **dump:** download, extract, import-hierarchy, import-entities, import-politicians, query-hierarchy
 - **politicians:** enrich, show
 - **positions/locations:** embed, import-csv
-- **serve:** Start FastAPI server
 
 *Use `--help` for detailed command documentation.*
 
@@ -139,14 +138,14 @@ uv run alembic upgrade head
 ### **CLI Commands**
 ```bash
 # Start development server
-uv run poliloom serve --reload
+uv run uvicorn poliloom.api:app --reload
 
 # Import data workflow
-uv run poliloom dump download --output ./dump.json.bz2
-uv run poliloom dump extract --input ./dump.json.bz2 --output ./dump.json
-uv run poliloom dump import-hierarchy --file ./dump.json
-uv run poliloom dump import-entities --file ./dump.json
-uv run poliloom dump import-politicians --file ./dump.json
+uv run poliloom dump-download --output ./dump.json.bz2
+uv run poliloom dump-extract --input ./dump.json.bz2 --output ./dump.json
+uv run poliloom import-hierarchy --file ./dump.json
+uv run poliloom import-entities --file ./dump.json
+uv run poliloom import-politicians --file ./dump.json
 
 # Generate embeddings
 uv run poliloom positions embed

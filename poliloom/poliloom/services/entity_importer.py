@@ -11,7 +11,6 @@ from sqlalchemy.dialects.postgresql import insert
 from .dump_reader import DumpReader
 from ..database import get_engine
 from ..models import (
-    SubclassRelation,
     Position,
     Location,
     Country,
@@ -393,13 +392,6 @@ class WikidataEntityImporter:
         """
         # Load only position and location descendants from database (optimized)
         with Session(get_engine()) as session:
-            # Check if hierarchy data exists first
-            relation_count = session.query(SubclassRelation).count()
-            if relation_count == 0:
-                raise ValueError(
-                    "Complete hierarchy not found in database. Run 'poliloom dump import-hierarchy' first."
-                )
-
             # Use position basics approach with ignore IDs
             position_root_ids = [
                 "Q4164871",  # position

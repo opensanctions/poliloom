@@ -3,7 +3,6 @@
 import asyncio
 import click
 import logging
-import uvicorn
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timezone
 import httpx
@@ -41,7 +40,7 @@ def get_latest_dump(session):
     )
 
     if not latest_dump:
-        click.echo("❌ No dump found. Run 'poliloom dump download' first")
+        click.echo("❌ No dump found. Run 'poliloom dump-download' first")
         raise SystemExit(1)
 
     return latest_dump
@@ -73,13 +72,7 @@ def locations():
     pass
 
 
-@main.group()
-def dump():
-    """Commands for Wikidata dump processing."""
-    pass
-
-
-@dump.command("download")
+@main.command("dump-download")
 @click.option(
     "--output",
     required=True,
@@ -157,7 +150,7 @@ def dump_download(output):
         raise SystemExit(1)
 
 
-@dump.command("extract")
+@main.command("dump-extract")
 @click.option(
     "--input",
     required=True,
@@ -195,7 +188,7 @@ def dump_extract(input, output):
     backend = StorageFactory.get_backend(input)
     if not backend.exists(input):
         click.echo(f"❌ Source file not found: {input}")
-        click.echo("Run 'poliloom dump download' first")
+        click.echo("Run 'poliloom dump-download' first")
         raise SystemExit(1)
 
     try:
@@ -578,7 +571,7 @@ def locations_embed(batch_size):
         exit(1)
 
 
-@dump.command("import-hierarchy")
+@main.command("import-hierarchy")
 @click.option(
     "--file",
     required=True,
@@ -592,7 +585,7 @@ def dump_import_hierarchy(file):
         latest_dump = get_latest_dump(session)
 
         if not latest_dump.extracted_at:
-            click.echo("❌ Dump not extracted yet. Run 'poliloom dump extract' first")
+            click.echo("❌ Dump not extracted yet. Run 'poliloom dump-extract' first")
             raise SystemExit(1)
 
         if latest_dump.imported_hierarchy_at:
@@ -610,7 +603,7 @@ def dump_import_hierarchy(file):
     if not backend.exists(file):
         click.echo(f"❌ Dump file not found: {file}")
         click.echo(
-            "Please run 'poliloom dump download' and 'poliloom dump extract' first"
+            "Please run 'poliloom dump-download' and 'poliloom dump-extract' first"
         )
         raise SystemExit(1)
 
@@ -641,7 +634,7 @@ def dump_import_hierarchy(file):
         raise SystemExit(1)
 
 
-@dump.command("import-entities")
+@main.command("import-entities")
 @click.option(
     "--file",
     required=True,
@@ -662,7 +655,7 @@ def dump_import_entities(file, batch_size):
 
         if not latest_dump.imported_hierarchy_at:
             click.echo(
-                "❌ Hierarchy not imported yet. Run 'poliloom dump import-hierarchy' first"
+                "❌ Hierarchy not imported yet. Run 'poliloom import-hierarchy' first"
             )
             raise SystemExit(1)
 
@@ -682,7 +675,7 @@ def dump_import_entities(file, batch_size):
     if not backend.exists(file):
         click.echo(f"❌ Dump file not found: {file}")
         click.echo(
-            "Please run 'poliloom dump download' and 'poliloom dump extract' first"
+            "Please run 'poliloom dump-download' and 'poliloom dump-extract' first"
         )
         raise SystemExit(1)
 
@@ -713,7 +706,7 @@ def dump_import_entities(file, batch_size):
         # Suggest next steps
         click.echo()
         click.echo("💡 Next steps:")
-        click.echo("  • Run 'poliloom dump import-politicians' to import politicians")
+        click.echo("  • Run 'poliloom import-politicians' to import politicians")
         click.echo("  • Run 'poliloom positions embed' to generate position embeddings")
         click.echo("  • Run 'poliloom locations embed' to generate location embeddings")
     except KeyboardInterrupt:
@@ -728,7 +721,7 @@ def dump_import_entities(file, batch_size):
         raise SystemExit(1)
 
 
-@dump.command("import-politicians")
+@main.command("import-politicians")
 @click.option(
     "--file",
     required=True,
@@ -749,7 +742,7 @@ def dump_import_politicians(file, batch_size):
 
         if not latest_dump.imported_entities_at:
             click.echo(
-                "❌ Entities not imported yet. Run 'poliloom dump import-entities' first"
+                "❌ Entities not imported yet. Run 'poliloom import-entities' first"
             )
             raise SystemExit(1)
 
@@ -769,7 +762,7 @@ def dump_import_politicians(file, batch_size):
     if not backend.exists(file):
         click.echo(f"❌ Dump file not found: {file}")
         click.echo(
-            "Please run 'poliloom dump download' and 'poliloom dump extract' first"
+            "Please run 'poliloom dump-download' and 'poliloom dump-extract' first"
         )
         raise SystemExit(1)
 
@@ -812,22 +805,6 @@ def dump_import_politicians(file, batch_size):
     except Exception as e:
         click.echo(f"❌ Error importing politicians: {e}")
         raise SystemExit(1)
-
-
-@main.command("serve")
-@click.option("--host", default="0.0.0.0", help="Host to bind the server to")
-@click.option("--port", default=8000, help="Port to bind the server to")
-@click.option("--reload", is_flag=True, help="Enable auto-reload for development")
-def serve(host, port, reload):
-    """Start the FastAPI web server."""
-
-    click.echo(f"Starting PoliLoom API server on http://{host}:{port}")
-    if reload:
-        click.echo("Auto-reload enabled for development")
-
-    uvicorn.run(
-        "poliloom.api.app:app", host=host, port=port, reload=reload, log_level="info"
-    )
 
 
 if __name__ == "__main__":
