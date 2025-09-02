@@ -98,23 +98,6 @@ The API specification is available via OpenAPI documentation from the backend se
 - Clear explanation of the tool's purpose
 - Minimal, focused login experience
 
-## Configuration Requirements
-
-### Environment Variables
-
-- API base URL configuration for different environments
-- MediaWiki OAuth client credentials
-- Session management secrets
-- Application URL configuration
-
-### Development Dependencies
-
-- Code linting and formatting tools
-- TypeScript compilation
-- Build and development server tools
-
-**Note**: Development server runs via `npm run dev` (typically already running).
-
 ## User Experience Requirements
 
 ### Design Principles
@@ -133,39 +116,11 @@ The API specification is available via OpenAPI documentation from the backend se
 
 ### Target Platform
 
-- Primary: Desktop browsers (Chrome, Firefox)
-- Mobile: Not supported (redirect to desktop)
-
-## Quality Requirements
-
-### Error Handling
-
-- Network error recovery with user feedback
-- Clear authentication error handling and re-login prompts
-- Inline validation error messages
-- Graceful server error handling
-
-### Security Requirements
-
-- Secure OAuth token storage and transmission
-- CSRF protection
-- Input validation and sanitization
-- XSS prevention measures
-
-### Performance Requirements
-
-- Efficient data loading and caching
-- Code splitting for optimal bundle sizes
-- Image optimization for any media content
-
-### Accessibility Requirements
-
-- Full keyboard navigation support
-- Screen reader compatibility with proper ARIA labels
-- WCAG AA color contrast compliance
-- Clear focus indicators
+- **Evergreen** Only support modern evergreen browsers, no fallbacks.
 
 ## Testing Strategy
+
+**IMPORTANT**: The development server is already running
 
 **Framework**: Vitest + React Testing Library for fast, modern testing with excellent TypeScript support.
 
@@ -184,9 +139,3 @@ The API specification is available via OpenAPI documentation from the backend se
 - Manual testing for OAuth integration
 - Automated testing for core evaluation components using Vitest
 - Basic error scenario coverage
-
-**Out of Scope**:
-
-- Complex user interaction testing
-- Performance or accessibility testing suites
-- Extensive cross-browser testing

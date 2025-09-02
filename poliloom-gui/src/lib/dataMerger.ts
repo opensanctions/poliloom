@@ -9,7 +9,7 @@ export interface MergedProperty {
 }
 
 export interface MergedPosition {
-  key: string; // unique key combining position_name and wikidata_id
+  key: string; // unique key combining position_name, wikidata_id, start_date, and end_date
   existing?: WikidataPosition;
   extracted?: Position;
   position_name: string;
@@ -92,7 +92,7 @@ export function mergePositions(
 
   // Add existing positions
   wikidataPositions.forEach(existing => {
-    const key = `${existing.position_name}::${existing.wikidata_id || 'null'}`;
+    const key = `${existing.position_name}::${existing.wikidata_id || 'null'}::${existing.start_date || 'null'}::${existing.end_date || 'null'}`;
     mergedMap.set(key, {
       key,
       existing,
@@ -103,7 +103,7 @@ export function mergePositions(
 
   // Add or merge extracted positions
   extractedPositions.forEach(extracted => {
-    const key = `${extracted.position_name}::${extracted.wikidata_id || 'null'}`;
+    const key = `${extracted.position_name}::${extracted.wikidata_id || 'null'}::${extracted.start_date || 'null'}::${extracted.end_date || 'null'}`;
     const existing = mergedMap.get(key);
     
     if (existing) {
