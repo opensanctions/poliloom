@@ -72,6 +72,9 @@ class LocalStorage(StorageBackend):
 
     def open(self, path: str, mode: str = "rb") -> BinaryIO:
         """Open a local file."""
+        # Create parent directories if writing
+        if "w" in mode or "a" in mode:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
         return open(path, mode)
 
     def read_range(self, path: str, start: int, end: int) -> bytes:

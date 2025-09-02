@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, Mock as SyncMock, patch
 
-from poliloom.api.app import app
+from poliloom.api import app
 from poliloom.api.auth import User
 from poliloom.models import ArchivedPage
 from .conftest import load_json_fixture

@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, Mock as SyncMock, patch
 from fastapi.testclient import TestClient
 
-from poliloom.api.app import app
+from poliloom.api import app
 from poliloom.api.auth import User
 from poliloom.models import (
     Politician,

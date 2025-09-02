@@ -133,7 +133,7 @@ class EnrichmentService:
                     (
                         content,
                         archived_page,
-                    ) = await self._fetch_wikipedia_content_and_archive(
+                    ) = await self._fetch_page_content_and_archive(
                         english_wikipedia_link.url, db
                     )
                     if content and archived_page:
@@ -173,10 +173,10 @@ class EnrichmentService:
             logger.error(f"Error enriching politician {wikidata_id}: {e}")
             return False
 
-    async def _fetch_wikipedia_content_and_archive(
+    async def _fetch_page_content_and_archive(
         self, url: str, db: Session
     ) -> tuple[Optional[str], Optional[ArchivedPage]]:
-        """Fetch Wikipedia content using crawl4ai and archive the page."""
+        """Fetch web page content using crawl4ai and archive the page."""
         try:
             # Check if we already have this page archived
             existing_page = (
@@ -220,7 +220,7 @@ class EnrichmentService:
                 result = await crawler.arun(url, config=config)
 
                 if not result.success:
-                    logger.error(f"Failed to crawl Wikipedia page: {url}")
+                    logger.error(f"Failed to crawl page: {url}")
                     # Rollback the ArchivedPage insert since crawling failed
                     db.rollback()
                     return None, None
@@ -267,9 +267,7 @@ class EnrichmentService:
                 return plain_text_content, archived_page
 
         except Exception as e:
-            logger.error(
-                f"Error fetching and archiving Wikipedia content from {url}: {e}"
-            )
+            logger.error(f"Error fetching and archiving page content from {url}: {e}")
             return None, None
 
     def _find_exact_position_match(

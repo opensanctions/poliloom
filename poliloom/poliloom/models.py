@@ -3,7 +3,6 @@
 import os
 import hashlib
 from datetime import datetime, timezone
-from pathlib import Path
 from sqlalchemy import (
     Column,
     String,
@@ -22,6 +21,8 @@ from sqlalchemy import event
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy import exists
 from pgvector.sqlalchemy import Vector
+
+from .services.storage import StorageFactory
 
 Base = declarative_base()
 
@@ -227,32 +228,30 @@ class ArchivedPage(Base, TimestampMixin):
         return hashlib.sha256(url.encode()).hexdigest()[:16]
 
     @staticmethod
-    def _create_archive_directory(timestamp: datetime) -> Path:
-        """Create archive directory structure and return the path."""
+    def _get_archive_directory_path(timestamp: datetime) -> str:
+        """Get the archive directory path for a given timestamp."""
         archive_root = os.getenv("POLILOOM_ARCHIVE_ROOT", "./archives")
         date_path = f"{timestamp.year:04d}/{timestamp.month:02d}/{timestamp.day:02d}"
-        archive_dir = Path(archive_root) / date_path
-        archive_dir.mkdir(parents=True, exist_ok=True)
-        return archive_dir
+        return os.path.join(archive_root, date_path)
 
-    def _get_archive_directory(self) -> Path:
+    def _get_archive_directory(self) -> str:
         """Get the archive directory for this archived page."""
-        return self._create_archive_directory(self.fetch_timestamp)
+        return self._get_archive_directory_path(self.fetch_timestamp)
 
     @hybrid_property
-    def mhtml_path(self) -> Path:
+    def mhtml_path(self) -> str:
         """Get the MHTML file path for this archived page."""
-        return self._get_archive_directory() / f"{self.content_hash}.mhtml"
+        return os.path.join(self._get_archive_directory(), f"{self.content_hash}.mhtml")
 
     @hybrid_property
-    def html_path(self) -> Path:
+    def html_path(self) -> str:
         """Get the HTML file path for this archived page."""
-        return self._get_archive_directory() / f"{self.content_hash}.html"
+        return os.path.join(self._get_archive_directory(), f"{self.content_hash}.html")
 
     @hybrid_property
-    def markdown_path(self) -> Path:
+    def markdown_path(self) -> str:
         """Get the markdown file path for this archived page."""
-        return self._get_archive_directory() / f"{self.content_hash}.md"
+        return os.path.join(self._get_archive_directory(), f"{self.content_hash}.md")
 
     def get_file_paths(self) -> dict:
         """Get all file paths for this archived page."""
@@ -263,36 +262,41 @@ class ArchivedPage(Base, TimestampMixin):
         }
 
     def read_markdown_content(self) -> str:
-        """Read the markdown content from disk."""
-        try:
-            with open(self.markdown_path, "r", encoding="utf-8") as f:
-                return f.read()
-        except FileNotFoundError:
+        """Read the markdown content using storage backend."""
+        backend = StorageFactory.get_backend(self.markdown_path)
+        if not backend.exists(self.markdown_path):
             raise FileNotFoundError(
                 f"Archived markdown file not found: {self.markdown_path}"
             )
 
+        with backend.open(self.markdown_path, "r") as f:
+            return f.read()
+
     def read_html_content(self) -> str:
-        """Read the HTML content from disk."""
-        try:
-            with open(self.html_path, "r", encoding="utf-8") as f:
-                return f.read()
-        except FileNotFoundError:
+        """Read the HTML content using storage backend."""
+        backend = StorageFactory.get_backend(self.html_path)
+        if not backend.exists(self.html_path):
             raise FileNotFoundError(f"Archived HTML file not found: {self.html_path}")
 
+        with backend.open(self.html_path, "r") as f:
+            return f.read()
+
     def save_mhtml(self, content: str) -> None:
-        """Save MHTML content to disk."""
-        with open(self.mhtml_path, "w", encoding="utf-8") as f:
+        """Save MHTML content using storage backend."""
+        backend = StorageFactory.get_backend(self.mhtml_path)
+        with backend.open(self.mhtml_path, "w") as f:
             f.write(content)
 
     def save_html(self, content: str) -> None:
-        """Save HTML content to disk."""
-        with open(self.html_path, "w", encoding="utf-8") as f:
+        """Save HTML content using storage backend."""
+        backend = StorageFactory.get_backend(self.html_path)
+        with backend.open(self.html_path, "w") as f:
             f.write(content)
 
     def save_markdown(self, content: str) -> None:
-        """Save markdown content to disk."""
-        with open(self.markdown_path, "w", encoding="utf-8") as f:
+        """Save markdown content using storage backend."""
+        backend = StorageFactory.get_backend(self.markdown_path)
+        with backend.open(self.markdown_path, "w") as f:
             f.write(content)
 
 
@@ -302,12 +306,6 @@ def generate_archived_page_content_hash(mapper, connection, target):
     if target.url and not target.content_hash:
         # Generate content hash from URL
         target.content_hash = ArchivedPage._generate_content_hash(target.url)
-
-
-@event.listens_for(ArchivedPage, "after_insert")
-def create_archive_directory(mapper, connection, target):
-    """Create archive directory structure after inserting ArchivedPage."""
-    target._get_archive_directory().mkdir(parents=True, exist_ok=True)
 
 
 class WikipediaLink(Base, TimestampMixin):
