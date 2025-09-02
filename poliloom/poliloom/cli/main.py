@@ -22,6 +22,7 @@ from ..models import (
     Position,
     Location,
     SubclassRelation,
+    Property,
 )
 from ..embeddings import generate_embeddings_for_entities
 
@@ -169,19 +170,23 @@ def politicians_show(wikidata_id):
 
     try:
         with Session(get_engine()) as session:
-            # Query politician with all related data
+            # Query politician with all related data including evaluations
             politician = (
                 session.query(Politician)
                 .filter(Politician.wikidata_id == wikidata_id)
                 .options(
-                    joinedload(Politician.properties),
+                    joinedload(Politician.properties).joinedload(Property.evaluations),
                     joinedload(Politician.positions_held).joinedload(
                         HoldsPosition.position
+                    ),
+                    joinedload(Politician.positions_held).joinedload(
+                        HoldsPosition.evaluations
                     ),
                     joinedload(Politician.citizenships).joinedload(
                         HasCitizenship.country
                     ),
                     joinedload(Politician.birthplaces).joinedload(BornAt.location),
+                    joinedload(Politician.birthplaces).joinedload(BornAt.evaluations),
                     joinedload(Politician.wikipedia_links),
                 )
                 .first()

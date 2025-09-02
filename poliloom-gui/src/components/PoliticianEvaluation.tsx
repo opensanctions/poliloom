@@ -212,9 +212,14 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
         {/* Scrollable content area */}
         <div ref={leftPanelRef} className="overflow-y-auto min-h-0 p-6">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">{politician.name}</h1>
-            {politician.wikidata_id && (
-              <p className="text-gray-600">Wikidata ID: {politician.wikidata_id}</p>
+            {politician.wikidata_id ? (
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                <a href={`https://www.wikidata.org/wiki/${politician.wikidata_id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  {politician.name} <span className="text-gray-500 font-normal">({politician.wikidata_id})</span>
+                </a>
+              </h1>
+            ) : (
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">{politician.name}</h1>
             )}
           </div>
 
