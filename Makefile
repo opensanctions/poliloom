@@ -1,4 +1,4 @@
-.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump extract-wikidata-dump truncate-db
+.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump extract-wikidata-dump truncate-db db-dump db-restore
 
 # Start pgAdmin4 container for database inspection
 pgadmin:
@@ -35,3 +35,21 @@ truncate-db:
 	@echo "Truncating main database tables..."
 	@docker-compose exec -T postgres psql -U postgres -d poliloom -c "TRUNCATE TABLE politicians, countries, locations, positions, wikidata_classes CASCADE;"
 	@echo "Database tables truncated successfully."
+
+# Dump database to local file
+db-dump:
+	@echo "Dumping database to poliloom_db_dump.sql..."
+	@docker-compose exec -T postgres pg_dump -U postgres -d poliloom > poliloom_db_dump.sql
+	@echo "Database dumped successfully to poliloom_db_dump.sql"
+
+# Restore database from local file
+db-restore:
+	@echo "Restoring database from poliloom_db_dump.sql..."
+	@if [ ! -f poliloom_db_dump.sql ]; then \
+		echo "Error: poliloom_db_dump.sql not found. Run 'make db-dump' first or ensure the file exists."; \
+		exit 1; \
+	fi
+	@docker-compose exec -T postgres psql -U postgres -d poliloom -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	@docker-compose exec -T postgres psql -U postgres -d poliloom < init-db.sql
+	@docker-compose exec -T postgres psql -U postgres -d poliloom < poliloom_db_dump.sql
+	@echo "Database restored successfully from poliloom_db_dump.sql"
