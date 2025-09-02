@@ -130,7 +130,6 @@ def dump_download(output):
             new_dump = WikidataDump(url=url, last_modified=last_modified)
             session.add(new_dump)
             session.commit()
-            dump_id = new_dump.id
 
         # Download the file
         click.echo(f"Downloading Wikidata dump to {output}...")
@@ -141,11 +140,9 @@ def dump_download(output):
         StorageFactory.download_from_url(url, output)
 
         # Mark as downloaded
+        new_dump.downloaded_at = datetime.now(timezone.utc)
         with Session(get_engine()) as session:
-            dump_record = (
-                session.query(WikidataDump).filter(WikidataDump.id == dump_id).first()
-            )
-            dump_record.downloaded_at = datetime.now(timezone.utc)
+            session.merge(new_dump)
             session.commit()
 
         click.echo(f"✅ Successfully downloaded dump to {output}")
@@ -185,8 +182,6 @@ def dump_extract(input, output):
             )
             raise SystemExit(1)
 
-        dump_id = latest_dump.id
-
     click.echo(f"Extracting {input} to {output}...")
 
     # Check if source exists
@@ -208,11 +203,9 @@ def dump_extract(input, output):
         source_backend.extract_bz2_to(input, dest_backend, output)
 
         # Mark as extracted
+        latest_dump.extracted_at = datetime.now(timezone.utc)
         with Session(get_engine()) as session:
-            dump_record = (
-                session.query(WikidataDump).filter(WikidataDump.id == dump_id).first()
-            )
-            dump_record.extracted_at = datetime.now(timezone.utc)
+            session.merge(latest_dump)
             session.commit()
 
         click.echo(f"✅ Successfully extracted dump to {output}")
@@ -625,13 +618,9 @@ def dump_import_hierarchy(file):
 
         # Mark as imported
         if latest_dump is not None:
+            latest_dump.imported_hierarchy_at = datetime.now(timezone.utc)
             with Session(get_engine()) as session:
-                dump_record = (
-                    session.query(WikidataDump)
-                    .filter(WikidataDump.id == latest_dump.id)
-                    .first()
-                )
-                dump_record.imported_hierarchy_at = datetime.now(timezone.utc)
+                session.merge(latest_dump)
                 session.commit()
 
     except KeyboardInterrupt:
@@ -705,8 +694,9 @@ def dump_import_entities(file, batch_size):
                     .filter(WikidataDump.id == latest_dump.id)
                     .first()
                 )
-                dump_record.imported_entities_at = datetime.now(timezone.utc)
-                session.commit()
+                if dump_record is not None:
+                    dump_record.imported_entities_at = datetime.now(timezone.utc)
+                    session.commit()
 
         click.echo("✅ Successfully imported supporting entities from dump:")
         click.echo(f"  • Positions: {counts['positions']}")
@@ -790,13 +780,9 @@ def dump_import_politicians(file, batch_size):
 
         # Mark as imported
         if latest_dump is not None:
+            latest_dump.imported_politicians_at = datetime.now(timezone.utc)
             with Session(get_engine()) as session:
-                dump_record = (
-                    session.query(WikidataDump)
-                    .filter(WikidataDump.id == latest_dump.id)
-                    .first()
-                )
-                dump_record.imported_politicians_at = datetime.now(timezone.utc)
+                session.merge(latest_dump)
                 session.commit()
 
         click.echo("✅ Successfully imported politicians from dump:")
