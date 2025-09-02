@@ -398,6 +398,7 @@ class WikidataEntityImporter:
                 "Q29645880",  # ambassador of a country
                 "Q29645886",  # ambassador to a country
                 "Q707492",  # military chief of staff
+                "Q294414",  # public office
             ]
             ignore_ids = [
                 "Q114962596",  # historical position
@@ -405,6 +406,7 @@ class WikidataEntityImporter:
                 "Q60754876",  # grade of an order
                 "Q618779",  # award
                 "Q4240305",  # cross
+                # Why are these here?
                 "Q120560",  # minor basilica
                 "Q2977",  # cathedral
             ]
