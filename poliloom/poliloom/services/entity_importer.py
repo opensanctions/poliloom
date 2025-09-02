@@ -57,10 +57,13 @@ def _insert_positions_batch(positions: list[dict]) -> None:
             ]
         )
 
-        # On conflict, update the name (in case it changed in Wikidata)
+        # On conflict, update the name and clear embedding (since embedding depends on name)
         stmt = stmt.on_conflict_do_update(
             index_elements=["wikidata_id"],
-            set_={"name": stmt.excluded.name},
+            set_={
+                "name": stmt.excluded.name,
+                "embedding": None,  # Clear embedding when name changes
+            },
         )
 
         session.execute(stmt)
@@ -109,10 +112,13 @@ def _insert_locations_batch(locations: list[dict]) -> None:
             ]
         )
 
-        # On conflict, update the name (in case it changed in Wikidata)
+        # On conflict, update the name and clear embedding (since embedding depends on name)
         stmt = stmt.on_conflict_do_update(
             index_elements=["wikidata_id"],
-            set_={"name": stmt.excluded.name},
+            set_={
+                "name": stmt.excluded.name,
+                "embedding": None,  # Clear embedding when name changes
+            },
         )
 
         session.execute(stmt)
