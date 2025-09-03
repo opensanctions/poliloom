@@ -216,10 +216,32 @@ async def fetch_and_archive_page(
 
 
 def extract_properties(
-    openai_client: OpenAI, content: str, politician_name: str
+    openai_client: OpenAI,
+    content: str,
+    politician_name: str,
+    existing_properties: Optional[List] = None,
 ) -> Optional[List[ExtractedProperty]]:
     """Extract birth and death dates from content using OpenAI."""
     try:
+        # Build context about existing properties
+        existing_context = ""
+        if existing_properties:
+            existing_props = []
+            for prop in existing_properties:
+                if prop.type in ["BirthDate", "DeathDate"]:
+                    existing_props.append(f"- {prop.type}: {prop.value}")
+
+            if existing_props:
+                existing_context = f"""
+### KNOWN WIKIDATA PROPERTIES:
+{chr(10).join(existing_props)}
+
+Use this information to:
+1. Focus on finding additional or conflicting dates not already in Wikidata
+2. Validate or provide more precise versions of existing dates
+3. Identify any discrepancies between the article and Wikidata
+"""
+
         system_prompt = """You are a data extraction assistant. Extract ONLY personal properties from Wikipedia article text.
 
 Extract ONLY these two property types:
@@ -235,7 +257,7 @@ Rules:
 - Be precise and only extract what is clearly stated"""
 
         user_prompt = f"""Extract personal properties about {politician_name} from this Wikipedia article text:
-
+{existing_context}
 {content}
 
 Politician name: {politician_name}"""
@@ -264,10 +286,42 @@ Politician name: {politician_name}"""
 
 
 def extract_positions(
-    openai_client: OpenAI, db: Session, content: str, politician_name: str
+    openai_client: OpenAI,
+    db: Session,
+    content: str,
+    politician_name: str,
+    existing_positions: Optional[List] = None,
 ) -> Optional[List[ExtractedPosition]]:
     """Extract political positions from content using two-stage approach."""
     try:
+        # Build context about existing positions
+        existing_context = ""
+        if existing_positions:
+            existing_pos = []
+            for holds in existing_positions:
+                date_range = ""
+                if holds.start_date:
+                    date_range = f" ({holds.start_date}"
+                    if holds.end_date:
+                        date_range += f" - {holds.end_date})"
+                    else:
+                        date_range += " - present)"
+                elif holds.end_date:
+                    date_range = f" (until {holds.end_date})"
+                existing_pos.append(f"- {holds.position.name}{date_range}")
+
+            if existing_pos:
+                existing_context = f"""
+### KNOWN WIKIDATA POSITIONS:
+{chr(10).join(existing_pos)}
+
+Use this information to:
+1. Identify mentions of these positions in the text (they may appear with different wordings)
+2. Find additional positions not already in Wikidata
+3. Discover more specific date ranges for known positions
+4. Identify more specific variants of generic positions (e.g., specific committee memberships)
+"""
+
         # Stage 1: Free-form extraction
         system_prompt = """You are a political data analyst specializing in extracting structured information from Wikipedia articles and official government websites.
 
@@ -292,7 +346,7 @@ Extract ALL political positions from the provided content following these rules:
 
 ### CONTEXT:
 Politician: {politician_name}
-
+{existing_context}
 ### CONTENT:
 \"\"\"
 {content}
@@ -372,10 +426,32 @@ Politician: {politician_name}
 
 
 def extract_birthplaces(
-    openai_client: OpenAI, db: Session, content: str, politician_name: str
+    openai_client: OpenAI,
+    db: Session,
+    content: str,
+    politician_name: str,
+    existing_birthplaces: Optional[List] = None,
 ) -> Optional[List[ExtractedBirthplace]]:
     """Extract birthplace from content using two-stage approach."""
     try:
+        # Build context about existing birthplaces
+        existing_context = ""
+        if existing_birthplaces:
+            existing_bp = []
+            for born_at in existing_birthplaces:
+                existing_bp.append(f"- {born_at.location.name}")
+
+            if existing_bp:
+                existing_context = f"""
+### KNOWN WIKIDATA BIRTHPLACES:
+{chr(10).join(existing_bp)}
+
+Use this information to:
+1. Identify mentions of these locations in the text (they may appear with different wordings)
+2. Find more specific birthplace information (e.g., specific city if only country is known)
+3. Identify any conflicting birthplace claims
+"""
+
         # Stage 1: Free-form extraction
         system_prompt = """You are a biographical data specialist extracting location information from Wikipedia articles and official government profiles.
 
@@ -392,7 +468,7 @@ Extract birthplace information following these rules:
 
 ### CONTEXT:
 Politician: {politician_name}
-
+{existing_context}
 ### CONTENT:
 \"\"\"
 {content}
@@ -655,14 +731,26 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> bool:
                 return False
 
             # Extract properties
-            properties = extract_properties(openai_client, content, politician.name)
+            properties = extract_properties(
+                openai_client, content, politician.name, politician.wikidata_properties
+            )
 
             # Extract positions
-            positions = extract_positions(openai_client, db, content, politician.name)
+            positions = extract_positions(
+                openai_client,
+                db,
+                content,
+                politician.name,
+                politician.wikidata_positions,
+            )
 
             # Extract birthplaces
             birthplaces = extract_birthplaces(
-                openai_client, db, content, politician.name
+                openai_client,
+                db,
+                content,
+                politician.name,
+                politician.wikidata_birthplaces,
             )
 
             # Log extraction results
