@@ -73,7 +73,6 @@ uv run uvicorn poliloom.api:app --reload
 - `poliloom politicians show --id <wikidata_id>` - Display politician information
 - `poliloom positions embed` - Generate position embeddings
 - `poliloom locations embed` - Generate location embeddings
-- `poliloom positions import-csv` - Import positions from CSV
 
 ### Server
 

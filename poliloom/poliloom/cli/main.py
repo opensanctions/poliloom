@@ -6,7 +6,6 @@ import logging
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timezone
 import httpx
-from ..services.import_service import ImportService
 from ..services.enrichment_service import EnrichmentService
 from ..storage import StorageFactory
 from ..importer.hierarchy import import_hierarchy_trees
@@ -55,12 +54,6 @@ def main(verbose):
     """PoliLoom CLI - Extract politician metadata from Wikipedia and web sources."""
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
-
-
-@main.group()
-def positions():
-    """Commands for managing political positions."""
-    pass
 
 
 @main.command("dump-download")
@@ -597,38 +590,6 @@ def embed_entities(batch_size, gpu_batch_size):
     except Exception as e:
         click.echo(f"❌ Error generating embeddings: {e}")
         exit(1)
-
-
-@positions.command("import-csv")
-@click.option(
-    "--file",
-    "csv_file",
-    required=True,
-    help="Path to CSV file containing positions data",
-)
-def positions_import_csv(csv_file):
-    """Import political positions from a custom CSV file."""
-    click.echo(f"Importing political positions from CSV file: {csv_file}")
-
-    import_service = ImportService()
-
-    try:
-        count = import_service.import_positions_from_csv(csv_file)
-
-        if count > 0:
-            click.echo(f"✅ Successfully imported {count} political positions from CSV")
-        else:
-            click.echo(
-                "❌ Failed to import positions from CSV. Check the logs for details."
-            )
-            exit(1)
-
-    except Exception as e:
-        click.echo(f"❌ Error importing positions from CSV: {e}")
-        exit(1)
-
-    finally:
-        import_service.close()
 
 
 @main.command("import-hierarchy")
