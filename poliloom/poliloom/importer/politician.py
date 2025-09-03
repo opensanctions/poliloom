@@ -1,4 +1,4 @@
-"""Wikidata politician importing service."""
+"""Wikidata politician importing functions."""
 
 import logging
 import multiprocessing as mp
@@ -467,117 +467,110 @@ def _process_politicians_chunk(
     return politician_count, entity_count
 
 
-class WikidataPoliticianImporter:
-    """Extract politicians from the Wikidata dump using parallel processing."""
+def import_politicians(
+    dump_file_path: str,
+    batch_size: int = 1000,
+) -> int:
+    """
+    Import politicians from the Wikidata dump using parallel processing.
 
-    def __init__(self):
-        """Initialize the politician importer."""
+    Args:
+        dump_file_path: Path to the Wikidata JSON dump file
+        batch_size: Number of entities to process in each database batch
 
-    def extract_politicians_from_dump(
-        self,
-        dump_file_path: str,
-        batch_size: int = 1000,
-    ) -> int:
-        """
-        Extract politicians from the Wikidata dump using parallel processing.
+    Returns:
+        Total count of imported politicians
+    """
+    # Load existing entity QIDs from database for filtering
+    with Session(get_engine()) as session:
+        position_qids = set(
+            session.query(Position.wikidata_id)
+            .filter(Position.wikidata_id.isnot(None))
+            .all()
+        )
+        location_qids = set(
+            session.query(Location.wikidata_id)
+            .filter(Location.wikidata_id.isnot(None))
+            .all()
+        )
+        country_qids = set(
+            session.query(Country.wikidata_id)
+            .filter(Country.wikidata_id.isnot(None))
+            .all()
+        )
 
-        Args:
-            dump_file_path: Path to the Wikidata JSON dump file
-            batch_size: Number of entities to process in each database batch
+        # Convert to sets of strings (flatten tuples)
+        position_qids = {qid[0] for qid in position_qids}
+        location_qids = {qid[0] for qid in location_qids}
+        country_qids = {qid[0] for qid in country_qids}
 
-        Returns:
-            Total count of extracted politicians
-        """
-        # Load existing entity QIDs from database for filtering
-        with Session(get_engine()) as session:
-            position_qids = set(
-                session.query(Position.wikidata_id)
-                .filter(Position.wikidata_id.isnot(None))
-                .all()
-            )
-            location_qids = set(
-                session.query(Location.wikidata_id)
-                .filter(Location.wikidata_id.isnot(None))
-                .all()
-            )
-            country_qids = set(
-                session.query(Country.wikidata_id)
-                .filter(Country.wikidata_id.isnot(None))
-                .all()
-            )
+        logger.info(f"Filtering for {len(position_qids)} positions")
+        logger.info(f"Filtering for {len(location_qids)} locations")
+        logger.info(f"Filtering for {len(country_qids)} countries")
 
-            # Convert to sets of strings (flatten tuples)
-            position_qids = {qid[0] for qid in position_qids}
-            location_qids = {qid[0] for qid in location_qids}
-            country_qids = {qid[0] for qid in country_qids}
+    # Build frozensets once in parent, BEFORE starting Pool
+    position_qids = frozenset(position_qids)
+    location_qids = frozenset(location_qids)
+    country_qids = frozenset(country_qids)
 
-            logger.info(f"Filtering for {len(position_qids)} positions")
-            logger.info(f"Filtering for {len(location_qids)} locations")
-            logger.info(f"Filtering for {len(country_qids)} countries")
+    num_workers = mp.cpu_count()
+    logger.info(f"Using parallel processing with {num_workers} workers")
 
-        # Build frozensets once in parent, BEFORE starting Pool
-        position_qids = frozenset(position_qids)
-        location_qids = frozenset(location_qids)
-        country_qids = frozenset(country_qids)
+    # Split file into chunks for parallel processing
+    logger.info("Calculating file chunks for parallel processing...")
+    chunks = dump_reader.calculate_file_chunks(dump_file_path)
+    logger.info(f"Split file into {len(chunks)} chunks for {num_workers} workers")
 
-        num_workers = mp.cpu_count()
-        logger.info(f"Using parallel processing with {num_workers} workers")
+    # Process chunks in parallel with proper KeyboardInterrupt handling
+    pool = None
+    try:
+        pool = mp.Pool(
+            processes=num_workers,
+            initializer=init_politician_worker,
+            initargs=(position_qids, location_qids, country_qids),
+        )
 
-        # Split file into chunks for parallel processing
-        logger.info("Calculating file chunks for parallel processing...")
-        chunks = dump_reader.calculate_file_chunks(dump_file_path)
-        logger.info(f"Split file into {len(chunks)} chunks for {num_workers} workers")
+        # Each worker processes its chunk independently
+        async_result = pool.starmap_async(
+            _process_politicians_chunk,
+            [
+                (
+                    dump_file_path,
+                    start,
+                    end,
+                    i,
+                    batch_size,
+                )
+                for i, (start, end) in enumerate(chunks)
+            ],
+        )
 
-        # Process chunks in parallel with proper KeyboardInterrupt handling
-        pool = None
-        try:
-            pool = mp.Pool(
-                processes=num_workers,
-                initializer=init_politician_worker,
-                initargs=(position_qids, location_qids, country_qids),
-            )
+        # Wait for completion with proper interrupt handling
+        chunk_results = async_result.get()
 
-            # Each worker processes its chunk independently
-            async_result = pool.starmap_async(
-                _process_politicians_chunk,
-                [
-                    (
-                        dump_file_path,
-                        start,
-                        end,
-                        i,
-                        batch_size,
-                    )
-                    for i, (start, end) in enumerate(chunks)
-                ],
-            )
+    except KeyboardInterrupt:
+        logger.info("Received interrupt signal, cleaning up workers...")
+        if pool:
+            pool.terminate()
+            try:
+                pool.join()  # Wait up to 5 seconds for workers to finish
+            except Exception:
+                pass  # If join times out, continue anyway
+        raise KeyboardInterrupt("Entity extraction interrupted by user")
+    finally:
+        if pool:
+            pool.close()
+            pool.join()
 
-            # Wait for completion with proper interrupt handling
-            chunk_results = async_result.get()
+    # Merge results from all chunks
+    total_politicians = 0
+    total_entities = 0
 
-        except KeyboardInterrupt:
-            logger.info("Received interrupt signal, cleaning up workers...")
-            if pool:
-                pool.terminate()
-                try:
-                    pool.join()  # Wait up to 5 seconds for workers to finish
-                except Exception:
-                    pass  # If join times out, continue anyway
-            raise KeyboardInterrupt("Entity extraction interrupted by user")
-        finally:
-            if pool:
-                pool.close()
-                pool.join()
+    for politician_count, chunk_count in chunk_results:
+        total_entities += chunk_count
+        total_politicians += politician_count
 
-        # Merge results from all chunks
-        total_politicians = 0
-        total_entities = 0
+    logger.info(f"Extraction complete. Total processed: {total_entities}")
+    logger.info(f"Extracted: {total_politicians} politicians")
 
-        for politician_count, chunk_count in chunk_results:
-            total_entities += chunk_count
-            total_politicians += politician_count
-
-        logger.info(f"Extraction complete. Total processed: {total_entities}")
-        logger.info(f"Extracted: {total_politicians} politicians")
-
-        return total_politicians
+    return total_politicians

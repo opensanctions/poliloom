@@ -1,4 +1,4 @@
-"""Wikidata entity importing service for supporting entities (positions, locations, countries)."""
+"""Wikidata entity importing functions for supporting entities (positions, locations, countries)."""
 
 import logging
 import multiprocessing as mp
@@ -310,180 +310,172 @@ def _process_supporting_entities_chunk(
     return counts, entity_count
 
 
-class WikidataEntityImporter:
-    """Extract supporting entities from the Wikidata dump using parallel processing."""
+def _query_hierarchy_descendants(
+    root_ids: List[str], session: Session, ignore_ids: List[str] = None
+) -> Set[str]:
+    """
+    Query all descendants of multiple root entities from database using recursive SQL.
+    Only returns classes that have names and excludes ignored IDs and their descendants.
 
-    def __init__(self):
-        """Initialize the entity importer."""
+    Args:
+        root_ids: List of root entity QIDs
+        session: Database session
+        ignore_ids: List of entity QIDs to exclude along with their descendants
 
-    def _query_hierarchy_descendants(
-        self, root_ids: List[str], session: Session, ignore_ids: List[str] = None
-    ) -> Set[str]:
+    Returns:
+        Set of all descendant QIDs (including the roots) that have names
+    """
+    if not root_ids:
+        return set()
+
+    ignore_ids = ignore_ids or []
+
+    # Use recursive CTEs - one for descendants, one for ignored descendants
+    sql = text(
         """
-        Query all descendants of multiple root entities from database using recursive SQL.
-        Only returns classes that have names and excludes ignored IDs and their descendants.
-
-        Args:
-            root_ids: List of root entity QIDs
-            session: Database session
-            ignore_ids: List of entity QIDs to exclude along with their descendants
-
-        Returns:
-            Set of all descendant QIDs (including the roots) that have names
-        """
-        if not root_ids:
-            return set()
-
-        ignore_ids = ignore_ids or []
-
-        # Use recursive CTEs - one for descendants, one for ignored descendants
-        sql = text(
-            """
-            WITH RECURSIVE descendants AS (
-                -- Base case: start with all root entities
-                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
-                FROM wikidata_classes 
-                WHERE wikidata_id = ANY(:root_ids)
-                UNION
-                -- Recursive case: find all children
-                SELECT sr.child_class_id AS wikidata_id
-                FROM subclass_relations sr
-                JOIN descendants d ON sr.parent_class_id = d.wikidata_id
-            ),
-            ignored_descendants AS (
-                -- Base case: start with ignored IDs
-                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
-                FROM wikidata_classes 
-                WHERE wikidata_id = ANY(:ignore_ids)
-                UNION
-                -- Recursive case: find all children of ignored IDs
-                SELECT sr.child_class_id AS wikidata_id
-                FROM subclass_relations sr
-                JOIN ignored_descendants id ON sr.parent_class_id = id.wikidata_id
-            )
-            SELECT DISTINCT d.wikidata_id 
-            FROM descendants d
-            JOIN wikidata_classes wc ON d.wikidata_id = wc.wikidata_id
-            WHERE wc.name IS NOT NULL
-            AND d.wikidata_id NOT IN (SELECT wikidata_id FROM ignored_descendants)
-        """
+        WITH RECURSIVE descendants AS (
+            -- Base case: start with all root entities
+            SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
+            FROM wikidata_classes 
+            WHERE wikidata_id = ANY(:root_ids)
+            UNION
+            -- Recursive case: find all children
+            SELECT sr.child_class_id AS wikidata_id
+            FROM subclass_relations sr
+            JOIN descendants d ON sr.parent_class_id = d.wikidata_id
+        ),
+        ignored_descendants AS (
+            -- Base case: start with ignored IDs
+            SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
+            FROM wikidata_classes 
+            WHERE wikidata_id = ANY(:ignore_ids)
+            UNION
+            -- Recursive case: find all children of ignored IDs
+            SELECT sr.child_class_id AS wikidata_id
+            FROM subclass_relations sr
+            JOIN ignored_descendants id ON sr.parent_class_id = id.wikidata_id
         )
+        SELECT DISTINCT d.wikidata_id 
+        FROM descendants d
+        JOIN wikidata_classes wc ON d.wikidata_id = wc.wikidata_id
+        WHERE wc.name IS NOT NULL
+        AND d.wikidata_id NOT IN (SELECT wikidata_id FROM ignored_descendants)
+    """
+    )
 
-        result = session.execute(sql, {"root_ids": root_ids, "ignore_ids": ignore_ids})
-        return {row[0] for row in result.fetchall()}
+    result = session.execute(sql, {"root_ids": root_ids, "ignore_ids": ignore_ids})
+    return {row[0] for row in result.fetchall()}
 
-    def extract_entities_from_dump(
-        self,
-        dump_file_path: str,
-        batch_size: int = 1000,
-    ) -> Dict[str, int]:
-        """
-        Extract supporting entities from the Wikidata dump using parallel processing.
-        Uses frozensets to efficiently share descendant QIDs across workers with O(1) lookups.
 
-        Args:
-            dump_file_path: Path to the Wikidata JSON dump file
-            batch_size: Number of entities to process in each database batch
+def import_entities(
+    dump_file_path: str,
+    batch_size: int = 1000,
+) -> Dict[str, int]:
+    """
+    Import supporting entities from the Wikidata dump using parallel processing.
+    Uses frozensets to efficiently share descendant QIDs across workers with O(1) lookups.
 
-        Returns:
-            Dictionary with counts of extracted entities (positions, locations, countries)
-        """
-        # Load only position and location descendants from database (optimized)
-        with Session(get_engine()) as session:
-            # Use position basics approach with ignore IDs
-            position_root_ids = [
-                "Q4164871",  # position
-                "Q29645880",  # ambassador of a country
-                "Q29645886",  # ambassador to a country
-                "Q707492",  # military chief of staff
-            ]
-            ignore_ids = [
-                "Q114962596",  # historical position
-                "Q193622",  # order
-                "Q60754876",  # grade of an order
-                "Q618779",  # award
-                "Q4240305",  # cross
-                # Why are these here?
-                "Q120560",  # minor basilica
-                "Q2977",  # cathedral
-            ]
-            position_classes = self._query_hierarchy_descendants(
-                position_root_ids, session, ignore_ids
-            )
-            location_root_ids = ["Q27096213"]  # geographic entity
-            location_classes = self._query_hierarchy_descendants(
-                location_root_ids, session
-            )
+    Args:
+        dump_file_path: Path to the Wikidata JSON dump file
+        batch_size: Number of entities to process in each database batch
 
-            logger.info(
-                f"Filtering for {len(position_classes)} position types and {len(location_classes)} location types"
-            )
+    Returns:
+        Dictionary with counts of imported entities (positions, locations, countries)
+    """
+    # Load only position and location descendants from database (optimized)
+    with Session(get_engine()) as session:
+        # Use position basics approach with ignore IDs
+        position_root_ids = [
+            "Q4164871",  # position
+            "Q29645880",  # ambassador of a country
+            "Q29645886",  # ambassador to a country
+            "Q707492",  # military chief of staff
+        ]
+        ignore_ids = [
+            "Q114962596",  # historical position
+            "Q193622",  # order
+            "Q60754876",  # grade of an order
+            "Q618779",  # award
+            "Q4240305",  # cross
+            # Why are these here?
+            "Q120560",  # minor basilica
+            "Q2977",  # cathedral
+        ]
+        position_classes = _query_hierarchy_descendants(
+            position_root_ids, session, ignore_ids
+        )
+        location_root_ids = ["Q27096213"]  # geographic entity
+        location_classes = _query_hierarchy_descendants(location_root_ids, session)
 
-        # Build frozensets once in parent, BEFORE starting Pool
-        position_classes = frozenset(position_classes)
-        location_classes = frozenset(location_classes)
-
-        logger.info(f"Prepared {len(position_classes)} position classes")
-        logger.info(f"Prepared {len(location_classes)} location classes")
-
-        num_workers = mp.cpu_count()
-        logger.info(f"Using parallel processing with {num_workers} workers")
-
-        # Split file into chunks for parallel processing
-        logger.info("Calculating file chunks for parallel processing...")
-        chunks = dump_reader.calculate_file_chunks(dump_file_path)
-        logger.info(f"Split file into {len(chunks)} chunks for {num_workers} workers")
-
-        # Process chunks in parallel with proper KeyboardInterrupt handling
-        pool = None
-        try:
-            pool = mp.Pool(
-                processes=num_workers,
-                initializer=init_entity_worker,
-                initargs=(position_classes, location_classes),
-            )
-
-            async_result = pool.starmap_async(
-                _process_supporting_entities_chunk,
-                [
-                    (dump_file_path, start, end, i, batch_size)
-                    for i, (start, end) in enumerate(chunks)
-                ],
-            )
-
-            # Wait for completion with proper interrupt handling
-            chunk_results = async_result.get()
-
-        except KeyboardInterrupt:
-            logger.info("Received interrupt signal, cleaning up workers...")
-            if pool:
-                pool.terminate()
-                try:
-                    pool.join()
-                except Exception:
-                    pass
-            raise KeyboardInterrupt("Entity extraction interrupted by user")
-        finally:
-            if pool:
-                pool.close()
-                pool.join()
-
-        # Merge results from all chunks
-        total_counts = {
-            "positions": 0,
-            "locations": 0,
-            "countries": 0,
-        }
-        total_entities = 0
-
-        for counts, chunk_count in chunk_results:
-            total_entities += chunk_count
-            for key in total_counts:
-                total_counts[key] += counts[key]
-
-        logger.info(f"Extraction complete. Total processed: {total_entities}")
         logger.info(
-            f"Extracted: {total_counts['positions']} positions, {total_counts['locations']} locations, {total_counts['countries']} countries"
+            f"Filtering for {len(position_classes)} position types and {len(location_classes)} location types"
         )
 
-        return total_counts
+    # Build frozensets once in parent, BEFORE starting Pool
+    position_classes = frozenset(position_classes)
+    location_classes = frozenset(location_classes)
+
+    logger.info(f"Prepared {len(position_classes)} position classes")
+    logger.info(f"Prepared {len(location_classes)} location classes")
+
+    num_workers = mp.cpu_count()
+    logger.info(f"Using parallel processing with {num_workers} workers")
+
+    # Split file into chunks for parallel processing
+    logger.info("Calculating file chunks for parallel processing...")
+    chunks = dump_reader.calculate_file_chunks(dump_file_path)
+    logger.info(f"Split file into {len(chunks)} chunks for {num_workers} workers")
+
+    # Process chunks in parallel with proper KeyboardInterrupt handling
+    pool = None
+    try:
+        pool = mp.Pool(
+            processes=num_workers,
+            initializer=init_entity_worker,
+            initargs=(position_classes, location_classes),
+        )
+
+        async_result = pool.starmap_async(
+            _process_supporting_entities_chunk,
+            [
+                (dump_file_path, start, end, i, batch_size)
+                for i, (start, end) in enumerate(chunks)
+            ],
+        )
+
+        # Wait for completion with proper interrupt handling
+        chunk_results = async_result.get()
+
+    except KeyboardInterrupt:
+        logger.info("Received interrupt signal, cleaning up workers...")
+        if pool:
+            pool.terminate()
+            try:
+                pool.join()
+            except Exception:
+                pass
+        raise KeyboardInterrupt("Entity extraction interrupted by user")
+    finally:
+        if pool:
+            pool.close()
+            pool.join()
+
+    # Merge results from all chunks
+    total_counts = {
+        "positions": 0,
+        "locations": 0,
+        "countries": 0,
+    }
+    total_entities = 0
+
+    for counts, chunk_count in chunk_results:
+        total_entities += chunk_count
+        for key in total_counts:
+            total_counts[key] += counts[key]
+
+    logger.info(f"Extraction complete. Total processed: {total_entities}")
+    logger.info(
+        f"Extracted: {total_counts['positions']} positions, {total_counts['locations']} locations, {total_counts['countries']} countries"
+    )
+
+    return total_counts

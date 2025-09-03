@@ -1,14 +1,14 @@
 """Tests for WikidataEntityImporter."""
 
-import pytest
 import json
 import tempfile
 import os
 from unittest.mock import patch
 
 from poliloom.models import WikidataClass, SubclassRelation, Position, Location, Country
-from poliloom.services.entity_importer import (
-    WikidataEntityImporter,
+from poliloom.importer.entity import (
+    import_entities,
+    _query_hierarchy_descendants,
     _insert_positions_batch,
     _insert_locations_batch,
     _insert_countries_batch,
@@ -17,14 +17,9 @@ from sqlalchemy.dialects.postgresql import insert
 
 
 class TestWikidataEntityImporter:
-    """Test WikidataEntityImporter functionality."""
+    """Test entity importing functionality."""
 
-    @pytest.fixture
-    def entity_importer(self):
-        """Create a WikidataEntityImporter instance."""
-        return WikidataEntityImporter()
-
-    def test_extract_entities_from_dump_integration(self, entity_importer, db_session):
+    def test_import_entities_integration(self, db_session):
         """Test complete entity extraction workflow integration."""
 
         # First, set up hierarchy in database using current approach
@@ -218,9 +213,7 @@ class TestWikidataEntityImporter:
                 file_size = os.path.getsize(temp_file_path)
                 mock_chunks.return_value = [(0, file_size)]
 
-                result = entity_importer.extract_entities_from_dump(
-                    temp_file_path, batch_size=10
-                )
+                result = import_entities(temp_file_path, batch_size=10)
 
             # Verify counts returned
             assert result["positions"] == 1
@@ -418,7 +411,7 @@ class TestWikidataEntityImporter:
         assert final_countries[0].wikidata_id == "Q1"
         assert final_countries[0].name == "Country 1 Updated"
 
-    def test_query_hierarchy_descendants(self, entity_importer, db_session):
+    def test_query_hierarchy_descendants(self, db_session):
         """Test querying all descendants in a hierarchy."""
         # Set up test hierarchy in database: Q1 -> Q2 -> Q3, Q1 -> Q4
         test_classes = [
@@ -445,12 +438,12 @@ class TestWikidataEntityImporter:
         db_session.commit()
 
         # Test querying descendants
-        descendants = entity_importer._query_hierarchy_descendants(["Q1"], db_session)
+        descendants = _query_hierarchy_descendants(["Q1"], db_session)
 
         # Should include Q1 itself and all its descendants with names
         assert descendants == {"Q1", "Q2", "Q3", "Q4"}
 
-    def test_query_hierarchy_descendants_single_node(self, entity_importer, db_session):
+    def test_query_hierarchy_descendants_single_node(self, db_session):
         """Test querying descendants for a single node with no children."""
         # Set up single node
         test_classes = [{"wikidata_id": "Q1", "name": "Single Node"}]
@@ -461,14 +454,12 @@ class TestWikidataEntityImporter:
         db_session.commit()
 
         # Test querying descendants
-        descendants = entity_importer._query_hierarchy_descendants(["Q1"], db_session)
+        descendants = _query_hierarchy_descendants(["Q1"], db_session)
 
         # Should only include Q1 itself
         assert descendants == {"Q1"}
 
-    def test_query_hierarchy_descendants_partial_tree(
-        self, entity_importer, db_session
-    ):
+    def test_query_hierarchy_descendants_partial_tree(self, db_session):
         """Test querying descendants for a subtree in a larger hierarchy."""
         # Create larger hierarchy: Q1 -> {Q2, Q3}, Q2 -> {Q4, Q5}
         test_classes = [
@@ -496,11 +487,9 @@ class TestWikidataEntityImporter:
         db_session.commit()
 
         # Test querying descendants of Q2 (should include Q2, Q4, Q5)
-        descendants = entity_importer._query_hierarchy_descendants(["Q2"], db_session)
+        descendants = _query_hierarchy_descendants(["Q2"], db_session)
         assert descendants == {"Q2", "Q4", "Q5"}
 
         # Test querying descendants of Q3 (should only include Q3)
-        descendants_q3 = entity_importer._query_hierarchy_descendants(
-            ["Q3"], db_session
-        )
+        descendants_q3 = _query_hierarchy_descendants(["Q3"], db_session)
         assert descendants_q3 == {"Q3"}

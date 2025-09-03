@@ -1,6 +1,5 @@
 """Tests for WikidataPoliticianImporter."""
 
-import pytest
 import json
 import tempfile
 import os
@@ -19,8 +18,8 @@ from poliloom.models import (
     BornAt,
     WikipediaLink,
 )
-from poliloom.services.politician_importer import (
-    WikidataPoliticianImporter,
+from poliloom.importer.politician import (
+    import_politicians,
     _insert_politicians_batch,
     _is_politician,
 )
@@ -28,14 +27,9 @@ from poliloom.wikidata_entity import WikidataEntity
 
 
 class TestWikidataPoliticianImporter:
-    """Test WikidataPoliticianImporter functionality."""
+    """Test politician importing functionality."""
 
-    @pytest.fixture
-    def politician_importer(self):
-        """Create a WikidataPoliticianImporter instance."""
-        return WikidataPoliticianImporter()
-
-    def test_extract_politicians_from_dump_integration(self, politician_importer):
+    def test_import_politicians_integration(self):
         """Test complete politician extraction workflow focusing on death date filtering and workflow."""
 
         # Create test entities - focused on testing death date filtering and workflow
@@ -212,9 +206,7 @@ class TestWikidataPoliticianImporter:
                 file_size = os.path.getsize(temp_file_path)
                 mock_chunks.return_value = [(0, file_size)]
 
-                result = politician_importer.extract_politicians_from_dump(
-                    temp_file_path, batch_size=10
-                )
+                result = import_politicians(temp_file_path, batch_size=10)
 
             # Verify count returned (should be 2: living politician + recently deceased)
             assert result == 2

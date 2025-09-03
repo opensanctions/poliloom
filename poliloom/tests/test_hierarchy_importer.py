@@ -8,17 +8,12 @@ import os
 from poliloom.database import get_engine
 from sqlalchemy.orm import Session
 from poliloom.models import WikidataClass, SubclassRelation
-from poliloom.services.hierarchy_importer import WikidataHierarchyImporter
+from poliloom.importer.hierarchy import import_hierarchy_trees
 from .conftest import load_json_fixture
 
 
 class TestWikidataHierarchyImporter:
-    """Test WikidataHierarchyImporter functionality."""
-
-    @pytest.fixture
-    def hierarchy_importer(self):
-        """Create a WikidataHierarchyImporter instance."""
-        return WikidataHierarchyImporter()
+    """Test hierarchy importing functionality."""
 
     @pytest.fixture
     def sample_dump_content(self):
@@ -30,7 +25,7 @@ class TestWikidataHierarchyImporter:
         # Convert to JSONL format with newlines
         return "\n".join(json.dumps(entity) for entity in entities) + "\n"
 
-    def test_process_chunk_for_relationships(self, hierarchy_importer):
+    def test_process_chunk_for_relationships(self):
         """Test processing a chunk of the dump file to extract relationships."""
         # Create test dump content with P279 relationships
         test_entities = [
@@ -87,7 +82,7 @@ class TestWikidataHierarchyImporter:
             temp_file_path = temp_file.name
 
         try:
-            from poliloom.services.hierarchy_importer import (
+            from poliloom.importer.hierarchy import (
                 _process_chunk_for_relationships,
             )
 
@@ -104,9 +99,7 @@ class TestWikidataHierarchyImporter:
         finally:
             os.unlink(temp_file_path)
 
-    def test_import_hierarchy_trees_with_complex_relationships(
-        self, hierarchy_importer
-    ):
+    def test_import_hierarchy_trees_with_complex_relationships(self):
         """Test importing hierarchy trees with complex P279 relationships."""
         # Create dump content with complex hierarchy
         test_entities = [
@@ -196,7 +189,7 @@ class TestWikidataHierarchyImporter:
                 session.commit()
 
             # Test hierarchy tree importing (now saves to database)
-            hierarchy_importer.import_hierarchy_trees(temp_file_path)
+            import_hierarchy_trees(temp_file_path)
 
             # Verify relationships were saved to database
             with Session(get_engine()) as session:
@@ -229,7 +222,7 @@ class TestWikidataHierarchyImporter:
         finally:
             os.unlink(temp_file_path)
 
-    def test_import_hierarchy_trees_with_malformed_claims(self, hierarchy_importer):
+    def test_import_hierarchy_trees_with_malformed_claims(self):
         """Test importing hierarchy trees with malformed P279 claims."""
         test_entities = [
             {
@@ -287,7 +280,7 @@ class TestWikidataHierarchyImporter:
                 session.query(WikidataClass).delete()
                 session.commit()
 
-            hierarchy_importer.import_hierarchy_trees(temp_file_path)
+            import_hierarchy_trees(temp_file_path)
 
             # Verify only valid relationships were saved to database
             with Session(get_engine()) as session:
