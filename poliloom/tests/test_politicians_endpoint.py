@@ -9,6 +9,7 @@ from poliloom.api.auth import User
 from poliloom.models import (
     Politician,
     Property,
+    PropertyType,
     Position,
     Location,
     HoldsPosition,
@@ -57,7 +58,7 @@ def politician_with_unevaluated_data(db_session):
     # Add extracted (unevaluated) data
     extracted_property = Property(
         politician_id=politician.id,
-        type="BirthDate",
+        type=PropertyType.BIRTH_DATE,
         value="1970-01-15",
         archived_page_id=archived_page.id,
         proof_line="Born on January 15, 1970",
@@ -82,7 +83,7 @@ def politician_with_unevaluated_data(db_session):
     # Add Wikidata (non-extracted) data
     wikidata_property = Property(
         politician_id=politician.id,
-        type="DeathDate",
+        type=PropertyType.DEATH_DATE,
         value="2024-01-01",
         archived_page_id=None,  # This makes it Wikidata data
     )
@@ -137,7 +138,7 @@ def politician_with_evaluated_data(db_session):
     # Add extracted property with evaluation
     extracted_property = Property(
         politician_id=politician.id,
-        type="BirthDate",
+        type=PropertyType.BIRTH_DATE,
         value="1980-05-20",
         archived_page_id=archived_page.id,
         proof_line="Born on May 20, 1980",
@@ -173,7 +174,7 @@ def politician_with_only_wikidata(db_session):
     # Add only Wikidata (non-extracted) data
     wikidata_property = Property(
         politician_id=politician.id,
-        type="BirthDate",
+        type=PropertyType.BIRTH_DATE,
         value="1965-12-10",
         archived_page_id=None,  # This makes it Wikidata data
     )
@@ -334,7 +335,7 @@ class TestGetPoliticiansEndpoint:
             # Add extracted property
             prop = Property(
                 politician_id=politician.id,
-                type="BirthDate",
+                type=PropertyType.BIRTH_DATE,
                 value=f"19{70 + i}-01-01",
                 archived_page_id=archived_page.id,
             )
@@ -374,7 +375,7 @@ class TestGetPoliticiansEndpoint:
         # Add evaluated extracted property
         evaluated_prop = Property(
             politician_id=politician.id,
-            type="BirthDate",
+            type=PropertyType.BIRTH_DATE,
             value="1975-03-15",
             archived_page_id=archived_page.id,
         )

@@ -10,6 +10,7 @@ from poliloom.models import (
     Politician,
     WikipediaLink,
     Property,
+    PropertyType,
     Position,
     HoldsPosition,
     Country,
@@ -83,7 +84,9 @@ class TestPolitician:
 
         # Create property
         prop = Property(
-            politician_id=politician.id, type="BirthDate", value="1980-01-01"
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1980-01-01",
         )
         db_session.add(prop)
         db_session.commit()
@@ -144,8 +147,8 @@ class TestProperty:
         # Create property
         prop = Property(
             politician_id=politician.id,
-            type="Education",
-            value="Harvard University",
+            type=PropertyType.BIRTH_DATE,
+            value="1990-01-01",
             archived_page_id=None,
         )
         db_session.add(prop)
@@ -156,8 +159,8 @@ class TestProperty:
             prop,
             {
                 "politician_id": politician.id,
-                "type": "Education",
-                "value": "Harvard University",
+                "type": PropertyType.BIRTH_DATE,
+                "value": "1990-01-01",
                 "archived_page_id": None,
             },
         )
@@ -171,7 +174,9 @@ class TestProperty:
         db_session.refresh(politician)
 
         # Create property
-        prop = Property(politician_id=politician.id, type="BirthDate", value="1980")
+        prop = Property(
+            politician_id=politician.id, type=PropertyType.BIRTH_DATE, value="1980"
+        )
         db_session.add(prop)
         db_session.commit()
         db_session.refresh(prop)
@@ -180,7 +185,7 @@ class TestProperty:
             prop,
             {
                 "politician_id": politician.id,
-                "type": "BirthDate",
+                "type": PropertyType.BIRTH_DATE,
                 "value": "1980",
                 "archived_page_id": None,
             },
@@ -738,7 +743,7 @@ class TestPropertyEvaluation:
         # Create property
         prop = Property(
             politician_id=politician.id,
-            type="BirthDate",
+            type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
             archived_page_id=None,
         )
@@ -781,7 +786,7 @@ class TestPropertyEvaluation:
         # Create property
         prop = Property(
             politician_id=politician.id,
-            type="BirthDate",
+            type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
             archived_page_id=None,
         )
@@ -936,7 +941,7 @@ class TestEvaluationMultiple:
         # Create property
         prop = Property(
             politician_id=politician.id,
-            type="BirthDate",
+            type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
             archived_page_id=None,
         )

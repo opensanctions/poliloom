@@ -2,6 +2,7 @@
 
 import hashlib
 from datetime import datetime, timezone
+from enum import Enum
 from sqlalchemy import (
     Column,
     String,
@@ -13,6 +14,7 @@ from sqlalchemy import (
     Index,
     text,
     func,
+    Enum as SQLEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, declarative_base
@@ -22,6 +24,13 @@ from sqlalchemy import exists
 from pgvector.sqlalchemy import Vector
 
 Base = declarative_base()
+
+
+class PropertyType(str, Enum):
+    """Enumeration of allowed property types for politician properties."""
+
+    BIRTH_DATE = "birth_date"
+    DEATH_DATE = "death_date"
 
 
 class TimestampMixin:
@@ -288,7 +297,7 @@ class Property(Base, TimestampMixin):
     politician_id = Column(
         UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
     )
-    type = Column(String, nullable=False)  # e.g., 'BirthDate'
+    type = Column(SQLEnum(PropertyType), nullable=False)
     value = Column(String, nullable=False)
     value_precision = Column(
         Integer

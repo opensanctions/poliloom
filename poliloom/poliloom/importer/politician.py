@@ -17,6 +17,7 @@ from ..models import (
     Country,
     Politician,
     Property,
+    PropertyType,
     HoldsPosition,
     HasCitizenship,
     BornAt,
@@ -328,7 +329,7 @@ def _process_politicians_chunk(
                     if birth_info:
                         politician_data["properties"].append(
                             {
-                                "type": "birth_date",
+                                "type": PropertyType.BIRTH_DATE,
                                 "value": birth_info["date"],
                                 "value_precision": birth_info["precision"],
                             }
@@ -340,7 +341,7 @@ def _process_politicians_chunk(
                     if death_info:
                         politician_data["properties"].append(
                             {
-                                "type": "death_date",
+                                "type": PropertyType.DEATH_DATE,
                                 "value": death_info["date"],
                                 "value_precision": death_info["precision"],
                             }

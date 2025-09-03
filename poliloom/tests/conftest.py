@@ -14,6 +14,7 @@ from poliloom.models import (
     Base,
     Position,
     Location,
+    PropertyType,
 )
 from poliloom.enrichment import generate_embedding
 from poliloom.database import get_engine
@@ -119,7 +120,7 @@ def sample_mayor_of_springfield_position_data():
 def sample_property_data():
     """Return data for creating a property."""
     return {
-        "type": "BirthDate",
+        "type": PropertyType.BIRTH_DATE,
         "value": "1970-01-15",
         "archived_page_id": None,
     }

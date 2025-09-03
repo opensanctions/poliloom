@@ -67,8 +67,8 @@ def markdown_to_text(markdown_text: str) -> str:
 class PropertyType(str, Enum):
     """Allowed property types for extraction."""
 
-    BIRTH_DATE = "BirthDate"
-    DEATH_DATE = "DeathDate"
+    BIRTH_DATE = "birth_date"
+    DEATH_DATE = "death_date"
 
 
 class ExtractedProperty(BaseModel):
@@ -228,7 +228,7 @@ def extract_properties(
         if existing_properties:
             existing_props = []
             for prop in existing_properties:
-                if prop.type in ["BirthDate", "DeathDate"]:
+                if prop.type in ["birth_date", "death_date"]:
                     existing_props.append(f"- {prop.type}: {prop.value}")
 
             if existing_props:
@@ -245,12 +245,12 @@ Use this information to:
         system_prompt = """You are a data extraction assistant. Extract ONLY personal properties from Wikipedia article text.
 
 Extract ONLY these two property types:
-- BirthDate: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
-- DeathDate: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
+- birth_date: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
+- death_date: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
 
 Rules:
 - Only extract information explicitly stated in the text
-- ONLY extract BirthDate and DeathDate - ignore all other personal information
+- ONLY extract birth_date and death_date - ignore all other personal information
 - Use partial dates if full dates aren't available
 - For each property, provide a 'proof' field with ONE exact quote that mentions this property
 - When multiple sentences support the claim, choose the MOST IMPORTANT/RELEVANT single quote

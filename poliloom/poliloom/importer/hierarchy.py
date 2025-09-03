@@ -19,11 +19,6 @@ logger = logging.getLogger(__name__)
 PROGRESS_REPORT_FREQUENCY = 50000
 
 
-def init_hierarchy_worker() -> None:
-    """Initializer runs in each worker process once at startup."""
-    pass
-
-
 def _process_hierarchy_chunk(
     dump_file_path: str,
     start_byte: int,
@@ -156,10 +151,7 @@ def import_hierarchy_trees(
     pool = None
     try:
         # Workers process chunks and insert WikidataClass records during processing
-        pool = mp.Pool(
-            processes=num_workers,
-            initializer=init_hierarchy_worker,
-        )
+        pool = mp.Pool(processes=num_workers)
 
         # Each worker processes its chunk and returns relationships
         async_result = pool.starmap_async(

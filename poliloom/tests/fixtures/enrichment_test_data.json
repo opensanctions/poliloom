@@ -11,14 +11,9 @@
     "successful_property_extraction": {
       "properties": [
         {
-          "type": "BirthDate",
+          "type": "birth_date",
           "value": "1970-01-15",
           "confidence": 0.95
-        },
-        {
-          "type": "BirthPlace",
-          "value": "Springfield, Illinois",
-          "confidence": 0.90
         }
       ]
     },
@@ -50,7 +45,7 @@
     "low_confidence_extraction": {
       "properties": [
         {
-          "type": "BirthDate",
+          "type": "birth_date",
           "value": "1970",
           "confidence": 0.3
         }
@@ -201,7 +196,7 @@
     "full_pipeline_output": {
       "properties": [
         {
-          "type": "BirthDate",
+          "type": "birth_date",
           "value": "1965-03-10",
           "confidence": 0.95
         }
