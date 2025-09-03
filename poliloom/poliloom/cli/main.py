@@ -6,7 +6,7 @@ import logging
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timezone
 import httpx
-from ..services.enrichment_service import EnrichmentService
+from ..enrichment import enrich_politician_from_wikipedia
 from ..storage import StorageFactory
 from ..importer.hierarchy import import_hierarchy_trees
 from ..importer.entity import import_entities
@@ -217,14 +217,14 @@ def enrich_wikipedia(wikidata_id, limit):
         click.echo("❌ Cannot specify both --id and --limit options")
         exit(1)
 
-    enrichment_service = EnrichmentService()
-
     try:
         with Session(get_engine()) as session:
             # Build query for politicians to enrich
             query = (
                 session.query(Politician)
-                .filter(Politician.wikipedia_links.any())  # Must have Wikipedia links
+                .filter(
+                    Politician.wikipedia_links.any(language_code="en")
+                )  # Must have English Wikipedia links
                 .order_by(
                     Politician.enriched_at.asc().nullsfirst()
                 )  # Never enriched first, then oldest
@@ -252,9 +252,7 @@ def enrich_wikipedia(wikidata_id, limit):
                 f"[{i}/{len(politicians_to_enrich)}] Enriching {politician.wikidata_id} ({politician.name})..."
             )
 
-            success = asyncio.run(
-                enrichment_service.enrich_politician_from_wikipedia(politician)
-            )
+            success = asyncio.run(enrich_politician_from_wikipedia(politician))
 
             if success:
                 success_count += 1
@@ -269,9 +267,6 @@ def enrich_wikipedia(wikidata_id, limit):
     except Exception as e:
         click.echo(f"❌ Error enriching politician(s): {e}")
         exit(1)
-
-    finally:
-        enrichment_service.close()
 
 
 @main.command("show-politician")

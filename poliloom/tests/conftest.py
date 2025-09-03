@@ -15,7 +15,7 @@ from poliloom.models import (
     Position,
     Location,
 )
-from poliloom.services.extraction_service import generate_embedding
+from poliloom.enrichment import generate_embedding
 from poliloom.database import get_engine
 from sqlalchemy.orm import Session
 
@@ -35,7 +35,7 @@ def mock_generate_embedding():
         return dummy_embedding
 
     with patch(
-        "poliloom.services.extraction_service.generate_embedding",
+        "poliloom.enrichment.generate_embedding",
         side_effect=mock_embedding,
     ):
         yield

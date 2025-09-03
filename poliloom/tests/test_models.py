@@ -20,7 +20,7 @@ from poliloom.models import (
     PositionEvaluation,
     BirthplaceEvaluation,
 )
-from poliloom.services.extraction_service import generate_embedding
+from poliloom.enrichment import generate_embedding
 from .conftest import assert_model_fields
 
 
