@@ -6,9 +6,6 @@ import logging
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timezone
 import httpx
-import torch
-from sentence_transformers import SentenceTransformer
-
 from ..services.import_service import ImportService
 from ..services.enrichment_service import EnrichmentService
 from ..storage import StorageFactory
@@ -58,12 +55,6 @@ def main(verbose):
     """PoliLoom CLI - Extract politician metadata from Wikipedia and web sources."""
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
-
-
-@main.group()
-def politicians():
-    """Commands for managing politicians."""
-    pass
 
 
 @main.group()
@@ -209,7 +200,7 @@ def dump_extract(input, output):
         raise SystemExit(1)
 
 
-@politicians.command("enrich")
+@main.command("enrich-wikipedia")
 @click.option(
     "--id",
     "wikidata_id",
@@ -220,7 +211,7 @@ def dump_extract(input, output):
     type=int,
     help="Enrich politicians until N have important unevaluated statements",
 )
-def politicians_enrich(wikidata_id, limit):
+def enrich_wikipedia(wikidata_id, limit):
     """Enrich politician entities by extracting data from their linked Wikipedia articles.
 
     Usage modes:
@@ -290,14 +281,14 @@ def politicians_enrich(wikidata_id, limit):
         enrichment_service.close()
 
 
-@politicians.command("show")
+@main.command("show-politician")
 @click.option(
     "--id",
     "wikidata_id",
     required=True,
     help="Wikidata ID of politician to show (e.g., Q123456)",
 )
-def politicians_show(wikidata_id):
+def show_politician(wikidata_id):
     """Display comprehensive information about a politician, distinguishing between imported and generated data."""
     click.echo(f"Showing information for politician with Wikidata ID: {wikidata_id}")
 
@@ -544,6 +535,9 @@ def politicians_show(wikidata_id):
 )
 def embed_entities(batch_size, gpu_batch_size):
     """Generate embeddings for all positions and locations that don't have embeddings yet."""
+    import torch
+    from sentence_transformers import SentenceTransformer
+
     # Use GPU if available
     device = "cuda" if torch.cuda.is_available() else "cpu"
     click.echo(f"Using device: {device}")
@@ -852,7 +846,7 @@ def dump_import_politicians(file, batch_size):
         click.echo()
         click.echo("💡 Next steps:")
         click.echo(
-            "  • Run 'poliloom politicians enrich --id <wikidata_id>' to enrich politician data"
+            "  • Run 'poliloom enrich-wikipedia --id <wikidata_id>' to enrich politician data"
         )
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")

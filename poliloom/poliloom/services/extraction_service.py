@@ -6,8 +6,6 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, create_model
 from typing import Literal
 from openai import OpenAI
-import torch
-from sentence_transformers import SentenceTransformer
 
 from ..models import Position, Location, Politician
 
@@ -19,6 +17,9 @@ _embedding_model = None
 
 def get_embedding_model():
     """Get or create the cached SentenceTransformer model."""
+    import torch
+    from sentence_transformers import SentenceTransformer
+
     global _embedding_model
     if _embedding_model is None:
         logger.info("Loading SentenceTransformer model...")
