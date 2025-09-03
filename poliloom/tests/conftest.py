@@ -1,6 +1,6 @@
 """Test configuration and fixtures for PoliLoom tests."""
 
-import json
+import orjson
 import pytest
 import hashlib
 from datetime import datetime, timezone
@@ -44,8 +44,8 @@ def mock_generate_embedding():
 def load_json_fixture(filename):
     """Load a JSON fixture file."""
     fixtures_dir = Path(__file__).parent / "fixtures"
-    with open(fixtures_dir / filename, "r") as f:
-        return json.load(f)
+    with open(fixtures_dir / filename, "rb") as f:
+        return orjson.loads(f.read())
 
 
 @pytest.fixture(autouse=True)

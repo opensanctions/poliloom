@@ -1,6 +1,6 @@
 """File reading utilities for Wikidata dump processing."""
 
-import json
+import orjson
 import logging
 import multiprocessing as mp
 from typing import Dict, Any, Iterator, List, Tuple, Optional
@@ -105,8 +105,8 @@ def _process_dump_line(line: bytes) -> Optional[Dict[str, Any]]:
         line = line[:-1]
 
     try:
-        return json.loads(line.decode("utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError):
+        return orjson.loads(line)
+    except (orjson.JSONDecodeError, UnicodeDecodeError):
         # Skip malformed lines
         return None
 
