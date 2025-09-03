@@ -8,7 +8,7 @@ from collections import defaultdict
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from .dump_reader import DumpReader
+from .. import dump_reader
 from ..database import get_engine
 from ..models import WikidataClass, SubclassRelation
 from ..wikidata_entity import WikidataEntity
@@ -46,7 +46,6 @@ def _process_chunk_for_name_updates(
     engine = get_engine()
     engine.dispose(close=False)
 
-    dump_reader = DumpReader()
     batch_size = 1000  # Process name updates in batches of 1000
     name_updates = {}
     total_updates_count = 0
@@ -159,7 +158,6 @@ def _process_chunk_for_relationships(
 
     This dramatically reduces memory usage by avoiding entity name collection.
     """
-    dump_reader = DumpReader()
 
     try:
         subclass_relations = defaultdict(set)
@@ -203,7 +201,6 @@ class WikidataHierarchyImporter:
 
     def __init__(self):
         """Initialize the hierarchy importer."""
-        self.dump_reader = DumpReader()
 
     def import_hierarchy_trees(
         self,
@@ -265,7 +262,7 @@ class WikidataHierarchyImporter:
         logger.info(f"Using {num_workers} parallel workers")
 
         # Split file into chunks for parallel processing
-        chunks = self.dump_reader.calculate_file_chunks(dump_file_path)
+        chunks = dump_reader.calculate_file_chunks(dump_file_path)
         logger.info(f"Processing {len(chunks)} file chunks")
 
         pool = None
@@ -407,7 +404,7 @@ class WikidataHierarchyImporter:
         logger.info(f"Using {num_workers} parallel workers for name extraction")
 
         # Split file into chunks for parallel processing
-        chunks = self.dump_reader.calculate_file_chunks(dump_file_path)
+        chunks = dump_reader.calculate_file_chunks(dump_file_path)
         logger.info(f"Split file into {len(chunks)} chunks for {num_workers} workers")
 
         pool = None

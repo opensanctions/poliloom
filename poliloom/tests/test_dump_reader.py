@@ -5,17 +5,12 @@ import json
 import tempfile
 import os
 
-from poliloom.services.dump_reader import DumpReader
+from poliloom import dump_reader
 from .conftest import load_json_fixture
 
 
 class TestDumpReader:
     """Test DumpReader functionality."""
-
-    @pytest.fixture
-    def reader(self):
-        """Create a DumpReader instance."""
-        return DumpReader()
 
     @pytest.fixture
     def sample_dump_content(self):
@@ -35,7 +30,7 @@ class TestDumpReader:
 
         return "".join(lines)
 
-    def test_calculate_file_chunks(self, reader):
+    def test_calculate_file_chunks(self):
         """Test calculating file chunks for parallel processing."""
         # Create a larger test file to ensure chunking
         content = "Line 1\n" * 1000  # Ensure file is large enough for chunking
@@ -46,7 +41,7 @@ class TestDumpReader:
 
         try:
             # Test with 2 workers
-            chunks = reader.calculate_file_chunks(temp_file, 2)
+            chunks = dump_reader.calculate_file_chunks(temp_file, 2)
 
             assert len(chunks) >= 1  # At least one chunk
             assert chunks[0][0] == 0  # First chunk starts at beginning
@@ -59,7 +54,7 @@ class TestDumpReader:
         finally:
             os.unlink(temp_file)
 
-    def test_calculate_file_chunks_small_file(self, reader):
+    def test_calculate_file_chunks_small_file(self):
         """Test chunk calculation with small file."""
         content = "Small file"
 
@@ -69,7 +64,7 @@ class TestDumpReader:
 
         try:
             # Request many workers but file is small
-            chunks = reader.calculate_file_chunks(temp_file, 10)
+            chunks = dump_reader.calculate_file_chunks(temp_file, 10)
 
             # Should create fewer chunks for small file
             assert len(chunks) >= 1
@@ -79,7 +74,7 @@ class TestDumpReader:
         finally:
             os.unlink(temp_file)
 
-    def test_read_chunk_entities(self, reader, sample_dump_content):
+    def test_read_chunk_entities(self, sample_dump_content):
         """Test reading entities from a specific byte range."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write(sample_dump_content)
@@ -89,7 +84,9 @@ class TestDumpReader:
             file_size = os.path.getsize(temp_file)
 
             # Read first half of file
-            entities = list(reader.read_chunk_entities(temp_file, 0, file_size // 2))
+            entities = list(
+                dump_reader.read_chunk_entities(temp_file, 0, file_size // 2)
+            )
 
             # Should get some entities (exact number depends on where split falls)
             assert len(entities) >= 0
@@ -105,7 +102,7 @@ class TestDumpReader:
         finally:
             os.unlink(temp_file)
 
-    def test_read_chunk_entities_with_malformed_json(self, reader):
+    def test_read_chunk_entities_with_malformed_json(self):
         """Test chunk reading with malformed JSON."""
         content = """[
 {"id": "Q1", "type": "item", "labels": {}, "claims": {}},
@@ -119,7 +116,7 @@ MALFORMED_JSON_LINE,
 
         try:
             file_size = os.path.getsize(temp_file)
-            entities = list(reader.read_chunk_entities(temp_file, 0, file_size))
+            entities = list(dump_reader.read_chunk_entities(temp_file, 0, file_size))
 
             # Should skip malformed line and continue
             assert len(entities) == 2

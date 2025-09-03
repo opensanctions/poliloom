@@ -213,9 +213,7 @@ class TestWikidataEntityImporter:
             db_session.commit()
 
             # Test extraction
-            with patch.object(
-                entity_importer.dump_reader, "calculate_file_chunks"
-            ) as mock_chunks:
+            with patch("poliloom.dump_reader.calculate_file_chunks") as mock_chunks:
                 # Mock chunks to return single chunk for simpler testing
                 file_size = os.path.getsize(temp_file_path)
                 mock_chunks.return_value = [(0, file_size)]

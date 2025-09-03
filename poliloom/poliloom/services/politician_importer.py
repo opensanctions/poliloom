@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from .dump_reader import DumpReader
+from .. import dump_reader
 from ..database import get_engine
 from ..models import (
     Position,
@@ -257,8 +257,6 @@ def _process_politicians_chunk(
     engine = get_engine()
     engine.dispose(close=False)
 
-    dump_reader = DumpReader()
-
     politicians = []
     politician_count = 0
     entity_count = 0
@@ -473,7 +471,6 @@ class WikidataPoliticianImporter:
 
     def __init__(self):
         """Initialize the politician importer."""
-        self.dump_reader = DumpReader()
 
     def extract_politicians_from_dump(
         self,
@@ -527,7 +524,7 @@ class WikidataPoliticianImporter:
 
         # Split file into chunks for parallel processing
         logger.info("Calculating file chunks for parallel processing...")
-        chunks = self.dump_reader.calculate_file_chunks(dump_file_path)
+        chunks = dump_reader.calculate_file_chunks(dump_file_path)
         logger.info(f"Split file into {len(chunks)} chunks for {num_workers} workers")
 
         # Process chunks in parallel with proper KeyboardInterrupt handling
