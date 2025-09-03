@@ -27,7 +27,7 @@ from .schemas import (
     EvaluationResponse,
 )
 from .auth import get_current_user, User
-from ..services.wikidata_statement_service import get_wikidata_statement_service
+from ..wikidata_statement import push_confirmed_evaluation
 
 router = APIRouter()
 
@@ -264,7 +264,6 @@ async def evaluate_extracted_data(
         db.commit()
 
         # Push confirmed evaluations to Wikidata (don't rollback local changes on failure)
-        wikidata_service = get_wikidata_statement_service()
         wikidata_errors = []
 
         # Extract JWT token from authenticated user for Wikidata API calls
@@ -275,7 +274,7 @@ async def evaluate_extracted_data(
             try:
                 for evaluation in confirmed_evaluations:
                     try:
-                        success = await wikidata_service.push_confirmed_evaluation(
+                        success = await push_confirmed_evaluation(
                             evaluation, jwt_token, db
                         )
                         if not success:

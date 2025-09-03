@@ -213,30 +213,77 @@ def dump_extract(input, output):
 @click.option(
     "--id",
     "wikidata_id",
-    required=True,
     help="Wikidata ID of politician to enrich (e.g., Q123456)",
 )
-def politicians_enrich(wikidata_id):
-    """Enrich a politician entity by extracting data from its linked Wikipedia articles."""
-    click.echo(f"Enriching politician with Wikidata ID: {wikidata_id}")
+@click.option(
+    "--limit",
+    type=int,
+    help="Enrich politicians until N have important unevaluated statements",
+)
+def politicians_enrich(wikidata_id, limit):
+    """Enrich politician entities by extracting data from their linked Wikipedia articles.
+
+    Usage modes:
+    - --id <wikidata_id>: Enrich single politician (existing behavior)
+    - --limit <N>: Enrich politicians until N have important unevaluated statements
+    - No arguments: Enrich all politicians with Wikipedia links
+    """
+    # Validate arguments
+    if wikidata_id and limit:
+        click.echo("❌ Cannot specify both --id and --limit options")
+        exit(1)
 
     enrichment_service = EnrichmentService()
 
     try:
-        success = asyncio.run(
-            enrichment_service.enrich_politician_from_wikipedia(wikidata_id)
+        with Session(get_engine()) as session:
+            # Build query for politicians to enrich
+            query = (
+                session.query(Politician)
+                .filter(Politician.wikipedia_links.any())  # Must have Wikipedia links
+                .order_by(
+                    Politician.enriched_at.asc().nullsfirst()
+                )  # Never enriched first, then oldest
+            )
+
+            if wikidata_id:
+                query = query.filter(Politician.wikidata_id == wikidata_id)
+            elif limit:
+                query = query.limit(limit)
+
+            politicians_to_enrich = query.all()
+
+        if not politicians_to_enrich:
+            if wikidata_id:
+                click.echo(f"❌ Politician with ID {wikidata_id} not found")
+            else:
+                click.echo("✅ No politicians found that need enrichment")
+            return
+
+        click.echo(f"Found {len(politicians_to_enrich)} politician(s) to enrich")
+
+        success_count = 0
+        for i, politician in enumerate(politicians_to_enrich, 1):
+            click.echo(
+                f"[{i}/{len(politicians_to_enrich)}] Enriching {politician.wikidata_id} ({politician.name})..."
+            )
+
+            success = asyncio.run(
+                enrichment_service.enrich_politician_from_wikipedia(politician)
+            )
+
+            if success:
+                success_count += 1
+                click.echo(f"  ✅ Successfully enriched {politician.wikidata_id}")
+            else:
+                click.echo(f"  ❌ Failed to enrich {politician.wikidata_id}")
+
+        click.echo(
+            f"✅ Successfully enriched {success_count}/{len(politicians_to_enrich)} politicians"
         )
 
-        if success:
-            click.echo(
-                "✅ Successfully enriched politician data from Wikipedia sources"
-            )
-        else:
-            click.echo("❌ Failed to enrich politician. Check the logs for details.")
-            exit(1)
-
     except Exception as e:
-        click.echo(f"❌ Error enriching politician: {e}")
+        click.echo(f"❌ Error enriching politician(s): {e}")
         exit(1)
 
     finally:

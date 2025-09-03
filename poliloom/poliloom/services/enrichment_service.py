@@ -87,36 +87,28 @@ class EnrichmentService:
             self.openai_client
         )
 
-    async def enrich_politician_from_wikipedia(self, wikidata_id: str) -> bool:
+    async def enrich_politician_from_wikipedia(self, politician: Politician) -> bool:
         """
         Enrich a politician's data by extracting information from their Wikipedia sources.
 
         Args:
-            wikidata_id: The Wikidata ID of the politician to enrich (e.g., Q123456)
+            politician: The Politician model instance to enrich
 
         Returns:
             True if enrichment was successful, False otherwise
         """
         try:
             with Session(get_engine()) as db:
-                # Normalize Wikidata ID
-                if not wikidata_id.upper().startswith("Q"):
-                    wikidata_id = f"Q{wikidata_id}"
-                else:
-                    wikidata_id = wikidata_id.upper()
-
-                # Get politician by Wikidata ID
-                politician = (
-                    db.query(Politician).filter_by(wikidata_id=wikidata_id).first()
-                )
-                if not politician:
-                    logger.error(f"Politician with Wikidata ID {wikidata_id} not found")
-                    return False
+                # Merge the politician into this session
+                politician = db.merge(politician)
 
                 if not politician.wikipedia_links:
                     logger.warning(
                         f"No Wikipedia links found for politician {politician.name}"
                     )
+                    # Still update enriched_at timestamp since we attempted enrichment
+                    politician.enriched_at = datetime.now(timezone.utc)
+                    db.commit()
                     return False
 
                 # Process only English Wikipedia source
@@ -157,10 +149,16 @@ class EnrichmentService:
                     logger.warning(
                         f"No data extracted from Wikipedia sources for {politician.name}"
                     )
+                    # Still update enriched_at timestamp since we attempted enrichment
+                    politician.enriched_at = datetime.now(timezone.utc)
+                    db.commit()
                     return False
 
                 # Store extracted data in database
                 success = self._store_extracted_data(db, politician, extracted_data)
+
+                # Always update enriched_at timestamp, regardless of whether data was found
+                politician.enriched_at = datetime.now(timezone.utc)
 
                 if success:
                     db.commit()
@@ -171,7 +169,7 @@ class EnrichmentService:
                     return False
 
         except Exception as e:
-            logger.error(f"Error enriching politician {wikidata_id}: {e}")
+            logger.error(f"Error enriching politician {politician.wikidata_id}: {e}")
             return False
 
     async def _fetch_page_content_and_archive(

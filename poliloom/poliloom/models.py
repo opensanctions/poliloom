@@ -97,6 +97,9 @@ class Politician(Base, TimestampMixin):
     )
     name = Column(String, nullable=False)
     wikidata_id = Column(String, unique=True, index=True)
+    enriched_at = Column(
+        DateTime, nullable=True
+    )  # Timestamp of last enrichment attempt
 
     @property
     def is_deceased(self) -> bool:
