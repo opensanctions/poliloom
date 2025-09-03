@@ -22,7 +22,7 @@ from ..models import (
     BornAt,
     ArchivedPage,
 )
-from .archival_service import ArchivalService
+from .. import archive
 from ..database import get_engine
 from .position_extraction_service import PositionExtractionService, ExtractedPosition
 from .birthplace_extraction_service import (
@@ -86,7 +86,6 @@ class EnrichmentService:
         self.birthplace_extraction_service = BirthplaceExtractionService(
             self.openai_client
         )
-        self.archival_service = ArchivalService()
 
     async def enrich_politician_from_wikipedia(self, wikidata_id: str) -> bool:
         """
@@ -189,7 +188,7 @@ class EnrichmentService:
                 logger.info(f"Using existing archived page for {url}")
                 # Read the markdown content from disk using the archival service
                 try:
-                    markdown_content = self.archival_service.read_content(
+                    markdown_content = archive.read_archived_content(
                         existing_page.path_root, "md"
                     )
                     # Convert to plain text for LLM processing
@@ -231,7 +230,7 @@ class EnrichmentService:
 
                 # Save MHTML archive to disk using archival service
                 if result.mhtml:
-                    mhtml_path = self.archival_service.save_content(
+                    mhtml_path = archive.save_archived_content(
                         archived_page.path_root, "mhtml", result.mhtml
                     )
                     logger.info(f"Saved MHTML archive: {mhtml_path}")
@@ -240,7 +239,7 @@ class EnrichmentService:
                     try:
                         converter = MHTMLConverter()
                         html_content = converter.convert_file(mhtml_path)
-                        html_path = self.archival_service.save_content(
+                        html_path = archive.save_archived_content(
                             archived_page.path_root, "html", html_content
                         )
                         logger.info(f"Generated HTML from MHTML: {html_path}")
@@ -254,7 +253,7 @@ class EnrichmentService:
                     if len(markdown_content) > 50000:
                         markdown_content = markdown_content[:50000] + "..."
 
-                    markdown_path = self.archival_service.save_content(
+                    markdown_path = archive.save_archived_content(
                         archived_page.path_root, "md", markdown_content
                     )
                     logger.info(f"Saved markdown content: {markdown_path}")

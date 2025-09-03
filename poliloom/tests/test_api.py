@@ -232,7 +232,7 @@ class TestArchivedPagesAPI:
 
             # Mock the archival service's read method to raise FileNotFoundError
             with patch(
-                "poliloom.services.archival_service.ArchivalService.read_content",
+                "poliloom.archive.read_archived_content",
                 side_effect=FileNotFoundError("File not found"),
             ):
                 headers = {"Authorization": "Bearer valid_jwt_token"}
@@ -271,7 +271,7 @@ class TestArchivedPagesAPI:
                     return "<h1>Test HTML</h1>"
 
             with patch(
-                "poliloom.services.archival_service.ArchivalService.read_content",
+                "poliloom.archive.read_archived_content",
                 side_effect=mock_read_content,
             ):
                 headers = {"Authorization": "Bearer valid_jwt_token"}
