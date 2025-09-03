@@ -1,6 +1,5 @@
 """Database models for the PoliLoom project."""
 
-import os
 import hashlib
 from datetime import datetime, timezone
 from sqlalchemy import (
@@ -21,8 +20,6 @@ from sqlalchemy import event
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy import exists
 from pgvector.sqlalchemy import Vector
-
-from .services.storage import StorageFactory
 
 Base = declarative_base()
 
@@ -202,7 +199,7 @@ class Politician(Base, TimestampMixin):
 
 
 class ArchivedPage(Base, TimestampMixin):
-    """Archived page entity for storing fetched web page metadata and file paths."""
+    """Archived page entity for storing fetched web page metadata."""
 
     __tablename__ = "archived_pages"
 
@@ -227,77 +224,11 @@ class ArchivedPage(Base, TimestampMixin):
         """Generate a content hash for a URL."""
         return hashlib.sha256(url.encode()).hexdigest()[:16]
 
-    @staticmethod
-    def _get_archive_directory_path(timestamp: datetime) -> str:
-        """Get the archive directory path for a given timestamp."""
-        archive_root = os.getenv("POLILOOM_ARCHIVE_ROOT", "./archives")
-        date_path = f"{timestamp.year:04d}/{timestamp.month:02d}/{timestamp.day:02d}"
-        return os.path.join(archive_root, date_path)
-
-    def _get_archive_directory(self) -> str:
-        """Get the archive directory for this archived page."""
-        return self._get_archive_directory_path(self.fetch_timestamp)
-
-    @hybrid_property
-    def mhtml_path(self) -> str:
-        """Get the MHTML file path for this archived page."""
-        return os.path.join(self._get_archive_directory(), f"{self.content_hash}.mhtml")
-
-    @hybrid_property
-    def html_path(self) -> str:
-        """Get the HTML file path for this archived page."""
-        return os.path.join(self._get_archive_directory(), f"{self.content_hash}.html")
-
-    @hybrid_property
-    def markdown_path(self) -> str:
-        """Get the markdown file path for this archived page."""
-        return os.path.join(self._get_archive_directory(), f"{self.content_hash}.md")
-
-    def get_file_paths(self) -> dict:
-        """Get all file paths for this archived page."""
-        return {
-            "mhtml": self.mhtml_path,
-            "html": self.html_path,
-            "markdown": self.markdown_path,
-        }
-
-    def read_markdown_content(self) -> str:
-        """Read the markdown content using storage backend."""
-        backend = StorageFactory.get_backend(self.markdown_path)
-        if not backend.exists(self.markdown_path):
-            raise FileNotFoundError(
-                f"Archived markdown file not found: {self.markdown_path}"
-            )
-
-        with backend.open(self.markdown_path, "r") as f:
-            return f.read()
-
-    def read_html_content(self) -> str:
-        """Read the HTML content using storage backend."""
-        backend = StorageFactory.get_backend(self.html_path)
-        if not backend.exists(self.html_path):
-            raise FileNotFoundError(f"Archived HTML file not found: {self.html_path}")
-
-        with backend.open(self.html_path, "r") as f:
-            return f.read()
-
-    def save_mhtml(self, content: str) -> None:
-        """Save MHTML content using storage backend."""
-        backend = StorageFactory.get_backend(self.mhtml_path)
-        with backend.open(self.mhtml_path, "w") as f:
-            f.write(content)
-
-    def save_html(self, content: str) -> None:
-        """Save HTML content using storage backend."""
-        backend = StorageFactory.get_backend(self.html_path)
-        with backend.open(self.html_path, "w") as f:
-            f.write(content)
-
-    def save_markdown(self, content: str) -> None:
-        """Save markdown content using storage backend."""
-        backend = StorageFactory.get_backend(self.markdown_path)
-        with backend.open(self.markdown_path, "w") as f:
-            f.write(content)
+    @property
+    def path_root(self) -> str:
+        """Get the path root (timestamp/content_hash structure) for this archived page."""
+        date_path = f"{self.fetch_timestamp.year:04d}/{self.fetch_timestamp.month:02d}/{self.fetch_timestamp.day:02d}"
+        return f"{date_path}/{self.content_hash}"
 
 
 @event.listens_for(ArchivedPage, "before_insert")

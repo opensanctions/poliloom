@@ -22,6 +22,7 @@ from ..models import (
     BornAt,
     ArchivedPage,
 )
+from .archival_service import ArchivalService
 from ..database import get_engine
 from .position_extraction_service import PositionExtractionService, ExtractedPosition
 from .birthplace_extraction_service import (
@@ -85,6 +86,7 @@ class EnrichmentService:
         self.birthplace_extraction_service = BirthplaceExtractionService(
             self.openai_client
         )
+        self.archival_service = ArchivalService()
 
     async def enrich_politician_from_wikipedia(self, wikidata_id: str) -> bool:
         """
@@ -185,15 +187,17 @@ class EnrichmentService:
 
             if existing_page:
                 logger.info(f"Using existing archived page for {url}")
-                # Read the markdown content from disk using the model method
+                # Read the markdown content from disk using the archival service
                 try:
-                    markdown_content = existing_page.read_markdown_content()
+                    markdown_content = self.archival_service.read_content(
+                        existing_page.path_root, "md"
+                    )
                     # Convert to plain text for LLM processing
                     plain_text_content = markdown_to_text(markdown_content)
                     return plain_text_content, existing_page
                 except FileNotFoundError:
                     logger.warning(
-                        f"Archived markdown file not found: {existing_page.markdown_path}"
+                        f"Archived markdown file not found for {existing_page.path_root}"
                     )
                     # Continue to re-fetch the page
 
@@ -225,21 +229,21 @@ class EnrichmentService:
                     db.rollback()
                     return None, None
 
-                # Save MHTML archive to disk using model method
+                # Save MHTML archive to disk using archival service
                 if result.mhtml:
-                    archived_page.save_mhtml(result.mhtml)
-                    logger.info(f"Saved MHTML archive: {archived_page.mhtml_path}")
+                    mhtml_path = self.archival_service.save_content(
+                        archived_page.path_root, "mhtml", result.mhtml
+                    )
+                    logger.info(f"Saved MHTML archive: {mhtml_path}")
 
                     # Generate HTML from MHTML using unmhtml
                     try:
                         converter = MHTMLConverter()
-                        html_content = converter.convert_file(
-                            str(archived_page.mhtml_path)
+                        html_content = converter.convert_file(mhtml_path)
+                        html_path = self.archival_service.save_content(
+                            archived_page.path_root, "html", html_content
                         )
-                        archived_page.save_html(html_content)
-                        logger.info(
-                            f"Generated HTML from MHTML: {archived_page.html_path}"
-                        )
+                        logger.info(f"Generated HTML from MHTML: {html_path}")
                     except Exception as e:
                         logger.warning(f"Failed to generate HTML from MHTML: {e}")
 
@@ -250,10 +254,10 @@ class EnrichmentService:
                     if len(markdown_content) > 50000:
                         markdown_content = markdown_content[:50000] + "..."
 
-                    archived_page.save_markdown(markdown_content)
-                    logger.info(
-                        f"Saved markdown content: {archived_page.markdown_path}"
+                    markdown_path = self.archival_service.save_content(
+                        archived_page.path_root, "md", markdown_content
                     )
+                    logger.info(f"Saved markdown content: {markdown_path}")
 
                     # Convert markdown to plain text for LLM processing
                     # This ensures proof lines don't contain markdown formatting

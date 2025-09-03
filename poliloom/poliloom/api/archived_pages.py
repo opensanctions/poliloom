@@ -7,6 +7,7 @@ from uuid import UUID
 
 from ..database import get_engine
 from ..models import ArchivedPage
+from ..services.archival_service import ArchivalService
 from .auth import get_current_user, User
 
 router = APIRouter()
@@ -36,7 +37,8 @@ async def get_archived_page_html(
             )
 
         try:
-            content = archived_page.read_html_content()
+            archival_service = ArchivalService()
+            content = archival_service.read_content(archived_page.path_root, "html")
             return HTMLResponse(content=content, media_type="text/html")
         except FileNotFoundError as e:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -66,7 +68,8 @@ async def get_archived_page_markdown(
             )
 
         try:
-            content = archived_page.read_markdown_content()
+            archival_service = ArchivalService()
+            content = archival_service.read_content(archived_page.path_root, "md")
             return PlainTextResponse(content=content, media_type="text/markdown")
         except FileNotFoundError as e:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

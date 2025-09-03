@@ -230,9 +230,9 @@ class TestArchivedPagesAPI:
             mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=mock_user)
             mock_get_oauth_handler.return_value = mock_oauth_handler
 
-            # Mock the archived page's read methods to raise FileNotFoundError
+            # Mock the archival service's read method to raise FileNotFoundError
             with patch(
-                "poliloom.models.ArchivedPage.read_markdown_content",
+                "poliloom.services.archival_service.ArchivalService.read_content",
                 side_effect=FileNotFoundError("File not found"),
             ):
                 headers = {"Authorization": "Bearer valid_jwt_token"}
@@ -263,16 +263,16 @@ class TestArchivedPagesAPI:
             mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=mock_user)
             mock_get_oauth_handler.return_value = mock_oauth_handler
 
-            # Mock the archived page's read methods
-            with (
-                patch(
-                    "poliloom.models.ArchivedPage.read_markdown_content",
-                    return_value="# Test Markdown",
-                ),
-                patch(
-                    "poliloom.models.ArchivedPage.read_html_content",
-                    return_value="<h1>Test HTML</h1>",
-                ),
+            # Mock the archival service's read method
+            def mock_read_content(path_root, extension):
+                if extension == "md":
+                    return "# Test Markdown"
+                elif extension == "html":
+                    return "<h1>Test HTML</h1>"
+
+            with patch(
+                "poliloom.services.archival_service.ArchivalService.read_content",
+                side_effect=mock_read_content,
             ):
                 headers = {"Authorization": "Bearer valid_jwt_token"}
 

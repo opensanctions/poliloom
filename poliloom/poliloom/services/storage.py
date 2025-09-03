@@ -3,12 +3,13 @@
 import logging
 import os
 import shutil
+import httpx
+import indexed_bzip2 as ibz2
 from abc import ABC, abstractmethod
 from typing import BinaryIO, Iterator, Tuple
 from urllib.parse import urlparse
-
-import httpx
-import indexed_bzip2 as ibz2
+from google.cloud import storage
+from google.auth import default
 
 logger = logging.getLogger(__name__)
 
@@ -136,9 +137,6 @@ class GCSStorage(StorageBackend):
     def __init__(self):
         """Initialize GCS storage backend."""
         try:
-            from google.cloud import storage
-            from google.auth import default
-
             # Use Application Default Credentials from environment
             credentials, project = default()
 
