@@ -25,8 +25,8 @@ class TestWikidataHierarchyImporter:
         # Convert to JSONL format with newlines
         return "\n".join(json.dumps(entity) for entity in entities) + "\n"
 
-    def test_process_chunk_for_relationships(self):
-        """Test processing a chunk of the dump file to extract relationships."""
+    def test_process_hierarchy_chunk(self):
+        """Test processing a chunk of the dump file to extract relationships and insert classes."""
         # Create test dump content with P279 relationships
         test_entities = [
             {
@@ -83,18 +83,37 @@ class TestWikidataHierarchyImporter:
 
         try:
             from poliloom.importer.hierarchy import (
-                _process_chunk_for_relationships,
+                _process_hierarchy_chunk,
             )
 
+            with Session(get_engine()) as session:
+                # Clear existing test data
+                session.query(SubclassRelation).delete()
+                session.query(WikidataClass).delete()
+                session.commit()
+
             # Test processing the chunk
-            relationships, entity_count = _process_chunk_for_relationships(
+            relationships, entity_count = _process_hierarchy_chunk(
                 temp_file_path, 0, os.path.getsize(temp_file_path), 0
             )
 
-            # Verify results
+            # Verify results - now returns child_id -> parent_ids format
             assert entity_count == 2
-            assert "Q2" in relationships
-            assert relationships["Q2"] == {"Q1", "Q3"}
+            assert "Q1" in relationships
+            assert "Q3" in relationships
+            assert relationships["Q1"] == {"Q2"}
+            assert relationships["Q3"] == {"Q2"}
+
+            # Verify WikidataClass records were inserted for children only
+            # (parents will be inserted by main thread later)
+            with Session(get_engine()) as session:
+                classes = session.query(WikidataClass).all()
+                class_ids = {c.wikidata_id for c in classes}
+                # Should have Q1 and Q3 (children with P279 claims)
+                # Q2 (parent) is not inserted by worker - main thread will handle it
+                assert "Q1" in class_ids
+                assert "Q3" in class_ids
+                assert len(class_ids) == 2
 
         finally:
             os.unlink(temp_file_path)
@@ -204,20 +223,36 @@ class TestWikidataHierarchyImporter:
                 assert ("Q2", "Q4") in parent_child_pairs
                 assert len(parent_child_pairs) == 3
 
-                # Verify WikidataClass records were created with names
-                classes = (
+                # Verify WikidataClass records were created
+                # Children (Q2, Q3, Q4) should have names from workers
+                # Parents (Q1) inserted by main thread may not have names
+                all_classes = session.query(WikidataClass).all()
+                all_class_ids = {c.wikidata_id for c in all_classes}
+
+                # All entities should exist as WikidataClass records
+                assert "Q1" in all_class_ids
+                assert "Q2" in all_class_ids
+                assert "Q3" in all_class_ids
+                assert "Q4" in all_class_ids
+
+                # Check names for entities that should have them
+                classes_with_names = (
                     session.query(WikidataClass)
                     .filter(WikidataClass.name.isnot(None))
                     .all()
                 )
-                class_names = {c.wikidata_id: c.name for c in classes}
+                class_names = {c.wikidata_id: c.name for c in classes_with_names}
 
-                assert "Q1" in class_names
+                # Q2, Q3, Q4 should have names (processed by workers)
                 assert "Q2" in class_names
                 assert "Q3" in class_names
                 assert "Q4" in class_names
-                assert class_names["Q1"] == "Root Entity"
                 assert class_names["Q2"] == "Child 1"
+                assert class_names["Q3"] == "Child 2"
+                assert class_names["Q4"] == "Grandchild"
+
+                # Q1 may or may not have a name since it's inserted by main thread
+                # without being processed by a worker (it has no P279 claims)
 
         finally:
             os.unlink(temp_file_path)
@@ -296,16 +331,27 @@ class TestWikidataHierarchyImporter:
                 assert len(parent_child_pairs) == 1
 
                 # Verify WikidataClass records were created for involved entities in hierarchy
-                classes = (
+                all_classes = session.query(WikidataClass).all()
+                all_class_ids = {c.wikidata_id for c in all_classes}
+
+                # Q1 and Q2 should exist (Q1 processed by worker, Q2 inserted by main thread)
+                assert "Q1" in all_class_ids
+                assert "Q2" in all_class_ids
+
+                # Check which entities have names (only those processed by workers)
+                classes_with_names = (
                     session.query(WikidataClass)
                     .filter(WikidataClass.name.isnot(None))
                     .all()
                 )
-                class_ids = {c.wikidata_id for c in classes}
-                assert "Q1" in class_ids
-                # Q2 should also be created as a parent in the hierarchy
-                assert "Q2" in class_ids if len(class_ids) > 1 else True
-                # Q3 is not created because it has no valid P279 relationships
+                class_names = {c.wikidata_id: c.name for c in classes_with_names}
+
+                # Q1 should have a name (processed by worker with valid P279 claim)
+                assert "Q1" in class_names
+                assert class_names["Q1"] == "Valid Entity"
+
+                # Q3 should NOT be in hierarchy since it has malformed P279 claim
+                # Q2 may not have a name since it's inserted by main thread
 
         finally:
             os.unlink(temp_file_path)

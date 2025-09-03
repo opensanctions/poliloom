@@ -18,37 +18,34 @@ logger = logging.getLogger(__name__)
 # Progress reporting frequency for chunk processing
 PROGRESS_REPORT_FREQUENCY = 50000
 
-# Define globals for workers
-shared_target_qids: frozenset[str] | None = None
 
-
-def init_hierarchy_worker(target_qids: frozenset[str]) -> None:
+def init_hierarchy_worker() -> None:
     """Initializer runs in each worker process once at startup."""
-    global shared_target_qids
-    shared_target_qids = target_qids
+    pass
 
 
-def _process_chunk_for_name_updates(
+def _process_hierarchy_chunk(
     dump_file_path: str,
     start_byte: int,
     end_byte: int,
     worker_id: int,
-) -> Tuple[int, int]:
+    batch_size: int = 1000,
+) -> Tuple[Dict[str, Set[str]], int]:
     """
-    Worker process: Extract names only for entities in target QIDs frozenset.
-    Updates WikidataClass records in batches to reduce memory usage.
-    Returns count of updates made.
+    Worker process: Extract names and P279 relationships in single pass.
+    Inserts WikidataClass records in batches during processing.
+    Returns child_id -> parent_ids relationships for main thread to insert after all workers complete.
     """
-    global shared_target_qids
-
     # Fix multiprocessing connection issues per SQLAlchemy docs:
     # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork
     engine = get_engine()
     engine.dispose(close=False)
 
-    batch_size = 1000  # Process name updates in batches of 1000
-    name_updates = {}
-    total_updates_count = 0
+    # Collect data
+    wikidata_classes = []  # For batch insertion
+    child_parent_relations = defaultdict(
+        set
+    )  # Return to main thread: {child_id: {parent_ids}}
     entity_count = 0
 
     try:
@@ -63,193 +60,92 @@ def _process_chunk_for_name_updates(
                 logger.info(f"Worker {worker_id}: processed {entity_count} entities")
 
             entity_id = entity.get_wikidata_id()
-            if not entity_id or entity_id not in shared_target_qids:
+            if not entity_id:
                 continue
 
-            # Extract name using base entity logic
-            try:
-                name = entity.get_entity_name()
-                if name:
-                    name_updates[entity_id] = name
-            except Exception as e:
-                logger.debug(
-                    f"Worker {worker_id}: failed to extract name for {entity_id}: {e}"
-                )
-                continue
+            # Extract P279 relationships
+            subclass_claims = entity.get_truthy_claims("P279")
 
-            # Process batches when they reach the batch size
-            if len(name_updates) >= batch_size:
+            for claim in subclass_claims:
                 try:
-                    with Session(get_engine()) as session:
-                        # Bulk update using PostgreSQL upsert
-                        batch_updates = [
-                            {
-                                "wikidata_id": wikidata_id,
-                                "name": name,
-                            }
-                            for wikidata_id, name in name_updates.items()
-                        ]
+                    parent_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                    child_parent_relations[entity_id].add(parent_id)
+                except (KeyError, TypeError):
+                    continue
 
-                        stmt = insert(WikidataClass).values(batch_updates)
-                        stmt = stmt.on_conflict_do_update(
-                            index_elements=["wikidata_id"],
-                            set_={"name": stmt.excluded.name},
-                        )
+            # If entity has P279 relationships, add it for WikidataClass insertion
+            if subclass_claims:
+                # Extract name
+                name = entity.get_entity_name()
+                wikidata_classes.append(
+                    {
+                        "wikidata_id": entity_id,
+                        "name": name,
+                    }
+                )
 
-                        session.execute(stmt)
-                        session.commit()
-                        total_updates_count += len(name_updates)
-
-                        logger.info(
-                            f"Worker {worker_id}: updated batch of {len(name_updates)} WikidataClass names in database"
-                        )
-
-                except Exception as db_error:
-                    logger.error(
-                        f"Worker {worker_id}: database batch update failed: {db_error}"
-                    )
-
-                name_updates = {}
+            # Process batch when it reaches the batch size
+            if len(wikidata_classes) >= batch_size:
+                _insert_wikidata_classes_batch(wikidata_classes, worker_id)
+                wikidata_classes = []
 
     except Exception as e:
-        logger.error(f"Worker {worker_id}: error during name extraction: {e}")
+        logger.error(f"Worker {worker_id}: error during processing: {e}")
         raise
 
-    # Process remaining entities in final batch on successful completion
-    if name_updates:
-        with Session(get_engine()) as session:
-            # Bulk update using PostgreSQL upsert
-            batch_updates = [
-                {
-                    "wikidata_id": wikidata_id,
-                    "name": name,
-                }
-                for wikidata_id, name in name_updates.items()
-            ]
-
-            stmt = insert(WikidataClass).values(batch_updates)
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["wikidata_id"],
-                set_={
-                    "name": stmt.excluded.name,
-                },
-            )
-
-            session.execute(stmt)
-            session.commit()
-            total_updates_count += len(name_updates)
-
-            logger.info(
-                f"Worker {worker_id}: updated final batch of {len(name_updates)} WikidataClass names in database"
-            )
+    # Process remaining entities in final batch
+    if wikidata_classes:
+        _insert_wikidata_classes_batch(wikidata_classes, worker_id)
 
     logger.info(
-        f"Worker {worker_id}: extracted {total_updates_count} names from {entity_count} entities"
+        f"Worker {worker_id}: processed {entity_count} entities, found {len(child_parent_relations)} child-parent relationships"
     )
 
-    return total_updates_count, entity_count
+    return dict(child_parent_relations), entity_count
 
 
-def _process_chunk_for_relationships(
-    dump_file_path: str, start_byte: int, end_byte: int, worker_id: int
-) -> Tuple[Dict[str, Set[str]], int]:
-    """
-    Worker process: Extract only P279 relationships, no entity names.
-
-    This dramatically reduces memory usage by avoiding entity name collection.
-    """
+def _insert_wikidata_classes_batch(
+    wikidata_classes: list[dict], worker_id: int
+) -> None:
+    """Insert a batch of WikidataClass records into the database."""
+    if not wikidata_classes:
+        return
 
     try:
-        subclass_relations = defaultdict(set)
-        entity_count = 0
+        with Session(get_engine()) as session:
+            stmt = insert(WikidataClass).values(wikidata_classes)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["wikidata_id"],
+                set_={"name": stmt.excluded.name},
+            )
+            session.execute(stmt)
+            session.commit()
 
-        for entity in dump_reader.read_chunk_entities(
-            dump_file_path, start_byte, end_byte
-        ):
-            entity: WikidataEntity
-
-            entity_count += 1
-
-            # Progress reporting for large chunks
-            if entity_count % PROGRESS_REPORT_FREQUENCY == 0:
-                logger.info(f"Worker {worker_id}: processed {entity_count} entities")
-
-            # Extract P279 relationships using WikidataEntity logic
-            entity_id = entity.get_wikidata_id()
-            if entity_id:
-                subclass_claims = entity.get_truthy_claims("P279")
-
-                for claim in subclass_claims:
-                    try:
-                        parent_id = claim["mainsnak"]["datavalue"]["value"]["id"]
-                        subclass_relations[parent_id].add(entity_id)
-                    except (KeyError, TypeError):
-                        continue
-
+            logger.debug(
+                f"Worker {worker_id}: inserted batch of {len(wikidata_classes)} WikidataClass records"
+            )
     except Exception as e:
-        logger.error(f"Worker {worker_id}: Relationship extraction error: {e}")
+        logger.error(f"Worker {worker_id}: failed to insert WikidataClass batch: {e}")
         raise
-
-    logger.info(
-        f"Worker {worker_id}: Relationship extraction complete, processed {entity_count} entities"
-    )
-    return dict(subclass_relations), entity_count
 
 
 def import_hierarchy_trees(
     dump_file_path: str,
+    batch_size: int = 1000,
 ) -> None:
     """
     Import hierarchy trees for positions and locations from Wikidata dump.
 
-    Uses a memory-efficient three-phase approach:
-    1. Collect subclass relationships from dump
-    2. Insert WikidataClass and SubclassRelation records in batches
-    3. Update names for all WikidataClass records
+    Uses a single-pass approach:
+    1. Workers extract names and relationships, inserting WikidataClass records during processing
+    2. Main thread collects all relationships and inserts SubclassRelation records in batches
 
     Args:
         dump_file_path: Path to the Wikidata JSON dump file
+        batch_size: Number of entities to process in each database batch
     """
     logger.info(f"Importing hierarchy trees from dump file: {dump_file_path}")
 
-    # Phase 1: Collect subclass relationships
-    logger.info("Phase 1: Collecting subclass relationships...")
-    subclass_relations = _collect_subclass_relationships(dump_file_path)
-
-    # Extract all unique QIDs that need WikidataClass records
-    all_qids = set()
-    for parent_qid, children in subclass_relations.items():
-        all_qids.add(parent_qid)
-        all_qids.update(children)
-
-    logger.info(f"Found {len(all_qids)} unique entities in hierarchy")
-
-    # Phase 2: Insert WikidataClass and SubclassRelation records in batches
-    logger.info("Phase 2: Inserting WikidataClass and SubclassRelation records...")
-    _batch_insert_subclass_relations(subclass_relations)
-
-    # Phase 3: Extract and batch update names for all WikidataClass records in database
-    logger.info(
-        "Phase 3: Extracting and updating names for all WikidataClass records..."
-    )
-    _batch_update_wikidata_class_names(dump_file_path, all_qids)
-
-    logger.info("✅ Hierarchy import complete")
-
-
-def _collect_subclass_relationships(dump_file_path: str) -> Dict[str, Set[str]]:
-    """
-    Collect QIDs involved in P279 relationships (memory-efficient first step).
-
-    This step only collects relationship data without entity names,
-    dramatically reducing memory usage from 64GB+ to ~100MB.
-
-    Args:
-        dump_file_path: Path to the Wikidata JSON dump file
-
-    Returns:
-        Dictionary mapping parent QIDs to sets of child QIDs
-    """
     num_workers = mp.cpu_count()
     logger.info(f"Using {num_workers} parallel workers")
 
@@ -259,13 +155,19 @@ def _collect_subclass_relationships(dump_file_path: str) -> Dict[str, Set[str]]:
 
     pool = None
     try:
-        # Pass 1 doesn't need database access, just file processing
-        pool = mp.Pool(processes=num_workers)
+        # Workers process chunks and insert WikidataClass records during processing
+        pool = mp.Pool(
+            processes=num_workers,
+            initializer=init_hierarchy_worker,
+        )
 
-        # Each worker processes its chunk independently
+        # Each worker processes its chunk and returns relationships
         async_result = pool.starmap_async(
-            _process_chunk_for_relationships,
-            [(dump_file_path, start, end, i) for i, (start, end) in enumerate(chunks)],
+            _process_hierarchy_chunk,
+            [
+                (dump_file_path, start, end, i, batch_size)
+                for i, (start, end) in enumerate(chunks)
+            ],
         )
 
         chunk_results = async_result.get()
@@ -278,56 +180,42 @@ def _collect_subclass_relationships(dump_file_path: str) -> Dict[str, Set[str]]:
                 pool.join()
             except Exception:
                 pass
-        raise KeyboardInterrupt("Relationship collection interrupted by user")
+        raise KeyboardInterrupt("Hierarchy import interrupted by user")
     finally:
         if pool:
             pool.close()
             pool.join()
 
-    # Merge results from all chunks (only relations, no names)
-    subclass_relations = defaultdict(set)
+    # Merge relationships from all workers
+    logger.info("Merging relationships from all workers...")
+    child_parent_relations = defaultdict(set)
     total_entities = 0
 
     for chunk_relations, chunk_count in chunk_results:
         total_entities += chunk_count
-        for parent_id, children in chunk_relations.items():
-            subclass_relations[parent_id].update(children)
+        for child_id, parents in chunk_relations.items():
+            child_parent_relations[child_id].update(parents)
 
-    logger.info(
-        f"Relationship collection complete: Processed {total_entities} entities"
-    )
-    logger.info(f"Found {len(subclass_relations)} entities with subclasses")
+    logger.info(f"Processing complete: Processed {total_entities} entities")
+    logger.info(f"Found {len(child_parent_relations)} child-parent relationships")
 
-    return dict(subclass_relations)
+    # Collect all parent entities and ensure they have WikidataClass records
+    all_parent_ids = set()
+    for parents in child_parent_relations.values():
+        all_parent_ids.update(parents)
 
+    logger.info(f"Inserting {len(all_parent_ids)} parent WikidataClass records...")
+    parent_classes = [
+        {"wikidata_id": parent_id, "name": None} for parent_id in all_parent_ids
+    ]
 
-def _batch_insert_subclass_relations(subclass_relations: Dict[str, Set[str]]) -> None:
-    """
-    Insert WikidataClass and SubclassRelation records in smaller committed batches.
-    Each batch commits independently for better progress visibility and recovery.
-
-    Args:
-        subclass_relations: Mapping of parent QIDs to child QID sets
-    """
-    total_relations = sum(len(children) for children in subclass_relations.values())
-    logger.info(f"Inserting {total_relations} subclass relations")
-
-    # 1. Insert WikidataClass records in committed batches
-    all_qids = set(subclass_relations.keys())
-    for children in subclass_relations.values():
-        all_qids.update(children)
-
-    logger.info(f"Inserting {len(all_qids)} WikidataClass records")
-    class_data = [{"wikidata_id": qid} for qid in all_qids]
-
-    batch_size = 10000
-    total_batches = (len(class_data) + batch_size - 1) // batch_size
-
-    for i in range(0, len(class_data), batch_size):
-        batch_num = i // batch_size + 1
-        batch = class_data[i : i + batch_size]
-
-        # Each batch gets its own committed transaction
+    # Insert parent WikidataClass records in batches
+    batch_size_inserts = 10000
+    total_parent_batches = (
+        len(parent_classes) + batch_size_inserts - 1
+    ) // batch_size_inserts
+    for i in range(0, len(parent_classes), batch_size_inserts):
+        batch = parent_classes[i : i + batch_size_inserts]
         with Session(get_engine()) as session:
             stmt = insert(WikidataClass).values(batch)
             stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
@@ -335,28 +223,26 @@ def _batch_insert_subclass_relations(subclass_relations: Dict[str, Set[str]]) ->
             session.commit()
 
         logger.info(
-            f"Inserted WikidataClass batch {batch_num}/{total_batches} ({len(batch)} records)"
+            f"Inserted parent WikidataClass batch {i // batch_size_inserts + 1}/{total_parent_batches} ({len(batch)} records)"
         )
 
-    logger.info(f"✅ Completed inserting {len(class_data)} WikidataClass records")
-
-    # 2. Insert SubclassRelation records in committed batches
+    # Build SubclassRelation data directly from child_parent_relations
     relation_data = [
-        {"parent_class_id": parent_qid, "child_class_id": child_qid}
-        for parent_qid, children in subclass_relations.items()
-        for child_qid in children
+        {"parent_class_id": parent_id, "child_class_id": child_id}
+        for child_id, parents in child_parent_relations.items()
+        for parent_id in parents
     ]
 
-    total_relation_batches = (len(relation_data) + batch_size - 1) // batch_size
+    total_relation_batches = (
+        len(relation_data) + batch_size_inserts - 1
+    ) // batch_size_inserts
     logger.info(
         f"Inserting {len(relation_data)} subclass relations in {total_relation_batches} batches"
     )
 
-    for i in range(0, len(relation_data), batch_size):
-        batch_num = i // batch_size + 1
-        batch = relation_data[i : i + batch_size]
+    for i in range(0, len(relation_data), batch_size_inserts):
+        batch = relation_data[i : i + batch_size_inserts]
 
-        # Each batch gets its own committed transaction
         with Session(get_engine()) as session:
             stmt = insert(SubclassRelation).values(batch)
             stmt = stmt.on_conflict_do_nothing(constraint="uq_subclass_parent_child")
@@ -364,73 +250,9 @@ def _batch_insert_subclass_relations(subclass_relations: Dict[str, Set[str]]) ->
             session.commit()
 
         logger.info(
-            f"Inserted SubclassRelation batch {batch_num}/{total_relation_batches} ({len(batch)} records)"
+            f"Inserted SubclassRelation batch {i // batch_size_inserts + 1}/{total_relation_batches} ({len(batch)} records)"
         )
 
     logger.info(f"✅ Completed inserting {len(relation_data)} subclass relations")
 
-
-def _batch_update_wikidata_class_names(dump_file_path: str, target_qids: set) -> None:
-    """
-    Extract names from dump and batch update WikidataClass records for target QIDs.
-    Uses frozenset to efficiently share QIDs between workers with O(1) lookups.
-
-    Args:
-        dump_file_path: Path to the Wikidata JSON dump file
-        target_qids: Set of QIDs to extract names for (already available from hierarchy import)
-    """
-    logger.info(f"Extracting names for {len(target_qids)} WikidataClass records")
-
-    # Build frozenset once in parent, BEFORE starting Pool
-    target_qids_frozen = frozenset(target_qids)
-    logger.info(f"Prepared frozenset with {len(target_qids_frozen)} QIDs")
-
-    num_workers = mp.cpu_count()
-    logger.info(f"Using {num_workers} parallel workers for name extraction")
-
-    # Split file into chunks for parallel processing
-    chunks = dump_reader.calculate_file_chunks(dump_file_path)
-    logger.info(f"Split file into {len(chunks)} chunks for {num_workers} workers")
-
-    pool = None
-
-    try:
-        pool = mp.Pool(
-            processes=num_workers,
-            initializer=init_hierarchy_worker,
-            initargs=(target_qids_frozen,),
-        )
-
-        async_result = pool.starmap_async(
-            _process_chunk_for_name_updates,
-            [(dump_file_path, start, end, i) for i, (start, end) in enumerate(chunks)],
-        )
-
-        chunk_results = async_result.get()
-
-    except KeyboardInterrupt:
-        logger.info("Received interrupt signal, cleaning up workers...")
-        if pool:
-            pool.terminate()
-            try:
-                pool.join()
-            except Exception:
-                pass
-        raise KeyboardInterrupt("Name extraction interrupted by user")
-    finally:
-        if pool:
-            pool.close()
-            pool.join()
-
-    # Merge results from all chunks (workers now handle their own database updates)
-    total_updates = 0
-    total_entities = 0
-
-    for updates_count, chunk_count in chunk_results:
-        total_entities += chunk_count
-        total_updates += updates_count
-
-    logger.info(f"Name extraction complete: processed {total_entities} entities")
-    logger.info(f"Updated names for {total_updates} entities")
-
-    logger.info("✅ WikidataClass name updates complete")
+    logger.info("✅ Hierarchy import complete")
