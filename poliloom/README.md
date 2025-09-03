@@ -49,11 +49,10 @@ uv run poliloom import-entities     # Import positions, locations, countries
 uv run poliloom import-politicians  # Import politicians linking to entities
 
 # 4. Generate embeddings for vector search
-uv run poliloom positions embed
-uv run poliloom locations embed
+uv run poliloom embed-entities
 
 # 5. Enrich politician data using LLMs
-uv run poliloom politicians enrich --id Q6279
+uv run poliloom enrich-wikipedia --id Q6279
 
 # 6. Start API server
 uv run uvicorn poliloom.api:app --reload
@@ -69,10 +68,10 @@ uv run uvicorn poliloom.api:app --reload
 
 ### Data Management
 
-- `poliloom politicians enrich --id <wikidata_id>` - Enrich politician using LLMs
-- `poliloom politicians show --id <wikidata_id>` - Display politician information
-- `poliloom positions embed` - Generate position embeddings
-- `poliloom locations embed` - Generate location embeddings
+- `poliloom enrich-wikipedia --id <wikidata_id>` - Enrich politician using LLMs
+- `poliloom enrich-wikipedia --limit <N>` - Enrich politicians until N have unevaluated statements
+- `poliloom show-politician --id <wikidata_id>` - Display politician information
+- `poliloom embed-entities` - Generate embeddings for all positions and locations
 
 ### Server
 

@@ -144,6 +144,13 @@ uv run poliloom import-politicians --file ./dump.json
 
 # Generate embeddings
 uv run poliloom embed-entities
+
+# Enrich politician data
+uv run poliloom enrich-wikipedia --id Q6279
+uv run poliloom enrich-wikipedia --limit 100
+
+# Show politician information
+uv run poliloom show-politician --id Q6279
 ```
 
 ## **8. Code Style & Development Practices**
