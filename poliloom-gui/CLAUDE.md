@@ -46,7 +46,10 @@ The application integrates with the PoliLoom API backend to:
 - Support configurable API base URL for different environments
 - Retrieve archived web pages from various sources for context and verification
 
-The API specification is available via OpenAPI documentation from the backend service (runs at `http://localhost:8000` in development) at `/openapi.json`.
+The API specification is available via OpenAPI documentation from the backend service. The backend server is likely running at `http://localhost:8000` in the development environment. You can fetch the OpenAPI spec with:
+```bash
+curl http://localhost:8000/openapi.json
+```
 
 ## Data Model
 
@@ -67,19 +70,11 @@ The API specification is available via OpenAPI documentation from the backend se
 
 ## Application Architecture
 
-### Page Structure
-
-- **Main Interface**: Single-politician evaluation workflow
-- **Authentication**: MediaWiki OAuth login and callback handling
-- **Protected Routes**: All evaluation pages require authentication
-
-### Component Architecture
-
 - **Evaluation Components**: Individual UI for confirming properties, positions, and birthplaces
 - **Navigation**: Simple sequential navigation between politicians
 - **Text Highlighting System**: CSS Custom Highlight API implementation for highlighting proof text in archived pages
 - **Iframe Integration**: Secure display of archived web pages with automatic highlighting
-- **Reusable UI**: Consistent design components throughout
+- **Protected Routes**: All evaluation pages require authentication
 
 ## User Interface Requirements
 
@@ -112,15 +107,13 @@ The API specification is available via OpenAPI documentation from the backend se
 - **Clarity**: Show source context for extracted data
 - **Efficiency**: Minimize clicks for common evaluation actions
 - **Safety**: Clear feedback before irreversible actions
-- **Responsiveness**: Optimized for desktop use (1024px+)
+- **Responsiveness**: Responsive design optimized for desktop use
 
 ### Target Platform
 
-- **Evergreen** Only support modern evergreen browsers, no fallbacks.
+- Support modern browsers only, no legacy fallbacks
 
 ## Testing Strategy
-
-**IMPORTANT**: The development server is already running
 
 **Framework**: Vitest + React Testing Library for fast, modern testing with excellent TypeScript support.
 
@@ -136,6 +129,5 @@ The API specification is available via OpenAPI documentation from the backend se
 **Testing Scope**:
 
 - Focus on user-facing behavior rather than implementation details
-- Manual testing for OAuth integration
 - Automated testing for core evaluation components using Vitest
 - Basic error scenario coverage
