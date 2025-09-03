@@ -11,7 +11,7 @@ from sentence_transformers import SentenceTransformer
 
 from ..services.import_service import ImportService
 from ..services.enrichment_service import EnrichmentService
-from ..services.storage import StorageFactory
+from ..storage import StorageFactory
 from ..services.hierarchy_importer import WikidataHierarchyImporter
 from ..services.entity_importer import WikidataEntityImporter
 from ..services.politician_importer import WikidataPoliticianImporter

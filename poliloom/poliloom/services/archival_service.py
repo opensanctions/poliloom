@@ -3,7 +3,7 @@
 import os
 from typing import Optional
 
-from .storage import StorageFactory
+from ..storage import StorageFactory
 
 
 class ArchivalService:

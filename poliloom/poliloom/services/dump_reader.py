@@ -5,7 +5,7 @@ import logging
 import multiprocessing as mp
 from typing import Dict, Any, Iterator, List, Tuple, Optional
 
-from .storage import StorageFactory
+from ..storage import StorageFactory
 from ..wikidata_entity import WikidataEntity
 
 logger = logging.getLogger(__name__)
