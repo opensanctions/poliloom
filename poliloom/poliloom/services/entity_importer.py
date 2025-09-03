@@ -235,15 +235,16 @@ def _process_supporting_entities_chunk(
             }
 
             # Check entity type and add type-specific fields
-            # Check if entity is a position based on instance hierarchy
+            # Check if entity is a position based on instance or subclass hierarchy
             instance_ids = entity.get_instance_of_ids()
-            if any(
-                instance_id in shared_position_classes for instance_id in instance_ids
-            ):
+            subclass_ids = entity.get_subclass_of_ids()
+            all_class_ids = instance_ids.union(subclass_ids)
+
+            if any(class_id in shared_position_classes for class_id in all_class_ids):
                 # Get all valid class IDs for this position
                 valid_class_ids = [
                     class_id
-                    for class_id in instance_ids
+                    for class_id in all_class_ids
                     if class_id in shared_position_classes
                 ]
                 entity_data["wikidata_class_ids"] = valid_class_ids
@@ -251,13 +252,11 @@ def _process_supporting_entities_chunk(
                 positions.append(entity_data)
                 counts["positions"] += 1
 
-            if any(
-                instance_id in shared_location_classes for instance_id in instance_ids
-            ):
+            if any(class_id in shared_location_classes for class_id in all_class_ids):
                 # Get all valid class IDs for this location
                 valid_class_ids = [
                     class_id
-                    for class_id in instance_ids
+                    for class_id in all_class_ids
                     if class_id in shared_location_classes
                 ]
                 entity_data["wikidata_class_ids"] = valid_class_ids
@@ -400,7 +399,6 @@ class WikidataEntityImporter:
                 "Q29645880",  # ambassador of a country
                 "Q29645886",  # ambassador to a country
                 "Q707492",  # military chief of staff
-                "Q294414",  # public office
             ]
             ignore_ids = [
                 "Q114962596",  # historical position
