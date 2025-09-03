@@ -243,6 +243,14 @@ class WikipediaLink(Base, TimestampMixin):
     """Wikipedia link entity for storing politician Wikipedia article URLs."""
 
     __tablename__ = "wikipedia_links"
+    __table_args__ = (
+        Index(
+            "idx_wikipedia_links_politician_language",
+            "politician_id",
+            "language_code",
+            unique=True,
+        ),
+    )
 
     id = Column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")

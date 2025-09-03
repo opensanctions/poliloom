@@ -215,25 +215,26 @@ def _insert_politicians_batch(politicians: list[dict]) -> None:
                 )
                 session.execute(stmt)
 
-            # Add Wikipedia links
-            for wiki_link in politician_data.get("wikipedia_links", []):
-                # Check if this Wikipedia link already exists
-                existing_link = (
-                    session.query(WikipediaLink)
-                    .filter_by(
-                        politician_id=politician_obj.id,
-                        url=wiki_link["url"],
-                    )
-                    .first()
-                )
+            # Add Wikipedia links using batch UPSERT
+            wikipedia_batch = [
+                {
+                    "politician_id": politician_obj.id,
+                    "url": wiki_link["url"],
+                    "language_code": wiki_link.get("language", "en"),
+                }
+                for wiki_link in politician_data.get("wikipedia_links", [])
+            ]
 
-                if not existing_link:
-                    wikipedia_link = WikipediaLink(
-                        politician_id=politician_obj.id,
-                        url=wiki_link["url"],
-                        language_code=wiki_link.get("language", "en"),
-                    )
-                    session.add(wikipedia_link)
+            if wikipedia_batch:
+                stmt = insert(WikipediaLink).values(wikipedia_batch)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["politician_id", "language_code"],
+                    set_={
+                        "url": stmt.excluded.url,
+                        "updated_at": stmt.excluded.updated_at,
+                    },
+                )
+                session.execute(stmt)
 
         session.commit()
         logger.debug(f"Processed {len(politicians)} politicians (upserted)")
