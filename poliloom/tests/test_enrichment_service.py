@@ -85,9 +85,11 @@ class TestEnrichmentService:
         db_session.refresh(politician)
         return politician
 
-    async def test_enrich_politician_not_found(self, enrichment_service):
+    async def test_enrich_politician_not_found(self, enrichment_service, db_session):
         """Test enrichment fails when politician not found."""
-        result = await enrichment_service.enrich_politician_from_wikipedia("Q999999")
+        # Create a politician that doesn't exist in the enrichment service's session
+        politician = Politician(name="Nonexistent Politician", wikidata_id="Q999999")
+        result = await enrichment_service.enrich_politician_from_wikipedia(politician)
 
         assert result is False
 
@@ -97,7 +99,7 @@ class TestEnrichmentService:
         db_session.add(politician)
         db_session.commit()
 
-        result = await enrichment_service.enrich_politician_from_wikipedia("Q123456")
+        result = await enrichment_service.enrich_politician_from_wikipedia(politician)
 
         assert result is False
 
