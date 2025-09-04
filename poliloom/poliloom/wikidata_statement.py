@@ -342,11 +342,10 @@ async def _push_property_evaluation(
         return False
 
     if prop.type == "date_of_birth":
-        source_url = _get_source_url(prop, db)
         statement_id = await create_birth_date_statement(
             prop.politician.wikidata_id,
             prop.value,
-            source_url,
+            prop.archived_page.original_url,
             jwt_token,
         )
         return statement_id is not None
@@ -368,13 +367,12 @@ async def _push_position_evaluation(
         )
         return False
 
-    source_url = _get_source_url(position, db)
     statement_id = await create_position_held_statement(
         position.politician.wikidata_id,
         position.position.wikidata_id,
         position.start_date,
         position.end_date,
-        source_url,
+        position.archived_page.original_url,
         jwt_token,
     )
     return statement_id is not None
@@ -393,40 +391,10 @@ async def _push_birthplace_evaluation(
         )
         return False
 
-    source_url = _get_source_url(birthplace, db)
     statement_id = await create_birthplace_statement(
         birthplace.politician.wikidata_id,
         birthplace.location.wikidata_id,
-        source_url,
+        birthplace.archived_page.original_url,
         jwt_token,
     )
     return statement_id is not None
-
-
-def _get_source_url(entity: Any, db: Session) -> str:
-    """
-    Get the source URL from the entity's archived page or politician's Wikipedia link.
-
-    Args:
-        entity: Property, HoldsPosition, or BornAt entity
-        db: Database session
-
-    Returns:
-        Source URL for the reference
-    """
-    # Try to get from archived page first
-    if hasattr(entity, "archived_page") and entity.archived_page:
-        return entity.archived_page.original_url
-
-    # Fall back to politician's Wikipedia link
-    if hasattr(entity, "politician") and entity.politician:
-        for link in entity.politician.wikipedia_links:
-            if link.language == "en":  # Prefer English Wikipedia
-                return link.url
-
-        # If no English link, use the first available
-        if entity.politician.wikipedia_links:
-            return entity.politician.wikipedia_links[0].url
-
-    # Default fallback (should not happen in practice)
-    return "https://en.wikipedia.org/"
