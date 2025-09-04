@@ -249,11 +249,11 @@ Extract ONLY these two property types:
             reasoning={"effort": "minimal"},
         )
 
-        if response.text is None:
+        if response.output_parsed is None:
             logger.error("OpenAI property extraction returned None for parsed data")
             return None
 
-        return response.text.properties
+        return response.output_parsed.properties
 
     except Exception as e:
         logger.error(f"Error extracting properties with LLM: {e}")
@@ -344,11 +344,11 @@ Extract all political positions from the provided content following these rules:
             reasoning={"effort": "minimal"},
         )
 
-        if response.text is None:
+        if response.output_parsed is None:
             logger.error("OpenAI position extraction returned None")
             return None
 
-        free_form_positions = response.text.positions
+        free_form_positions = response.output_parsed.positions
         if not free_form_positions:
             logger.info(f"No positions extracted for {politician_name}")
             return []
@@ -470,11 +470,11 @@ Extract birthplace information following these rules:
             reasoning={"effort": "minimal"},
         )
 
-        if response.text is None:
+        if response.output_parsed is None:
             logger.error("OpenAI birthplace extraction returned None")
             return None
 
-        free_form_birthplaces = response.text.birthplaces
+        free_form_birthplaces = response.output_parsed.birthplaces
         if not free_form_birthplaces:
             logger.info(f"No birthplace extracted for {politician_name}")
             return []
@@ -596,10 +596,10 @@ Select the best match or None if no good match exists."""
             reasoning={"effort": "minimal"},
         )
 
-        if response.text is None:
+        if response.output_parsed is None:
             return None
 
-        return response.text.wikidata_position_name
+        return response.output_parsed.wikidata_position_name
 
     except Exception as e:
         logger.error(f"Error mapping position with LLM: {e}")
@@ -664,10 +664,10 @@ Select the best match or None if no good match exists."""
             reasoning={"effort": "minimal"},
         )
 
-        if response.text is None:
+        if response.output_parsed is None:
             return None
 
-        return response.text.wikidata_location_name
+        return response.output_parsed.wikidata_location_name
 
     except Exception as e:
         logger.error(f"Error mapping location with LLM: {e}")
