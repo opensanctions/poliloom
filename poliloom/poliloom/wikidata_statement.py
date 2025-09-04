@@ -15,6 +15,7 @@ from .models import (
     Property,
     HoldsPosition,
     BornAt,
+    PropertyType,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,51 @@ WIKIDATA_API_ROOT = os.getenv(
     "WIKIDATA_API_ROOT", "https://test.wikidata.org/w/rest.php/wikibase/v1"
 )
 USER_AGENT = "PoliLoom API/0.1.0"
+
+
+def _parse_date_for_wikidata(date_value: str) -> Optional[Dict[str, Any]]:
+    """
+    Parse a date string and convert it to Wikidata time format.
+
+    Args:
+        date_value: Date string (ISO format, partial date like "1962", etc.)
+
+    Returns:
+        Wikidata time value dict or None if parsing fails
+    """
+    try:
+        # Try to parse as full date first
+        dt = datetime.fromisoformat(date_value.replace("Z", "+00:00"))
+        return {
+            "type": "time",
+            "value": {
+                "time": f"+{dt.year:04d}-{dt.month:02d}-{dt.day:02d}T00:00:00Z",
+                "timezone": 0,
+                "before": 0,
+                "after": 0,
+                "precision": 11,  # Day precision
+                "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+            },
+        }
+    except ValueError:
+        # Handle partial dates like "1962" or "JUN 1982"
+        if len(date_value) == 4 and date_value.isdigit():
+            # Year only
+            year = int(date_value)
+            return {
+                "type": "time",
+                "value": {
+                    "time": f"+{year:04d}-00-00T00:00:00Z",
+                    "timezone": 0,
+                    "before": 0,
+                    "after": 0,
+                    "precision": 9,  # Year precision
+                    "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                },
+            }
+        else:
+            logger.error(f"Cannot parse date value: {date_value}")
+            return None
 
 
 async def create_statement(
@@ -51,6 +97,10 @@ async def create_statement(
     if not jwt_token:
         logger.error("JWT token is required for Wikidata API calls")
         return None
+
+    logger.info(
+        f"Creating statement for entity {entity_id} with property {property_id}"
+    )
 
     url = f"{WIKIDATA_API_ROOT}/entities/items/{entity_id}/statements"
 
@@ -82,216 +132,26 @@ async def create_statement(
             if response.status_code == 201:
                 result = response.json()
                 statement_id = result.get("id")
-                logger.info(f"Created statement {statement_id} for {entity_id}")
+                logger.info(
+                    f"Successfully created statement {statement_id} for entity {entity_id} with property {property_id}"
+                )
                 return statement_id
             else:
                 logger.error(
-                    f"Failed to create statement: {response.status_code} - {response.text}"
+                    f"Failed to create statement for entity {entity_id} with property {property_id}: HTTP {response.status_code} - {response.text}"
                 )
                 return None
 
     except httpx.RequestError as e:
-        logger.error(f"Network error creating statement: {e}")
+        logger.error(
+            f"Network error creating statement for entity {entity_id} with property {property_id}: {e}"
+        )
         return None
     except Exception as e:
-        logger.error(f"Unexpected error creating statement: {e}")
+        logger.error(
+            f"Unexpected error creating statement for entity {entity_id} with property {property_id}: {e}"
+        )
         return None
-
-
-async def create_birth_date_statement(
-    politician_id: str,
-    date_value: str,
-    source_url: str,
-    jwt_token: str,
-) -> Optional[str]:
-    """
-    Create a birth date statement (P569) with Wikipedia reference.
-
-    Args:
-        politician_id: Wikidata ID of the politician
-        date_value: Birth date value (ISO format or partial)
-        source_url: Wikipedia article URL as reference
-        jwt_token: MediaWiki OAuth 2.0 JWT token
-
-    Returns:
-        Statement ID if successful, None if failed
-    """
-    # Format date value for Wikidata
-    try:
-        # Try to parse as full date first
-        dt = datetime.fromisoformat(date_value.replace("Z", "+00:00"))
-        wikidata_value = {
-            "type": "time",
-            "value": {
-                "time": f"+{dt.year:04d}-{dt.month:02d}-{dt.day:02d}T00:00:00Z",
-                "timezone": 0,
-                "before": 0,
-                "after": 0,
-                "precision": 11,  # Day precision
-                "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-            },
-        }
-    except ValueError:
-        # Handle partial dates like "1962" or "JUN 1982"
-        if len(date_value) == 4 and date_value.isdigit():
-            # Year only
-            year = int(date_value)
-            wikidata_value = {
-                "type": "time",
-                "value": {
-                    "time": f"+{year:04d}-00-00T00:00:00Z",
-                    "timezone": 0,
-                    "before": 0,
-                    "after": 0,
-                    "precision": 9,  # Year precision
-                    "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                },
-            }
-        else:
-            logger.error(f"Cannot parse date value: {date_value}")
-            return None
-
-    # Create reference to Wikipedia article
-    references = [
-        {
-            "property": {"id": "P854"},  # Reference URL
-            "value": {"type": "string", "value": source_url},
-        }
-    ]
-
-    return await create_statement(
-        politician_id,
-        "P569",  # Date of birth
-        wikidata_value,
-        references=references,
-        jwt_token=jwt_token,
-    )
-
-
-async def create_birthplace_statement(
-    politician_id: str,
-    location_id: str,
-    source_url: str,
-    jwt_token: str,
-) -> Optional[str]:
-    """
-    Create a birthplace statement (P19) with Wikipedia reference.
-
-    Args:
-        politician_id: Wikidata ID of the politician
-        location_id: Wikidata ID of the location
-        source_url: Wikipedia article URL as reference
-        jwt_token: MediaWiki OAuth 2.0 JWT token
-
-    Returns:
-        Statement ID if successful, None if failed
-    """
-    wikidata_value = {"type": "wikibase-entityid", "value": {"id": location_id}}
-
-    # Create reference to Wikipedia article
-    references = [
-        {
-            "property": {"id": "P854"},  # Reference URL
-            "value": {"type": "string", "value": source_url},
-        }
-    ]
-
-    return await create_statement(
-        politician_id,
-        "P19",  # Place of birth
-        wikidata_value,
-        references=references,
-        jwt_token=jwt_token,
-    )
-
-
-async def create_position_held_statement(
-    politician_id: str,
-    position_id: str,
-    start_date: Optional[str],
-    end_date: Optional[str],
-    source_url: str,
-    jwt_token: str,
-) -> Optional[str]:
-    """
-    Create a position held statement (P39) with qualifiers and Wikipedia reference.
-
-    Args:
-        politician_id: Wikidata ID of the politician
-        position_id: Wikidata ID of the position
-        start_date: Start date (optional)
-        end_date: End date (optional)
-        source_url: Wikipedia article URL as reference
-        jwt_token: MediaWiki OAuth 2.0 JWT token
-
-    Returns:
-        Statement ID if successful, None if failed
-    """
-    wikidata_value = {"type": "wikibase-entityid", "value": {"id": position_id}}
-
-    # Create qualifiers for start/end dates
-    qualifiers = []
-
-    if start_date:
-        try:
-            dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
-            qualifiers.append(
-                {
-                    "property": {"id": "P580"},  # Start time
-                    "value": {
-                        "type": "time",
-                        "value": {
-                            "time": f"+{dt.year:04d}-{dt.month:02d}-{dt.day:02d}T00:00:00Z",
-                            "timezone": 0,
-                            "before": 0,
-                            "after": 0,
-                            "precision": 11,  # Day precision
-                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                        },
-                    },
-                }
-            )
-        except ValueError:
-            logger.warning(f"Cannot parse start date: {start_date}")
-
-    if end_date:
-        try:
-            dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
-            qualifiers.append(
-                {
-                    "property": {"id": "P582"},  # End time
-                    "value": {
-                        "type": "time",
-                        "value": {
-                            "time": f"+{dt.year:04d}-{dt.month:02d}-{dt.day:02d}T00:00:00Z",
-                            "timezone": 0,
-                            "before": 0,
-                            "after": 0,
-                            "precision": 11,  # Day precision
-                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                        },
-                    },
-                }
-            )
-        except ValueError:
-            logger.warning(f"Cannot parse end date: {end_date}")
-
-    # Create reference to Wikipedia article
-    references = [
-        {
-            "property": {"id": "P854"},  # Reference URL
-            "value": {"type": "string", "value": source_url},
-        }
-    ]
-
-    return await create_statement(
-        politician_id,
-        "P39",  # Position held
-        wikidata_value,
-        references=references,
-        qualifiers=qualifiers if qualifiers else None,
-        jwt_token=jwt_token,
-    )
 
 
 async def push_confirmed_evaluation(
@@ -311,22 +171,59 @@ async def push_confirmed_evaluation(
         True if successful, False if failed
     """
     if not evaluation.is_confirmed:
-        logger.info("Skipping unconfirmed evaluation")
+        logger.info(
+            f"Skipping unconfirmed evaluation {evaluation.id} (type: {type(evaluation).__name__})"
+        )
         return True  # Not an error, just skip
+
+    logger.info(
+        f"Pushing confirmed evaluation {evaluation.id} (type: {type(evaluation).__name__}) to Wikidata"
+    )
 
     try:
         if isinstance(evaluation, PropertyEvaluation):
-            return await _push_property_evaluation(evaluation, jwt_token, db)
+            success = await _push_property_evaluation(evaluation, jwt_token, db)
+            if success:
+                logger.info(
+                    f"Successfully pushed PropertyEvaluation {evaluation.id} to Wikidata"
+                )
+            else:
+                logger.error(
+                    f"Failed to push PropertyEvaluation {evaluation.id} to Wikidata"
+                )
+            return success
         elif isinstance(evaluation, PositionEvaluation):
-            return await _push_position_evaluation(evaluation, jwt_token, db)
+            success = await _push_position_evaluation(evaluation, jwt_token, db)
+            if success:
+                logger.info(
+                    f"Successfully pushed PositionEvaluation {evaluation.id} to Wikidata"
+                )
+            else:
+                logger.error(
+                    f"Failed to push PositionEvaluation {evaluation.id} to Wikidata"
+                )
+            return success
         elif isinstance(evaluation, BirthplaceEvaluation):
-            return await _push_birthplace_evaluation(evaluation, jwt_token, db)
+            success = await _push_birthplace_evaluation(evaluation, jwt_token, db)
+            if success:
+                logger.info(
+                    f"Successfully pushed BirthplaceEvaluation {evaluation.id} to Wikidata"
+                )
+            else:
+                logger.error(
+                    f"Failed to push BirthplaceEvaluation {evaluation.id} to Wikidata"
+                )
+            return success
         else:
-            logger.error(f"Unknown evaluation type: {type(evaluation)}")
+            logger.error(
+                f"Unknown evaluation type: {type(evaluation)} for evaluation {evaluation.id}"
+            )
             return False
 
     except Exception as e:
-        logger.error(f"Error pushing evaluation to Wikidata: {e}")
+        logger.error(
+            f"Error pushing evaluation {evaluation.id} (type: {type(evaluation).__name__}) to Wikidata: {e}"
+        )
         return False
 
 
@@ -338,20 +235,51 @@ async def _push_property_evaluation(
     """Push a confirmed property evaluation to Wikidata."""
     prop = db.get(Property, evaluation.property_id)
     if not prop or not prop.politician:
-        logger.error(f"Property {evaluation.property_id} or politician not found")
+        logger.error(
+            f"Property {evaluation.property_id} or politician not found for PropertyEvaluation {evaluation.id}"
+        )
         return False
 
-    if prop.type == "date_of_birth":
-        statement_id = await create_birth_date_statement(
-            prop.politician.wikidata_id,
-            prop.value,
-            prop.archived_page.original_url,
-            jwt_token,
+    logger.info(
+        f"Processing PropertyEvaluation {evaluation.id}: property type '{prop.type}', politician {prop.politician.wikidata_id}"
+    )
+
+    # Map property types to Wikidata properties
+    property_map = {
+        PropertyType.BIRTH_DATE: "P569",
+        PropertyType.DEATH_DATE: "P570",
+    }
+
+    property_id = property_map[prop.type]
+    logger.info(
+        f"Creating {prop.type} statement for politician {prop.politician.wikidata_id} with value '{prop.value}'"
+    )
+
+    # Format date value for Wikidata
+    wikidata_value = _parse_date_for_wikidata(prop.value)
+    if not wikidata_value:
+        return False
+
+    # Create reference to Wikipedia article
+    references = [
+        {
+            "property": {"id": "P854"},  # Reference URL
+            "value": {"type": "string", "value": prop.archived_page.url},
+        }
+    ]
+
+    statement_id = await create_statement(
+        prop.politician.wikidata_id,
+        property_id,
+        wikidata_value,
+        references=references,
+        jwt_token=jwt_token,
+    )
+    if statement_id:
+        logger.info(
+            f"{prop.type} statement {statement_id} created successfully for politician {prop.politician.wikidata_id}"
         )
-        return statement_id is not None
-    else:
-        logger.warning(f"Property type {prop.type} not yet supported")
-        return True  # Don't fail on unsupported types
+    return statement_id is not None
 
 
 async def _push_position_evaluation(
@@ -363,18 +291,70 @@ async def _push_position_evaluation(
     position = db.get(HoldsPosition, evaluation.holds_position_id)
     if not position or not position.politician or not position.position:
         logger.error(
-            f"Position {evaluation.holds_position_id} or related entities not found"
+            f"Position {evaluation.holds_position_id} or related entities not found for PositionEvaluation {evaluation.id}"
         )
         return False
 
-    statement_id = await create_position_held_statement(
-        position.politician.wikidata_id,
-        position.position.wikidata_id,
-        position.start_date,
-        position.end_date,
-        position.archived_page.original_url,
-        jwt_token,
+    logger.info(
+        f"Processing PositionEvaluation {evaluation.id}: politician {position.politician.wikidata_id} held position {position.position.wikidata_id} ({position.position.name})"
     )
+
+    logger.info(
+        f"Creating position statement for politician {position.politician.wikidata_id} with position {position.position.wikidata_id}, dates: {position.start_date} to {position.end_date}"
+    )
+
+    wikidata_value = {
+        "type": "wikibase-entityid",
+        "value": {"id": position.position.wikidata_id},
+    }
+
+    # Create qualifiers for start/end dates
+    qualifiers = []
+
+    if position.start_date:
+        start_date_value = _parse_date_for_wikidata(position.start_date)
+        if start_date_value:
+            qualifiers.append(
+                {
+                    "property": {"id": "P580"},  # Start time
+                    "value": start_date_value,
+                }
+            )
+        else:
+            logger.warning(f"Cannot parse start date: {position.start_date}")
+
+    if position.end_date:
+        end_date_value = _parse_date_for_wikidata(position.end_date)
+        if end_date_value:
+            qualifiers.append(
+                {
+                    "property": {"id": "P582"},  # End time
+                    "value": end_date_value,
+                }
+            )
+        else:
+            logger.warning(f"Cannot parse end date: {position.end_date}")
+
+    # Create reference to Wikipedia article
+    references = [
+        {
+            "property": {"id": "P854"},  # Reference URL
+            "value": {"type": "string", "value": position.archived_page.url},
+        }
+    ]
+
+    statement_id = await create_statement(
+        position.politician.wikidata_id,
+        "P39",  # Position held
+        wikidata_value,
+        references=references,
+        qualifiers=qualifiers if qualifiers else None,
+        jwt_token=jwt_token,
+    )
+    if statement_id:
+        logger.info(
+            f"Position statement {statement_id} created successfully for politician {position.politician.wikidata_id}"
+        )
     return statement_id is not None
 
 
@@ -387,14 +367,40 @@ async def _push_birthplace_evaluation(
     birthplace = db.get(BornAt, evaluation.born_at_id)
     if not birthplace or not birthplace.politician or not birthplace.location:
         logger.error(
-            f"Birthplace {evaluation.born_at_id} or related entities not found"
+            f"Birthplace {evaluation.born_at_id} or related entities not found for BirthplaceEvaluation {evaluation.id}"
         )
         return False
 
-    statement_id = await create_birthplace_statement(
-        birthplace.politician.wikidata_id,
-        birthplace.location.wikidata_id,
-        birthplace.archived_page.original_url,
-        jwt_token,
+    logger.info(
+        f"Processing BirthplaceEvaluation {evaluation.id}: politician {birthplace.politician.wikidata_id} born in {birthplace.location.wikidata_id} ({birthplace.location.name})"
     )
+
+    logger.info(
+        f"Creating birthplace statement for politician {birthplace.politician.wikidata_id} with location {birthplace.location.wikidata_id}"
+    )
+
+    wikidata_value = {
+        "type": "wikibase-entityid",
+        "value": {"id": birthplace.location.wikidata_id},
+    }
+
+    # Create reference to Wikipedia article
+    references = [
+        {
+            "property": {"id": "P854"},  # Reference URL
+            "value": {"type": "string", "value": birthplace.archived_page.url},
+        }
+    ]
+
+    statement_id = await create_statement(
+        birthplace.politician.wikidata_id,
+        "P19",  # Place of birth
+        wikidata_value,
+        references=references,
+        jwt_token=jwt_token,
+    )
+    if statement_id:
+        logger.info(
+            f"Birthplace statement {statement_id} created successfully for politician {birthplace.politician.wikidata_id}"
+        )
     return statement_id is not None

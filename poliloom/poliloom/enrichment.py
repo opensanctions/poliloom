@@ -4,7 +4,6 @@ import os
 import logging
 from datetime import datetime, timezone
 from typing import List, Optional
-from enum import Enum
 from sqlalchemy.orm import Session
 from openai import OpenAI
 from pydantic import BaseModel
@@ -15,6 +14,7 @@ from bs4 import BeautifulSoup
 from .models import (
     Politician,
     Property,
+    PropertyType,
     Position,
     HoldsPosition,
     Location,
@@ -62,13 +62,6 @@ def markdown_to_text(markdown_text: str) -> str:
     text = soup.get_text()
     text = " ".join(text.split())
     return text
-
-
-class PropertyType(str, Enum):
-    """Allowed property types for extraction."""
-
-    BIRTH_DATE = "birth_date"
-    DEATH_DATE = "death_date"
 
 
 class ExtractedProperty(BaseModel):
@@ -129,90 +122,62 @@ class FreeFormBirthplaceResult(BaseModel):
     birthplaces: List[FreeFormBirthplace]
 
 
-async def fetch_and_archive_page(
-    url: str, db: Session
-) -> tuple[Optional[str], Optional[ArchivedPage]]:
+async def fetch_and_archive_page(url: str, db: Session) -> ArchivedPage:
     """Fetch web page content and archive it."""
-    try:
-        # Check if we already have this page archived
-        existing_page = db.query(ArchivedPage).filter(ArchivedPage.url == url).first()
+    # Create and insert ArchivedPage first
+    now = datetime.now(timezone.utc)
+    archived_page = ArchivedPage(url=url, fetch_timestamp=now)
+    db.add(archived_page)
+    db.flush()
 
-        if existing_page:
-            logger.info(f"Using existing archived page for {url}")
+    # Lazy import crawl4ai
+    from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+
+    config = CrawlerRunConfig(
+        capture_mhtml=True,
+        verbose=True,
+        word_count_threshold=0,
+        only_text=True,
+    )
+
+    async with AsyncWebCrawler() as crawler:
+        result = await crawler.arun(url, config=config)
+
+        if not result.success:
+            db.rollback()
+            raise RuntimeError(f"Failed to crawl page: {url}")
+
+        # Save MHTML archive
+        if result.mhtml:
+            mhtml_path = archive.save_archived_content(
+                archived_page.path_root, "mhtml", result.mhtml
+            )
+            logger.info(f"Saved MHTML archive: {mhtml_path}")
+
+            # Generate HTML from MHTML
             try:
-                markdown_content = archive.read_archived_content(
-                    existing_page.path_root, "md"
+                converter = MHTMLConverter()
+                html_content = converter.convert_file(mhtml_path)
+                html_path = archive.save_archived_content(
+                    archived_page.path_root, "html", html_content
                 )
-                plain_text_content = markdown_to_text(markdown_content)
-                return plain_text_content, existing_page
-            except FileNotFoundError:
-                logger.warning(
-                    f"Archived markdown file not found for {existing_page.path_root}"
-                )
+                logger.info(f"Generated HTML from MHTML: {html_path}")
+            except Exception as e:
+                logger.warning(f"Failed to generate HTML from MHTML: {e}")
 
-        # Create and insert ArchivedPage first
-        now = datetime.now(timezone.utc)
-        archived_page = ArchivedPage(url=url, fetch_timestamp=now)
-        db.add(archived_page)
-        db.flush()
+        # Save markdown content
+        markdown_content = result.markdown
+        if markdown_content:
+            if len(markdown_content) > 50000:
+                markdown_content = markdown_content[:50000] + "..."
 
-        # Lazy import crawl4ai
-        from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+            markdown_path = archive.save_archived_content(
+                archived_page.path_root, "md", markdown_content
+            )
+            logger.info(f"Saved markdown content: {markdown_path}")
 
-        config = CrawlerRunConfig(
-            capture_mhtml=True,
-            verbose=True,
-            word_count_threshold=0,
-            only_text=True,
-        )
-
-        async with AsyncWebCrawler() as crawler:
-            result = await crawler.arun(url, config=config)
-
-            if not result.success:
-                logger.error(f"Failed to crawl page: {url}")
-                db.rollback()
-                return None, None
-
-            # Save MHTML archive
-            if result.mhtml:
-                mhtml_path = archive.save_archived_content(
-                    archived_page.path_root, "mhtml", result.mhtml
-                )
-                logger.info(f"Saved MHTML archive: {mhtml_path}")
-
-                # Generate HTML from MHTML
-                try:
-                    converter = MHTMLConverter()
-                    html_content = converter.convert_file(mhtml_path)
-                    html_path = archive.save_archived_content(
-                        archived_page.path_root, "html", html_content
-                    )
-                    logger.info(f"Generated HTML from MHTML: {html_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to generate HTML from MHTML: {e}")
-
-            # Save markdown content
-            markdown_content = result.markdown
-            if markdown_content:
-                if len(markdown_content) > 50000:
-                    markdown_content = markdown_content[:50000] + "..."
-
-                markdown_path = archive.save_archived_content(
-                    archived_page.path_root, "md", markdown_content
-                )
-                logger.info(f"Saved markdown content: {markdown_path}")
-
-                plain_text_content = markdown_to_text(markdown_content)
-            else:
-                plain_text_content = None
-
-            db.commit()
-            return plain_text_content, archived_page
-
-    except Exception as e:
-        logger.error(f"Error fetching and archiving page content from {url}: {e}")
-        return None, None
+        db.commit()
+        return archived_page
 
 
 def extract_properties(
@@ -242,7 +207,7 @@ Use this information to:
 3. Identify any discrepancies between the article and Wikidata
 """
 
-        system_prompt = """You are a data extraction assistant. Extract ONLY personal properties from Wikipedia article text.
+            system_prompt = """You are a data extraction assistant. Extract ONLY personal properties from Wikipedia article text.
 
 Extract ONLY these two property types:
 - birth_date: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
@@ -256,29 +221,29 @@ Rules:
 - When multiple sentences support the claim, choose the MOST IMPORTANT/RELEVANT single quote
 - Be precise and only extract what is clearly stated"""
 
-        user_prompt = f"""Extract personal properties about {politician_name} from this Wikipedia article text:
+            user_prompt = f"""Extract personal properties about {politician_name} from this Wikipedia article text:
 {existing_context}
 {content}
 
 Politician name: {politician_name}"""
 
-        logger.debug(f"Extracting properties for {politician_name}")
+            logger.debug(f"Extracting properties for {politician_name}")
 
-        response = openai_client.beta.chat.completions.parse(
-            model="gpt-5",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            response_format=PropertyExtractionResult,
-        )
+            response = openai_client.beta.chat.completions.parse(
+                model="gpt-5",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format=PropertyExtractionResult,
+            )
 
-        message = response.choices[0].message
-        if message.parsed is None:
-            logger.error("OpenAI property extraction returned None for parsed data")
-            return None
+            message = response.choices[0].message
+            if message.parsed is None:
+                logger.error("OpenAI property extraction returned None for parsed data")
+                return None
 
-        return message.parsed.properties
+            return message.parsed.properties
 
     except Exception as e:
         logger.error(f"Error extracting properties with LLM: {e}")
@@ -682,15 +647,15 @@ Select the best match or None if no good match exists."""
         return None
 
 
-async def enrich_politician_from_wikipedia(politician: Politician) -> bool:
+async def enrich_politician_from_wikipedia(politician: Politician) -> None:
     """
     Enrich a politician's data by extracting information from their Wikipedia sources.
 
     Args:
         politician: The Politician model instance to enrich
 
-    Returns:
-        True if enrichment was successful, False otherwise
+    Raises:
+        ValueError: If politician has no Wikipedia links or no English Wikipedia link
     """
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -700,10 +665,9 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> bool:
             politician = db.merge(politician)
 
             if not politician.wikipedia_links:
-                logger.warning(
+                raise ValueError(
                     f"No Wikipedia links found for politician {politician.name}"
                 )
-                return False
 
             # Process only English Wikipedia source
             english_wikipedia_link = None
@@ -713,22 +677,37 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> bool:
                     break
 
             if not english_wikipedia_link:
-                logger.warning(
+                raise ValueError(
                     f"No English Wikipedia source found for politician {politician.name}"
                 )
-                return False
 
             logger.info(
                 f"Processing English Wikipedia source: {english_wikipedia_link.url}"
             )
 
-            # Fetch and archive the page
-            content, archived_page = await fetch_and_archive_page(
-                english_wikipedia_link.url, db
+            # Check if we already have this page archived
+            existing_page = (
+                db.query(ArchivedPage)
+                .filter(ArchivedPage.url == english_wikipedia_link.url)
+                .first()
             )
-            if not content or not archived_page:
-                logger.warning(f"Failed to fetch content for {politician.name}")
-                return False
+
+            if existing_page:
+                logger.info(
+                    f"Using existing archived page for {english_wikipedia_link.url}"
+                )
+                archived_page = existing_page
+            else:
+                # Fetch and archive the page
+                archived_page = await fetch_and_archive_page(
+                    english_wikipedia_link.url, db
+                )
+
+            # Read content from archived page
+            markdown_content = archive.read_archived_content(
+                archived_page.path_root, "md"
+            )
+            content = markdown_to_text(markdown_content)
 
             # Extract properties
             properties = extract_properties(
@@ -793,14 +772,15 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> bool:
             if success:
                 db.commit()
                 logger.info(f"Successfully enriched politician {politician.name}")
-                return True
             else:
                 db.rollback()
-                return False
+                raise RuntimeError(
+                    f"Failed to store extracted data for {politician.name}"
+                )
 
         except Exception as e:
             logger.error(f"Error enriching politician {politician.wikidata_id}: {e}")
-            return False
+            raise
 
         finally:
             # Always update enriched_at timestamp regardless of success/failure

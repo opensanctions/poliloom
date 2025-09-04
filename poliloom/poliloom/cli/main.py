@@ -202,14 +202,14 @@ def dump_extract(input, output):
 @click.option(
     "--limit",
     type=int,
-    help="Enrich politicians until N have important unevaluated statements",
+    help="Enrich politicians until N have unevaluated extracted data available for evaluation",
 )
 def enrich_wikipedia(wikidata_id, limit):
     """Enrich politician entities by extracting data from their linked Wikipedia articles.
 
     Usage modes:
     - --id <wikidata_id>: Enrich single politician (existing behavior)
-    - --limit <N>: Enrich politicians until N have important unevaluated statements
+    - --limit <N>: Enrich politicians until N have unevaluated extracted data available for evaluation
     - No arguments: Enrich all politicians with Wikipedia links
     """
     # Validate arguments
@@ -218,51 +218,122 @@ def enrich_wikipedia(wikidata_id, limit):
         exit(1)
 
     try:
-        with Session(get_engine()) as session:
-            # Build query for politicians to enrich
-            query = (
-                session.query(Politician)
-                .filter(
-                    Politician.wikipedia_links.any(language_code="en")
-                )  # Must have English Wikipedia links
-                .order_by(
-                    Politician.enriched_at.asc().nullsfirst()
-                )  # Never enriched first, then oldest
-            )
+        if wikidata_id:
+            # Single politician mode
+            with Session(get_engine()) as session:
+                politician = (
+                    session.query(Politician)
+                    .filter(Politician.wikidata_id == wikidata_id)
+                    .filter(Politician.wikipedia_links.any(language_code="en"))
+                    .first()
+                )
 
-            if wikidata_id:
-                query = query.filter(Politician.wikidata_id == wikidata_id)
-            elif limit:
-                query = query.limit(limit)
+                if not politician:
+                    click.echo(
+                        f"❌ Politician with ID {wikidata_id} not found or has no English Wikipedia link"
+                    )
+                    return
 
-            politicians_to_enrich = query.all()
+                click.echo(f"Enriching {politician.wikidata_id} ({politician.name})...")
+                try:
+                    asyncio.run(enrich_politician_from_wikipedia(politician))
+                    click.echo(f"✅ Successfully enriched {politician.wikidata_id}")
+                except Exception as e:
+                    click.echo(f"❌ Failed to enrich {politician.wikidata_id}: {e}")
+                return
 
-        if not politicians_to_enrich:
-            if wikidata_id:
-                click.echo(f"❌ Politician with ID {wikidata_id} not found")
-            else:
+        elif limit:
+            # Limit mode: keep enriching until we have N politicians with unevaluated extracted data
+            enriched_count = 0
+
+            while True:
+                with Session(get_engine()) as session:
+                    # Check current count of politicians with unevaluated extracted data
+                    current_count = (
+                        session.query(Politician)
+                        .filter(Politician.has_unevaluated_extracted_data)
+                        .count()
+                    )
+
+                    if current_count >= limit:
+                        click.echo(
+                            f"✅ Target reached: {current_count} politicians have unevaluated extracted data"
+                        )
+                        break
+
+                    # Get next politician to enrich (prioritize never enriched, then oldest)
+                    next_politician = (
+                        session.query(Politician)
+                        .filter(Politician.wikipedia_links.any(language_code="en"))
+                        .order_by(Politician.enriched_at.asc().nullsfirst())
+                        .first()
+                    )
+
+                    if not next_politician:
+                        click.echo("❌ No more politicians available to enrich")
+                        break
+
+                enriched_count += 1
+                click.echo(
+                    f"[{enriched_count}] Enriching {next_politician.wikidata_id} ({next_politician.name})..."
+                )
+                click.echo(
+                    f"  Current count: {current_count}/{limit} politicians with unevaluated extracted data"
+                )
+
+                try:
+                    asyncio.run(enrich_politician_from_wikipedia(next_politician))
+                    click.echo(
+                        f"  ✅ Successfully enriched {next_politician.wikidata_id}"
+                    )
+                except Exception as e:
+                    click.echo(
+                        f"  ❌ Failed to enrich {next_politician.wikidata_id}: {e}"
+                    )
+
+            # Show final statistics
+            with Session(get_engine()) as session:
+                final_count = (
+                    session.query(Politician)
+                    .filter(Politician.has_unevaluated_extracted_data)
+                    .count()
+                )
+                click.echo(
+                    f"✅ Enriched {enriched_count} politicians. Final count: {final_count} politicians with unevaluated extracted data"
+                )
+
+        else:
+            # All politicians mode (original behavior)
+            with Session(get_engine()) as session:
+                politicians_to_enrich = (
+                    session.query(Politician)
+                    .filter(Politician.wikipedia_links.any(language_code="en"))
+                    .order_by(Politician.enriched_at.asc().nullsfirst())
+                    .all()
+                )
+
+            if not politicians_to_enrich:
                 click.echo("✅ No politicians found that need enrichment")
-            return
+                return
 
-        click.echo(f"Found {len(politicians_to_enrich)} politician(s) to enrich")
+            click.echo(f"Found {len(politicians_to_enrich)} politician(s) to enrich")
 
-        success_count = 0
-        for i, politician in enumerate(politicians_to_enrich, 1):
+            success_count = 0
+            for i, politician in enumerate(politicians_to_enrich, 1):
+                click.echo(
+                    f"[{i}/{len(politicians_to_enrich)}] Enriching {politician.wikidata_id} ({politician.name})..."
+                )
+
+                try:
+                    asyncio.run(enrich_politician_from_wikipedia(politician))
+                    success_count += 1
+                    click.echo(f"  ✅ Successfully enriched {politician.wikidata_id}")
+                except Exception as e:
+                    click.echo(f"  ❌ Failed to enrich {politician.wikidata_id}: {e}")
+
             click.echo(
-                f"[{i}/{len(politicians_to_enrich)}] Enriching {politician.wikidata_id} ({politician.name})..."
+                f"✅ Successfully enriched {success_count}/{len(politicians_to_enrich)} politicians"
             )
-
-            success = asyncio.run(enrich_politician_from_wikipedia(politician))
-
-            if success:
-                success_count += 1
-                click.echo(f"  ✅ Successfully enriched {politician.wikidata_id}")
-            else:
-                click.echo(f"  ❌ Failed to enrich {politician.wikidata_id}")
-
-        click.echo(
-            f"✅ Successfully enriched {success_count}/{len(politicians_to_enrich)} politicians"
-        )
 
     except Exception as e:
         click.echo(f"❌ Error enriching politician(s): {e}")
@@ -722,8 +793,7 @@ def dump_import_entities(file, batch_size):
         click.echo()
         click.echo("💡 Next steps:")
         click.echo("  • Run 'poliloom import-politicians' to import politicians")
-        click.echo("  • Run 'poliloom positions embed' to generate position embeddings")
-        click.echo("  • Run 'poliloom locations embed' to generate location embeddings")
+        click.echo("  • Run 'poliloom embed-entities' to generate embeddings")
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
         click.echo("❌ Supporting entities import was cancelled.")
