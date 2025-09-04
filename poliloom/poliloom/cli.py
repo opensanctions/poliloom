@@ -7,14 +7,14 @@ from sqlalchemy.orm import joinedload
 from datetime import datetime, timezone
 import httpx
 from typing import Optional
-from ..enrichment import enrich_politician_from_wikipedia
-from ..storage import StorageFactory
-from ..importer.hierarchy import import_hierarchy_trees
-from ..importer.entity import import_entities
-from ..importer.politician import import_politicians
-from ..database import get_engine
+from poliloom.enrichment import enrich_politician_from_wikipedia
+from poliloom.storage import StorageFactory
+from poliloom.importer.hierarchy import import_hierarchy_trees
+from poliloom.importer.entity import import_entities
+from poliloom.importer.politician import import_politicians
+from poliloom.database import get_engine
 from sqlalchemy.orm import Session
-from ..models import (
+from poliloom.models import (
     Politician,
     HoldsPosition,
     HasCitizenship,
