@@ -72,7 +72,6 @@ class TestEnrichment:
     def test_extract_properties_success(self, mock_openai_client):
         """Test successful property extraction."""
         # Mock OpenAI response
-        mock_message = Mock()
         mock_parsed = Mock()
         mock_parsed.properties = [
             ExtractedProperty(
@@ -86,10 +85,9 @@ class TestEnrichment:
                 proof="died May 20, 2020",
             ),
         ]
-        mock_message.parsed = mock_parsed
         mock_response = Mock()
-        mock_response.choices = [Mock(message=mock_message)]
-        mock_openai_client.beta.chat.completions.parse.return_value = mock_response
+        mock_response.text = mock_parsed
+        mock_openai_client.responses.parse.return_value = mock_response
 
         properties = extract_properties(
             mock_openai_client, "test content", "Test Politician"
@@ -103,11 +101,9 @@ class TestEnrichment:
 
     def test_extract_properties_none_parsed(self, mock_openai_client):
         """Test property extraction when LLM returns None."""
-        mock_message = Mock()
-        mock_message.parsed = None
         mock_response = Mock()
-        mock_response.choices = [Mock(message=mock_message)]
-        mock_openai_client.beta.chat.completions.parse.return_value = mock_response
+        mock_response.text = None
+        mock_openai_client.responses.parse.return_value = mock_response
 
         properties = extract_properties(
             mock_openai_client, "test content", "Test Politician"
@@ -117,9 +113,7 @@ class TestEnrichment:
 
     def test_extract_properties_exception(self, mock_openai_client):
         """Test property extraction handles exceptions."""
-        mock_openai_client.beta.chat.completions.parse.side_effect = Exception(
-            "API Error"
-        )
+        mock_openai_client.responses.parse.side_effect = Exception("API Error")
 
         properties = extract_properties(
             mock_openai_client, "test content", "Test Politician"
@@ -146,7 +140,6 @@ class TestEnrichment:
         class FreeFormPositionResult(BaseModel):
             positions: list
 
-        mock_message1 = Mock()
         mock_parsed1 = FreeFormPositionResult(
             positions=[
                 FreeFormPosition(
@@ -157,20 +150,16 @@ class TestEnrichment:
                 )
             ]
         )
-        mock_message1.parsed = mock_parsed1
-
         # Mock Stage 2: Mapping
-        mock_message2 = Mock()
         mock_parsed2 = Mock()
         mock_parsed2.wikidata_position_name = "Mayor"
-        mock_message2.parsed = mock_parsed2
 
         mock_response1 = Mock()
-        mock_response1.choices = [Mock(message=mock_message1)]
+        mock_response1.text = mock_parsed1
         mock_response2 = Mock()
-        mock_response2.choices = [Mock(message=mock_message2)]
+        mock_response2.text = mock_parsed2
 
-        mock_openai_client.beta.chat.completions.parse.side_effect = [
+        mock_openai_client.responses.parse.side_effect = [
             mock_response1,
             mock_response2,
         ]
@@ -192,13 +181,11 @@ class TestEnrichment:
 
     def test_extract_positions_no_results(self, mock_openai_client, db_session):
         """Test position extraction with no results."""
-        mock_message = Mock()
         mock_parsed = Mock()
         mock_parsed.positions = []
-        mock_message.parsed = mock_parsed
         mock_response = Mock()
-        mock_response.choices = [Mock(message=mock_message)]
-        mock_openai_client.beta.chat.completions.parse.return_value = mock_response
+        mock_response.text = mock_parsed
+        mock_openai_client.responses.parse.return_value = mock_response
 
         positions = extract_positions(
             mock_openai_client, db_session, "test content", "Test Politician"
@@ -223,7 +210,6 @@ class TestEnrichment:
         class FreeFormBirthplaceResult(BaseModel):
             birthplaces: list
 
-        mock_message1 = Mock()
         mock_parsed1 = FreeFormBirthplaceResult(
             birthplaces=[
                 FreeFormBirthplace(
@@ -232,20 +218,16 @@ class TestEnrichment:
                 )
             ]
         )
-        mock_message1.parsed = mock_parsed1
-
         # Mock Stage 2: Mapping
-        mock_message2 = Mock()
         mock_parsed2 = Mock()
         mock_parsed2.wikidata_location_name = "Springfield, Illinois"
-        mock_message2.parsed = mock_parsed2
 
         mock_response1 = Mock()
-        mock_response1.choices = [Mock(message=mock_message1)]
+        mock_response1.text = mock_parsed1
         mock_response2 = Mock()
-        mock_response2.choices = [Mock(message=mock_message2)]
+        mock_response2.text = mock_parsed2
 
-        mock_openai_client.beta.chat.completions.parse.side_effect = [
+        mock_openai_client.responses.parse.side_effect = [
             mock_response1,
             mock_response2,
         ]
@@ -533,9 +515,10 @@ class TestEnrichment:
         db_session.commit()
 
         with patch("poliloom.enrichment.OpenAI"):
-            result = await enrich_politician_from_wikipedia(politician)
+            with pytest.raises(ValueError, match="No Wikipedia links found"):
+                await enrich_politician_from_wikipedia(politician)
 
-        assert result is False
+        # The enriched_at timestamp should still be updated even when raising an error
         assert politician.enriched_at is not None
 
     @pytest.mark.asyncio
@@ -559,7 +542,8 @@ class TestEnrichment:
         db_session.commit()
 
         with patch("poliloom.enrichment.OpenAI"):
-            result = await enrich_politician_from_wikipedia(politician)
+            with pytest.raises(ValueError, match="No English Wikipedia source found"):
+                await enrich_politician_from_wikipedia(politician)
 
-        assert result is False
+        # The enriched_at timestamp should still be updated even when raising an error
         assert politician.enriched_at is not None

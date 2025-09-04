@@ -21,7 +21,7 @@ from poliloom.models import (
     PositionEvaluation,
     BirthplaceEvaluation,
 )
-from poliloom.enrichment import generate_embedding
+from poliloom import enrichment
 from .conftest import assert_model_fields
 
 
@@ -238,8 +238,8 @@ class TestPositionVectorSimilarity:
     def test_embedding_deterministic_for_same_text(self):
         """Test that embedding generation is deterministic."""
         # Test deterministic behavior
-        embedding1 = generate_embedding("Prime Minister")
-        embedding2 = generate_embedding("Prime Minister")
+        embedding1 = enrichment.generate_embedding("Prime Minister")
+        embedding2 = enrichment.generate_embedding("Prime Minister")
         assert embedding1 == embedding2
         assert len(embedding1) == 384
 
@@ -256,13 +256,13 @@ class TestPositionVectorSimilarity:
         ]
 
         for position in positions:
-            position.embedding = generate_embedding(position.name)
+            position.embedding = enrichment.generate_embedding(position.name)
             db_session.add(position)
 
         db_session.commit()
 
         # Test basic similarity search - using same session
-        query_embedding = generate_embedding("Chief Executive")
+        query_embedding = enrichment.generate_embedding("Chief Executive")
         results = (
             db_session.query(Position)
             .filter(Position.embedding.isnot(None))
@@ -274,7 +274,7 @@ class TestPositionVectorSimilarity:
         assert all(isinstance(pos, Position) for pos in results)
 
         # Test limit behavior
-        no_query_embedding = generate_embedding("Query")
+        no_query_embedding = enrichment.generate_embedding("Query")
         no_results = (
             db_session.query(Position)
             .filter(Position.embedding.isnot(None))
@@ -708,13 +708,13 @@ class TestLocation:
         ]
 
         for location in locations:
-            location.embedding = generate_embedding(location.name)
+            location.embedding = enrichment.generate_embedding(location.name)
             db_session.add(location)
 
         db_session.commit()
 
         # Test similarity search - using same session
-        query_embedding = generate_embedding("New York")
+        query_embedding = enrichment.generate_embedding("New York")
         similar = (
             db_session.query(Location)
             .filter(Location.embedding.isnot(None))

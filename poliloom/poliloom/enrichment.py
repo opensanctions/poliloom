@@ -207,7 +207,7 @@ Use this information to:
 3. Identify any discrepancies between the article and Wikidata
 """
 
-            system_prompt = """You are a data extraction assistant. Extract ONLY personal properties from Wikipedia article text.
+        system_prompt = """You are a data extraction assistant. Extract ONLY personal properties from Wikipedia article text.
 
 Extract ONLY these two property types:
 - birth_date: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
@@ -221,29 +221,29 @@ Rules:
 - When multiple sentences support the claim, choose the MOST IMPORTANT/RELEVANT single quote
 - Be precise and only extract what is clearly stated"""
 
-            user_prompt = f"""Extract personal properties about {politician_name} from this Wikipedia article text:
+        user_prompt = f"""Extract personal properties about {politician_name} from this Wikipedia article text:
 {existing_context}
 {content}
 
 Politician name: {politician_name}"""
 
-            logger.debug(f"Extracting properties for {politician_name}")
+        logger.debug(f"Extracting properties for {politician_name}")
 
-            response = openai_client.beta.chat.completions.parse(
-                model="gpt-5",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                response_format=PropertyExtractionResult,
-            )
+        response = openai_client.responses.parse(
+            model="gpt-5",
+            input=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            text_format=PropertyExtractionResult,
+            reasoning={"effort": "minimal"},
+        )
 
-            message = response.choices[0].message
-            if message.parsed is None:
-                logger.error("OpenAI property extraction returned None for parsed data")
-                return None
+        if response.text is None:
+            logger.error("OpenAI property extraction returned None for parsed data")
+            return None
 
-            return message.parsed.properties
+        return response.text.properties
 
     except Exception as e:
         logger.error(f"Error extracting properties with LLM: {e}")
@@ -319,21 +319,21 @@ Politician: {politician_name}
 
         logger.debug(f"Stage 1: Extracting positions for {politician_name}")
 
-        response = openai_client.beta.chat.completions.parse(
+        response = openai_client.responses.parse(
             model="gpt-5",
-            messages=[
+            input=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            response_format=FreeFormPositionResult,
+            text_format=FreeFormPositionResult,
+            reasoning={"effort": "minimal"},
         )
 
-        message = response.choices[0].message
-        if message.parsed is None:
+        if response.text is None:
             logger.error("OpenAI position extraction returned None")
             return None
 
-        free_form_positions = message.parsed.positions
+        free_form_positions = response.text.positions
         if not free_form_positions:
             logger.info(f"No positions extracted for {politician_name}")
             return []
@@ -441,21 +441,21 @@ Politician: {politician_name}
 
         logger.debug(f"Stage 1: Extracting birthplace for {politician_name}")
 
-        response = openai_client.beta.chat.completions.parse(
+        response = openai_client.responses.parse(
             model="gpt-5",
-            messages=[
+            input=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            response_format=FreeFormBirthplaceResult,
+            text_format=FreeFormBirthplaceResult,
+            reasoning={"effort": "minimal"},
         )
 
-        message = response.choices[0].message
-        if message.parsed is None:
+        if response.text is None:
             logger.error("OpenAI birthplace extraction returned None")
             return None
 
-        free_form_birthplaces = message.parsed.birthplaces
+        free_form_birthplaces = response.text.birthplaces
         if not free_form_birthplaces:
             logger.info(f"No birthplace extracted for {politician_name}")
             return []
@@ -563,20 +563,20 @@ Candidate Wikidata Positions:
 
 Select the best match or None if no good match exists."""
 
-        response = openai_client.beta.chat.completions.parse(
+        response = openai_client.responses.parse(
             model="gpt-5",
-            messages=[
+            input=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            response_format=DynamicMappingResult,
+            text_format=DynamicMappingResult,
+            reasoning={"effort": "minimal"},
         )
 
-        message = response.choices[0].message
-        if message.parsed is None:
+        if response.text is None:
             return None
 
-        return message.parsed.wikidata_position_name
+        return response.text.wikidata_position_name
 
     except Exception as e:
         logger.error(f"Error mapping position with LLM: {e}")
@@ -627,20 +627,20 @@ Candidate Wikidata Locations:
 
 Select the best match or None if no good match exists."""
 
-        response = openai_client.beta.chat.completions.parse(
+        response = openai_client.responses.parse(
             model="gpt-5",
-            messages=[
+            input=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            response_format=DynamicMappingResult,
+            text_format=DynamicMappingResult,
+            reasoning={"effort": "minimal"},
         )
 
-        message = response.choices[0].message
-        if message.parsed is None:
+        if response.text is None:
             return None
 
-        return message.parsed.wikidata_location_name
+        return response.text.wikidata_location_name
 
     except Exception as e:
         logger.error(f"Error mapping location with LLM: {e}")
