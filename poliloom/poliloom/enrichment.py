@@ -198,34 +198,44 @@ def extract_properties(
 
             if existing_props:
                 existing_context = f"""
-### KNOWN WIKIDATA PROPERTIES:
+<existing_wikidata>
 {chr(10).join(existing_props)}
+</existing_wikidata>
 
+<validation_focus>
 Use this information to:
-1. Focus on finding additional or conflicting dates not already in Wikidata
-2. Validate or provide more precise versions of existing dates
-3. Identify any discrepancies between the article and Wikidata
+- Focus on finding additional or conflicting dates not already in Wikidata
+- Validate or provide more precise versions of existing dates
+- Identify any discrepancies between the article and Wikidata
+</validation_focus>
 """
 
-        system_prompt = """You are a data extraction assistant. Extract ONLY personal properties from Wikipedia article text.
+        system_prompt = """You are a data extraction assistant for Wikipedia biographical data.
 
+<extraction_scope>
 Extract ONLY these two property types:
 - birth_date: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
 - death_date: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
+</extraction_scope>
 
-Rules:
+<extraction_rules>
 - Only extract information explicitly stated in the text
-- ONLY extract birth_date and death_date - ignore all other personal information
+- Extract only birth_date and death_date - ignore all other personal information
 - Use partial dates if full dates aren't available
-- For each property, provide a 'proof' field with ONE exact quote that mentions this property
-- When multiple sentences support the claim, choose the MOST IMPORTANT/RELEVANT single quote
-- Be precise and only extract what is clearly stated"""
+- For each property, provide a 'proof' field with one exact quote that mentions this property
+- When multiple sentences support the claim, choose the most important and relevant single quote
+- Be precise and only extract what is clearly stated
+</extraction_rules>"""
 
         user_prompt = f"""Extract personal properties about {politician_name} from this Wikipedia article text:
-{existing_context}
-{content}
 
-Politician name: {politician_name}"""
+<politician_name>{politician_name}</politician_name>
+
+{existing_context}
+
+<article_content>
+{content}
+</article_content>"""
 
         logger.debug(f"Extracting properties for {politician_name}")
 
@@ -277,45 +287,50 @@ def extract_positions(
 
             if existing_pos:
                 existing_context = f"""
-### KNOWN WIKIDATA POSITIONS:
+<existing_wikidata_positions>
 {chr(10).join(existing_pos)}
+</existing_wikidata_positions>
 
+<position_analysis_focus>
 Use this information to:
-1. Identify mentions of these positions in the text (they may appear with different wordings)
-2. Find additional positions not already in Wikidata
-3. Discover more specific date ranges for known positions
-4. Identify more specific variants of generic positions (e.g., specific committee memberships)
+- Identify mentions of these positions in the text (they may appear with different wordings)
+- Find additional positions not already in Wikidata
+- Discover more specific date ranges for known positions
+- Identify more specific variants of generic positions (e.g., specific committee memberships)
+</position_analysis_focus>
 """
 
         # Stage 1: Free-form extraction
         system_prompt = """You are a political data analyst specializing in extracting structured information from Wikipedia articles and official government websites.
 
-Extract ALL political positions from the provided content following these rules:
-
-### EXTRACTION RULES:
+<extraction_scope>
+Extract all political positions from the provided content following these rules:
 - Extract any political offices, government roles, elected positions, or political appointments
 - Include interim/acting positions and temporary appointments
 - Use exact position names as they appear in the source
+</extraction_scope>
 
-### DATE FORMAT:
+<date_formatting_rules>
 - Use YYYY-MM-DD, YYYY-MM, or YYYY format when available
 - Leave end_date null if position is current or unknown
 - Include "acting" or "interim" in the position name if applicable
+</date_formatting_rules>
 
-### PROOF REQUIREMENT:
-- Each position MUST include ONE exact quote mentioning this position
-- When multiple sentences support the claim, choose the MOST IMPORTANT/RELEVANT single quote
-- The proof should contain sufficient context to verify the claim"""
+<proof_requirements>
+- Each position must include one exact quote mentioning this position
+- When multiple sentences support the claim, choose the most important and relevant single quote
+- The proof should contain sufficient context to verify the claim
+</proof_requirements>"""
 
-        user_prompt = f"""Extract ALL political positions held by {politician_name} from the content below.
+        user_prompt = f"""Extract all political positions held by {politician_name} from the content below.
 
-### CONTEXT:
-Politician: {politician_name}
+<politician_name>{politician_name}</politician_name>
+
 {existing_context}
-### CONTENT:
-\"\"\"
+
+<article_content>
 {content}
-\"\"\""""
+</article_content>"""
 
         logger.debug(f"Stage 1: Extracting positions for {politician_name}")
 
@@ -408,36 +423,40 @@ def extract_birthplaces(
 
             if existing_bp:
                 existing_context = f"""
-### KNOWN WIKIDATA BIRTHPLACES:
+<existing_wikidata_birthplaces>
 {chr(10).join(existing_bp)}
+</existing_wikidata_birthplaces>
 
+<birthplace_analysis_focus>
 Use this information to:
-1. Identify mentions of these locations in the text (they may appear with different wordings)
-2. Find more specific birthplace information (e.g., specific city if only country is known)
-3. Identify any conflicting birthplace claims
+- Identify mentions of these locations in the text (they may appear with different wordings)
+- Find more specific birthplace information (e.g., specific city if only country is known)
+- Identify any conflicting birthplace claims
+</birthplace_analysis_focus>
 """
 
         # Stage 1: Free-form extraction
         system_prompt = """You are a biographical data specialist extracting location information from Wikipedia articles and official government profiles.
 
+<extraction_scope>
 Extract birthplace information following these rules:
-
-### EXTRACTION RULES:
 - Extract birthplace as mentioned in the source (city, town, village or region)
+</extraction_scope>
 
-### PROOF REQUIREMENT:
-- Provide ONE exact quote from the source content that mentions the birthplace
-- When multiple sentences support the claim, choose the MOST IMPORTANT/RELEVANT single quote"""
+<proof_requirements>
+- Provide one exact quote from the source content that mentions the birthplace
+- When multiple sentences support the claim, choose the most important and relevant single quote
+</proof_requirements>"""
 
         user_prompt = f"""Extract the birthplace of {politician_name} from the content below.
 
-### CONTEXT:
-Politician: {politician_name}
+<politician_name>{politician_name}</politician_name>
+
 {existing_context}
-### CONTENT:
-\"\"\"
+
+<article_content>
 {content}
-\"\"\""""
+</article_content>"""
 
         logger.debug(f"Stage 1: Extracting birthplace for {politician_name}")
 
@@ -541,17 +560,21 @@ def map_to_wikidata_position(
 
         system_prompt = """You are a Wikidata mapping specialist with expertise in political positions and government structures.
 
+<mapping_objective>
 Map the extracted position to the most accurate Wikidata position following these rules:
+</mapping_objective>
 
-### MATCHING CRITERIA:
-1. STRONGLY PREFER country-specific positions (e.g., "Minister of Foreign Affairs (Myanmar)" over generic "Minister of Foreign Affairs")
-2. PREFER positions from the same political system/country context
-4. Match only when confidence is HIGH - be precise about role equivalence
+<matching_criteria>
+1. Strongly prefer country-specific positions (e.g., "Minister of Foreign Affairs (Myanmar)" over generic "Minister of Foreign Affairs")
+2. Prefer positions from the same political system/country context
+3. Match only when confidence is high - be precise about role equivalence
+</matching_criteria>
 
-### REJECTION CRITERIA:
+<rejection_criteria>
 - Return None if no candidate is a good match
 - Reject if the positions clearly refer to different roles
-- Reject if geographic/jurisdictional scope differs significantly"""
+- Reject if geographic/jurisdictional scope differs significantly
+</rejection_criteria>"""
 
         user_prompt = f"""Map this extracted position to the correct Wikidata position:
 
@@ -608,14 +631,18 @@ def map_to_wikidata_location(
 
         system_prompt = """You are a Wikidata location mapping specialist with expertise in geographic locations and administrative divisions.
 
+<mapping_objective>
 Map the extracted birthplace to the most accurate Wikidata location following these rules:
+</mapping_objective>
 
-### MATCHING CRITERIA:
+<matching_criteria>
 1. When there's multiple candidate entities with the same name, and you have no proof for which one matches, match the least specific location level (region over city)
 2. Account for different name spellings and transliterations
+</matching_criteria>
 
-### REJECTION CRITERIA:
-- Return None if no candidate is a good match"""
+<rejection_criteria>
+- Return None if no candidate is a good match
+</rejection_criteria>"""
 
         user_prompt = f"""Map this extracted birthplace to the correct Wikidata location:
 
