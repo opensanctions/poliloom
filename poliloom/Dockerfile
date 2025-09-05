@@ -1,4 +1,7 @@
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm AS builder
+FROM ubuntu:24.04 AS builder
+
+RUN apt-get update && apt-get install -y python3 python3-pip && rm -rf /var/lib/apt/lists/*
+RUN pip3 install --break-system-packages uv
 
 # Set environment variables for optimal uv behavior
 ENV UV_COMPILE_BYTECODE=1 \
@@ -22,8 +25,9 @@ COPY poliloom/ ./poliloom/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install . --no-deps
 
-FROM python:3.12-slim AS runtime
+FROM ubuntu:24.04 AS runtime
 
+RUN apt-get update && apt-get install -y python3 && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
@@ -37,6 +41,10 @@ COPY alembic/ /app/alembic/
 
 # Add virtual environment to PATH
 ENV PATH="/app/.venv/bin:$PATH"
+
+# Install Playwright browsers
+RUN head -1 /app/.venv/bin/playwright
+RUN /app/.venv/bin/playwright install --with-deps chromium
 
 # Create non-root user
 RUN groupadd -r poliloom && useradd -r -g poliloom poliloom
