@@ -86,7 +86,7 @@ class TestEnrichment:
             ),
         ]
         mock_response = Mock()
-        mock_response.text = mock_parsed
+        mock_response.output_parsed = mock_parsed
         mock_openai_client.responses.parse.return_value = mock_response
 
         properties = extract_properties(
@@ -102,7 +102,7 @@ class TestEnrichment:
     def test_extract_properties_none_parsed(self, mock_openai_client):
         """Test property extraction when LLM returns None."""
         mock_response = Mock()
-        mock_response.text = None
+        mock_response.output_parsed = None
         mock_openai_client.responses.parse.return_value = mock_response
 
         properties = extract_properties(
@@ -127,6 +127,8 @@ class TestEnrichment:
         """Test successful position extraction and mapping."""
         # Create position in database
         position = Position(**sample_position_data)
+        # Mock the wikidata_classes relationship
+        position.wikidata_classes = []
         db_session.add(position)
         db_session.commit()
 
@@ -152,12 +154,12 @@ class TestEnrichment:
         )
         # Mock Stage 2: Mapping
         mock_parsed2 = Mock()
-        mock_parsed2.wikidata_position_name = "Mayor"
+        mock_parsed2.wikidata_position_qid = sample_position_data["wikidata_id"]
 
         mock_response1 = Mock()
-        mock_response1.text = mock_parsed1
+        mock_response1.output_parsed = mock_parsed1
         mock_response2 = Mock()
-        mock_response2.text = mock_parsed2
+        mock_response2.output_parsed = mock_parsed2
 
         mock_openai_client.responses.parse.side_effect = [
             mock_response1,
@@ -184,7 +186,7 @@ class TestEnrichment:
         mock_parsed = Mock()
         mock_parsed.positions = []
         mock_response = Mock()
-        mock_response.text = mock_parsed
+        mock_response.output_parsed = mock_parsed
         mock_openai_client.responses.parse.return_value = mock_response
 
         positions = extract_positions(
@@ -199,6 +201,8 @@ class TestEnrichment:
         """Test successful birthplace extraction and mapping."""
         # Create location in database
         location = Location(**sample_location_data)
+        # Mock the wikidata_classes relationship
+        location.wikidata_classes = []
         db_session.add(location)
         db_session.commit()
 
@@ -220,12 +224,12 @@ class TestEnrichment:
         )
         # Mock Stage 2: Mapping
         mock_parsed2 = Mock()
-        mock_parsed2.wikidata_location_name = "Springfield, Illinois"
+        mock_parsed2.wikidata_location_qid = sample_location_data["wikidata_id"]
 
         mock_response1 = Mock()
-        mock_response1.text = mock_parsed1
+        mock_response1.output_parsed = mock_parsed1
         mock_response2 = Mock()
-        mock_response2.text = mock_parsed2
+        mock_response2.output_parsed = mock_parsed2
 
         mock_openai_client.responses.parse.side_effect = [
             mock_response1,

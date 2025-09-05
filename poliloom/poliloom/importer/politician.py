@@ -279,7 +279,7 @@ def _process_politicians_chunk(
 
             # Check if it's a politician
             if _is_politician(entity, shared_position_qids):
-                # Skip deceased politicians who died before 1950
+                # Skip deceased politicians who died more than 5 years ago
                 # Check if politician is deceased (has death date P570)
                 death_claims = entity.get_truthy_claims("P570")
                 if len(death_claims) > 0:
@@ -305,8 +305,11 @@ def _process_politicians_chunk(
                             else:
                                 death_date = None
 
-                            # Skip if died before 1950
-                            if death_date and death_date < date(1950, 1, 1):
+                            # Skip if died more than 5 years ago
+                            cutoff_date = date.today().replace(
+                                year=date.today().year - 5
+                            )
+                            if death_date and death_date < cutoff_date:
                                 continue
                         except (ValueError, TypeError):
                             pass  # Include if we can't parse the date

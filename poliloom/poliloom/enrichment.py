@@ -418,14 +418,21 @@ Extract all political positions from the provided content following these rules:
                 continue
 
             # Use LLM to map to correct position
-            position_names = [pos.name for pos in similar_positions]
-            mapped_name = map_to_wikidata_position(
-                openai_client, free_pos.name, free_pos.proof, position_names
+            candidate_positions = [
+                {
+                    "qid": pos.wikidata_id,
+                    "name": pos.name,
+                    "classes": [cls.name for cls in pos.wikidata_classes],
+                }
+                for pos in similar_positions
+            ]
+            mapped_qid = map_to_wikidata_position(
+                openai_client, free_pos.name, free_pos.proof, candidate_positions
             )
 
-            if mapped_name:
+            if mapped_qid:
                 # Verify position exists in database
-                position = db.query(Position).filter_by(name=mapped_name).first()
+                position = db.query(Position).filter_by(wikidata_id=mapped_qid).first()
                 if position:
                     mapped_positions.append(
                         ExtractedPosition(
@@ -435,7 +442,9 @@ Extract all political positions from the provided content following these rules:
                             proof=free_pos.proof,
                         )
                     )
-                    logger.debug(f"Mapped '{free_pos.name}' -> '{position.name}'")
+                    logger.debug(
+                        f"Mapped '{free_pos.name}' -> '{position.name}' ({mapped_qid})"
+                    )
 
         logger.info(
             f"Stage 2: Mapped {len(mapped_positions)} of {len(free_form_positions)} positions for {politician_name}"
@@ -550,17 +559,24 @@ Extract birthplace information following these rules:
                 continue
 
             # Use LLM to map to correct location
-            location_names = [loc.name for loc in similar_locations]
-            mapped_name = map_to_wikidata_location(
+            candidate_locations = [
+                {
+                    "qid": loc.wikidata_id,
+                    "name": loc.name,
+                    "classes": [cls.name for cls in loc.wikidata_classes],
+                }
+                for loc in similar_locations
+            ]
+            mapped_qid = map_to_wikidata_location(
                 openai_client,
                 free_birth.location_name,
                 free_birth.proof,
-                location_names,
+                candidate_locations,
             )
 
-            if mapped_name:
+            if mapped_qid:
                 # Verify location exists in database
-                location = db.query(Location).filter_by(name=mapped_name).first()
+                location = db.query(Location).filter_by(wikidata_id=mapped_qid).first()
                 if location:
                     mapped_birthplaces.append(
                         ExtractedBirthplace(
@@ -568,7 +584,7 @@ Extract birthplace information following these rules:
                         )
                     )
                     logger.debug(
-                        f"Mapped '{free_birth.location_name}' -> '{location.name}'"
+                        f"Mapped '{free_birth.location_name}' -> '{location.name}' ({mapped_qid})"
                     )
 
         logger.info(
@@ -585,23 +601,23 @@ def map_to_wikidata_position(
     openai_client: OpenAI,
     extracted_name: str,
     proof_text: str,
-    candidate_positions: List[str],
+    candidate_positions: List[dict],
 ) -> Optional[str]:
     """Map extracted position name to Wikidata position using LLM."""
     try:
         from typing import Literal
         from pydantic import create_model
 
-        # Create dynamic model with candidate positions
+        # Create dynamic model with candidate position QIDs
         if candidate_positions:
-            entity_names = [pos for pos in candidate_positions if pos is not None]
-            PositionNameType = Optional[Literal[tuple(entity_names)]]
+            entity_qids = [pos["qid"] for pos in candidate_positions if pos.get("qid")]
+            PositionQidType = Optional[Literal[tuple(entity_qids)]]
         else:
-            PositionNameType = Optional[str]
+            PositionQidType = Optional[str]
 
         DynamicMappingResult = create_model(
             "PositionMappingResult",
-            wikidata_position_name=(PositionNameType, None),
+            wikidata_position_qid=(PositionQidType, None),
         )
 
         system_prompt = """You are a Wikidata mapping specialist with expertise in political positions and government structures.
@@ -622,15 +638,24 @@ Map the extracted position to the most accurate Wikidata position following thes
 - Reject if geographic/jurisdictional scope differs significantly
 </rejection_criteria>"""
 
+        # Format candidates with QID, name, and classes
+        candidates_text = "\n".join(
+            [
+                f"- {pos['qid']}: {pos['name']}"
+                + (f" (classes: {', '.join(pos['classes'])})" if pos["classes"] else "")
+                for pos in candidate_positions
+            ]
+        )
+
         user_prompt = f"""Map this extracted position to the correct Wikidata position:
 
 Extracted Position: "{extracted_name}"
 Proof Context: "{proof_text}"
 
-Candidate Wikidata Positions:
-{chr(10).join([f"- {pos}" for pos in candidate_positions])}
+Candidate Wikidata Positions (QID: Name - Classes):
+{candidates_text}
 
-Select the best match or None if no good match exists."""
+Select the best matching QID or None if no good match exists."""
 
         response = openai_client.responses.parse(
             model="gpt-5",
@@ -645,7 +670,7 @@ Select the best match or None if no good match exists."""
         if response.output_parsed is None:
             return None
 
-        return response.output_parsed.wikidata_position_name
+        return response.output_parsed.wikidata_position_qid
 
     except Exception as e:
         logger.error(f"Error mapping position with LLM: {e}")
@@ -656,23 +681,23 @@ def map_to_wikidata_location(
     openai_client: OpenAI,
     extracted_name: str,
     proof_text: str,
-    candidate_locations: List[str],
+    candidate_locations: List[dict],
 ) -> Optional[str]:
     """Map extracted location name to Wikidata location using LLM."""
     try:
         from typing import Literal
         from pydantic import create_model
 
-        # Create dynamic model with candidate locations
+        # Create dynamic model with candidate location QIDs
         if candidate_locations:
-            entity_names = [loc for loc in candidate_locations if loc is not None]
-            LocationNameType = Optional[Literal[tuple(entity_names)]]
+            entity_qids = [loc["qid"] for loc in candidate_locations if loc.get("qid")]
+            LocationQidType = Optional[Literal[tuple(entity_qids)]]
         else:
-            LocationNameType = Optional[str]
+            LocationQidType = Optional[str]
 
         DynamicMappingResult = create_model(
             "LocationMappingResult",
-            wikidata_location_name=(LocationNameType, None),
+            wikidata_location_qid=(LocationQidType, None),
         )
 
         system_prompt = """You are a Wikidata location mapping specialist with expertise in geographic locations and administrative divisions.
@@ -690,15 +715,24 @@ Map the extracted birthplace to the most accurate Wikidata location following th
 - Return None if no candidate is a good match
 </rejection_criteria>"""
 
+        # Format candidates with QID, name, and classes
+        candidates_text = "\n".join(
+            [
+                f"- {loc['qid']}: {loc['name']}"
+                + (f" (classes: {', '.join(loc['classes'])})" if loc["classes"] else "")
+                for loc in candidate_locations
+            ]
+        )
+
         user_prompt = f"""Map this extracted birthplace to the correct Wikidata location:
 
 Extracted Birthplace: "{extracted_name}"
 Proof Context: "{proof_text}"
 
-Candidate Wikidata Locations:
-{chr(10).join([f"- {loc}" for loc in candidate_locations])}
+Candidate Wikidata Locations (QID: Name - Classes):
+{candidates_text}
 
-Select the best match or None if no good match exists."""
+Select the best matching QID or None if no good match exists."""
 
         response = openai_client.responses.parse(
             model="gpt-5",
@@ -713,7 +747,7 @@ Select the best match or None if no good match exists."""
         if response.output_parsed is None:
             return None
 
-        return response.output_parsed.wikidata_location_name
+        return response.output_parsed.wikidata_location_qid
 
     except Exception as e:
         logger.error(f"Error mapping location with LLM: {e}")
@@ -806,7 +840,9 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
             )
 
             # Log extraction results
-            logger.info(f"LLM extracted data for {politician.name}:")
+            logger.info(
+                f"LLM extracted data for {politician.name} ({politician.wikidata_id}):"
+            )
             if properties:
                 logger.info(f"  Properties ({len(properties)}):")
                 for prop in properties:
@@ -844,11 +880,13 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
 
             if success:
                 db.commit()
-                logger.info(f"Successfully enriched politician {politician.name}")
+                logger.info(
+                    f"Successfully enriched politician {politician.name} ({politician.wikidata_id})"
+                )
             else:
                 db.rollback()
                 raise RuntimeError(
-                    f"Failed to store extracted data for {politician.name}"
+                    f"Failed to store extracted data for {politician.name} ({politician.wikidata_id})"
                 )
 
         except Exception as e:
@@ -948,7 +986,7 @@ def store_extracted_data(
                             date_range = f" (until {pos_data.end_date})"
 
                         logger.info(
-                            f"Added new position: '{pos_data.name}'{date_range} for {politician.name}"
+                            f"Added new position: '{pos_data.name}' ({position.wikidata_id}){date_range} for {politician.name}"
                         )
 
         # Store birthplaces - only link to existing locations
@@ -988,7 +1026,7 @@ def store_extracted_data(
                         db.add(born_at)
                         db.flush()
                         logger.info(
-                            f"Added new birthplace: '{birth_data.location_name}' for {politician.name}"
+                            f"Added new birthplace: '{birth_data.location_name}' ({location.wikidata_id}) for {politician.name}"
                         )
 
         return True
