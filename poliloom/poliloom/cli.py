@@ -31,8 +31,46 @@ logging.basicConfig(
 )
 
 
-def get_latest_dump(session, allow_none=False):
-    """Get the latest dump from the database."""
+def ensure_latest_dump(session, required_stage, allow_none=False):
+    """
+    Ensure the latest dump has completed the required stage and all prerequisite stages.
+
+    Args:
+        session: Database session
+        required_stage: One of 'downloaded_at', 'extracted_at', 'imported_hierarchy_at',
+                       'imported_entities_at', 'imported_politicians_at'
+        allow_none: If True, returns None when no dump found instead of exiting
+
+    Returns:
+        WikidataDump instance or None (if allow_none=True and no dump found)
+
+    Raises:
+        SystemExit: If validation fails
+    """
+    # Define stage progression with their corresponding error messages
+    stages = {
+        "downloaded_at": "Dump download not completed. Check if 'poliloom dump-download' is still running or failed",
+        "extracted_at": "Dump extraction not completed. Run 'poliloom dump-extract' to extract the downloaded dump",
+        "imported_hierarchy_at": "Hierarchy import not completed. Run 'poliloom import-hierarchy' to import entity hierarchies",
+        "imported_entities_at": "Entity import not completed. Run 'poliloom import-entities' to import entities",
+        "imported_politicians_at": "Politician import not completed. Run 'poliloom import-politicians' to import politicians",
+    }
+
+    # Define stage order for prerequisite checking
+    stage_order = [
+        "downloaded_at",
+        "extracted_at",
+        "imported_hierarchy_at",
+        "imported_entities_at",
+        "imported_politicians_at",
+    ]
+
+    if required_stage not in stages:
+        raise ValueError(
+            f"Invalid stage: {required_stage}. Must be one of: {list(stages.keys())}"
+        )
+
+    # Get the latest dump from the database
     latest_dump = (
         session.query(WikidataDump).order_by(WikidataDump.last_modified.desc()).first()
     )
@@ -45,6 +83,17 @@ def get_latest_dump(session, allow_none=False):
             return None
         click.echo("❌ No dump found. Run 'poliloom dump-download' first")
         raise SystemExit(1)
+
+    # Check all prerequisite stages up to and including the required stage
+    required_index = stage_order.index(required_stage)
+
+    for i in range(required_index + 1):
+        stage = stage_order[i]
+        error_message = stages[stage]
+
+        if not getattr(latest_dump, stage):
+            click.echo(f"❌ {error_message}")
+            raise SystemExit(1)
 
     return latest_dump
 
@@ -150,13 +199,7 @@ def dump_extract(input, output):
 
     # Get the latest dump and check its status
     with Session(get_engine()) as session:
-        latest_dump = get_latest_dump(session)
-
-        if not latest_dump.downloaded_at:
-            click.echo(
-                f"❌ Dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC not fully downloaded yet"
-            )
-            raise SystemExit(1)
+        latest_dump = ensure_latest_dump(session, "downloaded_at")
 
         if latest_dump.extracted_at:
             click.echo(
@@ -579,20 +622,13 @@ def dump_import_hierarchy(file):
 
     # Get the latest dump and check its status
     with Session(get_engine()) as session:
-        latest_dump = get_latest_dump(session, allow_none=True)
+        latest_dump = ensure_latest_dump(session, "extracted_at", allow_none=True)
 
-        if latest_dump is not None:
-            if not latest_dump.extracted_at:
-                click.echo(
-                    "❌ Dump not extracted yet. Run 'poliloom dump-extract' first"
-                )
-                raise SystemExit(1)
-
-            if latest_dump.imported_hierarchy_at:
-                click.echo(
-                    f"⚠️  Warning: Hierarchy for dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already imported"
-                )
-                click.echo("Continuing anyway...")
+        if latest_dump is not None and latest_dump.imported_hierarchy_at:
+            click.echo(
+                f"⚠️  Warning: Hierarchy for dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already imported"
+            )
+            click.echo("Continuing anyway...")
 
     click.echo(f"Importing hierarchy trees from dump file: {file}")
 
@@ -646,20 +682,15 @@ def dump_import_entities(file, batch_size):
 
     # Get the latest dump and check its status
     with Session(get_engine()) as session:
-        latest_dump = get_latest_dump(session, allow_none=True)
+        latest_dump = ensure_latest_dump(
+            session, "imported_hierarchy_at", allow_none=True
+        )
 
-        if latest_dump is not None:
-            if not latest_dump.imported_hierarchy_at:
-                click.echo(
-                    "❌ Hierarchy not imported yet. Run 'poliloom import-hierarchy' first"
-                )
-                raise SystemExit(1)
-
-            if latest_dump.imported_entities_at:
-                click.echo(
-                    f"⚠️  Warning: Entities for dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already imported"
-                )
-                click.echo("Continuing anyway...")
+        if latest_dump is not None and latest_dump.imported_entities_at:
+            click.echo(
+                f"⚠️  Warning: Entities for dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already imported"
+            )
+            click.echo("Continuing anyway...")
 
     click.echo(f"Importing supporting entities from dump file: {file}")
     click.echo(f"Using batch size: {batch_size}")
@@ -733,20 +764,15 @@ def dump_import_politicians(file, batch_size):
 
     # Get the latest dump and check its status
     with Session(get_engine()) as session:
-        latest_dump = get_latest_dump(session, allow_none=True)
+        latest_dump = ensure_latest_dump(
+            session, "imported_entities_at", allow_none=True
+        )
 
-        if latest_dump is not None:
-            if not latest_dump.imported_entities_at:
-                click.echo(
-                    "❌ Entities not imported yet. Run 'poliloom import-entities' first"
-                )
-                raise SystemExit(1)
-
-            if latest_dump.imported_politicians_at:
-                click.echo(
-                    f"⚠️  Warning: Politicians for dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already imported"
-                )
-                click.echo("Continuing anyway...")
+        if latest_dump is not None and latest_dump.imported_politicians_at:
+            click.echo(
+                f"⚠️  Warning: Politicians for dump from {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already imported"
+            )
+            click.echo("Continuing anyway...")
 
     click.echo(f"Importing politicians from dump file: {file}")
     click.echo(f"Using batch size: {batch_size}")
