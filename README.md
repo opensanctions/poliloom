@@ -41,7 +41,7 @@ cd poliloom
 # Backend setup
 cd poliloom
 uv sync
-docker-compose up -d  # PostgreSQL with pgvector
+docker compose up -d  # PostgreSQL with pgvector
 
 # Frontend setup
 cd ../poliloom-gui

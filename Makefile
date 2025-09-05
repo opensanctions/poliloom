@@ -1,4 +1,4 @@
-.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump extract-wikidata-dump truncate-db db-dump db-restore export-positions-csv
+.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump extract-wikidata-dump db-truncate db-dump db-restore export-positions-csv export-locations-csv development production
 
 # Start pgAdmin4 container for database inspection
 pgadmin:
@@ -31,15 +31,15 @@ stop-pgadmin:
 
 
 # Truncate main database tables (cascades will handle related tables)
-truncate-db:
+db-truncate:
 	@echo "Truncating main database tables..."
-	@docker-compose exec -T postgres psql -U postgres -d poliloom -c "TRUNCATE TABLE politicians, countries, locations, positions, wikidata_classes CASCADE;"
+	@docker compose exec -T postgres psql -U postgres -d poliloom -c "TRUNCATE TABLE politicians, countries, locations, positions, wikidata_classes CASCADE;"
 	@echo "Database tables truncated successfully."
 
 # Dump database to local file
 db-dump:
 	@echo "Dumping database to poliloom_db_dump.sql..."
-	@docker-compose exec -T postgres pg_dump -U postgres -d poliloom > poliloom_db_dump.sql
+	@docker compose exec -T postgres pg_dump -U postgres -d poliloom > poliloom_db_dump.sql
 	@echo "Database dumped successfully to poliloom_db_dump.sql"
 
 # Restore database from local file
@@ -49,13 +49,23 @@ db-restore:
 		echo "Error: poliloom_db_dump.sql not found. Run 'make db-dump' first or ensure the file exists."; \
 		exit 1; \
 	fi
-	@docker-compose exec -T postgres psql -U postgres -d poliloom -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-	@docker-compose exec -T postgres psql -U postgres -d poliloom < init-db.sql
-	@docker-compose exec -T postgres psql -U postgres -d poliloom < poliloom_db_dump.sql
+	@docker compose exec -T postgres psql -U postgres -d poliloom -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	@docker compose exec -T postgres psql -U postgres -d poliloom < init-db.sql
+	@docker compose exec -T postgres psql -U postgres -d poliloom < poliloom_db_dump.sql
 	@echo "Database restored successfully from poliloom_db_dump.sql"
 
 # Export all positions to CSV file
 export-positions-csv:
-	@echo "Exporting all positions to positions.csv..."
-	@docker-compose exec -T postgres psql -U postgres -d poliloom -c "\COPY (SELECT wikidata_id, name FROM positions ORDER BY wikidata_id) TO STDOUT WITH CSV HEADER" > positions.csv
-	@echo "Positions exported successfully to positions.csv"
+	@docker compose exec -T postgres psql -U postgres -d poliloom -c "\COPY (SELECT wikidata_id, name FROM positions ORDER BY wikidata_id) TO STDOUT WITH CSV HEADER"
+
+# Export all locations to CSV file
+export-locations-csv:
+	@docker compose exec -T postgres psql -U postgres -d poliloom -c "\COPY (SELECT wikidata_id, name FROM locations ORDER BY wikidata_id) TO STDOUT WITH CSV HEADER"
+
+# Set up development environment with docker compose
+development:
+	docker compose up -d
+
+# Start production services (GUI and API only, no databases)
+production:
+	docker compose up -d api gui
