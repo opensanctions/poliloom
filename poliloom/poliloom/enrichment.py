@@ -2,11 +2,12 @@
 
 import os
 import logging
+import re
 from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from openai import OpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from unmhtml import MHTMLConverter
 import mistune
 from bs4 import BeautifulSoup
@@ -28,6 +29,27 @@ logger = logging.getLogger(__name__)
 
 # Global cached embedding model
 _embedding_model = None
+
+
+def validate_date_format(date_str: Optional[str]) -> Optional[str]:
+    """Validate date format: YYYY, YYYY-MM, or YYYY-MM-DD."""
+    if date_str is None:
+        return None
+
+    # Allow the three valid formats
+    patterns = [
+        r"^\d{4}$",  # YYYY
+        r"^\d{4}-\d{2}$",  # YYYY-MM
+        r"^\d{4}-\d{2}-\d{2}$",  # YYYY-MM-DD
+    ]
+
+    for pattern in patterns:
+        if re.match(pattern, date_str):
+            return date_str
+
+    raise ValueError(
+        f"Invalid date format: '{date_str}'. Must be YYYY, YYYY-MM, or YYYY-MM-DD"
+    )
 
 
 def get_embedding_model():
@@ -71,6 +93,11 @@ class ExtractedProperty(BaseModel):
     value: str
     proof: str
 
+    @field_validator("value")
+    @classmethod
+    def validate_date_value(cls, v: str) -> str:
+        return validate_date_format(v)
+
 
 class ExtractedPosition(BaseModel):
     """Schema for extracted position data."""
@@ -79,6 +106,11 @@ class ExtractedPosition(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     proof: str
+
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def validate_dates(cls, v: Optional[str]) -> Optional[str]:
+        return validate_date_format(v)
 
 
 class ExtractedBirthplace(BaseModel):
@@ -101,6 +133,11 @@ class FreeFormPosition(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     proof: str
+
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def validate_dates(cls, v: Optional[str]) -> Optional[str]:
+        return validate_date_format(v)
 
 
 class FreeFormPositionResult(BaseModel):
