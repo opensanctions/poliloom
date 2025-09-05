@@ -361,8 +361,8 @@ def _process_politicians_chunk(
 
                         # Only include positions that are in our database
                         if (
-                            not shared_position_qids
-                            or position_id not in shared_position_qids
+                            shared_position_qids
+                            and position_id not in shared_position_qids
                         ):
                             continue
 

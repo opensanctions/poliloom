@@ -83,8 +83,10 @@ def dump_download(output):
                 )
                 raise SystemExit(1)
 
-            # Parse HTTP date format using httpx's built-in parser
-            last_modified = httpx._utils.parse_header_date(last_modified_str)
+            # Parse HTTP date format using datetime
+            last_modified = datetime.strptime(
+                last_modified_str, "%a, %d %b %Y %H:%M:%S %Z"
+            ).replace(tzinfo=timezone.utc)
 
         # Check if we already have this dump
         with Session(get_engine()) as session:
