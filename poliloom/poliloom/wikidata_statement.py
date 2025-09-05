@@ -305,9 +305,7 @@ async def _push_position_evaluation(
 
     wikidata_value = {
         "type": "value",
-        "content": {
-            "id": position.position.wikidata_id,
-        },
+        "content": position.position.wikidata_id,
     }
 
     # Create qualifiers for start/end dates
@@ -383,9 +381,7 @@ async def _push_birthplace_evaluation(
 
     wikidata_value = {
         "type": "value",
-        "content": {
-            "id": birthplace.location.wikidata_id,
-        },
+        "content": birthplace.location.wikidata_id,
     }
 
     # Create reference to Wikipedia article
