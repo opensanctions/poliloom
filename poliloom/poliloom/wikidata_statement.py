@@ -41,8 +41,8 @@ def _parse_date_for_wikidata(date_value: str) -> Optional[Dict[str, Any]]:
         # Try to parse as full date first
         dt = datetime.fromisoformat(date_value.replace("Z", "+00:00"))
         return {
-            "type": "time",
-            "value": {
+            "type": "value",
+            "content": {
                 "time": f"+{dt.year:04d}-{dt.month:02d}-{dt.day:02d}T00:00:00Z",
                 "timezone": 0,
                 "before": 0,
@@ -57,8 +57,8 @@ def _parse_date_for_wikidata(date_value: str) -> Optional[Dict[str, Any]]:
             # Year only
             year = int(date_value)
             return {
-                "type": "time",
-                "value": {
+                "type": "value",
+                "content": {
                     "time": f"+{year:04d}-00-00T00:00:00Z",
                     "timezone": 0,
                     "before": 0,
@@ -264,7 +264,7 @@ async def _push_property_evaluation(
     references = [
         {
             "property": {"id": "P854"},  # Reference URL
-            "value": {"type": "string", "value": prop.archived_page.url},
+            "value": {"type": "value", "content": prop.archived_page.url},
         }
     ]
 
@@ -304,8 +304,8 @@ async def _push_position_evaluation(
     )
 
     wikidata_value = {
-        "type": "wikibase-entityid",
-        "value": {"id": position.position.wikidata_id},
+        "type": "value",
+        "content": position.position.wikidata_id,
     }
 
     # Create qualifiers for start/end dates
@@ -339,7 +339,7 @@ async def _push_position_evaluation(
     references = [
         {
             "property": {"id": "P854"},  # Reference URL
-            "value": {"type": "string", "value": position.archived_page.url},
+            "value": {"type": "value", "content": position.archived_page.url},
         }
     ]
 
@@ -380,15 +380,15 @@ async def _push_birthplace_evaluation(
     )
 
     wikidata_value = {
-        "type": "wikibase-entityid",
-        "value": {"id": birthplace.location.wikidata_id},
+        "type": "value",
+        "content": birthplace.location.wikidata_id,
     }
 
     # Create reference to Wikipedia article
     references = [
         {
             "property": {"id": "P854"},  # Reference URL
-            "value": {"type": "string", "value": birthplace.archived_page.url},
+            "value": {"type": "value", "content": birthplace.archived_page.url},
         }
     ]
 

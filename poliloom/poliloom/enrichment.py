@@ -214,18 +214,22 @@ Use this information to:
 
 <extraction_scope>
 Extract ONLY these two property types:
-- birth_date: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
-- death_date: Use format YYYY-MM-DD, YYYY-MM, or YYYY for incomplete dates
+- birth_date: Use format YYYY-MM-DD, or YYYY-MM, YYYY for incomplete dates
+- death_date: Use format YYYY-MM-DD, or YYYY-MM, YYYY for incomplete dates
 </extraction_scope>
 
 <extraction_rules>
 - Only extract information explicitly stated in the text
 - Extract only birth_date and death_date - ignore all other personal information
 - Use partial dates if full dates aren't available
-- For each property, provide a 'proof' field with one exact quote that mentions this property
+</extraction_rules>
+
+<proof_requirements>
+- Each property must include one exact verbatim quote from the source content that mentions this property
+- The quote must be copied exactly as it appears in the source, word-for-word
 - When multiple sentences support the claim, choose the most important and relevant single quote
-- Be precise and only extract what is clearly stated
-</extraction_rules>"""
+- The quote must actually exist in the provided content
+</proof_requirements>"""
 
         user_prompt = f"""Extract personal properties about {politician_name} from this Wikipedia article text:
 
@@ -306,20 +310,21 @@ Use this information to:
 <extraction_scope>
 Extract all political positions from the provided content following these rules:
 - Extract any political offices, government roles, elected positions, or political appointments
-- Include interim/acting positions and temporary appointments
 - Use exact position names as they appear in the source
+- Return an empty list if no political positions are found in the content
 </extraction_scope>
 
 <date_formatting_rules>
-- Use YYYY-MM-DD, YYYY-MM, or YYYY format when available
+- Use format YYYY-MM-DD
+- Use YYYY-MM, or YYYY for incomplete dates
 - Leave end_date null if position is current or unknown
-- Include "acting" or "interim" in the position name if applicable
 </date_formatting_rules>
 
 <proof_requirements>
-- Each position must include one exact quote mentioning this position
+- Each position must include one exact verbatim quote from the source content that mentions this position
+- The quote must be copied exactly as it appears in the source, word-for-word
 - When multiple sentences support the claim, choose the most important and relevant single quote
-- The proof should contain sufficient context to verify the claim
+- The quote must actually exist in the provided content
 </proof_requirements>"""
 
         user_prompt = f"""Extract all political positions held by {politician_name} from the content below.
@@ -441,11 +446,15 @@ Use this information to:
 <extraction_scope>
 Extract birthplace information following these rules:
 - Extract birthplace as mentioned in the source (city, town, village or region)
+- Return an empty list if no birthplace information is found in the content
+- Only extract actual location names that are explicitly stated in the text
 </extraction_scope>
 
 <proof_requirements>
-- Provide one exact quote from the source content that mentions the birthplace
+- Provide one exact verbatim quote from the source content that mentions the birthplace
+- The quote must be copied exactly as it appears in the source, word-for-word
 - When multiple sentences support the claim, choose the most important and relevant single quote
+- The quote must actually exist in the provided content
 </proof_requirements>"""
 
         user_prompt = f"""Extract the birthplace of {politician_name} from the content below.
