@@ -614,23 +614,18 @@ class TestEnrichment:
 
         assert success is True
 
-        # Should have only one position record (updated, not duplicated)
+        # Should have two separate position records (different end dates = different periods)
         holds_positions = (
             db_session.query(HoldsPosition)
             .filter_by(politician_id=politician.id, position_id=position.wikidata_id)
             .all()
         )
-        assert len(holds_positions) == 1
+        assert len(holds_positions) == 2
 
-        # The timeframe should be updated to reflect the longer period
-        updated_position = holds_positions[0]
-        assert updated_position.start_date == "2010"
-        assert (
-            updated_position.end_date == "2018"
-        )  # Should be updated to the longer period
-        assert (
-            updated_position.archived_page_id == archived_page.id
-        )  # Should be marked as extracted
+        # Verify both periods exist
+        end_dates = {p.end_date for p in holds_positions}
+        assert "2015" in end_dates  # Original period
+        assert "2018" in end_dates  # New period
 
     def test_store_extracted_data_completely_overlapping_position_timeframes(
         self,
@@ -694,21 +689,18 @@ class TestEnrichment:
 
         assert success is True
 
-        # Should still have only one position record (no change to existing)
+        # Should have two separate position records (different start dates = different periods)
         holds_positions = (
             db_session.query(HoldsPosition)
             .filter_by(politician_id=politician.id, position_id=position.wikidata_id)
             .all()
         )
-        assert len(holds_positions) == 1
+        assert len(holds_positions) == 2
 
-        # The existing timeframe should remain unchanged (keep the longer period)
-        unchanged_position = holds_positions[0]
-        assert unchanged_position.start_date == "2010"
-        assert unchanged_position.end_date == "2018"  # Should remain unchanged
-        assert (
-            unchanged_position.archived_page_id is None
-        )  # Should remain as Wikidata source
+        # Verify both periods exist
+        start_dates = {p.start_date for p in holds_positions}
+        assert "2010" in start_dates  # Original period
+        assert "2012" in start_dates  # New period
 
     def test_store_extracted_data_non_overlapping_position_timeframes(
         self,
@@ -962,3 +954,154 @@ class TestEnrichment:
         assert second_position.start_date == "2011"
         assert second_position.end_date == "2015"
         assert second_position.archived_page_id == archived_page.id  # Extracted source
+
+    def test_store_extracted_data_precision_preference(
+        self,
+        db_session,
+        sample_mayor_of_springfield_position_data,
+        sample_archived_page_data,
+        sample_country_data,
+    ):
+        """Test that higher precision dates replace lower precision ones."""
+        # Create entities
+        country = Country(**sample_country_data)
+        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        archived_page = ArchivedPage(**sample_archived_page_data)
+        position = Position(**sample_mayor_of_springfield_position_data)
+
+        db_session.add_all([country, politician, archived_page, position])
+        db_session.commit()
+
+        # Add citizenship and Wikipedia link
+        citizenship = HasCitizenship(
+            politician_id=politician.id, country_id=country.wikidata_id
+        )
+        wikipedia_link = WikipediaLink(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            language_code="en",
+        )
+        db_session.add_all([citizenship, wikipedia_link])
+        db_session.commit()
+
+        # Start with low precision existing data
+        existing_position = HoldsPosition(
+            politician_id=politician.id,
+            position_id=position.wikidata_id,
+            start_date="1962",  # Year only (precision 9)
+            end_date="1962",  # Year only (precision 9)
+            archived_page_id=None,
+            proof_line=None,
+        )
+        db_session.add(existing_position)
+        db_session.commit()
+
+        # Extract higher precision data for same period
+        high_precision_positions = [
+            ExtractedPosition(
+                name="Mayor of Springfield",
+                start_date="1962-06-15",  # Full date (precision 11)
+                end_date="1962-06-15",  # Full date (precision 11)
+                proof="served as Mayor on June 15, 1962",
+            )
+        ]
+
+        store_extracted_data(
+            db_session,
+            politician,
+            archived_page,
+            None,  # properties
+            high_precision_positions,
+            None,  # birthplaces
+        )
+
+        # Should have only one position with the higher precision dates
+        holds_positions = (
+            db_session.query(HoldsPosition)
+            .filter_by(politician_id=politician.id, position_id=position.wikidata_id)
+            .all()
+        )
+
+        assert len(holds_positions) == 1
+        position_record = holds_positions[0]
+        assert position_record.start_date == "1962-06-15"  # Updated to higher precision
+        assert position_record.end_date == "1962-06-15"  # Updated to higher precision
+        assert position_record.archived_page_id == archived_page.id  # Source updated
+
+    def test_store_extracted_data_precision_preference_skip_lower(
+        self,
+        db_session,
+        sample_mayor_of_springfield_position_data,
+        sample_archived_page_data,
+        sample_country_data,
+    ):
+        """Test that lower precision dates are rejected when higher precision exists."""
+        # Create entities
+        country = Country(**sample_country_data)
+        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        archived_page = ArchivedPage(**sample_archived_page_data)
+        position = Position(**sample_mayor_of_springfield_position_data)
+
+        db_session.add_all([country, politician, archived_page, position])
+        db_session.commit()
+
+        # Add citizenship and Wikipedia link
+        citizenship = HasCitizenship(
+            politician_id=politician.id, country_id=country.wikidata_id
+        )
+        wikipedia_link = WikipediaLink(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            language_code="en",
+        )
+        db_session.add_all([citizenship, wikipedia_link])
+        db_session.commit()
+
+        # Start with high precision existing data
+        existing_position = HoldsPosition(
+            politician_id=politician.id,
+            position_id=position.wikidata_id,
+            start_date="1962-06-15",  # Full date (precision 11)
+            end_date="1962-06-15",  # Full date (precision 11)
+            archived_page_id=None,
+            proof_line="precise date from Wikidata",
+        )
+        db_session.add(existing_position)
+        db_session.commit()
+
+        # Try to extract lower precision data for same period
+        low_precision_positions = [
+            ExtractedPosition(
+                name="Mayor of Springfield",
+                start_date="1962",  # Year only (precision 9)
+                end_date="1962",  # Year only (precision 9)
+                proof="served as Mayor in 1962",
+            )
+        ]
+
+        store_extracted_data(
+            db_session,
+            politician,
+            archived_page,
+            None,  # properties
+            low_precision_positions,
+            None,  # birthplaces
+        )
+
+        # Should still have only one position with the higher precision dates unchanged
+        holds_positions = (
+            db_session.query(HoldsPosition)
+            .filter_by(politician_id=politician.id, position_id=position.wikidata_id)
+            .all()
+        )
+
+        assert len(holds_positions) == 1
+        position_record = holds_positions[0]
+        assert (
+            position_record.start_date == "1962-06-15"
+        )  # Unchanged (higher precision)
+        assert position_record.end_date == "1962-06-15"  # Unchanged (higher precision)
+        assert position_record.archived_page_id is None  # Source unchanged
+        assert (
+            position_record.proof_line == "precise date from Wikidata"
+        )  # Proof unchanged

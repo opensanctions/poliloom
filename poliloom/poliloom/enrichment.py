@@ -25,10 +25,8 @@ from . import archive
 from .database import get_engine
 from .dates import (
     validate_date_format,
-    dates_overlap,
-    get_date_range_span,
-    is_extension_overlap,
-    is_subset_overlap,
+    get_date_precision,
+    dates_could_be_same,
 )
 
 logger = logging.getLogger(__name__)
@@ -949,66 +947,44 @@ def store_extracted_data(
                     overlapping_hold = None
 
                     for existing_hold in all_existing_holds:
-                        if dates_overlap(
-                            existing_hold.start_date,
-                            existing_hold.end_date,
-                            pos_data.start_date,
-                            pos_data.end_date,
+                        # Check if the date ranges could refer to the same time period
+                        if dates_could_be_same(
+                            existing_hold.start_date, pos_data.start_date
+                        ) and dates_could_be_same(
+                            existing_hold.end_date, pos_data.end_date
                         ):
-                            # Check if this is a complete overlap (extension or subset)
-                            if is_extension_overlap(
-                                existing_hold.start_date,
-                                existing_hold.end_date,
-                                pos_data.start_date,
-                                pos_data.end_date,
-                            ) or is_subset_overlap(
-                                existing_hold.start_date,
-                                existing_hold.end_date,
-                                pos_data.start_date,
-                                pos_data.end_date,
-                            ):
-                                overlapping_hold = existing_hold
-                                break
-                            # If it's only a partial overlap, we'll treat it as a new entity (continue searching)
+                            overlapping_hold = existing_hold
+                            break
 
                     if overlapping_hold:
-                        # Handle complete overlaps (extensions or subsets)
-                        if is_extension_overlap(
-                            overlapping_hold.start_date,
-                            overlapping_hold.end_date,
-                            pos_data.start_date,
-                            pos_data.end_date,
-                        ):
-                            # Extend existing timeframe
-                            new_start, new_end = get_date_range_span(
-                                overlapping_hold.start_date,
-                                overlapping_hold.end_date,
-                                pos_data.start_date,
-                                pos_data.end_date,
-                            )
+                        # Dates could be the same - use precision to decide
+                        new_prec = get_date_precision(
+                            pos_data.start_date
+                        ) + get_date_precision(pos_data.end_date)
+                        existing_prec = get_date_precision(
+                            overlapping_hold.start_date
+                        ) + get_date_precision(overlapping_hold.end_date)
 
+                        if new_prec > existing_prec:
+                            # New data has higher precision - update existing record
                             old_range = f"{overlapping_hold.start_date or 'unknown'}-{overlapping_hold.end_date or 'present'}"
-                            new_range = (
-                                f"{new_start or 'unknown'}-{new_end or 'present'}"
-                            )
+                            new_range = f"{pos_data.start_date or 'unknown'}-{pos_data.end_date or 'present'}"
 
-                            overlapping_hold.start_date = new_start
-                            overlapping_hold.end_date = new_end
+                            overlapping_hold.start_date = pos_data.start_date
+                            overlapping_hold.end_date = pos_data.end_date
                             overlapping_hold.archived_page_id = archived_page.id
                             overlapping_hold.proof_line = pos_data.proof
                             db.flush()
 
                             logger.info(
-                                f"Extended position timeframe: '{pos_data.name}' ({position.wikidata_id}) "
+                                f"Updated position with higher precision: '{pos_data.name}' ({position.wikidata_id}) "
                                 f"from ({old_range}) to ({new_range}) for {politician.name}"
                             )
                         else:
-                            # Subset - skip the new period
+                            # Existing data has equal or higher precision - skip new data
                             logger.info(
-                                f"Skipped subset position: '{pos_data.name}' ({position.wikidata_id}) "
+                                f"Skipped position with equal/lower precision: '{pos_data.name}' ({position.wikidata_id}) "
                                 f"({pos_data.start_date or 'unknown'}-{pos_data.end_date or 'present'}) "
-                                f"is within existing timeframe "
-                                f"({overlapping_hold.start_date or 'unknown'}-{overlapping_hold.end_date or 'present'}) "
                                 f"for {politician.name}"
                             )
                     else:
