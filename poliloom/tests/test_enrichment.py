@@ -551,3 +551,414 @@ class TestEnrichment:
 
         # The enriched_at timestamp should still be updated even when raising an error
         assert politician.enriched_at is not None
+
+    def test_store_extracted_data_overlapping_position_timeframes(
+        self,
+        db_session,
+        sample_mayor_of_springfield_position_data,
+        sample_archived_page_data,
+        sample_country_data,
+    ):
+        """Test handling of overlapping position timeframes."""
+        # Create entities
+        country = Country(**sample_country_data)
+        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        archived_page = ArchivedPage(**sample_archived_page_data)
+        position = Position(**sample_mayor_of_springfield_position_data)
+
+        db_session.add_all([country, politician, archived_page, position])
+        db_session.commit()
+
+        # Add citizenship and Wikipedia link
+        citizenship = HasCitizenship(
+            politician_id=politician.id, country_id=country.wikidata_id
+        )
+        wikipedia_link = WikipediaLink(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            language_code="en",
+        )
+        db_session.add_all([citizenship, wikipedia_link])
+        db_session.commit()
+
+        # Add existing position with timeframe 2010-2015
+        existing_position = HoldsPosition(
+            politician_id=politician.id,
+            position_id=position.wikidata_id,
+            start_date="2010",
+            end_date="2015",
+            archived_page_id=None,  # This is from Wikidata
+            proof_line=None,
+        )
+        db_session.add(existing_position)
+        db_session.commit()
+
+        # Try to add overlapping position with timeframe 2010-2018 (extends the end date)
+        overlapping_positions = [
+            ExtractedPosition(
+                name="Mayor of Springfield",
+                start_date="2010",
+                end_date="2018",  # Extends beyond existing end date
+                proof="served as Mayor from 2010 to 2018",
+            )
+        ]
+
+        success = store_extracted_data(
+            db_session,
+            politician,
+            archived_page,
+            None,  # properties
+            overlapping_positions,
+            None,  # birthplaces
+        )
+
+        assert success is True
+
+        # Should have only one position record (updated, not duplicated)
+        holds_positions = (
+            db_session.query(HoldsPosition)
+            .filter_by(politician_id=politician.id, position_id=position.wikidata_id)
+            .all()
+        )
+        assert len(holds_positions) == 1
+
+        # The timeframe should be updated to reflect the longer period
+        updated_position = holds_positions[0]
+        assert updated_position.start_date == "2010"
+        assert (
+            updated_position.end_date == "2018"
+        )  # Should be updated to the longer period
+        assert (
+            updated_position.archived_page_id == archived_page.id
+        )  # Should be marked as extracted
+
+    def test_store_extracted_data_completely_overlapping_position_timeframes(
+        self,
+        db_session,
+        sample_mayor_of_springfield_position_data,
+        sample_archived_page_data,
+        sample_country_data,
+    ):
+        """Test handling of completely overlapping position timeframes (subset)."""
+        # Create entities
+        country = Country(**sample_country_data)
+        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        archived_page = ArchivedPage(**sample_archived_page_data)
+        position = Position(**sample_mayor_of_springfield_position_data)
+
+        db_session.add_all([country, politician, archived_page, position])
+        db_session.commit()
+
+        # Add citizenship and Wikipedia link
+        citizenship = HasCitizenship(
+            politician_id=politician.id, country_id=country.wikidata_id
+        )
+        wikipedia_link = WikipediaLink(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            language_code="en",
+        )
+        db_session.add_all([citizenship, wikipedia_link])
+        db_session.commit()
+
+        # Add existing position with timeframe 2010-2018 (longer period)
+        existing_position = HoldsPosition(
+            politician_id=politician.id,
+            position_id=position.wikidata_id,
+            start_date="2010",
+            end_date="2018",
+            archived_page_id=None,  # This is from Wikidata
+            proof_line=None,
+        )
+        db_session.add(existing_position)
+        db_session.commit()
+
+        # Try to add subset position with timeframe 2012-2015 (within existing period)
+        subset_positions = [
+            ExtractedPosition(
+                name="Mayor of Springfield",
+                start_date="2012",
+                end_date="2015",  # Subset of existing timeframe
+                proof="served as Mayor from 2012 to 2015",
+            )
+        ]
+
+        success = store_extracted_data(
+            db_session,
+            politician,
+            archived_page,
+            None,  # properties
+            subset_positions,
+            None,  # birthplaces
+        )
+
+        assert success is True
+
+        # Should still have only one position record (no change to existing)
+        holds_positions = (
+            db_session.query(HoldsPosition)
+            .filter_by(politician_id=politician.id, position_id=position.wikidata_id)
+            .all()
+        )
+        assert len(holds_positions) == 1
+
+        # The existing timeframe should remain unchanged (keep the longer period)
+        unchanged_position = holds_positions[0]
+        assert unchanged_position.start_date == "2010"
+        assert unchanged_position.end_date == "2018"  # Should remain unchanged
+        assert (
+            unchanged_position.archived_page_id is None
+        )  # Should remain as Wikidata source
+
+    def test_store_extracted_data_non_overlapping_position_timeframes(
+        self,
+        db_session,
+        sample_mayor_of_springfield_position_data,
+        sample_archived_page_data,
+        sample_country_data,
+    ):
+        """Test handling of non-overlapping position timeframes (different periods)."""
+        # Create entities
+        country = Country(**sample_country_data)
+        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        archived_page = ArchivedPage(**sample_archived_page_data)
+        position = Position(**sample_mayor_of_springfield_position_data)
+
+        db_session.add_all([country, politician, archived_page, position])
+        db_session.commit()
+
+        # Add citizenship and Wikipedia link
+        citizenship = HasCitizenship(
+            politician_id=politician.id, country_id=country.wikidata_id
+        )
+        wikipedia_link = WikipediaLink(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            language_code="en",
+        )
+        db_session.add_all([citizenship, wikipedia_link])
+        db_session.commit()
+
+        # Add existing position with timeframe 2010-2015
+        existing_position = HoldsPosition(
+            politician_id=politician.id,
+            position_id=position.wikidata_id,
+            start_date="2010",
+            end_date="2015",
+            archived_page_id=None,  # This is from Wikidata
+            proof_line=None,
+        )
+        db_session.add(existing_position)
+        db_session.commit()
+
+        # Try to add non-overlapping position with timeframe 2020-2024
+        non_overlapping_positions = [
+            ExtractedPosition(
+                name="Mayor of Springfield",
+                start_date="2020",
+                end_date="2024",  # Non-overlapping period
+                proof="served as Mayor again from 2020 to 2024",
+            )
+        ]
+
+        success = store_extracted_data(
+            db_session,
+            politician,
+            archived_page,
+            None,  # properties
+            non_overlapping_positions,
+            None,  # birthplaces
+        )
+
+        assert success is True
+
+        # Should have two position records (both periods are valid)
+        holds_positions = (
+            db_session.query(HoldsPosition)
+            .filter_by(politician_id=politician.id, position_id=position.wikidata_id)
+            .order_by(HoldsPosition.start_date)
+            .all()
+        )
+        assert len(holds_positions) == 2
+
+        # First period should remain unchanged
+        first_position = holds_positions[0]
+        assert first_position.start_date == "2010"
+        assert first_position.end_date == "2015"
+        assert first_position.archived_page_id is None  # Wikidata source
+
+        # Second period should be added
+        second_position = holds_positions[1]
+        assert second_position.start_date == "2020"
+        assert second_position.end_date == "2024"
+        assert second_position.archived_page_id == archived_page.id  # Extracted source
+
+    def test_store_extracted_data_partial_overlap_scenarios(
+        self,
+        db_session,
+        sample_mayor_of_springfield_position_data,
+        sample_archived_page_data,
+        sample_country_data,
+    ):
+        """Test various partial overlap scenarios to understand current behavior."""
+        # Create entities
+        country = Country(**sample_country_data)
+        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        archived_page = ArchivedPage(**sample_archived_page_data)
+        position = Position(**sample_mayor_of_springfield_position_data)
+
+        db_session.add_all([country, politician, archived_page, position])
+        db_session.commit()
+
+        # Add citizenship and Wikipedia link
+        citizenship = HasCitizenship(
+            politician_id=politician.id, country_id=country.wikidata_id
+        )
+        wikipedia_link = WikipediaLink(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            language_code="en",
+        )
+        db_session.add_all([citizenship, wikipedia_link])
+        db_session.commit()
+
+        # Test Scenario 1: Small end overlap
+        # Existing: 2010-2015, New: 2014-2018 (1-year overlap at end)
+        existing_position = HoldsPosition(
+            politician_id=politician.id,
+            position_id=position.wikidata_id,
+            start_date="2010",
+            end_date="2015",
+            archived_page_id=None,
+            proof_line=None,
+        )
+        db_session.add(existing_position)
+        db_session.commit()
+
+        overlapping_positions = [
+            ExtractedPosition(
+                name="Mayor of Springfield",
+                start_date="2014",
+                end_date="2018",
+                proof="served as Mayor from 2014 to 2018",
+            )
+        ]
+
+        store_extracted_data(
+            db_session,
+            politician,
+            archived_page,
+            None,  # properties
+            overlapping_positions,
+            None,  # birthplaces
+        )
+
+        # Check result
+        holds_positions = (
+            db_session.query(HoldsPosition)
+            .filter_by(politician_id=politician.id, position_id=position.wikidata_id)
+            .order_by(HoldsPosition.start_date)
+            .all()
+        )
+
+        # New behavior: partial overlaps create separate entities
+        assert len(holds_positions) == 2, (
+            f"Expected 2 separate position records for partial overlap, got {len(holds_positions)}"
+        )
+
+        # First period (existing from Wikidata)
+        first_position = holds_positions[0]
+        assert first_position.start_date == "2010"
+        assert first_position.end_date == "2015"
+        assert first_position.archived_page_id is None  # Wikidata source
+
+        # Second period (new from extraction)
+        second_position = holds_positions[1]
+        assert second_position.start_date == "2014"
+        assert second_position.end_date == "2018"
+        assert second_position.archived_page_id == archived_page.id  # Extracted source
+
+    def test_store_extracted_data_gap_between_periods(
+        self,
+        db_session,
+        sample_mayor_of_springfield_position_data,
+        sample_archived_page_data,
+        sample_country_data,
+    ):
+        """Test what should happen when periods have gaps that get filled."""
+        # Create entities
+        country = Country(**sample_country_data)
+        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        archived_page = ArchivedPage(**sample_archived_page_data)
+        position = Position(**sample_mayor_of_springfield_position_data)
+
+        db_session.add_all([country, politician, archived_page, position])
+        db_session.commit()
+
+        # Add citizenship and Wikipedia link
+        citizenship = HasCitizenship(
+            politician_id=politician.id, country_id=country.wikidata_id
+        )
+        wikipedia_link = WikipediaLink(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            language_code="en",
+        )
+        db_session.add_all([citizenship, wikipedia_link])
+        db_session.commit()
+
+        # Scenario: Bridging a gap
+        # Existing: 2010-2012, New: 2011-2015 (overlaps and extends)
+        # This creates a continuous period 2010-2015, but did they really serve continuously?
+        existing_position = HoldsPosition(
+            politician_id=politician.id,
+            position_id=position.wikidata_id,
+            start_date="2010",
+            end_date="2012",
+            archived_page_id=None,
+            proof_line=None,
+        )
+        db_session.add(existing_position)
+        db_session.commit()
+
+        bridging_positions = [
+            ExtractedPosition(
+                name="Mayor of Springfield",
+                start_date="2011",
+                end_date="2015",
+                proof="served as Mayor from 2011 to 2015",
+            )
+        ]
+
+        store_extracted_data(
+            db_session,
+            politician,
+            archived_page,
+            None,  # properties
+            bridging_positions,
+            None,  # birthplaces
+        )
+
+        holds_positions = (
+            db_session.query(HoldsPosition)
+            .filter_by(politician_id=politician.id, position_id=position.wikidata_id)
+            .order_by(HoldsPosition.start_date)
+            .all()
+        )
+
+        # New behavior: partial overlaps create separate entities
+        assert len(holds_positions) == 2, (
+            f"Expected 2 separate position records for partial overlap, got {len(holds_positions)}"
+        )
+
+        # First period (existing from Wikidata)
+        first_position = holds_positions[0]
+        assert first_position.start_date == "2010"
+        assert first_position.end_date == "2012"
+        assert first_position.archived_page_id is None  # Wikidata source
+
+        # Second period (new from extraction)
+        second_position = holds_positions[1]
+        assert second_position.start_date == "2011"
+        assert second_position.end_date == "2015"
+        assert second_position.archived_page_id == archived_page.id  # Extracted source

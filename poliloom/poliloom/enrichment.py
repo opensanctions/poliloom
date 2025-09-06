@@ -2,7 +2,6 @@
 
 import os
 import logging
-import re
 from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy.orm import Session
@@ -24,32 +23,18 @@ from .models import (
 )
 from . import archive
 from .database import get_engine
+from .dates import (
+    validate_date_format,
+    dates_overlap,
+    get_date_range_span,
+    is_extension_overlap,
+    is_subset_overlap,
+)
 
 logger = logging.getLogger(__name__)
 
 # Global cached embedding model
 _embedding_model = None
-
-
-def validate_date_format(date_str: Optional[str]) -> Optional[str]:
-    """Validate date format: YYYY, YYYY-MM, or YYYY-MM-DD."""
-    if date_str is None:
-        return None
-
-    # Allow the three valid formats
-    patterns = [
-        r"^\d{4}$",  # YYYY
-        r"^\d{4}-\d{2}$",  # YYYY-MM
-        r"^\d{4}-\d{2}-\d{2}$",  # YYYY-MM-DD
-    ]
-
-    for pattern in patterns:
-        if re.match(pattern, date_str):
-            return date_str
-
-    raise ValueError(
-        f"Invalid date format: '{date_str}'. Must be YYYY, YYYY-MM, or YYYY-MM-DD"
-    )
 
 
 def get_embedding_model():
@@ -951,19 +936,83 @@ def store_extracted_data(
                         )
                         continue
 
-                    # Check if this position relationship already exists
-                    existing_holds = (
+                    # Check for overlapping position timeframes
+                    all_existing_holds = (
                         db.query(HoldsPosition)
                         .filter_by(
                             politician_id=politician.id,
                             position_id=position.wikidata_id,
-                            start_date=pos_data.start_date,
-                            end_date=pos_data.end_date,
                         )
-                        .first()
+                        .all()
                     )
 
-                    if not existing_holds:
+                    overlapping_hold = None
+
+                    for existing_hold in all_existing_holds:
+                        if dates_overlap(
+                            existing_hold.start_date,
+                            existing_hold.end_date,
+                            pos_data.start_date,
+                            pos_data.end_date,
+                        ):
+                            # Check if this is a complete overlap (extension or subset)
+                            if is_extension_overlap(
+                                existing_hold.start_date,
+                                existing_hold.end_date,
+                                pos_data.start_date,
+                                pos_data.end_date,
+                            ) or is_subset_overlap(
+                                existing_hold.start_date,
+                                existing_hold.end_date,
+                                pos_data.start_date,
+                                pos_data.end_date,
+                            ):
+                                overlapping_hold = existing_hold
+                                break
+                            # If it's only a partial overlap, we'll treat it as a new entity (continue searching)
+
+                    if overlapping_hold:
+                        # Handle complete overlaps (extensions or subsets)
+                        if is_extension_overlap(
+                            overlapping_hold.start_date,
+                            overlapping_hold.end_date,
+                            pos_data.start_date,
+                            pos_data.end_date,
+                        ):
+                            # Extend existing timeframe
+                            new_start, new_end = get_date_range_span(
+                                overlapping_hold.start_date,
+                                overlapping_hold.end_date,
+                                pos_data.start_date,
+                                pos_data.end_date,
+                            )
+
+                            old_range = f"{overlapping_hold.start_date or 'unknown'}-{overlapping_hold.end_date or 'present'}"
+                            new_range = (
+                                f"{new_start or 'unknown'}-{new_end or 'present'}"
+                            )
+
+                            overlapping_hold.start_date = new_start
+                            overlapping_hold.end_date = new_end
+                            overlapping_hold.archived_page_id = archived_page.id
+                            overlapping_hold.proof_line = pos_data.proof
+                            db.flush()
+
+                            logger.info(
+                                f"Extended position timeframe: '{pos_data.name}' ({position.wikidata_id}) "
+                                f"from ({old_range}) to ({new_range}) for {politician.name}"
+                            )
+                        else:
+                            # Subset - skip the new period
+                            logger.info(
+                                f"Skipped subset position: '{pos_data.name}' ({position.wikidata_id}) "
+                                f"({pos_data.start_date or 'unknown'}-{pos_data.end_date or 'present'}) "
+                                f"is within existing timeframe "
+                                f"({overlapping_hold.start_date or 'unknown'}-{overlapping_hold.end_date or 'present'}) "
+                                f"for {politician.name}"
+                            )
+                    else:
+                        # No overlap, add as new record
                         holds_position = HoldsPosition(
                             politician_id=politician.id,
                             position_id=position.wikidata_id,
