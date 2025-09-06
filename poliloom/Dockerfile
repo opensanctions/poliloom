@@ -49,6 +49,9 @@ RUN /app/.venv/bin/playwright install --with-deps chromium
 # Create non-root user
 RUN groupadd -r poliloom && useradd -r -g poliloom poliloom
 RUN chown -R poliloom:poliloom /app
+# Create cache directories with correct ownership
+RUN mkdir -p /var/cache/wikidata /var/cache/crawl4ai && \
+    chown -R poliloom:poliloom /var/cache/wikidata /var/cache/crawl4ai
 USER poliloom
 
 # Expose port
