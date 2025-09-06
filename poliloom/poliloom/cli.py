@@ -137,22 +137,28 @@ def dump_download(output):
                 last_modified_str, "%a, %d %b %Y %H:%M:%S %Z"
             ).replace(tzinfo=timezone.utc)
 
-        # Check if we already have this dump
+        # Check if we already have this dump (completed or in-progress)
         with Session(get_engine()) as session:
             existing_dump = (
                 session.query(WikidataDump)
                 .filter(WikidataDump.url == url)
                 .filter(WikidataDump.last_modified == last_modified)
-                .filter(WikidataDump.downloaded_at.isnot(None))
                 .first()
             )
 
             if existing_dump:
-                click.echo(
-                    f"✅ Dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already downloaded"
-                )
-                click.echo("No new dump available. Exiting.")
-                return
+                if existing_dump.downloaded_at:
+                    click.echo(
+                        f"❌ Dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already downloaded"
+                    )
+                    click.echo("No new dump available. Exiting.")
+                    raise SystemExit(1)
+                else:
+                    click.echo(
+                        f"❌ Download for dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already in progress"
+                    )
+                    click.echo("Another download process is running. Exiting.")
+                    raise SystemExit(1)
 
             # Create new dump record
             click.echo(
