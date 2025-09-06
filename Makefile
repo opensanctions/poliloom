@@ -1,4 +1,4 @@
-.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump extract-wikidata-dump db-truncate db-dump db-restore db-migrate download-pipeline import-pipeline export-positions-csv export-locations-csv development production
+.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump extract-wikidata-dump db-truncate db-dump db-restore db-migrate run-download-pipeline run-import-pipeline export-positions-csv export-locations-csv development production
 
 # Start pgAdmin4 container for database inspection
 pgadmin:
@@ -59,7 +59,7 @@ db-migrate:
 	@docker compose run --rm api alembic upgrade head
 
 # Download and extract wikidata dump
-download-pipeline:
+run-download-pipeline:
 	@echo "Running download and extract pipeline..."
 	@. ./.env && echo "Using file paths from .env:"
 	@. ./.env && echo "  Compressed: $$WIKIDATA_DUMP_COMPRESSED"
@@ -71,7 +71,7 @@ download-pipeline:
 	@echo "✅ Download pipeline completed successfully!"
 
 # Run complete import pipeline for wikidata dump
-import-pipeline:
+run-import-pipeline:
 	@echo "Running complete import pipeline..."
 	@echo "This will run: hierarchy → entities → politicians → embeddings"
 	@. ./.env && echo "Using extracted dump from .env: $$WIKIDATA_DUMP_EXTRACTED"
