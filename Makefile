@@ -1,4 +1,4 @@
-.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump extract-wikidata-dump db-truncate db-dump db-restore export-positions-csv export-locations-csv development production
+.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump extract-wikidata-dump db-truncate db-dump db-restore db-migrate download-pipeline import-pipeline export-positions-csv export-locations-csv development production
 
 # Start pgAdmin4 container for database inspection
 pgadmin:
@@ -53,6 +53,37 @@ db-restore:
 	@docker compose exec -T postgres psql -U postgres -d poliloom < init-db.sql
 	@docker compose exec -T postgres psql -U postgres -d poliloom < poliloom_db_dump.sql
 	@echo "Database restored successfully from poliloom_db_dump.sql"
+
+# Run database migrations
+db-migrate:
+	@docker compose run --rm api alembic upgrade head
+
+# Download and extract wikidata dump
+download-pipeline:
+	@echo "Running download and extract pipeline..."
+	@. ./.env && echo "Using file paths from .env:"
+	@. ./.env && echo "  Compressed: $$WIKIDATA_DUMP_COMPRESSED"
+	@. ./.env && echo "  Extracted: $$WIKIDATA_DUMP_EXTRACTED"
+	@echo "⏳ Step 1/2: Downloading wikidata dump..."
+	@. ./.env && docker compose run --rm api poliloom dump-download --output $$WIKIDATA_DUMP_COMPRESSED
+	@echo "⏳ Step 2/2: Extracting dump..."
+	@. ./.env && docker compose run --rm api poliloom dump-extract --input $$WIKIDATA_DUMP_COMPRESSED --output $$WIKIDATA_DUMP_EXTRACTED
+	@echo "✅ Download pipeline completed successfully!"
+
+# Run complete import pipeline for wikidata dump
+import-pipeline:
+	@echo "Running complete import pipeline..."
+	@echo "This will run: hierarchy → entities → politicians → embeddings"
+	@. ./.env && echo "Using extracted dump from .env: $$WIKIDATA_DUMP_EXTRACTED"
+	@echo "⏳ Step 1/4: Importing hierarchy trees..."
+	@. ./.env && docker compose run --rm api poliloom import-hierarchy --file $$WIKIDATA_DUMP_EXTRACTED
+	@echo "⏳ Step 2/4: Importing entities..."
+	@. ./.env && docker compose run --rm api poliloom import-entities --file $$WIKIDATA_DUMP_EXTRACTED
+	@echo "⏳ Step 3/4: Importing politicians..."
+	@. ./.env && docker compose run --rm api poliloom import-politicians --file $$WIKIDATA_DUMP_EXTRACTED
+	@echo "⏳ Step 4/4: Generating embeddings..."
+	@docker compose run --rm api poliloom embed-entities
+	@echo "✅ Import pipeline completed successfully!"
 
 # Export all positions to CSV file
 export-positions-csv:
