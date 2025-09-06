@@ -70,7 +70,7 @@ class TestWikidataPoliticianImporter:
                     ],
                 },
             },
-            # Recently deceased politician (died 2020) - should be included
+            # Recently deceased politician (died 2023) - should be included
             {
                 "id": "Q789012",
                 "type": "item",
@@ -111,7 +111,7 @@ class TestWikidataPoliticianImporter:
                                 "property": "P570",
                                 "datavalue": {
                                     "value": {
-                                        "time": "+2020-05-15T00:00:00Z",
+                                        "time": "+2023-05-15T00:00:00Z",
                                         "timezone": 0,
                                         "before": 0,
                                         "after": 0,
