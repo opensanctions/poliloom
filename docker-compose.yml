@@ -45,8 +45,11 @@ services:
     environment:
       - PYTHONPATH=/app
       - PORT=8000
+      - CRAWL4AI_CACHE_DIR=/var/cache/crawl4ai
     volumes:
       - ./poliloom/archives:/app/archives
+      - crawl4ai_cache:/var/cache/crawl4ai
+      - wikidata_cache:/var/cache/wikidata
     profiles:
       - production
 
@@ -70,3 +73,5 @@ services:
 volumes:
   postgres_data:
   postgres_test_data:
+  crawl4ai_cache:
+  wikidata_cache:
