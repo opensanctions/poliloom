@@ -1,4 +1,4 @@
-.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump extract-wikidata-dump db-truncate db-dump db-restore run-download-pipeline run-import-pipeline export-positions-csv export-locations-csv development production
+.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump extract-wikidata-dump db-truncate db-dump db-restore run-download-pipeline run-import-pipeline export-positions-csv export-locations-csv
 
 # Start pgAdmin4 container for database inspection
 pgadmin:
@@ -89,11 +89,3 @@ export-positions-csv:
 # Export all locations to CSV file
 export-locations-csv:
 	@docker compose exec -T postgres psql -U postgres -d poliloom -c "\COPY (SELECT wikidata_id, name FROM locations ORDER BY wikidata_id) TO STDOUT WITH CSV HEADER"
-
-# Set up development environment with docker compose
-development:
-	docker compose up -d
-
-# Start production services (GUI and API only, no databases)
-production:
-	docker compose up -d api gui

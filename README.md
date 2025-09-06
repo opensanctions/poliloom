@@ -35,13 +35,21 @@ The world's political data is fragmented across thousands of Wikipedia articles 
 
 ```bash
 # Clone and setup
-git clone https://github.com/yourusername/poliloom.git
-cd poliloom
+git clone https://github.com/opensanctions/poliloom.git
+
+# Environment setup
+cp .env.example .env
+cp poliloom/.env.example poliloom/.env
+cp poliloom-gui/.env.example poliloom-gui/.env.local
+# Edit .env files with your API keys and configuration
+
+# Start development environment
+docker compose up -d  # PostgreSQL with pgvector
 
 # Backend setup
 cd poliloom
 uv sync
-docker compose up -d  # PostgreSQL with pgvector
+uv run uvicorn poliloom.api:app --reload
 
 # Frontend setup
 cd ../poliloom-gui
@@ -52,23 +60,18 @@ npm run dev
 ### Data Pipeline
 
 ```bash
-# Download and process Wikidata (one-time setup)
-make download-wikidata-dump  # ~100GB compressed
-make extract-wikidata-dump   # Requires lbzip2, ~1TB uncompressed
+# Download and extract Wikidata dump (one-time setup)
+uv run poliloom dump-download --output /var/cache/wikidata/latest-all.json.bz2
+uv run poliloom dump-extract --input /var/cache/wikidata/latest-all.json.bz2 --output /var/cache/wikidata/latest-all.json
 
-# Import entity hierarchies (required first)
-poliloom dump import-hierarchy
+# Import data (run in order)
+uv run poliloom import-hierarchy --file /var/cache/wikidata/latest-all.json
+uv run poliloom import-entities --file /var/cache/wikidata/latest-all.json
+uv run poliloom import-politicians --file /var/cache/wikidata/latest-all.json
+uv run poliloom embed-entities
 
-# Import entities
-poliloom dump import-entities
-poliloom dump import-politicians
-
-# Generate embeddings for similarity search
-poliloom positions embed
-poliloom locations embed
-
-# Enrich a politician
-poliloom politicians enrich --id Q7747
+# Enrich politician data
+uv run poliloom enrich-wikipedia --limit 10
 ```
 
 ## 🤝 Contributing
