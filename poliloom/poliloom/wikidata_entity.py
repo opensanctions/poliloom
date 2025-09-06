@@ -158,6 +158,89 @@ class WikidataEntity:
 
         return subclass_ids
 
+    def generate_description(self) -> Optional[str]:
+        """Generate a descriptive text for this entity using Wikidata properties."""
+        description_parts = []
+
+        # P31 (instance of)
+        instance_claims = self.get_truthy_claims("P31")
+        instance_ids = []
+        for claim in instance_claims:
+            try:
+                entity_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                instance_ids.append(entity_id)
+            except (KeyError, TypeError):
+                continue
+
+        # P279 (subclass of)
+        subclass_claims = self.get_truthy_claims("P279")
+        subclass_ids = []
+        for claim in subclass_claims:
+            try:
+                entity_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                subclass_ids.append(entity_id)
+            except (KeyError, TypeError):
+                continue
+
+        # P361 (part of)
+        part_of_claims = self.get_truthy_claims("P361")
+        part_of_ids = []
+        for claim in part_of_claims:
+            try:
+                entity_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                part_of_ids.append(entity_id)
+            except (KeyError, TypeError):
+                continue
+
+        # P131 (located in)
+        admin_claims = self.get_truthy_claims("P131")
+        admin_ids = []
+        for claim in admin_claims:
+            try:
+                entity_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                admin_ids.append(entity_id)
+            except (KeyError, TypeError):
+                continue
+
+        # P17 (country)
+        country_claims = self.get_truthy_claims("P17")
+        country_ids = []
+        for claim in country_claims:
+            try:
+                entity_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                country_ids.append(entity_id)
+            except (KeyError, TypeError):
+                continue
+
+        # P1001 (applies to jurisdiction)
+        jurisdiction_claims = self.get_truthy_claims("P1001")
+        jurisdiction_ids = []
+        for claim in jurisdiction_claims:
+            try:
+                entity_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                jurisdiction_ids.append(entity_id)
+            except (KeyError, TypeError):
+                continue
+
+        # Build description from available properties
+        if instance_ids:
+            description_parts.append(f"instance of {', '.join(instance_ids[:2])}")
+        if subclass_ids:
+            description_parts.append(f"subclass of {', '.join(subclass_ids[:2])}")
+        if part_of_ids:
+            description_parts.append(f"part of {', '.join(part_of_ids[:2])}")
+        if admin_ids:
+            description_parts.append(f"located in {', '.join(admin_ids[:2])}")
+        if country_ids:
+            description_parts.append(f"country: {', '.join(country_ids[:1])}")
+        if jurisdiction_ids:
+            description_parts.append(f"jurisdiction: {', '.join(jurisdiction_ids[:2])}")
+
+        if description_parts:
+            return "; ".join(description_parts)
+
+        return None
+
     @classmethod
     def from_raw(cls, raw_data: Dict[str, Any]) -> "WikidataEntity":
         """Create entity instance from raw Wikidata JSON data.

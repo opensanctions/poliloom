@@ -342,17 +342,6 @@ class Country(Base, TimestampMixin):
     )
 
 
-class LocationClass(Base):
-    """Junction table for Location-WikidataClass many-to-many relationship."""
-
-    __tablename__ = "location_classes"
-
-    location_id = Column(String, ForeignKey("locations.wikidata_id"), primary_key=True)
-    class_id = Column(
-        String, ForeignKey("wikidata_classes.wikidata_id"), primary_key=True
-    )
-
-
 class Location(Base, TimestampMixin):
     """Location entity for geographic locations."""
 
@@ -360,25 +349,12 @@ class Location(Base, TimestampMixin):
 
     wikidata_id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
     embedding = Column(Vector(384), nullable=True)
 
     # Relationships
     born_here = relationship(
         "BornAt", back_populates="location", cascade="all, delete-orphan"
-    )
-    wikidata_classes = relationship(
-        "WikidataClass", secondary="location_classes", back_populates="locations"
-    )
-
-
-class PositionClass(Base):
-    """Junction table for Position-WikidataClass many-to-many relationship."""
-
-    __tablename__ = "position_classes"
-
-    position_id = Column(String, ForeignKey("positions.wikidata_id"), primary_key=True)
-    class_id = Column(
-        String, ForeignKey("wikidata_classes.wikidata_id"), primary_key=True
     )
 
 
@@ -389,14 +365,12 @@ class Position(Base, TimestampMixin):
 
     wikidata_id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
     embedding = Column(Vector(384), nullable=True)
 
     # Relationships
     held_by = relationship(
         "HoldsPosition", back_populates="position", cascade="all, delete-orphan"
-    )
-    wikidata_classes = relationship(
-        "WikidataClass", secondary="position_classes", back_populates="positions"
     )
 
 
@@ -582,12 +556,6 @@ class WikidataClass(Base, TimestampMixin):
         foreign_keys="SubclassRelation.parent_class_id",
         back_populates="parent_class",
         cascade="all, delete-orphan",
-    )
-    locations = relationship(
-        "Location", secondary="location_classes", back_populates="wikidata_classes"
-    )
-    positions = relationship(
-        "Position", secondary="position_classes", back_populates="wikidata_classes"
     )
 
 

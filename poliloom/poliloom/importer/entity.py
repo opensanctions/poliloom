@@ -14,8 +14,6 @@ from ..models import (
     Position,
     Location,
     Country,
-    PositionClass,
-    LocationClass,
 )
 from ..wikidata_entity import WikidataEntity
 
@@ -50,47 +48,26 @@ def _insert_positions_batch(positions: list[dict]) -> None:
                 {
                     "wikidata_id": p["wikidata_id"],
                     "name": p["name"],
+                    "description": p.get("description"),
                     "embedding": None,  # Will be generated later
                 }
                 for p in positions
             ]
         )
 
-        # On conflict, update the name and clear embedding (since embedding depends on name)
+        # On conflict, update the name, description and clear embedding (since embedding depends on name)
         stmt = stmt.on_conflict_do_update(
             index_elements=["wikidata_id"],
             set_={
                 "name": stmt.excluded.name,
+                "description": stmt.excluded.description,
                 "embedding": None,  # Clear embedding when name changes
             },
         )
 
         session.execute(stmt)
-
-        # Insert position-class relationships
-        position_class_data = []
-        for p in positions:
-            for class_id in p.get("wikidata_class_ids", []):
-                position_class_data.append(
-                    {"position_id": p["wikidata_id"], "class_id": class_id}
-                )
-
-        if position_class_data:
-            # Clear existing relationships for these positions first
-            position_ids = [p["wikidata_id"] for p in positions]
-            session.query(PositionClass).filter(
-                PositionClass.position_id.in_(position_ids)
-            ).delete()
-
-            # Insert new relationships
-            stmt = insert(PositionClass).values(position_class_data)
-            stmt = stmt.on_conflict_do_nothing()  # In case of duplicates
-            session.execute(stmt)
-
         session.commit()
-        logger.debug(
-            f"Processed {len(positions)} positions with {len(position_class_data)} class relationships"
-        )
+        logger.debug(f"Processed {len(positions)} positions")
 
 
 def _insert_locations_batch(locations: list[dict]) -> None:
@@ -105,47 +82,26 @@ def _insert_locations_batch(locations: list[dict]) -> None:
                 {
                     "wikidata_id": loc["wikidata_id"],
                     "name": loc["name"],
+                    "description": loc.get("description"),
                     "embedding": None,  # Will be generated later
                 }
                 for loc in locations
             ]
         )
 
-        # On conflict, update the name and clear embedding (since embedding depends on name)
+        # On conflict, update the name, description and clear embedding (since embedding depends on name)
         stmt = stmt.on_conflict_do_update(
             index_elements=["wikidata_id"],
             set_={
                 "name": stmt.excluded.name,
+                "description": stmt.excluded.description,
                 "embedding": None,  # Clear embedding when name changes
             },
         )
 
         session.execute(stmt)
-
-        # Insert location-class relationships
-        location_class_data = []
-        for loc in locations:
-            for class_id in loc.get("wikidata_class_ids", []):
-                location_class_data.append(
-                    {"location_id": loc["wikidata_id"], "class_id": class_id}
-                )
-
-        if location_class_data:
-            # Clear existing relationships for these locations first
-            location_ids = [loc["wikidata_id"] for loc in locations]
-            session.query(LocationClass).filter(
-                LocationClass.location_id.in_(location_ids)
-            ).delete()
-
-            # Insert new relationships
-            stmt = insert(LocationClass).values(location_class_data)
-            stmt = stmt.on_conflict_do_nothing()  # In case of duplicates
-            session.execute(stmt)
-
         session.commit()
-        logger.debug(
-            f"Processed {len(locations)} locations with {len(location_class_data)} class relationships"
-        )
+        logger.debug(f"Processed {len(locations)} locations")
 
 
 def _insert_countries_batch(countries: list[dict]) -> None:
@@ -239,27 +195,15 @@ def _process_supporting_entities_chunk(
             all_class_ids = instance_ids.union(subclass_ids)
 
             if any(class_id in shared_position_classes for class_id in all_class_ids):
-                # Get all valid class IDs for this position
-                valid_class_ids = [
-                    class_id
-                    for class_id in all_class_ids
-                    if class_id in shared_position_classes
-                ]
-                entity_data["wikidata_class_ids"] = valid_class_ids
-
-                positions.append(entity_data)
+                position_data = entity_data.copy()
+                position_data["description"] = entity.generate_description()
+                positions.append(position_data)
                 counts["positions"] += 1
 
             if any(class_id in shared_location_classes for class_id in all_class_ids):
-                # Get all valid class IDs for this location
-                valid_class_ids = [
-                    class_id
-                    for class_id in all_class_ids
-                    if class_id in shared_location_classes
-                ]
-                entity_data["wikidata_class_ids"] = valid_class_ids
-
-                locations.append(entity_data)
+                location_data = entity_data.copy()
+                location_data["description"] = entity.generate_description()
+                locations.append(location_data)
                 counts["locations"] += 1
 
             if bool(

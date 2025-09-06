@@ -233,16 +233,12 @@ class TestWikidataEntityImporter:
             position = positions[0]
             assert position.wikidata_id == "Q123456"
             assert position.name == "Test Office Position"
-            assert len(position.wikidata_classes) > 0
-            assert any(
-                cls.wikidata_id == "Q4164871" for cls in position.wikidata_classes
-            )
+            assert position.description is not None  # Should have generated description
 
             location = locations[0]
             assert location.wikidata_id == "Q789012"
             assert location.name == "Test City Location"
-            assert len(location.wikidata_classes) > 0
-            assert any(cls.wikidata_id == "Q515" for cls in location.wikidata_classes)
+            assert location.description is not None  # Should have generated description
 
             country = countries[0]
             assert country.wikidata_id == "Q345678"

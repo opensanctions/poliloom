@@ -405,7 +405,7 @@ Extract all political positions from the provided content following these rules:
                 {
                     "qid": pos.wikidata_id,
                     "name": pos.name,
-                    "classes": [cls.name for cls in pos.wikidata_classes],
+                    "description": pos.description,
                 }
                 for pos in similar_positions
             ]
@@ -546,7 +546,7 @@ Extract birthplace information following these rules:
                 {
                     "qid": loc.wikidata_id,
                     "name": loc.name,
-                    "classes": [cls.name for cls in loc.wikidata_classes],
+                    "description": loc.description,
                 }
                 for loc in similar_locations
             ]
@@ -621,11 +621,10 @@ Map the extracted position to the most accurate Wikidata position following thes
 - Reject if geographic/jurisdictional scope differs significantly
 </rejection_criteria>"""
 
-        # Format candidates with QID, name, and classes
-        candidates_text = "\n".join(
+        # Format candidates with XML tags
+        candidates_xml = "\n".join(
             [
-                f"- {pos['qid']}: {pos['name']}"
-                + (f" (classes: {', '.join(pos['classes'])})" if pos["classes"] else "")
+                f"<candidate>\n<qid>{pos['qid']}</qid>\n<name>{pos['name']}</name>\n<description>{pos.get('description', '')}</description>\n</candidate>"
                 for pos in candidate_positions
             ]
         )
@@ -635,8 +634,9 @@ Map the extracted position to the most accurate Wikidata position following thes
 Extracted Position: "{extracted_name}"
 Proof Context: "{proof_text}"
 
-Candidate Wikidata Positions (QID: Name - Classes):
-{candidates_text}
+<candidates>
+{candidates_xml}
+</candidates>
 
 Select the best matching QID or None if no good match exists."""
 
@@ -698,11 +698,10 @@ Map the extracted birthplace to the most accurate Wikidata location following th
 - Return None if no candidate is a good match
 </rejection_criteria>"""
 
-        # Format candidates with QID, name, and classes
-        candidates_text = "\n".join(
+        # Format candidates with XML tags
+        candidates_xml = "\n".join(
             [
-                f"- {loc['qid']}: {loc['name']}"
-                + (f" (classes: {', '.join(loc['classes'])})" if loc["classes"] else "")
+                f"<candidate>\n<qid>{loc['qid']}</qid>\n<name>{loc['name']}</name>\n<description>{loc.get('description', '')}</description>\n</candidate>"
                 for loc in candidate_locations
             ]
         )
@@ -712,8 +711,9 @@ Map the extracted birthplace to the most accurate Wikidata location following th
 Extracted Birthplace: "{extracted_name}"
 Proof Context: "{proof_text}"
 
-Candidate Wikidata Locations (QID: Name - Classes):
-{candidates_text}
+<candidates>
+{candidates_xml}
+</candidates>
 
 Select the best matching QID or None if no good match exists."""
 
