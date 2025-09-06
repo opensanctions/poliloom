@@ -33,6 +33,20 @@ services:
       timeout: 5s
       retries: 5
 
+  db-migrate:
+    image: ghcr.io/opensanctions/poliloom:${API_IMAGE_TAG:-latest}
+    build:
+      context: ./poliloom
+      dockerfile: Dockerfile
+    env_file:
+      - ./poliloom/.env
+    environment:
+      - PYTHONPATH=/app
+    command: alembic upgrade head
+    profiles:
+      - production
+      - init
+
   api:
     image: ghcr.io/opensanctions/poliloom:${API_IMAGE_TAG:-latest}
     build:
@@ -47,9 +61,11 @@ services:
       - PORT=8000
       - CRAWL4AI_CACHE_DIR=/var/cache/crawl4ai
     volumes:
-      - ./poliloom/archives:/app/archives
       - crawl4ai_cache:/var/cache/crawl4ai
       - wikidata_cache:/var/cache/wikidata
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
     profiles:
       - production
 

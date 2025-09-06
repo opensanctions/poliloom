@@ -1,4 +1,4 @@
-.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump extract-wikidata-dump db-truncate db-dump db-restore db-migrate run-download-pipeline run-import-pipeline export-positions-csv export-locations-csv development production
+.PHONY: pgadmin start-pgadmin stop-pgadmin download-wikidata-dump extract-wikidata-dump db-truncate db-dump db-restore run-download-pipeline run-import-pipeline export-positions-csv export-locations-csv development production
 
 # Start pgAdmin4 container for database inspection
 pgadmin:
@@ -54,9 +54,6 @@ db-restore:
 	@docker compose exec -T postgres psql -U postgres -d poliloom < poliloom_db_dump.sql
 	@echo "Database restored successfully from poliloom_db_dump.sql"
 
-# Run database migrations
-db-migrate:
-	@docker compose run --rm api alembic upgrade head
 
 # Download and extract wikidata dump
 run-download-pipeline:
