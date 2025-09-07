@@ -72,7 +72,7 @@ def ensure_latest_dump(session, required_stage, allow_none=False):
 
     # Get the latest dump from the database
     latest_dump = (
-        session.query(WikidataDump).order_by(WikidataDump.last_modified.desc()).first()
+        session.query(WikidataDump).order_by(WikidataDump.created_at.desc()).first()
     )
 
     if not latest_dump:
