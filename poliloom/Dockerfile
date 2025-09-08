@@ -61,4 +61,4 @@ EXPOSE 8000
 ENV PORT=8000
 
 # Default command - use PORT environment variable
-CMD ["sh", "-c", "uvicorn poliloom.api.app:app --host 0.0.0.0 --port $PORT"]
+CMD ["sh", "-c", "uvicorn poliloom.api:app --host 0.0.0.0 --port $PORT"]
