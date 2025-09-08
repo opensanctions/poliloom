@@ -5,11 +5,12 @@ import multiprocessing as mp
 from typing import Dict, Set, Tuple
 from collections import defaultdict
 
+from sqlalchemy import Engine
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from .. import dump_reader
-from ..database import get_engine
+from ..database import create_engine, get_engine
 from ..models import WikidataClass, SubclassRelation
 from ..wikidata_entity import WikidataEntity
 
@@ -31,10 +32,8 @@ def _process_hierarchy_chunk(
     Inserts WikidataClass records in batches during processing.
     Returns child_id -> parent_ids relationships for main thread to insert after all workers complete.
     """
-    # Fix multiprocessing connection issues per SQLAlchemy docs:
-    # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork
-    engine = get_engine()
-    engine.dispose(close=False)
+    # Create a fresh engine for this worker process
+    engine = create_engine(pool_size=2, max_overflow=3)
 
     # Collect data
     wikidata_classes = []  # For batch insertion
@@ -81,7 +80,7 @@ def _process_hierarchy_chunk(
 
             # Process batch when it reaches the batch size
             if len(wikidata_classes) >= batch_size:
-                _insert_wikidata_classes_batch(wikidata_classes, worker_id)
+                _insert_wikidata_classes_batch(wikidata_classes, worker_id, engine)
                 wikidata_classes = []
 
     except Exception as e:
@@ -90,7 +89,7 @@ def _process_hierarchy_chunk(
 
     # Process remaining entities in final batch
     if wikidata_classes:
-        _insert_wikidata_classes_batch(wikidata_classes, worker_id)
+        _insert_wikidata_classes_batch(wikidata_classes, worker_id, engine)
 
     logger.info(
         f"Worker {worker_id}: processed {entity_count} entities, found {len(child_parent_relations)} child-parent relationships"
@@ -100,14 +99,14 @@ def _process_hierarchy_chunk(
 
 
 def _insert_wikidata_classes_batch(
-    wikidata_classes: list[dict], worker_id: int
+    wikidata_classes: list[dict], worker_id: int, engine: Engine
 ) -> None:
     """Insert a batch of WikidataClass records into the database."""
     if not wikidata_classes:
         return
 
     try:
-        with Session(get_engine()) as session:
+        with Session(engine) as session:
             stmt = insert(WikidataClass).values(wikidata_classes)
             stmt = stmt.on_conflict_do_update(
                 index_elements=["wikidata_id"],

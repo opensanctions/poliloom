@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 
 from .. import dump_reader
-from ..database import get_engine
+from ..database import create_engine, get_engine
 from ..models import (
     Position,
     Location,
@@ -38,12 +38,12 @@ def init_entity_worker(
     shared_location_classes = loc_classes
 
 
-def _insert_positions_batch(positions: list[dict]) -> None:
+def _insert_positions_batch(positions: list[dict], engine) -> None:
     """Insert a batch of positions into the database."""
     if not positions:
         return
 
-    with Session(get_engine()) as session:
+    with Session(engine) as session:
         # Insert positions first
         stmt = insert(Position).values(
             [
@@ -93,12 +93,12 @@ def _insert_positions_batch(positions: list[dict]) -> None:
         )
 
 
-def _insert_locations_batch(locations: list[dict]) -> None:
+def _insert_locations_batch(locations: list[dict], engine) -> None:
     """Insert a batch of locations into the database."""
     if not locations:
         return
 
-    with Session(get_engine()) as session:
+    with Session(engine) as session:
         # Insert locations first
         stmt = insert(Location).values(
             [
@@ -148,12 +148,12 @@ def _insert_locations_batch(locations: list[dict]) -> None:
         )
 
 
-def _insert_countries_batch(countries: list[dict]) -> None:
+def _insert_countries_batch(countries: list[dict], engine) -> None:
     """Insert a batch of countries into the database using ON CONFLICT."""
     if not countries:
         return
 
-    with Session(get_engine()) as session:
+    with Session(engine) as session:
         # Prepare data for bulk insert
         country_data = [
             {
@@ -197,10 +197,8 @@ def _process_supporting_entities_chunk(
     """
     global shared_position_classes, shared_location_classes
 
-    # Fix multiprocessing connection issues per SQLAlchemy docs:
-    # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork
-    engine = get_engine()
-    engine.dispose(close=False)
+    # Create a fresh engine for this worker process
+    engine = create_engine(pool_size=2, max_overflow=3)
 
     positions = []
     locations = []
@@ -282,15 +280,15 @@ def _process_supporting_entities_chunk(
 
             # Process batches when they reach the batch size
             if len(positions) >= batch_size:
-                _insert_positions_batch(positions)
+                _insert_positions_batch(positions, engine)
                 positions = []
 
             if len(locations) >= batch_size:
-                _insert_locations_batch(locations)
+                _insert_locations_batch(locations, engine)
                 locations = []
 
             if len(countries) >= batch_size:
-                _insert_countries_batch(countries)
+                _insert_countries_batch(countries, engine)
                 countries = []
 
     except Exception as e:
@@ -299,11 +297,11 @@ def _process_supporting_entities_chunk(
 
     # Process remaining entities in final batches on successful completion
     if positions:
-        _insert_positions_batch(positions)
+        _insert_positions_batch(positions, engine)
     if locations:
-        _insert_locations_batch(locations)
+        _insert_locations_batch(locations, engine)
     if countries:
-        _insert_countries_batch(countries)
+        _insert_countries_batch(countries, engine)
 
     logger.info(f"Worker {worker_id}: finished processing {entity_count} entities")
 

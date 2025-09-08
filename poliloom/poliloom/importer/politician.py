@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from .. import dump_reader
-from ..database import get_engine
+from ..database import create_engine, get_engine
 from ..models import (
     Position,
     Location,
@@ -79,12 +79,12 @@ def _is_politician(
     return False
 
 
-def _insert_politicians_batch(politicians: list[dict]) -> None:
+def _insert_politicians_batch(politicians: list[dict], engine) -> None:
     """Insert a batch of politicians into the database."""
     if not politicians:
         return
 
-    with Session(get_engine()) as session:
+    with Session(engine) as session:
         # Use PostgreSQL UPSERT for politicians
         stmt = insert(Politician).values(
             [
@@ -254,10 +254,8 @@ def _process_politicians_chunk(
     Each worker independently reads and parses its assigned chunk.
     Returns entity counts found in this chunk.
     """
-    # Fix multiprocessing connection issues per SQLAlchemy docs:
-    # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork
-    engine = get_engine()
-    engine.dispose(close=False)
+    # Create a fresh engine for this worker process
+    engine = create_engine(pool_size=2, max_overflow=3)
 
     politicians = []
     politician_count = 0
@@ -455,7 +453,7 @@ def _process_politicians_chunk(
 
             # Process batches when they reach the batch size
             if len(politicians) >= batch_size:
-                _insert_politicians_batch(politicians)
+                _insert_politicians_batch(politicians, engine)
                 politicians = []
 
     except Exception as e:
@@ -464,7 +462,7 @@ def _process_politicians_chunk(
 
     # Process remaining entities in final batch on successful completion
     if politicians:
-        _insert_politicians_batch(politicians)
+        _insert_politicians_batch(politicians, engine)
 
     logger.info(f"Worker {worker_id}: finished processing {entity_count} entities")
 

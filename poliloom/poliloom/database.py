@@ -1,44 +1,18 @@
 """Database configuration and session management."""
 
 import os
-import multiprocessing as mp
 from typing import Optional
 
 import pg8000
 from google.cloud.sql.connector import Connector
-from sqlalchemy import create_engine, Engine
+from sqlalchemy import Engine
+import sqlalchemy
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Global variables for lazy initialization
+# Global variable for lazy initialization
 _engine: Optional[Engine] = None
-_connector: Optional[Connector] = None
-
-
-def _get_cloud_sql_connection():
-    """Create a connection using the Cloud SQL Python Connector."""
-    global _connector
-    if _connector is None:
-        _connector = Connector(refresh_strategy="lazy")
-
-    instance_connection_name = os.getenv("INSTANCE_CONNECTION_NAME")
-    db_iam_user = os.getenv("DB_IAM_USER")
-    db_name = os.getenv("DB_NAME")
-
-    if not all([instance_connection_name, db_iam_user, db_name]):
-        raise ValueError(
-            "Cloud SQL configuration incomplete. Required: "
-            "INSTANCE_CONNECTION_NAME, DB_IAM_USER, DB_NAME"
-        )
-
-    return _connector.connect(
-        instance_connection_name,
-        "pg8000",
-        user=db_iam_user,
-        db=db_name,
-        enable_iam_auth=True,
-    )
 
 
 def _get_local_connection():
@@ -58,31 +32,67 @@ def _get_local_connection():
     )
 
 
+def _get_cloud_sql_connection():
+    """Create a connection using the Cloud SQL Python Connector.
+
+    Note: This creates a new connector instance per call to support
+    multiprocessing scenarios where each worker needs its own connector.
+    """
+    connector = Connector(refresh_strategy="lazy")
+
+    instance_connection_name = os.getenv("INSTANCE_CONNECTION_NAME")
+    db_iam_user = os.getenv("DB_IAM_USER")
+    db_name = os.getenv("DB_NAME")
+
+    if not all([instance_connection_name, db_iam_user, db_name]):
+        raise ValueError(
+            "Cloud SQL configuration incomplete. Required: "
+            "INSTANCE_CONNECTION_NAME, DB_IAM_USER, DB_NAME"
+        )
+
+    return connector.connect(
+        instance_connection_name,
+        "pg8000",
+        user=db_iam_user,
+        db=db_name,
+        enable_iam_auth=True,
+    )
+
+
+def create_engine(pool_size: int = 5, max_overflow: int = 10) -> Engine:
+    """Create a new database engine.
+
+    Args:
+        pool_size: Number of connections to maintain in the pool
+        max_overflow: Maximum overflow connections allowed
+
+    Returns:
+        A new SQLAlchemy Engine instance
+    """
+    # Determine if we should use Cloud SQL or local connection
+    use_cloud_sql = bool(os.getenv("INSTANCE_CONNECTION_NAME"))
+
+    if use_cloud_sql:
+        creator = _get_cloud_sql_connection
+    else:
+        creator = _get_local_connection
+
+    engine = sqlalchemy.create_engine(
+        "postgresql+pg8000://",
+        creator=creator,
+        pool_size=pool_size,
+        max_overflow=max_overflow,
+        pool_timeout=30,
+        pool_recycle=3600,
+        pool_pre_ping=True,
+    )
+
+    return engine
+
+
 def get_engine() -> Engine:
     """Get or create the database engine with lazy initialization."""
     global _engine
     if _engine is None:
-        # Determine if we should use Cloud SQL or local connection
-        use_cloud_sql = bool(os.getenv("INSTANCE_CONNECTION_NAME"))
-
-        if use_cloud_sql:
-            creator = _get_cloud_sql_connection
-        else:
-            creator = _get_local_connection
-
-        # Scale connection pool with CPU count to support multiprocessing workers
-        cpu_count = mp.cpu_count()
-        pool_size = cpu_count * 2
-        max_overflow = cpu_count * 3
-
-        _engine = create_engine(
-            "postgresql+pg8000://",
-            creator=creator,
-            pool_size=pool_size,
-            max_overflow=max_overflow,
-            pool_timeout=30,
-            pool_recycle=3600,
-            pool_pre_ping=True,
-        )
-
+        _engine = create_engine()
     return _engine
