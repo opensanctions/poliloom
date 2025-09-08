@@ -17,7 +17,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const apiBaseUrl = process.env.API_BASE_URL;
     if (!apiBaseUrl) {
       return NextResponse.json(
         { error: 'API base URL not configured' },

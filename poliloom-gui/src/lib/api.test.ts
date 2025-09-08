@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fetchUnconfirmedPolitician, submitEvaluations, ApiError } from './api';
 import { mockPolitician } from '@/test/mock-data';
 
+const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:8000';
+
 
 describe('api', () => {
   beforeEach(() => {
@@ -20,7 +22,7 @@ describe('api', () => {
 
       const result = await fetchUnconfirmedPolitician('test-token');
 
-      expect(fetch).toHaveBeenCalledWith('http://localhost:8000/politicians/?limit=1', {
+      expect(fetch).toHaveBeenCalledWith(`${API_BASE_URL}/politicians/?limit=1`, {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer test-token',
@@ -89,7 +91,7 @@ describe('api', () => {
 
       const result = await submitEvaluations(mockEvaluationRequest, 'test-token');
 
-      expect(fetch).toHaveBeenCalledWith('http://localhost:8000/politicians/evaluate', {
+      expect(fetch).toHaveBeenCalledWith(`${API_BASE_URL}/politicians/evaluate`, {
         method: 'POST',
         body: JSON.stringify(mockEvaluationRequest),
         headers: {
