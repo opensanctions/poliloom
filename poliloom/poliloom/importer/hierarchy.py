@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session
 
 from .. import dump_reader
 from ..database import create_engine, get_engine
-from ..models import WikidataClass, SubclassRelation
-from ..wikidata_entity import WikidataEntity
+from ..models import WikidataEntity, WikidataRelation, RelationType
+from ..wikidata_entity import WikidataEntity as WikidataEntityProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -29,14 +29,14 @@ def _process_hierarchy_chunk(
 ) -> Tuple[Dict[str, Set[str]], int]:
     """
     Worker process: Extract names and P279 relationships in single pass.
-    Inserts WikidataClass records in batches during processing.
+    Inserts WikidataEntity records in batches during processing.
     Returns child_id -> parent_ids relationships for main thread to insert after all workers complete.
     """
     # Create a fresh engine for this worker process
     engine = create_engine(pool_size=2, max_overflow=3)
 
     # Collect data
-    wikidata_classes = []  # For batch insertion
+    wikidata_entities = []  # For batch insertion
     child_parent_relations = defaultdict(
         set
     )  # Return to main thread: {child_id: {parent_ids}}
@@ -46,7 +46,7 @@ def _process_hierarchy_chunk(
         for entity in dump_reader.read_chunk_entities(
             dump_file_path, start_byte, end_byte
         ):
-            entity: WikidataEntity
+            entity: WikidataEntityProcessor
             entity_count += 1
 
             # Progress reporting for large chunks
@@ -67,11 +67,11 @@ def _process_hierarchy_chunk(
                 except (KeyError, TypeError):
                     continue
 
-            # If entity has P279 relationships, add it for WikidataClass insertion
+            # If entity has P279 relationships, add it for WikidataEntity insertion
             if subclass_claims:
                 # Extract name
                 name = entity.get_entity_name()
-                wikidata_classes.append(
+                wikidata_entities.append(
                     {
                         "wikidata_id": entity_id,
                         "name": name,
@@ -79,17 +79,17 @@ def _process_hierarchy_chunk(
                 )
 
             # Process batch when it reaches the batch size
-            if len(wikidata_classes) >= batch_size:
-                _insert_wikidata_classes_batch(wikidata_classes, worker_id, engine)
-                wikidata_classes = []
+            if len(wikidata_entities) >= batch_size:
+                _insert_wikidata_entities_batch(wikidata_entities, worker_id, engine)
+                wikidata_entities = []
 
     except Exception as e:
         logger.error(f"Worker {worker_id}: error during processing: {e}")
         raise
 
     # Process remaining entities in final batch
-    if wikidata_classes:
-        _insert_wikidata_classes_batch(wikidata_classes, worker_id, engine)
+    if wikidata_entities:
+        _insert_wikidata_entities_batch(wikidata_entities, worker_id, engine)
 
     logger.info(
         f"Worker {worker_id}: processed {entity_count} entities, found {len(child_parent_relations)} child-parent relationships"
@@ -98,16 +98,16 @@ def _process_hierarchy_chunk(
     return dict(child_parent_relations), entity_count
 
 
-def _insert_wikidata_classes_batch(
-    wikidata_classes: list[dict], worker_id: int, engine: Engine
+def _insert_wikidata_entities_batch(
+    wikidata_entities: list[dict], worker_id: int, engine: Engine
 ) -> None:
-    """Insert a batch of WikidataClass records into the database."""
-    if not wikidata_classes:
+    """Insert a batch of WikidataEntity records into the database."""
+    if not wikidata_entities:
         return
 
     try:
         with Session(engine) as session:
-            stmt = insert(WikidataClass).values(wikidata_classes)
+            stmt = insert(WikidataEntity).values(wikidata_entities)
             stmt = stmt.on_conflict_do_update(
                 index_elements=["wikidata_id"],
                 set_={"name": stmt.excluded.name},
@@ -116,10 +116,10 @@ def _insert_wikidata_classes_batch(
             session.commit()
 
             logger.debug(
-                f"Worker {worker_id}: inserted batch of {len(wikidata_classes)} WikidataClass records"
+                f"Worker {worker_id}: inserted batch of {len(wikidata_entities)} WikidataEntity records"
             )
     except Exception as e:
-        logger.error(f"Worker {worker_id}: failed to insert WikidataClass batch: {e}")
+        logger.error(f"Worker {worker_id}: failed to insert WikidataEntity batch: {e}")
         raise
 
 
@@ -131,8 +131,8 @@ def import_hierarchy_trees(
     Import hierarchy trees for positions and locations from Wikidata dump.
 
     Uses a single-pass approach:
-    1. Workers extract names and relationships, inserting WikidataClass records during processing
-    2. Main thread collects all relationships and inserts SubclassRelation records in batches
+    1. Workers extract names and relationships, inserting WikidataEntity records during processing
+    2. Main thread collects all relationships and inserts WikidataRelation records in batches
 
     Args:
         dump_file_path: Path to the Wikidata JSON dump file
@@ -149,7 +149,7 @@ def import_hierarchy_trees(
 
     pool = None
     try:
-        # Workers process chunks and insert WikidataClass records during processing
+        # Workers process chunks and insert WikidataEntity records during processing
         pool = mp.Pool(processes=num_workers)
 
         # Each worker processes its chunk and returns relationships
@@ -190,17 +190,17 @@ def import_hierarchy_trees(
     logger.info(f"Processing complete: Processed {total_entities} entities")
     logger.info(f"Found {len(child_parent_relations)} child-parent relationships")
 
-    # Collect all parent entities and ensure they have WikidataClass records
+    # Collect all parent entities and ensure they have WikidataEntity records
     all_parent_ids = set()
     for parents in child_parent_relations.values():
         all_parent_ids.update(parents)
 
-    logger.info(f"Inserting {len(all_parent_ids)} parent WikidataClass records...")
+    logger.info(f"Inserting {len(all_parent_ids)} parent WikidataEntity records...")
     parent_classes = [
         {"wikidata_id": parent_id, "name": None} for parent_id in all_parent_ids
     ]
 
-    # Insert parent WikidataClass records in batches
+    # Insert parent WikidataEntity records in batches
     batch_size_inserts = 10000
     total_parent_batches = (
         len(parent_classes) + batch_size_inserts - 1
@@ -208,18 +208,22 @@ def import_hierarchy_trees(
     for i in range(0, len(parent_classes), batch_size_inserts):
         batch = parent_classes[i : i + batch_size_inserts]
         with Session(get_engine()) as session:
-            stmt = insert(WikidataClass).values(batch)
+            stmt = insert(WikidataEntity).values(batch)
             stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
             session.execute(stmt)
             session.commit()
 
         logger.info(
-            f"Inserted parent WikidataClass batch {i // batch_size_inserts + 1}/{total_parent_batches} ({len(batch)} records)"
+            f"Inserted parent WikidataEntity batch {i // batch_size_inserts + 1}/{total_parent_batches} ({len(batch)} records)"
         )
 
-    # Build SubclassRelation data directly from child_parent_relations
+    # Build WikidataRelation data directly from child_parent_relations
     relation_data = [
-        {"parent_class_id": parent_id, "child_class_id": child_id}
+        {
+            "parent_entity_id": parent_id,
+            "child_entity_id": child_id,
+            "relation_type": RelationType.SUBCLASS_OF,
+        }
         for child_id, parents in child_parent_relations.items()
         for parent_id in parents
     ]
@@ -235,15 +239,15 @@ def import_hierarchy_trees(
         batch = relation_data[i : i + batch_size_inserts]
 
         with Session(get_engine()) as session:
-            stmt = insert(SubclassRelation).values(batch)
-            stmt = stmt.on_conflict_do_nothing(constraint="uq_subclass_parent_child")
+            stmt = insert(WikidataRelation).values(batch)
+            stmt = stmt.on_conflict_do_nothing(constraint="uq_wikidata_relation")
             session.execute(stmt)
             session.commit()
 
         logger.info(
-            f"Inserted SubclassRelation batch {i // batch_size_inserts + 1}/{total_relation_batches} ({len(batch)} records)"
+            f"Inserted WikidataRelation batch {i // batch_size_inserts + 1}/{total_relation_batches} ({len(batch)} records)"
         )
 
-    logger.info(f"✅ Completed inserting {len(relation_data)} subclass relations")
+    logger.info(f"✅ Completed inserting {len(relation_data)} wikidata relations")
 
     logger.info("✅ Hierarchy import complete")

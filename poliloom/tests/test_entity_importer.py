@@ -5,7 +5,13 @@ import tempfile
 import os
 from unittest.mock import patch
 
-from poliloom.models import WikidataClass, SubclassRelation, Position, Location, Country
+from poliloom.models import (
+    WikidataEntity,
+    WikidataRelation,
+    Position,
+    Location,
+    Country,
+)
 from poliloom.importer.entity import (
     import_entities,
     _query_hierarchy_descendants,
@@ -39,16 +45,16 @@ class TestWikidataEntityImporter:
         ]
 
         hierarchy_relations = [
-            {"parent_class_id": "Q294414", "child_class_id": "Q4164871"},
-            {"parent_class_id": "Q27096213", "child_class_id": "Q515"},
+            {"parent_entity_id": "Q294414", "child_entity_id": "Q4164871"},
+            {"parent_entity_id": "Q27096213", "child_entity_id": "Q515"},
         ]
 
         # Insert hierarchy data first
-        stmt = insert(WikidataClass).values(hierarchy_data)
+        stmt = insert(WikidataEntity).values(hierarchy_data)
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
 
-        stmt = insert(SubclassRelation).values(hierarchy_relations)
+        stmt = insert(WikidataRelation).values(hierarchy_relations)
         stmt = stmt.on_conflict_do_nothing(constraint="uq_subclass_parent_child")
         db_session.execute(stmt)
         db_session.commit()
@@ -422,17 +428,17 @@ class TestWikidataEntityImporter:
         ]
 
         test_relations = [
-            {"parent_class_id": "Q1", "child_class_id": "Q2"},
-            {"parent_class_id": "Q2", "child_class_id": "Q3"},
-            {"parent_class_id": "Q1", "child_class_id": "Q4"},
+            {"parent_entity_id": "Q1", "child_entity_id": "Q2"},
+            {"parent_entity_id": "Q2", "child_entity_id": "Q3"},
+            {"parent_entity_id": "Q1", "child_entity_id": "Q4"},
         ]
 
         # Insert test data
-        stmt = insert(WikidataClass).values(test_classes)
+        stmt = insert(WikidataEntity).values(test_classes)
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
 
-        stmt = insert(SubclassRelation).values(test_relations)
+        stmt = insert(WikidataRelation).values(test_relations)
         stmt = stmt.on_conflict_do_nothing(constraint="uq_subclass_parent_child")
         db_session.execute(stmt)
         db_session.commit()
@@ -448,7 +454,7 @@ class TestWikidataEntityImporter:
         # Set up single node
         test_classes = [{"wikidata_id": "Q1", "name": "Single Node"}]
 
-        stmt = insert(WikidataClass).values(test_classes)
+        stmt = insert(WikidataEntity).values(test_classes)
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
         db_session.commit()
@@ -471,17 +477,17 @@ class TestWikidataEntityImporter:
         ]
 
         test_relations = [
-            {"parent_class_id": "Q1", "child_class_id": "Q2"},
-            {"parent_class_id": "Q1", "child_class_id": "Q3"},
-            {"parent_class_id": "Q2", "child_class_id": "Q4"},
-            {"parent_class_id": "Q2", "child_class_id": "Q5"},
+            {"parent_entity_id": "Q1", "child_entity_id": "Q2"},
+            {"parent_entity_id": "Q1", "child_entity_id": "Q3"},
+            {"parent_entity_id": "Q2", "child_entity_id": "Q4"},
+            {"parent_entity_id": "Q2", "child_entity_id": "Q5"},
         ]
 
-        stmt = insert(WikidataClass).values(test_classes)
+        stmt = insert(WikidataEntity).values(test_classes)
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
 
-        stmt = insert(SubclassRelation).values(test_relations)
+        stmt = insert(WikidataRelation).values(test_relations)
         stmt = stmt.on_conflict_do_nothing(constraint="uq_subclass_parent_child")
         db_session.execute(stmt)
         db_session.commit()

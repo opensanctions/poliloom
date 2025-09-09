@@ -14,8 +14,6 @@ from ..models import (
     Position,
     Location,
     Country,
-    PositionClass,
-    LocationClass,
 )
 from ..wikidata_entity import WikidataEntity
 
@@ -67,30 +65,8 @@ def _insert_positions_batch(positions: list[dict], engine) -> None:
 
         session.execute(stmt)
 
-        # Insert position-class relationships
-        position_class_data = []
-        for p in positions:
-            for class_id in p.get("wikidata_class_ids", []):
-                position_class_data.append(
-                    {"position_id": p["wikidata_id"], "class_id": class_id}
-                )
-
-        if position_class_data:
-            # Clear existing relationships for these positions first
-            position_ids = [p["wikidata_id"] for p in positions]
-            session.query(PositionClass).filter(
-                PositionClass.position_id.in_(position_ids)
-            ).delete()
-
-            # Insert new relationships
-            stmt = insert(PositionClass).values(position_class_data)
-            stmt = stmt.on_conflict_do_nothing()  # In case of duplicates
-            session.execute(stmt)
-
         session.commit()
-        logger.debug(
-            f"Processed {len(positions)} positions with {len(position_class_data)} class relationships"
-        )
+        logger.debug(f"Processed {len(positions)} positions")
 
 
 def _insert_locations_batch(locations: list[dict], engine) -> None:
@@ -122,30 +98,8 @@ def _insert_locations_batch(locations: list[dict], engine) -> None:
 
         session.execute(stmt)
 
-        # Insert location-class relationships
-        location_class_data = []
-        for loc in locations:
-            for class_id in loc.get("wikidata_class_ids", []):
-                location_class_data.append(
-                    {"location_id": loc["wikidata_id"], "class_id": class_id}
-                )
-
-        if location_class_data:
-            # Clear existing relationships for these locations first
-            location_ids = [loc["wikidata_id"] for loc in locations]
-            session.query(LocationClass).filter(
-                LocationClass.location_id.in_(location_ids)
-            ).delete()
-
-            # Insert new relationships
-            stmt = insert(LocationClass).values(location_class_data)
-            stmt = stmt.on_conflict_do_nothing()  # In case of duplicates
-            session.execute(stmt)
-
         session.commit()
-        logger.debug(
-            f"Processed {len(locations)} locations with {len(location_class_data)} class relationships"
-        )
+        logger.debug(f"Processed {len(locations)} locations")
 
 
 def _insert_countries_batch(countries: list[dict], engine) -> None:
@@ -334,28 +288,28 @@ def _query_hierarchy_descendants(
         WITH RECURSIVE descendants AS (
             -- Base case: start with all root entities
             SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
-            FROM wikidata_classes 
+            FROM wikidata_entities 
             WHERE wikidata_id = ANY(:root_ids)
             UNION
             -- Recursive case: find all children
             SELECT sr.child_class_id AS wikidata_id
-            FROM subclass_relations sr
-            JOIN descendants d ON sr.parent_class_id = d.wikidata_id
+            FROM wikidata_relations sr
+            JOIN descendants d ON sr.parent_entity_id = d.wikidata_id
         ),
         ignored_descendants AS (
             -- Base case: start with ignored IDs
             SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
-            FROM wikidata_classes 
+            FROM wikidata_entities 
             WHERE wikidata_id = ANY(:ignore_ids)
             UNION
             -- Recursive case: find all children of ignored IDs
             SELECT sr.child_class_id AS wikidata_id
-            FROM subclass_relations sr
-            JOIN ignored_descendants id ON sr.parent_class_id = id.wikidata_id
+            FROM wikidata_relations sr
+            JOIN ignored_descendants id ON sr.parent_entity_id = id.wikidata_id
         )
         SELECT DISTINCT d.wikidata_id 
         FROM descendants d
-        JOIN wikidata_classes wc ON d.wikidata_id = wc.wikidata_id
+        JOIN wikidata_entities wc ON d.wikidata_id = wc.wikidata_id
         WHERE wc.name IS NOT NULL
         AND d.wikidata_id NOT IN (SELECT wikidata_id FROM ignored_descendants)
     """

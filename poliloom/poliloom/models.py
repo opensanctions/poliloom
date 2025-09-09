@@ -33,6 +33,12 @@ class PropertyType(str, Enum):
     DEATH_DATE = "death_date"
 
 
+class RelationType(str, Enum):
+    """Enumeration of Wikidata relation types."""
+
+    SUBCLASS_OF = "P279"  # Subclass of relation
+
+
 class TimestampMixin:
     """Mixin for adding timestamp fields."""
 
@@ -342,23 +348,14 @@ class Country(Base, TimestampMixin):
     )
 
 
-class LocationClass(Base):
-    """Junction table for Location-WikidataClass many-to-many relationship."""
-
-    __tablename__ = "location_classes"
-
-    location_id = Column(String, ForeignKey("locations.wikidata_id"), primary_key=True)
-    class_id = Column(
-        String, ForeignKey("wikidata_classes.wikidata_id"), primary_key=True
-    )
-
-
 class Location(Base, TimestampMixin):
     """Location entity for geographic locations."""
 
     __tablename__ = "locations"
 
-    wikidata_id = Column(String, primary_key=True)
+    wikidata_id = Column(
+        String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
+    )
     name = Column(String, nullable=False)
     embedding = Column(Vector(384), nullable=True)
 
@@ -366,20 +363,7 @@ class Location(Base, TimestampMixin):
     born_here = relationship(
         "BornAt", back_populates="location", cascade="all, delete-orphan"
     )
-    wikidata_classes = relationship(
-        "WikidataClass", secondary="location_classes", back_populates="locations"
-    )
-
-
-class PositionClass(Base):
-    """Junction table for Position-WikidataClass many-to-many relationship."""
-
-    __tablename__ = "position_classes"
-
-    position_id = Column(String, ForeignKey("positions.wikidata_id"), primary_key=True)
-    class_id = Column(
-        String, ForeignKey("wikidata_classes.wikidata_id"), primary_key=True
-    )
+    wikidata_entity = relationship("WikidataEntity", back_populates="location")
 
 
 class Position(Base, TimestampMixin):
@@ -387,7 +371,9 @@ class Position(Base, TimestampMixin):
 
     __tablename__ = "positions"
 
-    wikidata_id = Column(String, primary_key=True)
+    wikidata_id = Column(
+        String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
+    )
     name = Column(String, nullable=False)
     embedding = Column(Vector(384), nullable=True)
 
@@ -395,9 +381,7 @@ class Position(Base, TimestampMixin):
     held_by = relationship(
         "HoldsPosition", back_populates="position", cascade="all, delete-orphan"
     )
-    wikidata_classes = relationship(
-        "WikidataClass", secondary="position_classes", back_populates="positions"
-    )
+    wikidata_entity = relationship("WikidataEntity", back_populates="position")
 
 
 class HoldsPosition(Base, TimestampMixin):
@@ -560,71 +544,60 @@ class WikidataDump(Base, TimestampMixin):
     )  # When politicians import completed
 
 
-class WikidataClass(Base, TimestampMixin):
-    """Wikidata class entity for hierarchy storage."""
+class WikidataEntity(Base, TimestampMixin):
+    """Wikidata entity for hierarchy storage."""
 
-    __tablename__ = "wikidata_classes"
+    __tablename__ = "wikidata_entities"
 
     wikidata_id = Column(String, primary_key=True)  # Wikidata QID as primary key
     name = Column(
         String, nullable=True
-    )  # Class name from Wikidata labels (can be None)
+    )  # Entity name from Wikidata labels (can be None)
 
     # Relationships
     parent_relations = relationship(
-        "SubclassRelation",
-        foreign_keys="SubclassRelation.child_class_id",
-        back_populates="child_class",
+        "WikidataRelation",
+        foreign_keys="WikidataRelation.child_entity_id",
+        back_populates="child_entity",
         cascade="all, delete-orphan",
     )
     child_relations = relationship(
-        "SubclassRelation",
-        foreign_keys="SubclassRelation.parent_class_id",
-        back_populates="parent_class",
+        "WikidataRelation",
+        foreign_keys="WikidataRelation.parent_entity_id",
+        back_populates="parent_entity",
         cascade="all, delete-orphan",
     )
-    locations = relationship(
-        "Location", secondary="location_classes", back_populates="wikidata_classes"
-    )
-    positions = relationship(
-        "Position", secondary="position_classes", back_populates="wikidata_classes"
-    )
+    location = relationship("Location", back_populates="wikidata_entity")
+    position = relationship("Position", back_populates="wikidata_entity")
 
 
-class SubclassRelation(Base, TimestampMixin):
-    """Subclass relationship between Wikidata classes (P279)."""
+class WikidataRelation(Base, TimestampMixin):
+    """Wikidata relationship between entities."""
 
-    __tablename__ = "subclass_relations"
-    __table_args__ = (
-        UniqueConstraint(
-            "parent_class_id", "child_class_id", name="uq_subclass_parent_child"
-        ),
-    )
+    __tablename__ = "wikidata_relations"
 
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
-    parent_class_id = Column(
+    parent_entity_id = Column(
         String,
-        ForeignKey("wikidata_classes.wikidata_id"),
-        nullable=False,
-        index=True,
+        ForeignKey("wikidata_entities.wikidata_id"),
+        primary_key=True,
     )
-    child_class_id = Column(
+    child_entity_id = Column(
         String,
-        ForeignKey("wikidata_classes.wikidata_id"),
-        nullable=False,
-        index=True,
+        ForeignKey("wikidata_entities.wikidata_id"),
+        primary_key=True,
+    )
+    relation_type = Column(
+        SQLEnum(RelationType), primary_key=True, default=RelationType.SUBCLASS_OF
     )
 
     # Relationships
-    parent_class = relationship(
-        "WikidataClass",
-        foreign_keys=[parent_class_id],
+    parent_entity = relationship(
+        "WikidataEntity",
+        foreign_keys=[parent_entity_id],
         back_populates="child_relations",
     )
-    child_class = relationship(
-        "WikidataClass",
-        foreign_keys=[child_class_id],
+    child_entity = relationship(
+        "WikidataEntity",
+        foreign_keys=[child_entity_id],
         back_populates="parent_relations",
     )

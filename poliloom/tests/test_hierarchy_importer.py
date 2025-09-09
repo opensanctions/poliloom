@@ -7,7 +7,7 @@ import os
 
 from poliloom.database import get_engine
 from sqlalchemy.orm import Session
-from poliloom.models import WikidataClass, SubclassRelation
+from poliloom.models import WikidataEntity, WikidataRelation
 from poliloom.importer.hierarchy import import_hierarchy_trees
 from .conftest import load_json_fixture
 
@@ -88,8 +88,8 @@ class TestWikidataHierarchyImporter:
 
             with Session(get_engine()) as session:
                 # Clear existing test data
-                session.query(SubclassRelation).delete()
-                session.query(WikidataClass).delete()
+                session.query(WikidataRelation).delete()
+                session.query(WikidataEntity).delete()
                 session.commit()
 
             # Test processing the chunk
@@ -104,10 +104,10 @@ class TestWikidataHierarchyImporter:
             assert relationships["Q1"] == {"Q2"}
             assert relationships["Q3"] == {"Q2"}
 
-            # Verify WikidataClass records were inserted for children only
+            # Verify WikidataEntity records were inserted for children only
             # (parents will be inserted by main thread later)
             with Session(get_engine()) as session:
-                classes = session.query(WikidataClass).all()
+                classes = session.query(WikidataEntity).all()
                 class_ids = {c.wikidata_id for c in classes}
                 # Should have Q1 and Q3 (children with P279 claims)
                 # Q2 (parent) is not inserted by worker - main thread will handle it
@@ -203,8 +203,8 @@ class TestWikidataHierarchyImporter:
         try:
             with Session(get_engine()) as session:
                 # Clear existing test data
-                session.query(SubclassRelation).delete()
-                session.query(WikidataClass).delete()
+                session.query(WikidataRelation).delete()
+                session.query(WikidataEntity).delete()
                 session.commit()
 
             # Test hierarchy tree importing (now saves to database)
@@ -212,24 +212,24 @@ class TestWikidataHierarchyImporter:
 
             # Verify relationships were saved to database
             with Session(get_engine()) as session:
-                relations = session.query(SubclassRelation).all()
+                relations = session.query(WikidataRelation).all()
 
                 # Check specific relationships exist in database
                 parent_child_pairs = [
-                    (r.parent_class_id, r.child_class_id) for r in relations
+                    (r.parent_entity_id, r.child_entity_id) for r in relations
                 ]
                 assert ("Q1", "Q2") in parent_child_pairs
                 assert ("Q1", "Q3") in parent_child_pairs
                 assert ("Q2", "Q4") in parent_child_pairs
                 assert len(parent_child_pairs) == 3
 
-                # Verify WikidataClass records were created
+                # Verify WikidataEntity records were created
                 # Children (Q2, Q3, Q4) should have names from workers
                 # Parents (Q1) inserted by main thread may not have names
-                all_classes = session.query(WikidataClass).all()
+                all_classes = session.query(WikidataEntity).all()
                 all_class_ids = {c.wikidata_id for c in all_classes}
 
-                # All entities should exist as WikidataClass records
+                # All entities should exist as WikidataEntity records
                 assert "Q1" in all_class_ids
                 assert "Q2" in all_class_ids
                 assert "Q3" in all_class_ids
@@ -237,8 +237,8 @@ class TestWikidataHierarchyImporter:
 
                 # Check names for entities that should have them
                 classes_with_names = (
-                    session.query(WikidataClass)
-                    .filter(WikidataClass.name.isnot(None))
+                    session.query(WikidataEntity)
+                    .filter(WikidataEntity.name.isnot(None))
                     .all()
                 )
                 class_names = {c.wikidata_id: c.name for c in classes_with_names}
@@ -311,27 +311,27 @@ class TestWikidataHierarchyImporter:
         try:
             with Session(get_engine()) as session:
                 # Clear existing test data
-                session.query(SubclassRelation).delete()
-                session.query(WikidataClass).delete()
+                session.query(WikidataRelation).delete()
+                session.query(WikidataEntity).delete()
                 session.commit()
 
             import_hierarchy_trees(temp_file_path)
 
             # Verify only valid relationships were saved to database
             with Session(get_engine()) as session:
-                relations = session.query(SubclassRelation).all()
+                relations = session.query(WikidataRelation).all()
 
                 # Should only have the valid Q2->Q1 relationship
                 parent_child_pairs = [
-                    (r.parent_class_id, r.child_class_id) for r in relations
+                    (r.parent_entity_id, r.child_entity_id) for r in relations
                 ]
                 assert ("Q2", "Q1") in parent_child_pairs
 
                 # Should not have invalid relationships (total count should be 1)
                 assert len(parent_child_pairs) == 1
 
-                # Verify WikidataClass records were created for involved entities in hierarchy
-                all_classes = session.query(WikidataClass).all()
+                # Verify WikidataEntity records were created for involved entities in hierarchy
+                all_classes = session.query(WikidataEntity).all()
                 all_class_ids = {c.wikidata_id for c in all_classes}
 
                 # Q1 and Q2 should exist (Q1 processed by worker, Q2 inserted by main thread)
@@ -340,8 +340,8 @@ class TestWikidataHierarchyImporter:
 
                 # Check which entities have names (only those processed by workers)
                 classes_with_names = (
-                    session.query(WikidataClass)
-                    .filter(WikidataClass.name.isnot(None))
+                    session.query(WikidataEntity)
+                    .filter(WikidataEntity.name.isnot(None))
                     .all()
                 )
                 class_names = {c.wikidata_id: c.name for c in classes_with_names}

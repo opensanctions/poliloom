@@ -389,7 +389,13 @@ Extract all political positions from the provided content following these rules:
                 {
                     "qid": pos.wikidata_id,
                     "name": pos.name,
-                    "classes": [cls.name for cls in pos.wikidata_classes],
+                    "classes": [
+                        rel.parent_entity.name
+                        for rel in pos.wikidata_entity.parent_relations
+                        if rel.parent_entity and rel.parent_entity.name
+                    ]
+                    if pos.wikidata_entity
+                    else [],
                 }
                 for pos in similar_positions
             ]
@@ -530,7 +536,13 @@ Extract birthplace information following these rules:
                 {
                     "qid": loc.wikidata_id,
                     "name": loc.name,
-                    "classes": [cls.name for cls in loc.wikidata_classes],
+                    "classes": [
+                        rel.parent_entity.name
+                        for rel in loc.wikidata_entity.parent_relations
+                        if rel.parent_entity and rel.parent_entity.name
+                    ]
+                    if loc.wikidata_entity
+                    else [],
                 }
                 for loc in similar_locations
             ]
