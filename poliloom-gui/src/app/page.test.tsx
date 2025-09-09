@@ -4,9 +4,8 @@ import { render } from '@testing-library/react';
 import Home from './page';
 import { mockPolitician } from '@/test/mock-data';
 
-vi.mock('@/lib/api', () => ({
-  fetchUnconfirmedPolitician: vi.fn(),
-}));
+// Mock fetch for API calls
+global.fetch = vi.fn();
 
 vi.mock('@/lib/actions', () => ({
   handleSignIn: vi.fn(),
@@ -71,8 +70,12 @@ describe('Home Page', () => {
       status: 'authenticated',
     });
 
-    const { fetchUnconfirmedPolitician } = await import('@/lib/api');
-    vi.mocked(fetchUnconfirmedPolitician).mockResolvedValue(mockPolitician);
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => [mockPolitician],
+    } as Response);
 
     await act(async () => {
       render(<Home />);

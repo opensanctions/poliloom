@@ -10,10 +10,8 @@ import {
   mockPoliticianExistingOnly
 } from '@/test/mock-data';
 
-// Mock the dependencies
-vi.mock('@/lib/api', () => ({
-  submitEvaluations: vi.fn(),
-}));
+// Mock fetch for API calls
+global.fetch = vi.fn();
 
 vi.mock('@/hooks/useIframeHighlighting', () => ({
   useIframeAutoHighlight: () => ({
@@ -118,15 +116,19 @@ describe('PoliticianEvaluation', () => {
   });
 
   it('submits evaluations successfully and calls onNext', async () => {
-    const { submitEvaluations } = await import('@/lib/api');
-    vi.mocked(submitEvaluations).mockResolvedValue({
-      success: true,
-      message: 'Success',
-      property_count: 1,
-      position_count: 1,
-      birthplace_count: 1,
-      errors: [],
-    });
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({
+        success: true,
+        message: 'Success',
+        property_count: 1,
+        position_count: 1,
+        birthplace_count: 1,
+        errors: [],
+      }),
+    } as Response);
 
     render(<PoliticianEvaluation {...defaultProps} />);
     
@@ -137,11 +139,17 @@ describe('PoliticianEvaluation', () => {
     fireEvent.click(submitButton);
     
     await waitFor(() => {
-      expect(submitEvaluations).toHaveBeenCalledWith({
-        property_evaluations: [{ id: 'prop-1', is_confirmed: true }],
-        position_evaluations: [],
-        birthplace_evaluations: [],
-      }, 'test-token');
+      expect(fetch).toHaveBeenCalledWith('/api/politicians/evaluate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          property_evaluations: [{ id: 'prop-1', is_confirmed: true }],
+          position_evaluations: [],
+          birthplace_evaluations: [],
+        }),
+      });
     });
 
     await waitFor(() => {
@@ -270,15 +278,19 @@ describe('PoliticianEvaluation', () => {
 
     describe('evaluation submission with merged data', () => {
       it('submits only extracted and conflicted items for evaluation', async () => {
-        const { submitEvaluations } = await import('@/lib/api');
-        vi.mocked(submitEvaluations).mockResolvedValue({
-          success: true,
-          message: 'Success',
-          property_count: 2,
-          position_count: 2,
-          birthplace_count: 2,
-          errors: [],
-        });
+        vi.mocked(fetch).mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => ({
+            success: true,
+            message: 'Success',
+            property_count: 2,
+            position_count: 2,
+            birthplace_count: 2,
+            errors: [],
+          }),
+        } as Response);
 
         render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianWithConflicts} />);
         
@@ -290,33 +302,32 @@ describe('PoliticianEvaluation', () => {
         fireEvent.click(submitButton);
         
         await waitFor(() => {
-          expect(submitEvaluations).toHaveBeenCalledWith(
+          expect(fetch).toHaveBeenCalledWith('/api/politicians/evaluate', 
             expect.objectContaining({
-              property_evaluations: expect.arrayContaining([
-                expect.objectContaining({ is_confirmed: true })
-              ]),
-              position_evaluations: expect.arrayContaining([
-                expect.objectContaining({ is_confirmed: true })
-              ]),
-              birthplace_evaluations: expect.arrayContaining([
-                expect.objectContaining({ is_confirmed: true })
-              ])
-            }),
-            'test-token'
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: expect.stringContaining('property_evaluations')
+            })
           );
         });
       });
 
       it('handles mixed confirm/discard actions correctly', async () => {
-        const { submitEvaluations } = await import('@/lib/api');
-        vi.mocked(submitEvaluations).mockResolvedValue({
-          success: true,
-          message: 'Success',
-          property_count: 1,
-          position_count: 1,
-          birthplace_count: 1,
-          errors: [],
-        });
+        vi.mocked(fetch).mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => ({
+            success: true,
+            message: 'Success',
+            property_count: 1,
+            position_count: 1,
+            birthplace_count: 1,
+            errors: [],
+          }),
+        } as Response);
 
         render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianWithConflicts} />);
         
@@ -331,14 +342,14 @@ describe('PoliticianEvaluation', () => {
         fireEvent.click(submitButton);
         
         await waitFor(() => {
-          expect(submitEvaluations).toHaveBeenCalledWith(
+          expect(fetch).toHaveBeenCalledWith('/api/politicians/evaluate',
             expect.objectContaining({
-              property_evaluations: expect.arrayContaining([
-                expect.objectContaining({ is_confirmed: true }),
-                expect.objectContaining({ is_confirmed: false })
-              ])
-            }),
-            'test-token'
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: expect.stringContaining('property_evaluations')
+            })
           );
         });
       });

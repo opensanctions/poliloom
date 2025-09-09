@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback } from "react"
 import { Header } from "@/components/Header"
 import { PoliticianEvaluation } from "@/components/PoliticianEvaluation"
 import { handleSignIn } from "@/lib/actions"
-import { fetchUnconfirmedPolitician } from "@/lib/api"
 import { Politician } from "@/types"
 
 export default function Home() {
@@ -20,7 +19,12 @@ export default function Home() {
     setLoading(true)
     setError(null)
     try {
-      const data = await fetchUnconfirmedPolitician(session.accessToken)
+      const response = await fetch('/api/politicians/?limit=1')
+      if (!response.ok) {
+        throw new Error(`Failed to fetch politician: ${response.statusText}`)
+      }
+      const politicians: Politician[] = await response.json()
+      const data = politicians.length > 0 ? politicians[0] : null
       setPolitician(data)
     } catch (error) {
       console.error('Error fetching politician:', error)
@@ -48,7 +52,6 @@ export default function Home() {
       {politician && session?.accessToken ? (
         <PoliticianEvaluation
           politician={politician}
-          accessToken={session.accessToken}
           onNext={handleNext}
         />
       ) : (

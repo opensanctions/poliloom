@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
-import { Politician, Property, Position, Birthplace, EvaluationRequest, PropertyEvaluationItem, PositionEvaluationItem, BirthplaceEvaluationItem, ArchivedPageResponse } from '@/types';
-import { submitEvaluations } from '@/lib/api';
+import { Politician, Property, Position, Birthplace, EvaluationRequest, PropertyEvaluationItem, PositionEvaluationItem, BirthplaceEvaluationItem, ArchivedPageResponse, EvaluationResponse } from '@/types';
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting';
 import { highlightTextInScope } from '@/lib/textHighlighter';
 import { useArchivedPageCache } from '@/contexts/ArchivedPageContext';
@@ -13,11 +12,10 @@ import { mergeProperties, mergePositions, mergeBirthplaces } from '@/lib/dataMer
 
 interface PoliticianEvaluationProps {
   politician: Politician;
-  accessToken: string;
   onNext: () => void;
 }
 
-export function PoliticianEvaluation({ politician, accessToken, onNext }: PoliticianEvaluationProps) {
+export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluationProps) {
   const [confirmedProperties, setConfirmedProperties] = useState<Set<string>>(new Set());
   const [discardedProperties, setDiscardedProperties] = useState<Set<string>>(new Set());
   const [confirmedPositions, setConfirmedPositions] = useState<Set<string>>(new Set());
@@ -190,12 +188,24 @@ export function PoliticianEvaluation({ politician, accessToken, onNext }: Politi
         birthplace_evaluations: birthplaceEvaluations
       };
 
-      const response = await submitEvaluations(evaluationData, accessToken);
-      if (response.success) {
+      const response = await fetch('/api/politicians/evaluate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(evaluationData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to submit evaluations: ${response.statusText}`);
+      }
+
+      const result: EvaluationResponse = await response.json();
+      if (result.success) {
         onNext();
       } else {
-        console.error('Evaluation errors:', response.errors);
-        alert(`Error submitting evaluations: ${response.message}`);
+        console.error('Evaluation errors:', result.errors);
+        alert(`Error submitting evaluations: ${result.message}`);
       }
     } catch (error) {
       console.error('Error submitting evaluations:', error);
