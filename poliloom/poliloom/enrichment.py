@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from openai import OpenAI
 from pydantic import BaseModel, field_validator
 from unmhtml import MHTMLConverter
-import mistune
 from bs4 import BeautifulSoup
 
 from .models import (
@@ -55,18 +54,6 @@ def generate_embedding(text: str) -> List[float]:
     model = get_embedding_model()
     embedding = model.encode(text, convert_to_tensor=False)
     return embedding.tolist()
-
-
-def markdown_to_text(markdown_text: str) -> str:
-    """Convert markdown text to plain text via HTML rendering then text extraction."""
-    if not markdown_text:
-        return markdown_text
-
-    html = mistune.html(markdown_text)
-    soup = BeautifulSoup(html, "html.parser")
-    text = soup.get_text()
-    text = " ".join(text.split())
-    return text
 
 
 class ExtractedProperty(BaseModel):
@@ -188,9 +175,6 @@ async def fetch_and_archive_page(url: str, db: Session) -> ArchivedPage:
         # Save markdown content
         markdown_content = result.markdown
         if markdown_content:
-            if len(markdown_content) > 50000:
-                markdown_content = markdown_content[:50000] + "..."
-
             markdown_path = archive.save_archived_content(
                 archived_page.path_root, "md", markdown_content
             )
@@ -794,10 +778,13 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
                 )
 
             # Read content from archived page
-            markdown_content = archive.read_archived_content(
-                archived_page.path_root, "md"
+            html_content = archive.read_archived_content(
+                archived_page.path_root, "html"
             )
-            content = markdown_to_text(markdown_content)
+
+            soup = BeautifulSoup(html_content, "html.parser")
+            text = soup.get_text()
+            content = " ".join(text.split())
 
             # Extract properties
             properties = extract_properties(
