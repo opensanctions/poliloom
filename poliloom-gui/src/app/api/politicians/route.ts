@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     // Forward query parameters
     const { searchParams } = new URL(request.url);
     const queryString = searchParams.toString();
-    const url = `${apiBaseUrl}/politicians/${queryString ? `?${queryString}` : ''}`;
+    const url = `${apiBaseUrl}/politicians${queryString ? `?${queryString}` : ''}`;
     
     const response = await fetch(url, {
       headers: {
