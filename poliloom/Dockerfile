@@ -50,8 +50,8 @@ RUN /app/.venv/bin/playwright install --with-deps chromium
 RUN groupadd -r poliloom && useradd -r -g poliloom poliloom
 RUN chown -R poliloom:poliloom /app
 # Create cache directories with correct ownership
-RUN mkdir -p /var/cache/wikidata /var/cache/crawl4ai && \
-    chown -R poliloom:poliloom /var/cache/wikidata /var/cache/crawl4ai
+RUN mkdir -p /var/cache/wikidata /var/cache/crawl4ai /var/cache/huggingface && \
+    chown -R poliloom:poliloom /var/cache/wikidata /var/cache/crawl4ai /var/cache/huggingface
 USER poliloom
 
 # Expose port

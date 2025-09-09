@@ -59,8 +59,10 @@ services:
     environment:
       - PYTHONPATH=/app
       - PORT=8000
+      - HF_HOME=/var/cache/huggingface
       - CRAWL4AI_CACHE_DIR=/var/cache/crawl4ai
     volumes:
+      - huggingface_cache:/var/cache/huggingface
       - crawl4ai_cache:/var/cache/crawl4ai
       - wikidata_cache:/var/cache/wikidata
     depends_on:
@@ -89,5 +91,6 @@ services:
 volumes:
   postgres_data:
   postgres_test_data:
+  huggingface_cache:
   crawl4ai_cache:
   wikidata_cache:
