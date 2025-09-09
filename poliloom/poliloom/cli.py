@@ -602,10 +602,14 @@ def embed_entities(batch_size, gpu_batch_size):
                         names, convert_to_tensor=False, batch_size=gpu_batch_size
                     )
 
-                    # Update entities
+                    # Bulk update entities
+                    update_data = []
                     for entity, embedding in zip(batch, embeddings):
-                        entity.embedding = embedding.tolist()
+                        update_data.append(
+                            {"wikidata_id": entity.wikidata_id, "embedding": embedding}
+                        )
 
+                    session.bulk_update_mappings(model_class, update_data)
                     session.commit()
                     processed += len(batch)
                     click.echo(f"Processed {processed}/{total_count} {entity_name}")
