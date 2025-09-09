@@ -7,6 +7,7 @@ from sqlalchemy.orm import joinedload
 from datetime import datetime, timezone
 import httpx
 from typing import Optional
+from sqlalchemy import update, bindparam
 from poliloom.enrichment import enrich_politician_from_wikipedia
 from poliloom.storage import StorageFactory
 from poliloom.importer.hierarchy import import_hierarchy_trees
@@ -545,20 +546,22 @@ def show_politician(wikidata_id):
 @main.command("embed-entities")
 @click.option(
     "--batch-size",
-    default=2048 * 50,
-    help="Number of entities to process in each batch",
+    default=2000,
+    help="Number of entities to read from DB per batch",
 )
 @click.option(
-    "--gpu-batch-size", default=2048, help="Number of texts to encode at once on GPU"
+    "--encode-batch-size",
+    default=1024,
+    help="Number of texts to encode at once (CPU or GPU)",
 )
-def embed_entities(batch_size, gpu_batch_size):
-    """Generate embeddings for all positions and locations that don't have embeddings yet."""
+def embed_entities(batch_size, encode_batch_size):
+    """Generate embeddings for all positions and locations missing embeddings, efficiently and cleanly."""
     import torch
     from sentence_transformers import SentenceTransformer
 
     # Use GPU if available
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    click.echo(f"Using device: {device}")
+    click.echo(f"Using device for encoding: {device}")
 
     model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
 
@@ -584,34 +587,50 @@ def embed_entities(batch_size, gpu_batch_size):
                 click.echo(f"Found {total_count} {entity_name} without embeddings")
                 processed = 0
 
-                while processed < total_count:
-                    # Get batch of entities without embeddings
-                    batch = (
-                        session.query(model_class)
-                        .filter(model_class.embedding.is_(None))
-                        .limit(batch_size)
-                        .all()
+                # Deterministic keyset pagination by primary key to avoid rescans
+                last_id = None
+                while True:
+                    q = session.query(model_class.wikidata_id, model_class.name).filter(
+                        model_class.embedding.is_(None)
                     )
+                    if last_id is not None:
+                        q = q.filter(model_class.wikidata_id > last_id)
+                    batch = q.order_by(model_class.wikidata_id).limit(batch_size).all()
 
                     if not batch:
                         break
 
-                    # Generate embeddings
-                    names = [entity.name for entity in batch]
+                    wikidata_ids = [row[0] for row in batch]
+                    names = [row[1] for row in batch]
+
+                    # Generate embeddings (typed lists). Use encode_batch_size for both CPU/GPU
                     embeddings = model.encode(
-                        names, convert_to_tensor=False, batch_size=gpu_batch_size
+                        names, convert_to_tensor=False, batch_size=encode_batch_size
                     )
 
-                    # Bulk update entities
-                    update_data = []
-                    for entity, embedding in zip(batch, embeddings):
-                        update_data.append(
-                            {"wikidata_id": entity.wikidata_id, "embedding": embedding}
-                        )
+                    # Update using typed executemany with pgvector adapter (no casts)
+                    params = [
+                        {
+                            "pk": wid,
+                            "embedding": emb.tolist()
+                            if hasattr(emb, "tolist")
+                            else emb,
+                        }
+                        for wid, emb in zip(wikidata_ids, embeddings)
+                    ]
 
-                    session.bulk_update_mappings(model_class, update_data)
+                    table = model_class.__table__
+                    stmt = (
+                        update(table)
+                        .where(table.c.wikidata_id == bindparam("pk"))
+                        .values(embedding=bindparam("embedding"))
+                        .execution_options(synchronize_session=False)
+                    )
+                    session.execute(stmt, params)
                     session.commit()
+
                     processed += len(batch)
+                    last_id = wikidata_ids[-1]
                     click.echo(f"Processed {processed}/{total_count} {entity_name}")
 
                 click.echo(f"✅ Generated embeddings for {processed} {entity_name}")
