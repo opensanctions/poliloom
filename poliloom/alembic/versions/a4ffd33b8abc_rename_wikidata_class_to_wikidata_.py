@@ -37,7 +37,7 @@ def upgrade() -> None:
 
     # Step 2: Get connection and inspector for data migration
     connection = op.get_bind()
-    inspector = sa.Inspector.from_engine(connection)
+    inspector = sa.inspect(connection)
     existing_tables = inspector.get_table_names()
 
     # Step 3: Insert all position and location wikidata_ids into wikidata_entities
