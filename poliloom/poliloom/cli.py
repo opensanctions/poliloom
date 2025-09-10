@@ -629,7 +629,13 @@ def embed_entities(batch_size, encode_batch_size):
     required=True,
     help="Path to extracted JSON dump file - local filesystem path or GCS path (gs://bucket/path)",
 )
-def dump_import_hierarchy(file):
+@click.option(
+    "--batch-size",
+    type=int,
+    default=1000,
+    help="Number of entities to process in each database batch (default: 1000)",
+)
+def dump_import_hierarchy(file, batch_size):
     """Import hierarchy trees for positions and locations from Wikidata dump."""
 
     # Get the latest dump and check its status
@@ -659,7 +665,7 @@ def dump_import_hierarchy(file):
         click.echo("Press Ctrl+C to interrupt...")
 
         # Import the trees (always parallel)
-        import_hierarchy_trees(file)
+        import_hierarchy_trees(file, batch_size=batch_size)
 
         # Mark as imported
         if latest_dump is not None:
@@ -686,8 +692,8 @@ def dump_import_hierarchy(file):
 @click.option(
     "--batch-size",
     type=int,
-    default=100,
-    help="Number of entities to process in each database batch (default: 100)",
+    default=1000,
+    help="Number of entities to process in each database batch (default: 1000)",
 )
 def dump_import_entities(file, batch_size):
     """Import supporting entities (positions, locations, countries) from a Wikidata dump file."""
@@ -705,7 +711,6 @@ def dump_import_entities(file, batch_size):
             click.echo("Continuing anyway...")
 
     click.echo(f"Importing supporting entities from dump file: {file}")
-    click.echo(f"Using batch size: {batch_size}")
 
     # Check if dump file exists using storage backend
     backend = StorageFactory.get_backend(file)
@@ -768,8 +773,8 @@ def dump_import_entities(file, batch_size):
 @click.option(
     "--batch-size",
     type=int,
-    default=100,
-    help="Number of entities to process in each database batch (default: 100)",
+    default=1000,
+    help="Number of entities to process in each database batch (default: 1000)",
 )
 def dump_import_politicians(file, batch_size):
     """Import politicians from a Wikidata dump file, linking them to existing entities."""
@@ -787,7 +792,6 @@ def dump_import_politicians(file, batch_size):
             click.echo("Continuing anyway...")
 
     click.echo(f"Importing politicians from dump file: {file}")
-    click.echo(f"Using batch size: {batch_size}")
 
     # Check if dump file exists using storage backend
     backend = StorageFactory.get_backend(file)
