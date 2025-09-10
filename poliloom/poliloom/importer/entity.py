@@ -15,8 +15,9 @@ from ..models import (
     Location,
     Country,
     WikidataEntity,
+    WikidataRelation,
 )
-from ..wikidata_entity import WikidataEntity as WikidataEntityProcessor
+from ..wikidata_entity_processor import WikidataEntityProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -37,19 +38,21 @@ def init_entity_worker(
     shared_location_classes = loc_classes
 
 
-def _insert_positions_batch(positions: list[dict], engine) -> None:
-    """Insert a batch of positions into the database."""
-    if not positions:
+def _insert_entities_batch(
+    entities: list[dict], relations: list[dict], model_class, entity_type: str, engine
+) -> None:
+    """Insert a batch of entities (positions or locations) and their relations into the database."""
+    if not entities:
         return
 
     with Session(engine) as session:
         # Insert WikidataEntity records first
         entity_data = [
             {
-                "wikidata_id": p["wikidata_id"],
-                "name": p["name"],
+                "wikidata_id": entity["wikidata_id"],
+                "name": entity["name"],
             }
-            for p in positions
+            for entity in entities
         ]
 
         stmt = insert(WikidataEntity).values(entity_data)
@@ -61,111 +64,28 @@ def _insert_positions_batch(positions: list[dict], engine) -> None:
         )
         session.execute(stmt)
 
-        # Insert positions referencing the entities
-        stmt = insert(Position).values(
-            [
-                {
-                    "wikidata_id": p["wikidata_id"],
-                    "embedding": None,  # Will be generated later
-                }
-                for p in positions
-            ]
-        )
+        # Insert entities referencing the WikidataEntity records
+        # Remove 'name' key since it's now stored in WikidataEntity
+        for entity in entities:
+            entity.pop("name", None)
 
-        # On conflict, clear embedding (since embedding depends on name)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["wikidata_id"],
-            set_={
-                "embedding": None,  # Clear embedding when name changes
-            },
-        )
+        stmt = insert(model_class).values(entities)
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
 
         session.execute(stmt)
+
+        # Insert relations for these entities
+        if relations:
+            stmt = insert(WikidataRelation).values(relations)
+            stmt = stmt.on_conflict_do_nothing(
+                index_elements=["parent_entity_id", "child_entity_id", "relation_type"]
+            )
+            session.execute(stmt)
 
         session.commit()
-        logger.debug(f"Processed {len(positions)} positions")
-
-
-def _insert_locations_batch(locations: list[dict], engine) -> None:
-    """Insert a batch of locations into the database."""
-    if not locations:
-        return
-
-    with Session(engine) as session:
-        # Insert WikidataEntity records first
-        entity_data = [
-            {
-                "wikidata_id": loc["wikidata_id"],
-                "name": loc["name"],
-            }
-            for loc in locations
-        ]
-
-        stmt = insert(WikidataEntity).values(entity_data)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["wikidata_id"],
-            set_={
-                "name": stmt.excluded.name,
-            },
+        logger.debug(
+            f"Processed {len(entities)} {entity_type} with {len(relations)} relations"
         )
-        session.execute(stmt)
-
-        # Insert locations referencing the entities
-        stmt = insert(Location).values(
-            [
-                {
-                    "wikidata_id": loc["wikidata_id"],
-                    "embedding": None,  # Will be generated later
-                }
-                for loc in locations
-            ]
-        )
-
-        # On conflict, clear embedding (since embedding depends on name)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["wikidata_id"],
-            set_={
-                "embedding": None,  # Clear embedding when name changes
-            },
-        )
-
-        session.execute(stmt)
-
-        session.commit()
-        logger.debug(f"Processed {len(locations)} locations")
-
-
-def _insert_countries_batch(countries: list[dict], engine) -> None:
-    """Insert a batch of countries into the database using ON CONFLICT."""
-    if not countries:
-        return
-
-    with Session(engine) as session:
-        # Prepare data for bulk insert
-        country_data = [
-            {
-                "wikidata_id": c["wikidata_id"],
-                "name": c["name"],
-                "iso_code": c["iso_code"],
-            }
-            for c in countries
-        ]
-
-        # Use PostgreSQL's ON CONFLICT to handle duplicates
-        # We need to handle both wikidata_id and iso_code constraints
-        # Use ON CONFLICT DO UPDATE for wikidata_id to allow name updates
-        stmt = insert(Country).values(country_data)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["wikidata_id"],
-            set_={
-                "name": stmt.excluded.name,
-                "iso_code": stmt.excluded.iso_code,
-            },
-        )
-
-        session.execute(stmt)
-        session.commit()
-        logger.debug(f"Processed {len(countries)} countries (upserted)")
 
 
 def _process_supporting_entities_chunk(
@@ -190,6 +110,9 @@ def _process_supporting_entities_chunk(
     positions = []
     locations = []
     countries = []
+    position_relations = []
+    location_relations = []
+    country_relations = []
     counts = {"positions": 0, "locations": 0, "countries": 0}
     entity_count = 0
     try:
@@ -224,28 +147,20 @@ def _process_supporting_entities_chunk(
             all_class_ids = instance_ids.union(subclass_ids)
 
             if any(class_id in shared_position_classes for class_id in all_class_ids):
-                # Get all valid class IDs for this position
-                valid_class_ids = [
-                    class_id
-                    for class_id in all_class_ids
-                    if class_id in shared_position_classes
-                ]
-                entity_data["wikidata_class_ids"] = valid_class_ids
-
                 positions.append(entity_data)
                 counts["positions"] += 1
 
-            if any(class_id in shared_location_classes for class_id in all_class_ids):
-                # Get all valid class IDs for this location
-                valid_class_ids = [
-                    class_id
-                    for class_id in all_class_ids
-                    if class_id in shared_location_classes
-                ]
-                entity_data["wikidata_class_ids"] = valid_class_ids
+                # Extract relations for this position
+                entity_relations = entity.extract_all_relations()
+                position_relations.extend(entity_relations)
 
+            if any(class_id in shared_location_classes for class_id in all_class_ids):
                 locations.append(entity_data)
                 counts["locations"] += 1
+
+                # Extract relations for this location
+                entity_relations = entity.extract_all_relations()
+                location_relations.extend(entity_relations)
 
             if bool(
                 instance_ids.intersection(
@@ -265,18 +180,31 @@ def _process_supporting_entities_chunk(
                 countries.append(entity_data)
                 counts["countries"] += 1
 
+                # Extract relations for this country
+                entity_relations = entity.extract_all_relations()
+                country_relations.extend(entity_relations)
+
             # Process batches when they reach the batch size
             if len(positions) >= batch_size:
-                _insert_positions_batch(positions, engine)
+                _insert_entities_batch(
+                    positions, position_relations, Position, "positions", engine
+                )
                 positions = []
+                position_relations = []
 
             if len(locations) >= batch_size:
-                _insert_locations_batch(locations, engine)
+                _insert_entities_batch(
+                    locations, location_relations, Location, "locations", engine
+                )
                 locations = []
+                location_relations = []
 
             if len(countries) >= batch_size:
-                _insert_countries_batch(countries, engine)
+                _insert_entities_batch(
+                    countries, country_relations, Country, "countries", engine
+                )
                 countries = []
+                country_relations = []
 
     except Exception as e:
         logger.error(f"Worker {worker_id}: error processing chunk: {e}")
@@ -284,11 +212,17 @@ def _process_supporting_entities_chunk(
 
     # Process remaining entities in final batches on successful completion
     if positions:
-        _insert_positions_batch(positions, engine)
+        _insert_entities_batch(
+            positions, position_relations, Position, "positions", engine
+        )
     if locations:
-        _insert_locations_batch(locations, engine)
+        _insert_entities_batch(
+            locations, location_relations, Location, "locations", engine
+        )
     if countries:
-        _insert_countries_batch(countries, engine)
+        _insert_entities_batch(
+            countries, country_relations, Country, "countries", engine
+        )
 
     logger.info(f"Worker {worker_id}: finished processing {entity_count} entities")
 

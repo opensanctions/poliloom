@@ -1,19 +1,19 @@
-"""Tests for the WikidataEntity class."""
+"""Tests for the WikidataEntityProcessor class."""
 
-from poliloom.wikidata_entity import WikidataEntity
+from poliloom.wikidata_entity_processor import WikidataEntityProcessor
 
 
-class TestWikidataEntity:
-    """Core tests for WikidataEntity functionality."""
+class TestWikidataEntityProcessor:
+    """Core tests for WikidataEntityProcessor functionality."""
 
     def test_basic_entity_creation(self):
-        """Test creating a basic WikidataEntity."""
+        """Test creating a basic WikidataEntityProcessor."""
         entity_data = {
             "id": "Q123",
             "labels": {"en": {"value": "Test Entity"}},
             "claims": {},
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
 
         assert entity.get_wikidata_id() == "Q123"
         assert entity.get_entity_name() == "Test Entity"
@@ -43,7 +43,7 @@ class TestWikidataEntity:
                 ]
             },
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
 
         # Should only return preferred claims when they exist
         truthy_claims = entity.get_truthy_claims("P31")
@@ -65,7 +65,7 @@ class TestWikidataEntity:
                 "mainsnak": {"datavalue": {"value": {"id": "Q4"}}},
             },
         ]
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
         truthy_claims = entity.get_truthy_claims("P31")
         assert len(truthy_claims) == 2
 
@@ -90,7 +90,7 @@ class TestWikidataEntity:
                 ]
             },
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
 
         claims = entity.get_truthy_claims("P580")
         date_info = entity.extract_date_from_claims(claims)
@@ -103,7 +103,7 @@ class TestWikidataEntity:
         entity_data["claims"]["P580"][0]["mainsnak"]["datavalue"]["value"][
             "precision"
         ] = 9
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
 
         claims = entity.get_truthy_claims("P580")
         date_info = entity.extract_date_from_claims(claims)
@@ -121,7 +121,7 @@ class TestWikidataEntity:
                 "fr": {"value": "Nom Français"},
             },
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
         assert entity.get_entity_name() == "English Name"
 
         # No English, fallback to any available
@@ -132,11 +132,11 @@ class TestWikidataEntity:
                 "de": {"value": "Deutscher Name"},
             },
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
         name = entity.get_entity_name()
         assert name in ["Nom Français", "Deutscher Name"]  # Could be either
 
         # No labels
         entity_data = {"id": "Q139", "labels": {}}
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
         assert entity.get_entity_name() is None

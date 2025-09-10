@@ -23,7 +23,7 @@ from ..models import (
     BornAt,
     WikipediaLink,
 )
-from ..wikidata_entity import WikidataEntity
+from ..wikidata_entity_processor import WikidataEntityProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ def init_politician_worker(
 
 
 def _is_politician(
-    entity: WikidataEntity, relevant_position_qids: frozenset[str]
+    entity: WikidataEntityProcessor, relevant_position_qids: frozenset[str]
 ) -> bool:
     """Check if entity is a politician based on occupation or positions held in our database."""
     # Must be human first
@@ -264,7 +264,7 @@ def _process_politicians_chunk(
         for entity in dump_reader.read_chunk_entities(
             dump_file_path, start_byte, end_byte
         ):
-            entity: WikidataEntity
+            entity: WikidataEntityProcessor
             entity_count += 1
 
             # Progress reporting for large chunks

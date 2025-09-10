@@ -6,7 +6,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class WikidataEntity:
+class WikidataEntityProcessor:
     """Unified class for all Wikidata entities with type-specific processing."""
 
     def __init__(self, raw_data: Dict[str, Any]):
@@ -158,8 +158,71 @@ class WikidataEntity:
 
         return subclass_ids
 
+    def extract_all_relations(self) -> List[Dict]:
+        """
+        Extract all tracked relations from this Wikidata entity.
+
+        Returns:
+            List of relation dictionaries with keys:
+            - parent_entity_id: The parent entity QID
+            - child_entity_id: The current entity QID
+            - relation_type: RelationType enum value
+        """
+        from .models import RelationType
+
+        entity_id = self.get_wikidata_id()
+        if not entity_id:
+            return []
+
+        relations = []
+
+        # Extract all relations using tracked properties
+        for relation_type in RelationType:
+            property_id = relation_type.value
+            claims = self.get_truthy_claims(property_id)
+            for claim in claims:
+                try:
+                    parent_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                    relations.append(
+                        {
+                            "parent_entity_id": parent_id,
+                            "child_entity_id": entity_id,
+                            "relation_type": relation_type,
+                        }
+                    )
+                except (KeyError, TypeError):
+                    continue
+
+        return relations
+
+    def collect_parent_ids(self) -> Set[str]:
+        """
+        Collect all parent entity IDs from this entity's relations.
+
+        Returns:
+            Set of parent entity QIDs
+        """
+        from .models import RelationType
+
+        parent_ids = set()
+
+        # Get tracked properties from RelationType enum
+        tracked_properties = [rt.value for rt in RelationType]
+
+        # Collect parent IDs from all tracked relations
+        for property_id in tracked_properties:
+            claims = self.get_truthy_claims(property_id)
+            for claim in claims:
+                try:
+                    parent_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                    parent_ids.add(parent_id)
+                except (KeyError, TypeError):
+                    continue
+
+        return parent_ids
+
     @classmethod
-    def from_raw(cls, raw_data: Dict[str, Any]) -> "WikidataEntity":
+    def from_raw(cls, raw_data: Dict[str, Any]) -> "WikidataEntityProcessor":
         """Create entity instance from raw Wikidata JSON data.
 
         Args:

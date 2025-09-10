@@ -23,7 +23,7 @@ from poliloom.importer.politician import (
     _insert_politicians_batch,
     _is_politician,
 )
-from poliloom.wikidata_entity import WikidataEntity
+from poliloom.wikidata_entity_processor import WikidataEntityProcessor
 
 
 class TestWikidataPoliticianImporter:
@@ -360,11 +360,9 @@ class TestWikidataPoliticianImporter:
         # First create the required related entities
         Position.create_with_entity(db_session, "Q30185", "Mayor")
         Position.create_with_entity(db_session, "Q11696", "President")
-        country1 = Country(name="United States", wikidata_id="Q30", iso_code="US")
-        country2 = Country(name="Canada", wikidata_id="Q16", iso_code="CA")
+        Country.create_with_entity(db_session, "Q30", "United States", "US")
+        Country.create_with_entity(db_session, "Q16", "Canada", "CA")
         Location.create_with_entity(db_session, "Q60", "New York City")
-
-        db_session.add_all([country1, country2])
         db_session.commit()
 
         politicians = [
@@ -492,7 +490,7 @@ class TestIsPolitician:
                 ],
             },
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
         relevant_positions = frozenset(["Q30185"])
 
         assert _is_politician(entity, relevant_positions) is True
@@ -528,7 +526,7 @@ class TestIsPolitician:
                 ],
             },
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
         relevant_positions = frozenset(["Q30185"])  # mayor is relevant
 
         assert _is_politician(entity, relevant_positions) is True
@@ -556,7 +554,7 @@ class TestIsPolitician:
                 ],
             },
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
         relevant_positions = frozenset(["Q30185"])
 
         assert _is_politician(entity, relevant_positions) is False
@@ -594,7 +592,7 @@ class TestIsPolitician:
                 ],
             },
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
         relevant_positions = frozenset(
             ["Q30185"]
         )  # mayor is relevant, but entity doesn't have it
@@ -630,7 +628,7 @@ class TestIsPolitician:
                 ],
             },
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
         relevant_positions = frozenset(["Q30185"])
 
         # Should still identify as politician despite malformed first claim
@@ -652,7 +650,7 @@ class TestIsPolitician:
                 # No P106 or P39 claims
             },
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
         relevant_positions = frozenset(["Q30185"])
 
         assert _is_politician(entity, relevant_positions) is False

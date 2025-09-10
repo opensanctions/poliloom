@@ -2,8 +2,7 @@
 
 import logging
 import multiprocessing as mp
-from typing import Dict, Set, Tuple
-from collections import defaultdict
+from typing import Set, Tuple
 
 from sqlalchemy import Engine
 from sqlalchemy.dialects.postgresql import insert
@@ -11,8 +10,8 @@ from sqlalchemy.orm import Session
 
 from .. import dump_reader
 from ..database import create_engine, get_engine
-from ..models import WikidataEntity, WikidataRelation, RelationType
-from ..wikidata_entity import WikidataEntity as WikidataEntityProcessor
+from ..models import WikidataEntity, WikidataRelation
+from ..wikidata_entity_processor import WikidataEntityProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +43,6 @@ def _process_first_pass_chunk(
     all_parent_ids = set()  # All parent IDs from all relations
     entity_count = 0
 
-    # Get tracked properties from RelationType enum
-    tracked_properties = [rt.value for rt in RelationType]
-
     try:
         for entity in dump_reader.read_chunk_entities(
             dump_file_path, start_byte, end_byte
@@ -56,21 +52,17 @@ def _process_first_pass_chunk(
 
             # Progress reporting for large chunks
             if entity_count % PROGRESS_REPORT_FREQUENCY == 0:
-                logger.info(f"First pass - Worker {worker_id}: processed {entity_count} entities")
+                logger.info(
+                    f"First pass - Worker {worker_id}: processed {entity_count} entities"
+                )
 
             entity_id = entity.get_wikidata_id()
             if not entity_id:
                 continue
 
             # Collect parent IDs from all tracked relations
-            for property_id in tracked_properties:
-                claims = entity.get_truthy_claims(property_id)
-                for claim in claims:
-                    try:
-                        parent_id = claim["mainsnak"]["datavalue"]["value"]["id"]
-                        all_parent_ids.add(parent_id)
-                    except (KeyError, TypeError):
-                        continue
+            parent_ids = entity.collect_parent_ids()
+            all_parent_ids.update(parent_ids)
 
     except Exception as e:
         logger.error(f"First pass - Worker {worker_id}: error during processing: {e}")
@@ -80,7 +72,7 @@ def _process_first_pass_chunk(
         f"First pass - Worker {worker_id}: processed {entity_count} entities, "
         f"found {len(all_parent_ids)} unique parent IDs"
     )
-    
+
     return all_parent_ids, entity_count
 
 
@@ -113,7 +105,9 @@ def _process_second_pass_chunk(
 
             # Progress reporting for large chunks
             if entity_count % PROGRESS_REPORT_FREQUENCY == 0:
-                logger.info(f"Second pass - Worker {worker_id}: processed {entity_count} entities")
+                logger.info(
+                    f"Second pass - Worker {worker_id}: processed {entity_count} entities"
+                )
 
             entity_id = entity.get_wikidata_id()
             if not entity_id or entity_id not in shared_target_qids:
@@ -123,31 +117,22 @@ def _process_second_pass_chunk(
 
             # Extract name for update
             name = entity.get_entity_name()
-            wikidata_entities.append({
-                "wikidata_id": entity_id,
-                "name": name,
-            })
+            wikidata_entities.append(
+                {
+                    "wikidata_id": entity_id,
+                    "name": name,
+                }
+            )
 
-            # Extract all relations using tracked properties
-            for relation_type in RelationType:
-                property_id = relation_type.value
-                claims = entity.get_truthy_claims(property_id)
-                for claim in claims:
-                    try:
-                        parent_id = claim["mainsnak"]["datavalue"]["value"]["id"]
-                        wikidata_relations.append({
-                            "parent_entity_id": parent_id,
-                            "child_entity_id": entity_id,
-                            "relation_type": relation_type,
-                        })
-                    except (KeyError, TypeError):
-                        continue
+            # Extract all relations
+            relations = entity.extract_all_relations()
+            wikidata_relations.extend(relations)
 
             # Process batches when they reach the batch size
             if len(wikidata_entities) >= batch_size:
                 _insert_wikidata_entities_batch(wikidata_entities, worker_id, engine)
                 wikidata_entities = []
-            
+
             if len(wikidata_relations) >= batch_size:
                 _insert_wikidata_relations_batch(wikidata_relations, worker_id, engine)
                 wikidata_relations = []
@@ -166,7 +151,7 @@ def _process_second_pass_chunk(
         f"Second pass - Worker {worker_id}: processed {entity_count} entities, "
         f"updated {processed_count} target entities"
     )
-    
+
     return processed_count
 
 
@@ -215,7 +200,9 @@ def _insert_wikidata_relations_batch(
                 f"Worker {worker_id}: inserted batch of {len(wikidata_relations)} WikidataRelation records"
             )
     except Exception as e:
-        logger.error(f"Worker {worker_id}: failed to insert WikidataRelation batch: {e}")
+        logger.error(
+            f"Worker {worker_id}: failed to insert WikidataRelation batch: {e}"
+        )
         raise
 
 
@@ -245,17 +232,14 @@ def import_hierarchy_trees(
 
     # ========== FIRST PASS: Collect parent IDs ==========
     logger.info("Starting first pass: collecting parent IDs...")
-    
+
     pool = None
     try:
         pool = mp.Pool(processes=num_workers)
 
         async_result = pool.starmap_async(
             _process_first_pass_chunk,
-            [
-                (dump_file_path, start, end, i)
-                for i, (start, end) in enumerate(chunks)
-            ],
+            [(dump_file_path, start, end, i) for i, (start, end) in enumerate(chunks)],
         )
 
         first_pass_results = async_result.get()
@@ -303,7 +287,7 @@ def import_hierarchy_trees(
     if new_entities:
         logger.info(f"Inserting {len(new_entities)} new WikidataEntity records...")
         entity_data = [{"wikidata_id": qid, "name": None} for qid in new_entities]
-        
+
         batch_size_inserts = 10000
         for i in range(0, len(entity_data), batch_size_inserts):
             batch = entity_data[i : i + batch_size_inserts]
@@ -312,20 +296,22 @@ def import_hierarchy_trees(
                 stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
                 session.execute(stmt)
                 session.commit()
-            logger.info(f"Inserted batch {i // batch_size_inserts + 1} ({len(batch)} records)")
+            logger.info(
+                f"Inserted batch {i // batch_size_inserts + 1} ({len(batch)} records)"
+            )
 
     # ========== SECOND PASS: Update names and insert relations ==========
     logger.info("Starting second pass: updating names and inserting relations...")
-    
+
     # Convert to frozenset for efficient sharing across workers
     target_qids = frozenset(target_qids)
-    
+
     pool = None
     try:
         pool = mp.Pool(
             processes=num_workers,
             initializer=init_second_pass_worker,
-            initargs=(target_qids,)
+            initargs=(target_qids,),
         )
 
         async_result = pool.starmap_async(

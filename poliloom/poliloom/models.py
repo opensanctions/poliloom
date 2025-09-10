@@ -343,14 +343,38 @@ class Country(Base, TimestampMixin):
 
     __tablename__ = "countries"
 
-    wikidata_id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)  # Country name in English
+    wikidata_id = Column(
+        String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
+    )
     iso_code = Column(String, unique=True, index=True)  # ISO 3166-1 alpha-2 code
 
     # Relationships
     citizens = relationship(
         "HasCitizenship", back_populates="country", cascade="all, delete-orphan"
     )
+    wikidata_entity = relationship(
+        "WikidataEntity", back_populates="country", lazy="joined"
+    )
+
+    @hybrid_property
+    def name(self) -> str:
+        """Get the country name from the related WikidataEntity."""
+        return self.wikidata_entity.name if self.wikidata_entity else None
+
+    @classmethod
+    def create_with_entity(
+        cls, session, wikidata_id: str, name: str, iso_code: str = None
+    ):
+        """Create a Country with its associated WikidataEntity."""
+        # Create WikidataEntity first
+        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, name=name)
+        session.add(wikidata_entity)
+
+        # Create Country
+        country = cls(wikidata_id=wikidata_id, iso_code=iso_code)
+        session.add(country)
+
+        return country
 
 
 class Location(Base, TimestampMixin):
@@ -616,6 +640,7 @@ class WikidataEntity(Base, TimestampMixin):
     )
     location = relationship("Location", back_populates="wikidata_entity")
     position = relationship("Position", back_populates="wikidata_entity")
+    country = relationship("Country", back_populates="wikidata_entity")
 
 
 class WikidataRelation(Base, TimestampMixin):

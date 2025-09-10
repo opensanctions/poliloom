@@ -95,7 +95,7 @@ def sample_archived_page_data():
 @pytest.fixture
 def sample_country_data():
     """Return data for creating a country."""
-    return {"name": "United States", "iso_code": "US", "wikidata_id": "Q30"}
+    return {"iso_code": "US", "wikidata_id": "Q30"}
 
 
 @pytest.fixture
