@@ -37,6 +37,11 @@ class RelationType(str, Enum):
     """Enumeration of Wikidata relation types."""
 
     SUBCLASS_OF = "P279"  # Subclass of relation
+    INSTANCE_OF = "P31"  # Instance of relation
+    PART_OF = "P361"  # Part of relation
+    LOCATED_IN = "P131"  # Located in administrative territorial entity
+    COUNTRY = "P17"  # Country relation
+    APPLIES_TO_JURISDICTION = "P1001"  # Applies to jurisdiction relation
 
 
 class TimestampMixin:

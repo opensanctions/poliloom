@@ -19,28 +19,33 @@ logger = logging.getLogger(__name__)
 # Progress reporting frequency for chunk processing
 PROGRESS_REPORT_FREQUENCY = 50000
 
+# Global for workers to access target QIDs in second pass
+shared_target_qids: frozenset[str] | None = None
 
-def _process_hierarchy_chunk(
+
+def init_second_pass_worker(target_qids: frozenset[str]) -> None:
+    """Initializer for second pass workers."""
+    global shared_target_qids
+    shared_target_qids = target_qids
+
+
+def _process_first_pass_chunk(
     dump_file_path: str,
     start_byte: int,
     end_byte: int,
     worker_id: int,
-    batch_size: int = 1000,
-) -> Tuple[Dict[str, Set[str]], int]:
+) -> Tuple[Set[str], int]:
     """
-    Worker process: Extract names and P279 relationships in single pass.
-    Inserts WikidataEntity records in batches during processing.
-    Returns child_id -> parent_ids relationships for main thread to insert after all workers complete.
+    First pass: Collect all parent IDs from relations.
+    Returns:
+        - Set of all parent IDs from all relation types
+        - Total entity count
     """
-    # Create a fresh engine for this worker process
-    engine = create_engine(pool_size=2, max_overflow=3)
-
-    # Collect data
-    wikidata_entities = []  # For batch insertion
-    child_parent_relations = defaultdict(
-        set
-    )  # Return to main thread: {child_id: {parent_ids}}
+    all_parent_ids = set()  # All parent IDs from all relations
     entity_count = 0
+
+    # Get tracked properties from RelationType enum
+    tracked_properties = [rt.value for rt in RelationType]
 
     try:
         for entity in dump_reader.read_chunk_entities(
@@ -51,51 +56,118 @@ def _process_hierarchy_chunk(
 
             # Progress reporting for large chunks
             if entity_count % PROGRESS_REPORT_FREQUENCY == 0:
-                logger.info(f"Worker {worker_id}: processed {entity_count} entities")
+                logger.info(f"First pass - Worker {worker_id}: processed {entity_count} entities")
 
             entity_id = entity.get_wikidata_id()
             if not entity_id:
                 continue
 
-            # Extract P279 relationships
-            subclass_claims = entity.get_truthy_claims("P279")
+            # Collect parent IDs from all tracked relations
+            for property_id in tracked_properties:
+                claims = entity.get_truthy_claims(property_id)
+                for claim in claims:
+                    try:
+                        parent_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                        all_parent_ids.add(parent_id)
+                    except (KeyError, TypeError):
+                        continue
 
-            for claim in subclass_claims:
-                try:
-                    parent_id = claim["mainsnak"]["datavalue"]["value"]["id"]
-                    child_parent_relations[entity_id].add(parent_id)
-                except (KeyError, TypeError):
-                    continue
+    except Exception as e:
+        logger.error(f"First pass - Worker {worker_id}: error during processing: {e}")
+        raise
 
-            # If entity has P279 relationships, add it for WikidataEntity insertion
-            if subclass_claims:
-                # Extract name
-                name = entity.get_entity_name()
-                wikidata_entities.append(
-                    {
-                        "wikidata_id": entity_id,
-                        "name": name,
-                    }
-                )
+    logger.info(
+        f"First pass - Worker {worker_id}: processed {entity_count} entities, "
+        f"found {len(all_parent_ids)} unique parent IDs"
+    )
+    
+    return all_parent_ids, entity_count
 
-            # Process batch when it reaches the batch size
+
+def _process_second_pass_chunk(
+    dump_file_path: str,
+    start_byte: int,
+    end_byte: int,
+    worker_id: int,
+    batch_size: int = 1000,
+) -> int:
+    """
+    Second pass: Process entities that are in the target set.
+    Updates names and inserts all relations.
+    """
+    # Create a fresh engine for this worker process
+    engine = create_engine(pool_size=2, max_overflow=3)
+
+    # Collect data for batch insertion
+    wikidata_entities = []  # For WikidataEntity updates
+    wikidata_relations = []  # For WikidataRelation insertion
+    entity_count = 0
+    processed_count = 0
+
+    try:
+        for entity in dump_reader.read_chunk_entities(
+            dump_file_path, start_byte, end_byte
+        ):
+            entity: WikidataEntityProcessor
+            entity_count += 1
+
+            # Progress reporting for large chunks
+            if entity_count % PROGRESS_REPORT_FREQUENCY == 0:
+                logger.info(f"Second pass - Worker {worker_id}: processed {entity_count} entities")
+
+            entity_id = entity.get_wikidata_id()
+            if not entity_id or entity_id not in shared_target_qids:
+                continue
+
+            processed_count += 1
+
+            # Extract name for update
+            name = entity.get_entity_name()
+            wikidata_entities.append({
+                "wikidata_id": entity_id,
+                "name": name,
+            })
+
+            # Extract all relations using tracked properties
+            for relation_type in RelationType:
+                property_id = relation_type.value
+                claims = entity.get_truthy_claims(property_id)
+                for claim in claims:
+                    try:
+                        parent_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                        wikidata_relations.append({
+                            "parent_entity_id": parent_id,
+                            "child_entity_id": entity_id,
+                            "relation_type": relation_type,
+                        })
+                    except (KeyError, TypeError):
+                        continue
+
+            # Process batches when they reach the batch size
             if len(wikidata_entities) >= batch_size:
                 _insert_wikidata_entities_batch(wikidata_entities, worker_id, engine)
                 wikidata_entities = []
+            
+            if len(wikidata_relations) >= batch_size:
+                _insert_wikidata_relations_batch(wikidata_relations, worker_id, engine)
+                wikidata_relations = []
 
     except Exception as e:
-        logger.error(f"Worker {worker_id}: error during processing: {e}")
+        logger.error(f"Second pass - Worker {worker_id}: error during processing: {e}")
         raise
 
-    # Process remaining entities in final batch
+    # Process remaining batches
     if wikidata_entities:
         _insert_wikidata_entities_batch(wikidata_entities, worker_id, engine)
+    if wikidata_relations:
+        _insert_wikidata_relations_batch(wikidata_relations, worker_id, engine)
 
     logger.info(
-        f"Worker {worker_id}: processed {entity_count} entities, found {len(child_parent_relations)} child-parent relationships"
+        f"Second pass - Worker {worker_id}: processed {entity_count} entities, "
+        f"updated {processed_count} target entities"
     )
-
-    return dict(child_parent_relations), entity_count
+    
+    return processed_count
 
 
 def _insert_wikidata_entities_batch(
@@ -123,6 +195,30 @@ def _insert_wikidata_entities_batch(
         raise
 
 
+def _insert_wikidata_relations_batch(
+    wikidata_relations: list[dict], worker_id: int, engine: Engine
+) -> None:
+    """Insert a batch of WikidataRelation records into the database."""
+    if not wikidata_relations:
+        return
+
+    try:
+        with Session(engine) as session:
+            stmt = insert(WikidataRelation).values(wikidata_relations)
+            stmt = stmt.on_conflict_do_nothing(
+                index_elements=["parent_entity_id", "child_entity_id", "relation_type"]
+            )
+            session.execute(stmt)
+            session.commit()
+
+            logger.debug(
+                f"Worker {worker_id}: inserted batch of {len(wikidata_relations)} WikidataRelation records"
+            )
+    except Exception as e:
+        logger.error(f"Worker {worker_id}: failed to insert WikidataRelation batch: {e}")
+        raise
+
+
 def import_hierarchy_trees(
     dump_file_path: str,
     batch_size: int = 1000,
@@ -130,9 +226,9 @@ def import_hierarchy_trees(
     """
     Import hierarchy trees for positions and locations from Wikidata dump.
 
-    Uses a single-pass approach:
-    1. Workers extract names and relationships, inserting WikidataEntity records during processing
-    2. Main thread collects all relationships and inserts WikidataRelation records in batches
+    Uses a two-pass approach:
+    1. First pass: Collect all parent IDs and entities with P279 relations
+    2. Second pass: Process all collected entities - update names and insert relations
 
     Args:
         dump_file_path: Path to the Wikidata JSON dump file
@@ -147,21 +243,22 @@ def import_hierarchy_trees(
     chunks = dump_reader.calculate_file_chunks(dump_file_path)
     logger.info(f"Processing {len(chunks)} file chunks")
 
+    # ========== FIRST PASS: Collect parent IDs ==========
+    logger.info("Starting first pass: collecting parent IDs...")
+    
     pool = None
     try:
-        # Workers process chunks and insert WikidataEntity records during processing
         pool = mp.Pool(processes=num_workers)
 
-        # Each worker processes its chunk and returns relationships
         async_result = pool.starmap_async(
-            _process_hierarchy_chunk,
+            _process_first_pass_chunk,
             [
-                (dump_file_path, start, end, i, batch_size)
+                (dump_file_path, start, end, i)
                 for i, (start, end) in enumerate(chunks)
             ],
         )
 
-        chunk_results = async_result.get()
+        first_pass_results = async_result.get()
 
     except KeyboardInterrupt:
         logger.info("Received interrupt signal, cleaning up workers...")
@@ -177,79 +274,86 @@ def import_hierarchy_trees(
             pool.close()
             pool.join()
 
-    # Merge relationships from all workers
-    logger.info("Merging relationships from all workers...")
-    child_parent_relations = defaultdict(set)
+    # Merge first pass results
+    logger.info("Merging first pass results...")
+    all_parent_ids = set()  # All parent IDs
     total_entities = 0
 
-    for chunk_relations, chunk_count in chunk_results:
+    for chunk_parent_ids, chunk_count in first_pass_results:
         total_entities += chunk_count
-        for child_id, parents in chunk_relations.items():
-            child_parent_relations[child_id].update(parents)
+        all_parent_ids.update(chunk_parent_ids)
 
-    logger.info(f"Processing complete: Processed {total_entities} entities")
-    logger.info(f"Found {len(child_parent_relations)} child-parent relationships")
+    logger.info(f"First pass complete: Processed {total_entities} entities")
+    logger.info(f"Found {len(all_parent_ids)} unique parent IDs")
 
-    # Collect all parent entities and ensure they have WikidataEntity records
-    all_parent_ids = set()
-    for parents in child_parent_relations.values():
-        all_parent_ids.update(parents)
+    # Get existing QIDs from database
+    logger.info("Loading existing QIDs from database...")
+    with Session(get_engine()) as session:
+        existing_qids = session.query(WikidataEntity.wikidata_id).all()
+        existing_qids = {qid[0] for qid in existing_qids}
+        logger.info(f"Found {len(existing_qids)} existing entities in database")
 
-    logger.info(f"Inserting {len(all_parent_ids)} parent WikidataEntity records...")
-    parent_classes = [
-        {"wikidata_id": parent_id, "name": None} for parent_id in all_parent_ids
-    ]
+    # Combine all target QIDs for second pass
+    target_qids = all_parent_ids | existing_qids
+    logger.info(f"Total target entities for second pass: {len(target_qids)}")
 
-    # Insert parent WikidataEntity records in batches
-    batch_size_inserts = 10000
-    total_parent_batches = (
-        len(parent_classes) + batch_size_inserts - 1
-    ) // batch_size_inserts
-    for i in range(0, len(parent_classes), batch_size_inserts):
-        batch = parent_classes[i : i + batch_size_inserts]
-        with Session(get_engine()) as session:
-            stmt = insert(WikidataEntity).values(batch)
-            stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
-            session.execute(stmt)
-            session.commit()
+    # Insert initial WikidataEntity records for new parent entities
+    # (without names, will be updated in second pass)
+    new_entities = all_parent_ids - existing_qids
+    if new_entities:
+        logger.info(f"Inserting {len(new_entities)} new WikidataEntity records...")
+        entity_data = [{"wikidata_id": qid, "name": None} for qid in new_entities]
+        
+        batch_size_inserts = 10000
+        for i in range(0, len(entity_data), batch_size_inserts):
+            batch = entity_data[i : i + batch_size_inserts]
+            with Session(get_engine()) as session:
+                stmt = insert(WikidataEntity).values(batch)
+                stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+                session.execute(stmt)
+                session.commit()
+            logger.info(f"Inserted batch {i // batch_size_inserts + 1} ({len(batch)} records)")
 
-        logger.info(
-            f"Inserted parent WikidataEntity batch {i // batch_size_inserts + 1}/{total_parent_batches} ({len(batch)} records)"
+    # ========== SECOND PASS: Update names and insert relations ==========
+    logger.info("Starting second pass: updating names and inserting relations...")
+    
+    # Convert to frozenset for efficient sharing across workers
+    target_qids = frozenset(target_qids)
+    
+    pool = None
+    try:
+        pool = mp.Pool(
+            processes=num_workers,
+            initializer=init_second_pass_worker,
+            initargs=(target_qids,)
         )
 
-    # Build WikidataRelation data directly from child_parent_relations
-    relation_data = [
-        {
-            "parent_entity_id": parent_id,
-            "child_entity_id": child_id,
-            "relation_type": RelationType.SUBCLASS_OF,
-        }
-        for child_id, parents in child_parent_relations.items()
-        for parent_id in parents
-    ]
-
-    total_relation_batches = (
-        len(relation_data) + batch_size_inserts - 1
-    ) // batch_size_inserts
-    logger.info(
-        f"Inserting {len(relation_data)} subclass relations in {total_relation_batches} batches"
-    )
-
-    for i in range(0, len(relation_data), batch_size_inserts):
-        batch = relation_data[i : i + batch_size_inserts]
-
-        with Session(get_engine()) as session:
-            stmt = insert(WikidataRelation).values(batch)
-            stmt = stmt.on_conflict_do_nothing(
-                index_elements=["parent_entity_id", "child_entity_id", "relation_type"]
-            )
-            session.execute(stmt)
-            session.commit()
-
-        logger.info(
-            f"Inserted WikidataRelation batch {i // batch_size_inserts + 1}/{total_relation_batches} ({len(batch)} records)"
+        async_result = pool.starmap_async(
+            _process_second_pass_chunk,
+            [
+                (dump_file_path, start, end, i, batch_size)
+                for i, (start, end) in enumerate(chunks)
+            ],
         )
 
-    logger.info(f"✅ Completed inserting {len(relation_data)} wikidata relations")
+        second_pass_results = async_result.get()
+
+    except KeyboardInterrupt:
+        logger.info("Received interrupt signal, cleaning up workers...")
+        if pool:
+            pool.terminate()
+            try:
+                pool.join()
+            except Exception:
+                pass
+        raise KeyboardInterrupt("Hierarchy import interrupted by user")
+    finally:
+        if pool:
+            pool.close()
+            pool.join()
+
+    # Summarize second pass results
+    total_processed = sum(second_pass_results)
+    logger.info(f"Second pass complete: Processed {total_processed} target entities")
 
     logger.info("✅ Hierarchy import complete")
