@@ -356,14 +356,35 @@ class Location(Base, TimestampMixin):
     wikidata_id = Column(
         String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
     )
-    name = Column(String, nullable=False)
     embedding = Column(Vector(384), nullable=True)
 
     # Relationships
     born_here = relationship(
         "BornAt", back_populates="location", cascade="all, delete-orphan"
     )
-    wikidata_entity = relationship("WikidataEntity", back_populates="location")
+    wikidata_entity = relationship(
+        "WikidataEntity", back_populates="location", lazy="joined"
+    )
+
+    @property
+    def name(self) -> str:
+        """Get the name from the associated WikidataEntity."""
+        return self.wikidata_entity.name
+
+    @classmethod
+    def create_with_entity(cls, session, wikidata_id: str, name: str, embedding=None):
+        """Create a Location with its associated WikidataEntity."""
+        # Create WikidataEntity first
+        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, name=name)
+        session.add(wikidata_entity)
+
+        # Create Location
+        location = cls(wikidata_id=wikidata_id)
+        if embedding is not None:
+            location.embedding = embedding
+        session.add(location)
+
+        return location
 
 
 class Position(Base, TimestampMixin):
@@ -374,14 +395,35 @@ class Position(Base, TimestampMixin):
     wikidata_id = Column(
         String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
     )
-    name = Column(String, nullable=False)
     embedding = Column(Vector(384), nullable=True)
 
     # Relationships
     held_by = relationship(
         "HoldsPosition", back_populates="position", cascade="all, delete-orphan"
     )
-    wikidata_entity = relationship("WikidataEntity", back_populates="position")
+    wikidata_entity = relationship(
+        "WikidataEntity", back_populates="position", lazy="joined"
+    )
+
+    @property
+    def name(self) -> str:
+        """Get the name from the associated WikidataEntity."""
+        return self.wikidata_entity.name
+
+    @classmethod
+    def create_with_entity(cls, session, wikidata_id: str, name: str, embedding=None):
+        """Create a Position with its associated WikidataEntity."""
+        # Create WikidataEntity first
+        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, name=name)
+        session.add(wikidata_entity)
+
+        # Create Position
+        position = cls(wikidata_id=wikidata_id)
+        if embedding is not None:
+            position.embedding = embedding
+        session.add(position)
+
+        return position
 
 
 class HoldsPosition(Base, TimestampMixin):

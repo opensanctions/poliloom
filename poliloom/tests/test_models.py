@@ -4,6 +4,7 @@ import pytest
 import time
 from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 from uuid import UUID
 
 from poliloom.models import (
@@ -224,12 +225,14 @@ class TestPosition:
 
     def test_position_creation(self, db_session):
         """Test basic position creation."""
-        position = Position(name="Senator", wikidata_id="Q4416090")
-        db_session.add(position)
+        position = Position.create_with_entity(db_session, "Q4416090", "Senator")
         db_session.commit()
-        db_session.refresh(position)
 
-        assert_model_fields(position, {"name": "Senator", "wikidata_id": "Q4416090"})
+        # Refresh with wikidata_entity loaded
+        position = db_session.query(Position).filter_by(wikidata_id="Q4416090").first()
+
+        assert_model_fields(position, {"wikidata_id": "Q4416090"})
+        assert position.wikidata_entity.name == "Senator"
 
 
 class TestPositionVectorSimilarity:
@@ -249,15 +252,17 @@ class TestPositionVectorSimilarity:
     ):
         """Test similarity search functionality."""
         # Create positions with embeddings
-        positions = [
-            Position(name="US President", wikidata_id="Q11696"),
-            Position(name="US Governor", wikidata_id="Q889821"),
-            Position(name="UK Prime Minister", wikidata_id="Q14212"),
+        entities_data = [
+            {"wikidata_id": "Q11696", "name": "US President"},
+            {"wikidata_id": "Q889821", "name": "US Governor"},
+            {"wikidata_id": "Q14212", "name": "UK Prime Minister"},
         ]
 
-        for position in positions:
-            position.embedding = enrichment.generate_embedding(position.name)
-            db_session.add(position)
+        for entity_data in entities_data:
+            embedding = enrichment.generate_embedding(entity_data["name"])
+            Position.create_with_entity(
+                db_session, entity_data["wikidata_id"], entity_data["name"], embedding
+            )
 
         db_session.commit()
 
@@ -304,10 +309,14 @@ class TestHoldsPosition:
         sample_position_data,
     ):
         """Test basic holds position creation."""
-        # Create politician and position
+        # Create politician
         politician = Politician(**sample_politician_data)
-        position = Position(**sample_position_data)
-        db_session.add_all([politician, position])
+        db_session.add(politician)
+
+        # Create position with wikidata entity
+        position = Position.create_with_entity(
+            db_session, sample_position_data["wikidata_id"], "Test Position"
+        )
         db_session.commit()
         db_session.refresh(politician)
         db_session.refresh(position)
@@ -355,10 +364,9 @@ class TestHoldsPosition:
 
         for start_date, end_date, position_qid in test_cases:
             # Create a unique position for each test case
-            position = Position(
-                name=f"Test Position {position_qid}", wikidata_id=position_qid
+            position = Position.create_with_entity(
+                db_session, position_qid, f"Test Position {position_qid}"
             )
-            db_session.add(position)
             db_session.commit()
             db_session.refresh(position)
 
@@ -379,13 +387,12 @@ class TestHoldsPosition:
         self,
         db_session,
         sample_politician_data,
-        sample_position_data,
     ):
         """Test default values for holds position fields."""
         # Create politician and position
         politician = Politician(**sample_politician_data)
-        position = Position(**sample_position_data)
-        db_session.add_all([politician, position])
+        position = Position.create_with_entity(db_session, "Q30185", "Test Position")
+        db_session.add(politician)
         db_session.commit()
         db_session.refresh(politician)
         db_session.refresh(position)
@@ -671,25 +678,23 @@ class TestLocation:
 
     def test_location_creation(self, db_session):
         """Test basic location creation."""
-        location = Location(name="New York City", wikidata_id="Q60")
-        db_session.add(location)
+        location = Location.create_with_entity(db_session, "Q60", "New York City")
         db_session.commit()
-        db_session.refresh(location)
 
-        assert_model_fields(location, {"name": "New York City", "wikidata_id": "Q60"})
+        # Refresh with wikidata_entity loaded
+        location = db_session.query(Location).filter_by(wikidata_id="Q60").first()
+
+        assert_model_fields(location, {"wikidata_id": "Q60"})
+        assert location.wikidata_entity.name == "New York City"
 
     def test_location_unique_wikidata_id(self, db_session):
         """Test that Wikidata ID must be unique."""
-        location1 = Location(
-            name="New York City", wikidata_id="Q60001"
-        )  # Use unique ID
-        location2 = Location(name="NYC", wikidata_id="Q60001")  # Same unique ID
-
-        db_session.add(location1)
+        Location.create_with_entity(db_session, "Q60001", "New York City")
         db_session.commit()
 
-        db_session.add(location2)
+        # Try to create another location with same wikidata_id (should fail at WikidataEntity level)
         with pytest.raises(IntegrityError):
+            Location.create_with_entity(db_session, "Q60001", "NYC")
             db_session.commit()
 
         # Clean up the session
@@ -701,15 +706,17 @@ class TestLocation:
     ):
         """Test location similarity search functionality."""
         # Create test locations with embeddings
-        locations = [
-            Location(name="New York City", wikidata_id="Q60"),
-            Location(name="Los Angeles", wikidata_id="Q65"),
-            Location(name="Chicago", wikidata_id="Q1297"),
+        location_data = [
+            ("Q60", "New York City"),
+            ("Q65", "Los Angeles"),
+            ("Q1297", "Chicago"),
         ]
 
-        for location in locations:
-            location.embedding = enrichment.generate_embedding(location.name)
-            db_session.add(location)
+        locations = []
+        for wikidata_id, name in location_data:
+            location = Location.create_with_entity(db_session, wikidata_id, name)
+            location.embedding = enrichment.generate_embedding(name)
+            locations.append(location)
 
         db_session.commit()
 
@@ -726,7 +733,8 @@ class TestLocation:
         assert len(similar) <= 2
         if len(similar) > 0:
             assert isinstance(similar[0], Location)
-            assert hasattr(similar[0], "name")
+            assert hasattr(similar[0], "wikidata_entity")
+            assert similar[0].wikidata_entity.name is not None
 
 
 class TestPropertyEvaluation:
@@ -826,13 +834,12 @@ class TestPositionEvaluation:
         self,
         db_session,
         sample_politician_data,
-        sample_position_data,
     ):
         """Test creating a position evaluation."""
         # Create politician and position
         politician = Politician(**sample_politician_data)
-        position = Position(**sample_position_data)
-        db_session.add_all([politician, position])
+        position = Position.create_with_entity(db_session, "Q30185", "Test Position")
+        db_session.add(politician)
         db_session.commit()
         db_session.refresh(politician)
         db_session.refresh(position)
@@ -885,8 +892,7 @@ class TestBirthplaceEvaluation:
         db_session.refresh(politician)
 
         # Create location
-        location = Location(name="Paris", wikidata_id="Q90")
-        db_session.add(location)
+        location = Location.create_with_entity(db_session, "Q90", "Paris")
         db_session.commit()
         db_session.refresh(location)
 
@@ -997,8 +1003,7 @@ class TestBornAt:
         db_session.refresh(politician)
 
         # Create location
-        location = Location(name="Paris", wikidata_id="Q90")
-        db_session.add(location)
+        location = Location.create_with_entity(db_session, "Q90", "Paris")
         db_session.commit()
         db_session.refresh(location)
 
@@ -1030,8 +1035,7 @@ class TestBornAt:
         db_session.refresh(politician)
 
         # Create location
-        location = Location(name="London", wikidata_id="Q84")
-        db_session.add(location)
+        location = Location.create_with_entity(db_session, "Q84", "London")
         db_session.commit()
         db_session.refresh(location)
 
@@ -1059,8 +1063,7 @@ class TestBornAt:
         db_session.refresh(politician)
 
         # Create location
-        location = Location(name="Berlin", wikidata_id="Q64")
-        db_session.add(location)
+        location = Location.create_with_entity(db_session, "Q64", "Berlin")
         db_session.commit()
         db_session.refresh(location)
 
@@ -1099,9 +1102,8 @@ class TestBornAt:
         db_session.commit()
         db_session.refresh(politician)
 
-        # Create location
-        location = Location(name="Tokyo", wikidata_id="Q1490")
-        db_session.add(location)
+        # Create location with entity
+        location = Location.create_with_entity(db_session, "Q1490", "Tokyo")
         db_session.commit()
         db_session.refresh(location)
 
@@ -1109,7 +1111,13 @@ class TestBornAt:
         born_at = BornAt(politician_id=politician.id, location_id=location.wikidata_id)
         db_session.add(born_at)
         db_session.commit()
-        db_session.refresh(born_at)
+        # Refresh born_at with location and wikidata_entity loaded
+        born_at = (
+            db_session.query(BornAt)
+            .options(selectinload(BornAt.location))
+            .filter_by(id=born_at.id)
+            .first()
+        )
 
         # Test politician relationship
         assert born_at.politician.id == politician.id
@@ -1117,7 +1125,7 @@ class TestBornAt:
 
         # Test location relationship
         assert born_at.location.wikidata_id == location.wikidata_id
-        assert born_at.location.name == "Tokyo"
+        assert born_at.location.wikidata_entity.name == "Tokyo"
 
         # Test reverse relationships
         assert len(politician.birthplaces) == 1
@@ -1134,8 +1142,7 @@ class TestBornAt:
         db_session.refresh(politician)
 
         # Create location
-        location = Location(name="Rome", wikidata_id="Q220")
-        db_session.add(location)
+        location = Location.create_with_entity(db_session, "Q220", "Rome")
         db_session.commit()
         db_session.refresh(location)
 

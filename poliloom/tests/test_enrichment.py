@@ -121,15 +121,12 @@ class TestEnrichment:
 
         assert properties is None
 
-    def test_extract_positions_success(
-        self, mock_openai_client, db_session, sample_position_data
-    ):
+    def test_extract_positions_success(self, mock_openai_client, db_session):
         """Test successful position extraction and mapping."""
         # Create position in database
-        position = Position(**sample_position_data)
-        # Mock the wikidata_classes relationship
-        position.wikidata_classes = []
-        db_session.add(position)
+        Position.create_with_entity(
+            db_session, "Q30185", "Test Position", embedding=[0.1] * 384
+        )
         db_session.commit()
 
         # Mock Stage 1: Free-form extraction
@@ -154,7 +151,7 @@ class TestEnrichment:
         )
         # Mock Stage 2: Mapping
         mock_parsed2 = Mock()
-        mock_parsed2.wikidata_position_qid = sample_position_data["wikidata_id"]
+        mock_parsed2.wikidata_position_qid = "Q30185"
 
         mock_response1 = Mock()
         mock_response1.output_parsed = mock_parsed1
@@ -177,7 +174,7 @@ class TestEnrichment:
 
         assert positions is not None
         assert len(positions) == 1
-        assert positions[0].name == "Mayor"
+        assert positions[0].wikidata_id == "Q30185"
         assert positions[0].start_date == "2020"
         assert positions[0].end_date == "2024"
 
@@ -195,15 +192,12 @@ class TestEnrichment:
 
         assert positions == []
 
-    def test_extract_birthplaces_success(
-        self, mock_openai_client, db_session, sample_location_data
-    ):
+    def test_extract_birthplaces_success(self, mock_openai_client, db_session):
         """Test successful birthplace extraction and mapping."""
         # Create location in database
-        location = Location(**sample_location_data)
-        # Mock the wikidata_classes relationship
-        location.wikidata_classes = []
-        db_session.add(location)
+        Location.create_with_entity(
+            db_session, "Q28513", "Test Location", embedding=[0.2] * 384
+        )
         db_session.commit()
 
         # Mock Stage 1: Free-form extraction
@@ -224,7 +218,7 @@ class TestEnrichment:
         )
         # Mock Stage 2: Mapping
         mock_parsed2 = Mock()
-        mock_parsed2.wikidata_location_qid = sample_location_data["wikidata_id"]
+        mock_parsed2.wikidata_location_qid = "Q28513"
 
         mock_response1 = Mock()
         mock_response1.output_parsed = mock_parsed1
@@ -247,7 +241,7 @@ class TestEnrichment:
 
         assert birthplaces is not None
         assert len(birthplaces) == 1
-        assert birthplaces[0].location_name == "Springfield, Illinois"
+        assert birthplaces[0].wikidata_id == "Q28513"
 
     def test_store_extracted_data_properties(
         self,
@@ -308,7 +302,6 @@ class TestEnrichment:
     def test_store_extracted_data_positions(
         self,
         db_session,
-        sample_mayor_of_springfield_position_data,
         sample_archived_page_data,
         sample_country_data,
     ):
@@ -317,9 +310,11 @@ class TestEnrichment:
         country = Country(**sample_country_data)
         politician = Politician(name="Test Politician", wikidata_id="Q123456")
         archived_page = ArchivedPage(**sample_archived_page_data)
-        position = Position(**sample_mayor_of_springfield_position_data)
+        position = Position.create_with_entity(
+            db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
+        )
 
-        db_session.add_all([country, politician, archived_page, position])
+        db_session.add_all([country, politician, archived_page])
         db_session.commit()
 
         # Add citizenship and Wikipedia link
@@ -336,7 +331,7 @@ class TestEnrichment:
 
         positions = [
             ExtractedPosition(
-                name="Mayor of Springfield",
+                wikidata_id="Q30185",
                 start_date="2020",
                 end_date="2024",
                 proof="served as Mayor",
@@ -379,9 +374,11 @@ class TestEnrichment:
         country = Country(**sample_country_data)
         politician = Politician(name="Test Politician", wikidata_id="Q123456")
         archived_page = ArchivedPage(**sample_archived_page_data)
-        location = Location(**sample_location_data)
+        location = Location.create_with_entity(
+            db_session, "Q28513", "Test Location", embedding=[0.2] * 384
+        )
 
-        db_session.add_all([country, politician, archived_page, location])
+        db_session.add_all([country, politician, archived_page])
         db_session.commit()
 
         # Add citizenship and Wikipedia link
@@ -397,9 +394,7 @@ class TestEnrichment:
         db_session.commit()
 
         birthplaces = [
-            ExtractedBirthplace(
-                location_name="Springfield, Illinois", proof="born in Springfield"
-            )
+            ExtractedBirthplace(wikidata_id="Q28513", proof="born in Springfield")
         ]
 
         success = store_extracted_data(
@@ -451,7 +446,7 @@ class TestEnrichment:
 
         positions = [
             ExtractedPosition(
-                name="Nonexistent Position",
+                wikidata_id="Q99999",
                 start_date="2020",
                 end_date="2024",
                 proof="proof text",
@@ -555,7 +550,6 @@ class TestEnrichment:
     def test_store_extracted_data_overlapping_position_timeframes(
         self,
         db_session,
-        sample_mayor_of_springfield_position_data,
         sample_archived_page_data,
         sample_country_data,
     ):
@@ -564,9 +558,11 @@ class TestEnrichment:
         country = Country(**sample_country_data)
         politician = Politician(name="Test Politician", wikidata_id="Q123456")
         archived_page = ArchivedPage(**sample_archived_page_data)
-        position = Position(**sample_mayor_of_springfield_position_data)
+        position = Position.create_with_entity(
+            db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
+        )
 
-        db_session.add_all([country, politician, archived_page, position])
+        db_session.add_all([country, politician, archived_page])
         db_session.commit()
 
         # Add citizenship and Wikipedia link
@@ -596,7 +592,7 @@ class TestEnrichment:
         # Try to add overlapping position with timeframe 2010-2018 (extends the end date)
         overlapping_positions = [
             ExtractedPosition(
-                name="Mayor of Springfield",
+                wikidata_id="Q30185",
                 start_date="2010",
                 end_date="2018",  # Extends beyond existing end date
                 proof="served as Mayor from 2010 to 2018",
@@ -630,7 +626,6 @@ class TestEnrichment:
     def test_store_extracted_data_completely_overlapping_position_timeframes(
         self,
         db_session,
-        sample_mayor_of_springfield_position_data,
         sample_archived_page_data,
         sample_country_data,
     ):
@@ -639,9 +634,11 @@ class TestEnrichment:
         country = Country(**sample_country_data)
         politician = Politician(name="Test Politician", wikidata_id="Q123456")
         archived_page = ArchivedPage(**sample_archived_page_data)
-        position = Position(**sample_mayor_of_springfield_position_data)
+        position = Position.create_with_entity(
+            db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
+        )
 
-        db_session.add_all([country, politician, archived_page, position])
+        db_session.add_all([country, politician, archived_page])
         db_session.commit()
 
         # Add citizenship and Wikipedia link
@@ -671,7 +668,7 @@ class TestEnrichment:
         # Try to add subset position with timeframe 2012-2015 (within existing period)
         subset_positions = [
             ExtractedPosition(
-                name="Mayor of Springfield",
+                wikidata_id="Q30185",
                 start_date="2012",
                 end_date="2015",  # Subset of existing timeframe
                 proof="served as Mayor from 2012 to 2015",
@@ -705,7 +702,6 @@ class TestEnrichment:
     def test_store_extracted_data_non_overlapping_position_timeframes(
         self,
         db_session,
-        sample_mayor_of_springfield_position_data,
         sample_archived_page_data,
         sample_country_data,
     ):
@@ -714,9 +710,11 @@ class TestEnrichment:
         country = Country(**sample_country_data)
         politician = Politician(name="Test Politician", wikidata_id="Q123456")
         archived_page = ArchivedPage(**sample_archived_page_data)
-        position = Position(**sample_mayor_of_springfield_position_data)
+        position = Position.create_with_entity(
+            db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
+        )
 
-        db_session.add_all([country, politician, archived_page, position])
+        db_session.add_all([country, politician, archived_page])
         db_session.commit()
 
         # Add citizenship and Wikipedia link
@@ -746,7 +744,7 @@ class TestEnrichment:
         # Try to add non-overlapping position with timeframe 2020-2024
         non_overlapping_positions = [
             ExtractedPosition(
-                name="Mayor of Springfield",
+                wikidata_id="Q30185",
                 start_date="2020",
                 end_date="2024",  # Non-overlapping period
                 proof="served as Mayor again from 2020 to 2024",
@@ -788,7 +786,6 @@ class TestEnrichment:
     def test_store_extracted_data_partial_overlap_scenarios(
         self,
         db_session,
-        sample_mayor_of_springfield_position_data,
         sample_archived_page_data,
         sample_country_data,
     ):
@@ -797,9 +794,11 @@ class TestEnrichment:
         country = Country(**sample_country_data)
         politician = Politician(name="Test Politician", wikidata_id="Q123456")
         archived_page = ArchivedPage(**sample_archived_page_data)
-        position = Position(**sample_mayor_of_springfield_position_data)
+        position = Position.create_with_entity(
+            db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
+        )
 
-        db_session.add_all([country, politician, archived_page, position])
+        db_session.add_all([country, politician, archived_page])
         db_session.commit()
 
         # Add citizenship and Wikipedia link
@@ -829,7 +828,7 @@ class TestEnrichment:
 
         overlapping_positions = [
             ExtractedPosition(
-                name="Mayor of Springfield",
+                wikidata_id="Q30185",
                 start_date="2014",
                 end_date="2018",
                 proof="served as Mayor from 2014 to 2018",
@@ -873,7 +872,6 @@ class TestEnrichment:
     def test_store_extracted_data_gap_between_periods(
         self,
         db_session,
-        sample_mayor_of_springfield_position_data,
         sample_archived_page_data,
         sample_country_data,
     ):
@@ -882,9 +880,11 @@ class TestEnrichment:
         country = Country(**sample_country_data)
         politician = Politician(name="Test Politician", wikidata_id="Q123456")
         archived_page = ArchivedPage(**sample_archived_page_data)
-        position = Position(**sample_mayor_of_springfield_position_data)
+        position = Position.create_with_entity(
+            db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
+        )
 
-        db_session.add_all([country, politician, archived_page, position])
+        db_session.add_all([country, politician, archived_page])
         db_session.commit()
 
         # Add citizenship and Wikipedia link
@@ -915,7 +915,7 @@ class TestEnrichment:
 
         bridging_positions = [
             ExtractedPosition(
-                name="Mayor of Springfield",
+                wikidata_id="Q30185",
                 start_date="2011",
                 end_date="2015",
                 proof="served as Mayor from 2011 to 2015",
@@ -958,7 +958,6 @@ class TestEnrichment:
     def test_store_extracted_data_precision_preference(
         self,
         db_session,
-        sample_mayor_of_springfield_position_data,
         sample_archived_page_data,
         sample_country_data,
     ):
@@ -967,9 +966,11 @@ class TestEnrichment:
         country = Country(**sample_country_data)
         politician = Politician(name="Test Politician", wikidata_id="Q123456")
         archived_page = ArchivedPage(**sample_archived_page_data)
-        position = Position(**sample_mayor_of_springfield_position_data)
+        position = Position.create_with_entity(
+            db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
+        )
 
-        db_session.add_all([country, politician, archived_page, position])
+        db_session.add_all([country, politician, archived_page])
         db_session.commit()
 
         # Add citizenship and Wikipedia link
@@ -999,7 +1000,7 @@ class TestEnrichment:
         # Extract higher precision data for same period
         high_precision_positions = [
             ExtractedPosition(
-                name="Mayor of Springfield",
+                wikidata_id="Q30185",
                 start_date="1962-06-15",  # Full date (precision 11)
                 end_date="1962-06-15",  # Full date (precision 11)
                 proof="served as Mayor on June 15, 1962",
@@ -1031,7 +1032,6 @@ class TestEnrichment:
     def test_store_extracted_data_precision_preference_skip_lower(
         self,
         db_session,
-        sample_mayor_of_springfield_position_data,
         sample_archived_page_data,
         sample_country_data,
     ):
@@ -1040,9 +1040,11 @@ class TestEnrichment:
         country = Country(**sample_country_data)
         politician = Politician(name="Test Politician", wikidata_id="Q123456")
         archived_page = ArchivedPage(**sample_archived_page_data)
-        position = Position(**sample_mayor_of_springfield_position_data)
+        position = Position.create_with_entity(
+            db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
+        )
 
-        db_session.add_all([country, politician, archived_page, position])
+        db_session.add_all([country, politician, archived_page])
         db_session.commit()
 
         # Add citizenship and Wikipedia link
@@ -1072,7 +1074,7 @@ class TestEnrichment:
         # Try to extract lower precision data for same period
         low_precision_positions = [
             ExtractedPosition(
-                name="Mayor of Springfield",
+                wikidata_id="Q30185",
                 start_date="1962",  # Year only (precision 9)
                 end_date="1962",  # Year only (precision 9)
                 proof="served as Mayor in 1962",

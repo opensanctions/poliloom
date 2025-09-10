@@ -44,10 +44,10 @@ def politician_with_unevaluated_data(db_session):
         url="https://example.com/test",
         content_hash="test123",
     )
-    position = Position(name="Mayor", wikidata_id="Q30185")
-    location = Location(name="Springfield", wikidata_id="Q28513")
+    position = Position.create_with_entity(db_session, "Q30185", "Mayor")
+    location = Location.create_with_entity(db_session, "Q28513", "Springfield")
 
-    db_session.add_all([archived_page, position, location])
+    db_session.add(archived_page)
     db_session.flush()
 
     # Create politician
@@ -125,9 +125,9 @@ def politician_with_evaluated_data(db_session):
         url="https://example.com/test2",
         content_hash="test456",
     )
-    position = Position(name="Governor", wikidata_id="Q30186")
+    Position.create_with_entity(db_session, "Q30186", "Governor")
 
-    db_session.add_all([archived_page, position])
+    db_session.add(archived_page)
     db_session.flush()
 
     # Create politician
@@ -161,10 +161,9 @@ def politician_with_evaluated_data(db_session):
 @pytest.fixture
 def politician_with_only_wikidata(db_session):
     """Create a politician with only Wikidata (non-extracted) data."""
-    position = Position(name="Senator", wikidata_id="Q30187")
-    location = Location(name="Chicago", wikidata_id="Q1297")
+    position = Position.create_with_entity(db_session, "Q30187", "Senator")
+    Location.create_with_entity(db_session, "Q1297", "Chicago")
 
-    db_session.add_all([position, location])
     db_session.flush()
 
     politician = Politician(name="Wikidata Only Politician", wikidata_id="Q345678")
@@ -363,9 +362,9 @@ class TestGetPoliticiansEndpoint:
             url="https://example.com/mixed",
             content_hash="mixed123",
         )
-        position = Position(name="Mayor", wikidata_id="Q30185")
+        position = Position.create_with_entity(db_session, "Q30185", "Mayor")
 
-        db_session.add_all([archived_page, position])
+        db_session.add(archived_page)
         db_session.flush()
 
         politician = Politician(name="Mixed Evaluation", wikidata_id="Q999999")
@@ -421,9 +420,9 @@ class TestGetPoliticiansEndpoint:
             url="https://example.com/partial",
             content_hash="partial123",
         )
-        location = Location(name="Boston", wikidata_id="Q100")
+        location = Location.create_with_entity(db_session, "Q100", "Boston")
 
-        db_session.add_all([archived_page, location])
+        db_session.add(archived_page)
         db_session.flush()
 
         # Politician with only unevaluated birthplace

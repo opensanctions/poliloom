@@ -14,8 +14,9 @@ from ..models import (
     Position,
     Location,
     Country,
+    WikidataEntity,
 )
-from ..wikidata_entity import WikidataEntity
+from ..wikidata_entity import WikidataEntity as WikidataEntityProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -42,23 +43,39 @@ def _insert_positions_batch(positions: list[dict], engine) -> None:
         return
 
     with Session(engine) as session:
-        # Insert positions first
+        # Insert WikidataEntity records first
+        entity_data = [
+            {
+                "wikidata_id": p["wikidata_id"],
+                "name": p["name"],
+            }
+            for p in positions
+        ]
+
+        stmt = insert(WikidataEntity).values(entity_data)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["wikidata_id"],
+            set_={
+                "name": stmt.excluded.name,
+            },
+        )
+        session.execute(stmt)
+
+        # Insert positions referencing the entities
         stmt = insert(Position).values(
             [
                 {
                     "wikidata_id": p["wikidata_id"],
-                    "name": p["name"],
                     "embedding": None,  # Will be generated later
                 }
                 for p in positions
             ]
         )
 
-        # On conflict, update the name and clear embedding (since embedding depends on name)
+        # On conflict, clear embedding (since embedding depends on name)
         stmt = stmt.on_conflict_do_update(
             index_elements=["wikidata_id"],
             set_={
-                "name": stmt.excluded.name,
                 "embedding": None,  # Clear embedding when name changes
             },
         )
@@ -75,23 +92,39 @@ def _insert_locations_batch(locations: list[dict], engine) -> None:
         return
 
     with Session(engine) as session:
-        # Insert locations first
+        # Insert WikidataEntity records first
+        entity_data = [
+            {
+                "wikidata_id": loc["wikidata_id"],
+                "name": loc["name"],
+            }
+            for loc in locations
+        ]
+
+        stmt = insert(WikidataEntity).values(entity_data)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["wikidata_id"],
+            set_={
+                "name": stmt.excluded.name,
+            },
+        )
+        session.execute(stmt)
+
+        # Insert locations referencing the entities
         stmt = insert(Location).values(
             [
                 {
                     "wikidata_id": loc["wikidata_id"],
-                    "name": loc["name"],
                     "embedding": None,  # Will be generated later
                 }
                 for loc in locations
             ]
         )
 
-        # On conflict, update the name and clear embedding (since embedding depends on name)
+        # On conflict, clear embedding (since embedding depends on name)
         stmt = stmt.on_conflict_do_update(
             index_elements=["wikidata_id"],
             set_={
-                "name": stmt.excluded.name,
                 "embedding": None,  # Clear embedding when name changes
             },
         )
@@ -163,7 +196,7 @@ def _process_supporting_entities_chunk(
         for entity in dump_reader.read_chunk_entities(
             dump_file_path, start_byte, end_byte
         ):
-            entity: WikidataEntity
+            entity: WikidataEntityProcessor
             entity_count += 1
 
             # Progress reporting for large chunks
@@ -292,7 +325,7 @@ def _query_hierarchy_descendants(
             WHERE wikidata_id = ANY(:root_ids)
             UNION
             -- Recursive case: find all children
-            SELECT sr.child_class_id AS wikidata_id
+            SELECT sr.child_entity_id AS wikidata_id
             FROM wikidata_relations sr
             JOIN descendants d ON sr.parent_entity_id = d.wikidata_id
         ),
@@ -303,7 +336,7 @@ def _query_hierarchy_descendants(
             WHERE wikidata_id = ANY(:ignore_ids)
             UNION
             -- Recursive case: find all children of ignored IDs
-            SELECT sr.child_class_id AS wikidata_id
+            SELECT sr.child_entity_id AS wikidata_id
             FROM wikidata_relations sr
             JOIN ignored_descendants id ON sr.parent_entity_id = id.wikidata_id
         )

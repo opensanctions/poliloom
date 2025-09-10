@@ -12,8 +12,6 @@ from alembic import command
 
 from poliloom.models import (
     Base,
-    Position,
-    Location,
     PropertyType,
 )
 from poliloom.enrichment import generate_embedding
@@ -103,17 +101,7 @@ def sample_country_data():
 @pytest.fixture
 def sample_position_data():
     """Return data for creating a position."""
-    return {"name": "Mayor", "wikidata_id": "Q30185", "embedding": [0.1] * 384}
-
-
-@pytest.fixture
-def sample_mayor_of_springfield_position_data():
-    """Return data for creating a 'Mayor of Springfield' position."""
-    return {
-        "name": "Mayor of Springfield",
-        "wikidata_id": "Q30185",
-        "embedding": [0.1] * 384,
-    }
+    return {"wikidata_id": "Q30185"}
 
 
 @pytest.fixture
@@ -140,7 +128,6 @@ def sample_holds_position_data():
 def sample_location_data():
     """Return data for creating a location with embedding."""
     return {
-        "name": "Springfield, Illinois",
         "wikidata_id": "Q28513",
         "embedding": [0.2] * 384,  # Mock embedding
     }
@@ -174,32 +161,6 @@ def db_session():
     """Provide a database session for tests."""
     with Session(get_engine()) as session:
         yield session
-
-
-@pytest.fixture
-def position_with_embedding():
-    """Fixture for creating a Position with embedding."""
-
-    def _create_position_with_embedding(name, wikidata_id):
-        """Create a Position with embedding."""
-        position = Position(name=name, wikidata_id=wikidata_id)
-        position.embedding = generate_embedding(name)
-        return position
-
-    return _create_position_with_embedding
-
-
-@pytest.fixture
-def location_with_embedding():
-    """Fixture for creating a Location with embedding."""
-
-    def _create_location_with_embedding(name, wikidata_id):
-        """Create a Location with embedding."""
-        location = Location(name=name, wikidata_id=wikidata_id)
-        location.embedding = generate_embedding(name)
-        return location
-
-    return _create_location_with_embedding
 
 
 @pytest.fixture

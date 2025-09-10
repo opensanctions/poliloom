@@ -72,7 +72,7 @@ class ExtractedProperty(BaseModel):
 class ExtractedPosition(BaseModel):
     """Schema for extracted position data."""
 
-    name: str
+    wikidata_id: str
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     proof: str
@@ -86,7 +86,7 @@ class ExtractedPosition(BaseModel):
 class ExtractedBirthplace(BaseModel):
     """Schema for extracted birthplace data."""
 
-    location_name: str
+    wikidata_id: str
     proof: str
 
 
@@ -409,7 +409,7 @@ Extract all political positions from the provided content following these rules:
                 if position:
                     mapped_positions.append(
                         ExtractedPosition(
-                            name=position.name,
+                            wikidata_id=position.wikidata_id,
                             start_date=free_pos.start_date,
                             end_date=free_pos.end_date,
                             proof=free_pos.proof,
@@ -559,7 +559,7 @@ Extract birthplace information following these rules:
                 if location:
                     mapped_birthplaces.append(
                         ExtractedBirthplace(
-                            location_name=location.name, proof=free_birth.proof
+                            wikidata_id=location.wikidata_id, proof=free_birth.proof
                         )
                     )
                     logger.debug(
@@ -923,13 +923,17 @@ def store_extracted_data(
         # Store positions - only link to existing positions
         if positions:
             for pos_data in positions:
-                if pos_data.name:
+                if pos_data.wikidata_id:
                     # Only find existing positions, don't create new ones
-                    position = db.query(Position).filter_by(name=pos_data.name).first()
+                    position = (
+                        db.query(Position)
+                        .filter_by(wikidata_id=pos_data.wikidata_id)
+                        .first()
+                    )
 
                     if not position:
                         logger.warning(
-                            f"Position '{pos_data.name}' not found in database for {politician.name} - skipping"
+                            f"Position '{pos_data.wikidata_id}' not found in database for {politician.name} - skipping"
                         )
                         continue
 
@@ -976,13 +980,13 @@ def store_extracted_data(
                             db.flush()
 
                             logger.info(
-                                f"Updated position with higher precision: '{pos_data.name}' ({position.wikidata_id}) "
+                                f"Updated position with higher precision: '{position.name}' ({position.wikidata_id}) "
                                 f"from ({old_range}) to ({new_range}) for {politician.name}"
                             )
                         else:
                             # Existing data has equal or higher precision - skip new data
                             logger.info(
-                                f"Skipped position with equal/lower precision: '{pos_data.name}' ({position.wikidata_id}) "
+                                f"Skipped position with equal/lower precision: '{position.name}' ({position.wikidata_id}) "
                                 f"({pos_data.start_date or 'unknown'}-{pos_data.end_date or 'present'}) "
                                 f"for {politician.name}"
                             )
@@ -1010,23 +1014,23 @@ def store_extracted_data(
                             date_range = f" (until {pos_data.end_date})"
 
                         logger.info(
-                            f"Added new position: '{pos_data.name}' ({position.wikidata_id}){date_range} for {politician.name}"
+                            f"Added new position: '{position.name}' ({position.wikidata_id}){date_range} for {politician.name}"
                         )
 
         # Store birthplaces - only link to existing locations
         if birthplaces:
             for birth_data in birthplaces:
-                if birth_data.location_name:
+                if birth_data.wikidata_id:
                     # Only find existing locations, don't create new ones
                     location = (
                         db.query(Location)
-                        .filter_by(name=birth_data.location_name)
+                        .filter_by(wikidata_id=birth_data.wikidata_id)
                         .first()
                     )
 
                     if not location:
                         logger.warning(
-                            f"Location '{birth_data.location_name}' not found in database for {politician.name} - skipping"
+                            f"Location '{birth_data.wikidata_id}' not found in database for {politician.name} - skipping"
                         )
                         continue
 
@@ -1050,7 +1054,7 @@ def store_extracted_data(
                         db.add(born_at)
                         db.flush()
                         logger.info(
-                            f"Added new birthplace: '{birth_data.location_name}' ({location.wikidata_id}) for {politician.name}"
+                            f"Added new birthplace: '{location.name}' ({location.wikidata_id}) for {politician.name}"
                         )
 
         return True

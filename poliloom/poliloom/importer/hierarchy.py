@@ -240,7 +240,9 @@ def import_hierarchy_trees(
 
         with Session(get_engine()) as session:
             stmt = insert(WikidataRelation).values(batch)
-            stmt = stmt.on_conflict_do_nothing(constraint="uq_wikidata_relation")
+            stmt = stmt.on_conflict_do_nothing(
+                index_elements=["parent_entity_id", "child_entity_id", "relation_type"]
+            )
             session.execute(stmt)
             session.commit()
 
