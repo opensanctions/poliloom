@@ -229,63 +229,6 @@ def _process_supporting_entities_chunk(
     return counts, entity_count
 
 
-def _query_hierarchy_descendants(
-    root_ids: List[str], session: Session, ignore_ids: List[str] = None
-) -> Set[str]:
-    """
-    Query all descendants of multiple root entities from database using recursive SQL.
-    Only returns classes that have names and excludes ignored IDs and their descendants.
-
-    Args:
-        root_ids: List of root entity QIDs
-        session: Database session
-        ignore_ids: List of entity QIDs to exclude along with their descendants
-
-    Returns:
-        Set of all descendant QIDs (including the roots) that have names
-    """
-    if not root_ids:
-        return set()
-
-    ignore_ids = ignore_ids or []
-
-    # Use recursive CTEs - one for descendants, one for ignored descendants
-    sql = text(
-        """
-        WITH RECURSIVE descendants AS (
-            -- Base case: start with all root entities
-            SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
-            FROM wikidata_entities 
-            WHERE wikidata_id = ANY(:root_ids)
-            UNION
-            -- Recursive case: find all children
-            SELECT sr.child_entity_id AS wikidata_id
-            FROM wikidata_relations sr
-            JOIN descendants d ON sr.parent_entity_id = d.wikidata_id
-        ),
-        ignored_descendants AS (
-            -- Base case: start with ignored IDs
-            SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
-            FROM wikidata_entities 
-            WHERE wikidata_id = ANY(:ignore_ids)
-            UNION
-            -- Recursive case: find all children of ignored IDs
-            SELECT sr.child_entity_id AS wikidata_id
-            FROM wikidata_relations sr
-            JOIN ignored_descendants id ON sr.parent_entity_id = id.wikidata_id
-        )
-        SELECT DISTINCT d.wikidata_id 
-        FROM descendants d
-        JOIN wikidata_entities wc ON d.wikidata_id = wc.wikidata_id
-        WHERE wc.name IS NOT NULL
-        AND d.wikidata_id NOT IN (SELECT wikidata_id FROM ignored_descendants)
-    """
-    )
-
-    result = session.execute(sql, {"root_ids": root_ids, "ignore_ids": ignore_ids})
-    return {row[0] for row in result.fetchall()}
-
-
 def import_entities(
     dump_file_path: str,
     batch_size: int = 1000,
@@ -320,11 +263,11 @@ def import_entities(
             "Q120560",  # minor basilica
             "Q2977",  # cathedral
         ]
-        position_classes = _query_hierarchy_descendants(
-            position_root_ids, session, ignore_ids
+        position_classes = WikidataEntity.query_hierarchy_descendants(
+            session, position_root_ids, ignore_ids
         )
         location_root_ids = ["Q27096213"]  # geographic entity
-        location_classes = _query_hierarchy_descendants(location_root_ids, session)
+        location_classes = WikidataEntity.query_hierarchy_descendants(session, location_root_ids)
 
         logger.info(
             f"Filtering for {len(position_classes)} position types and {len(location_classes)} location types"

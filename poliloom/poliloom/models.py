@@ -3,6 +3,7 @@
 import hashlib
 from datetime import datetime, timezone
 from enum import Enum
+from typing import List, Set
 from sqlalchemy import (
     Column,
     String,
@@ -16,6 +17,7 @@ from sqlalchemy import (
     func,
     Enum as SQLEnum,
 )
+from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy import event
@@ -641,6 +643,77 @@ class WikidataEntity(Base, TimestampMixin):
     location = relationship("Location", back_populates="wikidata_entity")
     position = relationship("Position", back_populates="wikidata_entity")
     country = relationship("Country", back_populates="wikidata_entity")
+
+    @classmethod
+    def query_hierarchy_descendants(
+        cls,
+        session: Session,
+        root_ids: List[str],
+        ignore_ids: List[str] = None,
+        relation_type: RelationType = RelationType.SUBCLASS_OF,
+    ) -> Set[str]:
+        """
+        Query all descendants of multiple root entities from database using recursive SQL.
+        Only returns classes that have names and excludes ignored IDs and their descendants.
+
+        Args:
+            session: Database session
+            root_ids: List of root entity QIDs
+            ignore_ids: List of entity QIDs to exclude along with their descendants
+            relation_type: Type of relation to follow (defaults to SUBCLASS_OF)
+
+        Returns:
+            Set of all descendant QIDs (including the roots) that have names
+        """
+        if not root_ids:
+            return set()
+
+        ignore_ids = ignore_ids or []
+
+        # Use recursive CTEs - one for descendants, one for ignored descendants
+        sql = text(
+            """
+            WITH RECURSIVE descendants AS (
+                -- Base case: start with all root entities
+                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
+                FROM wikidata_entities 
+                WHERE wikidata_id = ANY(:root_ids)
+                UNION
+                -- Recursive case: find all children
+                SELECT sr.child_entity_id AS wikidata_id
+                FROM wikidata_relations sr
+                JOIN descendants d ON sr.parent_entity_id = d.wikidata_id
+                WHERE sr.relation_type = :relation_type
+            ),
+            ignored_descendants AS (
+                -- Base case: start with ignored IDs
+                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
+                FROM wikidata_entities 
+                WHERE wikidata_id = ANY(:ignore_ids)
+                UNION
+                -- Recursive case: find all children of ignored IDs
+                SELECT sr.child_entity_id AS wikidata_id
+                FROM wikidata_relations sr
+                JOIN ignored_descendants id ON sr.parent_entity_id = id.wikidata_id
+                WHERE sr.relation_type = :relation_type
+            )
+            SELECT DISTINCT d.wikidata_id 
+            FROM descendants d
+            JOIN wikidata_entities wc ON d.wikidata_id = wc.wikidata_id
+            WHERE wc.name IS NOT NULL
+            AND d.wikidata_id NOT IN (SELECT wikidata_id FROM ignored_descendants)
+        """
+        )
+
+        result = session.execute(
+            sql,
+            {
+                "root_ids": root_ids,
+                "ignore_ids": ignore_ids,
+                "relation_type": relation_type.name,
+            },
+        )
+        return {row[0] for row in result.fetchall()}
 
 
 class WikidataRelation(Base, TimestampMixin):

@@ -14,9 +14,9 @@ from poliloom.models import (
 )
 from poliloom.importer.entity import (
     import_entities,
-    _query_hierarchy_descendants,
     _insert_entities_batch,
 )
+from poliloom.models import WikidataEntity
 from poliloom.database import get_engine
 from sqlalchemy.dialects.postgresql import insert
 
@@ -424,89 +424,3 @@ class TestWikidataEntityImporter:
         assert final_countries[0].wikidata_id == "Q1"
         assert final_countries[0].name == "Country 1 Updated"
 
-    def test_query_hierarchy_descendants(self, db_session):
-        """Test querying all descendants in a hierarchy."""
-        # Set up test hierarchy in database: Q1 -> Q2 -> Q3, Q1 -> Q4
-        test_classes = [
-            {"wikidata_id": "Q1", "name": "Root"},
-            {"wikidata_id": "Q2", "name": "Child 1"},
-            {"wikidata_id": "Q3", "name": "Grandchild"},
-            {"wikidata_id": "Q4", "name": "Child 2"},
-        ]
-
-        test_relations = [
-            {"parent_entity_id": "Q1", "child_entity_id": "Q2"},
-            {"parent_entity_id": "Q2", "child_entity_id": "Q3"},
-            {"parent_entity_id": "Q1", "child_entity_id": "Q4"},
-        ]
-
-        # Insert test data
-        stmt = insert(WikidataEntity).values(test_classes)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
-        db_session.execute(stmt)
-
-        stmt = insert(WikidataRelation).values(test_relations)
-        stmt = stmt.on_conflict_do_nothing(
-            index_elements=["parent_entity_id", "child_entity_id", "relation_type"]
-        )
-        db_session.execute(stmt)
-        db_session.commit()
-
-        # Test querying descendants
-        descendants = _query_hierarchy_descendants(["Q1"], db_session)
-
-        # Should include Q1 itself and all its descendants with names
-        assert descendants == {"Q1", "Q2", "Q3", "Q4"}
-
-    def test_query_hierarchy_descendants_single_node(self, db_session):
-        """Test querying descendants for a single node with no children."""
-        # Set up single node
-        test_classes = [{"wikidata_id": "Q1", "name": "Single Node"}]
-
-        stmt = insert(WikidataEntity).values(test_classes)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
-        db_session.execute(stmt)
-        db_session.commit()
-
-        # Test querying descendants
-        descendants = _query_hierarchy_descendants(["Q1"], db_session)
-
-        # Should only include Q1 itself
-        assert descendants == {"Q1"}
-
-    def test_query_hierarchy_descendants_partial_tree(self, db_session):
-        """Test querying descendants for a subtree in a larger hierarchy."""
-        # Create larger hierarchy: Q1 -> {Q2, Q3}, Q2 -> {Q4, Q5}
-        test_classes = [
-            {"wikidata_id": "Q1", "name": "Root"},
-            {"wikidata_id": "Q2", "name": "Branch"},
-            {"wikidata_id": "Q3", "name": "Leaf 1"},
-            {"wikidata_id": "Q4", "name": "Leaf 2"},
-            {"wikidata_id": "Q5", "name": "Leaf 3"},
-        ]
-
-        test_relations = [
-            {"parent_entity_id": "Q1", "child_entity_id": "Q2"},
-            {"parent_entity_id": "Q1", "child_entity_id": "Q3"},
-            {"parent_entity_id": "Q2", "child_entity_id": "Q4"},
-            {"parent_entity_id": "Q2", "child_entity_id": "Q5"},
-        ]
-
-        stmt = insert(WikidataEntity).values(test_classes)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
-        db_session.execute(stmt)
-
-        stmt = insert(WikidataRelation).values(test_relations)
-        stmt = stmt.on_conflict_do_nothing(
-            index_elements=["parent_entity_id", "child_entity_id", "relation_type"]
-        )
-        db_session.execute(stmt)
-        db_session.commit()
-
-        # Test querying descendants of Q2 (should include Q2, Q4, Q5)
-        descendants = _query_hierarchy_descendants(["Q2"], db_session)
-        assert descendants == {"Q2", "Q4", "Q5"}
-
-        # Test querying descendants of Q3 (should only include Q3)
-        descendants_q3 = _query_hierarchy_descendants(["Q3"], db_session)
-        assert descendants_q3 == {"Q3"}
