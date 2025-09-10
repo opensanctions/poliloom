@@ -146,7 +146,7 @@ def _process_supporting_entities_chunk(
             all_class_ids = instance_ids.union(subclass_ids)
 
             if any(class_id in shared_position_classes for class_id in all_class_ids):
-                positions.append(entity_data)
+                positions.append(entity_data.copy())
                 counts["positions"] += 1
 
                 # Extract relations for this position
@@ -154,7 +154,7 @@ def _process_supporting_entities_chunk(
                 position_relations.extend(entity_relations)
 
             if any(class_id in shared_location_classes for class_id in all_class_ids):
-                locations.append(entity_data)
+                locations.append(entity_data.copy())
                 counts["locations"] += 1
 
                 # Extract relations for this location
@@ -175,8 +175,11 @@ def _process_supporting_entities_chunk(
                         break
                     except (KeyError, TypeError):
                         continue
-                entity_data["iso_code"] = iso_code
-                countries.append(entity_data)
+
+                # Create separate copy for countries with iso_code
+                country_data = entity_data.copy()
+                country_data["iso_code"] = iso_code
+                countries.append(country_data)
                 counts["countries"] += 1
 
                 # Extract relations for this country
