@@ -16,7 +16,6 @@ from poliloom.importer.entity import (
     import_entities,
     _insert_entities_batch,
 )
-from poliloom.models import WikidataEntity
 from poliloom.database import get_engine
 from sqlalchemy.dialects.postgresql import insert
 
@@ -423,4 +422,3 @@ class TestWikidataEntityImporter:
         assert len(final_countries) == 1
         assert final_countries[0].wikidata_id == "Q1"
         assert final_countries[0].name == "Country 1 Updated"
-

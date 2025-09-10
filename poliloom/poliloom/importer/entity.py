@@ -2,9 +2,8 @@
 
 import logging
 import multiprocessing as mp
-from typing import Dict, Set, Tuple, List
+from typing import Dict, Tuple
 
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 
@@ -267,7 +266,9 @@ def import_entities(
             session, position_root_ids, ignore_ids
         )
         location_root_ids = ["Q27096213"]  # geographic entity
-        location_classes = WikidataEntity.query_hierarchy_descendants(session, location_root_ids)
+        location_classes = WikidataEntity.query_hierarchy_descendants(
+            session, location_root_ids
+        )
 
         logger.info(
             f"Filtering for {len(position_classes)} position types and {len(location_classes)} location types"

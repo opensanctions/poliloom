@@ -1,6 +1,5 @@
 """Tests for WikidataEntity model."""
 
-import pytest
 from sqlalchemy.dialects.postgresql import insert
 
 from poliloom.models import WikidataEntity, WikidataRelation, RelationType
@@ -106,8 +105,16 @@ class TestWikidataEntity:
         ]
 
         test_relations = [
-            {"parent_entity_id": "Q1", "child_entity_id": "Q2", "relation_type": RelationType.SUBCLASS_OF},
-            {"parent_entity_id": "Q1", "child_entity_id": "Q3", "relation_type": RelationType.INSTANCE_OF},
+            {
+                "parent_entity_id": "Q1",
+                "child_entity_id": "Q2",
+                "relation_type": RelationType.SUBCLASS_OF,
+            },
+            {
+                "parent_entity_id": "Q1",
+                "child_entity_id": "Q3",
+                "relation_type": RelationType.INSTANCE_OF,
+            },
         ]
 
         stmt = insert(WikidataEntity).values(test_classes)
@@ -122,7 +129,9 @@ class TestWikidataEntity:
         db_session.commit()
 
         # Test querying with SUBCLASS_OF relation type (default)
-        descendants_subclass = WikidataEntity.query_hierarchy_descendants(db_session, ["Q1"])
+        descendants_subclass = WikidataEntity.query_hierarchy_descendants(
+            db_session, ["Q1"]
+        )
         assert descendants_subclass == {"Q1", "Q2"}
 
         # Test querying with INSTANCE_OF relation type
