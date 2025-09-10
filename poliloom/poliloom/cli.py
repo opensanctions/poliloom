@@ -7,7 +7,6 @@ from sqlalchemy.orm import joinedload
 from datetime import datetime, timezone
 import httpx
 from typing import Optional
-from sqlalchemy import update, bindparam
 from poliloom.enrichment import enrich_politician_from_wikipedia
 from poliloom.storage import StorageFactory
 from poliloom.importer.hierarchy import import_hierarchy_trees
@@ -546,12 +545,12 @@ def show_politician(wikidata_id):
 @main.command("embed-entities")
 @click.option(
     "--batch-size",
-    default=2000,
+    default=8192,
     help="Number of entities to read from DB per batch",
 )
 @click.option(
     "--encode-batch-size",
-    default=1024,
+    default=2048,
     help="Number of texts to encode at once (CPU or GPU)",
 )
 def embed_entities(batch_size, encode_batch_size):
@@ -587,50 +586,34 @@ def embed_entities(batch_size, encode_batch_size):
                 click.echo(f"Found {total_count} {entity_name} without embeddings")
                 processed = 0
 
-                # Deterministic keyset pagination by primary key to avoid rescans
-                last_id = None
+                # Process entities in batches
                 while True:
-                    q = session.query(model_class.wikidata_id, model_class.name).filter(
-                        model_class.embedding.is_(None)
+                    # Query full ORM objects to use the name property
+                    batch = (
+                        session.query(model_class)
+                        .filter(model_class.embedding.is_(None))
+                        .limit(batch_size)
+                        .all()
                     )
-                    if last_id is not None:
-                        q = q.filter(model_class.wikidata_id > last_id)
-                    batch = q.order_by(model_class.wikidata_id).limit(batch_size).all()
 
                     if not batch:
                         break
 
-                    wikidata_ids = [row[0] for row in batch]
-                    names = [row[1] for row in batch]
+                    # Use the name property from ORM objects
+                    names = [entity.name for entity in batch]
 
                     # Generate embeddings (typed lists). Use encode_batch_size for both CPU/GPU
                     embeddings = model.encode(
                         names, convert_to_tensor=False, batch_size=encode_batch_size
                     )
 
-                    # Update using typed executemany with pgvector adapter (no casts)
-                    params = [
-                        {
-                            "pk": wid,
-                            "embedding": emb.tolist()
-                            if hasattr(emb, "tolist")
-                            else emb,
-                        }
-                        for wid, emb in zip(wikidata_ids, embeddings)
-                    ]
+                    # Update embeddings on the ORM objects
+                    for entity, embedding in zip(batch, embeddings):
+                        entity.embedding = embedding
 
-                    table = model_class.__table__
-                    stmt = (
-                        update(table)
-                        .where(table.c.wikidata_id == bindparam("pk"))
-                        .values(embedding=bindparam("embedding"))
-                        .execution_options(synchronize_session=False)
-                    )
-                    session.execute(stmt, params)
                     session.commit()
 
                     processed += len(batch)
-                    last_id = wikidata_ids[-1]
                     click.echo(f"Processed {processed}/{total_count} {entity_name}")
 
                 click.echo(f"✅ Generated embeddings for {processed} {entity_name}")
