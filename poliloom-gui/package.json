@@ -13,7 +13,7 @@
     "test:ui": "vitest --ui"
   },
   "dependencies": {
-    "next": "15.4.6",
+    "next": "15.5.3",
     "next-auth": "^5.0.0-beta.25",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
@@ -21,14 +21,14 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
-    "@testing-library/jest-dom": "^6.6.4",
+    "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^5.0.0",
+    "@vitejs/plugin-react": "^5.0.2",
     "eslint": "^9",
-    "eslint-config-next": "15.4.6",
+    "eslint-config-next": "15.5.3",
     "jsdom": "^26.1.0",
     "tailwindcss": "^4",
     "typescript": "^5",
