@@ -6,8 +6,8 @@ export function useAuthSession() {
   
   useEffect(() => {
     if (session?.error === "RefreshAccessTokenError") {
-      // Force sign in to resolve error
-      signIn()
+      // Force sign in to resolve error - redirect directly to MediaWiki
+      signIn("wikimedia")
     }
   }, [session])
   
