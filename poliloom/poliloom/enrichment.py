@@ -2,6 +2,7 @@
 
 import os
 import logging
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy.orm import Session
@@ -19,6 +20,8 @@ from .models import (
     Location,
     BornAt,
     ArchivedPage,
+    WikidataRelation,
+    RelationType,
 )
 from . import archive
 from .database import get_engine
@@ -389,13 +392,7 @@ Extract all political positions from the provided content following these rules:
                 {
                     "qid": pos.wikidata_id,
                     "name": pos.name,
-                    "classes": [
-                        rel.parent_entity.name
-                        for rel in pos.wikidata_entity.parent_relations
-                        if rel.parent_entity and rel.parent_entity.name
-                    ]
-                    if pos.wikidata_entity
-                    else [],
+                    "description": build_entity_description(db, pos),
                 }
                 for pos in similar_positions
             ]
@@ -536,13 +533,7 @@ Extract birthplace information following these rules:
                 {
                     "qid": loc.wikidata_id,
                     "name": loc.name,
-                    "classes": [
-                        rel.parent_entity.name
-                        for rel in loc.wikidata_entity.parent_relations
-                        if rel.parent_entity and rel.parent_entity.name
-                    ]
-                    if loc.wikidata_entity
-                    else [],
+                    "description": build_entity_description(db, loc),
                 }
                 for loc in similar_locations
             ]
@@ -574,6 +565,72 @@ Extract birthplace information following these rules:
     except Exception as e:
         logger.error(f"Error extracting birthplaces: {e}")
         return None
+
+
+def format_candidates_as_xml(candidates: List[dict]) -> str:
+    """Format candidate entities as XML structure with rich descriptions."""
+    return "\n".join(
+        [
+            f"<entity>\n    <qid>{candidate['qid']}</qid>\n    <name>{candidate['name']}</name>\n    <description>{candidate['description']}</description>\n</entity>"
+            for candidate in candidates
+        ]
+    )
+
+
+def build_entity_description(db: Session, entity) -> str:
+    """Build rich description from WikidataRelations dynamically.
+    
+    Args:
+        db: Database session
+        entity: Position or Location instance
+        
+    Returns:
+        Rich description string built from relations
+    """
+    if not hasattr(entity, 'wikidata_entity') or not entity.wikidata_entity:
+        return ""
+    
+    # Get all relations for this entity
+    relations = (
+        db.query(WikidataRelation)
+        .filter_by(child_entity_id=entity.wikidata_id)
+        .all()
+    )
+    
+    # Group relations by type using defaultdict
+    relations_by_type = defaultdict(list)
+    for relation in relations:
+        if relation.parent_entity and relation.parent_entity.name:
+            relations_by_type[relation.relation_type].append(relation.parent_entity.name)
+    
+    description_parts = []
+    
+    # Build description based on available relations
+    if relations_by_type[RelationType.INSTANCE_OF]:
+        instances = relations_by_type[RelationType.INSTANCE_OF]
+        description_parts.append(", ".join(instances))
+    
+    if relations_by_type[RelationType.SUBCLASS_OF]:
+        subclasses = relations_by_type[RelationType.SUBCLASS_OF]
+        description_parts.append(f"subclass of {', '.join(subclasses)}")
+    
+    if relations_by_type[RelationType.PART_OF]:
+        parts = relations_by_type[RelationType.PART_OF]
+        description_parts.append(f"part of {', '.join(parts)}")
+    
+    if relations_by_type[RelationType.APPLIES_TO_JURISDICTION]:
+        jurisdictions = relations_by_type[RelationType.APPLIES_TO_JURISDICTION]
+        description_parts.append(f"applies to jurisdiction {', '.join(jurisdictions)}")
+    
+    if relations_by_type[RelationType.LOCATED_IN]:
+        locations = relations_by_type[RelationType.LOCATED_IN]
+        description_parts.append(f"located in {', '.join(locations)}")
+    
+    if relations_by_type[RelationType.COUNTRY]:
+        countries = relations_by_type[RelationType.COUNTRY]
+        description_parts.append(f"country {', '.join(countries)}")
+    
+    return ", ".join(description_parts) if description_parts else ""
 
 
 def map_to_wikidata_position(
@@ -617,21 +674,15 @@ Map the extracted position to the most accurate Wikidata position following thes
 - Reject if geographic/jurisdictional scope differs significantly
 </rejection_criteria>"""
 
-        # Format candidates with QID, name, and classes
-        candidates_text = "\n".join(
-            [
-                f"- {pos['qid']}: {pos['name']}"
-                + (f" (classes: {', '.join(pos['classes'])})" if pos["classes"] else "")
-                for pos in candidate_positions
-            ]
-        )
+        # Format candidates with XML structure and rich descriptions
+        candidates_text = format_candidates_as_xml(candidate_positions)
 
         user_prompt = f"""Map this extracted position to the correct Wikidata position:
 
 Extracted Position: "{extracted_name}"
 Proof Context: "{proof_text}"
 
-Candidate Wikidata Positions (QID: Name - Classes):
+Candidate Wikidata Positions:
 {candidates_text}
 
 Select the best matching QID or None if no good match exists."""
@@ -694,21 +745,15 @@ Map the extracted birthplace to the most accurate Wikidata location following th
 - Return None if no candidate is a good match
 </rejection_criteria>"""
 
-        # Format candidates with QID, name, and classes
-        candidates_text = "\n".join(
-            [
-                f"- {loc['qid']}: {loc['name']}"
-                + (f" (classes: {', '.join(loc['classes'])})" if loc["classes"] else "")
-                for loc in candidate_locations
-            ]
-        )
+        # Format candidates with XML structure and rich descriptions
+        candidates_text = format_candidates_as_xml(candidate_locations)
 
         user_prompt = f"""Map this extracted birthplace to the correct Wikidata location:
 
 Extracted Birthplace: "{extracted_name}"
 Proof Context: "{proof_text}"
 
-Candidate Wikidata Locations (QID: Name - Classes):
+Candidate Wikidata Locations:
 {candidates_text}
 
 Select the best matching QID or None if no good match exists."""
