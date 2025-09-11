@@ -4,6 +4,7 @@ import logging
 import multiprocessing as mp
 from typing import Tuple
 from datetime import datetime, date
+from types import SimpleNamespace
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -104,18 +105,16 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
             },
         )
 
-        session.execute(stmt)
-        session.flush()
+        # Execute UPSERT with RETURNING to get IDs directly
+        stmt = stmt.returning(Politician.id, Politician.wikidata_id)
+        result = session.execute(stmt)
+        politician_rows = result.fetchall()
 
-        # Get all politician objects (both new and existing)
-        politician_objects = (
-            session.query(Politician)
-            .filter(Politician.wikidata_id.in_([p["wikidata_id"] for p in politicians]))
-            .all()
-        )
-
-        # Create mapping for easy lookup
-        politician_map = {pol.wikidata_id: pol for pol in politician_objects}
+        # Create mapping directly from RETURNING results
+        politician_map = {
+            row.wikidata_id: SimpleNamespace(id=row.id, wikidata_id=row.wikidata_id)
+            for row in politician_rows
+        }
 
         # Now process related data for each politician
         for politician_data in politicians:
