@@ -89,8 +89,15 @@ class TestEnrichment:
         mock_response.output_parsed = mock_parsed
         mock_openai_client.responses.parse.return_value = mock_response
 
+        # Create mock politician
+        mock_politician = Mock()
+        mock_politician.name = "Test Politician"
+        mock_politician.wikidata_id = "Q123456"
+        mock_politician.properties = []
+        mock_politician.citizenships = []
+
         properties = extract_properties(
-            mock_openai_client, "test content", "Test Politician"
+            mock_openai_client, "test content", mock_politician
         )
 
         assert properties is not None
@@ -163,13 +170,20 @@ class TestEnrichment:
             mock_response2,
         ]
 
+        # Create mock politician
+        mock_politician = Mock()
+        mock_politician.name = "Test Politician"
+        mock_politician.wikidata_id = "Q123456"
+        mock_politician.wikidata_positions = []
+        mock_politician.citizenships = []
+
         # Mock embedding generation
         with patch(
             "poliloom.enrichment.generate_embedding",
             return_value=[0.1] * 384,
         ):
             positions = extract_positions(
-                mock_openai_client, db_session, "test content", "Test Politician"
+                mock_openai_client, db_session, "test content", mock_politician
             )
 
         assert positions is not None
@@ -186,8 +200,15 @@ class TestEnrichment:
         mock_response.output_parsed = mock_parsed
         mock_openai_client.responses.parse.return_value = mock_response
 
+        # Create mock politician
+        mock_politician = Mock()
+        mock_politician.name = "Test Politician"
+        mock_politician.wikidata_id = "Q123456"
+        mock_politician.wikidata_positions = []
+        mock_politician.citizenships = []
+
         positions = extract_positions(
-            mock_openai_client, db_session, "test content", "Test Politician"
+            mock_openai_client, db_session, "test content", mock_politician
         )
 
         assert positions == []
@@ -230,13 +251,20 @@ class TestEnrichment:
             mock_response2,
         ]
 
+        # Create mock politician
+        mock_politician = Mock()
+        mock_politician.name = "Test Politician"
+        mock_politician.wikidata_id = "Q123456"
+        mock_politician.wikidata_birthplaces = []
+        mock_politician.citizenships = []
+
         # Mock embedding generation
         with patch(
             "poliloom.enrichment.generate_embedding",
             return_value=[0.2] * 384,
         ):
             birthplaces = extract_birthplaces(
-                mock_openai_client, db_session, "test content", "Test Politician"
+                mock_openai_client, db_session, "test content", mock_politician
             )
 
         assert birthplaces is not None

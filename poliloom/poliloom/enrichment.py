@@ -190,25 +190,19 @@ async def fetch_and_archive_page(url: str, db: Session) -> ArchivedPage:
 def extract_properties(
     openai_client: OpenAI,
     content: str,
-    politician_name: str,
-    existing_properties: Optional[List] = None,
+    politician: Politician,
 ) -> Optional[List[ExtractedProperty]]:
     """Extract birth and death dates from content using OpenAI."""
     try:
-        # Build context about existing properties
-        existing_context = ""
-        if existing_properties:
-            existing_props = []
-            for prop in existing_properties:
-                if prop.type in ["birth_date", "death_date"]:
-                    existing_props.append(f"- {prop.type}: {prop.value}")
+        # Build comprehensive politician context
+        politician_context = build_politician_context_xml(
+            politician,
+            existing_properties=politician.properties,
+        )
 
-            if existing_props:
-                existing_context = f"""
-<existing_wikidata>
-{chr(10).join(existing_props)}
-</existing_wikidata>
-
+        validation_focus = ""
+        if politician.properties:
+            validation_focus = """
 <validation_focus>
 Use this information to:
 - Focus on finding additional or conflicting dates not already in Wikidata
@@ -238,17 +232,16 @@ Extract ONLY these two property types:
 - The quote must actually exist in the provided content
 </proof_requirements>"""
 
-        user_prompt = f"""Extract personal properties about {politician_name} from this Wikipedia article text:
+        user_prompt = f"""Extract personal properties of {politician.name} from this Wikipedia article text:
 
-<politician_name>{politician_name}</politician_name>
-
-{existing_context}
+{politician_context}
+{validation_focus}
 
 <article_content>
 {content}
 </article_content>"""
 
-        logger.debug(f"Extracting properties for {politician_name}")
+        logger.debug(f"Extracting properties for {politician.name}")
 
         response = openai_client.responses.parse(
             model="gpt-5",
@@ -275,33 +268,19 @@ def extract_positions(
     openai_client: OpenAI,
     db: Session,
     content: str,
-    politician_name: str,
-    existing_positions: Optional[List] = None,
+    politician: Politician,
 ) -> Optional[List[ExtractedPosition]]:
     """Extract political positions from content using two-stage approach."""
     try:
-        # Build context about existing positions
-        existing_context = ""
-        if existing_positions:
-            existing_pos = []
-            for holds in existing_positions:
-                date_range = ""
-                if holds.start_date:
-                    date_range = f" ({holds.start_date}"
-                    if holds.end_date:
-                        date_range += f" - {holds.end_date})"
-                    else:
-                        date_range += " - present)"
-                elif holds.end_date:
-                    date_range = f" (until {holds.end_date})"
-                existing_pos.append(f"- {holds.position.name}{date_range}")
+        # Build comprehensive politician context
+        politician_context = build_politician_context_xml(
+            politician,
+            existing_positions=politician.wikidata_positions,
+        )
 
-            if existing_pos:
-                existing_context = f"""
-<existing_wikidata_positions>
-{chr(10).join(existing_pos)}
-</existing_wikidata_positions>
-
+        position_analysis_focus = ""
+        if politician.wikidata_positions:
+            position_analysis_focus = """
 <position_analysis_focus>
 Use this information to:
 - Identify mentions of these positions in the text (they may appear with different wordings)
@@ -334,17 +313,16 @@ Extract all political positions from the provided content following these rules:
 - The quote must actually exist in the provided content
 </proof_requirements>"""
 
-        user_prompt = f"""Extract all political positions held by {politician_name} from the content below.
+        user_prompt = f"""Extract all political positions held by {politician.name} from the content below.
 
-<politician_name>{politician_name}</politician_name>
-
-{existing_context}
+{politician_context}
+{position_analysis_focus}
 
 <article_content>
 {content}
 </article_content>"""
 
-        logger.debug(f"Stage 1: Extracting positions for {politician_name}")
+        logger.debug(f"Stage 1: Extracting positions for {politician.name}")
 
         response = openai_client.responses.parse(
             model="gpt-5",
@@ -362,11 +340,11 @@ Extract all political positions from the provided content following these rules:
 
         free_form_positions = response.output_parsed.positions
         if not free_form_positions:
-            logger.info(f"No positions extracted for {politician_name}")
+            logger.info(f"No positions extracted for {politician.name}")
             return []
 
         logger.info(
-            f"Stage 1: Extracted {len(free_form_positions)} free-form positions for {politician_name}"
+            f"Stage 1: Extracted {len(free_form_positions)} free-form positions for {politician.name}"
         )
 
         # Stage 2: Map to Wikidata positions
@@ -397,7 +375,11 @@ Extract all political positions from the provided content following these rules:
                 for pos in similar_positions
             ]
             mapped_qid = map_to_wikidata_position(
-                openai_client, free_pos.name, free_pos.proof, candidate_positions
+                openai_client,
+                free_pos.name,
+                free_pos.proof,
+                candidate_positions,
+                politician,
             )
 
             if mapped_qid:
@@ -417,7 +399,7 @@ Extract all political positions from the provided content following these rules:
                     )
 
         logger.info(
-            f"Stage 2: Mapped {len(mapped_positions)} of {len(free_form_positions)} positions for {politician_name}"
+            f"Stage 2: Mapped {len(mapped_positions)} of {len(free_form_positions)} positions for {politician.name}"
         )
         return mapped_positions
 
@@ -430,24 +412,19 @@ def extract_birthplaces(
     openai_client: OpenAI,
     db: Session,
     content: str,
-    politician_name: str,
-    existing_birthplaces: Optional[List] = None,
+    politician: Politician,
 ) -> Optional[List[ExtractedBirthplace]]:
     """Extract birthplace from content using two-stage approach."""
     try:
-        # Build context about existing birthplaces
-        existing_context = ""
-        if existing_birthplaces:
-            existing_bp = []
-            for born_at in existing_birthplaces:
-                existing_bp.append(f"- {born_at.location.name}")
+        # Build comprehensive politician context
+        politician_context = build_politician_context_xml(
+            politician,
+            existing_birthplaces=politician.wikidata_birthplaces,
+        )
 
-            if existing_bp:
-                existing_context = f"""
-<existing_wikidata_birthplaces>
-{chr(10).join(existing_bp)}
-</existing_wikidata_birthplaces>
-
+        birthplace_analysis_focus = ""
+        if politician.wikidata_birthplaces:
+            birthplace_analysis_focus = """
 <birthplace_analysis_focus>
 Use this information to:
 - Identify mentions of these locations in the text (they may appear with different wordings)
@@ -473,17 +450,16 @@ Extract birthplace information following these rules:
 - The quote must actually exist in the provided content
 </proof_requirements>"""
 
-        user_prompt = f"""Extract the birthplace of {politician_name} from the content below.
+        user_prompt = f"""Extract the birthplace of {politician.name} from the content below.
 
-<politician_name>{politician_name}</politician_name>
-
-{existing_context}
+{politician_context}
+{birthplace_analysis_focus}
 
 <article_content>
 {content}
 </article_content>"""
 
-        logger.debug(f"Stage 1: Extracting birthplace for {politician_name}")
+        logger.debug(f"Stage 1: Extracting birthplace for {politician.name}")
 
         response = openai_client.responses.parse(
             model="gpt-5",
@@ -501,11 +477,11 @@ Extract birthplace information following these rules:
 
         free_form_birthplaces = response.output_parsed.birthplaces
         if not free_form_birthplaces:
-            logger.info(f"No birthplace extracted for {politician_name}")
+            logger.info(f"No birthplace extracted for {politician.name}")
             return []
 
         logger.info(
-            f"Stage 1: Extracted {len(free_form_birthplaces)} free-form birthplaces for {politician_name}"
+            f"Stage 1: Extracted {len(free_form_birthplaces)} free-form birthplaces for {politician.name}"
         )
 
         # Stage 2: Map to Wikidata locations
@@ -542,6 +518,7 @@ Extract birthplace information following these rules:
                 free_birth.location_name,
                 free_birth.proof,
                 candidate_locations,
+                politician,
             )
 
             if mapped_qid:
@@ -558,7 +535,7 @@ Extract birthplace information following these rules:
                     )
 
         logger.info(
-            f"Stage 2: Mapped {len(mapped_birthplaces)} of {len(free_form_birthplaces)} birthplaces for {politician_name}"
+            f"Stage 2: Mapped {len(mapped_birthplaces)} of {len(free_form_birthplaces)} birthplaces for {politician.name}"
         )
         return mapped_birthplaces
 
@@ -577,59 +554,144 @@ def format_candidates_as_xml(candidates: List[dict]) -> str:
     )
 
 
+def build_politician_context_xml(
+    politician,
+    existing_properties=None,
+    existing_positions=None,
+    existing_birthplaces=None,
+) -> str:
+    """Build comprehensive politician context as XML structure for LLM prompts.
+
+    Args:
+        politician: Politician model instance
+        existing_properties: Optional list of existing Property instances
+        existing_positions: Optional list of existing HoldsPosition instances
+        existing_birthplaces: Optional list of existing BornAt instances
+
+    Returns:
+        XML formatted politician context string
+    """
+    context_sections = []
+
+    # Basic politician info
+    basic_info = [
+        f"<name>{politician.name}</name>",
+        f"<wikidata_id>{politician.wikidata_id}</wikidata_id>",
+    ]
+
+    # Add citizenship information if available
+    if politician.citizenships:
+        countries = [
+            citizenship.country.name
+            for citizenship in politician.citizenships
+            if citizenship.country and citizenship.country.name
+        ]
+        if countries:
+            basic_info.append(f"<citizenships>{', '.join(countries)}</citizenships>")
+
+    context_sections.append(
+        f"<politician_info>\n    {chr(10).join(['    ' + info for info in basic_info])}\n</politician_info>"
+    )
+
+    # Add existing Wikidata properties
+    if existing_properties:
+        existing_props = []
+        for prop in existing_properties:
+            if prop.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
+                existing_props.append(f"- {prop.type.value}: {prop.value}")
+
+        if existing_props:
+            context_sections.append(f"""<existing_wikidata>
+{chr(10).join(existing_props)}
+</existing_wikidata>""")
+
+    # Add existing positions
+    if existing_positions:
+        existing_pos = []
+        for holds in existing_positions:
+            date_range = ""
+            if holds.start_date:
+                date_range = f" ({holds.start_date}"
+                if holds.end_date:
+                    date_range += f" - {holds.end_date})"
+                else:
+                    date_range += " - present)"
+            elif holds.end_date:
+                date_range = f" (until {holds.end_date})"
+            existing_pos.append(f"- {holds.position.name}{date_range}")
+
+        if existing_pos:
+            context_sections.append(f"""<existing_wikidata_positions>
+{chr(10).join(existing_pos)}
+</existing_wikidata_positions>""")
+
+    # Add existing birthplaces
+    if existing_birthplaces:
+        existing_bp = []
+        for born_at in existing_birthplaces:
+            existing_bp.append(f"- {born_at.location.name}")
+
+        if existing_bp:
+            context_sections.append(f"""<existing_wikidata_birthplaces>
+{chr(10).join(existing_bp)}
+</existing_wikidata_birthplaces>""")
+
+    return chr(10).join(context_sections)
+
+
 def build_entity_description(db: Session, entity) -> str:
     """Build rich description from WikidataRelations dynamically.
-    
+
     Args:
         db: Database session
         entity: Position or Location instance
-        
+
     Returns:
         Rich description string built from relations
     """
-    if not hasattr(entity, 'wikidata_entity') or not entity.wikidata_entity:
+    if not hasattr(entity, "wikidata_entity") or not entity.wikidata_entity:
         return ""
-    
+
     # Get all relations for this entity
     relations = (
-        db.query(WikidataRelation)
-        .filter_by(child_entity_id=entity.wikidata_id)
-        .all()
+        db.query(WikidataRelation).filter_by(child_entity_id=entity.wikidata_id).all()
     )
-    
+
     # Group relations by type using defaultdict
     relations_by_type = defaultdict(list)
     for relation in relations:
         if relation.parent_entity and relation.parent_entity.name:
-            relations_by_type[relation.relation_type].append(relation.parent_entity.name)
-    
+            relations_by_type[relation.relation_type].append(
+                relation.parent_entity.name
+            )
+
     description_parts = []
-    
+
     # Build description based on available relations
     if relations_by_type[RelationType.INSTANCE_OF]:
         instances = relations_by_type[RelationType.INSTANCE_OF]
         description_parts.append(", ".join(instances))
-    
+
     if relations_by_type[RelationType.SUBCLASS_OF]:
         subclasses = relations_by_type[RelationType.SUBCLASS_OF]
         description_parts.append(f"subclass of {', '.join(subclasses)}")
-    
+
     if relations_by_type[RelationType.PART_OF]:
         parts = relations_by_type[RelationType.PART_OF]
         description_parts.append(f"part of {', '.join(parts)}")
-    
+
     if relations_by_type[RelationType.APPLIES_TO_JURISDICTION]:
         jurisdictions = relations_by_type[RelationType.APPLIES_TO_JURISDICTION]
         description_parts.append(f"applies to jurisdiction {', '.join(jurisdictions)}")
-    
+
     if relations_by_type[RelationType.LOCATED_IN]:
         locations = relations_by_type[RelationType.LOCATED_IN]
         description_parts.append(f"located in {', '.join(locations)}")
-    
+
     if relations_by_type[RelationType.COUNTRY]:
         countries = relations_by_type[RelationType.COUNTRY]
         description_parts.append(f"country {', '.join(countries)}")
-    
+
     return ", ".join(description_parts) if description_parts else ""
 
 
@@ -638,6 +700,7 @@ def map_to_wikidata_position(
     extracted_name: str,
     proof_text: str,
     candidate_positions: List[dict],
+    politician: Politician,
 ) -> Optional[str]:
     """Map extracted position name to Wikidata position using LLM."""
     try:
@@ -677,7 +740,12 @@ Map the extracted position to the most accurate Wikidata position following thes
         # Format candidates with XML structure and rich descriptions
         candidates_text = format_candidates_as_xml(candidate_positions)
 
+        # Build politician context for stage 2 mapping
+        politician_context = build_politician_context_xml(politician)
+
         user_prompt = f"""Map this extracted position to the correct Wikidata position:
+
+{politician_context}
 
 Extracted Position: "{extracted_name}"
 Proof Context: "{proof_text}"
@@ -712,6 +780,7 @@ def map_to_wikidata_location(
     extracted_name: str,
     proof_text: str,
     candidate_locations: List[dict],
+    politician: Politician,
 ) -> Optional[str]:
     """Map extracted location name to Wikidata location using LLM."""
     try:
@@ -748,7 +817,12 @@ Map the extracted birthplace to the most accurate Wikidata location following th
         # Format candidates with XML structure and rich descriptions
         candidates_text = format_candidates_as_xml(candidate_locations)
 
+        # Build politician context for stage 2 mapping
+        politician_context = build_politician_context_xml(politician)
+
         user_prompt = f"""Map this extracted birthplace to the correct Wikidata location:
+
+{politician_context}
 
 Extracted Birthplace: "{extracted_name}"
 Proof Context: "{proof_text}"
@@ -844,17 +918,14 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
             content = " ".join(text.split())
 
             # Extract properties
-            properties = extract_properties(
-                openai_client, content, politician.name, politician.wikidata_properties
-            )
+            properties = extract_properties(openai_client, content, politician)
 
             # Extract positions
             positions = extract_positions(
                 openai_client,
                 db,
                 content,
-                politician.name,
-                politician.wikidata_positions,
+                politician,
             )
 
             # Extract birthplaces
@@ -862,8 +933,7 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
                 openai_client,
                 db,
                 content,
-                politician.name,
-                politician.wikidata_birthplaces,
+                politician,
             )
 
             # Log extraction results
