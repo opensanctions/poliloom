@@ -10,39 +10,58 @@ import { Politician } from "@/types"
 export default function Home() {
   const { session, status, isAuthenticated } = useAuthSession()
   const [politician, setPolitician] = useState<Politician | null>(null)
+  const [nextPolitician, setNextPolitician] = useState<Politician | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const loadPolitician = useCallback(async () => {
-    if (!session?.accessToken) return
+  const fetchPolitician = useCallback(async (): Promise<Politician | null> => {
+    if (!session?.accessToken) return null
 
+    const response = await fetch('/api/politicians/?limit=1')
+    if (!response.ok) {
+      throw new Error(`Failed to fetch politician: ${response.statusText}`)
+    }
+    const politicians: Politician[] = await response.json()
+    return politicians.length > 0 ? politicians[0] : null
+  }, [session?.accessToken])
+
+  const loadInitialData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch('/api/politicians/?limit=1')
-      if (!response.ok) {
-        throw new Error(`Failed to fetch politician: ${response.statusText}`)
+      const politician = await fetchPolitician()
+      setPolitician(politician)
+      
+      // Pre-load next politician in background
+      if (politician) {
+        fetchPolitician()
+          .then(setNextPolitician)
+          .catch(() => setNextPolitician(null))
       }
-      const politicians: Politician[] = await response.json()
-      const data = politicians.length > 0 ? politicians[0] : null
-      setPolitician(data)
     } catch (error) {
-      console.error('Error fetching politician:', error)
+      console.error('Error fetching politicians:', error)
       setError('Failed to load politician data. Please try again.')
     } finally {
       setLoading(false)
     }
-  }, [session?.accessToken])
+  }, [fetchPolitician])
 
   useEffect(() => {
     if (isAuthenticated && session?.accessToken) {
-      loadPolitician()
+      loadInitialData()
     }
-  }, [isAuthenticated, session?.accessToken, loadPolitician])
+  }, [isAuthenticated, session?.accessToken, loadInitialData])
 
   const handleNext = () => {
-    setPolitician(null)
-    loadPolitician()
+    if (!nextPolitician) return
+
+    // Show next politician immediately
+    setPolitician(nextPolitician)
+    
+    // Pre-load another politician in background
+    fetchPolitician()
+      .then(setNextPolitician)
+      .catch(() => setNextPolitician(null))
   }
 
   return (
@@ -96,7 +115,7 @@ export default function Home() {
                   <div className="bg-red-50 border border-red-200 rounded-md p-4">
                     <p className="text-red-800">{error}</p>
                     <button
-                      onClick={loadPolitician}
+                      onClick={loadInitialData}
                       className="mt-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
                     >
                       Try Again
