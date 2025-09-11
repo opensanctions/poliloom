@@ -1,6 +1,6 @@
 "use client"
 
-import { useSession } from "next-auth/react"
+import { useAuthSession } from "@/hooks/useAuthSession"
 import { useState, useEffect, useCallback } from "react"
 import { Header } from "@/components/Header"
 import { PoliticianEvaluation } from "@/components/PoliticianEvaluation"
@@ -8,7 +8,7 @@ import { handleSignIn } from "@/lib/actions"
 import { Politician } from "@/types"
 
 export default function Home() {
-  const { data: session, status } = useSession()
+  const { session, status, isAuthenticated } = useAuthSession()
   const [politician, setPolitician] = useState<Politician | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -35,10 +35,10 @@ export default function Home() {
   }, [session?.accessToken])
 
   useEffect(() => {
-    if (status === 'authenticated' && session?.accessToken) {
+    if (isAuthenticated && session?.accessToken) {
       loadPolitician()
     }
-  }, [status, session?.accessToken, loadPolitician])
+  }, [isAuthenticated, session?.accessToken, loadPolitician])
 
   const handleNext = () => {
     setPolitician(null)
@@ -84,7 +84,7 @@ export default function Home() {
               </div>
             )}
             
-            {status === "authenticated" && (
+            {isAuthenticated && (
               <div className="space-y-6">
                 {loading && (
                   <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
