@@ -4,10 +4,10 @@ import os
 import logging
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Literal
 from sqlalchemy.orm import Session
 from openai import OpenAI
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, create_model
 from unmhtml import MHTMLConverter
 from bs4 import BeautifulSoup
 
@@ -709,15 +709,9 @@ def map_to_wikidata_position(
 ) -> Optional[str]:
     """Map extracted position name to Wikidata position using LLM."""
     try:
-        from typing import Literal
-        from pydantic import create_model
-
         # Create dynamic model with candidate position QIDs
-        if candidate_positions:
-            entity_qids = [pos["qid"] for pos in candidate_positions if pos.get("qid")]
-            PositionQidType = Optional[Literal[tuple(entity_qids)]]
-        else:
-            PositionQidType = Optional[str]
+        entity_qids = [pos["qid"] for pos in candidate_positions if pos.get("qid")]
+        PositionQidType = Optional[Literal[tuple(entity_qids)]]
 
         DynamicMappingResult = create_model(
             "PositionMappingResult",
@@ -789,15 +783,9 @@ def map_to_wikidata_location(
 ) -> Optional[str]:
     """Map extracted location name to Wikidata location using LLM."""
     try:
-        from typing import Literal
-        from pydantic import create_model
-
         # Create dynamic model with candidate location QIDs
-        if candidate_locations:
-            entity_qids = [loc["qid"] for loc in candidate_locations if loc.get("qid")]
-            LocationQidType = Optional[Literal[tuple(entity_qids)]]
-        else:
-            LocationQidType = Optional[str]
+        entity_qids = [loc["qid"] for loc in candidate_locations if loc.get("qid")]
+        LocationQidType = Optional[Literal[tuple(entity_qids)]]
 
         DynamicMappingResult = create_model(
             "LocationMappingResult",
@@ -954,17 +942,17 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
 
             if positions:
                 logger.info(f"  Positions ({len(positions)}):")
-                for pos in positions:
+                for position in positions:
                     date_info = ""
-                    if pos.start_date:
-                        date_info = f" ({pos.start_date}"
-                        if pos.end_date:
-                            date_info += f" - {pos.end_date})"
+                    if position.start_date:
+                        date_info = f" ({position.start_date}"
+                        if position.end_date:
+                            date_info += f" - {position.end_date})"
                         else:
                             date_info += " - present)"
-                    elif pos.end_date:
-                        date_info = f" (until {pos.end_date})"
-                    logger.info(f"    {pos.name}{date_info}")
+                    elif position.end_date:
+                        date_info = f" (until {position.end_date})"
+                    logger.info(f"    {position.wikidata_id}{date_info}")
             else:
                 logger.info("  No positions extracted")
 
