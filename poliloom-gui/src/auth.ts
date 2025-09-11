@@ -79,9 +79,6 @@ export const config = {
       return baseUrl
     },
   },
-  pages: {
-    signIn: "/auth/login",
-  },
 } satisfies NextAuthConfig
 
 export const { handlers, auth, signIn, signOut } = NextAuth(config)
