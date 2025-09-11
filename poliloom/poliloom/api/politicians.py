@@ -3,7 +3,7 @@
 from typing import List
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from ..database import get_engine
 from ..models import (
@@ -70,6 +70,7 @@ async def get_politicians(
                 selectinload(Politician.wikipedia_links),
             )
             .where(Politician.has_unevaluated_extracted_data)
+            .order_by(func.random())
             .offset(offset)
             .limit(limit)
         )
