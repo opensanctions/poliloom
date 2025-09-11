@@ -5,7 +5,7 @@ import logging
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import List, Optional, Literal
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from openai import OpenAI
 from pydantic import BaseModel, field_validator, create_model
 from unmhtml import MHTMLConverter
@@ -21,6 +21,7 @@ from .models import (
     BornAt,
     ArchivedPage,
     WikidataRelation,
+    WikidataEntity,
     RelationType,
 )
 from . import archive
@@ -351,12 +352,17 @@ Extract all political positions from the provided content following these rules:
 
         # Stage 2: Map to Wikidata positions
         mapped_positions = []
-        for free_pos in free_form_positions:
+        for free_position in free_form_positions:
             # Find similar positions using embeddings
-            query_embedding = generate_embedding(free_pos.name)
+            query_embedding = generate_embedding(free_position.name)
 
             similar_positions = (
                 db.query(Position)
+                .options(
+                    selectinload(Position.wikidata_entity)
+                    .selectinload(WikidataEntity.parent_relations)
+                    .selectinload(WikidataRelation.parent_entity)
+                )
                 .filter(Position.embedding.isnot(None))
                 .order_by(Position.embedding.cosine_distance(query_embedding))
                 .limit(100)
@@ -364,7 +370,7 @@ Extract all political positions from the provided content following these rules:
             )
 
             if not similar_positions:
-                logger.debug(f"No similar positions found for '{free_pos.name}'")
+                logger.debug(f"No similar positions found for '{free_position.name}'")
                 continue
 
             # Use LLM to map to correct position
@@ -378,8 +384,8 @@ Extract all political positions from the provided content following these rules:
             ]
             mapped_qid = map_to_wikidata_position(
                 openai_client,
-                free_pos.name,
-                free_pos.proof,
+                free_position.name,
+                free_position.proof,
                 candidate_positions,
                 politician,
             )
@@ -391,13 +397,13 @@ Extract all political positions from the provided content following these rules:
                     mapped_positions.append(
                         ExtractedPosition(
                             wikidata_id=position.wikidata_id,
-                            start_date=free_pos.start_date,
-                            end_date=free_pos.end_date,
-                            proof=free_pos.proof,
+                            start_date=free_position.start_date,
+                            end_date=free_position.end_date,
+                            proof=free_position.proof,
                         )
                     )
                     logger.debug(
-                        f"Mapped '{free_pos.name}' -> '{position.name}' ({mapped_qid})"
+                        f"Mapped '{free_position.name}' -> '{position.name}' ({mapped_qid})"
                     )
 
         logger.info(
@@ -491,12 +497,17 @@ Extract birthplace information following these rules:
 
         # Stage 2: Map to Wikidata locations
         mapped_birthplaces = []
-        for free_birth in free_form_birthplaces:
+        for free_birthplace in free_form_birthplaces:
             # Find similar locations using embeddings
-            query_embedding = generate_embedding(free_birth.location_name)
+            query_embedding = generate_embedding(free_birthplace.location_name)
 
             similar_locations = (
                 db.query(Location)
+                .options(
+                    selectinload(Location.wikidata_entity)
+                    .selectinload(WikidataEntity.parent_relations)
+                    .selectinload(WikidataRelation.parent_entity)
+                )
                 .filter(Location.embedding.isnot(None))
                 .order_by(Location.embedding.cosine_distance(query_embedding))
                 .limit(100)
@@ -505,7 +516,7 @@ Extract birthplace information following these rules:
 
             if not similar_locations:
                 logger.debug(
-                    f"No similar locations found for '{free_birth.location_name}'"
+                    f"No similar locations found for '{free_birthplace.location_name}'"
                 )
                 continue
 
@@ -520,8 +531,8 @@ Extract birthplace information following these rules:
             ]
             mapped_qid = map_to_wikidata_location(
                 openai_client,
-                free_birth.location_name,
-                free_birth.proof,
+                free_birthplace.location_name,
+                free_birthplace.proof,
                 candidate_locations,
                 politician,
             )
@@ -532,11 +543,12 @@ Extract birthplace information following these rules:
                 if location:
                     mapped_birthplaces.append(
                         ExtractedBirthplace(
-                            wikidata_id=location.wikidata_id, proof=free_birth.proof
+                            wikidata_id=location.wikidata_id,
+                            proof=free_birthplace.proof,
                         )
                     )
                     logger.debug(
-                        f"Mapped '{free_birth.location_name}' -> '{location.name}' ({mapped_qid})"
+                        f"Mapped '{free_birthplace.location_name}' -> '{location.name}' ({mapped_qid})"
                     )
 
         logger.info(
@@ -648,8 +660,8 @@ def build_entity_description(db: Session, entity) -> str:
     """Build rich description from WikidataRelations dynamically.
 
     Args:
-        db: Database session
-        entity: Position or Location instance
+        db: Database session (unused when relations are preloaded)
+        entity: Position or Location instance with preloaded relations
 
     Returns:
         Rich description string built from relations
@@ -657,10 +669,8 @@ def build_entity_description(db: Session, entity) -> str:
     if not hasattr(entity, "wikidata_entity") or not entity.wikidata_entity:
         return ""
 
-    # Get all relations for this entity
-    relations = (
-        db.query(WikidataRelation).filter_by(child_entity_id=entity.wikidata_id).all()
-    )
+    # Use preloaded relations instead of querying database
+    relations = entity.wikidata_entity.parent_relations
 
     # Group relations by type using defaultdict
     relations_by_type = defaultdict(list)
@@ -710,7 +720,9 @@ def map_to_wikidata_position(
     """Map extracted position name to Wikidata position using LLM."""
     try:
         # Create dynamic model with candidate position QIDs
-        entity_qids = [pos["qid"] for pos in candidate_positions if pos.get("qid")]
+        entity_qids = [
+            position["qid"] for position in candidate_positions if position.get("qid")
+        ]
         PositionQidType = Optional[Literal[tuple(entity_qids)]]
 
         DynamicMappingResult = create_model(
@@ -784,7 +796,9 @@ def map_to_wikidata_location(
     """Map extracted location name to Wikidata location using LLM."""
     try:
         # Create dynamic model with candidate location QIDs
-        entity_qids = [loc["qid"] for loc in candidate_locations if loc.get("qid")]
+        entity_qids = [
+            location["qid"] for location in candidate_locations if location.get("qid")
+        ]
         LocationQidType = Optional[Literal[tuple(entity_qids)]]
 
         DynamicMappingResult = create_model(
@@ -958,8 +972,8 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
 
             if birthplaces:
                 logger.info(f"  Birthplaces ({len(birthplaces)}):")
-                for birth in birthplaces:
-                    logger.info(f"    {birth.location_name}")
+                for birthplace in birthplaces:
+                    logger.info(f"    {birthplace.wikidata_id}")
             else:
                 logger.info("  No birthplaces extracted")
 
@@ -1001,15 +1015,15 @@ def store_extracted_data(
     try:
         # Store properties
         if properties:
-            for prop_data in properties:
-                if prop_data.value:
+            for property_data in properties:
+                if property_data.value:
                     # Check if similar property already exists
                     existing_prop = (
                         db.query(Property)
                         .filter_by(
                             politician_id=politician.id,
-                            type=prop_data.type,
-                            value=prop_data.value,
+                            type=property_data.type,
+                            value=property_data.value,
                         )
                         .first()
                     )
@@ -1017,31 +1031,31 @@ def store_extracted_data(
                     if not existing_prop:
                         new_property = Property(
                             politician_id=politician.id,
-                            type=prop_data.type,
-                            value=prop_data.value,
+                            type=property_data.type,
+                            value=property_data.value,
                             archived_page_id=archived_page.id,
-                            proof_line=prop_data.proof,
+                            proof_line=property_data.proof,
                         )
                         db.add(new_property)
                         db.flush()
                         logger.info(
-                            f"Added new property: {prop_data.type} = '{prop_data.value}' for {politician.name}"
+                            f"Added new property: {property_data.type} = '{property_data.value}' for {politician.name}"
                         )
 
         # Store positions - only link to existing positions
         if positions:
-            for pos_data in positions:
-                if pos_data.wikidata_id:
+            for position_data in positions:
+                if position_data.wikidata_id:
                     # Only find existing positions, don't create new ones
                     position = (
                         db.query(Position)
-                        .filter_by(wikidata_id=pos_data.wikidata_id)
+                        .filter_by(wikidata_id=position_data.wikidata_id)
                         .first()
                     )
 
                     if not position:
                         logger.warning(
-                            f"Position '{pos_data.wikidata_id}' not found in database for {politician.name} - skipping"
+                            f"Position '{position_data.wikidata_id}' not found in database for {politician.name} - skipping"
                         )
                         continue
 
@@ -1060,9 +1074,9 @@ def store_extracted_data(
                     for existing_hold in all_existing_holds:
                         # Check if the date ranges could refer to the same time period
                         if dates_could_be_same(
-                            existing_hold.start_date, pos_data.start_date
+                            existing_hold.start_date, position_data.start_date
                         ) and dates_could_be_same(
-                            existing_hold.end_date, pos_data.end_date
+                            existing_hold.end_date, position_data.end_date
                         ):
                             overlapping_hold = existing_hold
                             break
@@ -1070,8 +1084,8 @@ def store_extracted_data(
                     if overlapping_hold:
                         # Dates could be the same - use precision to decide
                         new_prec = get_date_precision(
-                            pos_data.start_date
-                        ) + get_date_precision(pos_data.end_date)
+                            position_data.start_date
+                        ) + get_date_precision(position_data.end_date)
                         existing_prec = get_date_precision(
                             overlapping_hold.start_date
                         ) + get_date_precision(overlapping_hold.end_date)
@@ -1079,12 +1093,12 @@ def store_extracted_data(
                         if new_prec > existing_prec:
                             # New data has higher precision - update existing record
                             old_range = f"{overlapping_hold.start_date or 'unknown'}-{overlapping_hold.end_date or 'present'}"
-                            new_range = f"{pos_data.start_date or 'unknown'}-{pos_data.end_date or 'present'}"
+                            new_range = f"{position_data.start_date or 'unknown'}-{position_data.end_date or 'present'}"
 
-                            overlapping_hold.start_date = pos_data.start_date
-                            overlapping_hold.end_date = pos_data.end_date
+                            overlapping_hold.start_date = position_data.start_date
+                            overlapping_hold.end_date = position_data.end_date
                             overlapping_hold.archived_page_id = archived_page.id
-                            overlapping_hold.proof_line = pos_data.proof
+                            overlapping_hold.proof_line = position_data.proof
                             db.flush()
 
                             logger.info(
@@ -1095,7 +1109,7 @@ def store_extracted_data(
                             # Existing data has equal or higher precision - skip new data
                             logger.info(
                                 f"Skipped position with equal/lower precision: '{position.name}' ({position.wikidata_id}) "
-                                f"({pos_data.start_date or 'unknown'}-{pos_data.end_date or 'present'}) "
+                                f"({position_data.start_date or 'unknown'}-{position_data.end_date or 'present'}) "
                                 f"for {politician.name}"
                             )
                     else:
@@ -1103,23 +1117,23 @@ def store_extracted_data(
                         holds_position = HoldsPosition(
                             politician_id=politician.id,
                             position_id=position.wikidata_id,
-                            start_date=pos_data.start_date,
-                            end_date=pos_data.end_date,
+                            start_date=position_data.start_date,
+                            end_date=position_data.end_date,
                             archived_page_id=archived_page.id,
-                            proof_line=pos_data.proof,
+                            proof_line=position_data.proof,
                         )
                         db.add(holds_position)
                         db.flush()
 
                         date_range = ""
-                        if pos_data.start_date:
-                            date_range = f" ({pos_data.start_date}"
-                            if pos_data.end_date:
-                                date_range += f" - {pos_data.end_date})"
+                        if position_data.start_date:
+                            date_range = f" ({position_data.start_date}"
+                            if position_data.end_date:
+                                date_range += f" - {position_data.end_date})"
                             else:
                                 date_range += " - present)"
-                        elif pos_data.end_date:
-                            date_range = f" (until {pos_data.end_date})"
+                        elif position_data.end_date:
+                            date_range = f" (until {position_data.end_date})"
 
                         logger.info(
                             f"Added new position: '{position.name}' ({position.wikidata_id}){date_range} for {politician.name}"
@@ -1127,18 +1141,18 @@ def store_extracted_data(
 
         # Store birthplaces - only link to existing locations
         if birthplaces:
-            for birth_data in birthplaces:
-                if birth_data.wikidata_id:
+            for birthplace_data in birthplaces:
+                if birthplace_data.wikidata_id:
                     # Only find existing locations, don't create new ones
                     location = (
                         db.query(Location)
-                        .filter_by(wikidata_id=birth_data.wikidata_id)
+                        .filter_by(wikidata_id=birthplace_data.wikidata_id)
                         .first()
                     )
 
                     if not location:
                         logger.warning(
-                            f"Location '{birth_data.wikidata_id}' not found in database for {politician.name} - skipping"
+                            f"Location '{birthplace_data.wikidata_id}' not found in database for {politician.name} - skipping"
                         )
                         continue
 
@@ -1157,7 +1171,7 @@ def store_extracted_data(
                             politician_id=politician.id,
                             location_id=location.wikidata_id,
                             archived_page_id=archived_page.id,
-                            proof_line=birth_data.proof,
+                            proof_line=birthplace_data.proof,
                         )
                         db.add(born_at)
                         db.flush()
