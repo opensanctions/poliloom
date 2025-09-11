@@ -112,7 +112,12 @@ def main(verbose):
     required=True,
     help="Output path - local filesystem path or GCS path (gs://bucket/path)",
 )
-def dump_download(output):
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Force new download, bypassing existing download check",
+)
+def dump_download(output, force):
     """Download latest Wikidata dump from Wikidata to specified location."""
     url = "https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.bz2"
 
@@ -137,7 +142,7 @@ def dump_download(output):
                 last_modified_str, "%a, %d %b %Y %H:%M:%S %Z"
             ).replace(tzinfo=timezone.utc)
 
-        # Check if we already have this dump (completed or in-progress)
+        # Check if we already have this dump (completed or in-progress) unless --force is used
         with Session(get_engine()) as session:
             existing_dump = (
                 session.query(WikidataDump)
@@ -146,24 +151,31 @@ def dump_download(output):
                 .first()
             )
 
-            if existing_dump:
+            if existing_dump and not force:
                 if existing_dump.downloaded_at:
                     click.echo(
                         f"❌ Dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already downloaded"
                     )
-                    click.echo("No new dump available. Exiting.")
+                    click.echo("No new dump available. Use --force to download anyway.")
                     raise SystemExit(1)
                 else:
                     click.echo(
                         f"❌ Download for dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already in progress"
                     )
-                    click.echo("Another download process is running. Exiting.")
+                    click.echo(
+                        "Another download process is running. Use --force to start new download."
+                    )
                     raise SystemExit(1)
+            elif existing_dump and force:
+                click.echo(
+                    f"⚠️  Forcing new download for dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC (bypassing existing check)"
+                )
 
             # Create new dump record
-            click.echo(
-                f"📝 New dump found from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC"
-            )
+            if not existing_dump:
+                click.echo(
+                    f"📝 New dump found from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC"
+                )
             new_dump = WikidataDump(url=url, last_modified=last_modified)
             session.add(new_dump)
             session.commit()
