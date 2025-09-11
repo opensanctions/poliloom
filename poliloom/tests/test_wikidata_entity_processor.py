@@ -140,7 +140,6 @@ class TestWikidataEntityProcessor:
 
         assert date_info is not None
         assert date_info.date == "0347"  # The negative sign is stripped
-        assert date_info.raw_date == "-0347"  # The raw date keeps the sign
         assert date_info.precision == 9
         assert date_info.is_bce
 
@@ -156,8 +155,52 @@ class TestWikidataEntityProcessor:
 
         assert date_info is not None
         assert date_info.date == "0322-10-07"
-        assert date_info.raw_date == "-0322-10-07"
         assert date_info.precision == 11
+        assert date_info.is_bce
+
+        # Test BCE date with decade precision (precision 8)
+        entity_data["claims"]["P570"][0]["mainsnak"]["datavalue"]["value"] = {
+            "time": "-0348-00-00T00:00:00Z",  # Plato's preferred death date
+            "precision": 8,  # decade precision
+        }
+        entity = WikidataEntityProcessor(entity_data)
+
+        claims = entity.get_truthy_claims("P570")
+        date_info = entity.extract_date_from_claims(claims)
+
+        assert date_info is not None
+        assert date_info.date == "0348"  # Should parse decade as year
+        assert date_info.precision == 8
+        assert date_info.is_bce
+
+        # Test BCE date with century precision (precision 7)
+        entity_data["claims"]["P570"][0]["mainsnak"]["datavalue"]["value"] = {
+            "time": "-0400-00-00T00:00:00Z",  # 5th century BCE
+            "precision": 7,  # century precision
+        }
+        entity = WikidataEntityProcessor(entity_data)
+
+        claims = entity.get_truthy_claims("P570")
+        date_info = entity.extract_date_from_claims(claims)
+
+        assert date_info is not None
+        assert date_info.date == "0400"  # Should parse century as year
+        assert date_info.precision == 7
+        assert date_info.is_bce
+
+        # Test BCE date with millennium precision (precision 6)
+        entity_data["claims"]["P570"][0]["mainsnak"]["datavalue"]["value"] = {
+            "time": "-1000-00-00T00:00:00Z",  # 2nd millennium BCE
+            "precision": 6,  # millennium precision
+        }
+        entity = WikidataEntityProcessor(entity_data)
+
+        claims = entity.get_truthy_claims("P570")
+        date_info = entity.extract_date_from_claims(claims)
+
+        assert date_info is not None
+        assert date_info.date == "1000"  # Should parse millennium as year
+        assert date_info.precision == 6
         assert date_info.is_bce
 
     def test_entity_name_fallback(self):
