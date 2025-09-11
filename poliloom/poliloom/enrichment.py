@@ -296,7 +296,9 @@ Use this information to:
 <extraction_scope>
 Extract all political positions from the provided content following these rules:
 - Extract any political offices, government roles, elected positions, or political appointments
-- Use exact position names as they appear in the source
+- When the article clearly indicates the country/jurisdiction context, enhance position names with that context in parentheses (e.g., "Minister of Defence (Myanmar)")
+- Only add jurisdictional context when you have high confidence from the article content
+- Preserve the original position name without additions when jurisdiction is uncertain
 - Return an empty list if no political positions are found in the content
 </extraction_scope>
 
@@ -439,6 +441,9 @@ Use this information to:
 <extraction_scope>
 Extract birthplace information following these rules:
 - Extract birthplace as mentioned in the source (city, town, village or region)
+- When the article clearly indicates the geographic context, enhance location names with state/country information (e.g., "Yangon, Myanmar" or "Springfield, Illinois, USA")
+- Only add geographic context when you have high confidence from the article content
+- Preserve the original location name without additions when geographic context is uncertain
 - Return an empty list if no birthplace information is found in the content
 - Only extract actual location names that are explicitly stated in the text
 </extraction_scope>
