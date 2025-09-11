@@ -282,9 +282,13 @@ def _process_politicians_chunk(
                 if len(death_claims) > 0:
                     death_info = entity.extract_date_from_claims(death_claims)
                     if death_info:
+                        # Skip all BCE deaths (they died > 2000 years ago)
+                        if death_info.is_bce:
+                            continue
+
                         try:
-                            death_date_str = death_info["date"]
-                            precision = death_info["precision"]
+                            death_date_str = death_info.date
+                            precision = death_info.precision
 
                             # Parse date based on precision
                             if precision >= 11:  # day precision
@@ -330,8 +334,8 @@ def _process_politicians_chunk(
                         politician_data["properties"].append(
                             {
                                 "type": PropertyType.BIRTH_DATE,
-                                "value": birth_info["date"],
-                                "value_precision": birth_info["precision"],
+                                "value": birth_info.date,
+                                "value_precision": birth_info.precision,
                             }
                         )
 
@@ -342,8 +346,8 @@ def _process_politicians_chunk(
                         politician_data["properties"].append(
                             {
                                 "type": PropertyType.DEATH_DATE,
-                                "value": death_info["date"],
-                                "value_precision": death_info["precision"],
+                                "value": death_info.date,
+                                "value_precision": death_info.precision,
                             }
                         )
 
@@ -381,8 +385,8 @@ def _process_politicians_chunk(
                                         [start_qual]
                                     )
                                     if start_info:
-                                        start_date = start_info["date"]
-                                        start_date_precision = start_info["precision"]
+                                        start_date = start_info.date
+                                        start_date_precision = start_info.precision
 
                             # End date (P582)
                             if "P582" in claim["qualifiers"]:
@@ -392,8 +396,8 @@ def _process_politicians_chunk(
                                         [end_qual]
                                     )
                                     if end_info:
-                                        end_date = end_info["date"]
-                                        end_date_precision = end_info["precision"]
+                                        end_date = end_info.date
+                                        end_date_precision = end_info.precision
 
                         # Create unique key for deduplication
                         position_key = (position_id, start_date, end_date)

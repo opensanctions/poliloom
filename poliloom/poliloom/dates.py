@@ -1,7 +1,66 @@
 """Date utility functions for handling politician position timeframes."""
 
 import re
-from typing import Optional
+from dataclasses import dataclass
+from typing import Optional, Any, Dict
+
+
+@dataclass
+class WikidataDate:
+    """Represents a Wikidata date with precision and BCE handling."""
+
+    date: str  # The date part without sign (e.g., "0347-10-15", "1970", "1970-06")
+    raw_date: str  # Original date string with sign (e.g., "-0347-10-15", "+1970-06-15")
+    precision: int  # Wikidata precision level (9=year, 10=month, 11=day)
+    is_bce: bool  # True if this is a BCE (Before Common Era) date
+
+    @classmethod
+    def from_wikidata_time(
+        cls, time_value: str, precision: int
+    ) -> Optional["WikidataDate"]:
+        """Create WikidataDate from Wikidata time format.
+
+        Args:
+            time_value: Wikidata time string like "+1970-06-15T00:00:00Z" or "-0347-00-00T00:00:00Z"
+            precision: Wikidata precision value (9=year, 10=month, 11=day)
+
+        Returns:
+            WikidataDate object or None if invalid format
+        """
+        if not time_value or not time_value.startswith(("+", "-")):
+            return None
+
+        is_bce = time_value.startswith("-")
+        # Split on T to remove time portion
+        date_with_sign = time_value.split("T")[0]
+        date_without_sign = date_with_sign[1:]  # Remove the + or - sign
+
+        # Truncate based on precision
+        if precision >= 11:  # day precision
+            date_part = date_without_sign  # Full YYYY-MM-DD
+            raw_part = date_with_sign
+        elif precision == 10:  # month precision
+            date_part = date_without_sign[:7]  # YYYY-MM
+            raw_part = date_with_sign[:8] if is_bce else date_with_sign[:7]
+        elif precision == 9:  # year precision
+            date_part = date_without_sign[:4]  # YYYY
+            raw_part = date_with_sign[:5] if is_bce else date_with_sign[:4]
+        else:
+            # Lower precision not commonly used for dates
+            return None
+
+        return cls(
+            date=date_part, raw_date=raw_part, precision=precision, is_bce=is_bce
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for backwards compatibility."""
+        return {
+            "date": self.date,
+            "raw_date": self.raw_date,
+            "precision": self.precision,
+            "is_bce": self.is_bce,
+        }
 
 
 def validate_date_format(date_str: Optional[str]) -> Optional[str]:

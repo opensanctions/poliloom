@@ -2,6 +2,7 @@
 
 from typing import Dict, List, Optional, Any, Set
 import logging
+from poliloom.dates import WikidataDate
 
 logger = logging.getLogger(__name__)
 
@@ -82,14 +83,14 @@ class WikidataEntityProcessor:
 
     def extract_date_from_claims(
         self, claims: List[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[WikidataDate]:
         """Extract date from Wikidata claims with precision handling.
 
         Args:
             claims: List of Wikidata claims (from get_truthy_claims or qualifiers)
 
         Returns:
-            Dictionary with 'date' (string) and 'precision' (int) keys, or None
+            WikidataDate object or None
         """
         for claim in claims:
             try:
@@ -101,23 +102,10 @@ class WikidataEntityProcessor:
 
                 if datavalue.get("type") == "time":
                     time_value = datavalue.get("value", {}).get("time", "")
-                    # Convert from Wikidata format (+1970-01-15T00:00:00Z) to simpler format
-                    if time_value.startswith("+"):
-                        date_part = time_value[1:].split("T")[0]
-                        # Handle precision - only return what's specified
-                        precision = datavalue.get("value", {}).get("precision", 11)
-                        if precision >= 11:  # day precision
-                            return {"date": date_part, "precision": precision}
-                        elif precision == 10:  # month precision
-                            return {
-                                "date": date_part[:7],
-                                "precision": precision,
-                            }  # YYYY-MM
-                        elif precision == 9:  # year precision
-                            return {
-                                "date": date_part[:4],
-                                "precision": precision,
-                            }  # YYYY
+                    precision = datavalue.get("value", {}).get("precision", 11)
+
+                    # Create and return WikidataDate object
+                    return WikidataDate.from_wikidata_time(time_value, precision)
             except (KeyError, TypeError):
                 continue
         return None
