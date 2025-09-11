@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { fetchWithAuth, handleApiError } from '@/lib/api-auth';
 
 // CSS styles injected into archived pages for highlighting functionality
 const HIGHLIGHT_STYLES = `<style data-poliloom-highlight="true">
@@ -11,12 +11,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    
-    if (!session?.accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const apiBaseUrl = process.env.API_BASE_URL;
     if (!apiBaseUrl) {
       return NextResponse.json(
@@ -28,11 +22,12 @@ export async function GET(
     const resolvedParams = await params;
     const apiUrl = `${apiBaseUrl}/archived-pages/${resolvedParams.id}.html`;
     
-    const response = await fetch(apiUrl, {
-      headers: {
-        'Authorization': `Bearer ${session.accessToken}`,
-      },
-    });
+    const response = await fetchWithAuth(apiUrl);
+
+    // If fetchWithAuth returned a NextResponse (error case), return it directly
+    if (response instanceof NextResponse) {
+      return response;
+    }
 
     if (!response.ok) {
       return NextResponse.json(
@@ -59,10 +54,6 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('Error fetching archived page:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return handleApiError(error, 'GET /api/archived-pages/[id]/html');
   }
 }

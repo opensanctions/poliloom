@@ -7,7 +7,6 @@ from sqlalchemy.orm import joinedload
 from datetime import datetime, timezone
 import httpx
 from typing import Optional
-from sqlalchemy import update, bindparam
 from poliloom.enrichment import enrich_politician_from_wikipedia
 from poliloom.storage import StorageFactory
 from poliloom.importer.hierarchy import import_hierarchy_trees
@@ -113,7 +112,12 @@ def main(verbose):
     required=True,
     help="Output path - local filesystem path or GCS path (gs://bucket/path)",
 )
-def dump_download(output):
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Force new download, bypassing existing download check",
+)
+def dump_download(output, force):
     """Download latest Wikidata dump from Wikidata to specified location."""
     url = "https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.bz2"
 
@@ -138,7 +142,7 @@ def dump_download(output):
                 last_modified_str, "%a, %d %b %Y %H:%M:%S %Z"
             ).replace(tzinfo=timezone.utc)
 
-        # Check if we already have this dump (completed or in-progress)
+        # Check if we already have this dump (completed or in-progress) unless --force is used
         with Session(get_engine()) as session:
             existing_dump = (
                 session.query(WikidataDump)
@@ -147,24 +151,31 @@ def dump_download(output):
                 .first()
             )
 
-            if existing_dump:
+            if existing_dump and not force:
                 if existing_dump.downloaded_at:
                     click.echo(
                         f"❌ Dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already downloaded"
                     )
-                    click.echo("No new dump available. Exiting.")
+                    click.echo("No new dump available. Use --force to download anyway.")
                     raise SystemExit(1)
                 else:
                     click.echo(
                         f"❌ Download for dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already in progress"
                     )
-                    click.echo("Another download process is running. Exiting.")
+                    click.echo(
+                        "Another download process is running. Use --force to start new download."
+                    )
                     raise SystemExit(1)
+            elif existing_dump and force:
+                click.echo(
+                    f"⚠️  Forcing new download for dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC (bypassing existing check)"
+                )
 
             # Create new dump record
-            click.echo(
-                f"📝 New dump found from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC"
-            )
+            if not existing_dump:
+                click.echo(
+                    f"📝 New dump found from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC"
+                )
             new_dump = WikidataDump(url=url, last_modified=last_modified)
             session.add(new_dump)
             session.commit()
@@ -546,12 +557,12 @@ def show_politician(wikidata_id):
 @main.command("embed-entities")
 @click.option(
     "--batch-size",
-    default=2000,
+    default=8192,
     help="Number of entities to read from DB per batch",
 )
 @click.option(
     "--encode-batch-size",
-    default=1024,
+    default=2048,
     help="Number of texts to encode at once (CPU or GPU)",
 )
 def embed_entities(batch_size, encode_batch_size):
@@ -587,50 +598,34 @@ def embed_entities(batch_size, encode_batch_size):
                 click.echo(f"Found {total_count} {entity_name} without embeddings")
                 processed = 0
 
-                # Deterministic keyset pagination by primary key to avoid rescans
-                last_id = None
+                # Process entities in batches
                 while True:
-                    q = session.query(model_class.wikidata_id, model_class.name).filter(
-                        model_class.embedding.is_(None)
+                    # Query full ORM objects to use the name property
+                    batch = (
+                        session.query(model_class)
+                        .filter(model_class.embedding.is_(None))
+                        .limit(batch_size)
+                        .all()
                     )
-                    if last_id is not None:
-                        q = q.filter(model_class.wikidata_id > last_id)
-                    batch = q.order_by(model_class.wikidata_id).limit(batch_size).all()
 
                     if not batch:
                         break
 
-                    wikidata_ids = [row[0] for row in batch]
-                    names = [row[1] for row in batch]
+                    # Use the name property from ORM objects
+                    names = [entity.name for entity in batch]
 
                     # Generate embeddings (typed lists). Use encode_batch_size for both CPU/GPU
                     embeddings = model.encode(
                         names, convert_to_tensor=False, batch_size=encode_batch_size
                     )
 
-                    # Update using typed executemany with pgvector adapter (no casts)
-                    params = [
-                        {
-                            "pk": wid,
-                            "embedding": emb.tolist()
-                            if hasattr(emb, "tolist")
-                            else emb,
-                        }
-                        for wid, emb in zip(wikidata_ids, embeddings)
-                    ]
+                    # Update embeddings on the ORM objects
+                    for entity, embedding in zip(batch, embeddings):
+                        entity.embedding = embedding
 
-                    table = model_class.__table__
-                    stmt = (
-                        update(table)
-                        .where(table.c.wikidata_id == bindparam("pk"))
-                        .values(embedding=bindparam("embedding"))
-                        .execution_options(synchronize_session=False)
-                    )
-                    session.execute(stmt, params)
                     session.commit()
 
                     processed += len(batch)
-                    last_id = wikidata_ids[-1]
                     click.echo(f"Processed {processed}/{total_count} {entity_name}")
 
                 click.echo(f"✅ Generated embeddings for {processed} {entity_name}")
@@ -646,7 +641,13 @@ def embed_entities(batch_size, encode_batch_size):
     required=True,
     help="Path to extracted JSON dump file - local filesystem path or GCS path (gs://bucket/path)",
 )
-def dump_import_hierarchy(file):
+@click.option(
+    "--batch-size",
+    type=int,
+    default=1000,
+    help="Number of entities to process in each database batch (default: 1000)",
+)
+def dump_import_hierarchy(file, batch_size):
     """Import hierarchy trees for positions and locations from Wikidata dump."""
 
     # Get the latest dump and check its status
@@ -676,7 +677,7 @@ def dump_import_hierarchy(file):
         click.echo("Press Ctrl+C to interrupt...")
 
         # Import the trees (always parallel)
-        import_hierarchy_trees(file)
+        import_hierarchy_trees(file, batch_size=batch_size)
 
         # Mark as imported
         if latest_dump is not None:
@@ -703,8 +704,8 @@ def dump_import_hierarchy(file):
 @click.option(
     "--batch-size",
     type=int,
-    default=100,
-    help="Number of entities to process in each database batch (default: 100)",
+    default=1000,
+    help="Number of entities to process in each database batch (default: 1000)",
 )
 def dump_import_entities(file, batch_size):
     """Import supporting entities (positions, locations, countries) from a Wikidata dump file."""
@@ -722,7 +723,6 @@ def dump_import_entities(file, batch_size):
             click.echo("Continuing anyway...")
 
     click.echo(f"Importing supporting entities from dump file: {file}")
-    click.echo(f"Using batch size: {batch_size}")
 
     # Check if dump file exists using storage backend
     backend = StorageFactory.get_backend(file)
@@ -785,8 +785,8 @@ def dump_import_entities(file, batch_size):
 @click.option(
     "--batch-size",
     type=int,
-    default=100,
-    help="Number of entities to process in each database batch (default: 100)",
+    default=1000,
+    help="Number of entities to process in each database batch (default: 1000)",
 )
 def dump_import_politicians(file, batch_size):
     """Import politicians from a Wikidata dump file, linking them to existing entities."""
@@ -804,7 +804,6 @@ def dump_import_politicians(file, batch_size):
             click.echo("Continuing anyway...")
 
     click.echo(f"Importing politicians from dump file: {file}")
-    click.echo(f"Using batch size: {batch_size}")
 
     # Check if dump file exists using storage backend
     backend = StorageFactory.get_backend(file)

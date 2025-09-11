@@ -4,6 +4,7 @@ import logging
 import multiprocessing as mp
 from typing import Tuple
 from datetime import datetime, date
+from types import SimpleNamespace
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -23,7 +24,7 @@ from ..models import (
     BornAt,
     WikipediaLink,
 )
-from ..wikidata_entity import WikidataEntity
+from ..wikidata_entity_processor import WikidataEntityProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ def init_politician_worker(
 
 
 def _is_politician(
-    entity: WikidataEntity, relevant_position_qids: frozenset[str]
+    entity: WikidataEntityProcessor, relevant_position_qids: frozenset[str]
 ) -> bool:
     """Check if entity is a politician based on occupation or positions held in our database."""
     # Must be human first
@@ -104,18 +105,16 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
             },
         )
 
-        session.execute(stmt)
-        session.flush()
+        # Execute UPSERT with RETURNING to get IDs directly
+        stmt = stmt.returning(Politician.id, Politician.wikidata_id)
+        result = session.execute(stmt)
+        politician_rows = result.fetchall()
 
-        # Get all politician objects (both new and existing)
-        politician_objects = (
-            session.query(Politician)
-            .filter(Politician.wikidata_id.in_([p["wikidata_id"] for p in politicians]))
-            .all()
-        )
-
-        # Create mapping for easy lookup
-        politician_map = {pol.wikidata_id: pol for pol in politician_objects}
+        # Create mapping directly from RETURNING results
+        politician_map = {
+            row.wikidata_id: SimpleNamespace(id=row.id, wikidata_id=row.wikidata_id)
+            for row in politician_rows
+        }
 
         # Now process related data for each politician
         for politician_data in politicians:
@@ -264,7 +263,7 @@ def _process_politicians_chunk(
         for entity in dump_reader.read_chunk_entities(
             dump_file_path, start_byte, end_byte
         ):
-            entity: WikidataEntity
+            entity: WikidataEntityProcessor
             entity_count += 1
 
             # Progress reporting for large chunks

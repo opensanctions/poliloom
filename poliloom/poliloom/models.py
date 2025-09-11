@@ -3,6 +3,7 @@
 import hashlib
 from datetime import datetime, timezone
 from enum import Enum
+from typing import List, Set
 from sqlalchemy import (
     Column,
     String,
@@ -16,6 +17,7 @@ from sqlalchemy import (
     func,
     Enum as SQLEnum,
 )
+from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy import event
@@ -31,6 +33,17 @@ class PropertyType(str, Enum):
 
     BIRTH_DATE = "birth_date"
     DEATH_DATE = "death_date"
+
+
+class RelationType(str, Enum):
+    """Enumeration of Wikidata relation types."""
+
+    SUBCLASS_OF = "P279"  # Subclass of relation
+    INSTANCE_OF = "P31"  # Instance of relation
+    PART_OF = "P361"  # Part of relation
+    LOCATED_IN = "P131"  # Located in administrative territorial entity
+    COUNTRY = "P17"  # Country relation
+    APPLIES_TO_JURISDICTION = "P1001"  # Applies to jurisdiction relation
 
 
 class TimestampMixin:
@@ -332,25 +345,38 @@ class Country(Base, TimestampMixin):
 
     __tablename__ = "countries"
 
-    wikidata_id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)  # Country name in English
+    wikidata_id = Column(
+        String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
+    )
     iso_code = Column(String, unique=True, index=True)  # ISO 3166-1 alpha-2 code
 
     # Relationships
     citizens = relationship(
         "HasCitizenship", back_populates="country", cascade="all, delete-orphan"
     )
-
-
-class LocationClass(Base):
-    """Junction table for Location-WikidataClass many-to-many relationship."""
-
-    __tablename__ = "location_classes"
-
-    location_id = Column(String, ForeignKey("locations.wikidata_id"), primary_key=True)
-    class_id = Column(
-        String, ForeignKey("wikidata_classes.wikidata_id"), primary_key=True
+    wikidata_entity = relationship(
+        "WikidataEntity", back_populates="country", lazy="joined"
     )
+
+    @hybrid_property
+    def name(self) -> str:
+        """Get the country name from the related WikidataEntity."""
+        return self.wikidata_entity.name if self.wikidata_entity else None
+
+    @classmethod
+    def create_with_entity(
+        cls, session, wikidata_id: str, name: str, iso_code: str = None
+    ):
+        """Create a Country with its associated WikidataEntity."""
+        # Create WikidataEntity first
+        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, name=name)
+        session.add(wikidata_entity)
+
+        # Create Country
+        country = cls(wikidata_id=wikidata_id, iso_code=iso_code)
+        session.add(country)
+
+        return country
 
 
 class Location(Base, TimestampMixin):
@@ -358,28 +384,38 @@ class Location(Base, TimestampMixin):
 
     __tablename__ = "locations"
 
-    wikidata_id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
+    wikidata_id = Column(
+        String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
+    )
     embedding = Column(Vector(384), nullable=True)
 
     # Relationships
     born_here = relationship(
         "BornAt", back_populates="location", cascade="all, delete-orphan"
     )
-    wikidata_classes = relationship(
-        "WikidataClass", secondary="location_classes", back_populates="locations"
+    wikidata_entity = relationship(
+        "WikidataEntity", back_populates="location", lazy="joined"
     )
 
+    @property
+    def name(self) -> str:
+        """Get the name from the associated WikidataEntity."""
+        return self.wikidata_entity.name
 
-class PositionClass(Base):
-    """Junction table for Position-WikidataClass many-to-many relationship."""
+    @classmethod
+    def create_with_entity(cls, session, wikidata_id: str, name: str, embedding=None):
+        """Create a Location with its associated WikidataEntity."""
+        # Create WikidataEntity first
+        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, name=name)
+        session.add(wikidata_entity)
 
-    __tablename__ = "position_classes"
+        # Create Location
+        location = cls(wikidata_id=wikidata_id)
+        if embedding is not None:
+            location.embedding = embedding
+        session.add(location)
 
-    position_id = Column(String, ForeignKey("positions.wikidata_id"), primary_key=True)
-    class_id = Column(
-        String, ForeignKey("wikidata_classes.wikidata_id"), primary_key=True
-    )
+        return location
 
 
 class Position(Base, TimestampMixin):
@@ -387,17 +423,38 @@ class Position(Base, TimestampMixin):
 
     __tablename__ = "positions"
 
-    wikidata_id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
+    wikidata_id = Column(
+        String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
+    )
     embedding = Column(Vector(384), nullable=True)
 
     # Relationships
     held_by = relationship(
         "HoldsPosition", back_populates="position", cascade="all, delete-orphan"
     )
-    wikidata_classes = relationship(
-        "WikidataClass", secondary="position_classes", back_populates="positions"
+    wikidata_entity = relationship(
+        "WikidataEntity", back_populates="position", lazy="joined"
     )
+
+    @property
+    def name(self) -> str:
+        """Get the name from the associated WikidataEntity."""
+        return self.wikidata_entity.name
+
+    @classmethod
+    def create_with_entity(cls, session, wikidata_id: str, name: str, embedding=None):
+        """Create a Position with its associated WikidataEntity."""
+        # Create WikidataEntity first
+        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, name=name)
+        session.add(wikidata_entity)
+
+        # Create Position
+        position = cls(wikidata_id=wikidata_id)
+        if embedding is not None:
+            position.embedding = embedding
+        session.add(position)
+
+        return position
 
 
 class HoldsPosition(Base, TimestampMixin):
@@ -560,71 +617,132 @@ class WikidataDump(Base, TimestampMixin):
     )  # When politicians import completed
 
 
-class WikidataClass(Base, TimestampMixin):
-    """Wikidata class entity for hierarchy storage."""
+class WikidataEntity(Base, TimestampMixin):
+    """Wikidata entity for hierarchy storage."""
 
-    __tablename__ = "wikidata_classes"
+    __tablename__ = "wikidata_entities"
 
     wikidata_id = Column(String, primary_key=True)  # Wikidata QID as primary key
     name = Column(
         String, nullable=True
-    )  # Class name from Wikidata labels (can be None)
+    )  # Entity name from Wikidata labels (can be None)
 
     # Relationships
     parent_relations = relationship(
-        "SubclassRelation",
-        foreign_keys="SubclassRelation.child_class_id",
-        back_populates="child_class",
+        "WikidataRelation",
+        foreign_keys="WikidataRelation.child_entity_id",
+        back_populates="child_entity",
         cascade="all, delete-orphan",
     )
     child_relations = relationship(
-        "SubclassRelation",
-        foreign_keys="SubclassRelation.parent_class_id",
-        back_populates="parent_class",
+        "WikidataRelation",
+        foreign_keys="WikidataRelation.parent_entity_id",
+        back_populates="parent_entity",
         cascade="all, delete-orphan",
     )
-    locations = relationship(
-        "Location", secondary="location_classes", back_populates="wikidata_classes"
-    )
-    positions = relationship(
-        "Position", secondary="position_classes", back_populates="wikidata_classes"
-    )
+    location = relationship("Location", back_populates="wikidata_entity")
+    position = relationship("Position", back_populates="wikidata_entity")
+    country = relationship("Country", back_populates="wikidata_entity")
+
+    @classmethod
+    def query_hierarchy_descendants(
+        cls,
+        session: Session,
+        root_ids: List[str],
+        ignore_ids: List[str] = None,
+        relation_type: RelationType = RelationType.SUBCLASS_OF,
+    ) -> Set[str]:
+        """
+        Query all descendants of multiple root entities from database using recursive SQL.
+        Only returns classes that have names and excludes ignored IDs and their descendants.
+
+        Args:
+            session: Database session
+            root_ids: List of root entity QIDs
+            ignore_ids: List of entity QIDs to exclude along with their descendants
+            relation_type: Type of relation to follow (defaults to SUBCLASS_OF)
+
+        Returns:
+            Set of all descendant QIDs (including the roots) that have names
+        """
+        if not root_ids:
+            return set()
+
+        ignore_ids = ignore_ids or []
+
+        # Use recursive CTEs - one for descendants, one for ignored descendants
+        sql = text(
+            """
+            WITH RECURSIVE descendants AS (
+                -- Base case: start with all root entities
+                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
+                FROM wikidata_entities 
+                WHERE wikidata_id = ANY(:root_ids)
+                UNION
+                -- Recursive case: find all children
+                SELECT sr.child_entity_id AS wikidata_id
+                FROM wikidata_relations sr
+                JOIN descendants d ON sr.parent_entity_id = d.wikidata_id
+                WHERE sr.relation_type = :relation_type
+            ),
+            ignored_descendants AS (
+                -- Base case: start with ignored IDs
+                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
+                FROM wikidata_entities 
+                WHERE wikidata_id = ANY(:ignore_ids)
+                UNION
+                -- Recursive case: find all children of ignored IDs
+                SELECT sr.child_entity_id AS wikidata_id
+                FROM wikidata_relations sr
+                JOIN ignored_descendants id ON sr.parent_entity_id = id.wikidata_id
+                WHERE sr.relation_type = :relation_type
+            )
+            SELECT DISTINCT d.wikidata_id 
+            FROM descendants d
+            JOIN wikidata_entities wc ON d.wikidata_id = wc.wikidata_id
+            WHERE wc.name IS NOT NULL
+            AND d.wikidata_id NOT IN (SELECT wikidata_id FROM ignored_descendants)
+        """
+        )
+
+        result = session.execute(
+            sql,
+            {
+                "root_ids": root_ids,
+                "ignore_ids": ignore_ids,
+                "relation_type": relation_type.name,
+            },
+        )
+        return {row[0] for row in result.fetchall()}
 
 
-class SubclassRelation(Base, TimestampMixin):
-    """Subclass relationship between Wikidata classes (P279)."""
+class WikidataRelation(Base, TimestampMixin):
+    """Wikidata relationship between entities."""
 
-    __tablename__ = "subclass_relations"
-    __table_args__ = (
-        UniqueConstraint(
-            "parent_class_id", "child_class_id", name="uq_subclass_parent_child"
-        ),
-    )
+    __tablename__ = "wikidata_relations"
 
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
-    parent_class_id = Column(
+    parent_entity_id = Column(
         String,
-        ForeignKey("wikidata_classes.wikidata_id"),
-        nullable=False,
-        index=True,
+        ForeignKey("wikidata_entities.wikidata_id"),
+        primary_key=True,
     )
-    child_class_id = Column(
+    child_entity_id = Column(
         String,
-        ForeignKey("wikidata_classes.wikidata_id"),
-        nullable=False,
-        index=True,
+        ForeignKey("wikidata_entities.wikidata_id"),
+        primary_key=True,
+    )
+    relation_type = Column(
+        SQLEnum(RelationType), primary_key=True, default=RelationType.SUBCLASS_OF
     )
 
     # Relationships
-    parent_class = relationship(
-        "WikidataClass",
-        foreign_keys=[parent_class_id],
+    parent_entity = relationship(
+        "WikidataEntity",
+        foreign_keys=[parent_entity_id],
         back_populates="child_relations",
     )
-    child_class = relationship(
-        "WikidataClass",
-        foreign_keys=[child_class_id],
+    child_entity = relationship(
+        "WikidataEntity",
+        foreign_keys=[child_entity_id],
         back_populates="parent_relations",
     )

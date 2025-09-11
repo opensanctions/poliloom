@@ -111,8 +111,11 @@ uv run pre-commit install
 # Run all tests
 uv run pytest
 
+# Run all model tests
+uv run pytest tests/models/
+
 # Run specific test file
-uv run pytest tests/test_models.py
+uv run pytest tests/models/test_politician.py
 
 # Run with verbose output
 uv run pytest -v

@@ -5,14 +5,18 @@ import tempfile
 import os
 from unittest.mock import patch
 
-from poliloom.models import WikidataClass, SubclassRelation, Position, Location, Country
+from poliloom.models import (
+    WikidataEntity,
+    WikidataRelation,
+    Position,
+    Location,
+    Country,
+)
 from poliloom.importer.entity import (
     import_entities,
-    _query_hierarchy_descendants,
-    _insert_positions_batch,
-    _insert_locations_batch,
-    _insert_countries_batch,
+    _insert_entities_batch,
 )
+from poliloom.database import get_engine
 from sqlalchemy.dialects.postgresql import insert
 
 
@@ -36,20 +40,26 @@ class TestWikidataEntityImporter:
                 "name": "geographic entity",
             },  # Root location class
             {"wikidata_id": "Q515", "name": "city"},  # City (subclass of location)
+            # Country classes referenced by test entities
+            {"wikidata_id": "Q6256", "name": "country"},  # Country
+            {"wikidata_id": "Q5", "name": "human"},  # Human
+            {"wikidata_id": "Q82955", "name": "politician"},  # Politician
         ]
 
         hierarchy_relations = [
-            {"parent_class_id": "Q294414", "child_class_id": "Q4164871"},
-            {"parent_class_id": "Q27096213", "child_class_id": "Q515"},
+            {"parent_entity_id": "Q294414", "child_entity_id": "Q4164871"},
+            {"parent_entity_id": "Q27096213", "child_entity_id": "Q515"},
         ]
 
         # Insert hierarchy data first
-        stmt = insert(WikidataClass).values(hierarchy_data)
+        stmt = insert(WikidataEntity).values(hierarchy_data)
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
 
-        stmt = insert(SubclassRelation).values(hierarchy_relations)
-        stmt = stmt.on_conflict_do_nothing(constraint="uq_subclass_parent_child")
+        stmt = insert(WikidataRelation).values(hierarchy_relations)
+        stmt = stmt.on_conflict_do_nothing(
+            index_elements=["parent_entity_id", "child_entity_id", "relation_type"]
+        )
         db_session.execute(stmt)
         db_session.commit()
 
@@ -232,17 +242,11 @@ class TestWikidataEntityImporter:
             # Verify specific entity data
             position = positions[0]
             assert position.wikidata_id == "Q123456"
-            assert position.name == "Test Office Position"
-            assert len(position.wikidata_classes) > 0
-            assert any(
-                cls.wikidata_id == "Q4164871" for cls in position.wikidata_classes
-            )
+            assert position.wikidata_entity.name == "Test Office Position"
 
             location = locations[0]
             assert location.wikidata_id == "Q789012"
-            assert location.name == "Test City Location"
-            assert len(location.wikidata_classes) > 0
-            assert any(cls.wikidata_id == "Q515" for cls in location.wikidata_classes)
+            assert location.wikidata_entity.name == "Test City Location"
 
             country = countries[0]
             assert country.wikidata_id == "Q345678"
@@ -259,7 +263,7 @@ class TestWikidataEntityImporter:
             {"wikidata_id": "Q2", "name": "Position 2"},
         ]
 
-        _insert_positions_batch(positions)
+        _insert_entities_batch(positions, [], Position, "positions", get_engine())
 
         # Verify positions were inserted
         inserted_positions = db_session.query(Position).all()
@@ -274,7 +278,9 @@ class TestWikidataEntityImporter:
             {"wikidata_id": "Q1", "name": "Position 1"},
             {"wikidata_id": "Q2", "name": "Position 2"},
         ]
-        _insert_positions_batch(initial_positions)
+        _insert_entities_batch(
+            initial_positions, [], Position, "positions", get_engine()
+        )
 
         # Insert batch with some duplicates and new items
         positions_with_duplicates = [
@@ -285,7 +291,9 @@ class TestWikidataEntityImporter:
             {"wikidata_id": "Q2", "name": "Position 2"},  # Duplicate (no change)
             {"wikidata_id": "Q3", "name": "Position 3"},  # New
         ]
-        _insert_positions_batch(positions_with_duplicates)
+        _insert_entities_batch(
+            positions_with_duplicates, [], Position, "positions", get_engine()
+        )
 
         # Verify all positions exist with correct data
         inserted_positions = db_session.query(Position).all()
@@ -297,14 +305,14 @@ class TestWikidataEntityImporter:
         q1_position = (
             db_session.query(Position).filter(Position.wikidata_id == "Q1").first()
         )
-        assert q1_position.name == "Position 1 Updated"
+        assert q1_position.wikidata_entity.name == "Position 1 Updated"
 
     def test_insert_positions_batch_empty(self, db_session):
         """Test inserting empty batch of positions."""
         positions = []
 
         # Should handle empty batch gracefully without errors
-        _insert_positions_batch(positions)
+        _insert_entities_batch(positions, [], Position, "positions", get_engine())
 
         # Verify no positions were inserted
         inserted_positions = db_session.query(Position).all()
@@ -317,7 +325,7 @@ class TestWikidataEntityImporter:
             {"wikidata_id": "Q2", "name": "Location 2"},
         ]
 
-        _insert_locations_batch(locations)
+        _insert_entities_batch(locations, [], Location, "locations", get_engine())
 
         # Verify locations were inserted
         inserted_locations = db_session.query(Location).all()
@@ -333,14 +341,16 @@ class TestWikidataEntityImporter:
             {"wikidata_id": "Q3", "name": "Location 3"},
         ]
 
-        _insert_locations_batch(locations)
+        _insert_entities_batch(locations, [], Location, "locations", get_engine())
 
         # Insert again with some duplicates - should handle gracefully
         locations_with_duplicates = [
             {"wikidata_id": "Q1", "name": "Location 1 Updated"},  # Duplicate
             {"wikidata_id": "Q4", "name": "Location 4"},  # New
         ]
-        _insert_locations_batch(locations_with_duplicates)
+        _insert_entities_batch(
+            locations_with_duplicates, [], Location, "locations", get_engine()
+        )
 
         # Should now have 4 total locations
         all_locations = db_session.query(Location).all()
@@ -353,7 +363,7 @@ class TestWikidataEntityImporter:
         locations = []
 
         # Should handle empty batch gracefully without errors
-        _insert_locations_batch(locations)
+        _insert_entities_batch(locations, [], Location, "locations", get_engine())
 
         # Verify no locations were inserted
         inserted_locations = db_session.query(Location).all()
@@ -366,7 +376,7 @@ class TestWikidataEntityImporter:
             {"wikidata_id": "Q2", "name": "Country 2", "iso_code": "C2"},
         ]
 
-        _insert_countries_batch(countries)
+        _insert_entities_batch(countries, [], Country, "countries", get_engine())
 
         # Verify countries were inserted
         inserted_countries = db_session.query(Country).all()
@@ -384,7 +394,7 @@ class TestWikidataEntityImporter:
         countries = []
 
         # Should handle empty batch gracefully without errors
-        _insert_countries_batch(countries)
+        _insert_entities_batch(countries, [], Country, "countries", get_engine())
 
         # Verify no countries were inserted
         inserted_countries = db_session.query(Country).all()
@@ -397,99 +407,18 @@ class TestWikidataEntityImporter:
         ]
 
         # Insert first time
-        _insert_countries_batch(countries)
+        _insert_entities_batch(countries, [], Country, "countries", get_engine())
 
         # Insert again with updated name - should update
         updated_countries = [
             {"wikidata_id": "Q1", "name": "Country 1 Updated", "iso_code": "C1"},
         ]
-        _insert_countries_batch(updated_countries)
+        _insert_entities_batch(
+            updated_countries, [], Country, "countries", get_engine()
+        )
 
         # Should still have only one country but with updated name
         final_countries = db_session.query(Country).all()
         assert len(final_countries) == 1
         assert final_countries[0].wikidata_id == "Q1"
         assert final_countries[0].name == "Country 1 Updated"
-
-    def test_query_hierarchy_descendants(self, db_session):
-        """Test querying all descendants in a hierarchy."""
-        # Set up test hierarchy in database: Q1 -> Q2 -> Q3, Q1 -> Q4
-        test_classes = [
-            {"wikidata_id": "Q1", "name": "Root"},
-            {"wikidata_id": "Q2", "name": "Child 1"},
-            {"wikidata_id": "Q3", "name": "Grandchild"},
-            {"wikidata_id": "Q4", "name": "Child 2"},
-        ]
-
-        test_relations = [
-            {"parent_class_id": "Q1", "child_class_id": "Q2"},
-            {"parent_class_id": "Q2", "child_class_id": "Q3"},
-            {"parent_class_id": "Q1", "child_class_id": "Q4"},
-        ]
-
-        # Insert test data
-        stmt = insert(WikidataClass).values(test_classes)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
-        db_session.execute(stmt)
-
-        stmt = insert(SubclassRelation).values(test_relations)
-        stmt = stmt.on_conflict_do_nothing(constraint="uq_subclass_parent_child")
-        db_session.execute(stmt)
-        db_session.commit()
-
-        # Test querying descendants
-        descendants = _query_hierarchy_descendants(["Q1"], db_session)
-
-        # Should include Q1 itself and all its descendants with names
-        assert descendants == {"Q1", "Q2", "Q3", "Q4"}
-
-    def test_query_hierarchy_descendants_single_node(self, db_session):
-        """Test querying descendants for a single node with no children."""
-        # Set up single node
-        test_classes = [{"wikidata_id": "Q1", "name": "Single Node"}]
-
-        stmt = insert(WikidataClass).values(test_classes)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
-        db_session.execute(stmt)
-        db_session.commit()
-
-        # Test querying descendants
-        descendants = _query_hierarchy_descendants(["Q1"], db_session)
-
-        # Should only include Q1 itself
-        assert descendants == {"Q1"}
-
-    def test_query_hierarchy_descendants_partial_tree(self, db_session):
-        """Test querying descendants for a subtree in a larger hierarchy."""
-        # Create larger hierarchy: Q1 -> {Q2, Q3}, Q2 -> {Q4, Q5}
-        test_classes = [
-            {"wikidata_id": "Q1", "name": "Root"},
-            {"wikidata_id": "Q2", "name": "Branch"},
-            {"wikidata_id": "Q3", "name": "Leaf 1"},
-            {"wikidata_id": "Q4", "name": "Leaf 2"},
-            {"wikidata_id": "Q5", "name": "Leaf 3"},
-        ]
-
-        test_relations = [
-            {"parent_class_id": "Q1", "child_class_id": "Q2"},
-            {"parent_class_id": "Q1", "child_class_id": "Q3"},
-            {"parent_class_id": "Q2", "child_class_id": "Q4"},
-            {"parent_class_id": "Q2", "child_class_id": "Q5"},
-        ]
-
-        stmt = insert(WikidataClass).values(test_classes)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
-        db_session.execute(stmt)
-
-        stmt = insert(SubclassRelation).values(test_relations)
-        stmt = stmt.on_conflict_do_nothing(constraint="uq_subclass_parent_child")
-        db_session.execute(stmt)
-        db_session.commit()
-
-        # Test querying descendants of Q2 (should include Q2, Q4, Q5)
-        descendants = _query_hierarchy_descendants(["Q2"], db_session)
-        assert descendants == {"Q2", "Q4", "Q5"}
-
-        # Test querying descendants of Q3 (should only include Q3)
-        descendants_q3 = _query_hierarchy_descendants(["Q3"], db_session)
-        assert descendants_q3 == {"Q3"}

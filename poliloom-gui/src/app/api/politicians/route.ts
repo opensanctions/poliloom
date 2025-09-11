@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { fetchWithAuth, handleApiError } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    
-    if (!session?.accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:8000';
     
     // Forward query parameters
@@ -16,11 +10,12 @@ export async function GET(request: NextRequest) {
     const queryString = searchParams.toString();
     const url = `${apiBaseUrl}/politicians/${queryString ? `?${queryString}` : ''}`;
     
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${session.accessToken}`,
-      },
-    });
+    const response = await fetchWithAuth(url);
+
+    // If fetchWithAuth returned a NextResponse (error case), return it directly
+    if (response instanceof NextResponse) {
+      return response;
+    }
 
     if (!response.ok) {
       return NextResponse.json(
@@ -32,10 +27,6 @@ export async function GET(request: NextRequest) {
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error fetching politicians:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return handleApiError(error, 'GET /api/politicians');
   }
 }

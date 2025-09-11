@@ -23,7 +23,7 @@ from poliloom.importer.politician import (
     _insert_politicians_batch,
     _is_politician,
 )
-from poliloom.wikidata_entity import WikidataEntity
+from poliloom.wikidata_entity_processor import WikidataEntityProcessor
 
 
 class TestWikidataPoliticianImporter:
@@ -255,7 +255,7 @@ class TestWikidataPoliticianImporter:
             },
         ]
 
-        _insert_politicians_batch(politicians)
+        _insert_politicians_batch(politicians, get_engine())
 
         # Verify politicians were inserted
         inserted_politicians = db_session.query(Politician).all()
@@ -278,7 +278,7 @@ class TestWikidataPoliticianImporter:
         ]
 
         # Insert first batch
-        _insert_politicians_batch(politicians)
+        _insert_politicians_batch(politicians, get_engine())
 
         # Insert again with updated name - should update
         updated_politicians = [
@@ -292,7 +292,7 @@ class TestWikidataPoliticianImporter:
                 "wikipedia_links": [],
             }
         ]
-        _insert_politicians_batch(updated_politicians)
+        _insert_politicians_batch(updated_politicians, get_engine())
 
         # Should still have only 1 politician with updated name
         final_politicians = db_session.query(Politician).all()
@@ -305,7 +305,7 @@ class TestWikidataPoliticianImporter:
         politicians = []
 
         # Should handle empty batch gracefully without errors
-        _insert_politicians_batch(politicians)
+        _insert_politicians_batch(politicians, get_engine())
 
         # Verify no politicians were inserted
         inserted_politicians = db_session.query(Politician).all()
@@ -336,7 +336,7 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        _insert_politicians_batch(politicians)
+        _insert_politicians_batch(politicians, get_engine())
 
         # Verify politician and properties were created
         politician = (
@@ -358,13 +358,11 @@ class TestWikidataPoliticianImporter:
     def test_insert_politicians_batch_with_relationships(self, db_session):
         """Test inserting politicians with full relationship data."""
         # First create the required related entities
-        position1 = Position(name="Mayor", wikidata_id="Q30185")
-        position2 = Position(name="President", wikidata_id="Q11696")
-        country1 = Country(name="United States", wikidata_id="Q30", iso_code="US")
-        country2 = Country(name="Canada", wikidata_id="Q16", iso_code="CA")
-        location = Location(name="New York City", wikidata_id="Q60")
-
-        db_session.add_all([position1, position2, country1, country2, location])
+        Position.create_with_entity(db_session, "Q30185", "Mayor")
+        Position.create_with_entity(db_session, "Q11696", "President")
+        Country.create_with_entity(db_session, "Q30", "United States", "US")
+        Country.create_with_entity(db_session, "Q16", "Canada", "CA")
+        Location.create_with_entity(db_session, "Q60", "New York City")
         db_session.commit()
 
         politicians = [
@@ -409,7 +407,7 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        _insert_politicians_batch(politicians)
+        _insert_politicians_batch(politicians, get_engine())
 
         # Verify politician was created with all relationships
         politician = (
@@ -492,7 +490,7 @@ class TestIsPolitician:
                 ],
             },
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
         relevant_positions = frozenset(["Q30185"])
 
         assert _is_politician(entity, relevant_positions) is True
@@ -528,7 +526,7 @@ class TestIsPolitician:
                 ],
             },
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
         relevant_positions = frozenset(["Q30185"])  # mayor is relevant
 
         assert _is_politician(entity, relevant_positions) is True
@@ -556,7 +554,7 @@ class TestIsPolitician:
                 ],
             },
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
         relevant_positions = frozenset(["Q30185"])
 
         assert _is_politician(entity, relevant_positions) is False
@@ -594,7 +592,7 @@ class TestIsPolitician:
                 ],
             },
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
         relevant_positions = frozenset(
             ["Q30185"]
         )  # mayor is relevant, but entity doesn't have it
@@ -630,7 +628,7 @@ class TestIsPolitician:
                 ],
             },
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
         relevant_positions = frozenset(["Q30185"])
 
         # Should still identify as politician despite malformed first claim
@@ -652,7 +650,7 @@ class TestIsPolitician:
                 # No P106 or P39 claims
             },
         }
-        entity = WikidataEntity(entity_data)
+        entity = WikidataEntityProcessor(entity_data)
         relevant_positions = frozenset(["Q30185"])
 
         assert _is_politician(entity, relevant_positions) is False
