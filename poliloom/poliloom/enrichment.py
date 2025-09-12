@@ -167,8 +167,12 @@ async def fetch_and_archive_page(url: str, db: Session) -> ArchivedPage:
 
             # Generate HTML from MHTML
             try:
+                # Read MHTML content from storage (works with both local and GCS paths)
+                mhtml_content = archive.read_archived_content(
+                    archived_page.path_root, "mhtml"
+                )
                 converter = MHTMLConverter()
-                html_content = converter.convert_file(mhtml_path)
+                html_content = converter.convert(mhtml_content)
                 html_path = archive.save_archived_content(
                     archived_page.path_root, "html", html_content
                 )
