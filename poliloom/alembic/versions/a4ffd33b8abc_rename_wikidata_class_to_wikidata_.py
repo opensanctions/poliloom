@@ -44,39 +44,45 @@ def upgrade() -> None:
     # This ensures foreign key constraints will work
     if "positions" in existing_tables:
         connection.execute(
-            sa.text("""
+            sa.text(
+                """
             INSERT INTO wikidata_entities (wikidata_id, name, created_at, updated_at)
             SELECT wikidata_id, name, created_at, updated_at
             FROM positions
             ON CONFLICT (wikidata_id) DO UPDATE SET 
                 name = EXCLUDED.name,
                 updated_at = EXCLUDED.updated_at
-        """)
+        """
+            )
         )
 
     if "locations" in existing_tables:
         connection.execute(
-            sa.text("""
+            sa.text(
+                """
             INSERT INTO wikidata_entities (wikidata_id, name, created_at, updated_at)
             SELECT wikidata_id, name, created_at, updated_at
             FROM locations
             ON CONFLICT (wikidata_id) DO UPDATE SET 
                 name = EXCLUDED.name,
                 updated_at = EXCLUDED.updated_at
-        """)
+        """
+            )
         )
 
     # Step 4: Migrate data from wikidata_classes if it exists
     if "wikidata_classes" in existing_tables:
         connection.execute(
-            sa.text("""
+            sa.text(
+                """
             INSERT INTO wikidata_entities (wikidata_id, name, created_at, updated_at)
             SELECT wikidata_id, name, created_at, updated_at
             FROM wikidata_classes
             ON CONFLICT (wikidata_id) DO UPDATE SET 
                 name = COALESCE(EXCLUDED.name, wikidata_entities.name),
                 updated_at = EXCLUDED.updated_at
-        """)
+        """
+            )
         )
 
     # Step 5: Create wikidata_relations table with composite primary key
@@ -111,38 +117,14 @@ def upgrade() -> None:
     if "subclass_relations" in existing_tables:
         # No EXISTS check needed since wikidata_classes are already in wikidata_entities
         connection.execute(
-            sa.text("""
+            sa.text(
+                """
             INSERT INTO wikidata_relations (parent_entity_id, child_entity_id, relation_type, created_at, updated_at)
             SELECT sr.parent_class_id, sr.child_class_id, 'SUBCLASS_OF', sr.created_at, sr.updated_at
             FROM subclass_relations sr
             ON CONFLICT (parent_entity_id, child_entity_id, relation_type) DO NOTHING
-        """)
-        )
-
-    # Step 6b: Migrate position_classes relationships if they exist
-    if "position_classes" in existing_tables:
-        # Migrate position-class relationships as SUBCLASS_OF relationships
-        # No EXISTS check needed since positions are already in wikidata_entities
-        connection.execute(
-            sa.text("""
-            INSERT INTO wikidata_relations (parent_entity_id, child_entity_id, relation_type, created_at, updated_at)
-            SELECT pc.class_id, pc.position_id, 'SUBCLASS_OF', NOW(), NOW()
-            FROM position_classes pc
-            ON CONFLICT (parent_entity_id, child_entity_id, relation_type) DO NOTHING
-        """)
-        )
-
-    # Step 6c: Migrate location_classes relationships if they exist
-    if "location_classes" in existing_tables:
-        # Migrate location-class relationships as SUBCLASS_OF relationships
-        # No EXISTS check needed since locations are already in wikidata_entities
-        connection.execute(
-            sa.text("""
-            INSERT INTO wikidata_relations (parent_entity_id, child_entity_id, relation_type, created_at, updated_at)
-            SELECT lc.class_id, lc.location_id, 'SUBCLASS_OF', NOW(), NOW()
-            FROM location_classes lc
-            ON CONFLICT (parent_entity_id, child_entity_id, relation_type) DO NOTHING
-        """)
+        """
+            )
         )
 
     # Step 7: Create indexes after data migration
