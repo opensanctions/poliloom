@@ -60,7 +60,7 @@ services:
       - PYTHONPATH=/app
       - PORT=8000
       - HF_HOME=/var/cache/huggingface
-      - CRAWL4AI_CACHE_DIR=/var/cache/crawl4ai
+      - HOME=/var/cache/crawl4ai
     volumes:
       - huggingface_cache:/var/cache/huggingface
       - crawl4ai_cache:/var/cache/crawl4ai

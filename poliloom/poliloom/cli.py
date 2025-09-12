@@ -836,7 +836,7 @@ def dump_import_politicians(file, batch_size):
         click.echo()
         click.echo("💡 Next steps:")
         click.echo(
-            "  • Run 'poliloom enrich-wikipedia --id <wikidata_id>' to enrich politician data"
+            "  • Run 'poliloom enrich-wikipedia --limit <amount>' to enrich politician data"
         )
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")

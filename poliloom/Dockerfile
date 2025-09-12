@@ -42,16 +42,18 @@ COPY alembic/ /app/alembic/
 # Add virtual environment to PATH
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Install Playwright browsers
-RUN head -1 /app/.venv/bin/playwright
-RUN /app/.venv/bin/playwright install --with-deps chromium
-
 # Create non-root user
 RUN groupadd -r poliloom && useradd -r -g poliloom poliloom
-RUN chown -R poliloom:poliloom /app
 # Create cache directories with correct ownership
-RUN mkdir -p /var/cache/wikidata /var/cache/crawl4ai /var/cache/huggingface && \
-    chown -R poliloom:poliloom /var/cache/wikidata /var/cache/crawl4ai /var/cache/huggingface
+RUN mkdir -p /var/cache/wikidata /var/cache/crawl4ai /var/cache/huggingface /var/cache/playwright && \
+    chown -R poliloom:poliloom /var/cache/wikidata /var/cache/crawl4ai /var/cache/huggingface /var/cache/playwright
+
+# Install Playwright browsers as root, then fix ownership
+ENV PLAYWRIGHT_BROWSERS_PATH=/var/cache/playwright
+RUN /app/.venv/bin/playwright install --with-deps chromium
+RUN chown -R poliloom:poliloom /app /var/cache/playwright
+
+# Switch to poliloom user
 USER poliloom
 
 # Expose port
