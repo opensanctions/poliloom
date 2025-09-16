@@ -12,9 +12,7 @@ from pydantic import BaseModel
 class User(BaseModel):
     """User model for authenticated users."""
 
-    username: str
     user_id: int
-    email: Optional[str] = None
     jwt_token: Optional[str] = None  # Store the raw JWT token for Wikidata API calls
 
 
@@ -44,11 +42,7 @@ class MediaWikiOAuth:
             # Extract user information from JWT payload
             user_id = int(decoded.get("sub", 0))
             return User(
-                username=str(
-                    user_id
-                ),  # Use sub as username since username field doesn't exist
                 user_id=user_id,
-                email=decoded.get("email"),
                 jwt_token=jwt_token,  # Store the raw JWT token
             )
         except (JWTError, ValueError, KeyError) as e:

@@ -22,9 +22,7 @@ def mock_user():
     auth_data = load_json_fixture("auth_test_data.json")
     test_user = auth_data["test_user"]
     return User(
-        username=test_user["username"],
         user_id=test_user["sub"],
-        email=test_user["email"],
     )
 
 
@@ -59,9 +57,7 @@ class TestAPIAuthentication:
 
         with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
             # Mock successful OAuth verification
-            mock_user = User(
-                username="testuser", user_id=12345, email="test@example.com"
-            )
+            mock_user = User(user_id=12345)
             mock_oauth_handler = SyncMock()
             mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=mock_user)
             mock_get_oauth_handler.return_value = mock_oauth_handler
@@ -80,9 +76,7 @@ class TestAPIAuthentication:
 
         with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
             # Mock successful OAuth verification
-            mock_user = User(
-                username="testuser", user_id=12345, email="test@example.com"
-            )
+            mock_user = User(user_id=12345)
             mock_oauth_handler = SyncMock()
             mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=mock_user)
             mock_get_oauth_handler.return_value = mock_oauth_handler
@@ -167,9 +161,7 @@ class TestArchivedPagesAPI:
 
         with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
             # Mock successful OAuth verification
-            mock_user = User(
-                username="testuser", user_id=12345, email="test@example.com"
-            )
+            mock_user = User(user_id=12345)
             mock_oauth_handler = SyncMock()
             mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=mock_user)
             mock_get_oauth_handler.return_value = mock_oauth_handler
@@ -191,9 +183,7 @@ class TestArchivedPagesAPI:
 
         with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
             # Mock successful OAuth verification
-            mock_user = User(
-                username="testuser", user_id=12345, email="test@example.com"
-            )
+            mock_user = User(user_id=12345)
             mock_oauth_handler = SyncMock()
             mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=mock_user)
             mock_get_oauth_handler.return_value = mock_oauth_handler
@@ -223,9 +213,7 @@ class TestArchivedPagesAPI:
 
         with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
             # Mock successful OAuth verification
-            mock_user = User(
-                username="testuser", user_id=12345, email="test@example.com"
-            )
+            mock_user = User(user_id=12345)
             mock_oauth_handler = SyncMock()
             mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=mock_user)
             mock_get_oauth_handler.return_value = mock_oauth_handler
@@ -256,9 +244,7 @@ class TestArchivedPagesAPI:
 
         with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
             # Mock successful OAuth verification
-            mock_user = User(
-                username="testuser", user_id=12345, email="test@example.com"
-            )
+            mock_user = User(user_id=12345)
             mock_oauth_handler = SyncMock()
             mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=mock_user)
             mock_get_oauth_handler.return_value = mock_oauth_handler

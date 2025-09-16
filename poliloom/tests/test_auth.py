@@ -53,9 +53,7 @@ class TestMediaWikiOAuth:
         user = await oauth.verify_jwt_token("test_jwt_token")
 
         assert isinstance(user, User)
-        assert user.username == "testuser"
         assert user.user_id == 12345
-        assert user.email == "test@example.com"
 
         # Verify jwt.decode was called with correct parameters
         mock_jwt_decode.assert_called_once_with(
@@ -106,9 +104,7 @@ class TestMediaWikiOAuth:
         user = await oauth.verify_jwt_token("test_jwt_token")
 
         assert isinstance(user, User)
-        assert user.username == "testuser"
         assert user.user_id == 12345
-        assert user.email is None
 
 
 class TestAuthDependencies:
@@ -120,11 +116,7 @@ class TestAuthDependencies:
         # Load test data from fixture
         auth_data = load_json_fixture("auth_test_data.json")
         test_user = auth_data["test_user"]
-        expected_user = User(
-            username=test_user["username"], 
-            user_id=test_user["sub"], 
-            email=test_user["email"]
-        )
+        expected_user = User(user_id=test_user["sub"])
         mock_oauth_handler = Mock()
         mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=expected_user)
         mock_get_oauth_handler.return_value = mock_oauth_handler
@@ -204,7 +196,7 @@ class TestAuthDependencies:
         """Test optional authentication with valid credentials."""
         auth_data = load_json_fixture("auth_test_data.json")
         test_user = auth_data["test_user"]
-        expected_user = User(username=test_user["username"], user_id=test_user["sub"])
+        expected_user = User(user_id=test_user["sub"])
         mock_get_current_user.return_value = expected_user
 
         credentials = HTTPAuthorizationCredentials(
@@ -237,24 +229,18 @@ class TestAuthDependencies:
 class TestUserModel:
     """Test User model."""
 
-    def test_user_creation_with_email(self):
+    def test_user_creation_with_all_fields(self):
         """Test User model creation with all fields."""
         auth_data = load_json_fixture("auth_test_data.json")
         test_user = auth_data["test_user"]
-        user = User(
-            username=test_user["username"], 
-            user_id=test_user["sub"], 
-            email=test_user["email"]
-        )
-        assert user.username == test_user["username"]
+        user = User(user_id=test_user["sub"], jwt_token="test_token")
         assert user.user_id == test_user["sub"]
-        assert user.email == test_user["email"]
+        assert user.jwt_token == "test_token"
 
-    def test_user_creation_without_email(self):
-        """Test User model creation without email."""
+    def test_user_creation_minimal(self):
+        """Test User model creation with minimal fields."""
         auth_data = load_json_fixture("auth_test_data.json")
         test_user = auth_data["test_user"]
-        user = User(username=test_user["username"], user_id=test_user["sub"])
-        assert user.username == test_user["username"]
+        user = User(user_id=test_user["sub"])
         assert user.user_id == test_user["sub"]
-        assert user.email is None
+        assert user.jwt_token is None
