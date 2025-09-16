@@ -26,11 +26,7 @@ from .models import (
 )
 from . import archive
 from .database import get_engine
-from .dates import (
-    validate_date_format,
-    get_date_precision,
-    dates_could_be_same,
-)
+from .wikidata_date import WikidataDate
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +66,7 @@ class ExtractedProperty(BaseModel):
     @field_validator("value")
     @classmethod
     def validate_date_value(cls, v: str) -> str:
-        return validate_date_format(v)
+        return WikidataDate.validate_date_format(v)
 
 
 class ExtractedPosition(BaseModel):
@@ -84,7 +80,9 @@ class ExtractedPosition(BaseModel):
     @field_validator("start_date", "end_date")
     @classmethod
     def validate_dates(cls, v: Optional[str]) -> Optional[str]:
-        return validate_date_format(v)
+        if v is None:
+            return None
+        return WikidataDate.validate_date_format(v)
 
 
 class ExtractedBirthplace(BaseModel):
@@ -111,7 +109,9 @@ class FreeFormPosition(BaseModel):
     @field_validator("start_date", "end_date")
     @classmethod
     def validate_dates(cls, v: Optional[str]) -> Optional[str]:
-        return validate_date_format(v)
+        if v is None:
+            return None
+        return WikidataDate.validate_date_format(v)
 
 
 class FreeFormPositionResult(BaseModel):
@@ -1077,9 +1077,9 @@ def store_extracted_data(
 
                     for existing_hold in all_existing_holds:
                         # Check if the date ranges could refer to the same time period
-                        if dates_could_be_same(
+                        if WikidataDate.dates_could_be_same(
                             existing_hold.start_date, position_data.start_date
-                        ) and dates_could_be_same(
+                        ) and WikidataDate.dates_could_be_same(
                             existing_hold.end_date, position_data.end_date
                         ):
                             overlapping_hold = existing_hold
@@ -1087,12 +1087,12 @@ def store_extracted_data(
 
                     if overlapping_hold:
                         # Dates could be the same - use precision to decide
-                        new_prec = get_date_precision(
+                        new_prec = WikidataDate.get_date_precision(
                             position_data.start_date
-                        ) + get_date_precision(position_data.end_date)
-                        existing_prec = get_date_precision(
+                        ) + WikidataDate.get_date_precision(position_data.end_date)
+                        existing_prec = WikidataDate.get_date_precision(
                             overlapping_hold.start_date
-                        ) + get_date_precision(overlapping_hold.end_date)
+                        ) + WikidataDate.get_date_precision(overlapping_hold.end_date)
 
                         if new_prec > existing_prec:
                             # New data has higher precision - update existing record

@@ -3,7 +3,6 @@
 import logging
 import os
 from typing import Dict, Any, Optional, List
-from datetime import datetime
 
 import httpx
 from sqlalchemy.orm import Session
@@ -17,6 +16,7 @@ from .models import (
     BornAt,
     PropertyType,
 )
+from .wikidata_date import WikidataDate
 
 logger = logging.getLogger(__name__)
 
@@ -31,45 +31,25 @@ def _parse_date_for_wikidata(date_value: str) -> Optional[Dict[str, Any]]:
     """
     Parse a date string and convert it to Wikidata time format.
 
+    Supports YYYY, YYYY-MM, and YYYY-MM-DD formats.
+
     Args:
-        date_value: Date string (ISO format, partial date like "1962", etc.)
+        date_value: Date string in YYYY, YYYY-MM, or YYYY-MM-DD format
 
     Returns:
         Wikidata time value dict or None if parsing fails
     """
     try:
-        # Try to parse as full date first
-        dt = datetime.fromisoformat(date_value.replace("Z", "+00:00"))
-        return {
-            "type": "value",
-            "content": {
-                "time": f"+{dt.year:04d}-{dt.month:02d}-{dt.day:02d}T00:00:00Z",
-                "timezone": 0,
-                "before": 0,
-                "after": 0,
-                "precision": 11,  # Day precision
-                "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-            },
-        }
-    except ValueError:
-        # Handle partial dates like "1962" or "JUN 1982"
-        if len(date_value) == 4 and date_value.isdigit():
-            # Year only
-            year = int(date_value)
-            return {
-                "type": "value",
-                "content": {
-                    "time": f"+{year:04d}-00-00T00:00:00Z",
-                    "timezone": 0,
-                    "before": 0,
-                    "after": 0,
-                    "precision": 9,  # Year precision
-                    "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                },
-            }
-        else:
+        wikidata_date = WikidataDate.from_date_string(date_value)
+        if not wikidata_date:
             logger.error(f"Cannot parse date value: {date_value}")
             return None
+
+        return wikidata_date.to_wikidata_value()
+
+    except Exception as e:
+        logger.error(f"Cannot parse date value: {date_value} - {e}")
+        return None
 
 
 async def create_statement(
