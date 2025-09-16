@@ -16,9 +16,7 @@ from poliloom.enrichment import (
     PropertyType,
 )
 from poliloom.models import (
-    ArchivedPage,
     BornAt,
-    Country,
     HasCitizenship,
     HoldsPosition,
     Location,
@@ -36,40 +34,6 @@ class TestEnrichment:
     def mock_openai_client(self):
         """Create a mock OpenAI client."""
         return Mock()
-
-    @pytest.fixture
-    def politician_with_source(self, sample_country_data, db_session):
-        """Create a politician with Wikipedia source and citizenship."""
-        # Create country
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        db_session.add(country)
-        db_session.commit()
-        db_session.refresh(country)
-
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session, "Q123456", "Test Politician"
-        )
-        db_session.add(politician)
-        db_session.commit()
-        db_session.refresh(politician)
-
-        # Add citizenship
-        citizenship = HasCitizenship(
-            politician_id=politician.id, country_id=country.wikidata_id
-        )
-        db_session.add(citizenship)
-
-        # Add Wikipedia link
-        wikipedia_link = WikipediaLink(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/Test_Politician",
-            language_code="en",
-        )
-        db_session.add(wikipedia_link)
-        db_session.commit()
-        db_session.refresh(politician)
-        return politician
 
     def test_extract_properties_success(self, mock_openai_client):
         """Test successful property extraction."""
@@ -276,30 +240,20 @@ class TestEnrichment:
     def test_store_extracted_data_properties(
         self,
         db_session,
-        sample_archived_page_data,
-        sample_country_data,
+        sample_archived_page,
+        sample_country,
+        sample_politician,
+        sample_wikipedia_link,
     ):
         """Test storing extracted properties."""
-        # Create entities
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician.create_with_entity(
-            db_session, "Q123456", "Test Politician"
-        )
-        archived_page = ArchivedPage(**sample_archived_page_data)
-
-        db_session.add_all([country, politician, archived_page])
+        # Use fixture entities
         db_session.commit()
 
-        # Add citizenship and Wikipedia link
+        # Add citizenship (Wikipedia link already created by fixture)
         citizenship = HasCitizenship(
-            politician_id=politician.id, country_id=country.wikidata_id
+            politician_id=sample_politician.id, country_id=sample_country.wikidata_id
         )
-        wikipedia_link = WikipediaLink(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/Test_Politician",
-            language_code="en",
-        )
-        db_session.add_all([citizenship, wikipedia_link])
+        db_session.add(citizenship)
         db_session.commit()
 
         properties = [
@@ -312,8 +266,8 @@ class TestEnrichment:
 
         success = store_extracted_data(
             db_session,
-            politician,
-            archived_page,
+            sample_politician,
+            sample_archived_page,
             properties,
             None,  # positions
             None,  # birthplaces
@@ -324,43 +278,36 @@ class TestEnrichment:
         # Verify property was stored
         property_obj = (
             db_session.query(Property)
-            .filter_by(politician_id=politician.id, type=PropertyType.BIRTH_DATE)
+            .filter_by(politician_id=sample_politician.id, type=PropertyType.BIRTH_DATE)
             .first()
         )
         assert property_obj is not None
         assert property_obj.value == "1970-01-15"
-        assert property_obj.archived_page_id == archived_page.id
+        assert property_obj.archived_page_id == sample_archived_page.id
 
     def test_store_extracted_data_positions(
         self,
         db_session,
-        sample_archived_page_data,
-        sample_country_data,
+        sample_archived_page,
+        sample_country,
+        sample_politician,
+        sample_position,
+        sample_wikipedia_link,
     ):
         """Test storing extracted positions."""
-        # Create entities
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician.create_with_entity(
-            db_session, "Q123456", "Test Politician"
-        )
-        archived_page = ArchivedPage(**sample_archived_page_data)
-        position = Position.create_with_entity(
-            db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
-        )
+        # Use fixture entities (position needs embedding for this test)
+        # Embedding set by sample_position fixture
+        db_session.commit()
 
-        db_session.add_all([country, politician, archived_page])
+        db_session.add(sample_archived_page)
         db_session.commit()
 
         # Add citizenship and Wikipedia link
         citizenship = HasCitizenship(
-            politician_id=politician.id, country_id=country.wikidata_id
+            politician_id=sample_politician.id, country_id=sample_country.wikidata_id
         )
-        wikipedia_link = WikipediaLink(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/Test_Politician",
-            language_code="en",
-        )
-        db_session.add_all([citizenship, wikipedia_link])
+        # Wikipedia link created by sample_wikipedia_link fixture
+        db_session.add(citizenship)
         db_session.commit()
 
         positions = [
@@ -374,8 +321,8 @@ class TestEnrichment:
 
         success = store_extracted_data(
             db_session,
-            politician,
-            archived_page,
+            sample_politician,
+            sample_archived_page,
             None,  # properties
             positions,
             None,  # birthplaces
@@ -387,8 +334,8 @@ class TestEnrichment:
         holds_position = (
             db_session.query(HoldsPosition)
             .filter_by(
-                politician_id=politician.id,
-                position_id=position.wikidata_id,
+                politician_id=sample_politician.id,
+                position_id=sample_position.wikidata_id,
             )
             .first()
         )
@@ -399,34 +346,23 @@ class TestEnrichment:
     def test_store_extracted_data_birthplaces(
         self,
         db_session,
-        sample_location_data,
-        sample_archived_page_data,
-        sample_country_data,
+        sample_location,
+        sample_archived_page,
+        sample_country,
+        sample_politician,
     ):
         """Test storing extracted birthplaces."""
-        # Create entities
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician.create_with_entity(
-            db_session, "Q123456", "Test Politician"
-        )
-        archived_page = ArchivedPage(**sample_archived_page_data)
-        location = Location.create_with_entity(
-            db_session, "Q28513", "Test Location", embedding=[0.2] * 384
-        )
+        # Use fixture entities
 
-        db_session.add_all([country, politician, archived_page])
+        db_session.add(sample_archived_page)
         db_session.commit()
 
         # Add citizenship and Wikipedia link
         citizenship = HasCitizenship(
-            politician_id=politician.id, country_id=country.wikidata_id
+            politician_id=sample_politician.id, country_id=sample_country.wikidata_id
         )
-        wikipedia_link = WikipediaLink(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/Test_Politician",
-            language_code="en",
-        )
-        db_session.add_all([citizenship, wikipedia_link])
+        # Wikipedia link created by sample_wikipedia_link fixture
+        db_session.add(citizenship)
         db_session.commit()
 
         birthplaces = [
@@ -435,8 +371,8 @@ class TestEnrichment:
 
         success = store_extracted_data(
             db_session,
-            politician,
-            archived_page,
+            sample_politician,
+            sample_archived_page,
             None,  # properties
             None,  # positions
             birthplaces,
@@ -447,39 +383,32 @@ class TestEnrichment:
         # Verify birthplace was stored
         born_at = (
             db_session.query(BornAt)
-            .filter_by(politician_id=politician.id, location_id=location.wikidata_id)
+            .filter_by(
+                politician_id=sample_politician.id,
+                location_id=sample_location.wikidata_id,
+            )
             .first()
         )
         assert born_at is not None
-        assert born_at.archived_page_id == archived_page.id
+        assert born_at.archived_page_id == sample_archived_page.id
 
     def test_store_extracted_data_skips_nonexistent_position(
         self,
         db_session,
-        sample_archived_page_data,
-        sample_country_data,
+        sample_archived_page,
+        sample_country,
+        sample_politician,
     ):
         """Test that storing skips positions that don't exist in database."""
-        # Create entities
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician.create_with_entity(
-            db_session, "Q123456", "Test Politician"
-        )
-        archived_page = ArchivedPage(**sample_archived_page_data)
-
-        db_session.add_all([country, politician, archived_page])
+        # Use fixture entities
         db_session.commit()
 
         # Add citizenship and Wikipedia link
         citizenship = HasCitizenship(
-            politician_id=politician.id, country_id=country.wikidata_id
+            politician_id=sample_politician.id, country_id=sample_country.wikidata_id
         )
-        wikipedia_link = WikipediaLink(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/Test_Politician",
-            language_code="en",
-        )
-        db_session.add_all([citizenship, wikipedia_link])
+        # Wikipedia link created by sample_wikipedia_link fixture
+        db_session.add(citizenship)
         db_session.commit()
 
         positions = [
@@ -493,8 +422,8 @@ class TestEnrichment:
 
         success = store_extracted_data(
             db_session,
-            politician,
-            archived_page,
+            sample_politician,
+            sample_archived_page,
             None,  # properties
             positions,
             None,  # birthplaces
@@ -504,25 +433,21 @@ class TestEnrichment:
 
         # Verify no position was stored
         holds_positions = (
-            db_session.query(HoldsPosition).filter_by(politician_id=politician.id).all()
+            db_session.query(HoldsPosition)
+            .filter_by(politician_id=sample_politician.id)
+            .all()
         )
         assert len(holds_positions) == 0
 
     def test_store_extracted_data_error_handling(
         self,
         db_session,
-        sample_archived_page_data,
-        sample_country_data,
+        sample_archived_page,
+        sample_country,
+        sample_politician,
     ):
         """Test error handling in store_extracted_data."""
-        # Create entities
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician.create_with_entity(
-            db_session, "Q123456", "Test Politician"
-        )
-        archived_page = ArchivedPage(**sample_archived_page_data)
-
-        db_session.add_all([country, politician, archived_page])
+        # Use fixture entities
         db_session.commit()
 
         properties = [
@@ -537,8 +462,8 @@ class TestEnrichment:
         with patch.object(db_session, "add", side_effect=Exception("Database error")):
             success = store_extracted_data(
                 db_session,
-                politician,
-                archived_page,
+                sample_politician,
+                sample_archived_page,
                 properties,
                 None,
                 None,
@@ -563,20 +488,14 @@ class TestEnrichment:
 
     @pytest.mark.asyncio
     async def test_enrich_politician_no_english_wikipedia(
-        self, db_session, sample_country_data
+        self, db_session, sample_country, sample_politician
     ):
         """Test enrichment when politician has no English Wikipedia link."""
-        # Create politician with only non-English Wikipedia link
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician.create_with_entity(
-            db_session, "Q123456", "Test Politician"
-        )
-        db_session.add_all([country, politician])
-        db_session.commit()
+        # Use fixture entities
 
         # Add non-English Wikipedia link
         wikipedia_link = WikipediaLink(
-            politician_id=politician.id,
+            politician_id=sample_politician.id,
             url="https://fr.wikipedia.org/wiki/Test_Politician",
             language_code="fr",
         )
@@ -585,47 +504,39 @@ class TestEnrichment:
 
         with patch("poliloom.enrichment.OpenAI"):
             with pytest.raises(ValueError, match="No English Wikipedia source found"):
-                await enrich_politician_from_wikipedia(politician)
+                await enrich_politician_from_wikipedia(sample_politician)
 
         # The enriched_at timestamp should still be updated even when raising an error
-        assert politician.enriched_at is not None
+        assert sample_politician.enriched_at is not None
 
     def test_store_extracted_data_overlapping_position_timeframes(
         self,
         db_session,
-        sample_archived_page_data,
-        sample_country_data,
+        sample_archived_page,
+        sample_country,
+        sample_politician,
+        sample_position,
     ):
         """Test handling of overlapping position timeframes."""
-        # Create entities
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician.create_with_entity(
-            db_session, "Q123456", "Test Politician"
-        )
-        archived_page = ArchivedPage(**sample_archived_page_data)
-        position = Position.create_with_entity(
-            db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
-        )
+        # Use fixture entities
+        # Embedding set by sample_position fixture
+        db_session.commit()
 
-        db_session.add_all([country, politician, archived_page])
+        db_session.add(sample_archived_page)
         db_session.commit()
 
         # Add citizenship and Wikipedia link
         citizenship = HasCitizenship(
-            politician_id=politician.id, country_id=country.wikidata_id
+            politician_id=sample_politician.id, country_id=sample_country.wikidata_id
         )
-        wikipedia_link = WikipediaLink(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/Test_Politician",
-            language_code="en",
-        )
-        db_session.add_all([citizenship, wikipedia_link])
+        # Wikipedia link created by sample_wikipedia_link fixture
+        db_session.add(citizenship)
         db_session.commit()
 
         # Add existing position with timeframe 2010-2015
         existing_position = HoldsPosition(
-            politician_id=politician.id,
-            position_id=position.wikidata_id,
+            politician_id=sample_politician.id,
+            position_id=sample_position.wikidata_id,
             start_date="2010",
             end_date="2015",
             archived_page_id=None,  # This is from Wikidata
@@ -646,8 +557,8 @@ class TestEnrichment:
 
         success = store_extracted_data(
             db_session,
-            politician,
-            archived_page,
+            sample_politician,
+            sample_archived_page,
             None,  # properties
             overlapping_positions,
             None,  # birthplaces
@@ -658,7 +569,10 @@ class TestEnrichment:
         # Should have two separate position records (different end dates = different periods)
         holds_positions = (
             db_session.query(HoldsPosition)
-            .filter_by(politician_id=politician.id, position_id=position.wikidata_id)
+            .filter_by(
+                politician_id=sample_politician.id,
+                position_id=sample_position.wikidata_id,
+            )
             .all()
         )
         assert len(holds_positions) == 2
@@ -671,39 +585,31 @@ class TestEnrichment:
     def test_store_extracted_data_completely_overlapping_position_timeframes(
         self,
         db_session,
-        sample_archived_page_data,
-        sample_country_data,
+        sample_archived_page,
+        sample_country,
+        sample_politician,
+        sample_position,
     ):
         """Test handling of completely overlapping position timeframes (subset)."""
-        # Create entities
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician.create_with_entity(
-            db_session, "Q123456", "Test Politician"
-        )
-        archived_page = ArchivedPage(**sample_archived_page_data)
-        position = Position.create_with_entity(
-            db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
-        )
+        # Use fixture entities
+        # Embedding set by sample_position fixture
+        db_session.commit()
 
-        db_session.add_all([country, politician, archived_page])
+        db_session.add(sample_archived_page)
         db_session.commit()
 
         # Add citizenship and Wikipedia link
         citizenship = HasCitizenship(
-            politician_id=politician.id, country_id=country.wikidata_id
+            politician_id=sample_politician.id, country_id=sample_country.wikidata_id
         )
-        wikipedia_link = WikipediaLink(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/Test_Politician",
-            language_code="en",
-        )
-        db_session.add_all([citizenship, wikipedia_link])
+        # Wikipedia link created by sample_wikipedia_link fixture
+        db_session.add(citizenship)
         db_session.commit()
 
         # Add existing position with timeframe 2010-2018 (longer period)
         existing_position = HoldsPosition(
-            politician_id=politician.id,
-            position_id=position.wikidata_id,
+            politician_id=sample_politician.id,
+            position_id=sample_position.wikidata_id,
             start_date="2010",
             end_date="2018",
             archived_page_id=None,  # This is from Wikidata
@@ -724,8 +630,8 @@ class TestEnrichment:
 
         success = store_extracted_data(
             db_session,
-            politician,
-            archived_page,
+            sample_politician,
+            sample_archived_page,
             None,  # properties
             subset_positions,
             None,  # birthplaces
@@ -736,7 +642,10 @@ class TestEnrichment:
         # Should have two separate position records (different start dates = different periods)
         holds_positions = (
             db_session.query(HoldsPosition)
-            .filter_by(politician_id=politician.id, position_id=position.wikidata_id)
+            .filter_by(
+                politician_id=sample_politician.id,
+                position_id=sample_position.wikidata_id,
+            )
             .all()
         )
         assert len(holds_positions) == 2
@@ -749,39 +658,31 @@ class TestEnrichment:
     def test_store_extracted_data_non_overlapping_position_timeframes(
         self,
         db_session,
-        sample_archived_page_data,
-        sample_country_data,
+        sample_archived_page,
+        sample_country,
+        sample_politician,
+        sample_position,
     ):
         """Test handling of non-overlapping position timeframes (different periods)."""
-        # Create entities
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician.create_with_entity(
-            db_session, "Q123456", "Test Politician"
-        )
-        archived_page = ArchivedPage(**sample_archived_page_data)
-        position = Position.create_with_entity(
-            db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
-        )
+        # Use fixture entities
+        # Embedding set by sample_position fixture
+        db_session.commit()
 
-        db_session.add_all([country, politician, archived_page])
+        db_session.add(sample_archived_page)
         db_session.commit()
 
         # Add citizenship and Wikipedia link
         citizenship = HasCitizenship(
-            politician_id=politician.id, country_id=country.wikidata_id
+            politician_id=sample_politician.id, country_id=sample_country.wikidata_id
         )
-        wikipedia_link = WikipediaLink(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/Test_Politician",
-            language_code="en",
-        )
-        db_session.add_all([citizenship, wikipedia_link])
+        # Wikipedia link created by sample_wikipedia_link fixture
+        db_session.add(citizenship)
         db_session.commit()
 
         # Add existing position with timeframe 2010-2015
         existing_position = HoldsPosition(
-            politician_id=politician.id,
-            position_id=position.wikidata_id,
+            politician_id=sample_politician.id,
+            position_id=sample_position.wikidata_id,
             start_date="2010",
             end_date="2015",
             archived_page_id=None,  # This is from Wikidata
@@ -802,8 +703,8 @@ class TestEnrichment:
 
         success = store_extracted_data(
             db_session,
-            politician,
-            archived_page,
+            sample_politician,
+            sample_archived_page,
             None,  # properties
             non_overlapping_positions,
             None,  # birthplaces
@@ -814,7 +715,10 @@ class TestEnrichment:
         # Should have two position records (both periods are valid)
         holds_positions = (
             db_session.query(HoldsPosition)
-            .filter_by(politician_id=politician.id, position_id=position.wikidata_id)
+            .filter_by(
+                politician_id=sample_politician.id,
+                position_id=sample_position.wikidata_id,
+            )
             .order_by(HoldsPosition.start_date)
             .all()
         )
@@ -830,45 +734,39 @@ class TestEnrichment:
         second_position = holds_positions[1]
         assert second_position.start_date == "2020"
         assert second_position.end_date == "2024"
-        assert second_position.archived_page_id == archived_page.id  # Extracted source
+        assert (
+            second_position.archived_page_id == sample_archived_page.id
+        )  # Extracted source
 
     def test_store_extracted_data_partial_overlap_scenarios(
         self,
         db_session,
-        sample_archived_page_data,
-        sample_country_data,
+        sample_archived_page,
+        sample_country,
+        sample_politician,
+        sample_position,
     ):
         """Test various partial overlap scenarios to understand current behavior."""
-        # Create entities
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician.create_with_entity(
-            db_session, "Q123456", "Test Politician"
-        )
-        archived_page = ArchivedPage(**sample_archived_page_data)
-        position = Position.create_with_entity(
-            db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
-        )
+        # Use fixture entities
+        # Embedding set by sample_position fixture
+        db_session.commit()
 
-        db_session.add_all([country, politician, archived_page])
+        db_session.add(sample_archived_page)
         db_session.commit()
 
         # Add citizenship and Wikipedia link
         citizenship = HasCitizenship(
-            politician_id=politician.id, country_id=country.wikidata_id
+            politician_id=sample_politician.id, country_id=sample_country.wikidata_id
         )
-        wikipedia_link = WikipediaLink(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/Test_Politician",
-            language_code="en",
-        )
-        db_session.add_all([citizenship, wikipedia_link])
+        # Wikipedia link created by sample_wikipedia_link fixture
+        db_session.add(citizenship)
         db_session.commit()
 
         # Test Scenario 1: Small end overlap
         # Existing: 2010-2015, New: 2014-2018 (1-year overlap at end)
         existing_position = HoldsPosition(
-            politician_id=politician.id,
-            position_id=position.wikidata_id,
+            politician_id=sample_politician.id,
+            position_id=sample_position.wikidata_id,
             start_date="2010",
             end_date="2015",
             archived_page_id=None,
@@ -888,8 +786,8 @@ class TestEnrichment:
 
         store_extracted_data(
             db_session,
-            politician,
-            archived_page,
+            sample_politician,
+            sample_archived_page,
             None,  # properties
             overlapping_positions,
             None,  # birthplaces
@@ -898,7 +796,10 @@ class TestEnrichment:
         # Check result
         holds_positions = (
             db_session.query(HoldsPosition)
-            .filter_by(politician_id=politician.id, position_id=position.wikidata_id)
+            .filter_by(
+                politician_id=sample_politician.id,
+                position_id=sample_position.wikidata_id,
+            )
             .order_by(HoldsPosition.start_date)
             .all()
         )
@@ -918,46 +819,40 @@ class TestEnrichment:
         second_position = holds_positions[1]
         assert second_position.start_date == "2014"
         assert second_position.end_date == "2018"
-        assert second_position.archived_page_id == archived_page.id  # Extracted source
+        assert (
+            second_position.archived_page_id == sample_archived_page.id
+        )  # Extracted source
 
     def test_store_extracted_data_gap_between_periods(
         self,
         db_session,
-        sample_archived_page_data,
-        sample_country_data,
+        sample_archived_page,
+        sample_country,
+        sample_politician,
+        sample_position,
     ):
         """Test what should happen when periods have gaps that get filled."""
-        # Create entities
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician.create_with_entity(
-            db_session, "Q123456", "Test Politician"
-        )
-        archived_page = ArchivedPage(**sample_archived_page_data)
-        position = Position.create_with_entity(
-            db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
-        )
+        # Use fixture entities
+        # Embedding set by sample_position fixture
+        db_session.commit()
 
-        db_session.add_all([country, politician, archived_page])
+        db_session.add(sample_archived_page)
         db_session.commit()
 
         # Add citizenship and Wikipedia link
         citizenship = HasCitizenship(
-            politician_id=politician.id, country_id=country.wikidata_id
+            politician_id=sample_politician.id, country_id=sample_country.wikidata_id
         )
-        wikipedia_link = WikipediaLink(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/Test_Politician",
-            language_code="en",
-        )
-        db_session.add_all([citizenship, wikipedia_link])
+        # Wikipedia link created by sample_wikipedia_link fixture
+        db_session.add(citizenship)
         db_session.commit()
 
         # Scenario: Bridging a gap
         # Existing: 2010-2012, New: 2011-2015 (overlaps and extends)
         # This creates a continuous period 2010-2015, but did they really serve continuously?
         existing_position = HoldsPosition(
-            politician_id=politician.id,
-            position_id=position.wikidata_id,
+            politician_id=sample_politician.id,
+            position_id=sample_position.wikidata_id,
             start_date="2010",
             end_date="2012",
             archived_page_id=None,
@@ -977,8 +872,8 @@ class TestEnrichment:
 
         store_extracted_data(
             db_session,
-            politician,
-            archived_page,
+            sample_politician,
+            sample_archived_page,
             None,  # properties
             bridging_positions,
             None,  # birthplaces
@@ -986,7 +881,10 @@ class TestEnrichment:
 
         holds_positions = (
             db_session.query(HoldsPosition)
-            .filter_by(politician_id=politician.id, position_id=position.wikidata_id)
+            .filter_by(
+                politician_id=sample_politician.id,
+                position_id=sample_position.wikidata_id,
+            )
             .order_by(HoldsPosition.start_date)
             .all()
         )
@@ -1006,44 +904,38 @@ class TestEnrichment:
         second_position = holds_positions[1]
         assert second_position.start_date == "2011"
         assert second_position.end_date == "2015"
-        assert second_position.archived_page_id == archived_page.id  # Extracted source
+        assert (
+            second_position.archived_page_id == sample_archived_page.id
+        )  # Extracted source
 
     def test_store_extracted_data_precision_preference(
         self,
         db_session,
-        sample_archived_page_data,
-        sample_country_data,
+        sample_archived_page,
+        sample_country,
+        sample_politician,
+        sample_position,
     ):
         """Test that higher precision dates replace lower precision ones."""
-        # Create entities
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician.create_with_entity(
-            db_session, "Q123456", "Test Politician"
-        )
-        archived_page = ArchivedPage(**sample_archived_page_data)
-        position = Position.create_with_entity(
-            db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
-        )
+        # Use fixture entities
+        # Embedding set by sample_position fixture
+        db_session.commit()
 
-        db_session.add_all([country, politician, archived_page])
+        db_session.add(sample_archived_page)
         db_session.commit()
 
         # Add citizenship and Wikipedia link
         citizenship = HasCitizenship(
-            politician_id=politician.id, country_id=country.wikidata_id
+            politician_id=sample_politician.id, country_id=sample_country.wikidata_id
         )
-        wikipedia_link = WikipediaLink(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/Test_Politician",
-            language_code="en",
-        )
-        db_session.add_all([citizenship, wikipedia_link])
+        # Wikipedia link created by sample_wikipedia_link fixture
+        db_session.add(citizenship)
         db_session.commit()
 
         # Start with low precision existing data
         existing_position = HoldsPosition(
-            politician_id=politician.id,
-            position_id=position.wikidata_id,
+            politician_id=sample_politician.id,
+            position_id=sample_position.wikidata_id,
             start_date="1962",  # Year only (precision 9)
             end_date="1962",  # Year only (precision 9)
             archived_page_id=None,
@@ -1064,8 +956,8 @@ class TestEnrichment:
 
         store_extracted_data(
             db_session,
-            politician,
-            archived_page,
+            sample_politician,
+            sample_archived_page,
             None,  # properties
             high_precision_positions,
             None,  # birthplaces
@@ -1074,7 +966,10 @@ class TestEnrichment:
         # Should have only one position with the higher precision dates
         holds_positions = (
             db_session.query(HoldsPosition)
-            .filter_by(politician_id=politician.id, position_id=position.wikidata_id)
+            .filter_by(
+                politician_id=sample_politician.id,
+                position_id=sample_position.wikidata_id,
+            )
             .all()
         )
 
@@ -1082,44 +977,38 @@ class TestEnrichment:
         position_record = holds_positions[0]
         assert position_record.start_date == "1962-06-15"  # Updated to higher precision
         assert position_record.end_date == "1962-06-15"  # Updated to higher precision
-        assert position_record.archived_page_id == archived_page.id  # Source updated
+        assert (
+            position_record.archived_page_id == sample_archived_page.id
+        )  # Source updated
 
     def test_store_extracted_data_precision_preference_skip_lower(
         self,
         db_session,
-        sample_archived_page_data,
-        sample_country_data,
+        sample_archived_page,
+        sample_country,
+        sample_politician,
+        sample_position,
     ):
         """Test that lower precision dates are rejected when higher precision exists."""
-        # Create entities
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician.create_with_entity(
-            db_session, "Q123456", "Test Politician"
-        )
-        archived_page = ArchivedPage(**sample_archived_page_data)
-        position = Position.create_with_entity(
-            db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
-        )
+        # Use fixture entities
+        # Embedding set by sample_position fixture
+        db_session.commit()
 
-        db_session.add_all([country, politician, archived_page])
+        db_session.add(sample_archived_page)
         db_session.commit()
 
         # Add citizenship and Wikipedia link
         citizenship = HasCitizenship(
-            politician_id=politician.id, country_id=country.wikidata_id
+            politician_id=sample_politician.id, country_id=sample_country.wikidata_id
         )
-        wikipedia_link = WikipediaLink(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/Test_Politician",
-            language_code="en",
-        )
-        db_session.add_all([citizenship, wikipedia_link])
+        # Wikipedia link created by sample_wikipedia_link fixture
+        db_session.add(citizenship)
         db_session.commit()
 
         # Start with high precision existing data
         existing_position = HoldsPosition(
-            politician_id=politician.id,
-            position_id=position.wikidata_id,
+            politician_id=sample_politician.id,
+            position_id=sample_position.wikidata_id,
             start_date="1962-06-15",  # Full date (precision 11)
             end_date="1962-06-15",  # Full date (precision 11)
             archived_page_id=None,
@@ -1140,8 +1029,8 @@ class TestEnrichment:
 
         store_extracted_data(
             db_session,
-            politician,
-            archived_page,
+            sample_politician,
+            sample_archived_page,
             None,  # properties
             low_precision_positions,
             None,  # birthplaces
@@ -1150,7 +1039,10 @@ class TestEnrichment:
         # Should still have only one position with the higher precision dates unchanged
         holds_positions = (
             db_session.query(HoldsPosition)
-            .filter_by(politician_id=politician.id, position_id=position.wikidata_id)
+            .filter_by(
+                politician_id=sample_politician.id,
+                position_id=sample_position.wikidata_id,
+            )
             .all()
         )
 

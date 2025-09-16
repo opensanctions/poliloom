@@ -37,22 +37,21 @@ def mock_auth():
 
 
 @pytest.fixture
-def politician_with_unevaluated_data(db_session):
+def politician_with_unevaluated_data(
+    db_session, sample_politician, sample_position, sample_location
+):
     """Create a politician with various types of unevaluated extracted data."""
     # Create supporting entities
     archived_page = ArchivedPage(
         url="https://example.com/test",
         content_hash="test123",
     )
-    position = Position.create_with_entity(db_session, "Q30185", "Mayor")
-    location = Location.create_with_entity(db_session, "Q28513", "Springfield")
+    # Use fixture entities
+    politician = sample_politician
+    position = sample_position
+    location = sample_location
 
     db_session.add(archived_page)
-    db_session.flush()
-
-    # Create politician
-    politician = Politician.create_with_entity(db_session, "Q123456", "Test Politician")
-    db_session.add(politician)
     db_session.flush()
 
     # Add extracted (unevaluated) data
@@ -359,14 +358,16 @@ class TestGetPoliticiansEndpoint:
         data = response.json()
         assert len(data) == 2
 
-    def test_mixed_evaluation_states(self, client, mock_auth, db_session):
+    def test_mixed_evaluation_states(
+        self, client, mock_auth, db_session, sample_position
+    ):
         """Test politician with mix of evaluated and unevaluated data appears in results."""
         # Create politician with both evaluated and unevaluated extracted data
         archived_page = ArchivedPage(
             url="https://example.com/mixed",
             content_hash="mixed123",
         )
-        position = Position.create_with_entity(db_session, "Q30185", "Mayor")
+        position = sample_position
 
         db_session.add(archived_page)
         db_session.flush()

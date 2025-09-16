@@ -7,16 +7,10 @@ from ..conftest import assert_model_fields
 class TestWikipediaLink:
     """Test cases for the WikipediaLink model."""
 
-    def test_wikipedia_link_creation(self, db_session, sample_politician_data):
+    def test_wikipedia_link_creation(self, db_session, sample_politician):
         """Test basic Wikipedia link creation."""
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        db_session.commit()
-        db_session.refresh(politician)
+        # Use fixture politician
+        politician = sample_politician
 
         # Create wikipedia link
         wikipedia_link = WikipediaLink(
@@ -42,17 +36,11 @@ class TestWikipediaLinkRelationships:
     """Test cases for Wikipedia link relationships."""
 
     def test_multiple_wikipedia_links_per_politician(
-        self, db_session, sample_politician_data
+        self, db_session, sample_politician
     ):
         """Test that politicians can have multiple Wikipedia links."""
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        db_session.commit()
-        db_session.refresh(politician)
+        # Use fixture politician
+        politician = sample_politician
 
         # Create wikipedia links
         wiki_link1 = WikipediaLink(

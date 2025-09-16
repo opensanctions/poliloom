@@ -2,28 +2,18 @@
 
 from sqlalchemy.orm import selectinload
 
-from poliloom.models import Politician, Location, BornAt, BirthplaceEvaluation
+from poliloom.models import Location, BornAt, BirthplaceEvaluation
 from ..conftest import assert_model_fields
 
 
 class TestBornAt:
     """Test cases for the BornAt relationship model."""
 
-    def test_born_at_creation(self, db_session, sample_politician_data):
+    def test_born_at_creation(self, db_session, sample_politician, sample_location):
         """Test basic BornAt relationship creation."""
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        db_session.commit()
-        db_session.refresh(politician)
-
-        # Create location
-        location = Location.create_with_entity(db_session, "Q90", "Paris")
-        db_session.commit()
-        db_session.refresh(location)
+        # Use fixture entities
+        politician = sample_politician
+        location = sample_location
 
         # Create born at
         born_at = BornAt(
@@ -44,21 +34,13 @@ class TestBornAt:
             },
         )
 
-    def test_born_at_default_values(self, db_session, sample_politician_data):
+    def test_born_at_default_values(
+        self, db_session, sample_politician, sample_location
+    ):
         """Test BornAt model default values."""
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        db_session.commit()
-        db_session.refresh(politician)
-
-        # Create location
-        location = Location.create_with_entity(db_session, "Q84", "London")
-        db_session.commit()
-        db_session.refresh(location)
+        # Use fixture entities
+        politician = sample_politician
+        location = sample_location
 
         # Create born at
         born_at = BornAt(politician_id=politician.id, location_id=location.wikidata_id)
@@ -75,16 +57,10 @@ class TestBornAt:
             },
         )
 
-    def test_born_at_confirmation(self, db_session, sample_politician_data):
+    def test_born_at_confirmation(self, db_session, sample_politician):
         """Test BornAt confirmation workflow with evaluations."""
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        db_session.commit()
-        db_session.refresh(politician)
+        # Use fixture politician
+        politician = sample_politician
 
         # Create location
         location = Location.create_with_entity(db_session, "Q64", "Berlin")
@@ -118,16 +94,10 @@ class TestBornAt:
         assert len(born_at.evaluations) == 1
         assert born_at.evaluations[0].user_id == "user123"
 
-    def test_born_at_relationships(self, db_session, sample_politician_data):
+    def test_born_at_relationships(self, db_session, sample_politician):
         """Test BornAt model relationships."""
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        db_session.commit()
-        db_session.refresh(politician)
+        # Use fixture politician
+        politician = sample_politician
 
         # Create location with entity
         location = Location.create_with_entity(db_session, "Q1490", "Tokyo")
@@ -160,16 +130,10 @@ class TestBornAt:
         assert len(location.born_here) == 1
         assert location.born_here[0].id == born_at.id
 
-    def test_born_at_cascade_delete(self, db_session, sample_politician_data):
+    def test_born_at_cascade_delete(self, db_session, sample_politician):
         """Test that deleting a politician cascades to BornAt relationships."""
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        db_session.commit()
-        db_session.refresh(politician)
+        # Use fixture politician
+        politician = sample_politician
 
         # Create location
         location = Location.create_with_entity(db_session, "Q220", "Rome")

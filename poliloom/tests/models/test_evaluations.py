@@ -1,8 +1,6 @@
 """Tests for evaluation models."""
 
 from poliloom.models import (
-    Politician,
-    Position,
     Location,
     Property,
     PropertyType,
@@ -18,16 +16,10 @@ from ..conftest import assert_model_fields
 class TestPropertyEvaluation:
     """Test cases for the PropertyEvaluation model."""
 
-    def test_property_evaluation_creation(self, db_session, sample_politician_data):
+    def test_property_evaluation_creation(self, db_session, sample_politician):
         """Test creating a property evaluation."""
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        db_session.commit()
-        db_session.refresh(politician)
+        # Use fixture politician
+        politician = sample_politician
 
         # Create property
         prop = Property(
@@ -64,16 +56,10 @@ class TestPropertyEvaluation:
         assert len(prop.evaluations) == 1
         assert prop.evaluations[0] == evaluation
 
-    def test_property_evaluation_discarded(self, db_session, sample_politician_data):
+    def test_property_evaluation_discarded(self, db_session, sample_politician):
         """Test creating a discarded property evaluation."""
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        db_session.commit()
-        db_session.refresh(politician)
+        # Use fixture politician
+        politician = sample_politician
 
         # Create property
         prop = Property(
@@ -117,19 +103,13 @@ class TestPositionEvaluation:
     def test_position_evaluation_creation(
         self,
         db_session,
-        sample_politician_data,
+        sample_politician,
+        sample_position,
     ):
         """Test creating a position evaluation."""
-        # Create politician and position
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        position = Position.create_with_entity(db_session, "Q30185", "Test Position")
-        db_session.commit()
-        db_session.refresh(politician)
-        db_session.refresh(position)
+        # Use fixture entities
+        politician = sample_politician
+        position = sample_position
 
         # Create holds position
         holds_pos = HoldsPosition(
@@ -170,16 +150,10 @@ class TestPositionEvaluation:
 class TestBirthplaceEvaluation:
     """Test cases for the BirthplaceEvaluation model."""
 
-    def test_birthplace_evaluation_creation(self, db_session, sample_politician_data):
+    def test_birthplace_evaluation_creation(self, db_session, sample_politician):
         """Test creating a birthplace evaluation."""
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        db_session.commit()
-        db_session.refresh(politician)
+        # Use fixture politician
+        politician = sample_politician
 
         # Create location
         location = Location.create_with_entity(db_session, "Q90", "Paris")
@@ -225,17 +199,11 @@ class TestEvaluationMultiple:
     """Test cases for multiple evaluations."""
 
     def test_multiple_evaluations_for_same_property(
-        self, db_session, sample_politician_data
+        self, db_session, sample_politician
     ):
         """Test multiple evaluations for the same property."""
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        db_session.commit()
-        db_session.refresh(politician)
+        # Use fixture politician
+        politician = sample_politician
 
         # Create property
         prop = Property(

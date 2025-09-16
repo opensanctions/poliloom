@@ -1,6 +1,6 @@
 """Tests for the HoldsPosition model."""
 
-from poliloom.models import Politician, Position, HoldsPosition
+from poliloom.models import Position, HoldsPosition
 from ..conftest import assert_model_fields
 
 
@@ -10,24 +10,13 @@ class TestHoldsPosition:
     def test_holds_position_creation(
         self,
         db_session,
-        sample_politician_data,
-        sample_position_data,
+        sample_politician,
+        sample_position,
     ):
         """Test basic holds position creation."""
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-
-        # Create position with wikidata entity
-        position = Position.create_with_entity(
-            db_session, sample_position_data["wikidata_id"], "Test Position"
-        )
-        db_session.commit()
-        db_session.refresh(politician)
-        db_session.refresh(position)
+        # Entities are already created and committed by fixtures
+        politician = sample_politician
+        position = sample_position
 
         # Create holds position
         holds_pos = HoldsPosition(
@@ -52,16 +41,10 @@ class TestHoldsPosition:
             },
         )
 
-    def test_holds_position_incomplete_dates(self, db_session, sample_politician_data):
+    def test_holds_position_incomplete_dates(self, db_session, sample_politician):
         """Test handling of incomplete dates in HoldsPosition."""
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        db_session.commit()
-        db_session.refresh(politician)
+        # Use fixture politician
+        politician = sample_politician
 
         # Test various incomplete date formats - each with a different position or archived_page_id
         # to avoid unique constraint violations
@@ -97,19 +80,13 @@ class TestHoldsPosition:
     def test_holds_position_default_values(
         self,
         db_session,
-        sample_politician_data,
+        sample_politician,
+        sample_position,
     ):
         """Test default values for holds position fields."""
-        # Create politician and position
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        position = Position.create_with_entity(db_session, "Q30185", "Test Position")
-        db_session.commit()
-        db_session.refresh(politician)
-        db_session.refresh(position)
+        # Use fixture entities
+        politician = sample_politician
+        position = sample_position
 
         # Create holds position with minimal data
         holds_pos = HoldsPosition(

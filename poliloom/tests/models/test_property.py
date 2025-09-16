@@ -1,22 +1,16 @@
 """Tests for the Property model."""
 
-from poliloom.models import Politician, Property, PropertyType
+from poliloom.models import Property, PropertyType
 from ..conftest import assert_model_fields
 
 
 class TestProperty:
     """Test cases for the Property model."""
 
-    def test_property_creation(self, db_session, sample_politician_data):
+    def test_property_creation(self, db_session, sample_politician):
         """Test basic property creation."""
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        db_session.commit()
-        db_session.refresh(politician)
+        # Use fixture politician
+        politician = sample_politician
 
         # Create property
         prop = Property(
@@ -39,15 +33,10 @@ class TestProperty:
             },
         )
 
-    def test_property_default_values(self, db_session, sample_politician_data):
+    def test_property_default_values(self, db_session, sample_politician):
         """Test default values for property fields."""
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        db_session.commit()
+        # Use fixture politician
+        politician = sample_politician
         db_session.refresh(politician)
 
         # Create property

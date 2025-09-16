@@ -13,20 +13,13 @@ class TestHasCitizenship:
     def test_has_citizenship_creation(
         self,
         db_session,
-        sample_politician_data,
-        sample_country_data,
+        sample_politician,
+        sample_country,
     ):
         """Test basic citizenship relationship creation."""
-        # Create politician and country
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        db_session.commit()
-        db_session.refresh(politician)
-        db_session.refresh(country)
+        # Use fixture entities
+        politician = sample_politician
+        country = sample_country
 
         # Create citizenship
         citizenship = HasCitizenship(
@@ -42,21 +35,15 @@ class TestHasCitizenship:
         )
 
     def test_has_citizenship_multiple_citizenships_per_politician(
-        self, db_session, sample_politician_data
+        self, db_session, sample_politician, sample_country
     ):
         """Test that a politician can have multiple citizenships."""
-        # Create politician and two countries
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        country1 = Country.create_with_entity(db_session, "Q30", "United States", "US")
+        # Use fixture politician and US country, create Canada country
+        politician = sample_politician
+        country1 = sample_country  # Q30 United States
         country2 = Country.create_with_entity(db_session, "Q16", "Canada", "CA")
 
         db_session.commit()
-        db_session.refresh(politician)
-        db_session.refresh(country1)
         db_session.refresh(country2)
 
         # Create two citizenships for the same politician
@@ -88,15 +75,14 @@ class TestHasCitizenship:
         assert "Canada" in country_names
 
     def test_has_citizenship_multiple_politicians_per_country(
-        self, db_session, sample_country_data
+        self, db_session, sample_country
     ):
         """Test that a country can have multiple citizen politicians."""
-        # Create country and two politicians
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
+        # Use fixture country and create custom politicians
+        country = sample_country
         politician1 = Politician.create_with_entity(db_session, "Q111", "Alice Smith")
         politician2 = Politician.create_with_entity(db_session, "Q222", "Bob Jones")
         db_session.commit()
-        db_session.refresh(country)
         db_session.refresh(politician1)
         db_session.refresh(politician2)
 
@@ -129,19 +115,12 @@ class TestHasCitizenship:
         assert "Bob Jones" in politician_names
 
     def test_has_citizenship_prevents_duplicate_relationships(
-        self, db_session, sample_politician_data, sample_country_data
+        self, db_session, sample_politician, sample_country
     ):
         """Test database constraints prevent duplicate citizenship relationships."""
-        # Create politician and country
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        db_session.commit()
-        db_session.refresh(politician)
-        db_session.refresh(country)
+        # Use fixture entities
+        politician = sample_politician
+        country = sample_country
 
         # Create first citizenship
         citizenship1 = HasCitizenship(

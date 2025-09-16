@@ -11,8 +11,13 @@ from alembic.config import Config
 from alembic import command
 
 from poliloom.models import (
+    ArchivedPage,
     Base,
-    PropertyType,
+    Country,
+    Location,
+    Politician,
+    Position,
+    WikipediaLink,
 )
 from poliloom.enrichment import generate_embedding
 from poliloom.database import get_engine
@@ -69,85 +74,7 @@ def setup_test_database():
 @pytest.fixture
 def sample_politician_data():
     """Return data for creating a politician."""
-    return {"name": "John Doe", "wikidata_id": "Q123456"}
-
-
-@pytest.fixture
-def sample_wikipedia_link_data():
-    """Return data for creating a Wikipedia link."""
-    return {
-        "url": "https://en.wikipedia.org/wiki/John_Doe",
-        "language_code": "en",
-    }
-
-
-@pytest.fixture
-def sample_archived_page_data():
-    """Return data for creating an archived page."""
-
-    return {
-        "url": "https://en.wikipedia.org/wiki/Test_Page",
-        "content_hash": "test123",
-        "fetch_timestamp": datetime.now(timezone.utc),
-    }
-
-
-@pytest.fixture
-def sample_country_data():
-    """Return data for creating a country."""
-    return {"iso_code": "US", "wikidata_id": "Q30"}
-
-
-@pytest.fixture
-def sample_position_data():
-    """Return data for creating a position."""
-    return {"wikidata_id": "Q30185"}
-
-
-@pytest.fixture
-def sample_property_data():
-    """Return data for creating a property."""
-    return {
-        "type": PropertyType.BIRTH_DATE,
-        "value": "1970-01-15",
-        "archived_page_id": None,
-    }
-
-
-@pytest.fixture
-def sample_holds_position_data():
-    """Return data for creating a holds position relationship."""
-    return {
-        "start_date": "2020",
-        "end_date": "2024",
-        "archived_page_id": None,
-    }
-
-
-@pytest.fixture
-def sample_location_data():
-    """Return data for creating a location with embedding."""
-    return {
-        "wikidata_id": "Q28513",
-        "embedding": [0.2] * 384,  # Mock embedding
-    }
-
-
-@pytest.fixture
-def sample_wikipedia_content():
-    """Sample Wikipedia content for testing."""
-    return """
-    Test Politician (born January 15, 1970 in Springfield, Illinois) is an American politician who served as Mayor of Springfield from 2020 to 2024.
-    He grew up in Springfield before moving to Chicago for college.
-    He previously worked as a city councilman from 2018 to 2020.
-    """
-
-
-@pytest.fixture
-def enrichment_wikipedia_content():
-    """Sample Wikipedia content from enrichment test data for testing."""
-    enrichment_data = load_json_fixture("enrichment_test_data.json")
-    return enrichment_data["wikipedia_content_examples"]["test_politician_article"]
+    return {"name": "Test Politician", "wikidata_id": "Q123456"}
 
 
 def assert_model_fields(model, expected_fields):
@@ -179,3 +106,76 @@ def similarity_searcher(db_session):
         )
 
     return _similarity_search
+
+
+# Entity fixtures - created and committed to database
+@pytest.fixture
+def sample_politician(db_session, sample_politician_data):
+    """Return a created and committed politician entity."""
+    politician = Politician.create_with_entity(
+        db_session,
+        sample_politician_data["wikidata_id"],
+        sample_politician_data["name"],
+    )
+    db_session.commit()
+    db_session.refresh(politician)
+    return politician
+
+
+@pytest.fixture
+def sample_position(db_session):
+    """Return a created and committed position entity with embedding."""
+    position = Position.create_with_entity(db_session, "Q30185", "Test Position")
+    # Set embedding for tests that require it
+    position.embedding = [0.1] * 384
+    db_session.commit()
+    db_session.refresh(position)
+    return position
+
+
+@pytest.fixture
+def sample_location(db_session):
+    """Return a created and committed location entity."""
+    location = Location.create_with_entity(db_session, "Q28513", "Test Location")
+    # Set the embedding for tests
+    location.embedding = [0.2] * 384
+    db_session.commit()
+    db_session.refresh(location)
+    return location
+
+
+@pytest.fixture
+def sample_country(db_session):
+    """Return a created and committed country entity."""
+    country = Country.create_with_entity(db_session, "Q30", "United States", "US")
+    db_session.commit()
+    db_session.refresh(country)
+    return country
+
+
+@pytest.fixture
+def sample_archived_page(db_session):
+    """Return a created and committed archived page entity."""
+    archived_page = ArchivedPage(
+        url="https://en.wikipedia.org/wiki/Test_Page",
+        content_hash="test123",
+        fetch_timestamp=datetime.now(timezone.utc),
+    )
+    db_session.add(archived_page)
+    db_session.commit()
+    db_session.refresh(archived_page)
+    return archived_page
+
+
+@pytest.fixture
+def sample_wikipedia_link(db_session, sample_politician):
+    """Return a created and committed Wikipedia link entity."""
+    wikipedia_link = WikipediaLink(
+        politician_id=sample_politician.id,
+        url="https://en.wikipedia.org/wiki/Test_Politician",
+        language_code="en",
+    )
+    db_session.add(wikipedia_link)
+    db_session.commit()
+    db_session.refresh(wikipedia_link)
+    return wikipedia_link

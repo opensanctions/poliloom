@@ -55,18 +55,10 @@ class TestPolitician:
             {"name": "Test Person", "is_deceased": False, "wikidata_id": None},
         )
 
-    def test_politician_cascade_delete_properties(
-        self, db_session, sample_politician_data
-    ):
+    def test_politician_cascade_delete_properties(self, db_session, sample_politician):
         """Test that deleting a politician cascades to properties."""
-        # Create politician
-        politician = Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        db_session.commit()
-        db_session.refresh(politician)
+        # Use fixture politician
+        politician = sample_politician
 
         # Create property
         prop = Property(
