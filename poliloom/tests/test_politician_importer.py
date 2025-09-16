@@ -22,6 +22,7 @@ from poliloom.importer.politician import (
     import_politicians,
     _insert_politicians_batch,
     _is_politician,
+    _should_import_politician,
 )
 from poliloom.wikidata_entity_processor import WikidataEntityProcessor
 
@@ -30,15 +31,14 @@ class TestWikidataPoliticianImporter:
     """Test politician importing functionality."""
 
     def test_import_politicians_integration(self):
-        """Test complete politician extraction workflow focusing on death date filtering and workflow."""
+        """Test complete politician extraction workflow."""
 
-        # Create test entities - focused on testing death date filtering and workflow
+        # Create simple test entity - focus on integration rather than filtering logic
         test_entities = [
-            # Living politician - should be included
             {
                 "id": "Q123456",
                 "type": "item",
-                "labels": {"en": {"language": "en", "value": "Living Politician"}},
+                "labels": {"en": {"language": "en", "value": "Test Politician"}},
                 "claims": {
                     "P31": [
                         {  # instance of
@@ -70,120 +70,6 @@ class TestWikidataPoliticianImporter:
                     ],
                 },
             },
-            # Recently deceased politician (died 2023) - should be included
-            {
-                "id": "Q789012",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Recent Politician"}},
-                "claims": {
-                    "P31": [
-                        {  # instance of
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q5"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                    "P106": [
-                        {  # occupation
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P106",
-                                "datavalue": {
-                                    "value": {"id": "Q82955"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                    "P570": [
-                        {  # date of death
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P570",
-                                "datavalue": {
-                                    "value": {
-                                        "time": "+2023-05-15T00:00:00Z",
-                                        "timezone": 0,
-                                        "before": 0,
-                                        "after": 0,
-                                        "precision": 11,  # day precision
-                                        "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                                    },
-                                    "type": "time",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                },
-            },
-            # Old deceased politician (died 1945) - should be excluded due to death date
-            {
-                "id": "Q345678",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Old Politician"}},
-                "claims": {
-                    "P31": [
-                        {  # instance of
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q5"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                    "P106": [
-                        {  # occupation
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P106",
-                                "datavalue": {
-                                    "value": {"id": "Q82955"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                    "P570": [
-                        {  # date of death
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P570",
-                                "datavalue": {
-                                    "value": {
-                                        "time": "+1945-04-12T00:00:00Z",
-                                        "timezone": 0,
-                                        "before": 0,
-                                        "after": 0,
-                                        "precision": 11,  # day precision
-                                        "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                                    },
-                                    "type": "time",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                },
-            },
         ]
 
         # Create temporary dump file
@@ -208,26 +94,15 @@ class TestWikidataPoliticianImporter:
 
                 result = import_politicians(temp_file_path, batch_size=10)
 
-            # Verify count returned (should be 2: living politician + recently deceased)
-            assert result == 2
+            # Verify count returned
+            assert result == 1
 
-            # Verify politicians were actually saved to database
+            # Verify politician was actually saved to database
             with Session(get_engine()) as session:
                 politicians = session.query(Politician).all()
-                assert len(politicians) == 2
-
-                # Verify specific politician data
-                politician_ids = {p.wikidata_id for p in politicians}
-                assert "Q123456" in politician_ids  # Living politician
-                assert "Q789012" in politician_ids  # Recently deceased
-                assert (
-                    "Q345678" not in politician_ids
-                )  # Old deceased - excluded due to death date
-
-                # Verify names were saved correctly
-                politician_names = {p.wikidata_id: p.name for p in politicians}
-                assert politician_names["Q123456"] == "Living Politician"
-                assert politician_names["Q789012"] == "Recent Politician"
+                assert len(politicians) == 1
+                assert politicians[0].wikidata_id == "Q123456"
+                assert politicians[0].name == "Test Politician"
 
         finally:
             os.unlink(temp_file_path)
@@ -654,3 +529,183 @@ class TestIsPolitician:
         relevant_positions = frozenset(["Q30185"])
 
         assert _is_politician(entity, relevant_positions) is False
+
+
+class TestShouldImportPolitician:
+    """Test the _should_import_politician helper function."""
+
+    def test_should_import_living_politician(self):
+        """Test that living politicians should be imported."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P569": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {
+                                "value": {
+                                    "time": "+1980-05-15T00:00:00Z",
+                                    "timezone": 0,
+                                    "before": 0,
+                                    "after": 0,
+                                    "precision": 11,
+                                    "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                                },
+                                "type": "time",
+                            },
+                        },
+                    }
+                ],
+            },
+        }
+        entity = WikidataEntityProcessor(entity_data)
+
+        assert _should_import_politician(entity) is True
+
+    def test_should_not_import_ancient_living_politician(self):
+        """Test that living politicians born over 120 years ago should not be imported."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P569": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {
+                                "value": {
+                                    "time": "+1800-05-15T00:00:00Z",
+                                    "timezone": 0,
+                                    "before": 0,
+                                    "after": 0,
+                                    "precision": 11,
+                                    "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                                },
+                                "type": "time",
+                            },
+                        },
+                    }
+                ],
+            },
+        }
+        entity = WikidataEntityProcessor(entity_data)
+
+        assert _should_import_politician(entity) is False
+
+    def test_should_import_recently_deceased_politician(self):
+        """Test that recently deceased politicians should be imported."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P570": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {
+                                "value": {
+                                    "time": "+2023-05-15T00:00:00Z",
+                                    "timezone": 0,
+                                    "before": 0,
+                                    "after": 0,
+                                    "precision": 11,
+                                    "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                                },
+                                "type": "time",
+                            },
+                        },
+                    }
+                ],
+            },
+        }
+        entity = WikidataEntityProcessor(entity_data)
+
+        assert _should_import_politician(entity) is True
+
+    def test_should_not_import_old_deceased_politician(self):
+        """Test that old deceased politicians should not be imported."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P570": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {
+                                "value": {
+                                    "time": "+1945-04-12T00:00:00Z",
+                                    "timezone": 0,
+                                    "before": 0,
+                                    "after": 0,
+                                    "precision": 11,
+                                    "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                                },
+                                "type": "time",
+                            },
+                        },
+                    }
+                ],
+            },
+        }
+        entity = WikidataEntityProcessor(entity_data)
+
+        assert _should_import_politician(entity) is False
+
+    def test_should_not_import_bce_dates(self):
+        """Test that politicians with BCE birth/death dates should not be imported."""
+        # Entity with BCE death date
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P570": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {
+                                "value": {
+                                    "time": "-0044-03-15T00:00:00Z",  # BCE date
+                                    "timezone": 0,
+                                    "before": 0,
+                                    "after": 0,
+                                    "precision": 11,
+                                    "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                                },
+                                "type": "time",
+                            },
+                        },
+                    }
+                ],
+            },
+        }
+        entity = WikidataEntityProcessor(entity_data)
+
+        assert _should_import_politician(entity) is False
+
+    def test_should_import_with_malformed_dates(self):
+        """Test that politicians with malformed dates should be imported (default to include)."""
+        entity_data = {
+            "id": "Q123",
+            "claims": {
+                "P569": [
+                    {
+                        "rank": "normal",
+                        "mainsnak": {
+                            "datavalue": {
+                                "value": {
+                                    "time": "invalid-date",  # Malformed date
+                                    "timezone": 0,
+                                    "before": 0,
+                                    "after": 0,
+                                    "precision": 11,
+                                    "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                                },
+                                "type": "time",
+                            },
+                        },
+                    }
+                ],
+            },
+        }
+        entity = WikidataEntityProcessor(entity_data)
+
+        # Should default to including politicians when dates can't be parsed
+        assert _should_import_politician(entity) is True

@@ -80,6 +80,69 @@ def _is_politician(
     return False
 
 
+def _should_import_politician(entity: WikidataEntityProcessor) -> bool:
+    """Check if politician should be imported based on death/birth date filtering."""
+    # Check if politician is deceased (has death date P570)
+    death_claims = entity.get_truthy_claims("P570")
+    if len(death_claims) > 0:
+        death_info = entity.extract_date_from_claims(death_claims)
+        if death_info:
+            # Skip all BCE deaths (they died > 2000 years ago)
+            if death_info.is_bce:
+                return False
+
+            try:
+                death_date_str = death_info.date
+                precision = death_info.precision
+
+                # Parse date based on precision
+                if precision >= 11:  # day precision
+                    death_date = datetime.strptime(death_date_str, "%Y-%m-%d").date()
+                elif precision == 10:  # month precision
+                    death_date = datetime.strptime(
+                        death_date_str + "-01", "%Y-%m-%d"
+                    ).date()
+                elif precision == 9:  # year precision
+                    death_date = datetime.strptime(
+                        death_date_str + "-01-01", "%Y-%m-%d"
+                    ).date()
+                else:
+                    death_date = None
+
+                # Skip if died more than 5 years ago
+                cutoff_date = date.today().replace(year=date.today().year - 5)
+                if death_date and death_date < cutoff_date:
+                    return False
+            except (ValueError, TypeError):
+                pass  # Include if we can't parse the date
+    else:
+        # No death date - check if born over 120 years ago
+        birth_claims = entity.get_truthy_claims("P569")
+        if birth_claims:
+            birth_info = entity.extract_date_from_claims(birth_claims)
+            if birth_info:
+                # Skip all BCE births
+                if birth_info.is_bce:
+                    return False
+
+                try:
+                    birth_date_str = birth_info.date
+                    precision = birth_info.precision
+
+                    # Parse birth year based on precision
+                    if precision >= 9:  # year precision or better
+                        birth_year = int(birth_date_str.split("-")[0])
+                        current_year = date.today().year
+
+                        # Skip if born over 120 years ago
+                        if current_year - birth_year > 120:
+                            return False
+                except (ValueError, TypeError, IndexError):
+                    pass  # Include if we can't parse the birth date
+
+    return True
+
+
 def _insert_politicians_batch(politicians: list[dict], engine) -> None:
     """Insert a batch of politicians into the database."""
     if not politicians:
@@ -274,47 +337,10 @@ def _process_politicians_chunk(
             if not entity_id:
                 continue
 
-            # Check if it's a politician
-            if _is_politician(entity, shared_position_qids):
-                # Skip deceased politicians who died more than 5 years ago
-                # Check if politician is deceased (has death date P570)
-                death_claims = entity.get_truthy_claims("P570")
-                if len(death_claims) > 0:
-                    death_info = entity.extract_date_from_claims(death_claims)
-                    if death_info:
-                        # Skip all BCE deaths (they died > 2000 years ago)
-                        if death_info.is_bce:
-                            continue
-
-                        try:
-                            death_date_str = death_info.date
-                            precision = death_info.precision
-
-                            # Parse date based on precision
-                            if precision >= 11:  # day precision
-                                death_date = datetime.strptime(
-                                    death_date_str, "%Y-%m-%d"
-                                ).date()
-                            elif precision == 10:  # month precision
-                                death_date = datetime.strptime(
-                                    death_date_str + "-01", "%Y-%m-%d"
-                                ).date()
-                            elif precision == 9:  # year precision
-                                death_date = datetime.strptime(
-                                    death_date_str + "-01-01", "%Y-%m-%d"
-                                ).date()
-                            else:
-                                death_date = None
-
-                            # Skip if died more than 5 years ago
-                            cutoff_date = date.today().replace(
-                                year=date.today().year - 5
-                            )
-                            if death_date and death_date < cutoff_date:
-                                continue
-                        except (ValueError, TypeError):
-                            pass  # Include if we can't parse the date
-
+            # Check if it's a politician and should be imported
+            if _is_politician(
+                entity, shared_position_qids
+            ) and _should_import_politician(entity):
                 # Build complete politician dict with all relationships
                 politician_data = {
                     "wikidata_id": entity.get_wikidata_id(),
