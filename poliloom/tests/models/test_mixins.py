@@ -31,8 +31,11 @@ class TestTimestampBehavior:
     def test_updated_at_changes_on_update(self, db_session, sample_politician_data):
         """Test that updated_at changes when entity is updated."""
         # Create politician
-        politician = Politician(**sample_politician_data)
-        db_session.add(politician)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         db_session.commit()
         db_session.refresh(politician)
 

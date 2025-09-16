@@ -21,8 +21,11 @@ class TestPropertyEvaluation:
     def test_property_evaluation_creation(self, db_session, sample_politician_data):
         """Test creating a property evaluation."""
         # Create politician
-        politician = Politician(**sample_politician_data)
-        db_session.add(politician)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         db_session.commit()
         db_session.refresh(politician)
 
@@ -64,8 +67,11 @@ class TestPropertyEvaluation:
     def test_property_evaluation_discarded(self, db_session, sample_politician_data):
         """Test creating a discarded property evaluation."""
         # Create politician
-        politician = Politician(**sample_politician_data)
-        db_session.add(politician)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         db_session.commit()
         db_session.refresh(politician)
 
@@ -115,9 +121,12 @@ class TestPositionEvaluation:
     ):
         """Test creating a position evaluation."""
         # Create politician and position
-        politician = Politician(**sample_politician_data)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         position = Position.create_with_entity(db_session, "Q30185", "Test Position")
-        db_session.add(politician)
         db_session.commit()
         db_session.refresh(politician)
         db_session.refresh(position)
@@ -164,8 +173,11 @@ class TestBirthplaceEvaluation:
     def test_birthplace_evaluation_creation(self, db_session, sample_politician_data):
         """Test creating a birthplace evaluation."""
         # Create politician
-        politician = Politician(**sample_politician_data)
-        db_session.add(politician)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         db_session.commit()
         db_session.refresh(politician)
 
@@ -217,8 +229,11 @@ class TestEvaluationMultiple:
     ):
         """Test multiple evaluations for the same property."""
         # Create politician
-        politician = Politician(**sample_politician_data)
-        db_session.add(politician)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         db_session.commit()
         db_session.refresh(politician)
 

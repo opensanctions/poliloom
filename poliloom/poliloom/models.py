@@ -118,7 +118,9 @@ class Politician(Base, TimestampMixin):
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
     name = Column(String, nullable=False)
-    wikidata_id = Column(String, unique=True, index=True)
+    wikidata_id = Column(
+        String, ForeignKey("wikidata_entities.wikidata_id"), unique=True, index=True
+    )
     enriched_at = Column(
         DateTime, nullable=True
     )  # Timestamp of last enrichment attempt
@@ -205,7 +207,21 @@ class Politician(Base, TimestampMixin):
         """Get Wikidata (non-extracted) birthplaces."""
         return [bp for bp in self.birthplaces if not bp.is_extracted]
 
+    @classmethod
+    def create_with_entity(cls, session, wikidata_id: str, name: str):
+        """Create a Politician with its associated WikidataEntity."""
+        # Create WikidataEntity first
+        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, name=name)
+        session.add(wikidata_entity)
+
+        # Create Politician
+        politician = cls(name=name, wikidata_id=wikidata_id)
+        session.add(politician)
+
+        return politician
+
     # Relationships
+    wikidata_entity = relationship("WikidataEntity", back_populates="politician")
     properties = relationship(
         "Property", back_populates="politician", cascade="all, delete-orphan"
     )
@@ -640,6 +656,7 @@ class WikidataEntity(Base, TimestampMixin):
         back_populates="parent_entity",
         cascade="all, delete-orphan",
     )
+    politician = relationship("Politician", back_populates="wikidata_entity")
     location = relationship("Location", back_populates="wikidata_entity")
     position = relationship("Position", back_populates="wikidata_entity")
     country = relationship("Country", back_populates="wikidata_entity")

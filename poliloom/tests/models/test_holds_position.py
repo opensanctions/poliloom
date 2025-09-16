@@ -15,8 +15,11 @@ class TestHoldsPosition:
     ):
         """Test basic holds position creation."""
         # Create politician
-        politician = Politician(**sample_politician_data)
-        db_session.add(politician)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
 
         # Create position with wikidata entity
         position = Position.create_with_entity(
@@ -52,8 +55,11 @@ class TestHoldsPosition:
     def test_holds_position_incomplete_dates(self, db_session, sample_politician_data):
         """Test handling of incomplete dates in HoldsPosition."""
         # Create politician
-        politician = Politician(**sample_politician_data)
-        db_session.add(politician)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         db_session.commit()
         db_session.refresh(politician)
 
@@ -95,9 +101,12 @@ class TestHoldsPosition:
     ):
         """Test default values for holds position fields."""
         # Create politician and position
-        politician = Politician(**sample_politician_data)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         position = Position.create_with_entity(db_session, "Q30185", "Test Position")
-        db_session.add(politician)
         db_session.commit()
         db_session.refresh(politician)
         db_session.refresh(position)

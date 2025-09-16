@@ -47,7 +47,9 @@ class TestEnrichment:
         db_session.refresh(country)
 
         # Create politician
-        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         db_session.add(politician)
         db_session.commit()
         db_session.refresh(politician)
@@ -280,7 +282,9 @@ class TestEnrichment:
         """Test storing extracted properties."""
         # Create entities
         country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         archived_page = ArchivedPage(**sample_archived_page_data)
 
         db_session.add_all([country, politician, archived_page])
@@ -336,7 +340,9 @@ class TestEnrichment:
         """Test storing extracted positions."""
         # Create entities
         country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         archived_page = ArchivedPage(**sample_archived_page_data)
         position = Position.create_with_entity(
             db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
@@ -400,7 +406,9 @@ class TestEnrichment:
         """Test storing extracted birthplaces."""
         # Create entities
         country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         archived_page = ArchivedPage(**sample_archived_page_data)
         location = Location.create_with_entity(
             db_session, "Q28513", "Test Location", embedding=[0.2] * 384
@@ -454,7 +462,9 @@ class TestEnrichment:
         """Test that storing skips positions that don't exist in database."""
         # Create entities
         country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         archived_page = ArchivedPage(**sample_archived_page_data)
 
         db_session.add_all([country, politician, archived_page])
@@ -507,7 +517,9 @@ class TestEnrichment:
         """Test error handling in store_extracted_data."""
         # Create entities
         country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         archived_page = ArchivedPage(**sample_archived_page_data)
 
         db_session.add_all([country, politician, archived_page])
@@ -537,8 +549,9 @@ class TestEnrichment:
     @pytest.mark.asyncio
     async def test_enrich_politician_no_wikipedia_links(self, db_session):
         """Test enrichment when politician has no Wikipedia links."""
-        politician = Politician(name="No Links Politician", wikidata_id="Q999999")
-        db_session.add(politician)
+        politician = Politician.create_with_entity(
+            db_session, "Q999999", "No Links Politician"
+        )
         db_session.commit()
 
         with patch("poliloom.enrichment.OpenAI"):
@@ -555,7 +568,9 @@ class TestEnrichment:
         """Test enrichment when politician has no English Wikipedia link."""
         # Create politician with only non-English Wikipedia link
         country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         db_session.add_all([country, politician])
         db_session.commit()
 
@@ -584,7 +599,9 @@ class TestEnrichment:
         """Test handling of overlapping position timeframes."""
         # Create entities
         country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         archived_page = ArchivedPage(**sample_archived_page_data)
         position = Position.create_with_entity(
             db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
@@ -660,7 +677,9 @@ class TestEnrichment:
         """Test handling of completely overlapping position timeframes (subset)."""
         # Create entities
         country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         archived_page = ArchivedPage(**sample_archived_page_data)
         position = Position.create_with_entity(
             db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
@@ -736,7 +755,9 @@ class TestEnrichment:
         """Test handling of non-overlapping position timeframes (different periods)."""
         # Create entities
         country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         archived_page = ArchivedPage(**sample_archived_page_data)
         position = Position.create_with_entity(
             db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
@@ -820,7 +841,9 @@ class TestEnrichment:
         """Test various partial overlap scenarios to understand current behavior."""
         # Create entities
         country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         archived_page = ArchivedPage(**sample_archived_page_data)
         position = Position.create_with_entity(
             db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
@@ -906,7 +929,9 @@ class TestEnrichment:
         """Test what should happen when periods have gaps that get filled."""
         # Create entities
         country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         archived_page = ArchivedPage(**sample_archived_page_data)
         position = Position.create_with_entity(
             db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
@@ -992,7 +1017,9 @@ class TestEnrichment:
         """Test that higher precision dates replace lower precision ones."""
         # Create entities
         country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         archived_page = ArchivedPage(**sample_archived_page_data)
         position = Position.create_with_entity(
             db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384
@@ -1066,7 +1093,9 @@ class TestEnrichment:
         """Test that lower precision dates are rejected when higher precision exists."""
         # Create entities
         country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician = Politician(name="Test Politician", wikidata_id="Q123456")
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         archived_page = ArchivedPage(**sample_archived_page_data)
         position = Position.create_with_entity(
             db_session, "Q30185", "Mayor of Springfield", embedding=[0.1] * 384

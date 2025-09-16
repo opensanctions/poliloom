@@ -149,6 +149,22 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
         return
 
     with Session(engine) as session:
+        # First, ensure WikidataEntity records exist for all politicians
+        from ..models import WikidataEntity
+
+        wikidata_stmt = insert(WikidataEntity).values(
+            [
+                {
+                    "wikidata_id": p["wikidata_id"],
+                    "name": p["name"],
+                }
+                for p in politicians
+            ]
+        )
+        # On conflict, update the name (in case it changed in Wikidata)
+        wikidata_stmt = wikidata_stmt.on_conflict_do_nothing()
+        session.execute(wikidata_stmt)
+
         # Use PostgreSQL UPSERT for politicians
         stmt = insert(Politician).values(
             [

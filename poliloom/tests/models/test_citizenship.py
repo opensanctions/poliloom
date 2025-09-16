@@ -18,9 +18,12 @@ class TestHasCitizenship:
     ):
         """Test basic citizenship relationship creation."""
         # Create politician and country
-        politician = Politician(**sample_politician_data)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        db_session.add(politician)
         db_session.commit()
         db_session.refresh(politician)
         db_session.refresh(country)
@@ -43,11 +46,14 @@ class TestHasCitizenship:
     ):
         """Test that a politician can have multiple citizenships."""
         # Create politician and two countries
-        politician = Politician(**sample_politician_data)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         country1 = Country.create_with_entity(db_session, "Q30", "United States", "US")
         country2 = Country.create_with_entity(db_session, "Q16", "Canada", "CA")
 
-        db_session.add(politician)
         db_session.commit()
         db_session.refresh(politician)
         db_session.refresh(country1)
@@ -87,10 +93,8 @@ class TestHasCitizenship:
         """Test that a country can have multiple citizen politicians."""
         # Create country and two politicians
         country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        politician1 = Politician(name="Alice Smith", wikidata_id="Q111")
-        politician2 = Politician(name="Bob Jones", wikidata_id="Q222")
-
-        db_session.add_all([politician1, politician2])
+        politician1 = Politician.create_with_entity(db_session, "Q111", "Alice Smith")
+        politician2 = Politician.create_with_entity(db_session, "Q222", "Bob Jones")
         db_session.commit()
         db_session.refresh(country)
         db_session.refresh(politician1)
@@ -129,9 +133,12 @@ class TestHasCitizenship:
     ):
         """Test database constraints prevent duplicate citizenship relationships."""
         # Create politician and country
-        politician = Politician(**sample_politician_data)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         country = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        db_session.add(politician)
         db_session.commit()
         db_session.refresh(politician)
         db_session.refresh(country)

@@ -12,8 +12,7 @@ class TestPolitician:
 
     def test_politician_creation(self, db_session):
         """Test basic politician creation."""
-        politician = Politician(name="Jane Smith", wikidata_id="Q789012")
-        db_session.add(politician)
+        politician = Politician.create_with_entity(db_session, "Q789012", "Jane Smith")
         db_session.commit()
         db_session.refresh(politician)
 
@@ -25,18 +24,20 @@ class TestPolitician:
     def test_politician_unique_wikidata_id(self, db_session, sample_politician_data):
         """Test that wikidata_id must be unique."""
         # Create first politician
-        politician1 = Politician(**sample_politician_data)
-        db_session.add(politician1)
+        Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         db_session.commit()
 
         # Try to create duplicate
-        duplicate_politician = Politician(
-            name="Different Name",
-            wikidata_id=sample_politician_data["wikidata_id"],  # Same wikidata_id
-        )
-        db_session.add(duplicate_politician)
-
         with pytest.raises(IntegrityError):
+            Politician.create_with_entity(
+                db_session,
+                sample_politician_data["wikidata_id"],  # Same wikidata_id
+                "Different Name",
+            )
             db_session.commit()
 
         # Roll back the failed transaction to clean up the session
@@ -59,8 +60,11 @@ class TestPolitician:
     ):
         """Test that deleting a politician cascades to properties."""
         # Create politician
-        politician = Politician(**sample_politician_data)
-        db_session.add(politician)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         db_session.commit()
         db_session.refresh(politician)
 

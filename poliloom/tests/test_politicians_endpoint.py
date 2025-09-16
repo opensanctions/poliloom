@@ -51,7 +51,7 @@ def politician_with_unevaluated_data(db_session):
     db_session.flush()
 
     # Create politician
-    politician = Politician(name="Test Politician", wikidata_id="Q123456")
+    politician = Politician.create_with_entity(db_session, "Q123456", "Test Politician")
     db_session.add(politician)
     db_session.flush()
 
@@ -131,7 +131,9 @@ def politician_with_evaluated_data(db_session):
     db_session.flush()
 
     # Create politician
-    politician = Politician(name="Evaluated Politician", wikidata_id="Q789012")
+    politician = Politician.create_with_entity(
+        db_session, "Q789012", "Evaluated Politician"
+    )
     db_session.add(politician)
     db_session.flush()
 
@@ -166,7 +168,9 @@ def politician_with_only_wikidata(db_session):
 
     db_session.flush()
 
-    politician = Politician(name="Wikidata Only Politician", wikidata_id="Q345678")
+    politician = Politician.create_with_entity(
+        db_session, "Q345678", "Wikidata Only Politician"
+    )
     db_session.add(politician)
     db_session.flush()
 
@@ -325,10 +329,10 @@ class TestGetPoliticiansEndpoint:
                 url=f"https://example.com/test{i}",
                 content_hash=f"test{i}",
             )
-            politician = Politician(
-                name=f"Politician {i}", wikidata_id=f"Q{100000 + i}"
+            politician = Politician.create_with_entity(
+                db_session, f"Q{100000 + i}", f"Politician {i}"
             )
-            db_session.add_all([archived_page, politician])
+            db_session.add(archived_page)
             db_session.flush()
 
             # Add extracted property
@@ -367,7 +371,9 @@ class TestGetPoliticiansEndpoint:
         db_session.add(archived_page)
         db_session.flush()
 
-        politician = Politician(name="Mixed Evaluation", wikidata_id="Q999999")
+        politician = Politician.create_with_entity(
+            db_session, "Q999999", "Mixed Evaluation"
+        )
         db_session.add(politician)
         db_session.flush()
 
@@ -426,8 +432,9 @@ class TestGetPoliticiansEndpoint:
         db_session.flush()
 
         # Politician with only unevaluated birthplace
-        politician = Politician(name="Birthplace Only", wikidata_id="Q777777")
-        db_session.add(politician)
+        politician = Politician.create_with_entity(
+            db_session, "Q777777", "Birthplace Only"
+        )
         db_session.flush()
 
         birthplace = BornAt(

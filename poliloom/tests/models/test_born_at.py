@@ -12,8 +12,11 @@ class TestBornAt:
     def test_born_at_creation(self, db_session, sample_politician_data):
         """Test basic BornAt relationship creation."""
         # Create politician
-        politician = Politician(**sample_politician_data)
-        db_session.add(politician)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         db_session.commit()
         db_session.refresh(politician)
 
@@ -44,8 +47,11 @@ class TestBornAt:
     def test_born_at_default_values(self, db_session, sample_politician_data):
         """Test BornAt model default values."""
         # Create politician
-        politician = Politician(**sample_politician_data)
-        db_session.add(politician)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         db_session.commit()
         db_session.refresh(politician)
 
@@ -72,8 +78,11 @@ class TestBornAt:
     def test_born_at_confirmation(self, db_session, sample_politician_data):
         """Test BornAt confirmation workflow with evaluations."""
         # Create politician
-        politician = Politician(**sample_politician_data)
-        db_session.add(politician)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         db_session.commit()
         db_session.refresh(politician)
 
@@ -112,8 +121,11 @@ class TestBornAt:
     def test_born_at_relationships(self, db_session, sample_politician_data):
         """Test BornAt model relationships."""
         # Create politician
-        politician = Politician(**sample_politician_data)
-        db_session.add(politician)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         db_session.commit()
         db_session.refresh(politician)
 
@@ -151,8 +163,11 @@ class TestBornAt:
     def test_born_at_cascade_delete(self, db_session, sample_politician_data):
         """Test that deleting a politician cascades to BornAt relationships."""
         # Create politician
-        politician = Politician(**sample_politician_data)
-        db_session.add(politician)
+        politician = Politician.create_with_entity(
+            db_session,
+            sample_politician_data["wikidata_id"],
+            sample_politician_data["name"],
+        )
         db_session.commit()
         db_session.refresh(politician)
 
