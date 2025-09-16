@@ -3,8 +3,12 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from ..logging import setup_logging
 from .politicians import router as politicians_router
 from .archived_pages import router as archived_pages_router
+
+# Configure logging
+setup_logging()
 
 app = FastAPI(
     title="PoliLoom API",

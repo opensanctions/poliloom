@@ -109,6 +109,14 @@ async def create_statement(
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(url, json=statement_data, headers=headers)
 
+            # Debug logging for request details
+            if logger.isEnabledFor(logging.DEBUG):
+                request = response.request
+                logger.debug(f"Request URL: {request.url}")
+                logger.debug(f"Request Headers: {dict(request.headers)}")
+                logger.debug(f"Request Body: {request.content.decode('utf-8')}")
+                logger.debug(f"Response Status Code: {response.status_code}")
+
             if response.status_code == 201:
                 result = response.json()
                 statement_id = result.get("id")

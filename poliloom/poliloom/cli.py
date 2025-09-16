@@ -13,6 +13,7 @@ from poliloom.importer.hierarchy import import_hierarchy_trees
 from poliloom.importer.entity import import_entities
 from poliloom.importer.politician import import_politicians
 from poliloom.database import get_engine
+from poliloom.logging import setup_logging
 from sqlalchemy.orm import Session
 from poliloom.models import (
     Politician,
@@ -26,9 +27,7 @@ from poliloom.models import (
 )
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+setup_logging()
 
 
 def ensure_latest_dump(session, required_stage, allow_none=False):
