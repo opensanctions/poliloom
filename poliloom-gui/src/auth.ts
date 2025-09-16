@@ -12,6 +12,10 @@ export const config = {
       },
     }),
   ],
+  pages: {
+    signIn: "/login",
+    error: "/login",
+  },
   callbacks: {
     async jwt({ token, account }) {
       // First-time login
