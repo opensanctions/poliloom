@@ -181,7 +181,7 @@ async def evaluate_extracted_data(
 
             # Create property evaluation record
             evaluation = PropertyEvaluation(
-                user_id=current_user.username,
+                user_id=str(current_user.user_id),
                 is_confirmed=eval_item.is_confirmed,
                 property_id=eval_item.id,
             )
@@ -210,7 +210,7 @@ async def evaluate_extracted_data(
 
             # Create position evaluation record
             evaluation = PositionEvaluation(
-                user_id=current_user.username,
+                user_id=str(current_user.user_id),
                 is_confirmed=eval_item.is_confirmed,
                 holds_position_id=eval_item.id,
             )
@@ -239,7 +239,7 @@ async def evaluate_extracted_data(
 
             # Create birthplace evaluation record
             evaluation = BirthplaceEvaluation(
-                user_id=current_user.username,
+                user_id=str(current_user.user_id),
                 is_confirmed=eval_item.is_confirmed,
                 born_at_id=eval_item.id,
             )

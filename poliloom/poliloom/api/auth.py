@@ -42,9 +42,12 @@ class MediaWikiOAuth:
             )
 
             # Extract user information from JWT payload
+            user_id = int(decoded.get("sub", 0))
             return User(
-                username=decoded.get("username", ""),
-                user_id=int(decoded.get("sub", 0)),
+                username=str(
+                    user_id
+                ),  # Use sub as username since username field doesn't exist
+                user_id=user_id,
                 email=decoded.get("email"),
                 jwt_token=jwt_token,  # Store the raw JWT token
             )
