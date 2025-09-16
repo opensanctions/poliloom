@@ -26,9 +26,13 @@ class WikidataEntityProcessor:
         """Extract the primary name from the entity's labels.
 
         Returns:
-            Primary name string, preferring English, or None if no labels exist
+            Primary name string, preferring multilingual, then English, or None if no labels exist
         """
-        # Try English first
+        # Try multilingual (mul) first - most universally appropriate
+        if "mul" in self._labels:
+            return self._labels["mul"]["value"]
+
+        # Try English as second choice
         if "en" in self._labels:
             return self._labels["en"]["value"]
 
