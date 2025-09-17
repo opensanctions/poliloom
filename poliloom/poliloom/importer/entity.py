@@ -331,7 +331,7 @@ def import_entities(
             session, country_root_ids
         )
 
-        language_root_ids = ["Q23492"]  # official language
+        language_root_ids = ["Q17376908"]  # langoid
         language_classes = WikidataEntity.query_hierarchy_descendants(
             session, language_root_ids
         )
