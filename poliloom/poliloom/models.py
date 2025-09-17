@@ -370,6 +370,9 @@ class Country(Base, TimestampMixin):
     citizens = relationship(
         "HasCitizenship", back_populates="country", cascade="all, delete-orphan"
     )
+    official_languages = relationship(
+        "OfficialLanguage", back_populates="country", cascade="all, delete-orphan"
+    )
     wikidata_entity = relationship(
         "WikidataEntity", back_populates="country", lazy="joined"
     )
@@ -432,6 +435,42 @@ class Location(Base, TimestampMixin):
         session.add(location)
 
         return location
+
+
+class Language(Base, TimestampMixin):
+    """Language entity for languages."""
+
+    __tablename__ = "languages"
+
+    wikidata_id = Column(
+        String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
+    )
+
+    # Relationships
+    official_in = relationship(
+        "OfficialLanguage", back_populates="language", cascade="all, delete-orphan"
+    )
+    wikidata_entity = relationship(
+        "WikidataEntity", back_populates="language", lazy="joined"
+    )
+
+    @property
+    def name(self) -> str:
+        """Get the name from the associated WikidataEntity."""
+        return self.wikidata_entity.name
+
+    @classmethod
+    def create_with_entity(cls, session, wikidata_id: str, name: str):
+        """Create a Language with its associated WikidataEntity."""
+        # Create WikidataEntity first
+        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, name=name)
+        session.add(wikidata_entity)
+
+        # Create Language
+        language = cls(wikidata_id=wikidata_id)
+        session.add(language)
+
+        return language
 
 
 class Position(Base, TimestampMixin):
@@ -606,6 +645,27 @@ class HasCitizenship(Base, TimestampMixin):
     country = relationship("Country", back_populates="citizens")
 
 
+class OfficialLanguage(Base, TimestampMixin):
+    """OfficialLanguage entity for country-language official language relationships."""
+
+    __tablename__ = "official_languages"
+
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    country_id = Column(String, ForeignKey("countries.wikidata_id"), nullable=False)
+    language_id = Column(String, ForeignKey("languages.wikidata_id"), nullable=False)
+
+    # Constraints
+    __table_args__ = (
+        UniqueConstraint("country_id", "language_id", name="uq_country_language"),
+    )
+
+    # Relationships
+    country = relationship("Country", back_populates="official_languages")
+    language = relationship("Language", back_populates="official_in")
+
+
 class WikidataDump(Base, TimestampMixin):
     """WikidataDump entity for tracking dump download and processing stages."""
 
@@ -660,6 +720,7 @@ class WikidataEntity(Base, TimestampMixin):
     location = relationship("Location", back_populates="wikidata_entity")
     position = relationship("Position", back_populates="wikidata_entity")
     country = relationship("Country", back_populates="wikidata_entity")
+    language = relationship("Language", back_populates="wikidata_entity")
 
     @classmethod
     def query_hierarchy_descendants(
