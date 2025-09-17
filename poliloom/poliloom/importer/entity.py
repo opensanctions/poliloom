@@ -13,8 +13,6 @@ from ..models import (
     Position,
     Location,
     Country,
-    Language,
-    OfficialLanguage,
     WikidataEntity,
     WikidataRelation,
 )
@@ -29,25 +27,18 @@ PROGRESS_REPORT_FREQUENCY = 50000
 shared_position_classes: frozenset[str] | None = None
 shared_location_classes: frozenset[str] | None = None
 shared_country_classes: frozenset[str] | None = None
-shared_language_classes: frozenset[str] | None = None
 
 
 def init_entity_worker(
     pos_classes: frozenset[str],
     loc_classes: frozenset[str],
     country_classes: frozenset[str],
-    lang_classes: frozenset[str],
 ) -> None:
     """Initializer runs in each worker process once at startup."""
-    global \
-        shared_position_classes, \
-        shared_location_classes, \
-        shared_country_classes, \
-        shared_language_classes
+    global shared_position_classes, shared_location_classes, shared_country_classes
     shared_position_classes = pos_classes
     shared_location_classes = loc_classes
     shared_country_classes = country_classes
-    shared_language_classes = lang_classes
 
 
 def _insert_entities_batch(
@@ -106,19 +97,15 @@ def _process_supporting_entities_chunk(
     end_byte: int,
     worker_id: int,
     batch_size: int,
-) -> Tuple[Dict[str, int], int, list[dict]]:
+) -> Tuple[Dict[str, int], int]:
     """
     Process a specific byte range of the dump file for supporting entities extraction.
     Uses frozensets for descendant QID lookups with O(1) membership testing.
 
     Each worker independently reads and parses its assigned chunk.
-    Returns entity counts found in this chunk and P37 official language relations.
+    Returns entity counts found in this chunk.
     """
-    global \
-        shared_position_classes, \
-        shared_location_classes, \
-        shared_country_classes, \
-        shared_language_classes
+    global shared_position_classes, shared_location_classes, shared_country_classes
 
     # Create a fresh engine for this worker process
     engine = create_engine(pool_size=2, max_overflow=3)
@@ -126,13 +113,10 @@ def _process_supporting_entities_chunk(
     positions = []
     locations = []
     countries = []
-    languages = []
     position_relations = []
     location_relations = []
     country_relations = []
-    language_relations = []
-    official_language_relations = []  # P37 relations to insert later
-    counts = {"positions": 0, "locations": 0, "countries": 0, "languages": 0}
+    counts = {"positions": 0, "locations": 0, "countries": 0}
     entity_count = 0
     try:
         for entity in dump_reader.read_chunk_entities(
@@ -202,25 +186,6 @@ def _process_supporting_entities_chunk(
                 entity_relations = entity.extract_all_relations()
                 country_relations.extend(entity_relations)
 
-                # Extract P37 (official language) relations for countries
-                official_lang_claims = entity.get_truthy_claims("P37")
-                for claim in official_lang_claims:
-                    try:
-                        language_id = claim["mainsnak"]["datavalue"]["value"]["id"]
-                        official_language_relations.append(
-                            {"country_id": entity_id, "language_id": language_id}
-                        )
-                    except (KeyError, TypeError):
-                        continue
-
-            if any(class_id in shared_language_classes for class_id in all_class_ids):
-                languages.append(entity_data.copy())
-                counts["languages"] += 1
-
-                # Extract relations for this language
-                entity_relations = entity.extract_all_relations()
-                language_relations.extend(entity_relations)
-
             # Process batches when they reach the batch size
             if len(positions) >= batch_size:
                 _insert_entities_batch(
@@ -243,13 +208,6 @@ def _process_supporting_entities_chunk(
                 countries = []
                 country_relations = []
 
-            if len(languages) >= batch_size:
-                _insert_entities_batch(
-                    languages, language_relations, Language, "languages", engine
-                )
-                languages = []
-                language_relations = []
-
     except Exception as e:
         logger.error(f"Worker {worker_id}: error processing chunk: {e}")
         raise
@@ -267,14 +225,10 @@ def _process_supporting_entities_chunk(
         _insert_entities_batch(
             countries, country_relations, Country, "countries", engine
         )
-    if languages:
-        _insert_entities_batch(
-            languages, language_relations, Language, "languages", engine
-        )
 
     logger.info(f"Worker {worker_id}: finished processing {entity_count} entities")
 
-    return counts, entity_count, official_language_relations
+    return counts, entity_count
 
 
 def import_entities(
@@ -290,7 +244,7 @@ def import_entities(
         batch_size: Number of entities to process in each database batch
 
     Returns:
-        Dictionary with counts of imported entities (positions, locations, countries, languages)
+        Dictionary with counts of imported entities (positions, locations, countries)
     """
     # Load only position and location descendants from database (optimized)
     with Session(get_engine()) as session:
@@ -331,25 +285,18 @@ def import_entities(
             session, country_root_ids
         )
 
-        language_root_ids = ["Q17376908"]  # langoid
-        language_classes = WikidataEntity.query_hierarchy_descendants(
-            session, language_root_ids
-        )
-
         logger.info(
-            f"Filtering for {len(position_classes)} position types, {len(location_classes)} location types, {len(country_classes)} country types, and {len(language_classes)} language types"
+            f"Filtering for {len(position_classes)} position types, {len(location_classes)} location types, and {len(country_classes)} country types"
         )
 
     # Build frozensets once in parent, BEFORE starting Pool
     position_classes = frozenset(position_classes)
     location_classes = frozenset(location_classes)
     country_classes = frozenset(country_classes)
-    language_classes = frozenset(language_classes)
 
     logger.info(f"Prepared {len(position_classes)} position classes")
     logger.info(f"Prepared {len(location_classes)} location classes")
     logger.info(f"Prepared {len(country_classes)} country classes")
-    logger.info(f"Prepared {len(language_classes)} language classes")
 
     num_workers = mp.cpu_count()
     logger.info(f"Using parallel processing with {num_workers} workers")
@@ -365,12 +312,7 @@ def import_entities(
         pool = mp.Pool(
             processes=num_workers,
             initializer=init_entity_worker,
-            initargs=(
-                position_classes,
-                location_classes,
-                country_classes,
-                language_classes,
-            ),
+            initargs=(position_classes, location_classes, country_classes),
         )
 
         async_result = pool.starmap_async(
@@ -403,39 +345,17 @@ def import_entities(
         "positions": 0,
         "locations": 0,
         "countries": 0,
-        "languages": 0,
     }
     total_entities = 0
-    all_official_language_relations = []
 
-    for counts, chunk_count, official_lang_relations in chunk_results:
+    for counts, chunk_count in chunk_results:
         total_entities += chunk_count
         for key in total_counts:
             total_counts[key] += counts[key]
-        all_official_language_relations.extend(official_lang_relations)
 
     logger.info(f"Extraction complete. Total processed: {total_entities}")
     logger.info(
-        f"Extracted: {total_counts['positions']} positions, {total_counts['locations']} locations, {total_counts['countries']} countries, {total_counts['languages']} languages"
+        f"Extracted: {total_counts['positions']} positions, {total_counts['locations']} locations, {total_counts['countries']} countries"
     )
-    logger.info(
-        f"Inserting {len(all_official_language_relations)} P37 official language relations"
-    )
-
-    # Insert P37 official language relations after all entities are processed
-    if all_official_language_relations:
-        batch_size_relations = 10000
-        for i in range(0, len(all_official_language_relations), batch_size_relations):
-            batch = all_official_language_relations[i : i + batch_size_relations]
-            with Session(get_engine()) as session:
-                stmt = insert(OfficialLanguage).values(batch)
-                stmt = stmt.on_conflict_do_nothing(
-                    index_elements=["country_id", "language_id"]
-                )
-                session.execute(stmt)
-                session.commit()
-            logger.info(
-                f"Inserted P37 batch {i // batch_size_relations + 1} ({len(batch)} relations)"
-            )
 
     return total_counts
