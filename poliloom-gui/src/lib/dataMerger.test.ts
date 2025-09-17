@@ -1,20 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { 
-  mergeProperties, 
-  mergePositions, 
-  mergeBirthplaces,
+import {
+  mergeProperties,
   isConflicted,
   isExtractedOnly,
   isExistingOnly,
   type MergedProperty
 } from './dataMerger';
-import { 
-  Property, 
-  Position, 
-  Birthplace, 
-  WikidataProperty, 
-  WikidataPosition, 
-  WikidataBirthplace 
+import {
+  Property,
+  WikidataProperty
 } from '@/types';
 
 // Test data
@@ -37,47 +31,6 @@ const mockExtractedProperty: Property = {
   }
 };
 
-const mockWikidataPosition: WikidataPosition = {
-  id: 'wd-pos-1',
-  position_name: 'Mayor',
-  wikidata_id: 'Q123',
-  start_date: '2020-01-01',
-  end_date: '2024-01-01'
-};
-
-const mockExtractedPosition: Position = {
-  id: 'ext-pos-1',
-  position_name: 'Mayor',
-  wikidata_id: 'Q123',
-  start_date: '2020-01-01',
-  end_date: '2024-06-01',
-  proof_line: 'served as mayor',
-  archived_page: {
-    id: 'arch-2',
-    url: 'https://example.com/pos',
-    content_hash: 'hash456',
-    fetch_timestamp: '2024-01-01T00:00:00Z'
-  }
-};
-
-const mockWikidataBirthplace: WikidataBirthplace = {
-  id: 'wd-birth-1',
-  location_name: 'Test City',
-  wikidata_id: 'Q456'
-};
-
-const mockExtractedBirthplace: Birthplace = {
-  id: 'ext-birth-1',
-  location_name: 'Test City',
-  wikidata_id: 'Q456',
-  proof_line: 'was born in Test City',
-  archived_page: {
-    id: 'arch-3',
-    url: 'https://example.com/birth',
-    content_hash: 'hash789',
-    fetch_timestamp: '2024-01-01T00:00:00Z'
-  }
-};
 
 describe('mergeProperties', () => {
   it('merges existing and extracted properties with same type', () => {
@@ -167,121 +120,6 @@ describe('mergeProperties', () => {
   });
 });
 
-describe('mergePositions', () => {
-  it('merges positions with same name and wikidata_id', () => {
-    const result = mergePositions([mockWikidataPosition], [mockExtractedPosition]);
-    
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
-      key: 'Mayor::Q123',
-      position_name: 'Mayor',
-      wikidata_id: 'Q123',
-      existing: mockWikidataPosition,
-      extracted: mockExtractedPosition
-    });
-  });
-
-  it('handles positions with null wikidata_id', () => {
-    const positionWithoutId: Position = {
-      ...mockExtractedPosition,
-      wikidata_id: null
-    };
-
-    const result = mergePositions([], [positionWithoutId]);
-    
-    expect(result).toHaveLength(1);
-    expect(result[0].key).toBe('Mayor::null');
-    expect(result[0].wikidata_id).toBeNull();
-  });
-
-  it('treats different position names as separate items', () => {
-    const deputyPosition: WikidataPosition = {
-      id: 'wd-deputy',
-      position_name: 'Deputy Mayor',
-      wikidata_id: 'Q123',
-      start_date: '2019-01-01',
-      end_date: '2020-01-01'
-    };
-
-    const result = mergePositions([mockWikidataPosition, deputyPosition], [mockExtractedPosition]);
-    
-    expect(result).toHaveLength(2);
-    expect(result.map(r => r.position_name)).toContain('Mayor');
-    expect(result.map(r => r.position_name)).toContain('Deputy Mayor');
-  });
-
-  it('sorts positions by priority then by position name', () => {
-    const existingOnly: WikidataPosition = {
-      id: 'wd-council',
-      position_name: 'Council Member',
-      wikidata_id: 'Q789',
-      start_date: '2018-01-01',
-      end_date: '2019-01-01'
-    };
-
-    const extractedOnly: Position = {
-      id: 'ext-governor',
-      position_name: 'Governor',
-      wikidata_id: 'Q999',
-      start_date: '2025-01-01',
-      end_date: null,
-      proof_line: 'elected as governor',
-      archived_page: mockExtractedPosition.archived_page!
-    };
-
-    const result = mergePositions(
-      [mockWikidataPosition, existingOnly],
-      [mockExtractedPosition, extractedOnly]
-    );
-
-    expect(result).toHaveLength(3);
-    expect(result[0].position_name).toBe('Council Member'); // existing-only
-    expect(result[1].position_name).toBe('Mayor'); // conflicted
-    expect(result[2].position_name).toBe('Governor'); // extracted-only
-  });
-});
-
-describe('mergeBirthplaces', () => {
-  it('merges birthplaces with same location name and wikidata_id', () => {
-    const result = mergeBirthplaces([mockWikidataBirthplace], [mockExtractedBirthplace]);
-    
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
-      key: 'Test City::Q456',
-      location_name: 'Test City',
-      wikidata_id: 'Q456',
-      existing: mockWikidataBirthplace,
-      extracted: mockExtractedBirthplace
-    });
-  });
-
-  it('handles birthplaces with null wikidata_id', () => {
-    const birthplaceWithoutId: Birthplace = {
-      ...mockExtractedBirthplace,
-      wikidata_id: null
-    };
-
-    const result = mergeBirthplaces([], [birthplaceWithoutId]);
-    
-    expect(result).toHaveLength(1);
-    expect(result[0].key).toBe('Test City::null');
-    expect(result[0].wikidata_id).toBeNull();
-  });
-
-  it('treats different location names as separate items', () => {
-    const otherCity: WikidataBirthplace = {
-      id: 'wd-other',
-      location_name: 'Other City',
-      wikidata_id: 'Q999'
-    };
-
-    const result = mergeBirthplaces([mockWikidataBirthplace, otherCity], [mockExtractedBirthplace]);
-    
-    expect(result).toHaveLength(2);
-    expect(result.map(r => r.location_name)).toContain('Test City');
-    expect(result.map(r => r.location_name)).toContain('Other City');
-  });
-});
 
 describe('helper functions', () => {
   const existingOnlyItem: MergedProperty = {

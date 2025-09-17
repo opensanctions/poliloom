@@ -43,9 +43,9 @@ describe('PoliticianEvaluation', () => {
 
   it('renders politician name and wikidata id', () => {
     render(<PoliticianEvaluation {...defaultProps} />);
-    
+
     expect(screen.getByText('Test Politician')).toBeInTheDocument();
-    expect(screen.getByText('Wikidata ID: Q987654')).toBeInTheDocument();
+    expect(screen.getByText('(Q987654)')).toBeInTheDocument();
   });
 
   it('renders properties section with property details', () => {

@@ -6,9 +6,9 @@ import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting';
 import { highlightTextInScope } from '@/lib/textHighlighter';
 import { useArchivedPageCache } from '@/contexts/ArchivedPageContext';
 import { MergedPropertyItem } from './MergedPropertyItem';
-import { MergedPositionItem } from './MergedPositionItem';
-import { MergedBirthplaceItem } from './MergedBirthplaceItem';
-import { mergeProperties, mergePositions, mergeBirthplaces } from '@/lib/dataMerger';
+import { BaseEvaluationItem } from './BaseEvaluationItem';
+import { BaseDisplayItem } from './BaseDisplayItem';
+import { mergeProperties } from '@/lib/dataMerger';
 
 interface PoliticianEvaluationProps {
   politician: Politician;
@@ -39,8 +39,6 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
 
   // Compute merged data for unified display
   const mergedProperties = mergeProperties(politician.wikidata_properties, politician.extracted_properties);
-  const mergedPositions = mergePositions(politician.wikidata_positions, politician.extracted_positions);
-  const mergedBirthplaces = mergeBirthplaces(politician.wikidata_birthplaces, politician.extracted_birthplaces);
 
   // Auto-load first statement source on component mount
   useEffect(() => {
@@ -267,69 +265,105 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
         </div>
       )}
 
-      {mergedPositions.length > 0 && (
+      {(politician.wikidata_positions.length > 0 || politician.extracted_positions.length > 0) && (
         <div className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Political Positions</h2>
           <div className="space-y-4">
-            {mergedPositions.map((mergedPosition) => (
-              <MergedPositionItem
-                key={mergedPosition.key}
-                mergedPosition={mergedPosition}
-                isConfirmed={mergedPosition.extracted ? confirmedPositions.has(mergedPosition.extracted.id) : false}
-                isDiscarded={mergedPosition.extracted ? discardedPositions.has(mergedPosition.extracted.id) : false}
-                onAction={(action) => {
-                  if (mergedPosition.extracted) {
-                    handlePositionAction(mergedPosition.extracted.id, action);
-                  }
-                }}
+            {politician.wikidata_positions.map((position) => (
+              <BaseDisplayItem key={position.id} item={position}>
+                <div>
+                  <h3 className="font-medium">
+                    {position.wikidata_id ? (
+                      <a href={`https://www.wikidata.org/wiki/${position.wikidata_id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                        {position.position_name} <span className="text-gray-500 font-normal">({position.wikidata_id})</span>
+                      </a>
+                    ) : position.position_name}
+                  </h3>
+                  <p className="text-sm">
+                    {position.start_date || 'Unknown'} - {position.end_date || 'Present'}
+                  </p>
+                </div>
+              </BaseDisplayItem>
+            ))}
+            {politician.extracted_positions.map((position) => (
+              <BaseEvaluationItem
+                key={position.id}
+                item={position}
+                isConfirmed={confirmedPositions.has(position.id)}
+                isDiscarded={discardedPositions.has(position.id)}
+                onAction={(action) => handlePositionAction(position.id, action)}
                 onShowArchived={() => {
-                  if (mergedPosition.extracted?.archived_page) {
-                    setSelectedArchivedPage(mergedPosition.extracted.archived_page);
-                    setSelectedProofLine(mergedPosition.extracted.proof_line || null);
-                    setActiveArchivedPageId(mergedPosition.extracted.archived_page.id);
+                  if (position.archived_page) {
+                    setSelectedArchivedPage(position.archived_page);
+                    setSelectedProofLine(position.proof_line || null);
+                    setActiveArchivedPageId(position.archived_page.id);
                   }
                 }}
-                onHover={() => {
-                  if (mergedPosition.extracted) {
-                    handlePositionHover(mergedPosition.extracted);
-                  }
-                }}
-                isActive={!!(mergedPosition.extracted?.archived_page && activeArchivedPageId === mergedPosition.extracted.archived_page.id)}
-              />
+                onHover={() => handlePositionHover(position)}
+                isActive={!!(position.archived_page && activeArchivedPageId === position.archived_page.id)}
+              >
+                <div>
+                  <h3 className="font-medium text-gray-900">
+                    {position.wikidata_id ? (
+                      <a href={`https://www.wikidata.org/wiki/${position.wikidata_id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                        {position.position_name} <span className="text-gray-500 font-normal">({position.wikidata_id})</span>
+                      </a>
+                    ) : position.position_name}
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    {position.start_date || 'Unknown'} - {position.end_date || 'Present'}
+                  </p>
+                </div>
+              </BaseEvaluationItem>
             ))}
           </div>
         </div>
       )}
 
-      {mergedBirthplaces.length > 0 && (
+      {(politician.wikidata_birthplaces.length > 0 || politician.extracted_birthplaces.length > 0) && (
         <div className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Birthplaces</h2>
           <div className="space-y-4">
-            {mergedBirthplaces.map((mergedBirthplace) => (
-              <MergedBirthplaceItem
-                key={mergedBirthplace.key}
-                mergedBirthplace={mergedBirthplace}
-                isConfirmed={mergedBirthplace.extracted ? confirmedBirthplaces.has(mergedBirthplace.extracted.id) : false}
-                isDiscarded={mergedBirthplace.extracted ? discardedBirthplaces.has(mergedBirthplace.extracted.id) : false}
-                onAction={(action) => {
-                  if (mergedBirthplace.extracted) {
-                    handleBirthplaceAction(mergedBirthplace.extracted.id, action);
-                  }
-                }}
+            {politician.wikidata_birthplaces.map((birthplace) => (
+              <BaseDisplayItem key={birthplace.id} item={birthplace}>
+                <div>
+                  <h3 className="font-medium">
+                    {birthplace.wikidata_id ? (
+                      <a href={`https://www.wikidata.org/wiki/${birthplace.wikidata_id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                        {birthplace.location_name} <span className="text-gray-500 font-normal">({birthplace.wikidata_id})</span>
+                      </a>
+                    ) : birthplace.location_name}
+                  </h3>
+                </div>
+              </BaseDisplayItem>
+            ))}
+            {politician.extracted_birthplaces.map((birthplace) => (
+              <BaseEvaluationItem
+                key={birthplace.id}
+                item={birthplace}
+                isConfirmed={confirmedBirthplaces.has(birthplace.id)}
+                isDiscarded={discardedBirthplaces.has(birthplace.id)}
+                onAction={(action) => handleBirthplaceAction(birthplace.id, action)}
                 onShowArchived={() => {
-                  if (mergedBirthplace.extracted?.archived_page) {
-                    setSelectedArchivedPage(mergedBirthplace.extracted.archived_page);
-                    setSelectedProofLine(mergedBirthplace.extracted.proof_line || null);
-                    setActiveArchivedPageId(mergedBirthplace.extracted.archived_page.id);
+                  if (birthplace.archived_page) {
+                    setSelectedArchivedPage(birthplace.archived_page);
+                    setSelectedProofLine(birthplace.proof_line || null);
+                    setActiveArchivedPageId(birthplace.archived_page.id);
                   }
                 }}
-                onHover={() => {
-                  if (mergedBirthplace.extracted) {
-                    handleBirthplaceHover(mergedBirthplace.extracted);
-                  }
-                }}
-                isActive={!!(mergedBirthplace.extracted?.archived_page && activeArchivedPageId === mergedBirthplace.extracted.archived_page.id)}
-              />
+                onHover={() => handleBirthplaceHover(birthplace)}
+                isActive={!!(birthplace.archived_page && activeArchivedPageId === birthplace.archived_page.id)}
+              >
+                <div>
+                  <h3 className="font-medium text-gray-900">
+                    {birthplace.wikidata_id ? (
+                      <a href={`https://www.wikidata.org/wiki/${birthplace.wikidata_id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                        {birthplace.location_name} <span className="text-gray-500 font-normal">({birthplace.wikidata_id})</span>
+                      </a>
+                    ) : birthplace.location_name}
+                  </h3>
+                </div>
+              </BaseEvaluationItem>
             ))}
           </div>
         </div>
