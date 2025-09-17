@@ -59,9 +59,11 @@ export function MergedPositionItem({
         <h3 className="font-medium text-gray-900">
           {renderPositionTitle(extracted.position_name, extracted.wikidata_id)}
         </h3>
-        <p className="text-gray-700 mt-1">
-          {formatDateRange(extracted.start_date, extracted.end_date)}
-        </p>
+        {(extracted.start_date || extracted.end_date) && (
+          <p className="text-gray-700 mt-1">
+            {formatDateRange(extracted.start_date, extracted.end_date)}
+          </p>
+        )}
       </BaseEvaluationItem>
     );
   }
@@ -75,9 +77,11 @@ export function MergedPositionItem({
             <h3 className="font-medium">
               {renderPositionTitle(existing.position_name, existing.wikidata_id)}
             </h3>
-            <p className="mt-1">
-              {formatDateRange(existing.start_date, existing.end_date)}
-            </p>
+            {(existing.start_date || existing.end_date) && (
+              <p className="mt-1">
+                {formatDateRange(existing.start_date, existing.end_date)}
+              </p>
+            )}
           </div>
           <div className="flex items-center ml-4">
             <span className="px-2 py-1 text-xs font-medium text-gray-600 bg-gray-200 rounded">
@@ -108,12 +112,14 @@ export function MergedPositionItem({
         </h3>
         
         {/* Show new dates first */}
-        <p className="text-gray-700 mt-1">
-          {formatDateRange(extracted.start_date, extracted.end_date)}
-        </p>
+        {(extracted.start_date || extracted.end_date) && (
+          <p className="text-gray-700 mt-1">
+            {formatDateRange(extracted.start_date, extracted.end_date)}
+          </p>
+        )}
         
         {/* Show existing dates with strikethrough underneath if different */}
-        {datesChanged && (
+        {datesChanged && (existing.start_date || existing.end_date) && (
           <p className="text-red-500 line-through text-sm mt-1">
             Current: {formatDateRange(existing.start_date, existing.end_date)}
           </p>
