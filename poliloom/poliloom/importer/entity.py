@@ -163,7 +163,14 @@ def _process_supporting_entities_chunk(
 
             if bool(
                 instance_ids.intersection(
-                    {"Q6256", "Q3624078", "Q20181813", "Q1520223", "Q1489259"}
+                    {
+                        "Q6256",
+                        "Q3624078",
+                        "Q20181813",
+                        "Q1520223",
+                        "Q1489259",
+                        "Q1048835",
+                    }
                 )
             ):
                 # Extract ISO 3166-1 alpha-2 code for countries
