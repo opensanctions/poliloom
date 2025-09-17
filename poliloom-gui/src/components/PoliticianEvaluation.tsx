@@ -8,6 +8,7 @@ import { useArchivedPageCache } from '@/contexts/ArchivedPageContext';
 import { MergedPropertyItem } from './MergedPropertyItem';
 import { BaseEvaluationItem } from './BaseEvaluationItem';
 import { BaseDisplayItem } from './BaseDisplayItem';
+import { DateRange } from './DateRange';
 import { mergeProperties } from '@/lib/dataMerger';
 
 interface PoliticianEvaluationProps {
@@ -279,9 +280,10 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
                       </a>
                     ) : position.position_name}
                   </h3>
-                  <p className="text-sm">
-                    {position.start_date || 'Unknown'} - {position.end_date || 'Present'}
-                  </p>
+                  <DateRange
+                    startDate={position.start_date}
+                    endDate={position.end_date}
+                  />
                 </div>
               </BaseDisplayItem>
             ))}
@@ -310,9 +312,10 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
                       </a>
                     ) : position.position_name}
                   </h3>
-                  <p className="text-gray-600 text-sm">
-                    {position.start_date || 'Unknown'} - {position.end_date || 'Present'}
-                  </p>
+                  <DateRange
+                    startDate={position.start_date}
+                    endDate={position.end_date}
+                  />
                 </div>
               </BaseEvaluationItem>
             ))}
