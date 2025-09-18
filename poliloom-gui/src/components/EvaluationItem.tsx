@@ -1,7 +1,7 @@
 import { type BaseEvaluationItem } from '@/types';
 import { ReactNode } from 'react';
 
-interface BaseEvaluationItemProps<T extends BaseEvaluationItem> {
+interface EvaluationItemProps<T extends BaseEvaluationItem> {
   item: T;
   isConfirmed: boolean;
   isDiscarded: boolean;
@@ -12,7 +12,7 @@ interface BaseEvaluationItemProps<T extends BaseEvaluationItem> {
   children: ReactNode;
 }
 
-export function BaseEvaluationItem<T extends BaseEvaluationItem>({
+export function EvaluationItem<T extends BaseEvaluationItem>({
   item,
   isConfirmed,
   isDiscarded,
@@ -21,7 +21,7 @@ export function BaseEvaluationItem<T extends BaseEvaluationItem>({
   onHover,
   isActive = false,
   children
-}: BaseEvaluationItemProps<T>) {
+}: EvaluationItemProps<T>) {
   return (
     <div 
       className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"

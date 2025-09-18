@@ -4,9 +4,13 @@ interface DateRangeProps {
 }
 
 export function DateRange({ startDate, endDate }: DateRangeProps) {
-  // Only render if we have at least one date
+  // Show "No dates set" when both dates are null
   if (!startDate && !endDate) {
-    return null;
+    return (
+      <p className="text-gray-500 italic mt-1">
+        No dates set
+      </p>
+    );
   }
 
   const displayStart = startDate || 'Unknown';

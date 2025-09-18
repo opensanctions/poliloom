@@ -5,11 +5,9 @@ import { Politician, Property, Position, Birthplace, EvaluationRequest, Property
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting';
 import { highlightTextInScope } from '@/lib/textHighlighter';
 import { useArchivedPageCache } from '@/contexts/ArchivedPageContext';
-import { MergedPropertyItem } from './MergedPropertyItem';
-import { BaseEvaluationItem } from './BaseEvaluationItem';
-import { BaseDisplayItem } from './BaseDisplayItem';
-import { DateRange } from './DateRange';
-import { mergeProperties } from '@/lib/dataMerger';
+import { PropertyEvaluation } from './PropertyEvaluation';
+import { PositionEvaluation } from './PositionEvaluation';
+import { BirthplaceEvaluation } from './BirthplaceEvaluation';
 
 interface PoliticianEvaluationProps {
   politician: Politician;
@@ -37,9 +35,6 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
     handleIframeLoad,
     handleProofLineChange
   } = useIframeAutoHighlight(iframeRef, selectedProofLine);
-
-  // Compute merged data for unified display
-  const mergedProperties = mergeProperties(politician.wikidata_properties, politician.extracted_properties);
 
   // Auto-load first statement source on component mount
   useEffect(() => {
@@ -232,145 +227,56 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
             )}
           </div>
 
-      {mergedProperties.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Properties</h2>
-          <div className="space-y-4">
-            {mergedProperties.map((mergedProperty) => (
-              <MergedPropertyItem
-                key={mergedProperty.key}
-                mergedProperty={mergedProperty}
-                isConfirmed={mergedProperty.extracted ? confirmedProperties.has(mergedProperty.extracted.id) : false}
-                isDiscarded={mergedProperty.extracted ? discardedProperties.has(mergedProperty.extracted.id) : false}
-                onAction={(action) => {
-                  if (mergedProperty.extracted) {
-                    handlePropertyAction(mergedProperty.extracted.id, action);
-                  }
-                }}
-                onShowArchived={() => {
-                  if (mergedProperty.extracted?.archived_page) {
-                    setSelectedArchivedPage(mergedProperty.extracted.archived_page);
-                    setSelectedProofLine(mergedProperty.extracted.proof_line || null);
-                    setActiveArchivedPageId(mergedProperty.extracted.archived_page.id);
-                  }
-                }}
-                onHover={() => {
-                  if (mergedProperty.extracted) {
-                    handlePropertyHover(mergedProperty.extracted);
-                  }
-                }}
-                isActive={!!(mergedProperty.extracted?.archived_page && activeArchivedPageId === mergedProperty.extracted.archived_page.id)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      <PropertyEvaluation
+        wikidataProperties={politician.wikidata_properties}
+        extractedProperties={politician.extracted_properties}
+        confirmedProperties={confirmedProperties}
+        discardedProperties={discardedProperties}
+        onAction={handlePropertyAction}
+        onShowArchived={(property) => {
+          if (property.archived_page) {
+            setSelectedArchivedPage(property.archived_page);
+            setSelectedProofLine(property.proof_line || null);
+            setActiveArchivedPageId(property.archived_page.id);
+          }
+        }}
+        onHover={handlePropertyHover}
+        activeArchivedPageId={activeArchivedPageId}
+      />
 
-      {(politician.wikidata_positions.length > 0 || politician.extracted_positions.length > 0) && (
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Political Positions</h2>
-          <div className="space-y-4">
-            {politician.wikidata_positions.map((position) => (
-              <BaseDisplayItem key={position.id} item={position}>
-                <div>
-                  <h3 className="font-medium">
-                    {position.wikidata_id ? (
-                      <a href={`https://www.wikidata.org/wiki/${position.wikidata_id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                        {position.position_name} <span className="text-gray-500 font-normal">({position.wikidata_id})</span>
-                      </a>
-                    ) : position.position_name}
-                  </h3>
-                  <DateRange
-                    startDate={position.start_date}
-                    endDate={position.end_date}
-                  />
-                </div>
-              </BaseDisplayItem>
-            ))}
-            {politician.extracted_positions.map((position) => (
-              <BaseEvaluationItem
-                key={position.id}
-                item={position}
-                isConfirmed={confirmedPositions.has(position.id)}
-                isDiscarded={discardedPositions.has(position.id)}
-                onAction={(action) => handlePositionAction(position.id, action)}
-                onShowArchived={() => {
-                  if (position.archived_page) {
-                    setSelectedArchivedPage(position.archived_page);
-                    setSelectedProofLine(position.proof_line || null);
-                    setActiveArchivedPageId(position.archived_page.id);
-                  }
-                }}
-                onHover={() => handlePositionHover(position)}
-                isActive={!!(position.archived_page && activeArchivedPageId === position.archived_page.id)}
-              >
-                <div>
-                  <h3 className="font-medium text-gray-900">
-                    {position.wikidata_id ? (
-                      <a href={`https://www.wikidata.org/wiki/${position.wikidata_id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                        {position.position_name} <span className="text-gray-500 font-normal">({position.wikidata_id})</span>
-                      </a>
-                    ) : position.position_name}
-                  </h3>
-                  <DateRange
-                    startDate={position.start_date}
-                    endDate={position.end_date}
-                  />
-                </div>
-              </BaseEvaluationItem>
-            ))}
-          </div>
-        </div>
-      )}
+      <PositionEvaluation
+        wikidataPositions={politician.wikidata_positions}
+        extractedPositions={politician.extracted_positions}
+        confirmedPositions={confirmedPositions}
+        discardedPositions={discardedPositions}
+        onAction={handlePositionAction}
+        onShowArchived={(position) => {
+          if (position.archived_page) {
+            setSelectedArchivedPage(position.archived_page);
+            setSelectedProofLine(position.proof_line || null);
+            setActiveArchivedPageId(position.archived_page.id);
+          }
+        }}
+        onHover={handlePositionHover}
+        activeArchivedPageId={activeArchivedPageId}
+      />
 
-      {(politician.wikidata_birthplaces.length > 0 || politician.extracted_birthplaces.length > 0) && (
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Birthplaces</h2>
-          <div className="space-y-4">
-            {politician.wikidata_birthplaces.map((birthplace) => (
-              <BaseDisplayItem key={birthplace.id} item={birthplace}>
-                <div>
-                  <h3 className="font-medium">
-                    {birthplace.wikidata_id ? (
-                      <a href={`https://www.wikidata.org/wiki/${birthplace.wikidata_id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                        {birthplace.location_name} <span className="text-gray-500 font-normal">({birthplace.wikidata_id})</span>
-                      </a>
-                    ) : birthplace.location_name}
-                  </h3>
-                </div>
-              </BaseDisplayItem>
-            ))}
-            {politician.extracted_birthplaces.map((birthplace) => (
-              <BaseEvaluationItem
-                key={birthplace.id}
-                item={birthplace}
-                isConfirmed={confirmedBirthplaces.has(birthplace.id)}
-                isDiscarded={discardedBirthplaces.has(birthplace.id)}
-                onAction={(action) => handleBirthplaceAction(birthplace.id, action)}
-                onShowArchived={() => {
-                  if (birthplace.archived_page) {
-                    setSelectedArchivedPage(birthplace.archived_page);
-                    setSelectedProofLine(birthplace.proof_line || null);
-                    setActiveArchivedPageId(birthplace.archived_page.id);
-                  }
-                }}
-                onHover={() => handleBirthplaceHover(birthplace)}
-                isActive={!!(birthplace.archived_page && activeArchivedPageId === birthplace.archived_page.id)}
-              >
-                <div>
-                  <h3 className="font-medium text-gray-900">
-                    {birthplace.wikidata_id ? (
-                      <a href={`https://www.wikidata.org/wiki/${birthplace.wikidata_id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                        {birthplace.location_name} <span className="text-gray-500 font-normal">({birthplace.wikidata_id})</span>
-                      </a>
-                    ) : birthplace.location_name}
-                  </h3>
-                </div>
-              </BaseEvaluationItem>
-            ))}
-          </div>
-        </div>
-      )}
+      <BirthplaceEvaluation
+        wikidataBirthplaces={politician.wikidata_birthplaces}
+        extractedBirthplaces={politician.extracted_birthplaces}
+        confirmedBirthplaces={confirmedBirthplaces}
+        discardedBirthplaces={discardedBirthplaces}
+        onAction={handleBirthplaceAction}
+        onShowArchived={(birthplace) => {
+          if (birthplace.archived_page) {
+            setSelectedArchivedPage(birthplace.archived_page);
+            setSelectedProofLine(birthplace.proof_line || null);
+            setActiveArchivedPageId(birthplace.archived_page.id);
+          }
+        }}
+        onHover={handleBirthplaceHover}
+        activeArchivedPageId={activeArchivedPageId}
+      />
         </div>
 
         {/* Fixed button at bottom */}
