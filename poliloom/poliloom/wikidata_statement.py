@@ -221,15 +221,15 @@ async def _push_property_evaluation(
     db: Session,
 ) -> bool:
     """Push a confirmed property evaluation to Wikidata."""
-    prop = db.get(Property, evaluation.property_id)
-    if not prop or not prop.politician:
+    property = db.get(Property, evaluation.property_id)
+    if not property or not property.politician:
         logger.error(
             f"Property {evaluation.property_id} or politician not found for PropertyEvaluation {evaluation.id}"
         )
         return False
 
     logger.info(
-        f"Processing PropertyEvaluation {evaluation.id}: property type '{prop.type}', politician {prop.politician.wikidata_id}"
+        f"Processing PropertyEvaluation {evaluation.id}: property type '{property.type}', politician {property.politician.wikidata_id}"
     )
 
     # Map property types to Wikidata properties
@@ -238,13 +238,13 @@ async def _push_property_evaluation(
         PropertyType.DEATH_DATE: "P570",
     }
 
-    property_id = property_map[prop.type]
+    property_id = property_map[property.type]
     logger.info(
-        f"Creating {prop.type} statement for politician {prop.politician.wikidata_id} with value '{prop.value}'"
+        f"Creating {property.type} statement for politician {property.politician.wikidata_id} with value '{property.value}'"
     )
 
     # Format date value for Wikidata
-    wikidata_value = _parse_date_for_wikidata(prop.value)
+    wikidata_value = _parse_date_for_wikidata(property.value)
     if not wikidata_value:
         return False
 
@@ -252,20 +252,23 @@ async def _push_property_evaluation(
     references = [
         {
             "property": {"id": "P854"},  # Reference URL
-            "value": {"type": "value", "content": prop.archived_page.url},
+            "value": {"type": "value", "content": property.archived_page.url},
         }
     ]
 
     statement_id = await create_statement(
-        prop.politician.wikidata_id,
+        property.politician.wikidata_id,
         property_id,
         wikidata_value,
         references=references,
         jwt_token=jwt_token,
     )
     if statement_id:
+        # Store the statement ID in the database
+        property.statement_id = statement_id
+        db.commit()
         logger.info(
-            f"{prop.type} statement {statement_id} created successfully for politician {prop.politician.wikidata_id}"
+            f"{property.type} statement {statement_id} created successfully for politician {property.politician.wikidata_id}"
         )
     return statement_id is not None
 
@@ -340,6 +343,9 @@ async def _push_position_evaluation(
         jwt_token=jwt_token,
     )
     if statement_id:
+        # Store the statement ID in the database
+        position.statement_id = statement_id
+        db.commit()
         logger.info(
             f"Position statement {statement_id} created successfully for politician {position.politician.wikidata_id}"
         )
@@ -388,6 +394,9 @@ async def _push_birthplace_evaluation(
         jwt_token=jwt_token,
     )
     if statement_id:
+        # Store the statement ID in the database
+        birthplace.statement_id = statement_id
+        db.commit()
         logger.info(
             f"Birthplace statement {statement_id} created successfully for politician {birthplace.politician.wikidata_id}"
         )
