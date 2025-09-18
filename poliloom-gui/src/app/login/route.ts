@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation"
 import { signIn } from "@/auth"
 
 export async function GET(request: Request) {

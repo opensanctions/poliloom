@@ -34,7 +34,7 @@ export function StatementSource({
       )}
       {proofLine && (
         <div className="text-sm text-gray-600 italic py-1">
-          "{proofLine}"
+          &quot;{proofLine}&quot;
         </div>
       )}
     </div>

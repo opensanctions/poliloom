@@ -27,9 +27,7 @@ export interface PositionStatement extends BaseEvaluationItem {
 }
 
 // Birthplace statement
-export interface BirthplaceStatement extends BaseEvaluationItem {
-  // No additional fields beyond BaseEvaluationItem
-}
+export type BirthplaceStatement = BaseEvaluationItem
 
 // Grouped data interfaces
 export interface PropertyGroup {
