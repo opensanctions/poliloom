@@ -1,6 +1,7 @@
 import { BirthplaceGroup, BirthplaceStatement } from '@/types';
 import { EvaluationItem } from './EvaluationItem';
 import { EvaluationActions } from './EvaluationActions';
+import { StatementSource } from './StatementSource';
 
 interface BirthplaceEvaluationProps {
   birthplaces: BirthplaceGroup[];
@@ -34,32 +35,33 @@ export function BirthplaceEvaluation({
             <EvaluationItem
               key={birthplaceGroup.qid}
               title={title}
+              onHover={() => {
+                const firstWithArchive = birthplaceGroup.statements.find(s => s.archived_page);
+                if (firstWithArchive) {
+                  onHover(firstWithArchive);
+                }
+              }}
             >
               {birthplaceGroup.statements.map((statement, index) => (
                 <div key={statement.id}>
                   {index > 0 && <hr className="border-gray-300 my-2" />}
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-700">Born at location</span>
-                    <div className="flex items-center gap-2">
-                      {statement.archived_page && (
-                        <button
-                          onClick={() => onShowArchived(statement)}
-                          onMouseEnter={() => onHover(statement)}
-                          className={`text-blue-600 hover:text-blue-800 text-sm font-medium px-2 py-1 rounded transition-colors ${
-                            statement.archived_page && activeArchivedPageId === statement.archived_page.id
-                              ? 'bg-blue-100' : 'hover:bg-blue-50'
-                          }`}
-                        >
-                          • View Source
-                        </button>
-                      )}
-                      <EvaluationActions
-                        statementId={statement.id}
-                        hasArchivedPage={!!statement.archived_page}
-                        isConfirmed={evaluations.get(statement.id) ?? null}
-                        onAction={onAction}
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1 space-y-1">
+                      <span className="text-gray-700">Born at location</span>
+                      <StatementSource
+                        proofLine={statement.proof_line}
+                        archivedPage={statement.archived_page}
+                        isActive={activeArchivedPageId === statement.archived_page?.id}
+                        onShowArchived={() => onShowArchived(statement)}
+                        onHover={() => onHover(statement)}
                       />
                     </div>
+                    <EvaluationActions
+                      statementId={statement.id}
+                      hasArchivedPage={!!statement.archived_page}
+                      isConfirmed={evaluations.get(statement.id) ?? null}
+                      onAction={onAction}
+                    />
                   </div>
                 </div>
               ))}
