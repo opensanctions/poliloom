@@ -25,79 +25,68 @@ class ArchivedPageResponse(UUIDBaseModel):
     fetch_timestamp: datetime
 
 
-class ExtractedPropertyResponse(UUIDBaseModel):
-    """Schema for extracted property data."""
+class PropertyStatementResponse(UUIDBaseModel):
+    """Schema for property statements (birth_date, death_date)."""
 
     id: UUID
-    type: str
-    value: str
-    proof_line: Optional[str] = None
-    archived_page: Optional[ArchivedPageResponse] = None
-
-
-class ExtractedPositionResponse(UUIDBaseModel):
-    """Schema for extracted position data."""
-
-    id: UUID
-    position_name: str
-    wikidata_id: Optional[str] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
-    proof_line: Optional[str] = None
-    archived_page: Optional[ArchivedPageResponse] = None
-
-
-class ExtractedBirthplaceResponse(UUIDBaseModel):
-    """Schema for extracted birthplace data."""
-
-    id: UUID
-    location_name: str
-    wikidata_id: Optional[str] = None
-    proof_line: Optional[str] = None
-    archived_page: Optional[ArchivedPageResponse] = None
-
-
-class WikidataPropertyResponse(UUIDBaseModel):
-    """Schema for Wikidata property data."""
-
-    id: UUID
-    type: str
     value: str
     value_precision: Optional[int] = None
+    proof_line: Optional[str] = None
+    archived_page: Optional[ArchivedPageResponse] = None
 
 
-class WikidataPositionResponse(UUIDBaseModel):
-    """Schema for Wikidata position data."""
+class PositionStatementResponse(UUIDBaseModel):
+    """Schema for position statements (holds_position relationships)."""
 
     id: UUID
-    position_name: str
-    wikidata_id: Optional[str] = None
     start_date: Optional[str] = None
     start_date_precision: Optional[int] = None
     end_date: Optional[str] = None
     end_date_precision: Optional[int] = None
+    proof_line: Optional[str] = None
+    archived_page: Optional[ArchivedPageResponse] = None
 
 
-class WikidataBirthplaceResponse(UUIDBaseModel):
-    """Schema for Wikidata birthplace data."""
+class BirthplaceStatementResponse(UUIDBaseModel):
+    """Schema for birthplace statements (born_at relationships)."""
 
     id: UUID
-    location_name: str
-    wikidata_id: Optional[str] = None
+    proof_line: Optional[str] = None
+    archived_page: Optional[ArchivedPageResponse] = None
+
+
+class PropertyResponse(UUIDBaseModel):
+    """Schema for property with grouped statements."""
+
+    type: str
+    statements: List[PropertyStatementResponse]
+
+
+class PositionResponse(UUIDBaseModel):
+    """Schema for position with grouped statements."""
+
+    qid: str
+    name: str
+    statements: List[PositionStatementResponse]
+
+
+class BirthplaceResponse(UUIDBaseModel):
+    """Schema for birthplace with grouped statements."""
+
+    qid: str
+    name: str
+    statements: List[BirthplaceStatementResponse]
 
 
 class PoliticianResponse(UUIDBaseModel):
-    """Schema for politician with extracted and Wikidata data."""
+    """Schema for politician with grouped statements."""
 
     id: UUID
     name: str
     wikidata_id: Optional[str] = None
-    wikidata_properties: List[WikidataPropertyResponse]
-    wikidata_positions: List[WikidataPositionResponse]
-    wikidata_birthplaces: List[WikidataBirthplaceResponse]
-    extracted_properties: List[ExtractedPropertyResponse]
-    extracted_positions: List[ExtractedPositionResponse]
-    extracted_birthplaces: List[ExtractedBirthplaceResponse]
+    properties: List[PropertyResponse]
+    positions: List[PositionResponse]
+    birthplaces: List[BirthplaceResponse]
 
 
 class PropertyEvaluationItem(UUIDBaseModel):
