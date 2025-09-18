@@ -15,12 +15,9 @@ interface PoliticianEvaluationProps {
 }
 
 export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluationProps) {
-  const [confirmedProperties, setConfirmedProperties] = useState<Set<string>>(new Set());
-  const [discardedProperties, setDiscardedProperties] = useState<Set<string>>(new Set());
-  const [confirmedPositions, setConfirmedPositions] = useState<Set<string>>(new Set());
-  const [discardedPositions, setDiscardedPositions] = useState<Set<string>>(new Set());
-  const [confirmedBirthplaces, setConfirmedBirthplaces] = useState<Set<string>>(new Set());
-  const [discardedBirthplaces, setDiscardedBirthplaces] = useState<Set<string>>(new Set());
+  const [propertyEvaluations, setPropertyEvaluations] = useState<Map<string, boolean>>(new Map());
+  const [positionEvaluations, setPositionEvaluations] = useState<Map<string, boolean>>(new Map());
+  const [birthplaceEvaluations, setBirthplaceEvaluations] = useState<Map<string, boolean>>(new Map());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedArchivedPage, setSelectedArchivedPage] = useState<ArchivedPageResponse | null>(null);
   const [selectedProofLine, setSelectedProofLine] = useState<string | null>(null);
@@ -58,57 +55,54 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
   }, [selectedProofLine, isIframeLoaded, handleProofLineChange]);
 
   const handlePropertyAction = (propertyId: string, action: 'confirm' | 'discard') => {
-    if (action === 'confirm') {
-      setConfirmedProperties(prev => new Set(prev).add(propertyId));
-      setDiscardedProperties(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(propertyId);
-        return newSet;
-      });
-    } else {
-      setDiscardedProperties(prev => new Set(prev).add(propertyId));
-      setConfirmedProperties(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(propertyId);
-        return newSet;
-      });
-    }
+    setPropertyEvaluations(prev => {
+      const newMap = new Map(prev);
+      const currentValue = newMap.get(propertyId);
+      const targetValue = action === 'confirm';
+
+      if (currentValue === targetValue) {
+        // Toggle off - remove from map
+        newMap.delete(propertyId);
+      } else {
+        // Set new value
+        newMap.set(propertyId, targetValue);
+      }
+      return newMap;
+    });
   };
 
   const handlePositionAction = (positionId: string, action: 'confirm' | 'discard') => {
-    if (action === 'confirm') {
-      setConfirmedPositions(prev => new Set(prev).add(positionId));
-      setDiscardedPositions(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(positionId);
-        return newSet;
-      });
-    } else {
-      setDiscardedPositions(prev => new Set(prev).add(positionId));
-      setConfirmedPositions(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(positionId);
-        return newSet;
-      });
-    }
+    setPositionEvaluations(prev => {
+      const newMap = new Map(prev);
+      const currentValue = newMap.get(positionId);
+      const targetValue = action === 'confirm';
+
+      if (currentValue === targetValue) {
+        // Toggle off - remove from map
+        newMap.delete(positionId);
+      } else {
+        // Set new value
+        newMap.set(positionId, targetValue);
+      }
+      return newMap;
+    });
   };
 
   const handleBirthplaceAction = (birthplaceId: string, action: 'confirm' | 'discard') => {
-    if (action === 'confirm') {
-      setConfirmedBirthplaces(prev => new Set(prev).add(birthplaceId));
-      setDiscardedBirthplaces(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(birthplaceId);
-        return newSet;
-      });
-    } else {
-      setDiscardedBirthplaces(prev => new Set(prev).add(birthplaceId));
-      setConfirmedBirthplaces(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(birthplaceId);
-        return newSet;
-      });
-    }
+    setBirthplaceEvaluations(prev => {
+      const newMap = new Map(prev);
+      const currentValue = newMap.get(birthplaceId);
+      const targetValue = action === 'confirm';
+
+      if (currentValue === targetValue) {
+        // Toggle off - remove from map
+        newMap.delete(birthplaceId);
+      } else {
+        // Set new value
+        newMap.set(birthplaceId, targetValue);
+      }
+      return newMap;
+    });
   };
 
   // Unified hover handler for all statement types
@@ -129,43 +123,25 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      const propertyEvaluations: PropertyEvaluationItem[] = [
-        ...Array.from(confirmedProperties).map(id => ({
-          id,
-          is_confirmed: true
-        })),
-        ...Array.from(discardedProperties).map(id => ({
-          id,
-          is_confirmed: false
-        }))
-      ];
+      const propertyEvaluationItems: PropertyEvaluationItem[] = Array.from(propertyEvaluations.entries()).map(([id, isConfirmed]) => ({
+        id,
+        is_confirmed: isConfirmed
+      }));
 
-      const positionEvaluations: PositionEvaluationItem[] = [
-        ...Array.from(confirmedPositions).map(id => ({
-          id,
-          is_confirmed: true
-        })),
-        ...Array.from(discardedPositions).map(id => ({
-          id,
-          is_confirmed: false
-        }))
-      ];
+      const positionEvaluationItems: PositionEvaluationItem[] = Array.from(positionEvaluations.entries()).map(([id, isConfirmed]) => ({
+        id,
+        is_confirmed: isConfirmed
+      }));
 
-      const birthplaceEvaluations: BirthplaceEvaluationItem[] = [
-        ...Array.from(confirmedBirthplaces).map(id => ({
-          id,
-          is_confirmed: true
-        })),
-        ...Array.from(discardedBirthplaces).map(id => ({
-          id,
-          is_confirmed: false
-        }))
-      ];
+      const birthplaceEvaluationItems: BirthplaceEvaluationItem[] = Array.from(birthplaceEvaluations.entries()).map(([id, isConfirmed]) => ({
+        id,
+        is_confirmed: isConfirmed
+      }));
 
       const evaluationData: EvaluationRequest = {
-        property_evaluations: propertyEvaluations,
-        position_evaluations: positionEvaluations,
-        birthplace_evaluations: birthplaceEvaluations
+        property_evaluations: propertyEvaluationItems,
+        position_evaluations: positionEvaluationItems,
+        birthplace_evaluations: birthplaceEvaluationItems
       };
 
       const response = await fetch('/api/politicians/evaluate', {
@@ -215,8 +191,7 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
 
       <PropertyEvaluation
         properties={politician.properties}
-        confirmedProperties={confirmedProperties}
-        discardedProperties={discardedProperties}
+        evaluations={propertyEvaluations}
         onAction={handlePropertyAction}
         onShowArchived={(property) => {
           if (property.archived_page) {
@@ -230,8 +205,7 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
 
       <PositionEvaluation
         positions={politician.positions}
-        confirmedPositions={confirmedPositions}
-        discardedPositions={discardedPositions}
+        evaluations={positionEvaluations}
         onAction={handlePositionAction}
         onShowArchived={(position) => {
           if (position.archived_page) {
@@ -245,8 +219,7 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
 
       <BirthplaceEvaluation
         birthplaces={politician.birthplaces}
-        confirmedBirthplaces={confirmedBirthplaces}
-        discardedBirthplaces={discardedBirthplaces}
+        evaluations={birthplaceEvaluations}
         onAction={handleBirthplaceAction}
         onShowArchived={(birthplace) => {
           if (birthplace.archived_page) {
