@@ -81,8 +81,13 @@ async def get_politicians(
         result = []
         for politician in politicians:
             # Group properties by type (sorted by value for chronological order)
+            # Only include properties that are either from Wikidata (not extracted) or unevaluated extracted data
             properties_by_type = {}
             for prop in sorted(politician.properties, key=lambda x: x.value):
+                # Skip extracted properties that have been evaluated
+                if prop.is_extracted and prop.evaluations:
+                    continue
+
                 if prop.type not in properties_by_type:
                     properties_by_type[prop.type] = []
                 statement = PropertyStatementResponse(
@@ -102,11 +107,16 @@ async def get_politicians(
                 properties_by_type[prop.type].append(statement)
 
             # Group positions by entity (sorted by start_date for chronological order)
+            # Only include positions that are either from Wikidata (not extracted) or unevaluated extracted data
             positions_by_entity = {}
             for pos in sorted(
                 politician.positions_held,
                 key=lambda x: (x.start_date or "", x.end_date or ""),
             ):
+                # Skip extracted positions that have been evaluated
+                if pos.is_extracted and pos.evaluations:
+                    continue
+
                 key = (pos.position.wikidata_id, pos.position.name)
                 if key not in positions_by_entity:
                     positions_by_entity[key] = []
@@ -129,8 +139,13 @@ async def get_politicians(
                 positions_by_entity[key].append(statement)
 
             # Group birthplaces by entity (sorted by location name)
+            # Only include birthplaces that are either from Wikidata (not extracted) or unevaluated extracted data
             birthplaces_by_entity = {}
             for bp in sorted(politician.birthplaces, key=lambda x: x.location.name):
+                # Skip extracted birthplaces that have been evaluated
+                if bp.is_extracted and bp.evaluations:
+                    continue
+
                 key = (bp.location.wikidata_id, bp.location.name)
                 if key not in birthplaces_by_entity:
                     birthplaces_by_entity[key] = []

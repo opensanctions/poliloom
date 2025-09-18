@@ -93,7 +93,7 @@ class TestWikidataEntityProcessor:
         entity = WikidataEntityProcessor(entity_data)
 
         claims = entity.get_truthy_claims("P580")
-        date_info = entity.extract_date_from_claims(claims)
+        date_info = entity.extract_date_from_claim(claims[0])
 
         assert date_info is not None
         assert date_info.date == "1970-06-15"
@@ -107,7 +107,7 @@ class TestWikidataEntityProcessor:
         entity = WikidataEntityProcessor(entity_data)
 
         claims = entity.get_truthy_claims("P580")
-        date_info = entity.extract_date_from_claims(claims)
+        date_info = entity.extract_date_from_claim(claims[0])
 
         assert date_info.date == "1970"
         assert date_info.precision == 9
@@ -136,7 +136,7 @@ class TestWikidataEntityProcessor:
         entity = WikidataEntityProcessor(entity_data)
 
         claims = entity.get_truthy_claims("P570")
-        date_info = entity.extract_date_from_claims(claims)
+        date_info = entity.extract_date_from_claim(claims[0])
 
         assert date_info is not None
         assert date_info.date == "0347"  # The negative sign is stripped
@@ -151,7 +151,7 @@ class TestWikidataEntityProcessor:
         entity = WikidataEntityProcessor(entity_data)
 
         claims = entity.get_truthy_claims("P570")
-        date_info = entity.extract_date_from_claims(claims)
+        date_info = entity.extract_date_from_claim(claims[0])
 
         assert date_info is not None
         assert date_info.date == "0322-10-07"
@@ -166,7 +166,7 @@ class TestWikidataEntityProcessor:
         entity = WikidataEntityProcessor(entity_data)
 
         claims = entity.get_truthy_claims("P570")
-        date_info = entity.extract_date_from_claims(claims)
+        date_info = entity.extract_date_from_claim(claims[0])
 
         assert date_info is not None
         assert date_info.date == "0348"  # Should parse decade as year
@@ -181,7 +181,7 @@ class TestWikidataEntityProcessor:
         entity = WikidataEntityProcessor(entity_data)
 
         claims = entity.get_truthy_claims("P570")
-        date_info = entity.extract_date_from_claims(claims)
+        date_info = entity.extract_date_from_claim(claims[0])
 
         assert date_info is not None
         assert date_info.date == "0400"  # Should parse century as year
@@ -196,7 +196,7 @@ class TestWikidataEntityProcessor:
         entity = WikidataEntityProcessor(entity_data)
 
         claims = entity.get_truthy_claims("P570")
-        date_info = entity.extract_date_from_claims(claims)
+        date_info = entity.extract_date_from_claim(claims[0])
 
         assert date_info is not None
         assert date_info.date == "1000"  # Should parse millennium as year

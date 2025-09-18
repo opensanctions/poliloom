@@ -3,6 +3,7 @@
 import pytest
 from unittest.mock import AsyncMock, Mock as SyncMock, patch
 from fastapi.testclient import TestClient
+from typing import List, Dict, Any
 
 from poliloom.api import app
 from poliloom.api.auth import User
@@ -17,6 +18,42 @@ from poliloom.models import (
     ArchivedPage,
     PropertyEvaluation,
 )
+
+
+def extract_statements_by_type(
+    politician_data: Dict[str, Any], extracted: bool = True
+) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Extract statements from politician data based on whether they are extracted or Wikidata.
+
+    Args:
+        politician_data: The politician response data
+        extracted: If True, return extracted statements (with archived_page), else Wikidata statements (without archived_page)
+
+    Returns:
+        Dictionary with keys 'properties', 'positions', 'birthplaces' containing lists of matching statements
+    """
+    result = {"properties": [], "positions": [], "birthplaces": []}
+
+    # Extract property statements
+    for prop in politician_data.get("properties", []):
+        for stmt in prop.get("statements", []):
+            if bool(stmt.get("archived_page")) == extracted:
+                result["properties"].append(stmt)
+
+    # Extract position statements
+    for pos in politician_data.get("positions", []):
+        for stmt in pos.get("statements", []):
+            if bool(stmt.get("archived_page")) == extracted:
+                result["positions"].append(stmt)
+
+    # Extract birthplace statements
+    for bp in politician_data.get("birthplaces", []):
+        for stmt in bp.get("statements", []):
+            if bool(stmt.get("archived_page")) == extracted:
+                result["birthplaces"].append(stmt)
+
+    return result
 
 
 @pytest.fixture
@@ -211,15 +248,27 @@ class TestGetPoliticiansEndpoint:
         assert politician_data["name"] == "Test Politician"
         assert politician_data["wikidata_id"] == "Q123456"
 
-        # Should have unevaluated extracted data
-        assert len(politician_data["extracted_properties"]) == 1
-        assert len(politician_data["extracted_positions"]) == 1
-        assert len(politician_data["extracted_birthplaces"]) == 1
+        # Should have properties, positions, and birthplaces
+        assert len(politician_data["properties"]) == 2  # 1 extracted + 1 wikidata
+        assert (
+            len(politician_data["positions"]) == 1
+        )  # Both extracted and wikidata positions for same position
+        assert (
+            len(politician_data["birthplaces"]) == 1
+        )  # Both extracted and wikidata birthplaces for same location
 
-        # Should also have Wikidata data
-        assert len(politician_data["wikidata_properties"]) == 1
-        assert len(politician_data["wikidata_positions"]) == 1
-        assert len(politician_data["wikidata_birthplaces"]) == 1
+        # Check that we have both extracted and wikidata statements
+        # Properties should have 2 different types (birth_date and death_date)
+        prop_types = {prop["type"] for prop in politician_data["properties"]}
+        assert len(prop_types) == 2
+
+        # Positions should have statements with and without proof_line
+        position_statements = politician_data["positions"][0]["statements"]
+        assert len(position_statements) == 2  # 1 extracted + 1 wikidata
+
+        # Birthplaces should have statements with and without proof_line
+        birthplace_statements = politician_data["birthplaces"][0]["statements"]
+        assert len(birthplace_statements) == 2  # 1 extracted + 1 wikidata
 
     def test_excludes_politicians_with_only_evaluated_data(
         self, client, mock_auth, politician_with_evaluated_data
@@ -266,12 +315,9 @@ class TestGetPoliticiansEndpoint:
 
         # Test array fields exist
         array_fields = [
-            "wikidata_properties",
-            "wikidata_positions",
-            "wikidata_birthplaces",
-            "extracted_properties",
-            "extracted_positions",
-            "extracted_birthplaces",
+            "properties",
+            "positions",
+            "birthplaces",
         ]
         for field in array_fields:
             assert field in politician_data
@@ -286,19 +332,27 @@ class TestGetPoliticiansEndpoint:
         data = response.json()
         politician_data = data[0]
 
+        # Find extracted statements (those with proof_line and archived_page)
+        extracted_statements = extract_statements_by_type(
+            politician_data, extracted=True
+        )
+
         # Check extracted property
-        extracted_prop = politician_data["extracted_properties"][0]
+        assert len(extracted_statements["properties"]) == 1
+        extracted_prop = extracted_statements["properties"][0]
         assert extracted_prop["proof_line"] == "Born on January 15, 1970"
         assert extracted_prop["archived_page"] is not None
         assert "url" in extracted_prop["archived_page"]
 
         # Check extracted position
-        extracted_pos = politician_data["extracted_positions"][0]
+        assert len(extracted_statements["positions"]) == 1
+        extracted_pos = extracted_statements["positions"][0]
         assert extracted_pos["proof_line"] == "Served as Mayor from 2020 to 2024"
         assert extracted_pos["archived_page"] is not None
 
         # Check extracted birthplace
-        extracted_bp = politician_data["extracted_birthplaces"][0]
+        assert len(extracted_statements["birthplaces"]) == 1
+        extracted_bp = extracted_statements["birthplaces"][0]
         assert extracted_bp["proof_line"] == "Born in Springfield"
         assert extracted_bp["archived_page"] is not None
 
@@ -311,10 +365,16 @@ class TestGetPoliticiansEndpoint:
         data = response.json()
         politician_data = data[0]
 
+        # Find Wikidata statements (those without proof_line)
+        wikidata_statements = extract_statements_by_type(
+            politician_data, extracted=False
+        )
+
         # Wikidata properties should not have proof_line or archived_page
-        wikidata_prop = politician_data["wikidata_properties"][0]
-        assert "proof_line" not in wikidata_prop
-        assert "archived_page" not in wikidata_prop
+        assert len(wikidata_statements["properties"]) >= 1
+        wikidata_prop = wikidata_statements["properties"][0]
+        assert wikidata_prop.get("proof_line") is None
+        assert wikidata_prop.get("archived_page") is None
 
         # But they should have precision fields
         assert "value_precision" in wikidata_prop
@@ -412,12 +472,16 @@ class TestGetPoliticiansEndpoint:
         assert len(data) == 1
 
         politician_data = data[0]
+
+        # Find extracted statements (those with proof_line and archived_page)
+        extracted_statements = extract_statements_by_type(
+            politician_data, extracted=True
+        )
+
         assert (
-            len(politician_data["extracted_properties"]) == 0
+            len(extracted_statements["properties"]) == 0
         )  # Evaluated, so not returned
-        assert (
-            len(politician_data["extracted_positions"]) == 1
-        )  # Unevaluated, so returned
+        assert len(extracted_statements["positions"]) == 1  # Unevaluated, so returned
 
     def test_politician_with_partial_unevaluated_data_types(
         self, client, mock_auth, db_session
@@ -452,6 +516,12 @@ class TestGetPoliticiansEndpoint:
         assert len(data) == 1
 
         politician_data = data[0]
-        assert len(politician_data["extracted_properties"]) == 0
-        assert len(politician_data["extracted_positions"]) == 0
-        assert len(politician_data["extracted_birthplaces"]) == 1
+
+        # Find extracted statements (those with proof_line and archived_page)
+        extracted_statements = extract_statements_by_type(
+            politician_data, extracted=True
+        )
+
+        assert len(extracted_statements["properties"]) == 0
+        assert len(extracted_statements["positions"]) == 0
+        assert len(extracted_statements["birthplaces"]) == 1

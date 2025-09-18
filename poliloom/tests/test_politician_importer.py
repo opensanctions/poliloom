@@ -116,7 +116,7 @@ class TestWikidataPoliticianImporter:
                 "properties": [],
                 "positions": [],
                 "citizenships": [],
-                "birthplace": None,
+                "birthplaces": [],
                 "wikipedia_links": [],
             },
             {
@@ -125,7 +125,7 @@ class TestWikidataPoliticianImporter:
                 "properties": [],
                 "positions": [],
                 "citizenships": [],
-                "birthplace": None,
+                "birthplaces": [],
                 "wikipedia_links": [],
             },
         ]
@@ -147,7 +147,7 @@ class TestWikidataPoliticianImporter:
                 "properties": [],
                 "positions": [],
                 "citizenships": [],
-                "birthplace": None,
+                "birthplaces": [],
                 "wikipedia_links": [],
             }
         ]
@@ -163,7 +163,7 @@ class TestWikidataPoliticianImporter:
                 "properties": [],
                 "positions": [],
                 "citizenships": [],
-                "birthplace": None,
+                "birthplaces": [],
                 "wikipedia_links": [],
             }
         ]
@@ -197,16 +197,18 @@ class TestWikidataPoliticianImporter:
                         "type": "birth_date",
                         "value": "1970-01-01",
                         "value_precision": 11,
+                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C8A",
                     },
                     {
                         "type": "death_date",
                         "value": "2020-01-01",
                         "value_precision": 11,
+                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C8B",
                     },
                 ],
                 "positions": [],
                 "citizenships": [],
-                "birthplace": None,
+                "birthplaces": [],
                 "wikipedia_links": [],
             }
         ]
@@ -249,6 +251,7 @@ class TestWikidataPoliticianImporter:
                         "type": "birth_date",
                         "value": "1970-01-01",
                         "value_precision": 11,
+                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C8A",
                     },
                 ],
                 "citizenships": ["Q30", "Q16"],  # US and Canada
@@ -259,6 +262,7 @@ class TestWikidataPoliticianImporter:
                         "start_date_precision": 11,
                         "end_date": "2024-01-01",
                         "end_date_precision": 11,
+                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C81",
                     },
                     {
                         "wikidata_id": "Q11696",
@@ -266,9 +270,15 @@ class TestWikidataPoliticianImporter:
                         "start_date_precision": 11,
                         "end_date": "2020-01-01",
                         "end_date_precision": 11,
+                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C82",
                     },
                 ],
-                "birthplace": "Q60",
+                "birthplaces": [
+                    {
+                        "location_id": "Q60",
+                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C83",
+                    }
+                ],
                 "wikipedia_links": [
                     {
                         "url": "https://en.wikipedia.org/wiki/John_Doe",
