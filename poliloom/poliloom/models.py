@@ -298,7 +298,9 @@ class WikipediaLink(Base, TimestampMixin):
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
     politician_id = Column(
-        UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
+        UUID(as_uuid=True),
+        ForeignKey("politicians.id", ondelete="CASCADE"),
+        nullable=False,
     )
     url = Column(String, nullable=False)
     language_code = Column(String, nullable=False)  # e.g., 'en', 'de', 'fr'
@@ -324,7 +326,9 @@ class Property(Base, TimestampMixin):
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
     politician_id = Column(
-        UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
+        UUID(as_uuid=True),
+        ForeignKey("politicians.id", ondelete="CASCADE"),
+        nullable=False,
     )
     type = Column(SQLEnum(PropertyType), nullable=False)
     value = Column(String, nullable=False)
@@ -483,7 +487,9 @@ class HoldsPosition(Base, TimestampMixin):
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
     politician_id = Column(
-        UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
+        UUID(as_uuid=True),
+        ForeignKey("politicians.id", ondelete="CASCADE"),
+        nullable=False,
     )
     position_id = Column(String, ForeignKey("positions.wikidata_id"), nullable=False)
     start_date = Column(String)  # Allowing incomplete dates as strings
@@ -542,7 +548,9 @@ class BornAt(Base, TimestampMixin):
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
     politician_id = Column(
-        UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
+        UUID(as_uuid=True),
+        ForeignKey("politicians.id", ondelete="CASCADE"),
+        nullable=False,
     )
     location_id = Column(String, ForeignKey("locations.wikidata_id"), nullable=False)
     archived_page_id = Column(
@@ -591,7 +599,9 @@ class HasCitizenship(Base, TimestampMixin):
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
     politician_id = Column(
-        UUID(as_uuid=True), ForeignKey("politicians.id"), nullable=False
+        UUID(as_uuid=True),
+        ForeignKey("politicians.id", ondelete="CASCADE"),
+        nullable=False,
     )
     country_id = Column(String, ForeignKey("countries.wikidata_id"), nullable=False)
 
