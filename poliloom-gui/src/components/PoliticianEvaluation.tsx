@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
-import { Politician, Property, Position, Birthplace, EvaluationRequest, PropertyEvaluationItem, PositionEvaluationItem, BirthplaceEvaluationItem, ArchivedPageResponse, EvaluationResponse } from '@/types';
+import { Politician, PropertyStatement, PositionStatement, BirthplaceStatement, EvaluationRequest, PropertyEvaluationItem, PositionEvaluationItem, BirthplaceEvaluationItem, ArchivedPageResponse, EvaluationResponse } from '@/types';
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting';
 import { highlightTextInScope } from '@/lib/textHighlighter';
 import { useArchivedPageCache } from '@/contexts/ArchivedPageContext';
@@ -24,7 +24,6 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedArchivedPage, setSelectedArchivedPage] = useState<ArchivedPageResponse | null>(null);
   const [selectedProofLine, setSelectedProofLine] = useState<string | null>(null);
-  const [activeArchivedPageId, setActiveArchivedPageId] = useState<string | null>(null);
   
   // Refs and hooks for iframe highlighting
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -36,13 +35,18 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
     handleProofLineChange
   } = useIframeAutoHighlight(iframeRef, selectedProofLine);
 
-  // Auto-load first statement source on component mount
+  // Auto-load first archived page found
   useEffect(() => {
-    const firstItem = politician.extracted_properties[0] || politician.extracted_positions[0] || politician.extracted_birthplaces[0];
-    if (firstItem && firstItem.archived_page) {
-      setSelectedArchivedPage(firstItem.archived_page);
-      setSelectedProofLine(firstItem.proof_line || null);
-      setActiveArchivedPageId(firstItem.archived_page.id);
+    const allStatements = [
+      ...politician.properties.flatMap(p => p.statements),
+      ...politician.positions.flatMap(p => p.statements),
+      ...politician.birthplaces.flatMap(b => b.statements)
+    ];
+
+    const firstWithArchive = allStatements.find(s => s.archived_page);
+    if (firstWithArchive && firstWithArchive.archived_page) {
+      setSelectedArchivedPage(firstWithArchive.archived_page);
+      setSelectedProofLine(firstWithArchive.proof_line || null);
     }
   }, [politician]);
 
@@ -121,24 +125,6 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
     // Don't change the iframe source on hover
   };
 
-  // Individual hover handlers that use the unified logic
-  const handlePropertyHover = (property: Property) => {
-    if (property.proof_line && property.archived_page) {
-      handleStatementHover(property.proof_line, property.archived_page);
-    }
-  };
-
-  const handlePositionHover = (position: Position) => {
-    if (position.proof_line && position.archived_page) {
-      handleStatementHover(position.proof_line, position.archived_page);
-    }
-  };
-
-  const handleBirthplaceHover = (birthplace: Birthplace) => {
-    if (birthplace.proof_line && birthplace.archived_page) {
-      handleStatementHover(birthplace.proof_line, birthplace.archived_page);
-    }
-  };
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -228,8 +214,7 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
           </div>
 
       <PropertyEvaluation
-        wikidataProperties={politician.wikidata_properties}
-        extractedProperties={politician.extracted_properties}
+        properties={politician.properties}
         confirmedProperties={confirmedProperties}
         discardedProperties={discardedProperties}
         onAction={handlePropertyAction}
@@ -237,16 +222,14 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
           if (property.archived_page) {
             setSelectedArchivedPage(property.archived_page);
             setSelectedProofLine(property.proof_line || null);
-            setActiveArchivedPageId(property.archived_page.id);
           }
         }}
-        onHover={handlePropertyHover}
-        activeArchivedPageId={activeArchivedPageId}
+        onHover={() => {}} // TODO: implement hover
+        activeArchivedPageId={selectedArchivedPage?.id || null}
       />
 
       <PositionEvaluation
-        wikidataPositions={politician.wikidata_positions}
-        extractedPositions={politician.extracted_positions}
+        positions={politician.positions}
         confirmedPositions={confirmedPositions}
         discardedPositions={discardedPositions}
         onAction={handlePositionAction}
@@ -254,16 +237,14 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
           if (position.archived_page) {
             setSelectedArchivedPage(position.archived_page);
             setSelectedProofLine(position.proof_line || null);
-            setActiveArchivedPageId(position.archived_page.id);
           }
         }}
-        onHover={handlePositionHover}
-        activeArchivedPageId={activeArchivedPageId}
+        onHover={() => {}} // TODO: implement hover
+        activeArchivedPageId={selectedArchivedPage?.id || null}
       />
 
       <BirthplaceEvaluation
-        wikidataBirthplaces={politician.wikidata_birthplaces}
-        extractedBirthplaces={politician.extracted_birthplaces}
+        birthplaces={politician.birthplaces}
         confirmedBirthplaces={confirmedBirthplaces}
         discardedBirthplaces={discardedBirthplaces}
         onAction={handleBirthplaceAction}
@@ -271,11 +252,10 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
           if (birthplace.archived_page) {
             setSelectedArchivedPage(birthplace.archived_page);
             setSelectedProofLine(birthplace.proof_line || null);
-            setActiveArchivedPageId(birthplace.archived_page.id);
           }
         }}
-        onHover={handleBirthplaceHover}
-        activeArchivedPageId={activeArchivedPageId}
+        onHover={() => {}} // TODO: implement hover
+        activeArchivedPageId={selectedArchivedPage?.id || null}
       />
         </div>
 

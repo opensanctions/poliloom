@@ -5,63 +5,57 @@ export interface ArchivedPageResponse {
   fetch_timestamp: string;
 }
 
-// Base interface for all data items (both existing and extracted)
-export interface BaseItem {
+// Base interface for all statement items
+export interface BaseEvaluationItem {
   id: string;
-}
-
-// Base interface for evaluation items (extracted data with proof)
-export interface BaseEvaluationItem extends BaseItem {
   proof_line: string | null;
   archived_page: ArchivedPageResponse | null;
 }
 
-// Extracted data interfaces (extend BaseEvaluationItem)
-export interface Property extends BaseEvaluationItem {
-  type: string;
+// Property statement
+export interface PropertyStatement extends BaseEvaluationItem {
   value: string;
+  value_precision: number | null;
 }
 
-export interface Position extends BaseEvaluationItem {
-  position_name: string;
-  wikidata_id: string | null;
+// Position statement
+export interface PositionStatement extends BaseEvaluationItem {
   start_date: string | null;
+  start_date_precision: number | null;
   end_date: string | null;
+  end_date_precision: number | null;
 }
 
-export interface Birthplace extends BaseEvaluationItem {
-  location_name: string;
-  wikidata_id: string | null;
+// Birthplace statement
+export interface BirthplaceStatement extends BaseEvaluationItem {
+  // No additional fields beyond BaseEvaluationItem
 }
 
-// Existing Wikidata data interfaces (extend BaseItem only)
-export interface WikidataProperty extends BaseItem {
+// Grouped data interfaces
+export interface PropertyGroup {
   type: string;
-  value: string;
+  statements: PropertyStatement[];
 }
 
-export interface WikidataPosition extends BaseItem {
-  position_name: string;
-  wikidata_id: string | null;
-  start_date: string | null;
-  end_date: string | null;
+export interface PositionGroup {
+  qid: string;
+  name: string;
+  statements: PositionStatement[];
 }
 
-export interface WikidataBirthplace extends BaseItem {
-  location_name: string;
-  wikidata_id: string | null;
+export interface BirthplaceGroup {
+  qid: string;
+  name: string;
+  statements: BirthplaceStatement[];
 }
 
 export interface Politician {
   id: string;
   name: string;
   wikidata_id: string | null;
-  extracted_properties: Property[];
-  extracted_positions: Position[];
-  extracted_birthplaces: Birthplace[];
-  wikidata_properties: WikidataProperty[];
-  wikidata_positions: WikidataPosition[];
-  wikidata_birthplaces: WikidataBirthplace[];
+  properties: PropertyGroup[];
+  positions: PositionGroup[];
+  birthplaces: BirthplaceGroup[];
 }
 
 export interface PropertyEvaluationItem {

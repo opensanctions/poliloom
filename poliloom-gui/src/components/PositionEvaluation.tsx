@@ -1,22 +1,19 @@
-import { Position, WikidataPosition } from '@/types';
+import { PositionGroup, PositionStatement } from '@/types';
 import { EvaluationItem } from './EvaluationItem';
-import { BaseDisplayItem } from './BaseDisplayItem';
 import { DateRange } from './DateRange';
 
 interface PositionEvaluationProps {
-  wikidataPositions: WikidataPosition[];
-  extractedPositions: Position[];
+  positions: PositionGroup[];
   confirmedPositions: Set<string>;
   discardedPositions: Set<string>;
   onAction: (positionId: string, action: 'confirm' | 'discard') => void;
-  onShowArchived: (position: Position) => void;
-  onHover: (position: Position) => void;
+  onShowArchived: (position: PositionStatement) => void;
+  onHover: (position: PositionStatement) => void;
   activeArchivedPageId: string | null;
 }
 
 export function PositionEvaluation({
-  wikidataPositions,
-  extractedPositions,
+  positions,
   confirmedPositions,
   discardedPositions,
   onAction,
@@ -24,7 +21,7 @@ export function PositionEvaluation({
   onHover,
   activeArchivedPageId
 }: PositionEvaluationProps) {
-  if (wikidataPositions.length === 0 && extractedPositions.length === 0) {
+  if (positions.length === 0) {
     return null;
   }
 
@@ -32,50 +29,80 @@ export function PositionEvaluation({
     <div className="mb-8">
       <h2 className="text-xl font-semibold text-gray-900 mb-4">Political Positions</h2>
       <div className="space-y-4">
-        {/* Existing positions */}
-        {wikidataPositions.map((position) => (
-          <BaseDisplayItem key={position.id} item={position}>
-            <div>
-              <h3 className="font-medium">
-                {position.wikidata_id ? (
-                  <a href={`https://www.wikidata.org/wiki/${position.wikidata_id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                    {position.position_name} <span className="text-gray-500 font-normal">({position.wikidata_id})</span>
-                  </a>
-                ) : position.position_name}
-              </h3>
-              <DateRange
-                startDate={position.start_date}
-                endDate={position.end_date}
-              />
-            </div>
-          </BaseDisplayItem>
-        ))}
+        {positions.map((positionGroup) => {
+          const hasAnyConfirmed = positionGroup.statements.some(stmt => confirmedPositions.has(stmt.id));
+          const hasAnyDiscarded = positionGroup.statements.some(stmt => discardedPositions.has(stmt.id));
+          const firstStatement = positionGroup.statements[0];
 
-        {/* Extracted positions */}
-        {extractedPositions.map((position) => (
-          <EvaluationItem
-            key={position.id}
-            item={position}
-            isConfirmed={confirmedPositions.has(position.id)}
-            isDiscarded={discardedPositions.has(position.id)}
-            onAction={(action) => onAction(position.id, action)}
-            onShowArchived={() => onShowArchived(position)}
-            onHover={() => onHover(position)}
-            isActive={!!(position.archived_page && activeArchivedPageId === position.archived_page.id)}
-          >
-            <h3 className="font-medium text-gray-900">
-              {position.wikidata_id ? (
-                <a href={`https://www.wikidata.org/wiki/${position.wikidata_id}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                  {position.position_name} <span className="text-gray-500 font-normal">({position.wikidata_id})</span>
+          return (
+            <EvaluationItem
+              key={positionGroup.qid}
+              item={firstStatement}
+              isConfirmed={hasAnyConfirmed}
+              isDiscarded={hasAnyDiscarded}
+              onAction={(action) => {
+                // Apply action to all statements in this group
+                positionGroup.statements.forEach(statement => onAction(statement.id, action));
+              }}
+              onShowArchived={() => onShowArchived(firstStatement)}
+              onHover={() => onHover(firstStatement)}
+              isActive={!!(firstStatement.archived_page && activeArchivedPageId === firstStatement.archived_page.id)}
+            >
+              <h3 className="font-medium text-gray-900 mb-3">
+                <a href={`https://www.wikidata.org/wiki/${positionGroup.qid}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  {positionGroup.name} <span className="text-gray-500 font-normal">({positionGroup.qid})</span>
                 </a>
-              ) : position.position_name}
-            </h3>
-            <DateRange
-              startDate={position.start_date}
-              endDate={position.end_date}
-            />
-          </EvaluationItem>
-        ))}
+              </h3>
+              <div className="space-y-3">
+                {positionGroup.statements.map((statement, index) => (
+                  <div key={statement.id}>
+                    {index > 0 && <hr className="border-gray-300 my-2" />}
+                    <div className="flex justify-between items-center">
+                      <DateRange
+                        startDate={statement.start_date}
+                        endDate={statement.end_date}
+                      />
+                      <div className="flex items-center gap-2">
+                        {statement.archived_page && (
+                          <button
+                            onClick={() => onShowArchived(statement)}
+                            onMouseEnter={() => onHover(statement)}
+                            className={`text-blue-600 hover:text-blue-800 text-sm font-medium px-2 py-1 rounded transition-colors ${
+                              statement.archived_page && activeArchivedPageId === statement.archived_page.id
+                                ? 'bg-blue-100' : 'hover:bg-blue-50'
+                            }`}
+                          >
+                            • View Source
+                          </button>
+                        )}
+                        <button
+                          onClick={() => onAction(statement.id, 'confirm')}
+                          className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                            confirmedPositions.has(statement.id)
+                              ? 'bg-green-600 text-white'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          }`}
+                        >
+                          ✓
+                        </button>
+                        <button
+                          onClick={() => onAction(statement.id, 'discard')}
+                          className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                            discardedPositions.has(statement.id)
+                              ? 'bg-red-600 text-white'
+                              : 'bg-red-100 text-red-700 hover:bg-red-200'
+                          }`}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </EvaluationItem>
+          );
+        })}
       </div>
     </div>
   );
