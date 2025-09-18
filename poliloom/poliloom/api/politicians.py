@@ -80,9 +80,9 @@ async def get_politicians(
 
         result = []
         for politician in politicians:
-            # Group properties by type
+            # Group properties by type (sorted by value for chronological order)
             properties_by_type = {}
-            for prop in politician.properties:
+            for prop in sorted(politician.properties, key=lambda x: x.value):
                 if prop.type not in properties_by_type:
                     properties_by_type[prop.type] = []
                 statement = PropertyStatementResponse(
@@ -101,9 +101,12 @@ async def get_politicians(
                 )
                 properties_by_type[prop.type].append(statement)
 
-            # Group positions by entity
+            # Group positions by entity (sorted by start_date for chronological order)
             positions_by_entity = {}
-            for pos in politician.positions_held:
+            for pos in sorted(
+                politician.positions_held,
+                key=lambda x: (x.start_date or "", x.end_date or ""),
+            ):
                 key = (pos.position.wikidata_id, pos.position.name)
                 if key not in positions_by_entity:
                     positions_by_entity[key] = []
@@ -125,9 +128,9 @@ async def get_politicians(
                 )
                 positions_by_entity[key].append(statement)
 
-            # Group birthplaces by entity
+            # Group birthplaces by entity (sorted by location name)
             birthplaces_by_entity = {}
-            for bp in politician.birthplaces:
+            for bp in sorted(politician.birthplaces, key=lambda x: x.location.name):
                 key = (bp.location.wikidata_id, bp.location.name)
                 if key not in birthplaces_by_entity:
                     birthplaces_by_entity[key] = []
