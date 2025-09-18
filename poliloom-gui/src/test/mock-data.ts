@@ -1,189 +1,267 @@
-import { Politician, Property, Position, Birthplace, WikidataProperty, WikidataPosition, WikidataBirthplace, ArchivedPageResponse } from '@/types';
+import {
+  Politician,
+  ArchivedPageResponse
+} from '@/types';
 
-export const mockArchivedPage: ArchivedPageResponse = {
+const mockArchivedPage: ArchivedPageResponse = {
   id: 'archived-1',
   url: 'https://en.wikipedia.org/wiki/Test_Politician',
   content_hash: 'abc123',
   fetch_timestamp: '2024-01-01T00:00:00Z',
 };
 
-export const mockProperty: Property = {
-  id: 'prop-1',
-  type: 'birth_date',
-  value: '1970-01-01',
-  proof_line: 'born on January 1, 1970',
-  archived_page: mockArchivedPage,
-};
-
-export const mockPosition: Position = {
-  id: 'pos-1',
-  position_name: 'Mayor of Test City',
-  wikidata_id: 'Q555777',
-  start_date: '2020-01-01',
-  end_date: '2024-01-01',
-  proof_line: 'served as mayor from 2020 to 2024',
-  archived_page: mockArchivedPage,
-};
-
-export const mockBirthplace: Birthplace = {
-  id: 'birth-1',
-  location_name: 'Test City',
-  wikidata_id: 'Q123456',
-  proof_line: 'was born in Test City',
-  archived_page: mockArchivedPage,
-};
-
-export const mockWikidataProperty: WikidataProperty = {
-  id: 'wd-prop-1',
-  type: 'birth_date',
-  value: '1969-12-31',
-};
-
-export const mockWikidataPosition: WikidataPosition = {
-  id: 'wd-pos-1',
-  position_name: 'City Council Member',
-  wikidata_id: 'Q444666',
-  start_date: '2018-01-01',
-  end_date: '2019-12-31',
-};
-
-export const mockWikidataBirthplace: WikidataBirthplace = {
-  id: 'wd-birth-1',
-  location_name: 'Old Town',
-  wikidata_id: 'Q111222',
-};
-
 export const mockPolitician: Politician = {
   id: 'pol-1',
   name: 'Test Politician',
   wikidata_id: 'Q987654',
-  extracted_properties: [mockProperty],
-  extracted_positions: [mockPosition],
-  extracted_birthplaces: [mockBirthplace],
-  wikidata_properties: [mockWikidataProperty],
-  wikidata_positions: [mockWikidataPosition],
-  wikidata_birthplaces: [mockWikidataBirthplace],
+  properties: [{
+    type: 'birth_date',
+    statements: [{
+      id: 'prop-1',
+      value: '1970-01-01',
+      value_precision: 9,
+      proof_line: 'born on January 1, 1970',
+      archived_page: mockArchivedPage,
+    }],
+  }],
+  positions: [{
+    qid: 'Q555777',
+    name: 'Mayor of Test City',
+    statements: [{
+      id: 'pos-1',
+      start_date: '2020-01-01',
+      start_date_precision: 9,
+      end_date: '2024-01-01',
+      end_date_precision: 9,
+      proof_line: 'served as mayor from 2020 to 2024',
+      archived_page: mockArchivedPage,
+    }],
+  }],
+  birthplaces: [{
+    qid: 'Q123456',
+    name: 'Test City',
+    statements: [{
+      id: 'birth-1',
+      proof_line: 'was born in Test City',
+      archived_page: mockArchivedPage,
+    }],
+  }],
 };
 
 export const mockEmptyPolitician: Politician = {
   id: 'pol-2',
   name: 'Empty Politician',
   wikidata_id: null,
-  extracted_properties: [],
-  extracted_positions: [],
-  extracted_birthplaces: [],
-  wikidata_properties: [],
-  wikidata_positions: [],
-  wikidata_birthplaces: [],
+  properties: [],
+  positions: [],
+  birthplaces: [],
 };
 
-export const createMockPolitician = (overrides?: Partial<Politician>): Politician => ({
-  ...mockPolitician,
-  ...overrides,
-});
-
-// Additional mock data for testing merged functionality
-
-// Conflicted data - same type/name but different values
-export const mockConflictedProperty: Property = {
-  id: 'prop-conflict',
-  type: 'birth_date',
-  value: '1970-01-02',
-  proof_line: 'born on January 2, 1970',
-  archived_page: mockArchivedPage,
-};
-
-export const mockConflictedPosition: Position = {
-  id: 'pos-conflict',
-  position_name: 'Mayor of Test City',
-  wikidata_id: 'Q555777',
-  start_date: '2020-01-01',
-  end_date: '2024-06-01', // Different end date
-  proof_line: 'served as mayor until June 2024',
-  archived_page: mockArchivedPage,
-};
-
-// Extracted-only data - no matching existing data
-export const mockExtractedOnlyProperty: Property = {
-  id: 'prop-extracted',
-  type: 'nationality',
-  value: 'American',
-  proof_line: 'nationality is American',
-  archived_page: mockArchivedPage,
-};
-
-export const mockExtractedOnlyPosition: Position = {
-  id: 'pos-extracted',
-  position_name: 'Governor',
-  wikidata_id: 'Q999888',
-  start_date: '2025-01-01',
-  end_date: null,
-  proof_line: 'elected as governor',
-  archived_page: mockArchivedPage,
-};
-
-export const mockExtractedOnlyBirthplace: Birthplace = {
-  id: 'birth-extracted',
-  location_name: 'Another City',
-  wikidata_id: 'Q777888',
-  proof_line: 'also born in Another City',
-  archived_page: mockArchivedPage,
-};
-
-// Existing-only data - no matching extracted data
-export const mockExistingOnlyProperty: WikidataProperty = {
-  id: 'wd-existing',
-  type: 'death_date',
-  value: '2050-01-01',
-};
-
-export const mockExistingOnlyPosition: WikidataPosition = {
-  id: 'wd-existing-pos',
-  position_name: 'Senator',
-  wikidata_id: 'Q111333',
-  start_date: '2015-01-01',
-  end_date: '2018-12-31',
-};
-
-export const mockExistingOnlyBirthplace: WikidataBirthplace = {
-  id: 'wd-existing-birth',
-  location_name: 'Capital City',
-  wikidata_id: 'Q555999',
-};
-
-// Politicians with different merge scenarios
+// Mock politicians with different data scenarios for comprehensive testing
 export const mockPoliticianWithConflicts: Politician = {
-  id: 'pol-conflicts',
+  id: 'pol-conflicted',
   name: 'Conflicted Politician',
-  wikidata_id: 'Q111111',
-  extracted_properties: [mockConflictedProperty, mockExtractedOnlyProperty],
-  extracted_positions: [mockConflictedPosition, mockExtractedOnlyPosition],
-  extracted_birthplaces: [mockBirthplace, mockExtractedOnlyBirthplace],
-  wikidata_properties: [mockWikidataProperty, mockExistingOnlyProperty],
-  wikidata_positions: [mockWikidataPosition, mockExistingOnlyPosition],
-  wikidata_birthplaces: [mockWikidataBirthplace, mockExistingOnlyBirthplace],
+  wikidata_id: 'Q111222',
+  properties: [
+    // existing-only property (death_date)
+    {
+      type: 'death_date',
+      statements: []
+    },
+    // conflicted property (birth_date) - has both existing and extracted
+    {
+      type: 'birth_date',
+      statements: [
+        {
+          id: 'prop-conflicted',
+          value: '1970-01-02',
+          value_precision: 9,
+          proof_line: 'born on January 2, 1970',
+          archived_page: mockArchivedPage,
+        }
+      ]
+    },
+    // extracted-only property (nationality)
+    {
+      type: 'nationality',
+      statements: [
+        {
+          id: 'prop-extracted',
+          value: 'French',
+          value_precision: null,
+          proof_line: 'French politician',
+          archived_page: mockArchivedPage,
+        }
+      ]
+    }
+  ],
+  positions: [
+    // existing-only position
+    {
+      qid: 'Q888999',
+      name: 'Former Mayor',
+      statements: []
+    },
+    // conflicted position
+    {
+      qid: 'Q555777',
+      name: 'Mayor of Test City',
+      statements: [
+        {
+          id: 'pos-conflicted',
+          start_date: '2020-01-01',
+          start_date_precision: 9,
+          end_date: '2024-01-01',
+          end_date_precision: 9,
+          proof_line: 'served as mayor from 2020 to 2024',
+          archived_page: mockArchivedPage,
+        }
+      ]
+    },
+    // extracted-only position
+    {
+      qid: 'Q777888',
+      name: 'Council Member',
+      statements: [
+        {
+          id: 'pos-extracted',
+          start_date: '2018-01-01',
+          start_date_precision: 9,
+          end_date: null,
+          end_date_precision: null,
+          proof_line: 'council member since 2018',
+          archived_page: mockArchivedPage,
+        }
+      ]
+    }
+  ],
+  birthplaces: [
+    // existing-only birthplace
+    {
+      qid: 'Q333444',
+      name: 'Old City',
+      statements: []
+    },
+    // conflicted birthplace
+    {
+      qid: 'Q123456',
+      name: 'Test City',
+      statements: [
+        {
+          id: 'birth-conflicted',
+          proof_line: 'was born in Test City',
+          archived_page: mockArchivedPage,
+        }
+      ]
+    },
+    // extracted-only birthplace
+    {
+      qid: 'Q999000',
+      name: 'New City',
+      statements: [
+        {
+          id: 'birth-extracted',
+          proof_line: 'was born in New City',
+          archived_page: mockArchivedPage,
+        }
+      ]
+    }
+  ],
 };
 
 export const mockPoliticianExtractedOnly: Politician = {
   id: 'pol-extracted',
   name: 'Extracted Only Politician',
-  wikidata_id: 'Q222222',
-  extracted_properties: [mockExtractedOnlyProperty],
-  extracted_positions: [mockExtractedOnlyPosition],
-  extracted_birthplaces: [mockExtractedOnlyBirthplace],
-  wikidata_properties: [],
-  wikidata_positions: [],
-  wikidata_birthplaces: [],
+  wikidata_id: 'Q333444',
+  properties: [
+    {
+      type: 'birth_date',
+      statements: [
+        {
+          id: 'prop-extracted-only-1',
+          value: '1980-05-15',
+          value_precision: 9,
+          proof_line: 'born on May 15, 1980',
+          archived_page: mockArchivedPage,
+        }
+      ]
+    },
+    {
+      type: 'nationality',
+      statements: [
+        {
+          id: 'prop-extracted-only-2',
+          value: 'German',
+          value_precision: null,
+          proof_line: 'German citizen',
+          archived_page: mockArchivedPage,
+        }
+      ]
+    }
+  ],
+  positions: [
+    {
+      qid: 'Q111222',
+      name: 'Minister of Education',
+      statements: [
+        {
+          id: 'pos-extracted-only-1',
+          start_date: '2019-01-01',
+          start_date_precision: 9,
+          end_date: '2023-01-01',
+          end_date_precision: 9,
+          proof_line: 'served as minister from 2019 to 2023',
+          archived_page: mockArchivedPage,
+        }
+      ]
+    }
+  ],
+  birthplaces: [
+    {
+      qid: 'Q555666',
+      name: 'Berlin',
+      statements: [
+        {
+          id: 'birth-extracted-only-1',
+          proof_line: 'was born in Berlin',
+          archived_page: mockArchivedPage,
+        }
+      ]
+    }
+  ],
 };
 
 export const mockPoliticianExistingOnly: Politician = {
   id: 'pol-existing',
   name: 'Existing Only Politician',
-  wikidata_id: 'Q333333',
-  extracted_properties: [],
-  extracted_positions: [],
-  extracted_birthplaces: [],
-  wikidata_properties: [mockExistingOnlyProperty],
-  wikidata_positions: [mockExistingOnlyPosition],
-  wikidata_birthplaces: [mockExistingOnlyBirthplace],
+  wikidata_id: 'Q555666',
+  properties: [
+    {
+      type: 'birth_date',
+      statements: [] // Empty statements = existing only in Wikidata
+    },
+    {
+      type: 'death_date',
+      statements: []
+    }
+  ],
+  positions: [
+    {
+      qid: 'Q777888',
+      name: 'Prime Minister',
+      statements: []
+    },
+    {
+      qid: 'Q999000',
+      name: 'Parliament Member',
+      statements: []
+    }
+  ],
+  birthplaces: [
+    {
+      qid: 'Q111333',
+      name: 'Capital City',
+      statements: []
+    }
+  ],
 };

@@ -14,19 +14,19 @@ global.CSS = {
 
 global.Highlight = class MockHighlight {
   private ranges: Range[];
-  
+
   constructor(...ranges: Range[]) {
     this.ranges = ranges;
   }
-  
+
   get size() {
     return this.ranges.length;
   }
-  
+
   values() {
     return this.ranges[Symbol.iterator]();
   }
-} as typeof Highlight;
+} as unknown as typeof Highlight;
 
 describe('textHighlighter with CSS Custom Highlight API', () => {
   let dom: JSDOM;

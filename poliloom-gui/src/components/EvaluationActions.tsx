@@ -39,7 +39,7 @@ export function EvaluationActions({
               : "text-gray-600 bg-gray-200 hover:bg-gray-300"
         }`}
       >
-        ✕ Discard
+        × Discard
       </button>
     </div>
   );
