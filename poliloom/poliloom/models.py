@@ -313,11 +313,10 @@ class Property(Base, TimestampMixin):
     __tablename__ = "properties"
     __table_args__ = (
         Index(
-            "uq_property_wikidata_only",
-            "politician_id",
-            "type",
+            "uq_properties_statement_id",
+            "statement_id",
             unique=True,
-            postgresql_where=Column("archived_page_id").is_(None),
+            postgresql_where=Column("statement_id").isnot(None),
         ),
     )
 
@@ -338,6 +337,7 @@ class Property(Base, TimestampMixin):
     proof_line = Column(
         String, nullable=True
     )  # NULL for Wikidata imports, set for extracted data
+    statement_id = Column(String, nullable=True)
 
     @hybrid_property
     def is_extracted(self) -> bool:
@@ -500,6 +500,7 @@ class HoldsPosition(Base, TimestampMixin):
     proof_line = Column(
         String, nullable=True
     )  # NULL for Wikidata imports, set for extracted data
+    statement_id = Column(String, nullable=True)
 
     @hybrid_property
     def is_extracted(self) -> bool:
@@ -511,16 +512,13 @@ class HoldsPosition(Base, TimestampMixin):
         """SQL expression for is_extracted."""
         return cls.archived_page_id.isnot(None)
 
-    # Constraints - unique constraint including dates to allow multiple time periods
+    # Constraints
     __table_args__ = (
         Index(
-            "uq_holds_position_wikidata_only",
-            "politician_id",
-            "position_id",
-            "start_date",
-            "end_date",
+            "uq_holds_position_statement_id",
+            "statement_id",
             unique=True,
-            postgresql_where=Column("archived_page_id").is_(None),
+            postgresql_where=Column("statement_id").isnot(None),
         ),
     )
 
@@ -553,6 +551,7 @@ class BornAt(Base, TimestampMixin):
     proof_line = Column(
         String, nullable=True
     )  # NULL for Wikidata imports, set for extracted data
+    statement_id = Column(String, nullable=True)
 
     @hybrid_property
     def is_extracted(self) -> bool:
@@ -564,14 +563,13 @@ class BornAt(Base, TimestampMixin):
         """SQL expression for is_extracted."""
         return cls.archived_page_id.isnot(None)
 
-    # Constraints - only one non-extracted (Wikidata) relationship per politician-location pair
+    # Constraints
     __table_args__ = (
         Index(
-            "uq_born_at_wikidata_only",
-            "politician_id",
-            "location_id",
+            "uq_born_at_statement_id",
+            "statement_id",
             unique=True,
-            postgresql_where=Column("archived_page_id").is_(None),
+            postgresql_where=Column("statement_id").isnot(None),
         ),
     )
 

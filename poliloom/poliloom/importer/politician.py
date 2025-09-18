@@ -85,41 +85,45 @@ def _should_import_politician(entity: WikidataEntityProcessor) -> bool:
     # Check if politician is deceased (has death date P570)
     death_claims = entity.get_truthy_claims("P570")
     if len(death_claims) > 0:
-        death_info = entity.extract_date_from_claims(death_claims)
-        if death_info:
-            # Skip all BCE deaths (they died > 2000 years ago)
-            if death_info.is_bce:
-                return False
-
-            try:
-                death_date_str = death_info.date
-                precision = death_info.precision
-
-                # Parse date based on precision
-                if precision >= 11:  # day precision
-                    death_date = datetime.strptime(death_date_str, "%Y-%m-%d").date()
-                elif precision == 10:  # month precision
-                    death_date = datetime.strptime(
-                        death_date_str + "-01", "%Y-%m-%d"
-                    ).date()
-                elif precision == 9:  # year precision
-                    death_date = datetime.strptime(
-                        death_date_str + "-01-01", "%Y-%m-%d"
-                    ).date()
-                else:
-                    death_date = None
-
-                # Skip if died more than 5 years ago
-                cutoff_date = date.today().replace(year=date.today().year - 5)
-                if death_date and death_date < cutoff_date:
+        # Check any death claim to see if we should exclude this politician
+        for claim in death_claims:
+            death_info = entity.extract_date_from_claim(claim)
+            if death_info:
+                # Skip all BCE deaths (they died > 2000 years ago)
+                if death_info.is_bce:
                     return False
-            except (ValueError, TypeError):
-                pass  # Include if we can't parse the date
+
+                try:
+                    death_date_str = death_info.date
+                    precision = death_info.precision
+
+                    # Parse date based on precision
+                    if precision >= 11:  # day precision
+                        death_date = datetime.strptime(
+                            death_date_str, "%Y-%m-%d"
+                        ).date()
+                    elif precision == 10:  # month precision
+                        death_date = datetime.strptime(
+                            death_date_str + "-01", "%Y-%m-%d"
+                        ).date()
+                    elif precision == 9:  # year precision
+                        death_date = datetime.strptime(
+                            death_date_str + "-01-01", "%Y-%m-%d"
+                        ).date()
+                    else:
+                        death_date = None
+
+                    # Skip if died more than 5 years ago
+                    cutoff_date = date.today().replace(year=date.today().year - 5)
+                    if death_date and death_date < cutoff_date:
+                        return False
+                except (ValueError, TypeError):
+                    pass  # Include if we can't parse the date
     else:
         # No death date - check if born over 120 years ago
         birth_claims = entity.get_truthy_claims("P569")
-        if birth_claims:
-            birth_info = entity.extract_date_from_claims(birth_claims)
+        for claim in birth_claims:
+            birth_info = entity.extract_date_from_claim(claim)
             if birth_info:
                 # Skip all BCE births
                 if birth_info.is_bce:
@@ -209,6 +213,7 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
                     "type": prop["type"],
                     "value": prop["value"],
                     "value_precision": prop.get("value_precision"),
+                    "statement_id": prop["statement_id"],
                     "archived_page_id": None,
                 }
                 for prop in politician_data.get("properties", [])
@@ -217,8 +222,8 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
             if property_batch:
                 stmt = insert(Property).values(property_batch)
                 stmt = stmt.on_conflict_do_update(
-                    index_elements=["politician_id", "type"],
-                    index_where=text("archived_page_id IS NULL"),
+                    index_elements=["statement_id"],
+                    index_where=text("statement_id IS NOT NULL"),
                     set_={
                         "value": stmt.excluded.value,
                         "value_precision": stmt.excluded.value_precision,
@@ -236,6 +241,7 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
                     "start_date_precision": pos.get("start_date_precision"),
                     "end_date": pos.get("end_date"),
                     "end_date_precision": pos.get("end_date_precision"),
+                    "statement_id": pos["statement_id"],
                     "archived_page_id": None,
                 }
                 for pos in politician_data.get("positions", [])
@@ -244,18 +250,14 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
             if position_batch:
                 stmt = insert(HoldsPosition).values(position_batch)
                 stmt = stmt.on_conflict_do_update(
-                    index_elements=[
-                        "politician_id",
-                        "position_id",
-                        "start_date",
-                        "end_date",
-                    ],
-                    index_where=text("archived_page_id IS NULL"),
+                    index_elements=["statement_id"],
+                    index_where=text("statement_id IS NOT NULL"),
                     set_={
                         "start_date": stmt.excluded.start_date,
                         "start_date_precision": stmt.excluded.start_date_precision,
                         "end_date": stmt.excluded.end_date,
                         "end_date_precision": stmt.excluded.end_date_precision,
+                        "updated_at": stmt.excluded.updated_at,
                     },
                 )
                 session.execute(stmt)
@@ -276,21 +278,25 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
                 )
                 session.execute(stmt)
 
-            # Add birthplace using UPSERT - we already filtered during extraction so we know it exists
-            birthplace_id = politician_data.get("birthplace")
-            if birthplace_id:
-                birthplace_batch = [
-                    {
-                        "politician_id": politician_obj.id,
-                        "location_id": birthplace_id,
-                        "archived_page_id": None,
-                    }
-                ]
+            # Add birthplaces using UPSERT - we already filtered during extraction so we know they exist
+            birthplace_batch = [
+                {
+                    "politician_id": politician_obj.id,
+                    "location_id": birthplace["location_id"],
+                    "statement_id": birthplace["statement_id"],
+                    "archived_page_id": None,
+                }
+                for birthplace in politician_data.get("birthplaces", [])
+            ]
 
+            if birthplace_batch:
                 stmt = insert(BornAt).values(birthplace_batch)
-                stmt = stmt.on_conflict_do_nothing(
-                    index_elements=["politician_id", "location_id"],
-                    index_where=text("archived_page_id IS NULL"),
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["statement_id"],
+                    index_where=text("statement_id IS NOT NULL"),
+                    set_={
+                        "updated_at": stmt.excluded.updated_at,
+                    },
                 )
                 session.execute(stmt)
 
@@ -364,32 +370,34 @@ def _process_politicians_chunk(
                     "properties": [],
                     "positions": [],
                     "citizenships": [],
-                    "birthplace": None,
+                    "birthplaces": [],
                     "wikipedia_links": [],
                 }
 
                 # Extract properties (birth date, death date, etc.)
                 birth_claims = entity.get_truthy_claims("P569")
-                if birth_claims:
-                    birth_info = entity.extract_date_from_claims(birth_claims)
+                for claim in birth_claims:
+                    birth_info = entity.extract_date_from_claim(claim)
                     if birth_info:
                         politician_data["properties"].append(
                             {
                                 "type": PropertyType.BIRTH_DATE,
                                 "value": birth_info.date,
                                 "value_precision": birth_info.precision,
+                                "statement_id": claim["id"],
                             }
                         )
 
                 death_claims = entity.get_truthy_claims("P570")
-                if death_claims:
-                    death_info = entity.extract_date_from_claims(death_claims)
+                for claim in death_claims:
+                    death_info = entity.extract_date_from_claim(claim)
                     if death_info:
                         politician_data["properties"].append(
                             {
                                 "type": PropertyType.DEATH_DATE,
                                 "value": death_info.date,
                                 "value_precision": death_info.precision,
+                                "statement_id": claim["id"],
                             }
                         )
 
@@ -423,8 +431,8 @@ def _process_politicians_chunk(
                             if "P580" in claim["qualifiers"]:
                                 start_qual = claim["qualifiers"]["P580"][0]
                                 if "datavalue" in start_qual:
-                                    start_info = entity.extract_date_from_claims(
-                                        [start_qual]
+                                    start_info = entity.extract_date_from_claim(
+                                        start_qual
                                     )
                                     if start_info:
                                         start_date = start_info.date
@@ -434,9 +442,7 @@ def _process_politicians_chunk(
                             if "P582" in claim["qualifiers"]:
                                 end_qual = claim["qualifiers"]["P582"][0]
                                 if "datavalue" in end_qual:
-                                    end_info = entity.extract_date_from_claims(
-                                        [end_qual]
-                                    )
+                                    end_info = entity.extract_date_from_claim(end_qual)
                                     if end_info:
                                         end_date = end_info.date
                                         end_date_precision = end_info.precision
@@ -452,6 +458,7 @@ def _process_politicians_chunk(
                                     "start_date_precision": start_date_precision,
                                     "end_date": end_date,
                                     "end_date_precision": end_date_precision,
+                                    "statement_id": claim["id"],
                                 }
                             )
 
@@ -467,10 +474,10 @@ def _process_politicians_chunk(
                         ):
                             politician_data["citizenships"].append(citizenship_id)
 
-                # Extract birthplace - only include locations that exist in our database
+                # Extract birthplaces - include all locations that exist in our database
                 birthplace_claims = entity.get_truthy_claims("P19")
-                if birthplace_claims:
-                    claim = birthplace_claims[0]  # Take first birthplace
+                politician_data["birthplaces"] = []
+                for claim in birthplace_claims:
                     if "mainsnak" in claim and "datavalue" in claim["mainsnak"]:
                         birthplace_id = claim["mainsnak"]["datavalue"]["value"]["id"]
                         # Only include locations that are in our database
@@ -478,7 +485,12 @@ def _process_politicians_chunk(
                             shared_location_qids
                             and birthplace_id in shared_location_qids
                         ):
-                            politician_data["birthplace"] = birthplace_id
+                            politician_data["birthplaces"].append(
+                                {
+                                    "location_id": birthplace_id,
+                                    "statement_id": claim["id"],
+                                }
+                            )
 
                 # Extract Wikipedia links from sitelinks
                 if entity.sitelinks:

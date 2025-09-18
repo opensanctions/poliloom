@@ -85,33 +85,30 @@ class WikidataEntityProcessor:
         # Apply truthy filtering logic
         return preferred_claims if preferred_claims else non_deprecated_claims
 
-    def extract_date_from_claims(
-        self, claims: List[Dict[str, Any]]
-    ) -> Optional[WikidataDate]:
-        """Extract date from Wikidata claims with precision handling.
+    def extract_date_from_claim(self, claim: Dict[str, Any]) -> Optional[WikidataDate]:
+        """Extract date from a single Wikidata claim with precision handling.
 
         Args:
-            claims: List of Wikidata claims (from get_truthy_claims or qualifiers)
+            claim: Single Wikidata claim (from get_truthy_claims or qualifiers)
 
         Returns:
             WikidataDate object or None
         """
-        for claim in claims:
-            try:
-                # Handle both main claims (with mainsnak) and qualifier claims (direct structure)
-                if "mainsnak" in claim:
-                    datavalue = claim.get("mainsnak", {}).get("datavalue", {})
-                else:
-                    datavalue = claim.get("datavalue", {})
+        try:
+            # Handle both main claims (with mainsnak) and qualifier claims (direct structure)
+            if "mainsnak" in claim:
+                datavalue = claim.get("mainsnak", {}).get("datavalue", {})
+            else:
+                datavalue = claim.get("datavalue", {})
 
-                if datavalue.get("type") == "time":
-                    time_value = datavalue.get("value", {}).get("time", "")
-                    precision = datavalue.get("value", {}).get("precision", 11)
+            if datavalue.get("type") == "time":
+                time_value = datavalue.get("value", {}).get("time", "")
+                precision = datavalue.get("value", {}).get("precision", 11)
 
-                    # Create and return WikidataDate object
-                    return WikidataDate.from_wikidata_time(time_value, precision)
-            except (KeyError, TypeError):
-                continue
+                # Create and return WikidataDate object
+                return WikidataDate.from_wikidata_time(time_value, precision)
+        except (KeyError, TypeError):
+            pass
         return None
 
     def get_instance_of_ids(self) -> Set[str]:
