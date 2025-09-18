@@ -46,25 +46,25 @@ export function PositionEvaluation({
               {positionGroup.statements.map((statement, index) => (
                 <div key={statement.id}>
                   {index > 0 && <hr className="border-gray-300 my-2" />}
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="flex-1 space-y-1">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-start gap-4">
                       <DateRange
                         startDate={statement.start_date}
                         endDate={statement.end_date}
                       />
-                      <StatementSource
-                        proofLine={statement.proof_line}
-                        archivedPage={statement.archived_page}
-                        isActive={activeArchivedPageId === statement.archived_page?.id}
-                        onShowArchived={() => onShowArchived(statement)}
-                        onHover={() => onHover(statement)}
+                      <EvaluationActions
+                        statementId={statement.id}
+                        hasArchivedPage={!!statement.archived_page}
+                        isConfirmed={evaluations.get(statement.id) ?? null}
+                        onAction={onAction}
                       />
                     </div>
-                    <EvaluationActions
-                      statementId={statement.id}
-                      hasArchivedPage={!!statement.archived_page}
-                      isConfirmed={evaluations.get(statement.id) ?? null}
-                      onAction={onAction}
+                    <StatementSource
+                      proofLine={statement.proof_line}
+                      archivedPage={statement.archived_page}
+                      isActive={activeArchivedPageId === statement.archived_page?.id}
+                      onShowArchived={() => onShowArchived(statement)}
+                      onHover={() => onHover(statement)}
                     />
                   </div>
                 </div>

@@ -45,22 +45,22 @@ export function BirthplaceEvaluation({
               {birthplaceGroup.statements.map((statement, index) => (
                 <div key={statement.id}>
                   {index > 0 && <hr className="border-gray-300 my-2" />}
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="flex-1 space-y-1">
-                      <span className="text-gray-700">Born at location</span>
-                      <StatementSource
-                        proofLine={statement.proof_line}
-                        archivedPage={statement.archived_page}
-                        isActive={activeArchivedPageId === statement.archived_page?.id}
-                        onShowArchived={() => onShowArchived(statement)}
-                        onHover={() => onHover(statement)}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-start gap-4">
+                      <span className="text-gray-700 flex-1">Born at location</span>
+                      <EvaluationActions
+                        statementId={statement.id}
+                        hasArchivedPage={!!statement.archived_page}
+                        isConfirmed={evaluations.get(statement.id) ?? null}
+                        onAction={onAction}
                       />
                     </div>
-                    <EvaluationActions
-                      statementId={statement.id}
-                      hasArchivedPage={!!statement.archived_page}
-                      isConfirmed={evaluations.get(statement.id) ?? null}
-                      onAction={onAction}
+                    <StatementSource
+                      proofLine={statement.proof_line}
+                      archivedPage={statement.archived_page}
+                      isActive={activeArchivedPageId === statement.archived_page?.id}
+                      onShowArchived={() => onShowArchived(statement)}
+                      onHover={() => onHover(statement)}
                     />
                   </div>
                 </div>

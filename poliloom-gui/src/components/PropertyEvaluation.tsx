@@ -1,12 +1,12 @@
-import { PropertyGroup, PropertyStatement } from '@/types';
-import { EvaluationItem } from './EvaluationItem';
-import { EvaluationActions } from './EvaluationActions';
-import { StatementSource } from './StatementSource';
+import { PropertyGroup, PropertyStatement } from "@/types";
+import { EvaluationItem } from "./EvaluationItem";
+import { EvaluationActions } from "./EvaluationActions";
+import { StatementSource } from "./StatementSource";
 
 interface PropertyEvaluationProps {
   properties: PropertyGroup[];
   evaluations: Map<string, boolean>;
-  onAction: (propertyId: string, action: 'confirm' | 'discard') => void;
+  onAction: (propertyId: string, action: "confirm" | "discard") => void;
   onShowArchived: (property: PropertyStatement) => void;
   onHover: (property: PropertyStatement) => void;
   activeArchivedPageId: string | null;
@@ -18,7 +18,7 @@ export function PropertyEvaluation({
   onAction,
   onShowArchived,
   onHover,
-  activeArchivedPageId
+  activeArchivedPageId,
 }: PropertyEvaluationProps) {
   if (properties.length === 0) {
     return null;
@@ -33,27 +33,36 @@ export function PropertyEvaluation({
             <EvaluationItem
               key={propertyGroup.type}
               title={propertyGroup.type}
-              onHover={() => handleGroupHover(propertyGroup.statements)}
+              onHover={() => {
+                const firstWithArchive = propertyGroup.statements.find(
+                  (s) => s.archived_page,
+                );
+                if (firstWithArchive) {
+                  onHover(firstWithArchive);
+                }
+              }}
             >
               {propertyGroup.statements.map((statement, index) => (
                 <div key={statement.id}>
                   {index > 0 && <hr className="border-gray-300 my-2" />}
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="flex-1 space-y-1">
-                      <span className="text-gray-700">{statement.value}</span>
-                      <StatementSource
-                        proofLine={statement.proof_line}
-                        archivedPage={statement.archived_page}
-                        isActive={activeArchivedPageId === statement.archived_page?.id}
-                        onShowArchived={() => onShowArchived(statement)}
-                        onHover={() => onHover(statement)}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-start gap-4">
+                      <span className="text-gray-700 flex-1">{statement.value}</span>
+                      <EvaluationActions
+                        statementId={statement.id}
+                        hasArchivedPage={!!statement.archived_page}
+                        isConfirmed={evaluations.get(statement.id) ?? null}
+                        onAction={onAction}
                       />
                     </div>
-                    <EvaluationActions
-                      statementId={statement.id}
-                      hasArchivedPage={!!statement.archived_page}
-                      isConfirmed={evaluations.get(statement.id) ?? null}
-                      onAction={onAction}
+                    <StatementSource
+                      proofLine={statement.proof_line}
+                      archivedPage={statement.archived_page}
+                      isActive={
+                        activeArchivedPageId === statement.archived_page?.id
+                      }
+                      onShowArchived={() => onShowArchived(statement)}
+                      onHover={() => onHover(statement)}
                     />
                   </div>
                 </div>
