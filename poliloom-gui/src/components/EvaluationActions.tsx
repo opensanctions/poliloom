@@ -16,7 +16,7 @@ export function EvaluationActions({
       {hasArchivedPage ? (
         <button
           onClick={() => onAction(statementId, "confirm")}
-          className={`px-2 py-1 text-sm font-medium rounded transition-colors ${
+          className={`px-2 py-1 text-sm font-medium rounded transition-colors cursor-pointer ${
             isConfirmed === true
               ? "bg-green-600 text-white"
               : "bg-green-100 text-green-700 hover:bg-green-200"
@@ -31,7 +31,7 @@ export function EvaluationActions({
       )}
       <button
         onClick={() => onAction(statementId, "discard")}
-        className={`px-2 py-1 text-sm font-medium rounded transition-colors ${
+        className={`px-2 py-1 text-sm font-medium rounded transition-colors cursor-pointer ${
           isConfirmed === false
             ? "bg-red-600 text-white"
             : hasArchivedPage
