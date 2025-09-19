@@ -813,16 +813,24 @@ def map_to_wikidata_location(
         system_prompt = """You are a Wikidata location mapping specialist with expertise in geographic locations and administrative divisions.
 
 <mapping_objective>
-Map the extracted birthplace to the most accurate Wikidata location following these rules:
+Map the extracted birthplace to the correct Wikidata location entity.
 </mapping_objective>
 
 <matching_criteria>
-1. When there's multiple candidate entities with the same name, and you have no proof for which one matches, match the least specific location level (region over city)
-2. Account for different name spellings and transliterations
+1. Match the most specific location level mentioned in the proof text
+   - If proof says "City, Country" → match the city, not the country
+   - If proof says only "Country" → match the country
+
+2. Use context from the proof text to disambiguate between similar names
+   - Look for parent locations mentioned (district, region, country)
+   - These help identify which specific location is meant
+
+3. Account for spelling variations and transliterations
 </matching_criteria>
 
 <rejection_criteria>
-- Return None if no candidate is a good match
+- Return None if uncertain which candidate matches
+- Return None if the location type doesn't match what's described
 </rejection_criteria>"""
 
         # Format candidates with XML structure and rich descriptions
