@@ -33,6 +33,7 @@ class PropertyStatementResponse(UUIDBaseModel):
     value_precision: Optional[int] = None
     proof_line: Optional[str] = None
     archived_page: Optional[ArchivedPageResponse] = None
+    statement_id: Optional[str] = None
 
 
 class PositionStatementResponse(UUIDBaseModel):
@@ -45,6 +46,7 @@ class PositionStatementResponse(UUIDBaseModel):
     end_date_precision: Optional[int] = None
     proof_line: Optional[str] = None
     archived_page: Optional[ArchivedPageResponse] = None
+    statement_id: Optional[str] = None
 
 
 class BirthplaceStatementResponse(UUIDBaseModel):
@@ -53,6 +55,7 @@ class BirthplaceStatementResponse(UUIDBaseModel):
     id: UUID
     proof_line: Optional[str] = None
     archived_page: Optional[ArchivedPageResponse] = None
+    statement_id: Optional[str] = None
 
 
 class PropertyResponse(UUIDBaseModel):

@@ -163,6 +163,7 @@ async def get_politicians(
                     value=prop.value,
                     value_precision=prop.value_precision,
                     proof_line=prop.proof_line,
+                    statement_id=prop.statement_id,
                     archived_page=(
                         ArchivedPageResponse(
                             id=prop.archived_page.id,
@@ -195,6 +196,7 @@ async def get_politicians(
                     end_date=pos.end_date,
                     end_date_precision=pos.end_date_precision,
                     proof_line=pos.proof_line,
+                    statement_id=pos.statement_id,
                     archived_page=(
                         ArchivedPageResponse(
                             id=pos.archived_page.id,
@@ -220,6 +222,7 @@ async def get_politicians(
                 statement = BirthplaceStatementResponse(
                     id=bp.id,
                     proof_line=bp.proof_line,
+                    statement_id=bp.statement_id,
                     archived_page=(
                         ArchivedPageResponse(
                             id=bp.archived_page.id,
@@ -296,10 +299,6 @@ async def evaluate_extracted_data(
             # Track all evaluations for Wikidata operations
             all_evaluations.append(evaluation)
 
-            # If not confirmed, remove the original entity
-            if not eval_item.is_confirmed:
-                db.delete(property_entity)
-
         except Exception as e:
             errors.append(f"Error processing property {eval_item.id}: {str(e)}")
             continue
@@ -324,10 +323,6 @@ async def evaluate_extracted_data(
             # Track all evaluations for Wikidata operations
             all_evaluations.append(evaluation)
 
-            # If not confirmed, remove the original entity
-            if not eval_item.is_confirmed:
-                db.delete(position_entity)
-
         except Exception as e:
             errors.append(f"Error processing position {eval_item.id}: {str(e)}")
             continue
@@ -351,10 +346,6 @@ async def evaluate_extracted_data(
 
             # Track all evaluations for Wikidata operations
             all_evaluations.append(evaluation)
-
-            # If not confirmed, remove the original entity
-            if not eval_item.is_confirmed:
-                db.delete(birthplace_entity)
 
         except Exception as e:
             errors.append(f"Error processing birthplace {eval_item.id}: {str(e)}")
