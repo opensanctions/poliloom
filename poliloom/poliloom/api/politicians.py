@@ -3,7 +3,7 @@
 from typing import List
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select
+from sqlalchemy import select, and_, exists
 
 from ..database import get_engine
 from ..models import (
@@ -120,27 +120,65 @@ async def get_politicians(
         if not politician_ids:
             return []
 
-        # Now fetch the full politician objects with ALL their relationships
-        # We load everything since we want to show all statements for context
+        # Now fetch the full politician objects with relationships
+        # Exclude successfully deleted statements (no statement_id + negative evaluations)
         query = (
             select(Politician)
             .options(
-                selectinload(Politician.properties).selectinload(Property.evaluations),
-                selectinload(Politician.properties).selectinload(
-                    Property.archived_page
+                # Filter out successfully deleted properties
+                selectinload(
+                    Politician.properties.and_(
+                        ~and_(
+                            Property.statement_id.is_(None),
+                            exists().where(
+                                and_(
+                                    PropertyEvaluation.property_id == Property.id,
+                                    not PropertyEvaluation.is_confirmed,
+                                )
+                            ),
+                        )
+                    )
+                ).options(
+                    selectinload(Property.evaluations),
+                    selectinload(Property.archived_page),
                 ),
-                selectinload(Politician.positions_held).selectinload(
-                    HoldsPosition.position
+                # Filter out successfully deleted positions
+                selectinload(
+                    Politician.positions_held.and_(
+                        ~and_(
+                            HoldsPosition.statement_id.is_(None),
+                            exists().where(
+                                and_(
+                                    PositionEvaluation.holds_position_id
+                                    == HoldsPosition.id,
+                                    not PositionEvaluation.is_confirmed,
+                                )
+                            ),
+                        )
+                    )
+                ).options(
+                    selectinload(HoldsPosition.position),
+                    selectinload(HoldsPosition.evaluations),
+                    selectinload(HoldsPosition.archived_page),
                 ),
-                selectinload(Politician.positions_held).selectinload(
-                    HoldsPosition.evaluations
+                # Filter out successfully deleted birthplaces
+                selectinload(
+                    Politician.birthplaces.and_(
+                        ~and_(
+                            BornAt.statement_id.is_(None),
+                            exists().where(
+                                and_(
+                                    BirthplaceEvaluation.born_at_id == BornAt.id,
+                                    not BirthplaceEvaluation.is_confirmed,
+                                )
+                            ),
+                        )
+                    )
+                ).options(
+                    selectinload(BornAt.location),
+                    selectinload(BornAt.evaluations),
+                    selectinload(BornAt.archived_page),
                 ),
-                selectinload(Politician.positions_held).selectinload(
-                    HoldsPosition.archived_page
-                ),
-                selectinload(Politician.birthplaces).selectinload(BornAt.location),
-                selectinload(Politician.birthplaces).selectinload(BornAt.evaluations),
-                selectinload(Politician.birthplaces).selectinload(BornAt.archived_page),
                 selectinload(Politician.wikipedia_links),
             )
             .where(Politician.id.in_(politician_ids))
