@@ -3,6 +3,7 @@ import { ArchivedPageResponse } from '@/types';
 interface StatementSourceProps {
   proofLine: string | null;
   archivedPage: ArchivedPageResponse | null;
+  isWikidataStatement: boolean;
   isActive: boolean;
   onShowArchived: () => void;
   onHover: () => void;
@@ -11,13 +12,14 @@ interface StatementSourceProps {
 export function StatementSource({
   proofLine,
   archivedPage,
+  isWikidataStatement,
   isActive,
   onShowArchived,
   onHover
 }: StatementSourceProps) {
   return (
     <div className="space-y-1" onMouseEnter={onHover}>
-      {archivedPage && (
+      {archivedPage && !isWikidataStatement && (
         <div className="flex items-center gap-2">
           <button
             onClick={onShowArchived}

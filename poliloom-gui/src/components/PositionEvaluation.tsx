@@ -37,7 +37,7 @@ export function PositionEvaluation({
               key={positionGroup.qid}
               title={title}
               onHover={() => {
-                const firstWithArchive = positionGroup.statements.find(s => s.archived_page);
+                const firstWithArchive = positionGroup.statements.find(s => s.archived_page && !s.statement_id);
                 if (firstWithArchive) {
                   onHover(firstWithArchive);
                 }
@@ -54,7 +54,7 @@ export function PositionEvaluation({
                       />
                       <EvaluationActions
                         statementId={statement.id}
-                        hasArchivedPage={!!statement.archived_page}
+                        isWikidataStatement={!!statement.statement_id}
                         isConfirmed={evaluations.get(statement.id) ?? null}
                         onAction={onAction}
                       />
@@ -62,6 +62,7 @@ export function PositionEvaluation({
                     <StatementSource
                       proofLine={statement.proof_line}
                       archivedPage={statement.archived_page}
+                      isWikidataStatement={!!statement.statement_id}
                       isActive={activeArchivedPageId === statement.archived_page?.id}
                       onShowArchived={() => onShowArchived(statement)}
                       onHover={() => onHover(statement)}

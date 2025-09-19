@@ -18,6 +18,7 @@ export const mockPolitician: Politician = {
     type: 'birth_date',
     statements: [{
       id: 'prop-1',
+      statement_id: null,
       value: '1970-01-01',
       value_precision: 9,
       proof_line: 'born on January 1, 1970',
@@ -29,6 +30,7 @@ export const mockPolitician: Politician = {
     name: 'Mayor of Test City',
     statements: [{
       id: 'pos-1',
+      statement_id: null,
       start_date: '2020-01-01',
       start_date_precision: 9,
       end_date: '2024-01-01',
@@ -42,6 +44,7 @@ export const mockPolitician: Politician = {
     name: 'Test City',
     statements: [{
       id: 'birth-1',
+      statement_id: null,
       proof_line: 'was born in Test City',
       archived_page: mockArchivedPage,
     }],
@@ -74,6 +77,7 @@ export const mockPoliticianWithConflicts: Politician = {
       statements: [
         {
           id: 'prop-conflicted',
+          statement_id: null,
           value: '1970-01-02',
           value_precision: 9,
           proof_line: 'born on January 2, 1970',
@@ -87,6 +91,7 @@ export const mockPoliticianWithConflicts: Politician = {
       statements: [
         {
           id: 'prop-extracted',
+          statement_id: null,
           value: 'French',
           value_precision: null,
           proof_line: 'French politician',
@@ -109,6 +114,7 @@ export const mockPoliticianWithConflicts: Politician = {
       statements: [
         {
           id: 'pos-conflicted',
+          statement_id: null,
           start_date: '2020-01-01',
           start_date_precision: 9,
           end_date: '2024-01-01',
@@ -125,6 +131,7 @@ export const mockPoliticianWithConflicts: Politician = {
       statements: [
         {
           id: 'pos-extracted',
+          statement_id: null,
           start_date: '2018-01-01',
           start_date_precision: 9,
           end_date: null,
@@ -149,6 +156,7 @@ export const mockPoliticianWithConflicts: Politician = {
       statements: [
         {
           id: 'birth-conflicted',
+          statement_id: null,
           proof_line: 'was born in Test City',
           archived_page: mockArchivedPage,
         }
@@ -161,6 +169,7 @@ export const mockPoliticianWithConflicts: Politician = {
       statements: [
         {
           id: 'birth-extracted',
+          statement_id: null,
           proof_line: 'was born in New City',
           archived_page: mockArchivedPage,
         }
@@ -179,6 +188,7 @@ export const mockPoliticianExtractedOnly: Politician = {
       statements: [
         {
           id: 'prop-extracted-only-1',
+          statement_id: null,
           value: '1980-05-15',
           value_precision: 9,
           proof_line: 'born on May 15, 1980',
@@ -191,6 +201,7 @@ export const mockPoliticianExtractedOnly: Politician = {
       statements: [
         {
           id: 'prop-extracted-only-2',
+          statement_id: null,
           value: 'German',
           value_precision: null,
           proof_line: 'German citizen',
@@ -206,6 +217,7 @@ export const mockPoliticianExtractedOnly: Politician = {
       statements: [
         {
           id: 'pos-extracted-only-1',
+          statement_id: null,
           start_date: '2019-01-01',
           start_date_precision: 9,
           end_date: '2023-01-01',
@@ -223,6 +235,7 @@ export const mockPoliticianExtractedOnly: Politician = {
       statements: [
         {
           id: 'birth-extracted-only-1',
+          statement_id: null,
           proof_line: 'was born in Berlin',
           archived_page: mockArchivedPage,
         }
@@ -262,6 +275,73 @@ export const mockPoliticianExistingOnly: Politician = {
       qid: 'Q111333',
       name: 'Capital City',
       statements: []
+    }
+  ],
+};
+
+// Mock politician that demonstrates the edge case: statement with both statement_id and archived_page
+// In this case, archived_page should be hidden since statement_id indicates it's a Wikidata statement
+export const mockPoliticianWithEdgeCases: Politician = {
+  id: 'pol-edge-cases',
+  name: 'Edge Case Politician',
+  wikidata_id: 'Q777888',
+  properties: [
+    {
+      type: 'birth_date',
+      statements: [
+        // Wikidata statement with statement_id (extracted statement should be hidden)
+        {
+          id: 'prop-wikidata-1',
+          statement_id: 'Q777888$12345678-1234-1234-1234-123456789012',
+          value: '1980-01-01',
+          value_precision: 9,
+          proof_line: 'born on January 1, 1980',
+          archived_page: mockArchivedPage, // This should be hidden because statement_id exists
+        },
+        // Regular extracted statement
+        {
+          id: 'prop-extracted-1',
+          statement_id: null,
+          value: '1980-01-02',
+          value_precision: 9,
+          proof_line: 'born on January 2, 1980',
+          archived_page: mockArchivedPage,
+        }
+      ]
+    }
+  ],
+  positions: [
+    {
+      qid: 'Q123456',
+      name: 'Mayor',
+      statements: [
+        // Wikidata statement with statement_id
+        {
+          id: 'pos-wikidata-1',
+          statement_id: 'Q123456$87654321-4321-4321-4321-210987654321',
+          start_date: '2020-01-01',
+          start_date_precision: 9,
+          end_date: '2024-01-01',
+          end_date_precision: 9,
+          proof_line: 'served as mayor from 2020 to 2024',
+          archived_page: mockArchivedPage, // This should be hidden
+        }
+      ]
+    }
+  ],
+  birthplaces: [
+    {
+      qid: 'Q987654',
+      name: 'Test City',
+      statements: [
+        // Wikidata statement with statement_id
+        {
+          id: 'birth-wikidata-1',
+          statement_id: 'Q987654$11111111-2222-3333-4444-555555555555',
+          proof_line: 'was born in Test City',
+          archived_page: mockArchivedPage, // This should be hidden
+        }
+      ]
     }
   ],
 };

@@ -35,7 +35,7 @@ export function PropertyEvaluation({
               title={propertyGroup.type}
               onHover={() => {
                 const firstWithArchive = propertyGroup.statements.find(
-                  (s) => s.archived_page,
+                  (s) => s.archived_page && !s.statement_id,
                 );
                 if (firstWithArchive) {
                   onHover(firstWithArchive);
@@ -50,7 +50,7 @@ export function PropertyEvaluation({
                       <span className="text-gray-700 flex-1">{statement.value}</span>
                       <EvaluationActions
                         statementId={statement.id}
-                        hasArchivedPage={!!statement.archived_page}
+                        isWikidataStatement={!!statement.statement_id}
                         isConfirmed={evaluations.get(statement.id) ?? null}
                         onAction={onAction}
                       />
@@ -58,6 +58,7 @@ export function PropertyEvaluation({
                     <StatementSource
                       proofLine={statement.proof_line}
                       archivedPage={statement.archived_page}
+                      isWikidataStatement={!!statement.statement_id}
                       isActive={
                         activeArchivedPageId === statement.archived_page?.id
                       }

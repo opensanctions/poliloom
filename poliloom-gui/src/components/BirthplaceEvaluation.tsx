@@ -36,7 +36,7 @@ export function BirthplaceEvaluation({
               key={birthplaceGroup.qid}
               title={title}
               onHover={() => {
-                const firstWithArchive = birthplaceGroup.statements.find(s => s.archived_page);
+                const firstWithArchive = birthplaceGroup.statements.find(s => s.archived_page && !s.statement_id);
                 if (firstWithArchive) {
                   onHover(firstWithArchive);
                 }
@@ -50,7 +50,7 @@ export function BirthplaceEvaluation({
                       <span className="text-gray-700 flex-1">Born at location</span>
                       <EvaluationActions
                         statementId={statement.id}
-                        hasArchivedPage={!!statement.archived_page}
+                        isWikidataStatement={!!statement.statement_id}
                         isConfirmed={evaluations.get(statement.id) ?? null}
                         onAction={onAction}
                       />
@@ -58,6 +58,7 @@ export function BirthplaceEvaluation({
                     <StatementSource
                       proofLine={statement.proof_line}
                       archivedPage={statement.archived_page}
+                      isWikidataStatement={!!statement.statement_id}
                       isActive={activeArchivedPageId === statement.archived_page?.id}
                       onShowArchived={() => onShowArchived(statement)}
                       onHover={() => onHover(statement)}

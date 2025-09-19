@@ -8,6 +8,7 @@ export interface ArchivedPageResponse {
 // Base interface for all statement items
 export interface BaseEvaluationItem {
   id: string;
+  statement_id: string | null;
   proof_line: string | null;
   archived_page: ArchivedPageResponse | null;
 }
