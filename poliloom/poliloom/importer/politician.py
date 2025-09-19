@@ -227,7 +227,6 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
                     set_={
                         "value": stmt.excluded.value,
                         "value_precision": stmt.excluded.value_precision,
-                        "updated_at": stmt.excluded.updated_at,
                     },
                 )
                 session.execute(stmt)
@@ -257,7 +256,6 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
                         "start_date_precision": stmt.excluded.start_date_precision,
                         "end_date": stmt.excluded.end_date,
                         "end_date_precision": stmt.excluded.end_date_precision,
-                        "updated_at": stmt.excluded.updated_at,
                     },
                 )
                 session.execute(stmt)
@@ -266,15 +264,20 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
             citizenship_batch = [
                 {
                     "politician_id": politician_obj.id,
-                    "country_id": citizenship_id,
+                    "country_id": citizenship["country_id"],
+                    "statement_id": citizenship["statement_id"],
                 }
-                for citizenship_id in politician_data.get("citizenships", [])
+                for citizenship in politician_data.get("citizenships", [])
             ]
 
             if citizenship_batch:
                 stmt = insert(HasCitizenship).values(citizenship_batch)
-                stmt = stmt.on_conflict_do_nothing(
-                    index_elements=["politician_id", "country_id"]
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["statement_id"],
+                    index_where=text("statement_id IS NOT NULL"),
+                    set_={
+                        "country_id": stmt.excluded.country_id,
+                    },
                 )
                 session.execute(stmt)
 
@@ -291,12 +294,9 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
 
             if birthplace_batch:
                 stmt = insert(BornAt).values(birthplace_batch)
-                stmt = stmt.on_conflict_do_update(
+                stmt = stmt.on_conflict_do_nothing(
                     index_elements=["statement_id"],
                     index_where=text("statement_id IS NOT NULL"),
-                    set_={
-                        "updated_at": stmt.excluded.updated_at,
-                    },
                 )
                 session.execute(stmt)
 
@@ -316,7 +316,6 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
                     index_elements=["politician_id", "language_code"],
                     set_={
                         "url": stmt.excluded.url,
-                        "updated_at": stmt.excluded.updated_at,
                     },
                 )
                 session.execute(stmt)
@@ -472,7 +471,12 @@ def _process_politicians_chunk(
                             shared_country_qids
                             and citizenship_id in shared_country_qids
                         ):
-                            politician_data["citizenships"].append(citizenship_id)
+                            politician_data["citizenships"].append(
+                                {
+                                    "country_id": citizenship_id,
+                                    "statement_id": claim["id"],
+                                }
+                            )
 
                 # Extract birthplaces - include all locations that exist in our database
                 birthplace_claims = entity.get_truthy_claims("P19")

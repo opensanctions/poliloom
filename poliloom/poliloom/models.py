@@ -536,10 +536,17 @@ class HasCitizenship(Base, TimestampMixin):
         nullable=False,
     )
     country_id = Column(String, ForeignKey("countries.wikidata_id"), nullable=False)
+    statement_id = Column(String, nullable=True)
 
     # Constraints
     __table_args__ = (
         UniqueConstraint("politician_id", "country_id", name="uq_politician_country"),
+        Index(
+            "uq_has_citizenship_statement_id",
+            "statement_id",
+            unique=True,
+            postgresql_where=Column("statement_id").isnot(None),
+        ),
     )
 
     # Relationships
