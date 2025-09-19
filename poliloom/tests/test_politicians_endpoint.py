@@ -216,6 +216,7 @@ def politician_with_only_wikidata(db_session):
         type=PropertyType.BIRTH_DATE,
         value="1965-12-10",
         archived_page_id=None,  # This makes it Wikidata data
+        statement_id="Q345678$12345678-1234-1234-1234-123456789012",  # Wikidata statement ID
     )
 
     wikidata_position = HoldsPosition(
@@ -223,6 +224,7 @@ def politician_with_only_wikidata(db_session):
         position_id=position.wikidata_id,
         start_date="2016",
         archived_page_id=None,  # This makes it Wikidata data
+        statement_id="Q345678$87654321-4321-4321-4321-210987654321",  # Wikidata statement ID
     )
 
     db_session.add_all([wikidata_property, wikidata_position])
@@ -270,15 +272,17 @@ class TestGetPoliticiansEndpoint:
         birthplace_statements = politician_data["birthplaces"][0]["statements"]
         assert len(birthplace_statements) == 2  # 1 extracted + 1 wikidata
 
-    def test_excludes_politicians_with_only_evaluated_data(
+    def test_includes_politicians_with_evaluated_data_without_statement_id(
         self, client, mock_auth, politician_with_evaluated_data
     ):
-        """Test that politicians with only evaluated extracted data are excluded."""
+        """Test that politicians with evaluated extracted data but no statement_id are included."""
         response = client.get("/politicians/", headers=mock_auth)
 
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 0  # Should be empty since all extracted data is evaluated
+        assert (
+            len(data) == 1
+        )  # Should include since evaluation failed to push to Wikidata
 
     def test_excludes_politicians_with_only_wikidata(
         self, client, mock_auth, politician_with_only_wikidata
@@ -479,8 +483,8 @@ class TestGetPoliticiansEndpoint:
         )
 
         assert (
-            len(extracted_statements["properties"]) == 0
-        )  # Evaluated, so not returned
+            len(extracted_statements["properties"]) == 1
+        )  # Evaluated but no statement_id, so still returned for re-evaluation
         assert len(extracted_statements["positions"]) == 1  # Unevaluated, so returned
 
     def test_politician_with_partial_unevaluated_data_types(

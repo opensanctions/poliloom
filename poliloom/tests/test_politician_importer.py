@@ -254,7 +254,16 @@ class TestWikidataPoliticianImporter:
                         "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C8A",
                     },
                 ],
-                "citizenships": ["Q30", "Q16"],  # US and Canada
+                "citizenships": [
+                    {
+                        "country_id": "Q30",
+                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C84",
+                    },  # US
+                    {
+                        "country_id": "Q16",
+                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C85",
+                    },  # Canada
+                ],
                 "positions": [
                     {
                         "wikidata_id": "Q30185",

@@ -54,57 +54,21 @@ async def get_politicians(
 
         politicians_needing_eval_sql = text("""
         WITH politicians_to_evaluate AS (
-            -- Properties needing evaluation
+            -- Properties needing evaluation (no statement_id means not yet processed)
             SELECT DISTINCT politician_id FROM properties p
-            WHERE (
-                -- Newly extracted statements (no statement_id, has archived_page_id, no negative evaluations)
-                (p.archived_page_id IS NOT NULL AND p.statement_id IS NULL AND NOT EXISTS (
-                    SELECT 1 FROM property_evaluations
-                    WHERE property_id = p.id AND is_confirmed = false
-                ))
-                OR
-                -- Failed deletion (has statement_id, no archived_page_id, has negative evaluations)
-                (p.statement_id IS NOT NULL AND p.archived_page_id IS NULL AND EXISTS (
-                    SELECT 1 FROM property_evaluations
-                    WHERE property_id = p.id AND is_confirmed = false
-                ))
-            )
+            WHERE p.statement_id IS NULL
 
             UNION
 
-            -- Positions needing evaluation
+            -- Positions needing evaluation (no statement_id means not yet processed)
             SELECT DISTINCT politician_id FROM holds_position hp
-            WHERE (
-                -- Newly extracted statements
-                (hp.archived_page_id IS NOT NULL AND hp.statement_id IS NULL AND NOT EXISTS (
-                    SELECT 1 FROM position_evaluations
-                    WHERE holds_position_id = hp.id AND is_confirmed = false
-                ))
-                OR
-                -- Failed deletion
-                (hp.statement_id IS NOT NULL AND hp.archived_page_id IS NULL AND EXISTS (
-                    SELECT 1 FROM position_evaluations
-                    WHERE holds_position_id = hp.id AND is_confirmed = false
-                ))
-            )
+            WHERE hp.statement_id IS NULL
 
             UNION
 
-            -- Birthplaces needing evaluation
+            -- Birthplaces needing evaluation (no statement_id means not yet processed)
             SELECT DISTINCT politician_id FROM born_at ba
-            WHERE (
-                -- Newly extracted statements
-                (ba.archived_page_id IS NOT NULL AND ba.statement_id IS NULL AND NOT EXISTS (
-                    SELECT 1 FROM birthplace_evaluations
-                    WHERE born_at_id = ba.id AND is_confirmed = false
-                ))
-                OR
-                -- Failed deletion
-                (ba.statement_id IS NOT NULL AND ba.archived_page_id IS NULL AND EXISTS (
-                    SELECT 1 FROM birthplace_evaluations
-                    WHERE born_at_id = ba.id AND is_confirmed = false
-                ))
-            )
+            WHERE ba.statement_id IS NULL
         )
         SELECT politician_id FROM politicians_to_evaluate
         ORDER BY RANDOM()
