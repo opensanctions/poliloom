@@ -397,8 +397,8 @@ async def delete_negative_evaluation(
         )
 
         if success:
-            # Remove the statement ID from the database since it's deleted
-            entity.statement_id = None
+            # Remove the statement from the database since it's deleted from Wikidata
+            db.delete(entity)
             db.commit()
             logger.info(
                 f"Successfully deleted {entity_class.__name__.lower()} statement for politician {entity.politician.wikidata_id}"

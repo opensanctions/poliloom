@@ -3,7 +3,7 @@
 from typing import List
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, and_, exists
+from sqlalchemy import select
 
 from ..database import get_engine
 from ..models import (
@@ -121,60 +121,19 @@ async def get_politicians(
             return []
 
         # Now fetch the full politician objects with relationships
-        # Exclude successfully deleted statements (no statement_id + negative evaluations)
         query = (
             select(Politician)
             .options(
-                # Filter out successfully deleted properties
-                selectinload(
-                    Politician.properties.and_(
-                        ~and_(
-                            Property.statement_id.is_(None),
-                            exists().where(
-                                and_(
-                                    PropertyEvaluation.property_id == Property.id,
-                                    not PropertyEvaluation.is_confirmed,
-                                )
-                            ),
-                        )
-                    )
-                ).options(
+                selectinload(Politician.properties).options(
                     selectinload(Property.evaluations),
                     selectinload(Property.archived_page),
                 ),
-                # Filter out successfully deleted positions
-                selectinload(
-                    Politician.positions_held.and_(
-                        ~and_(
-                            HoldsPosition.statement_id.is_(None),
-                            exists().where(
-                                and_(
-                                    PositionEvaluation.holds_position_id
-                                    == HoldsPosition.id,
-                                    not PositionEvaluation.is_confirmed,
-                                )
-                            ),
-                        )
-                    )
-                ).options(
+                selectinload(Politician.positions_held).options(
                     selectinload(HoldsPosition.position),
                     selectinload(HoldsPosition.evaluations),
                     selectinload(HoldsPosition.archived_page),
                 ),
-                # Filter out successfully deleted birthplaces
-                selectinload(
-                    Politician.birthplaces.and_(
-                        ~and_(
-                            BornAt.statement_id.is_(None),
-                            exists().where(
-                                and_(
-                                    BirthplaceEvaluation.born_at_id == BornAt.id,
-                                    not BirthplaceEvaluation.is_confirmed,
-                                )
-                            ),
-                        )
-                    )
-                ).options(
+                selectinload(Politician.birthplaces).options(
                     selectinload(BornAt.location),
                     selectinload(BornAt.evaluations),
                     selectinload(BornAt.archived_page),
@@ -189,11 +148,8 @@ async def get_politicians(
         result = []
         for politician in politicians:
             # Group properties by type (sorted by value for chronological order)
-            # Only include properties that haven't been successfully processed
             properties_by_type = {}
             for prop in sorted(politician.properties, key=lambda x: x.value):
-                # The SQL query already filters for statements needing evaluation
-                # No need to filter again in Python
                 if prop.type not in properties_by_type:
                     properties_by_type[prop.type] = []
                 statement = PropertyStatementResponse(
@@ -216,14 +172,11 @@ async def get_politicians(
                 properties_by_type[prop.type].append(statement)
 
             # Group positions by entity (sorted by start_date for chronological order)
-            # Only include positions that haven't been successfully processed
             positions_by_entity = {}
             for pos in sorted(
                 politician.positions_held,
                 key=lambda x: (x.start_date or "", x.end_date or ""),
             ):
-                # The SQL query already filters for statements needing evaluation
-                # No need to filter again in Python
                 key = (pos.position.wikidata_id, pos.position.name)
                 if key not in positions_by_entity:
                     positions_by_entity[key] = []
@@ -249,11 +202,8 @@ async def get_politicians(
                 positions_by_entity[key].append(statement)
 
             # Group birthplaces by entity (sorted by location name)
-            # Only include birthplaces that haven't been successfully processed
             birthplaces_by_entity = {}
             for bp in sorted(politician.birthplaces, key=lambda x: x.location.name):
-                # The SQL query already filters for statements needing evaluation
-                # No need to filter again in Python
                 key = (bp.location.wikidata_id, bp.location.name)
                 if key not in birthplaces_by_entity:
                     birthplaces_by_entity[key] = []
