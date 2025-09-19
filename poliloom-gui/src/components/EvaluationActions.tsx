@@ -36,7 +36,7 @@ export function EvaluationActions({
             ? "bg-red-600 text-white"
             : !isWikidataStatement
               ? "bg-red-100 text-red-700 hover:bg-red-200"
-              : "text-gray-600 bg-gray-200 hover:bg-gray-300"
+              : "text-gray-600 bg-gray-200 hover:bg-gray-300 hidden"
         }`}
       >
         × Discard
