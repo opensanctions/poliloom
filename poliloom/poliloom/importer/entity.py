@@ -176,15 +176,17 @@ def _process_supporting_entities_chunk(
                     except (KeyError, TypeError):
                         continue
 
-                # Create separate copy for countries with iso_code
-                country_data = entity_data.copy()
-                country_data["iso_code"] = iso_code
-                countries.append(country_data)
-                counts["countries"] += 1
+                # Only import countries that have an ISO code
+                if iso_code:
+                    # Create separate copy for countries with iso_code
+                    country_data = entity_data.copy()
+                    country_data["iso_code"] = iso_code
+                    countries.append(country_data)
+                    counts["countries"] += 1
 
-                # Extract relations for this country
-                entity_relations = entity.extract_all_relations()
-                country_relations.extend(entity_relations)
+                    # Extract relations for this country
+                    entity_relations = entity.extract_all_relations()
+                    country_relations.extend(entity_relations)
 
             # Process batches when they reach the batch size
             if len(positions) >= batch_size:
