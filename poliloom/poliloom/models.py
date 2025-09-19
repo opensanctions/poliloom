@@ -11,7 +11,6 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     Boolean,
-    UniqueConstraint,
     Index,
     text,
     func,
@@ -542,7 +541,6 @@ class HasCitizenship(Base, TimestampMixin):
 
     # Constraints
     __table_args__ = (
-        UniqueConstraint("politician_id", "country_id", name="uq_politician_country"),
         Index(
             "uq_has_citizenship_statement_id",
             "statement_id",
