@@ -1,11 +1,9 @@
 """remove_countries_without_iso_code
 
-Revision ID: f108e6ac03e1
-Revises: 97de81eb2339
-Create Date: 2025-01-19 16:20:31.507685
+Revision ID: c39f3d863772
+Revises: 172f4b4de36f
+Create Date: 2025-09-19 16:02:18.827576
 
-This migration removes all countries that don't have an ISO code,
-as we've changed our import strategy to only include proper countries with ISO codes.
 """
 
 from typing import Sequence, Union
@@ -14,8 +12,8 @@ from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision: str = "f108e6ac03e1"
-down_revision: Union[str, None] = "97de81eb2339"
+revision: str = "c39f3d863772"
+down_revision: Union[str, None] = "172f4b4de36f"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -25,12 +23,11 @@ def upgrade() -> None:
     Delete all countries that don't have ISO codes.
     This will cascade delete related has_citizenship records.
     """
-
-    # Delete countries without ISO codes
-    op.execute("""
-        DELETE FROM countries
-        WHERE iso_code IS NULL
-    """)
+    op.execute(
+        """
+        TRUNCATE countries CASCADE
+    """
+    )
 
 
 def downgrade() -> None:

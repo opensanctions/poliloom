@@ -535,7 +535,9 @@ class HasCitizenship(Base, TimestampMixin):
         ForeignKey("politicians.id", ondelete="CASCADE"),
         nullable=False,
     )
-    country_id = Column(String, ForeignKey("countries.wikidata_id"), nullable=False)
+    country_id = Column(
+        String, ForeignKey("countries.wikidata_id", ondelete="CASCADE"), nullable=False
+    )
     statement_id = Column(String, nullable=True)
 
     # Constraints
