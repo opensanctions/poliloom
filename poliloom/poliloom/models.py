@@ -300,7 +300,7 @@ class Country(Base, TimestampMixin):
     wikidata_id = Column(
         String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
     )
-    iso_code = Column(String, unique=True, index=True)  # ISO 3166-1 alpha-2 code
+    iso_code = Column(String, index=True)  # ISO 3166-1 alpha-2 code
 
     # Relationships
     citizens = relationship(
