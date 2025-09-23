@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 
 from .models import (
     Property,
-    PropertyType,
 )
 from .wikidata_date import WikidataDate
 
@@ -285,7 +284,7 @@ async def push_evaluation(
             )
 
             # Build statement data using the appropriate builder function
-            property_id, wikidata_value, qualifiers = builder_func(entity)
+            wikidata_value, qualifiers = builder_func(entity)
 
             # Create reference to Wikipedia article
             references = [
@@ -298,7 +297,7 @@ async def push_evaluation(
             # Create statement
             statement_id = await create_statement(
                 politician_wikidata_id,
-                property_id,
+                entity.type.value,
                 wikidata_value,
                 references=references,
                 qualifiers=qualifiers,
@@ -327,24 +326,18 @@ async def push_evaluation(
         return False
 
 
-def _build_property_statement(entity: Property) -> tuple[str, dict, list]:
+def _build_property_statement(entity: Property) -> tuple[dict, list]:
     """
     Build statement data for PropertyEvaluation.
 
     Returns:
-        tuple of (property_id, wikidata_value, qualifiers)
+        tuple of (wikidata_value, qualifiers)
     """
-    property_map = {
-        PropertyType.BIRTH_DATE: "P569",
-        PropertyType.DEATH_DATE: "P570",
-    }
-
-    property_id = property_map[entity.type]
     wikidata_value = _parse_date_for_wikidata(entity.value)
     if not wikidata_value:
         raise ValueError(f"Cannot parse date value: {entity.value}")
 
-    return property_id, wikidata_value, None
+    return wikidata_value, None
 
 
 # TODO: Update these functions for unified Property model

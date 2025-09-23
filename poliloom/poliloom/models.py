@@ -29,11 +29,11 @@ Base = declarative_base()
 class PropertyType(str, Enum):
     """Enumeration of allowed property types for politician properties."""
 
-    BIRTH_DATE = "BIRTH_DATE"
-    DEATH_DATE = "DEATH_DATE"
-    BIRTHPLACE = "BIRTHPLACE"
-    POSITION = "POSITION"
-    CITIZENSHIP = "CITIZENSHIP"
+    BIRTH_DATE = "P569"
+    DEATH_DATE = "P570"
+    BIRTHPLACE = "P19"
+    POSITION = "P39"
+    CITIZENSHIP = "P27"
 
 
 class RelationType(str, Enum):

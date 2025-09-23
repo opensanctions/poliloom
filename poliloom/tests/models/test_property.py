@@ -198,8 +198,8 @@ class TestProperty:
             PropertyType.CITIZENSHIP,
         }
         assert len(expected_types) == 5
-        assert PropertyType.BIRTH_DATE == "BIRTH_DATE"
-        assert PropertyType.DEATH_DATE == "DEATH_DATE"
-        assert PropertyType.BIRTHPLACE == "BIRTHPLACE"
-        assert PropertyType.POSITION == "POSITION"
-        assert PropertyType.CITIZENSHIP == "CITIZENSHIP"
+        assert PropertyType.BIRTH_DATE == "P569"
+        assert PropertyType.DEATH_DATE == "P570"
+        assert PropertyType.BIRTHPLACE == "P19"
+        assert PropertyType.POSITION == "P39"
+        assert PropertyType.CITIZENSHIP == "P27"

@@ -66,7 +66,7 @@ def _is_politician(
             continue
 
     # Check if they have any position held that exists in our database
-    position_claims = entity.get_truthy_claims("P39")
+    position_claims = entity.get_truthy_claims(PropertyType.POSITION.value)
     for claim in position_claims:
         try:
             position_id = claim["mainsnak"]["datavalue"]["value"]["id"]
@@ -80,7 +80,7 @@ def _is_politician(
 def _should_import_politician(entity: WikidataEntityProcessor) -> bool:
     """Check if politician should be imported based on death/birth date filtering."""
     # Check if politician is deceased (has death date P570)
-    death_claims = entity.get_truthy_claims("P570")
+    death_claims = entity.get_truthy_claims(PropertyType.DEATH_DATE.value)
     if len(death_claims) > 0:
         # Check any death claim to see if we should exclude this politician
         for claim in death_claims:
@@ -118,7 +118,7 @@ def _should_import_politician(entity: WikidataEntityProcessor) -> bool:
                     pass  # Include if we can't parse the date
     else:
         # No death date - check if born over 120 years ago
-        birth_claims = entity.get_truthy_claims("P569")
+        birth_claims = entity.get_truthy_claims(PropertyType.BIRTH_DATE.value)
         for claim in birth_claims:
             birth_info = entity.extract_date_from_claim(claim)
             if birth_info:
@@ -306,7 +306,7 @@ def _process_politicians_chunk(
                 }
 
                 # Extract properties (birth date, death date, etc.)
-                birth_claims = entity.get_truthy_claims("P569")
+                birth_claims = entity.get_truthy_claims(PropertyType.BIRTH_DATE.value)
                 for claim in birth_claims:
                     birth_info = entity.extract_date_from_claim(claim)
                     if birth_info:
@@ -326,7 +326,7 @@ def _process_politicians_chunk(
                             }
                         )
 
-                death_claims = entity.get_truthy_claims("P570")
+                death_claims = entity.get_truthy_claims(PropertyType.DEATH_DATE.value)
                 for claim in death_claims:
                     death_info = entity.extract_date_from_claim(claim)
                     if death_info:
@@ -347,7 +347,7 @@ def _process_politicians_chunk(
                         )
 
                 # Extract positions held - only include positions that exist in our database
-                position_claims = entity.get_truthy_claims("P39")
+                position_claims = entity.get_truthy_claims(PropertyType.POSITION.value)
 
                 for claim in position_claims:
                     if "mainsnak" in claim and "datavalue" in claim["mainsnak"]:
@@ -375,7 +375,9 @@ def _process_politicians_chunk(
                         )
 
                 # Extract citizenships - only include countries that exist in our database
-                citizenship_claims = entity.get_truthy_claims("P27")
+                citizenship_claims = entity.get_truthy_claims(
+                    PropertyType.CITIZENSHIP.value
+                )
                 for claim in citizenship_claims:
                     if "mainsnak" in claim and "datavalue" in claim["mainsnak"]:
                         citizenship_id = claim["mainsnak"]["datavalue"]["value"]["id"]
@@ -399,7 +401,9 @@ def _process_politicians_chunk(
                             )
 
                 # Extract birthplaces - include all locations that exist in our database
-                birthplace_claims = entity.get_truthy_claims("P19")
+                birthplace_claims = entity.get_truthy_claims(
+                    PropertyType.BIRTHPLACE.value
+                )
                 for claim in birthplace_claims:
                     if "mainsnak" in claim and "datavalue" in claim["mainsnak"]:
                         birthplace_id = claim["mainsnak"]["datavalue"]["value"]["id"]
