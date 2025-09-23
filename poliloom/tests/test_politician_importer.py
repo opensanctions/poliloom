@@ -13,9 +13,7 @@ from poliloom.models import (
     Location,
     Country,
     Property,
-    HoldsPosition,
-    HasCitizenship,
-    BornAt,
+    PropertyType,
     WikipediaLink,
 )
 from poliloom.importer.politician import (
@@ -114,18 +112,12 @@ class TestWikidataPoliticianImporter:
                 "wikidata_id": "Q1",
                 "name": "John Doe",
                 "properties": [],
-                "positions": [],
-                "citizenships": [],
-                "birthplaces": [],
                 "wikipedia_links": [],
             },
             {
                 "wikidata_id": "Q2",
                 "name": "Jane Smith",
                 "properties": [],
-                "positions": [],
-                "citizenships": [],
-                "birthplaces": [],
                 "wikipedia_links": [],
             },
         ]
@@ -145,9 +137,6 @@ class TestWikidataPoliticianImporter:
                 "wikidata_id": "Q1",
                 "name": "John Doe",
                 "properties": [],
-                "positions": [],
-                "citizenships": [],
-                "birthplaces": [],
                 "wikipedia_links": [],
             }
         ]
@@ -161,9 +150,6 @@ class TestWikidataPoliticianImporter:
                 "wikidata_id": "Q1",
                 "name": "John Doe Updated",
                 "properties": [],
-                "positions": [],
-                "citizenships": [],
-                "birthplaces": [],
                 "wikipedia_links": [],
             }
         ]
@@ -186,36 +172,29 @@ class TestWikidataPoliticianImporter:
         inserted_politicians = db_session.query(Politician).all()
         assert len(inserted_politicians) == 0
 
-    def test_insert_politicians_batch_with_properties(self, db_session):
-        """Test inserting politicians with properties."""
+    def test_import_birth_date(self, db_session):
+        """Test importing birth date from Wikidata claim."""
         politicians = [
             {
                 "wikidata_id": "Q1",
                 "name": "John Doe",
                 "properties": [
                     {
-                        "type": "birth_date",
-                        "value": "1970-01-01",
+                        "type": PropertyType.BIRTH_DATE,
+                        "value": "1950-05-15",
                         "value_precision": 11,
                         "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C8A",
-                    },
-                    {
-                        "type": "death_date",
-                        "value": "2020-01-01",
-                        "value_precision": 11,
-                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C8B",
+                        "qualifiers_json": None,
+                        "references_json": None,
                     },
                 ],
-                "positions": [],
-                "citizenships": [],
-                "birthplaces": [],
                 "wikipedia_links": [],
             }
         ]
 
         _insert_politicians_batch(politicians, get_engine())
 
-        # Verify politician and properties were created
+        # Verify politician and property created correctly
         politician = (
             db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
         )
@@ -225,21 +204,21 @@ class TestWikidataPoliticianImporter:
         properties = (
             db_session.query(Property)
             .filter(Property.politician_id == politician.id)
+            .filter(Property.type == PropertyType.BIRTH_DATE)
             .all()
         )
-        assert len(properties) == 2
 
-        prop_types = {prop.type for prop in properties}
-        assert prop_types == {"birth_date", "death_date"}
+        assert len(properties) == 1
+        prop = properties[0]
+        assert prop.value == "1950-05-15"
+        assert prop.value_precision == 11
+        assert prop.entity_id is None
+        assert prop.statement_id == "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C8A"
 
-    def test_insert_politicians_batch_with_relationships(self, db_session):
-        """Test inserting politicians with full relationship data."""
-        # First create the required related entities
+    def test_import_position(self, db_session):
+        """Test importing position from Wikidata claim."""
+        # Create position first
         Position.create_with_entity(db_session, "Q30185", "Mayor")
-        Position.create_with_entity(db_session, "Q11696", "President")
-        Country.create_with_entity(db_session, "Q30", "United States", "US")
-        Country.create_with_entity(db_session, "Q16", "Canada", "CA")
-        Location.create_with_entity(db_session, "Q60", "New York City")
         db_session.commit()
 
         politicians = [
@@ -248,27 +227,9 @@ class TestWikidataPoliticianImporter:
                 "name": "John Doe",
                 "properties": [
                     {
-                        "type": "birth_date",
-                        "value": "1970-01-01",
-                        "value_precision": 11,
-                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C8A",
-                        "qualifiers_json": None,  # No qualifiers for this simple birth date
-                        "references_json": None,
-                    },
-                ],
-                "citizenships": [
-                    {
-                        "country_id": "Q30",
-                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C84",
-                    },  # US
-                    {
-                        "country_id": "Q16",
-                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C85",
-                    },  # Canada
-                ],
-                "positions": [
-                    {
-                        "wikidata_id": "Q30185",
+                        "type": PropertyType.POSITION,
+                        "entity_id": "Q30185",
+                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C81",
                         "qualifiers_json": {
                             "P580": [
                                 {
@@ -278,11 +239,7 @@ class TestWikidataPoliticianImporter:
                                         "type": "time",
                                         "value": {
                                             "time": "+2020-01-01T00:00:00Z",
-                                            "after": 0,
-                                            "before": 0,
-                                            "timezone": 0,
                                             "precision": 11,
-                                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
                                         },
                                     },
                                 }
@@ -295,65 +252,229 @@ class TestWikidataPoliticianImporter:
                                         "type": "time",
                                         "value": {
                                             "time": "+2024-01-01T00:00:00Z",
-                                            "after": 0,
-                                            "before": 0,
-                                            "timezone": 0,
                                             "precision": 11,
-                                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
                                         },
                                     },
                                 }
                             ],
                         },
-                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C81",
-                    },
-                    {
-                        "wikidata_id": "Q11696",
-                        "qualifiers_json": {
-                            "P580": [
-                                {
-                                    "datatype": "time",
-                                    "snaktype": "value",
-                                    "datavalue": {
-                                        "type": "time",
-                                        "value": {
-                                            "time": "+2018-01-01T00:00:00Z",
-                                            "after": 0,
-                                            "before": 0,
-                                            "timezone": 0,
-                                            "precision": 11,
-                                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                                        },
-                                    },
-                                }
-                            ],
-                            "P582": [
-                                {
-                                    "datatype": "time",
-                                    "snaktype": "value",
-                                    "datavalue": {
-                                        "type": "time",
-                                        "value": {
-                                            "time": "+2020-01-01T00:00:00Z",
-                                            "after": 0,
-                                            "before": 0,
-                                            "timezone": 0,
-                                            "precision": 11,
-                                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                                        },
-                                    },
-                                }
-                            ],
-                        },
-                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C82",
-                    },
-                ],
-                "birthplaces": [
-                    {
-                        "location_id": "Q60",
-                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C83",
+                        "references_json": None,
                     }
                 ],
+                "wikipedia_links": [],
+            }
+        ]
+
+        _insert_politicians_batch(politicians, get_engine())
+
+        # Verify property created correctly
+        politician = (
+            db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
+        )
+        assert politician is not None
+
+        properties = (
+            db_session.query(Property)
+            .filter(Property.politician_id == politician.id)
+            .filter(Property.type == PropertyType.POSITION)
+            .all()
+        )
+
+        assert len(properties) == 1
+        prop = properties[0]
+        assert prop.entity_id == "Q30185"
+        assert prop.value is None
+        # Check qualifiers contain start/end dates
+        assert "P580" in prop.qualifiers_json  # start date
+        assert "P582" in prop.qualifiers_json  # end date
+
+    def test_import_birthplace(self, db_session):
+        """Test importing birthplace from Wikidata claim."""
+        # Create location first
+        Location.create_with_entity(db_session, "Q60", "New York City")
+        db_session.commit()
+
+        politicians = [
+            {
+                "wikidata_id": "Q1",
+                "name": "John Doe",
+                "properties": [
+                    {
+                        "type": PropertyType.BIRTHPLACE,
+                        "entity_id": "Q60",
+                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C83",
+                        "qualifiers_json": None,
+                        "references_json": None,
+                    }
+                ],
+                "wikipedia_links": [],
+            }
+        ]
+
+        _insert_politicians_batch(politicians, get_engine())
+
+        politician = (
+            db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
+        )
+        assert politician is not None
+
+        properties = (
+            db_session.query(Property)
+            .filter(Property.politician_id == politician.id)
+            .filter(Property.type == PropertyType.BIRTHPLACE)
+            .all()
+        )
+
+        assert len(properties) == 1
+        assert properties[0].entity_id == "Q60"
+
+    def test_import_citizenship(self, db_session):
+        """Test importing citizenship from Wikidata claim."""
+        # Create country first
+        Country.create_with_entity(db_session, "Q30", "United States", "US")
+        db_session.commit()
+
+        politicians = [
+            {
+                "wikidata_id": "Q1",
+                "name": "John Doe",
+                "properties": [
+                    {
+                        "type": PropertyType.CITIZENSHIP,
+                        "entity_id": "Q30",
+                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C84",
+                        "qualifiers_json": None,
+                        "references_json": None,
+                    }
+                ],
+                "wikipedia_links": [],
+            }
+        ]
+
+        _insert_politicians_batch(politicians, get_engine())
+
+        politician = (
+            db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
+        )
+        assert politician is not None
+
+        properties = (
+            db_session.query(Property)
+            .filter(Property.politician_id == politician.id)
+            .filter(Property.type == PropertyType.CITIZENSHIP)
+            .all()
+        )
+
+        assert len(properties) == 1
+        assert properties[0].entity_id == "Q30"
+
+    def test_import_all_properties(self, db_session):
+        """Test importing all property types for a politician."""
+        # Create required entities
+        Position.create_with_entity(db_session, "Q30185", "Mayor")
+        Location.create_with_entity(db_session, "Q60", "New York City")
+        Country.create_with_entity(db_session, "Q30", "United States", "US")
+        db_session.commit()
+
+        politicians = [
+            {
+                "wikidata_id": "Q1",
+                "name": "John Doe",
+                "properties": [
+                    {
+                        "type": PropertyType.BIRTH_DATE,
+                        "value": "1970-01-01",
+                        "value_precision": 11,
+                        "statement_id": "Q1$BIRTH",
+                    },
+                    {
+                        "type": PropertyType.DEATH_DATE,
+                        "value": "2020-01-01",
+                        "value_precision": 11,
+                        "statement_id": "Q1$DEATH",
+                    },
+                    {
+                        "type": PropertyType.POSITION,
+                        "entity_id": "Q30185",
+                        "statement_id": "Q1$POSITION",
+                    },
+                    {
+                        "type": PropertyType.BIRTHPLACE,
+                        "entity_id": "Q60",
+                        "statement_id": "Q1$BIRTHPLACE",
+                    },
+                    {
+                        "type": PropertyType.CITIZENSHIP,
+                        "entity_id": "Q30",
+                        "statement_id": "Q1$CITIZENSHIP",
+                    },
+                ],
+                "wikipedia_links": [],
+            }
+        ]
+
+        _insert_politicians_batch(politicians, get_engine())
+
+        # Verify all properties created
+        politician = (
+            db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
+        )
+        assert politician is not None
+
+        all_props = (
+            db_session.query(Property)
+            .filter(Property.politician_id == politician.id)
+            .all()
+        )
+
+        # Group by type
+        props_by_type = {}
+        for prop in all_props:
+            props_by_type.setdefault(prop.type, []).append(prop)
+
+        assert PropertyType.BIRTH_DATE in props_by_type
+        assert PropertyType.DEATH_DATE in props_by_type
+        assert PropertyType.POSITION in props_by_type
+        assert PropertyType.BIRTHPLACE in props_by_type
+        assert PropertyType.CITIZENSHIP in props_by_type
+
+    def test_preserve_statement_metadata(self, db_session):
+        """Test that statement_id, qualifiers, and references are preserved."""
+        expected_qualifiers = {"P580": [{"test": "qualifier"}]}
+        expected_references = {"test": "reference"}
+
+        politicians = [
+            {
+                "wikidata_id": "Q1",
+                "name": "John Doe",
+                "properties": [
+                    {
+                        "type": PropertyType.BIRTH_DATE,
+                        "value": "1970-01-01",
+                        "value_precision": 11,
+                        "statement_id": "Q1$TEST_STATEMENT",
+                        "qualifiers_json": expected_qualifiers,
+                        "references_json": expected_references,
+                    }
+                ],
+                "wikipedia_links": [],
+            }
+        ]
+
+        _insert_politicians_batch(politicians, get_engine())
+
+        prop = db_session.query(Property).first()
+        assert prop.statement_id == "Q1$TEST_STATEMENT"
+        assert prop.qualifiers_json == expected_qualifiers
+        assert prop.references_json == expected_references
+
+    def test_insert_politicians_batch_with_wikipedia_links(self, db_session):
+        """Test inserting politicians with Wikipedia links."""
+        politicians = [
+            {
+                "wikidata_id": "Q1",
+                "name": "John Doe",
+                "properties": [],
                 "wikipedia_links": [
                     {
                         "url": "https://en.wikipedia.org/wiki/John_Doe",
@@ -369,50 +490,11 @@ class TestWikidataPoliticianImporter:
 
         _insert_politicians_batch(politicians, get_engine())
 
-        # Verify politician was created with all relationships
+        # Verify politician was created with Wikipedia links
         politician = (
             db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
         )
         assert politician is not None
-        assert politician.name == "John Doe"
-
-        # Check properties
-        properties = (
-            db_session.query(Property)
-            .filter(Property.politician_id == politician.id)
-            .all()
-        )
-        assert len(properties) == 1
-        assert properties[0].type == "birth_date"
-        assert properties[0].value == "1970-01-01"
-        assert properties[0].value_precision == 11
-
-        # Check citizenships
-        citizenships = (
-            db_session.query(HasCitizenship)
-            .filter(HasCitizenship.politician_id == politician.id)
-            .all()
-        )
-        assert len(citizenships) == 2
-        citizenship_countries = {c.country.wikidata_id for c in citizenships}
-        assert citizenship_countries == {"Q30", "Q16"}
-
-        # Check positions
-        positions = (
-            db_session.query(HoldsPosition)
-            .filter(HoldsPosition.politician_id == politician.id)
-            .all()
-        )
-        assert len(positions) == 2
-        position_ids = {p.position.wikidata_id for p in positions}
-        assert position_ids == {"Q30185", "Q11696"}
-
-        # Check birthplace
-        birthplaces = (
-            db_session.query(BornAt).filter(BornAt.politician_id == politician.id).all()
-        )
-        assert len(birthplaces) == 1
-        assert birthplaces[0].location.wikidata_id == "Q60"
 
         # Check Wikipedia links
         wiki_links = (
@@ -423,150 +505,6 @@ class TestWikidataPoliticianImporter:
         assert len(wiki_links) == 2
         wiki_languages = {w.language_code for w in wiki_links}
         assert wiki_languages == {"en", "fr"}
-
-    def test_insert_politicians_batch_with_qualifiers_json(self, db_session):
-        """Test inserting politicians with qualifiers JSON data preservation."""
-        # First create the required related entities
-        Position.create_with_entity(db_session, "Q30185", "Mayor")
-        Location.create_with_entity(db_session, "Q60", "New York City")
-        db_session.commit()
-
-        # Test qualifiers data that should be preserved
-        position_qualifiers = {
-            "P4100": [  # political party
-                {
-                    "snaktype": "value",
-                    "property": "P4100",
-                    "datavalue": {
-                        "value": {"entity-type": "item", "id": "Q6365037"},
-                        "type": "wikibase-entityid",
-                    },
-                }
-            ],
-            "P768": [  # electoral district
-                {
-                    "snaktype": "value",
-                    "property": "P768",
-                    "datavalue": {
-                        "value": {"entity-type": "item", "id": "Q123456"},
-                        "type": "wikibase-entityid",
-                    },
-                }
-            ],
-            "P580": [  # start time (we also process this specifically)
-                {
-                    "snaktype": "value",
-                    "property": "P580",
-                    "datavalue": {
-                        "value": {
-                            "time": "+2020-01-01T00:00:00Z",
-                            "timezone": 0,
-                            "before": 0,
-                            "after": 0,
-                            "precision": 11,
-                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                        },
-                        "type": "time",
-                    },
-                }
-            ],
-        }
-
-        birthplace_qualifiers = {
-            "P585": [  # point in time
-                {
-                    "snaktype": "value",
-                    "property": "P585",
-                    "datavalue": {
-                        "value": {
-                            "time": "+1970-01-01T00:00:00Z",
-                            "timezone": 0,
-                            "before": 0,
-                            "after": 0,
-                            "precision": 11,
-                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                        },
-                        "type": "time",
-                    },
-                }
-            ],
-            "P1480": [  # sourcing circumstances
-                {
-                    "snaktype": "value",
-                    "property": "P1480",
-                    "datavalue": {
-                        "value": {"entity-type": "item", "id": "Q5727902"},
-                        "type": "wikibase-entityid",
-                    },
-                }
-            ],
-        }
-
-        politicians = [
-            {
-                "wikidata_id": "Q1",
-                "name": "John Doe",
-                "properties": [],
-                "citizenships": [],
-                "positions": [
-                    {
-                        "wikidata_id": "Q30185",
-                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C81",
-                        "qualifiers_json": position_qualifiers,
-                    }
-                ],
-                "birthplaces": [
-                    {
-                        "location_id": "Q60",
-                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C83",
-                        "qualifiers_json": birthplace_qualifiers,
-                    }
-                ],
-                "wikipedia_links": [],
-            }
-        ]
-
-        _insert_politicians_batch(politicians, get_engine())
-
-        # Verify politician was created
-        politician = (
-            db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
-        )
-        assert politician is not None
-
-        # Check position with qualifiers_json
-        positions = (
-            db_session.query(HoldsPosition)
-            .filter(HoldsPosition.politician_id == politician.id)
-            .all()
-        )
-        assert len(positions) == 1
-        position = positions[0]
-        assert position.position.wikidata_id == "Q30185"
-        assert position.qualifiers_json is not None
-
-        # Verify all qualifier properties are preserved
-        qualifiers = position.qualifiers_json
-        assert "P4100" in qualifiers  # political party
-        assert "P768" in qualifiers  # electoral district
-        assert "P580" in qualifiers  # start time
-        assert qualifiers["P4100"][0]["datavalue"]["value"]["id"] == "Q6365037"
-        assert qualifiers["P768"][0]["datavalue"]["value"]["id"] == "Q123456"
-
-        # Check birthplace with qualifiers_json
-        birthplaces = (
-            db_session.query(BornAt).filter(BornAt.politician_id == politician.id).all()
-        )
-        assert len(birthplaces) == 1
-        birthplace = birthplaces[0]
-        assert birthplace.location.wikidata_id == "Q60"
-        assert birthplace.qualifiers_json is not None
-
-        # Verify all qualifier properties are preserved
-        bp_qualifiers = birthplace.qualifiers_json
-        assert "P585" in bp_qualifiers  # point in time
-        assert "P1480" in bp_qualifiers  # sourcing circumstances
-        assert bp_qualifiers["P1480"][0]["datavalue"]["value"]["id"] == "Q5727902"
 
 
 class TestIsPolitician:

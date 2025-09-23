@@ -19,9 +19,6 @@ from ..models import (
     Politician,
     Property,
     PropertyType,
-    HoldsPosition,
-    HasCitizenship,
-    BornAt,
     WikipediaLink,
 )
 from ..wikidata_entity_processor import WikidataEntityProcessor
@@ -199,20 +196,20 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
             for row in politician_rows
         }
 
-        # Now process related data for each politician
+        # Now process properties for each politician
         for politician_data in politicians:
             politician_obj = politician_map[politician_data["wikidata_id"]]
 
-            # Handle relationships: need to check if they already exist to avoid duplicates
-            # For re-imports, we want to add new relationships but not duplicate existing ones
+            # Handle properties: all properties (birth/death dates, positions, citizenships, birthplaces) are stored in the unified Property model
 
             # Add properties using batch UPSERT - update only if NOT extracted (preserve user evaluations)
             property_batch = [
                 {
                     "politician_id": politician_obj.id,
                     "type": prop["type"],
-                    "value": prop["value"],
+                    "value": prop.get("value"),
                     "value_precision": prop.get("value_precision"),
+                    "entity_id": prop.get("entity_id"),
                     "statement_id": prop["statement_id"],
                     "qualifiers_json": prop.get("qualifiers_json"),
                     "references_json": prop.get("references_json"),
@@ -229,78 +226,14 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
                     set_={
                         "value": stmt.excluded.value,
                         "value_precision": stmt.excluded.value_precision,
+                        "entity_id": stmt.excluded.entity_id,
                         "qualifiers_json": stmt.excluded.qualifiers_json,
                         "references_json": stmt.excluded.references_json,
                     },
                 )
                 session.execute(stmt)
 
-            # Add positions using batch UPSERT - we already filtered during extraction so we know they exist
-            position_batch = [
-                {
-                    "politician_id": politician_obj.id,
-                    "position_id": pos["wikidata_id"],
-                    "statement_id": pos["statement_id"],
-                    "archived_page_id": None,
-                    "qualifiers_json": pos.get("qualifiers_json"),
-                    "references_json": pos.get("references_json"),
-                }
-                for pos in politician_data.get("positions", [])
-            ]
-
-            if position_batch:
-                stmt = insert(HoldsPosition).values(position_batch)
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=["statement_id"],
-                    index_where=text("statement_id IS NOT NULL"),
-                    set_={
-                        "qualifiers_json": stmt.excluded.qualifiers_json,
-                        "references_json": stmt.excluded.references_json,
-                    },
-                )
-                session.execute(stmt)
-
-            # Add citizenships using batch UPSERT - we already filtered during extraction so we know they exist
-            citizenship_batch = [
-                {
-                    "politician_id": politician_obj.id,
-                    "country_id": citizenship["country_id"],
-                    "statement_id": citizenship["statement_id"],
-                }
-                for citizenship in politician_data.get("citizenships", [])
-            ]
-
-            if citizenship_batch:
-                stmt = insert(HasCitizenship).values(citizenship_batch)
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=["statement_id"],
-                    index_where=text("statement_id IS NOT NULL"),
-                    set_={
-                        "country_id": stmt.excluded.country_id,
-                    },
-                )
-                session.execute(stmt)
-
-            # Add birthplaces using UPSERT - we already filtered during extraction so we know they exist
-            birthplace_batch = [
-                {
-                    "politician_id": politician_obj.id,
-                    "location_id": birthplace["location_id"],
-                    "statement_id": birthplace["statement_id"],
-                    "archived_page_id": None,
-                    "qualifiers_json": birthplace.get("qualifiers_json"),
-                    "references_json": birthplace.get("references_json"),
-                }
-                for birthplace in politician_data.get("birthplaces", [])
-            ]
-
-            if birthplace_batch:
-                stmt = insert(BornAt).values(birthplace_batch)
-                stmt = stmt.on_conflict_do_nothing(
-                    index_elements=["statement_id"],
-                    index_where=text("statement_id IS NOT NULL"),
-                )
-                session.execute(stmt)
+            # All properties (positions, citizenships, birthplaces) are now handled above in the unified property_batch
 
             # Add Wikipedia links using batch UPSERT
             wikipedia_batch = [
@@ -369,9 +302,6 @@ def _process_politicians_chunk(
                     "wikidata_id": entity.get_wikidata_id(),
                     "name": entity.get_entity_name() or entity.get_wikidata_id(),
                     "properties": [],
-                    "positions": [],
-                    "citizenships": [],
-                    "birthplaces": [],
                     "wikipedia_links": [],
                 }
 
@@ -472,9 +402,10 @@ def _process_politicians_chunk(
                         position_key = (position_id, start_date, end_date)
                         if position_key not in seen_positions:
                             seen_positions.add(position_key)
-                            politician_data["positions"].append(
+                            politician_data["properties"].append(
                                 {
-                                    "wikidata_id": position_id,
+                                    "type": PropertyType.POSITION,
+                                    "entity_id": position_id,
                                     "statement_id": claim["id"],
                                     "qualifiers_json": qualifiers_json,
                                     "references_json": references_json,
@@ -491,16 +422,22 @@ def _process_politicians_chunk(
                             shared_country_qids
                             and citizenship_id in shared_country_qids
                         ):
-                            politician_data["citizenships"].append(
+                            # Store all qualifiers as JSON for data preservation
+                            qualifiers_json = claim.get("qualifiers")
+                            # Store all references as JSON for data preservation
+                            references_json = claim.get("references")
+                            politician_data["properties"].append(
                                 {
-                                    "country_id": citizenship_id,
+                                    "type": PropertyType.CITIZENSHIP,
+                                    "entity_id": citizenship_id,
                                     "statement_id": claim["id"],
+                                    "qualifiers_json": qualifiers_json,
+                                    "references_json": references_json,
                                 }
                             )
 
                 # Extract birthplaces - include all locations that exist in our database
                 birthplace_claims = entity.get_truthy_claims("P19")
-                politician_data["birthplaces"] = []
                 for claim in birthplace_claims:
                     if "mainsnak" in claim and "datavalue" in claim["mainsnak"]:
                         birthplace_id = claim["mainsnak"]["datavalue"]["value"]["id"]
@@ -513,9 +450,10 @@ def _process_politicians_chunk(
                             shared_location_qids
                             and birthplace_id in shared_location_qids
                         ):
-                            politician_data["birthplaces"].append(
+                            politician_data["properties"].append(
                                 {
-                                    "location_id": birthplace_id,
+                                    "type": PropertyType.BIRTHPLACE,
+                                    "entity_id": birthplace_id,
                                     "statement_id": claim["id"],
                                     "qualifiers_json": qualifiers_json,
                                     "references_json": references_json,
