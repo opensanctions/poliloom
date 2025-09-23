@@ -1,30 +1,27 @@
 """Tests for evaluation models."""
 
 from poliloom.models import (
-    Location,
     Property,
     PropertyType,
-    PropertyEvaluation,
-    PositionEvaluation,
-    BornAt,
-    BirthplaceEvaluation,
+    Evaluation,
 )
 from ..conftest import assert_model_fields
 
 
-class TestPropertyEvaluation:
-    """Test cases for the PropertyEvaluation model."""
+class TestEvaluation:
+    """Test cases for the Evaluation model."""
 
-    def test_property_evaluation_creation(self, db_session, sample_politician):
-        """Test creating a property evaluation."""
+    def test_date_property_evaluation_creation(self, db_session, sample_politician):
+        """Test creating an evaluation for a date property."""
         # Use fixture politician
         politician = sample_politician
 
-        # Create property
+        # Create date property
         prop = Property(
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
             archived_page_id=None,
         )
         db_session.add(prop)
@@ -32,7 +29,7 @@ class TestPropertyEvaluation:
         db_session.refresh(prop)
 
         # Create evaluation
-        evaluation = PropertyEvaluation(
+        evaluation = Evaluation(
             user_id="user123",
             is_confirmed=True,
             property_id=prop.id,
@@ -55,112 +52,30 @@ class TestPropertyEvaluation:
         assert len(prop.evaluations) == 1
         assert prop.evaluations[0] == evaluation
 
-    def test_property_evaluation_discarded(self, db_session, sample_politician):
-        """Test creating a discarded property evaluation."""
-        # Use fixture politician
-        politician = sample_politician
-
-        # Create property
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            archived_page_id=None,
-        )
-        db_session.add(prop)
-        db_session.commit()
-        db_session.refresh(prop)
-
-        # Create evaluation
-        evaluation = PropertyEvaluation(
-            user_id="user123",
-            is_confirmed=False,
-            property_id=prop.id,
-        )
-        db_session.add(evaluation)
-        db_session.commit()
-        db_session.refresh(evaluation)
-
-        assert_model_fields(
-            evaluation,
-            {
-                "user_id": "user123",
-                "is_confirmed": False,
-                "property_id": prop.id,
-            },
-        )
-
-        # Check relationships
-        assert evaluation.property == prop
-        assert len(prop.evaluations) == 1
-        assert prop.evaluations[0] == evaluation
-
-
-class TestPositionEvaluation:
-    """Test cases for the PositionEvaluation model."""
-
-    def test_position_evaluation_creation(
-        self,
-        db_session,
-        sample_holds_position,
+    def test_birthplace_property_evaluation_creation(
+        self, db_session, sample_politician, sample_location
     ):
-        """Test creating a position evaluation."""
-        # Use fixture holds position
-        holds_pos = sample_holds_position
-
-        # Create evaluation
-        evaluation = PositionEvaluation(
-            user_id="admin",
-            is_confirmed=True,
-            holds_position_id=holds_pos.id,
-        )
-        db_session.add(evaluation)
-        db_session.commit()
-        db_session.refresh(evaluation)
-
-        assert_model_fields(
-            evaluation,
-            {
-                "user_id": "admin",
-                "is_confirmed": True,
-                "holds_position_id": holds_pos.id,
-            },
-        )
-
-        # Check relationships
-        assert evaluation.holds_position == holds_pos
-        assert len(holds_pos.evaluations) == 1
-        assert holds_pos.evaluations[0] == evaluation
-
-
-class TestBirthplaceEvaluation:
-    """Test cases for the BirthplaceEvaluation model."""
-
-    def test_birthplace_evaluation_creation(self, db_session, sample_politician):
-        """Test creating a birthplace evaluation."""
-        # Use fixture politician
+        """Test creating an evaluation for a birthplace property."""
+        # Use fixture politician and location
         politician = sample_politician
+        location = sample_location
 
-        # Create location
-        location = Location.create_with_entity(db_session, "Q90", "Paris")
-        db_session.commit()
-        db_session.refresh(location)
-
-        # Create born at
-        born_at = BornAt(
+        # Create birthplace property
+        prop = Property(
             politician_id=politician.id,
-            location_id=location.wikidata_id,
+            type=PropertyType.BIRTHPLACE,
+            entity_id=location.wikidata_id,
             archived_page_id=None,
         )
-        db_session.add(born_at)
+        db_session.add(prop)
         db_session.commit()
-        db_session.refresh(born_at)
+        db_session.refresh(prop)
 
         # Create evaluation
-        evaluation = BirthplaceEvaluation(
+        evaluation = Evaluation(
             user_id="reviewer",
             is_confirmed=True,
-            born_at_id=born_at.id,
+            property_id=prop.id,
         )
         db_session.add(evaluation)
         db_session.commit()
@@ -171,14 +86,100 @@ class TestBirthplaceEvaluation:
             {
                 "user_id": "reviewer",
                 "is_confirmed": True,
-                "born_at_id": born_at.id,
+                "property_id": prop.id,
             },
         )
 
         # Check relationships
-        assert evaluation.born_at == born_at
-        assert len(born_at.evaluations) == 1
-        assert born_at.evaluations[0] == evaluation
+        assert evaluation.property == prop
+        assert len(prop.evaluations) == 1
+        assert prop.evaluations[0] == evaluation
+
+    def test_position_property_evaluation_creation(
+        self, db_session, sample_politician, sample_position
+    ):
+        """Test creating an evaluation for a position property."""
+        # Use fixture politician and position
+        politician = sample_politician
+        position = sample_position
+
+        # Create position property
+        prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            archived_page_id=None,
+        )
+        db_session.add(prop)
+        db_session.commit()
+        db_session.refresh(prop)
+
+        # Create evaluation
+        evaluation = Evaluation(
+            user_id="admin",
+            is_confirmed=True,
+            property_id=prop.id,
+        )
+        db_session.add(evaluation)
+        db_session.commit()
+        db_session.refresh(evaluation)
+
+        assert_model_fields(
+            evaluation,
+            {
+                "user_id": "admin",
+                "is_confirmed": True,
+                "property_id": prop.id,
+            },
+        )
+
+        # Check relationships
+        assert evaluation.property == prop
+        assert len(prop.evaluations) == 1
+        assert prop.evaluations[0] == evaluation
+
+    def test_citizenship_property_evaluation_creation(
+        self, db_session, sample_politician, sample_country
+    ):
+        """Test creating an evaluation for a citizenship property."""
+        # Use fixture politician and country
+        politician = sample_politician
+        country = sample_country
+
+        # Create citizenship property
+        prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=country.wikidata_id,
+            archived_page_id=None,
+        )
+        db_session.add(prop)
+        db_session.commit()
+        db_session.refresh(prop)
+
+        # Create evaluation
+        evaluation = Evaluation(
+            user_id="reviewer",
+            is_confirmed=False,
+            property_id=prop.id,
+        )
+        db_session.add(evaluation)
+        db_session.commit()
+        db_session.refresh(evaluation)
+
+        assert_model_fields(
+            evaluation,
+            {
+                "user_id": "reviewer",
+                "is_confirmed": False,
+                "property_id": prop.id,
+            },
+        )
+
+        # Check relationships
+        assert evaluation.property == prop
+        assert len(prop.evaluations) == 1
+        assert prop.evaluations[0] == evaluation
 
 
 class TestEvaluationMultiple:
@@ -196,6 +197,7 @@ class TestEvaluationMultiple:
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
             archived_page_id=None,
         )
         db_session.add(prop)
@@ -204,17 +206,17 @@ class TestEvaluationMultiple:
 
         # Create evaluations
         evaluations = [
-            PropertyEvaluation(
+            Evaluation(
                 user_id="user1",
                 is_confirmed=True,
                 property_id=prop.id,
             ),
-            PropertyEvaluation(
+            Evaluation(
                 user_id="user2",
                 is_confirmed=True,
                 property_id=prop.id,
             ),
-            PropertyEvaluation(
+            Evaluation(
                 user_id="user3",
                 is_confirmed=False,
                 property_id=prop.id,
@@ -236,3 +238,71 @@ class TestEvaluationMultiple:
         discarded_count = sum(1 for e in prop.evaluations if not e.is_confirmed)
         assert confirmed_count == 2
         assert discarded_count == 1
+
+    def test_multiple_evaluations_for_different_property_types(
+        self, db_session, sample_politician, sample_location, sample_position
+    ):
+        """Test evaluations for different property types."""
+        # Use fixture politician, location, and position
+        politician = sample_politician
+        location = sample_location
+        position = sample_position
+
+        # Create different types of properties
+        date_prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1980-01-01",
+            value_precision=11,
+            archived_page_id=None,
+        )
+        birthplace_prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTHPLACE,
+            entity_id=location.wikidata_id,
+            archived_page_id=None,
+        )
+        position_prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            archived_page_id=None,
+        )
+
+        db_session.add_all([date_prop, birthplace_prop, position_prop])
+        db_session.commit()
+        db_session.refresh(date_prop)
+        db_session.refresh(birthplace_prop)
+        db_session.refresh(position_prop)
+
+        # Create evaluations for each property
+        evaluations = [
+            Evaluation(
+                user_id="user1",
+                is_confirmed=True,
+                property_id=date_prop.id,
+            ),
+            Evaluation(
+                user_id="user1",
+                is_confirmed=False,
+                property_id=birthplace_prop.id,
+            ),
+            Evaluation(
+                user_id="user1",
+                is_confirmed=True,
+                property_id=position_prop.id,
+            ),
+        ]
+
+        db_session.add_all(evaluations)
+        db_session.commit()
+
+        # Check that each property has one evaluation
+        assert len(date_prop.evaluations) == 1
+        assert len(birthplace_prop.evaluations) == 1
+        assert len(position_prop.evaluations) == 1
+
+        # Check evaluation results
+        assert date_prop.evaluations[0].is_confirmed is True
+        assert birthplace_prop.evaluations[0].is_confirmed is False
+        assert position_prop.evaluations[0].is_confirmed is True
