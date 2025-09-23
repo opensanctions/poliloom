@@ -87,7 +87,7 @@ uv run uvicorn poliloom.api:app --reload
 
 ### LLM-Based Data Extraction
 
-- **Two-stage extraction** for positions and birthplaces to handle large datasets
+- **Two-stage extraction** for entity-linked properties to handle large datasets
 - **Stage 1**: Free-form extraction from Wikipedia content
 - **Stage 2**: Vector similarity search + OpenAI mapping to Wikidata entities
 
@@ -180,7 +180,7 @@ uv run alembic upgrade head
 
 **Data Pipeline**: Wikidata dump → Local database → LLM enrichment → Evaluation GUI
 
-**Database Schema**: Stores politicians, positions, locations with relationships and embeddings. Supports incomplete dates, multiple citizenships, and evaluation workflows.
+**Database Schema**: Stores politicians with unified property model for all metadata (positions, birthplaces, citizenship). Properties are distinguished by type enum and support both entity relationships and string values. Includes embeddings for similarity search and evaluation workflows.
 
 **External Integrations**: Wikidata dumps, OpenAI API, Wikipedia API, MediaWiki OAuth
 

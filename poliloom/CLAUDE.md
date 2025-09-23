@@ -6,7 +6,7 @@ This document outlines the high-level architecture and strategy for the PoliLoom
 
 **Core Goals:**
 - Populate local database with politician data from Wikidata dumps
-- Extract new properties (birth dates, birthplaces) and political positions from web sources using LLMs
+- Extract politician properties (birth dates, birthplaces, political positions) from web sources using LLMs
 - Provide API for GUI evaluation workflows 
 - Offer CLI tools for data import and enrichment operations
 - Integrate with external services (Wikidata, OpenAI, MediaWiki OAuth)
@@ -37,7 +37,7 @@ Each Wikidata entity type has a dedicated class (`WikidataPolitician`, `Wikidata
 3. **Pass 3 - Import Politicians:** Link politicians to existing entities, preventing deadlock issues.
 
 ### **Two-Stage Extraction Strategy** 
-For positions and birthplaces (OpenAI's 500 enum limit):
+For entity-linked properties (OpenAI's 500 enum limit):
 1. **Free-form Extraction:** LLM extracts natural language descriptions
 2. **Vector Mapping:** Generate embeddings → similarity search top 100 → LLM maps to specific Wikidata entity or None
 
@@ -51,7 +51,7 @@ For positions and birthplaces (OpenAI's 500 enum limit):
 
 ### **Enrichment Pipeline**
 - **Wikipedia Content:** Fetch and process linked articles
-- **LLM Extraction:** OpenAI structured data API for properties and positions
+- **LLM Extraction:** OpenAI structured data API for politician properties
 - **Conflict Detection:** Flag discrepancies between extracted and existing Wikidata values
 - **Similarity Search:** Match unlinked entities using embeddings
 
@@ -71,7 +71,7 @@ For positions and birthplaces (OpenAI's 500 enum limit):
 - Eliminates UUID-to-QID mapping complexity
 
 ### **Evaluation System**
-- Separate evaluation tables (PropertyEvaluation, PositionEvaluation, BirthplaceEvaluation)
+- Single Evaluation table for all property types
 - Boolean confirmed/rejected flags instead of direct entity confirmation
 - Supports multiple users and threshold-based workflows
 
