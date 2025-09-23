@@ -9,8 +9,6 @@ from sqlalchemy.orm import Session
 
 from .models import (
     Property,
-    HoldsPosition,
-    BornAt,
     PropertyType,
 )
 from .wikidata_date import WikidataDate
@@ -204,15 +202,16 @@ async def push_evaluation(
     """
     eval_type = type(evaluation).__name__
 
+    # TODO: Update for unified Property model
     # Map evaluation types to entity attributes, classes, and builder functions
     entity_map = {
-        "PropertyEvaluation": ("property_id", Property, _build_property_statement),
-        "PositionEvaluation": (
-            "holds_position_id",
-            HoldsPosition,
-            _build_position_statement,
-        ),
-        "BirthplaceEvaluation": ("born_at_id", BornAt, _build_birthplace_statement),
+        "Evaluation": ("property_id", Property, _build_property_statement),
+        # "PositionEvaluation": (
+        #     "holds_position_id",
+        #     HoldsPosition,
+        #     _build_position_statement,
+        # ),
+        # "BirthplaceEvaluation": ("born_at_id", BornAt, _build_birthplace_statement),
     }
 
     entity_attr, entity_class, builder_func = entity_map.get(
@@ -348,53 +347,54 @@ def _build_property_statement(entity: Property) -> tuple[str, dict, list]:
     return property_id, wikidata_value, None
 
 
-def _build_position_statement(entity: HoldsPosition) -> tuple[str, dict, list]:
-    """
-    Build statement data for PositionEvaluation.
+# TODO: Update these functions for unified Property model
+# def _build_position_statement(entity: HoldsPosition) -> tuple[str, dict, list]:
+#     """
+#     Build statement data for PositionEvaluation.
 
-    Returns:
-        tuple of (property_id, wikidata_value, qualifiers)
-    """
-    property_id = "P39"
-    wikidata_value = {"type": "value", "content": entity.position.wikidata_id}
+#     Returns:
+#         tuple of (property_id, wikidata_value, qualifiers)
+#     """
+#     property_id = "P39"
+#     wikidata_value = {"type": "value", "content": entity.position.wikidata_id}
 
-    # Create qualifiers for start/end dates
-    qualifiers = []
-    if entity.start_date:
-        start_date_value = _parse_date_for_wikidata(entity.start_date)
-        if start_date_value:
-            qualifiers.append(
-                {
-                    "property": {"id": "P580"},  # Start time
-                    "value": start_date_value,
-                }
-            )
-        else:
-            logger.warning(f"Cannot parse start date: {entity.start_date}")
+#     # Create qualifiers for start/end dates
+#     qualifiers = []
+#     if entity.start_date:
+#         start_date_value = _parse_date_for_wikidata(entity.start_date)
+#         if start_date_value:
+#             qualifiers.append(
+#                 {
+#                     "property": {"id": "P580"},  # Start time
+#                     "value": start_date_value,
+#                 }
+#             )
+#         else:
+#             logger.warning(f"Cannot parse start date: {entity.start_date}")
 
-    if entity.end_date:
-        end_date_value = _parse_date_for_wikidata(entity.end_date)
-        if end_date_value:
-            qualifiers.append(
-                {
-                    "property": {"id": "P582"},  # End time
-                    "value": end_date_value,
-                }
-            )
-        else:
-            logger.warning(f"Cannot parse end date: {entity.end_date}")
+#     if entity.end_date:
+#         end_date_value = _parse_date_for_wikidata(entity.end_date)
+#         if end_date_value:
+#             qualifiers.append(
+#                 {
+#                     "property": {"id": "P582"},  # End time
+#                     "value": end_date_value,
+#                 }
+#             )
+#         else:
+#             logger.warning(f"Cannot parse end date: {entity.end_date}")
 
-    return property_id, wikidata_value, qualifiers if qualifiers else None
+#     return property_id, wikidata_value, qualifiers if qualifiers else None
 
 
-def _build_birthplace_statement(entity: BornAt) -> tuple[str, dict, list]:
-    """
-    Build statement data for BirthplaceEvaluation.
+# def _build_birthplace_statement(entity: BornAt) -> tuple[str, dict, list]:
+#     """
+#     Build statement data for BirthplaceEvaluation.
 
-    Returns:
-        tuple of (property_id, wikidata_value, qualifiers)
-    """
-    property_id = "P19"
-    wikidata_value = {"type": "value", "content": entity.location.wikidata_id}
+#     Returns:
+#         tuple of (property_id, wikidata_value, qualifiers)
+#     """
+#     property_id = "P19"
+#     wikidata_value = {"type": "value", "content": entity.location.wikidata_id}
 
-    return property_id, wikidata_value, None
+#     return property_id, wikidata_value, None

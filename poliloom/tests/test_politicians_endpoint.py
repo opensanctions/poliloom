@@ -13,45 +13,38 @@ from poliloom.models import (
     PropertyType,
     Position,
     Location,
-    HoldsPosition,
-    BornAt,
     ArchivedPage,
-    PropertyEvaluation,
+    Evaluation,
 )
 
 
-def extract_statements_by_type(
+def extract_properties_by_type(
     politician_data: Dict[str, Any], extracted: bool = True
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Extract statements from politician data based on whether they are extracted or Wikidata.
+    Extract properties from politician data based on whether they are extracted or Wikidata.
 
     Args:
         politician_data: The politician response data
-        extracted: If True, return extracted statements (with archived_page), else Wikidata statements (without archived_page)
+        extracted: If True, return extracted properties (with archived_page), else Wikidata properties (without archived_page)
 
     Returns:
-        Dictionary with keys 'properties', 'positions', 'birthplaces' containing lists of matching statements
+        Dictionary with keys by property type containing lists of matching properties
     """
-    result = {"properties": [], "positions": [], "birthplaces": []}
+    result = {
+        "BIRTH_DATE": [],
+        "DEATH_DATE": [],
+        "POSITION": [],
+        "BIRTHPLACE": [],
+        "CITIZENSHIP": [],
+    }
 
-    # Extract property statements
+    # Extract properties by type
     for prop in politician_data.get("properties", []):
-        for stmt in prop.get("statements", []):
-            if bool(stmt.get("archived_page")) == extracted:
-                result["properties"].append(stmt)
-
-    # Extract position statements
-    for pos in politician_data.get("positions", []):
-        for stmt in pos.get("statements", []):
-            if bool(stmt.get("archived_page")) == extracted:
-                result["positions"].append(stmt)
-
-    # Extract birthplace statements
-    for bp in politician_data.get("birthplaces", []):
-        for stmt in bp.get("statements", []):
-            if bool(stmt.get("archived_page")) == extracted:
-                result["birthplaces"].append(stmt)
+        if bool(prop.get("archived_page")) == extracted:
+            prop_type = prop.get("type")
+            if prop_type in result:
+                result[prop_type].append(prop)
 
     return result
 
@@ -100,9 +93,10 @@ def politician_with_unevaluated_data(
         proof_line="Born on January 15, 1970",
     )
 
-    extracted_position = HoldsPosition(
+    extracted_position = Property(
         politician_id=politician.id,
-        position_id=position.wikidata_id,
+        type=PropertyType.POSITION,
+        entity_id=position.wikidata_id,
         qualifiers_json={
             "P580": [
                 {
@@ -143,9 +137,10 @@ def politician_with_unevaluated_data(
         proof_line="Served as Mayor from 2020 to 2024",
     )
 
-    extracted_birthplace = BornAt(
+    extracted_birthplace = Property(
         politician_id=politician.id,
-        location_id=location.wikidata_id,
+        type=PropertyType.BIRTHPLACE,
+        entity_id=location.wikidata_id,
         archived_page_id=archived_page.id,
         proof_line="Born in Springfield",
     )
@@ -158,9 +153,10 @@ def politician_with_unevaluated_data(
         archived_page_id=None,  # This makes it Wikidata data
     )
 
-    wikidata_position = HoldsPosition(
+    wikidata_position = Property(
         politician_id=politician.id,
-        position_id=position.wikidata_id,
+        type=PropertyType.POSITION,
+        entity_id=position.wikidata_id,
         qualifiers_json={
             "P580": [
                 {
@@ -200,9 +196,10 @@ def politician_with_unevaluated_data(
         archived_page_id=None,  # This makes it Wikidata data
     )
 
-    wikidata_birthplace = BornAt(
+    wikidata_birthplace = Property(
         politician_id=politician.id,
-        location_id=location.wikidata_id,
+        type=PropertyType.BIRTHPLACE,
+        entity_id=location.wikidata_id,
         archived_page_id=None,  # This makes it Wikidata data
     )
 
@@ -253,7 +250,7 @@ def politician_with_evaluated_data(db_session):
     db_session.flush()
 
     # Add evaluation (this makes the data "evaluated")
-    evaluation = PropertyEvaluation(
+    evaluation = Evaluation(
         user_id="testuser",
         is_confirmed=True,
         property_id=extracted_property.id,
@@ -287,9 +284,10 @@ def politician_with_only_wikidata(db_session):
         statement_id="Q345678$12345678-1234-1234-1234-123456789012",  # Wikidata statement ID
     )
 
-    wikidata_position = HoldsPosition(
+    wikidata_position = Property(
         politician_id=politician.id,
-        position_id=position.wikidata_id,
+        type=PropertyType.POSITION,
+        entity_id=position.wikidata_id,
         qualifiers_json={
             "P580": [
                 {
@@ -336,27 +334,23 @@ class TestGetPoliticiansEndpoint:
         assert politician_data["name"] == "Test Politician"
         assert politician_data["wikidata_id"] == "Q123456"
 
-        # Should have properties, positions, and birthplaces
-        assert len(politician_data["properties"]) == 2  # 1 extracted + 1 wikidata
+        # Should have single properties list
+        assert "properties" in politician_data
+        assert isinstance(politician_data["properties"], list)
         assert (
-            len(politician_data["positions"]) == 1
-        )  # Both extracted and wikidata positions for same position
-        assert (
-            len(politician_data["birthplaces"]) == 1
-        )  # Both extracted and wikidata birthplaces for same location
+            len(politician_data["properties"]) == 6
+        )  # birth_date, position, birthplace (extracted) + death_date, position, birthplace (wikidata)
 
-        # Check that we have both extracted and wikidata statements
-        # Properties should have 2 different types (birth_date and death_date)
-        prop_types = {prop["type"] for prop in politician_data["properties"]}
-        assert len(prop_types) == 2
+        # Should NOT have old grouped fields
+        assert "positions" not in politician_data
+        assert "birthplaces" not in politician_data
 
-        # Positions should have statements with and without proof_line
-        position_statements = politician_data["positions"][0]["statements"]
-        assert len(position_statements) == 2  # 1 extracted + 1 wikidata
-
-        # Birthplaces should have statements with and without proof_line
-        birthplace_statements = politician_data["birthplaces"][0]["statements"]
-        assert len(birthplace_statements) == 2  # 1 extracted + 1 wikidata
+        # Verify all property types in single list
+        property_types = [prop["type"] for prop in politician_data["properties"]]
+        assert "BIRTH_DATE" in property_types
+        assert "DEATH_DATE" in property_types
+        assert "POSITION" in property_types
+        assert "BIRTHPLACE" in property_types
 
     def test_includes_politicians_with_evaluated_data_without_statement_id(
         self, client, mock_auth, politician_with_evaluated_data
@@ -403,15 +397,13 @@ class TestGetPoliticiansEndpoint:
         for field in required_fields:
             assert field in politician_data
 
-        # Test array fields exist
-        array_fields = [
-            "properties",
-            "positions",
-            "birthplaces",
-        ]
-        for field in array_fields:
-            assert field in politician_data
-            assert isinstance(politician_data[field], list)
+        # Test properties array field exists
+        assert "properties" in politician_data
+        assert isinstance(politician_data["properties"], list)
+
+        # Test that old grouped fields don't exist
+        assert "positions" not in politician_data
+        assert "birthplaces" not in politician_data
 
     def test_extracted_data_contains_proof_and_archive_info(
         self, client, mock_auth, politician_with_unevaluated_data
@@ -422,27 +414,27 @@ class TestGetPoliticiansEndpoint:
         data = response.json()
         politician_data = data[0]
 
-        # Find extracted statements (those with proof_line and archived_page)
-        extracted_statements = extract_statements_by_type(
+        # Find extracted properties (those with proof_line and archived_page)
+        extracted_properties = extract_properties_by_type(
             politician_data, extracted=True
         )
 
         # Check extracted property
-        assert len(extracted_statements["properties"]) == 1
-        extracted_prop = extracted_statements["properties"][0]
+        assert len(extracted_properties["BIRTH_DATE"]) == 1
+        extracted_prop = extracted_properties["BIRTH_DATE"][0]
         assert extracted_prop["proof_line"] == "Born on January 15, 1970"
         assert extracted_prop["archived_page"] is not None
         assert "url" in extracted_prop["archived_page"]
 
         # Check extracted position
-        assert len(extracted_statements["positions"]) == 1
-        extracted_pos = extracted_statements["positions"][0]
+        assert len(extracted_properties["POSITION"]) == 1
+        extracted_pos = extracted_properties["POSITION"][0]
         assert extracted_pos["proof_line"] == "Served as Mayor from 2020 to 2024"
         assert extracted_pos["archived_page"] is not None
 
         # Check extracted birthplace
-        assert len(extracted_statements["birthplaces"]) == 1
-        extracted_bp = extracted_statements["birthplaces"][0]
+        assert len(extracted_properties["BIRTHPLACE"]) == 1
+        extracted_bp = extracted_properties["BIRTHPLACE"][0]
         assert extracted_bp["proof_line"] == "Born in Springfield"
         assert extracted_bp["archived_page"] is not None
 
@@ -455,14 +447,14 @@ class TestGetPoliticiansEndpoint:
         data = response.json()
         politician_data = data[0]
 
-        # Find Wikidata statements (those without proof_line)
-        wikidata_statements = extract_statements_by_type(
+        # Find Wikidata properties (those without proof_line)
+        wikidata_properties = extract_properties_by_type(
             politician_data, extracted=False
         )
 
         # Wikidata properties should not have proof_line or archived_page
-        assert len(wikidata_statements["properties"]) >= 1
-        wikidata_prop = wikidata_statements["properties"][0]
+        assert len(wikidata_properties["DEATH_DATE"]) >= 1
+        wikidata_prop = wikidata_properties["DEATH_DATE"][0]
         assert wikidata_prop.get("proof_line") is None
         assert wikidata_prop.get("archived_page") is None
 
@@ -538,16 +530,17 @@ class TestGetPoliticiansEndpoint:
         db_session.add(evaluated_prop)
         db_session.flush()
 
-        evaluation = PropertyEvaluation(
+        evaluation = Evaluation(
             user_id="testuser",
             is_confirmed=True,
             property_id=evaluated_prop.id,
         )
 
         # Add unevaluated extracted position
-        unevaluated_pos = HoldsPosition(
+        unevaluated_pos = Property(
             politician_id=politician.id,
-            position_id=position.wikidata_id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
             qualifiers_json={
                 "P580": [
                     {
@@ -581,15 +574,15 @@ class TestGetPoliticiansEndpoint:
 
         politician_data = data[0]
 
-        # Find extracted statements (those with proof_line and archived_page)
-        extracted_statements = extract_statements_by_type(
+        # Find extracted properties (those with proof_line and archived_page)
+        extracted_properties = extract_properties_by_type(
             politician_data, extracted=True
         )
 
         assert (
-            len(extracted_statements["properties"]) == 1
+            len(extracted_properties["BIRTH_DATE"]) == 1
         )  # Evaluated but no statement_id, so still returned for re-evaluation
-        assert len(extracted_statements["positions"]) == 1  # Unevaluated, so returned
+        assert len(extracted_properties["POSITION"]) == 1  # Unevaluated, so returned
 
     def test_politician_with_partial_unevaluated_data_types(
         self, client, mock_auth, db_session
@@ -610,9 +603,10 @@ class TestGetPoliticiansEndpoint:
         )
         db_session.flush()
 
-        birthplace = BornAt(
+        birthplace = Property(
             politician_id=politician.id,
-            location_id=location.wikidata_id,
+            type=PropertyType.BIRTHPLACE,
+            entity_id=location.wikidata_id,
             archived_page_id=archived_page.id,
         )
         db_session.add(birthplace)
@@ -625,11 +619,103 @@ class TestGetPoliticiansEndpoint:
 
         politician_data = data[0]
 
-        # Find extracted statements (those with proof_line and archived_page)
-        extracted_statements = extract_statements_by_type(
+        # Find extracted properties (those with proof_line and archived_page)
+        extracted_properties = extract_properties_by_type(
             politician_data, extracted=True
         )
 
-        assert len(extracted_statements["properties"]) == 0
-        assert len(extracted_statements["positions"]) == 0
-        assert len(extracted_statements["birthplaces"]) == 1
+        assert len(extracted_properties["BIRTH_DATE"]) == 0
+        assert len(extracted_properties["POSITION"]) == 0
+        assert len(extracted_properties["BIRTHPLACE"]) == 1
+
+    def test_get_politicians_returns_flat_property_list(
+        self, client, mock_auth, politician_with_unevaluated_data
+    ):
+        """Test that API returns single flat list of properties."""
+        response = client.get("/politicians/", headers=mock_auth)
+        assert response.status_code == 200
+
+        data = response.json()
+        politician = data[0]
+
+        # Should have single properties list
+        assert "properties" in politician
+        assert isinstance(politician["properties"], list)
+
+        # Should NOT have old grouped fields
+        assert "positions" not in politician
+        assert "birthplaces" not in politician
+
+        # Verify all property types in single list
+        property_types = [prop["type"] for prop in politician["properties"]]
+        assert "BIRTH_DATE" in property_types
+        assert "POSITION" in property_types
+        assert "BIRTHPLACE" in property_types
+
+    def test_property_response_structure(
+        self, client, mock_auth, politician_with_unevaluated_data
+    ):
+        """Test property response has correct fields."""
+        response = client.get("/politicians/", headers=mock_auth)
+        politician = response.json()[0]
+
+        for prop in politician["properties"]:
+            assert "id" in prop
+            assert "type" in prop
+
+            if prop["type"] in ["BIRTH_DATE", "DEATH_DATE"]:
+                assert prop["value"] is not None
+                assert prop["entity_id"] is None
+            elif prop["type"] in ["BIRTHPLACE", "POSITION", "CITIZENSHIP"]:
+                assert prop["entity_id"] is not None
+                assert prop["value"] is None
+                assert "entity_name" in prop
+
+    def test_evaluate_single_list(
+        self, client, mock_auth, politician_with_unevaluated_data
+    ):
+        """Test evaluation accepts single list."""
+        # First get some properties to evaluate
+        response = client.get("/politicians/", headers=mock_auth)
+        politician = response.json()[0]
+        test_properties = politician["properties"][:2]  # Take first 2 properties
+
+        # Old format should NOT work
+        old_format = {
+            "property_evaluations": [
+                {"id": test_properties[0]["id"], "is_confirmed": True}
+            ],
+            "position_evaluations": [],
+            "birthplace_evaluations": [],
+        }
+        response = client.post(
+            "/politicians/evaluate", json=old_format, headers=mock_auth
+        )
+        assert response.status_code == 422  # Validation error
+
+        # New format should work
+        new_format = {
+            "evaluations": [
+                {"id": test_properties[0]["id"], "is_confirmed": True},
+                {"id": test_properties[1]["id"], "is_confirmed": False},
+            ]
+        }
+        response = client.post(
+            "/politicians/evaluate", json=new_format, headers=mock_auth
+        )
+        assert response.status_code == 200
+        assert response.json()["evaluation_count"] == 2
+
+    def test_backwards_compatibility_broken(
+        self, client, mock_auth, politician_with_unevaluated_data
+    ):
+        """Ensure old API format no longer works (intentional breaking change)."""
+        # This documents that we're intentionally breaking compatibility
+        response = client.get("/politicians/", headers=mock_auth)
+        politician = response.json()[0]
+
+        # Old structure should not exist
+        assert not any(
+            key in politician
+            for key in ["positions", "birthplaces", "properties_by_type"]
+        )
