@@ -1090,7 +1090,7 @@ def store_extracted_data(
                     value=property_data.value,
                     value_precision=precision,
                     qualifiers_json=None,  # For extracted dates, no qualifiers initially
-                    references_json=None,  # Will be populated when pushing to Wikidata
+                    references_json=archived_page.create_references_json(),
                     archived_page_id=archived_page.id,
                     proof_line=property_data.proof,
                 )
@@ -1128,6 +1128,7 @@ def store_extracted_data(
                         type=PropertyType.POSITION,
                         entity_id=position.wikidata_id,
                         qualifiers_json=qualifiers_json,
+                        references_json=archived_page.create_references_json(),
                         archived_page_id=archived_page.id,
                         proof_line=position_data.proof,
                     )
@@ -1181,6 +1182,7 @@ def store_extracted_data(
                             politician_id=politician.id,
                             type=PropertyType.BIRTHPLACE,
                             entity_id=location.wikidata_id,
+                            references_json=archived_page.create_references_json(),
                             archived_page_id=archived_page.id,
                             proof_line=birthplace_data.proof,
                         )

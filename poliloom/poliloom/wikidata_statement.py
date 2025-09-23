@@ -9,10 +9,12 @@ from sqlalchemy.orm import Session
 
 from .models import (
     Property,
+    PropertyType,
 )
 from .wikidata_date import WikidataDate
 
 logger = logging.getLogger(__name__)
+
 
 # Get API root from environment variable, default to test site for safety
 WIKIDATA_API_ROOT = os.getenv(
@@ -192,7 +194,7 @@ async def push_evaluation(
     For negative evaluations of existing statements: deletes statements
 
     Args:
-        evaluation: PropertyEvaluation, PositionEvaluation, or BirthplaceEvaluation
+        evaluation: Evaluation
         jwt_token: MediaWiki OAuth 2.0 JWT token
         db: Database session
 
@@ -201,16 +203,9 @@ async def push_evaluation(
     """
     eval_type = type(evaluation).__name__
 
-    # TODO: Update for unified Property model
     # Map evaluation types to entity attributes, classes, and builder functions
     entity_map = {
         "Evaluation": ("property_id", Property, _build_property_statement),
-        # "PositionEvaluation": (
-        #     "holds_position_id",
-        #     HoldsPosition,
-        #     _build_position_statement,
-        # ),
-        # "BirthplaceEvaluation": ("born_at_id", BornAt, _build_birthplace_statement),
     }
 
     entity_attr, entity_class, builder_func = entity_map.get(
@@ -286,20 +281,16 @@ async def push_evaluation(
             # Build statement data using the appropriate builder function
             wikidata_value, qualifiers = builder_func(entity)
 
-            # Create reference to Wikipedia article
-            references = [
-                {
-                    "property": {"id": "P854"},  # Reference URL
-                    "value": {"type": "value", "content": entity.archived_page.url},
-                }
-            ]
+            # Use qualifiers from Property model if available, otherwise use builder result
+            if entity.qualifiers_json:
+                qualifiers = entity.qualifiers_json
 
-            # Create statement
+            # Create statement using property type as Wikidata property ID
             statement_id = await create_statement(
                 politician_wikidata_id,
-                entity.type.value,
+                entity.type.value,  # PropertyType enum values are the Wikidata property IDs
                 wikidata_value,
-                references=references,
+                references=entity.references_json,
                 qualifiers=qualifiers,
                 jwt_token=jwt_token,
             )
@@ -328,66 +319,30 @@ async def push_evaluation(
 
 def _build_property_statement(entity: Property) -> tuple[dict, list]:
     """
-    Build statement data for PropertyEvaluation.
+    Build statement data for Property.
 
     Returns:
         tuple of (wikidata_value, qualifiers)
     """
-    wikidata_value = _parse_date_for_wikidata(entity.value)
-    if not wikidata_value:
-        raise ValueError(f"Cannot parse date value: {entity.value}")
+    # Handle date properties (birth date, death date)
+    if entity.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
+        if not entity.value:
+            raise ValueError(f"Date value is required for property type {entity.type}")
+        wikidata_value = _parse_date_for_wikidata(entity.value)
+        if not wikidata_value:
+            raise ValueError(f"Cannot parse date value: {entity.value}")
+        return wikidata_value, None
 
-    return wikidata_value, None
+    # Handle entity properties (birthplace, position, citizenship)
+    elif entity.type in [
+        PropertyType.BIRTHPLACE,
+        PropertyType.POSITION,
+        PropertyType.CITIZENSHIP,
+    ]:
+        if not entity.entity_id:
+            raise ValueError(f"Entity ID is required for property type {entity.type}")
+        wikidata_value = {"type": "value", "content": entity.entity_id}
+        return wikidata_value, None
 
-
-# TODO: Update these functions for unified Property model
-# def _build_position_statement(entity: HoldsPosition) -> tuple[str, dict, list]:
-#     """
-#     Build statement data for PositionEvaluation.
-
-#     Returns:
-#         tuple of (property_id, wikidata_value, qualifiers)
-#     """
-#     property_id = "P39"
-#     wikidata_value = {"type": "value", "content": entity.position.wikidata_id}
-
-#     # Create qualifiers for start/end dates
-#     qualifiers = []
-#     if entity.start_date:
-#         start_date_value = _parse_date_for_wikidata(entity.start_date)
-#         if start_date_value:
-#             qualifiers.append(
-#                 {
-#                     "property": {"id": "P580"},  # Start time
-#                     "value": start_date_value,
-#                 }
-#             )
-#         else:
-#             logger.warning(f"Cannot parse start date: {entity.start_date}")
-
-#     if entity.end_date:
-#         end_date_value = _parse_date_for_wikidata(entity.end_date)
-#         if end_date_value:
-#             qualifiers.append(
-#                 {
-#                     "property": {"id": "P582"},  # End time
-#                     "value": end_date_value,
-#                 }
-#             )
-#         else:
-#             logger.warning(f"Cannot parse end date: {entity.end_date}")
-
-#     return property_id, wikidata_value, qualifiers if qualifiers else None
-
-
-# def _build_birthplace_statement(entity: BornAt) -> tuple[str, dict, list]:
-#     """
-#     Build statement data for BirthplaceEvaluation.
-
-#     Returns:
-#         tuple of (property_id, wikidata_value, qualifiers)
-#     """
-#     property_id = "P19"
-#     wikidata_value = {"type": "value", "content": entity.location.wikidata_id}
-
-#     return property_id, wikidata_value, None
+    else:
+        raise ValueError(f"Unknown property type: {entity.type}")

@@ -242,6 +242,15 @@ class ArchivedPage(Base, TimestampMixin):
         date_path = f"{self.fetch_timestamp.year:04d}/{self.fetch_timestamp.month:02d}/{self.fetch_timestamp.day:02d}"
         return f"{date_path}/{self.content_hash}"
 
+    def create_references_json(self) -> list:
+        """Create references_json for this Wikipedia source."""
+        return [
+            {
+                "property": {"id": "P854"},  # Reference URL
+                "value": {"type": "value", "content": self.url},
+            }
+        ]
+
 
 @event.listens_for(ArchivedPage, "before_insert")
 def generate_archived_page_content_hash(mapper, connection, target):
