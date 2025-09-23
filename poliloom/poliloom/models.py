@@ -691,26 +691,17 @@ class WikidataRelation(Base, TimestampMixin):
     parent_entity_id = Column(
         String,
         ForeignKey("wikidata_entities.wikidata_id"),
-        primary_key=True,
+        nullable=False,
     )
     child_entity_id = Column(
         String,
         ForeignKey("wikidata_entities.wikidata_id"),
-        primary_key=True,
+        nullable=False,
     )
     relation_type = Column(
-        SQLEnum(RelationType), primary_key=True, default=RelationType.SUBCLASS_OF
+        SQLEnum(RelationType), nullable=False, default=RelationType.SUBCLASS_OF
     )
-    statement_id = Column(String, nullable=False)
-
-    # Constraints
-    __table_args__ = (
-        Index(
-            "uq_wikidata_relations_statement_id",
-            "statement_id",
-            unique=True,
-        ),
-    )
+    statement_id = Column(String, primary_key=True)
 
     # Relationships
     parent_entity = relationship(
