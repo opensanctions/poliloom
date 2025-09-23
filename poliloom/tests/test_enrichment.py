@@ -283,6 +283,7 @@ class TestEnrichment:
         )
         assert property_obj is not None
         assert property_obj.value == "1970-01-15"
+        assert property_obj.value_precision == 11  # Day precision
         assert property_obj.archived_page_id == sample_archived_page.id
 
     def test_store_extracted_data_positions(

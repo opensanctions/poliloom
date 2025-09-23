@@ -56,6 +56,14 @@ class TimestampMixin:
     )
 
 
+class StatementMixin:
+    """Mixin for adding Wikidata statement metadata fields."""
+
+    statement_id = Column(String, nullable=True)
+    qualifiers_json = Column(JSONB, nullable=True)  # Store all qualifiers as JSON
+    references_json = Column(JSONB, nullable=True)  # Store all references as JSON
+
+
 class PropertyEvaluation(Base, TimestampMixin):
     """Property evaluation entity for tracking user evaluations of extracted properties."""
 
@@ -240,7 +248,7 @@ class WikipediaLink(Base, TimestampMixin):
     politician = relationship("Politician", back_populates="wikipedia_links")
 
 
-class Property(Base, TimestampMixin):
+class Property(Base, TimestampMixin, StatementMixin):
     """Property entity for storing extracted politician properties."""
 
     __tablename__ = "properties"
@@ -272,7 +280,6 @@ class Property(Base, TimestampMixin):
     proof_line = Column(
         String, nullable=True
     )  # NULL for Wikidata imports, set for extracted data
-    statement_id = Column(String, nullable=True)
 
     @hybrid_property
     def is_extracted(self) -> bool:
@@ -409,7 +416,7 @@ class Position(Base, TimestampMixin):
         return position
 
 
-class HoldsPosition(Base, TimestampMixin):
+class HoldsPosition(Base, TimestampMixin, StatementMixin):
     """HoldsPosition entity for politician-position relationships."""
 
     __tablename__ = "holds_position"
@@ -437,9 +444,6 @@ class HoldsPosition(Base, TimestampMixin):
     proof_line = Column(
         String, nullable=True
     )  # NULL for Wikidata imports, set for extracted data
-    statement_id = Column(String, nullable=True)
-    qualifiers_json = Column(JSONB, nullable=True)  # Store all qualifiers as JSON
-    references_json = Column(JSONB, nullable=True)  # Store all references as JSON
 
     @hybrid_property
     def is_extracted(self) -> bool:
@@ -472,7 +476,7 @@ class HoldsPosition(Base, TimestampMixin):
     )
 
 
-class BornAt(Base, TimestampMixin):
+class BornAt(Base, TimestampMixin, StatementMixin):
     """BornAt entity for politician-location birth relationships."""
 
     __tablename__ = "born_at"
@@ -492,9 +496,6 @@ class BornAt(Base, TimestampMixin):
     proof_line = Column(
         String, nullable=True
     )  # NULL for Wikidata imports, set for extracted data
-    statement_id = Column(String, nullable=True)
-    qualifiers_json = Column(JSONB, nullable=True)  # Store all qualifiers as JSON
-    references_json = Column(JSONB, nullable=True)  # Store all references as JSON
 
     @hybrid_property
     def is_extracted(self) -> bool:

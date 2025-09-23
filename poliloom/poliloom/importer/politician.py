@@ -214,6 +214,8 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
                     "value": prop["value"],
                     "value_precision": prop.get("value_precision"),
                     "statement_id": prop["statement_id"],
+                    "qualifiers_json": prop.get("qualifiers_json"),
+                    "references_json": prop.get("references_json"),
                     "archived_page_id": None,
                 }
                 for prop in politician_data.get("properties", [])
@@ -227,6 +229,8 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
                     set_={
                         "value": stmt.excluded.value,
                         "value_precision": stmt.excluded.value_precision,
+                        "qualifiers_json": stmt.excluded.qualifiers_json,
+                        "references_json": stmt.excluded.references_json,
                     },
                 )
                 session.execute(stmt)
@@ -384,12 +388,19 @@ def _process_politicians_chunk(
                 for claim in birth_claims:
                     birth_info = entity.extract_date_from_claim(claim)
                     if birth_info:
+                        # Store all qualifiers as JSON for data preservation
+                        qualifiers_json = claim.get("qualifiers")
+                        # Store all references as JSON for data preservation
+                        references_json = claim.get("references")
+
                         politician_data["properties"].append(
                             {
                                 "type": PropertyType.BIRTH_DATE,
                                 "value": birth_info.date,
                                 "value_precision": birth_info.precision,
                                 "statement_id": claim["id"],
+                                "qualifiers_json": qualifiers_json,
+                                "references_json": references_json,
                             }
                         )
 
@@ -397,12 +408,19 @@ def _process_politicians_chunk(
                 for claim in death_claims:
                     death_info = entity.extract_date_from_claim(claim)
                     if death_info:
+                        # Store all qualifiers as JSON for data preservation
+                        qualifiers_json = claim.get("qualifiers")
+                        # Store all references as JSON for data preservation
+                        references_json = claim.get("references")
+
                         politician_data["properties"].append(
                             {
                                 "type": PropertyType.DEATH_DATE,
                                 "value": death_info.date,
                                 "value_precision": death_info.precision,
                                 "statement_id": claim["id"],
+                                "qualifiers_json": qualifiers_json,
+                                "references_json": references_json,
                             }
                         )
 

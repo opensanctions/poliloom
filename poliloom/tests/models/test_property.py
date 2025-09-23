@@ -12,11 +12,12 @@ class TestProperty:
         # Use fixture politician
         politician = sample_politician
 
-        # Create property
+        # Create property with basic required fields
         prop = Property(
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1990-01-01",
+            value_precision=11,
             archived_page_id=None,
         )
         db_session.add(prop)
@@ -29,6 +30,7 @@ class TestProperty:
                 "politician_id": politician.id,
                 "type": PropertyType.BIRTH_DATE,
                 "value": "1990-01-01",
+                "value_precision": 11,
                 "archived_page_id": None,
             },
         )
@@ -39,9 +41,12 @@ class TestProperty:
         politician = sample_politician
         db_session.refresh(politician)
 
-        # Create property
+        # Create property with minimal required data
         prop = Property(
-            politician_id=politician.id, type=PropertyType.BIRTH_DATE, value="1980"
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1980",
+            value_precision=9,  # Year precision
         )
         db_session.add(prop)
         db_session.commit()
@@ -53,6 +58,9 @@ class TestProperty:
                 "politician_id": politician.id,
                 "type": PropertyType.BIRTH_DATE,
                 "value": "1980",
+                "value_precision": 9,
+                "qualifiers_json": None,
+                "references_json": None,
                 "archived_page_id": None,
             },
         )

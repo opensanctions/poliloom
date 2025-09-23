@@ -252,6 +252,8 @@ class TestWikidataPoliticianImporter:
                         "value": "1970-01-01",
                         "value_precision": 11,
                         "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C8A",
+                        "qualifiers_json": None,  # No qualifiers for this simple birth date
+                        "references_json": None,
                     },
                 ],
                 "citizenships": [
@@ -319,6 +321,7 @@ class TestWikidataPoliticianImporter:
         assert len(properties) == 1
         assert properties[0].type == "birth_date"
         assert properties[0].value == "1970-01-01"
+        assert properties[0].value_precision == 11
 
         # Check citizenships
         citizenships = (

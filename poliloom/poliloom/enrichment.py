@@ -1028,31 +1028,25 @@ def store_extracted_data(
         # Store properties
         if properties:
             for property_data in properties:
-                if property_data.value:
-                    # Check if similar property already exists
-                    existing_prop = (
-                        db.query(Property)
-                        .filter_by(
-                            politician_id=politician.id,
-                            type=property_data.type,
-                            value=property_data.value,
-                        )
-                        .first()
-                    )
+                # Parse the date to get precision
+                wikidata_date = WikidataDate.from_date_string(property_data.value)
+                precision = wikidata_date.precision if wikidata_date else None
 
-                    if not existing_prop:
-                        new_property = Property(
-                            politician_id=politician.id,
-                            type=property_data.type,
-                            value=property_data.value,
-                            archived_page_id=archived_page.id,
-                            proof_line=property_data.proof,
-                        )
-                        db.add(new_property)
-                        db.flush()
-                        logger.info(
-                            f"Added new property: {property_data.type} = '{property_data.value}' for {politician.name}"
-                        )
+                new_property = Property(
+                    politician_id=politician.id,
+                    type=property_data.type,
+                    value=property_data.value,
+                    value_precision=precision,
+                    qualifiers_json=None,  # For extracted dates, no qualifiers initially
+                    references_json=None,  # Will be populated when pushing to Wikidata
+                    archived_page_id=archived_page.id,
+                    proof_line=property_data.proof,
+                )
+                db.add(new_property)
+                db.flush()
+                logger.info(
+                    f"Added new property: {property_data.type} = '{property_data.value}' for {politician.name}"
+                )
 
         # Store positions - only link to existing positions
         if positions:
