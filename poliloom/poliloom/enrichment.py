@@ -16,9 +16,7 @@ from .models import (
     Property,
     PropertyType,
     Position,
-    HoldsPosition,
     Location,
-    BornAt,
     ArchivedPage,
     WikidataRelation,
     WikidataEntity,
@@ -1110,14 +1108,15 @@ def store_extracted_data(
                     )
 
                     # Always add as new record (no more automatic merging)
-                    holds_position = HoldsPosition(
+                    position_property = Property(
                         politician_id=politician.id,
-                        position_id=position.wikidata_id,
+                        type=PropertyType.POSITION,
+                        entity_id=position.wikidata_id,
                         qualifiers_json=qualifiers_json,
                         archived_page_id=archived_page.id,
                         proof_line=position_data.proof,
                     )
-                    db.add(holds_position)
+                    db.add(position_property)
                     db.flush()
 
                     date_range = ""
@@ -1153,22 +1152,24 @@ def store_extracted_data(
 
                     # Check if this birthplace relationship already exists
                     existing_birth = (
-                        db.query(BornAt)
+                        db.query(Property)
                         .filter_by(
                             politician_id=politician.id,
-                            location_id=location.wikidata_id,
+                            type=PropertyType.BIRTHPLACE,
+                            entity_id=location.wikidata_id,
                         )
                         .first()
                     )
 
                     if not existing_birth:
-                        born_at = BornAt(
+                        birthplace_property = Property(
                             politician_id=politician.id,
-                            location_id=location.wikidata_id,
+                            type=PropertyType.BIRTHPLACE,
+                            entity_id=location.wikidata_id,
                             archived_page_id=archived_page.id,
                             proof_line=birthplace_data.proof,
                         )
-                        db.add(born_at)
+                        db.add(birthplace_property)
                         db.flush()
                         logger.info(
                             f"Added new birthplace: '{location.name}' ({location.wikidata_id}) for {politician.name}"

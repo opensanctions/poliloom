@@ -14,10 +14,11 @@ from poliloom.models import (
     ArchivedPage,
     Base,
     Country,
-    HoldsPosition,
     Location,
     Politician,
     Position,
+    Property,
+    PropertyType,
     WikipediaLink,
 )
 from poliloom.enrichment import generate_embedding
@@ -183,8 +184,8 @@ def sample_wikipedia_link(db_session, sample_politician):
 
 
 @pytest.fixture
-def sample_holds_position(db_session, sample_politician, sample_position):
-    """Return a created and committed HoldsPosition entity with qualifiers_json."""
+def sample_position_property(db_session, sample_politician, sample_position):
+    """Return a created and committed Property entity for a position with qualifiers_json."""
     # Create qualifiers_json with start and end dates
     qualifiers_json = {
         "P580": [
@@ -223,12 +224,13 @@ def sample_holds_position(db_session, sample_politician, sample_position):
         ],
     }
 
-    holds_position = HoldsPosition(
+    position_property = Property(
         politician_id=sample_politician.id,
-        position_id=sample_position.wikidata_id,
+        type=PropertyType.POSITION,
+        entity_id=sample_position.wikidata_id,
         qualifiers_json=qualifiers_json,
     )
-    db_session.add(holds_position)
+    db_session.add(position_property)
     db_session.commit()
-    db_session.refresh(holds_position)
-    return holds_position
+    db_session.refresh(position_property)
+    return position_property

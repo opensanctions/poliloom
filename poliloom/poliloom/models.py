@@ -29,8 +29,11 @@ Base = declarative_base()
 class PropertyType(str, Enum):
     """Enumeration of allowed property types for politician properties."""
 
-    BIRTH_DATE = "birth_date"
-    DEATH_DATE = "death_date"
+    BIRTH_DATE = "BIRTH_DATE"
+    DEATH_DATE = "DEATH_DATE"
+    BIRTHPLACE = "BIRTHPLACE"
+    POSITION = "POSITION"
+    CITIZENSHIP = "CITIZENSHIP"
 
 
 class RelationType(str, Enum):
@@ -64,10 +67,10 @@ class StatementMixin:
     references_json = Column(JSONB, nullable=True)  # Store all references as JSON
 
 
-class PropertyEvaluation(Base, TimestampMixin):
-    """Property evaluation entity for tracking user evaluations of extracted properties."""
+class Evaluation(Base, TimestampMixin):
+    """Evaluation entity for tracking user evaluations of extracted properties."""
 
-    __tablename__ = "property_evaluations"
+    __tablename__ = "evaluations"
 
     id = Column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
@@ -80,40 +83,6 @@ class PropertyEvaluation(Base, TimestampMixin):
 
     # Relationships
     property = relationship("Property", back_populates="evaluations")
-
-
-class PositionEvaluation(Base, TimestampMixin):
-    """Position evaluation entity for tracking user evaluations of extracted positions."""
-
-    __tablename__ = "position_evaluations"
-
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
-    user_id = Column(String, nullable=False)
-    is_confirmed = Column(Boolean, nullable=False)
-    holds_position_id = Column(
-        UUID(as_uuid=True), ForeignKey("holds_position.id"), nullable=False
-    )
-
-    # Relationships
-    holds_position = relationship("HoldsPosition", back_populates="evaluations")
-
-
-class BirthplaceEvaluation(Base, TimestampMixin):
-    """Birthplace evaluation entity for tracking user evaluations of extracted birthplaces."""
-
-    __tablename__ = "birthplace_evaluations"
-
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
-    user_id = Column(String, nullable=False)
-    is_confirmed = Column(Boolean, nullable=False)
-    born_at_id = Column(UUID(as_uuid=True), ForeignKey("born_at.id"), nullable=False)
-
-    # Relationships
-    born_at = relationship("BornAt", back_populates="evaluations")
 
 
 class Politician(Base, TimestampMixin):
@@ -134,18 +103,8 @@ class Politician(Base, TimestampMixin):
 
     @property
     def is_deceased(self) -> bool:
-        """Check if politician is deceased based on DeathDate property."""
-        return any(prop.type == "DeathDate" for prop in self.properties)
-
-    @property
-    def wikidata_positions(self):
-        """Get Wikidata (non-extracted) positions."""
-        return [pos for pos in self.positions_held if not pos.is_extracted]
-
-    @property
-    def wikidata_birthplaces(self):
-        """Get Wikidata (non-extracted) birthplaces."""
-        return [bp for bp in self.birthplaces if not bp.is_extracted]
+        """Check if politician is deceased based on death_date property."""
+        return any(prop.type == PropertyType.DEATH_DATE for prop in self.properties)
 
     @classmethod
     def create_with_entity(cls, session, wikidata_id: str, name: str):
@@ -164,15 +123,6 @@ class Politician(Base, TimestampMixin):
     wikidata_entity = relationship("WikidataEntity", back_populates="politician")
     properties = relationship(
         "Property", back_populates="politician", cascade="all, delete-orphan"
-    )
-    positions_held = relationship(
-        "HoldsPosition", back_populates="politician", cascade="all, delete-orphan"
-    )
-    citizenships = relationship(
-        "HasCitizenship", back_populates="politician", cascade="all, delete-orphan"
-    )
-    birthplaces = relationship(
-        "BornAt", back_populates="politician", cascade="all, delete-orphan"
     )
     wikipedia_links = relationship(
         "WikipediaLink", back_populates="politician", cascade="all, delete-orphan"
@@ -197,8 +147,6 @@ class ArchivedPage(Base, TimestampMixin):
 
     # Relationships
     properties = relationship("Property", back_populates="archived_page")
-    positions_held = relationship("HoldsPosition", back_populates="archived_page")
-    birthplaces = relationship("BornAt", back_populates="archived_page")
 
     @staticmethod
     def _generate_content_hash(url: str) -> str:
@@ -270,10 +218,13 @@ class Property(Base, TimestampMixin, StatementMixin):
         nullable=False,
     )
     type = Column(SQLEnum(PropertyType), nullable=False)
-    value = Column(String, nullable=False)
+    value = Column(String, nullable=True)  # NULL for entity relationships
     value_precision = Column(
         Integer
     )  # Wikidata precision integer for date properties (9=year, 10=month, 11=day)
+    entity_id = Column(
+        String, ForeignKey("wikidata_entities.wikidata_id"), nullable=True
+    )  # For entity relationships (birthplace, position, citizenship)
     archived_page_id = Column(
         UUID(as_uuid=True), ForeignKey("archived_pages.id"), nullable=True
     )  # NULL for Wikidata imports, set for extracted data
@@ -294,8 +245,9 @@ class Property(Base, TimestampMixin, StatementMixin):
     # Relationships
     politician = relationship("Politician", back_populates="properties")
     archived_page = relationship("ArchivedPage", back_populates="properties")
+    entity = relationship("WikidataEntity")
     evaluations = relationship(
-        "PropertyEvaluation", back_populates="property", cascade="all, delete-orphan"
+        "Evaluation", back_populates="property", cascade="all, delete-orphan"
     )
 
 
@@ -310,9 +262,6 @@ class Country(Base, TimestampMixin):
     iso_code = Column(String, index=True)  # ISO 3166-1 alpha-2 code
 
     # Relationships
-    citizens = relationship(
-        "HasCitizenship", back_populates="country", cascade="all, delete-orphan"
-    )
     wikidata_entity = relationship(
         "WikidataEntity", back_populates="country", lazy="joined"
     )
@@ -349,9 +298,6 @@ class Location(Base, TimestampMixin):
     embedding = Column(Vector(384), nullable=True)
 
     # Relationships
-    born_here = relationship(
-        "BornAt", back_populates="location", cascade="all, delete-orphan"
-    )
     wikidata_entity = relationship(
         "WikidataEntity", back_populates="location", lazy="joined"
     )
@@ -388,9 +334,6 @@ class Position(Base, TimestampMixin):
     embedding = Column(Vector(384), nullable=True)
 
     # Relationships
-    held_by = relationship(
-        "HoldsPosition", back_populates="position", cascade="all, delete-orphan"
-    )
     wikidata_entity = relationship(
         "WikidataEntity", back_populates="position", lazy="joined"
     )
@@ -414,141 +357,6 @@ class Position(Base, TimestampMixin):
         session.add(position)
 
         return position
-
-
-class HoldsPosition(Base, TimestampMixin, StatementMixin):
-    """HoldsPosition entity for politician-position relationships."""
-
-    __tablename__ = "holds_position"
-
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
-    politician_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("politicians.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    position_id = Column(String, ForeignKey("positions.wikidata_id"), nullable=False)
-    archived_page_id = Column(
-        UUID(as_uuid=True), ForeignKey("archived_pages.id"), nullable=True
-    )  # NULL for Wikidata imports, set for extracted data
-    proof_line = Column(
-        String, nullable=True
-    )  # NULL for Wikidata imports, set for extracted data
-
-    @hybrid_property
-    def is_extracted(self) -> bool:
-        """Check if this position was extracted from a web source."""
-        return self.archived_page_id is not None
-
-    @is_extracted.expression
-    def is_extracted(cls):
-        """SQL expression for is_extracted."""
-        return cls.archived_page_id.isnot(None)
-
-    # Constraints
-    __table_args__ = (
-        Index(
-            "uq_holds_position_statement_id",
-            "statement_id",
-            unique=True,
-            postgresql_where=Column("statement_id").isnot(None),
-        ),
-    )
-
-    # Relationships
-    politician = relationship("Politician", back_populates="positions_held")
-    position = relationship("Position", back_populates="held_by")
-    archived_page = relationship("ArchivedPage", back_populates="positions_held")
-    evaluations = relationship(
-        "PositionEvaluation",
-        back_populates="holds_position",
-        cascade="all, delete-orphan",
-    )
-
-
-class BornAt(Base, TimestampMixin, StatementMixin):
-    """BornAt entity for politician-location birth relationships."""
-
-    __tablename__ = "born_at"
-
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
-    politician_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("politicians.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    location_id = Column(String, ForeignKey("locations.wikidata_id"), nullable=False)
-    archived_page_id = Column(
-        UUID(as_uuid=True), ForeignKey("archived_pages.id"), nullable=True
-    )  # NULL for Wikidata imports, set for extracted data
-    proof_line = Column(
-        String, nullable=True
-    )  # NULL for Wikidata imports, set for extracted data
-
-    @hybrid_property
-    def is_extracted(self) -> bool:
-        """Check if this birthplace was extracted from a web source."""
-        return self.archived_page_id is not None
-
-    @is_extracted.expression
-    def is_extracted(cls):
-        """SQL expression for is_extracted."""
-        return cls.archived_page_id.isnot(None)
-
-    # Constraints
-    __table_args__ = (
-        Index(
-            "uq_born_at_statement_id",
-            "statement_id",
-            unique=True,
-            postgresql_where=Column("statement_id").isnot(None),
-        ),
-    )
-
-    # Relationships
-    politician = relationship("Politician", back_populates="birthplaces")
-    location = relationship("Location", back_populates="born_here")
-    archived_page = relationship("ArchivedPage", back_populates="birthplaces")
-    evaluations = relationship(
-        "BirthplaceEvaluation", back_populates="born_at", cascade="all, delete-orphan"
-    )
-
-
-class HasCitizenship(Base, TimestampMixin):
-    """HasCitizenship entity for politician-country citizenship relationships."""
-
-    __tablename__ = "has_citizenship"
-
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
-    politician_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("politicians.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    country_id = Column(
-        String, ForeignKey("countries.wikidata_id", ondelete="CASCADE"), nullable=False
-    )
-    statement_id = Column(String, nullable=True)
-
-    # Constraints
-    __table_args__ = (
-        Index(
-            "uq_has_citizenship_statement_id",
-            "statement_id",
-            unique=True,
-            postgresql_where=Column("statement_id").isnot(None),
-        ),
-    )
-
-    # Relationships
-    politician = relationship("Politician", back_populates="citizenships")
-    country = relationship("Country", back_populates="citizens")
 
 
 class WikidataDump(Base, TimestampMixin):
