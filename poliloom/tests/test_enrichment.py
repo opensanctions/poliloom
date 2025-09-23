@@ -32,7 +32,7 @@ class TestEnrichment:
         """Create a mock OpenAI client."""
         return Mock()
 
-    def test_extract_dates_success(self, mock_openai_client):
+    def test_extract_dates_success(self, mock_openai_client, sample_politician):
         """Test successful date extraction."""
         # Mock OpenAI response
         mock_parsed = Mock()
@@ -52,14 +52,9 @@ class TestEnrichment:
         mock_response.output_parsed = mock_parsed
         mock_openai_client.responses.parse.return_value = mock_response
 
-        # Create mock politician
-        mock_politician = Mock()
-        mock_politician.name = "Test Politician"
-        mock_politician.wikidata_id = "Q123456"
-        mock_politician.properties = []
-        mock_politician.citizenships = []
-
-        properties = extract_dates(mock_openai_client, "test content", mock_politician)
+        properties = extract_dates(
+            mock_openai_client, "test content", sample_politician
+        )
 
         assert properties is not None
         assert len(properties) == 2
@@ -67,29 +62,31 @@ class TestEnrichment:
         assert properties[0].value == "1970-01-15"
         assert properties[1].type == PropertyType.DEATH_DATE
 
-    def test_extract_dates_none_parsed(self, mock_openai_client):
+    def test_extract_dates_none_parsed(self, mock_openai_client, sample_politician):
         """Test date extraction when LLM returns None."""
         mock_response = Mock()
         mock_response.output_parsed = None
         mock_openai_client.responses.parse.return_value = mock_response
 
         properties = extract_dates(
-            mock_openai_client, "test content", "Test Politician"
+            mock_openai_client, "test content", sample_politician
         )
 
         assert properties is None
 
-    def test_extract_dates_exception(self, mock_openai_client):
+    def test_extract_dates_exception(self, mock_openai_client, sample_politician):
         """Test date extraction handles exceptions."""
         mock_openai_client.responses.parse.side_effect = Exception("API Error")
 
         properties = extract_dates(
-            mock_openai_client, "test content", "Test Politician"
+            mock_openai_client, "test content", sample_politician
         )
 
         assert properties is None
 
-    def test_extract_positions_success(self, mock_openai_client, db_session):
+    def test_extract_positions_success(
+        self, mock_openai_client, db_session, sample_politician
+    ):
         """Test successful position extraction and mapping."""
         # Create position in database
         Position.create_with_entity(
@@ -131,20 +128,13 @@ class TestEnrichment:
             mock_response2,
         ]
 
-        # Create mock politician
-        mock_politician = Mock()
-        mock_politician.name = "Test Politician"
-        mock_politician.wikidata_id = "Q123456"
-        mock_politician.properties = []  # Unified properties instead of separate relations
-        mock_politician.citizenships = []
-
         # Mock embedding generation
         with patch(
             "poliloom.enrichment.generate_embedding",
             return_value=[0.1] * 384,
         ):
             positions = extract_positions(
-                mock_openai_client, db_session, "test content", mock_politician
+                mock_openai_client, db_session, "test content", sample_politician
             )
 
         assert positions is not None
@@ -153,7 +143,9 @@ class TestEnrichment:
         assert positions[0].start_date == "2020"
         assert positions[0].end_date == "2024"
 
-    def test_extract_positions_no_results(self, mock_openai_client, db_session):
+    def test_extract_positions_no_results(
+        self, mock_openai_client, db_session, sample_politician
+    ):
         """Test position extraction with no results."""
         mock_parsed = Mock()
         mock_parsed.positions = []
@@ -161,20 +153,15 @@ class TestEnrichment:
         mock_response.output_parsed = mock_parsed
         mock_openai_client.responses.parse.return_value = mock_response
 
-        # Create mock politician
-        mock_politician = Mock()
-        mock_politician.name = "Test Politician"
-        mock_politician.wikidata_id = "Q123456"
-        mock_politician.properties = []  # Unified properties instead of separate relations
-        mock_politician.citizenships = []
-
         positions = extract_positions(
-            mock_openai_client, db_session, "test content", mock_politician
+            mock_openai_client, db_session, "test content", sample_politician
         )
 
         assert positions == []
 
-    def test_extract_birthplaces_success(self, mock_openai_client, db_session):
+    def test_extract_birthplaces_success(
+        self, mock_openai_client, db_session, sample_politician
+    ):
         """Test successful birthplace extraction and mapping."""
         # Create location in database
         Location.create_with_entity(
@@ -212,20 +199,13 @@ class TestEnrichment:
             mock_response2,
         ]
 
-        # Create mock politician
-        mock_politician = Mock()
-        mock_politician.name = "Test Politician"
-        mock_politician.wikidata_id = "Q123456"
-        mock_politician.properties = []  # Unified properties instead of separate relations
-        mock_politician.citizenships = []
-
         # Mock embedding generation
         with patch(
             "poliloom.enrichment.generate_embedding",
             return_value=[0.2] * 384,
         ):
             birthplaces = extract_birthplaces(
-                mock_openai_client, db_session, "test content", mock_politician
+                mock_openai_client, db_session, "test content", sample_politician
             )
 
         assert birthplaces is not None
