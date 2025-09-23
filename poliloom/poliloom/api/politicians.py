@@ -152,6 +152,8 @@ async def get_politicians(
                     end_date_precision=pos.end_date_precision,
                     proof_line=pos.proof_line,
                     statement_id=pos.statement_id,
+                    qualifiers=pos.qualifiers_json,
+                    references=pos.references_json,
                     archived_page=(
                         ArchivedPageResponse(
                             id=pos.archived_page.id,
@@ -175,6 +177,8 @@ async def get_politicians(
                     id=bp.id,
                     proof_line=bp.proof_line,
                     statement_id=bp.statement_id,
+                    qualifiers=bp.qualifiers_json,
+                    references=bp.references_json,
                     archived_page=(
                         ArchivedPageResponse(
                             id=bp.archived_page.id,

@@ -439,6 +439,7 @@ class HoldsPosition(Base, TimestampMixin):
     )  # NULL for Wikidata imports, set for extracted data
     statement_id = Column(String, nullable=True)
     qualifiers_json = Column(JSONB, nullable=True)  # Store all qualifiers as JSON
+    references_json = Column(JSONB, nullable=True)  # Store all references as JSON
 
     @hybrid_property
     def is_extracted(self) -> bool:
@@ -493,6 +494,7 @@ class BornAt(Base, TimestampMixin):
     )  # NULL for Wikidata imports, set for extracted data
     statement_id = Column(String, nullable=True)
     qualifiers_json = Column(JSONB, nullable=True)  # Store all qualifiers as JSON
+    references_json = Column(JSONB, nullable=True)  # Store all references as JSON
 
     @hybrid_property
     def is_extracted(self) -> bool:

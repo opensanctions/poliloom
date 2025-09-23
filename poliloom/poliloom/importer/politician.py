@@ -243,6 +243,7 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
                     "statement_id": pos["statement_id"],
                     "archived_page_id": None,
                     "qualifiers_json": pos.get("qualifiers_json"),
+                    "references_json": pos.get("references_json"),
                 }
                 for pos in politician_data.get("positions", [])
             ]
@@ -258,6 +259,7 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
                         "end_date": stmt.excluded.end_date,
                         "end_date_precision": stmt.excluded.end_date_precision,
                         "qualifiers_json": stmt.excluded.qualifiers_json,
+                        "references_json": stmt.excluded.references_json,
                     },
                 )
                 session.execute(stmt)
@@ -291,6 +293,7 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
                     "statement_id": birthplace["statement_id"],
                     "archived_page_id": None,
                     "qualifiers_json": birthplace.get("qualifiers_json"),
+                    "references_json": birthplace.get("references_json"),
                 }
                 for birthplace in politician_data.get("birthplaces", [])
             ]
@@ -428,6 +431,7 @@ def _process_politicians_chunk(
                         end_date = None
                         end_date_precision = None
                         qualifiers_json = None
+                        references_json = None
 
                         if "qualifiers" in claim:
                             # Store all qualifiers as JSON for data preservation
@@ -452,6 +456,10 @@ def _process_politicians_chunk(
                                         end_date = end_info.date
                                         end_date_precision = end_info.precision
 
+                        if "references" in claim:
+                            # Store all references as JSON for data preservation
+                            references_json = claim["references"]
+
                         # Create unique key for deduplication
                         position_key = (position_id, start_date, end_date)
                         if position_key not in seen_positions:
@@ -465,6 +473,7 @@ def _process_politicians_chunk(
                                     "end_date_precision": end_date_precision,
                                     "statement_id": claim["id"],
                                     "qualifiers_json": qualifiers_json,
+                                    "references_json": references_json,
                                 }
                             )
 
@@ -493,6 +502,8 @@ def _process_politicians_chunk(
                         birthplace_id = claim["mainsnak"]["datavalue"]["value"]["id"]
                         # Store all qualifiers as JSON for data preservation
                         qualifiers_json = claim.get("qualifiers")
+                        # Store all references as JSON for data preservation
+                        references_json = claim.get("references")
                         # Only include locations that are in our database
                         if (
                             shared_location_qids
@@ -503,6 +514,7 @@ def _process_politicians_chunk(
                                     "location_id": birthplace_id,
                                     "statement_id": claim["id"],
                                     "qualifiers_json": qualifiers_json,
+                                    "references_json": references_json,
                                 }
                             )
 

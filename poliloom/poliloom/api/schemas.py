@@ -1,6 +1,6 @@
 """Pydantic schemas for API responses."""
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, field_serializer
 from datetime import datetime
@@ -47,6 +47,8 @@ class PositionStatementResponse(UUIDBaseModel):
     proof_line: Optional[str] = None
     archived_page: Optional[ArchivedPageResponse] = None
     statement_id: Optional[str] = None
+    qualifiers: Optional[Dict[str, Any]] = None
+    references: Optional[List[Dict[str, Any]]] = None
 
 
 class BirthplaceStatementResponse(UUIDBaseModel):
@@ -56,6 +58,8 @@ class BirthplaceStatementResponse(UUIDBaseModel):
     proof_line: Optional[str] = None
     archived_page: Optional[ArchivedPageResponse] = None
     statement_id: Optional[str] = None
+    qualifiers: Optional[Dict[str, Any]] = None
+    references: Optional[List[Dict[str, Any]]] = None
 
 
 class PropertyResponse(UUIDBaseModel):
