@@ -156,6 +156,7 @@ class WikidataEntityProcessor:
             - parent_entity_id: The parent entity QID
             - child_entity_id: The current entity QID
             - relation_type: RelationType enum value
+            - statement_id: The Wikidata statement ID
         """
         from .models import RelationType
 
@@ -172,11 +173,13 @@ class WikidataEntityProcessor:
             for claim in claims:
                 try:
                     parent_id = claim["mainsnak"]["datavalue"]["value"]["id"]
+                    statement_id = claim["id"]
                     relations.append(
                         {
                             "parent_entity_id": parent_id,
                             "child_entity_id": entity_id,
                             "relation_type": relation_type,
+                            "statement_id": statement_id,
                         }
                     )
                 except (KeyError, TypeError):

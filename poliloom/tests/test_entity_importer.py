@@ -47,8 +47,16 @@ class TestWikidataEntityImporter:
         ]
 
         hierarchy_relations = [
-            {"parent_entity_id": "Q294414", "child_entity_id": "Q4164871"},
-            {"parent_entity_id": "Q27096213", "child_entity_id": "Q515"},
+            {
+                "parent_entity_id": "Q294414",
+                "child_entity_id": "Q4164871",
+                "statement_id": "Q4164871$test-statement-1",
+            },
+            {
+                "parent_entity_id": "Q27096213",
+                "child_entity_id": "Q515",
+                "statement_id": "Q515$test-statement-1",
+            },
         ]
 
         # Insert hierarchy data first
@@ -57,9 +65,7 @@ class TestWikidataEntityImporter:
         db_session.execute(stmt)
 
         stmt = insert(WikidataRelation).values(hierarchy_relations)
-        stmt = stmt.on_conflict_do_nothing(
-            index_elements=["parent_entity_id", "child_entity_id", "relation_type"]
-        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
         db_session.execute(stmt)
         db_session.commit()
 

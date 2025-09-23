@@ -114,30 +114,72 @@ class TestHasCitizenship:
         assert "Alice Smith" in politician_names
         assert "Bob Jones" in politician_names
 
-    def test_has_citizenship_prevents_duplicate_relationships(
+    def test_has_citizenship_prevents_duplicate_statement_ids(
         self, db_session, sample_politician, sample_country
     ):
-        """Test database constraints prevent duplicate citizenship relationships."""
+        """Test database constraints prevent duplicate statement_ids."""
         # Use fixture entities
         politician = sample_politician
         country = sample_country
 
-        # Create first citizenship
+        # Create first citizenship with statement_id
         citizenship1 = HasCitizenship(
-            politician_id=politician.id, country_id=country.wikidata_id
+            politician_id=politician.id,
+            country_id=country.wikidata_id,
+            statement_id="Q123$test-statement-1",
         )
         db_session.add(citizenship1)
         db_session.commit()
 
-        # Attempt to create duplicate
+        # Attempt to create another citizenship with same statement_id
         citizenship2 = HasCitizenship(
-            politician_id=politician.id, country_id=country.wikidata_id
+            politician_id=politician.id,
+            country_id=country.wikidata_id,
+            statement_id="Q123$test-statement-1",
         )
         db_session.add(citizenship2)
 
-        # Should raise IntegrityError due to unique constraint
+        # Should raise IntegrityError due to unique statement_id constraint
         with pytest.raises(IntegrityError):
             db_session.commit()
 
         # Clean up failed transaction
         db_session.rollback()
+
+    def test_has_citizenship_allows_multiple_with_different_statement_ids(
+        self, db_session, sample_politician, sample_country
+    ):
+        """Test that multiple citizenship records are allowed with different statement_ids."""
+        # Use fixture entities
+        politician = sample_politician
+        country = sample_country
+
+        # Create first citizenship with statement_id
+        citizenship1 = HasCitizenship(
+            politician_id=politician.id,
+            country_id=country.wikidata_id,
+            statement_id="Q123$statement-1",
+        )
+        # Create second citizenship with different statement_id (same politician-country)
+        citizenship2 = HasCitizenship(
+            politician_id=politician.id,
+            country_id=country.wikidata_id,
+            statement_id="Q123$statement-2",
+        )
+        # Create third citizenship without statement_id
+        citizenship3 = HasCitizenship(
+            politician_id=politician.id,
+            country_id=country.wikidata_id,
+            statement_id=None,
+        )
+
+        db_session.add_all([citizenship1, citizenship2, citizenship3])
+        db_session.commit()
+
+        # Verify all three citizenships exist
+        citizenships = (
+            db_session.query(HasCitizenship)
+            .filter_by(politician_id=politician.id, country_id=country.wikidata_id)
+            .all()
+        )
+        assert len(citizenships) == 3

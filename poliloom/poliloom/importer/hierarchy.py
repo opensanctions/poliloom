@@ -190,9 +190,7 @@ def _insert_wikidata_relations_batch(
     try:
         with Session(engine) as session:
             stmt = insert(WikidataRelation).values(wikidata_relations)
-            stmt = stmt.on_conflict_do_nothing(
-                index_elements=["parent_entity_id", "child_entity_id", "relation_type"]
-            )
+            stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
             session.execute(stmt)
             session.commit()
 

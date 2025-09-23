@@ -36,6 +36,7 @@ class TestWikidataHierarchyImporter:
                 "claims": {
                     "P279": [
                         {
+                            "id": "Q1$statement-1",
                             "mainsnak": {
                                 "snaktype": "value",
                                 "property": "P279",
@@ -50,6 +51,7 @@ class TestWikidataHierarchyImporter:
                     ],
                     "P31": [  # instance_of
                         {
+                            "id": "Q1$statement-2",
                             "mainsnak": {
                                 "snaktype": "value",
                                 "property": "P31",
@@ -61,7 +63,7 @@ class TestWikidataHierarchyImporter:
                             "type": "statement",
                             "rank": "normal",
                         }
-                    ]
+                    ],
                 },
             },
             {
@@ -71,6 +73,7 @@ class TestWikidataHierarchyImporter:
                 "claims": {
                     "P279": [
                         {
+                            "id": "Q3$statement-1",
                             "mainsnak": {
                                 "snaktype": "value",
                                 "property": "P279",
@@ -113,7 +116,7 @@ class TestWikidataHierarchyImporter:
 
             # Verify results
             assert entity_count == 2
-            
+
             # All parent IDs (from P279 and P31)
             assert "Q2" in parent_ids  # Parent from P279
             assert "Q100" in parent_ids  # Parent from P31
@@ -139,6 +142,7 @@ class TestWikidataHierarchyImporter:
                 "claims": {
                     "P279": [
                         {
+                            "id": "Q2$statement-complex-1",
                             "mainsnak": {
                                 "snaktype": "value",
                                 "property": "P279",
@@ -160,6 +164,7 @@ class TestWikidataHierarchyImporter:
                 "claims": {
                     "P279": [
                         {
+                            "id": "Q3$statement-complex-1",
                             "mainsnak": {
                                 "snaktype": "value",
                                 "property": "P279",
@@ -181,6 +186,7 @@ class TestWikidataHierarchyImporter:
                 "claims": {
                     "P279": [
                         {
+                            "id": "Q4$statement-complex-1",
                             "mainsnak": {
                                 "snaktype": "value",
                                 "property": "P279",
@@ -263,6 +269,7 @@ class TestWikidataHierarchyImporter:
                 "claims": {
                     "P279": [
                         {
+                            "id": "Q1$statement-malformed-1",
                             "mainsnak": {
                                 "snaktype": "value",
                                 "property": "P279",

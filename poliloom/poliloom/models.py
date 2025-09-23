@@ -699,6 +699,16 @@ class WikidataRelation(Base, TimestampMixin):
     relation_type = Column(
         SQLEnum(RelationType), primary_key=True, default=RelationType.SUBCLASS_OF
     )
+    statement_id = Column(String, nullable=False)
+
+    # Constraints
+    __table_args__ = (
+        Index(
+            "uq_wikidata_relations_statement_id",
+            "statement_id",
+            unique=True,
+        ),
+    )
 
     # Relationships
     parent_entity = relationship(

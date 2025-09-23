@@ -19,9 +19,21 @@ class TestWikidataEntity:
         ]
 
         test_relations = [
-            {"parent_entity_id": "Q1", "child_entity_id": "Q2"},
-            {"parent_entity_id": "Q2", "child_entity_id": "Q3"},
-            {"parent_entity_id": "Q1", "child_entity_id": "Q4"},
+            {
+                "parent_entity_id": "Q1",
+                "child_entity_id": "Q2",
+                "statement_id": "Q2$test-statement-1",
+            },
+            {
+                "parent_entity_id": "Q2",
+                "child_entity_id": "Q3",
+                "statement_id": "Q3$test-statement-1",
+            },
+            {
+                "parent_entity_id": "Q1",
+                "child_entity_id": "Q4",
+                "statement_id": "Q4$test-statement-1",
+            },
         ]
 
         # Insert test data
@@ -30,9 +42,7 @@ class TestWikidataEntity:
         db_session.execute(stmt)
 
         stmt = insert(WikidataRelation).values(test_relations)
-        stmt = stmt.on_conflict_do_nothing(
-            index_elements=["parent_entity_id", "child_entity_id", "relation_type"]
-        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
         db_session.execute(stmt)
         db_session.commit()
 
@@ -70,10 +80,26 @@ class TestWikidataEntity:
         ]
 
         test_relations = [
-            {"parent_entity_id": "Q1", "child_entity_id": "Q2"},
-            {"parent_entity_id": "Q1", "child_entity_id": "Q3"},
-            {"parent_entity_id": "Q2", "child_entity_id": "Q4"},
-            {"parent_entity_id": "Q2", "child_entity_id": "Q5"},
+            {
+                "parent_entity_id": "Q1",
+                "child_entity_id": "Q2",
+                "statement_id": "Q2$test-statement-2",
+            },
+            {
+                "parent_entity_id": "Q1",
+                "child_entity_id": "Q3",
+                "statement_id": "Q3$test-statement-2",
+            },
+            {
+                "parent_entity_id": "Q2",
+                "child_entity_id": "Q4",
+                "statement_id": "Q4$test-statement-2",
+            },
+            {
+                "parent_entity_id": "Q2",
+                "child_entity_id": "Q5",
+                "statement_id": "Q5$test-statement-2",
+            },
         ]
 
         stmt = insert(WikidataEntity).values(test_classes)
@@ -81,9 +107,7 @@ class TestWikidataEntity:
         db_session.execute(stmt)
 
         stmt = insert(WikidataRelation).values(test_relations)
-        stmt = stmt.on_conflict_do_nothing(
-            index_elements=["parent_entity_id", "child_entity_id", "relation_type"]
-        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
         db_session.execute(stmt)
         db_session.commit()
 
@@ -109,11 +133,13 @@ class TestWikidataEntity:
                 "parent_entity_id": "Q1",
                 "child_entity_id": "Q2",
                 "relation_type": RelationType.SUBCLASS_OF,
+                "statement_id": "Q2$test-statement-3",
             },
             {
                 "parent_entity_id": "Q1",
                 "child_entity_id": "Q3",
                 "relation_type": RelationType.INSTANCE_OF,
+                "statement_id": "Q3$test-statement-3",
             },
         ]
 
@@ -122,9 +148,7 @@ class TestWikidataEntity:
         db_session.execute(stmt)
 
         stmt = insert(WikidataRelation).values(test_relations)
-        stmt = stmt.on_conflict_do_nothing(
-            index_elements=["parent_entity_id", "child_entity_id", "relation_type"]
-        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
         db_session.execute(stmt)
         db_session.commit()
 
