@@ -244,15 +244,11 @@ def extract_dates(
 
         validation_focus = ""
         # Check if politician has existing date properties to provide validation context
-        existing_date_properties = (
-            [
-                prop
-                for prop in politician.properties
-                if prop.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]
-            ]
-            if hasattr(politician, "properties") and politician.properties
-            else []
-        )
+        existing_date_properties = [
+            prop
+            for prop in politician.properties
+            if prop.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]
+        ]
 
         if existing_date_properties:
             validation_focus = """
@@ -333,14 +329,8 @@ def extract_positions(
 
         position_analysis_focus = ""
         # Check if politician has existing position properties to provide analysis context
-        existing_position_properties = (
-            [
-                prop
-                for prop in politician.properties
-                if prop.type == PropertyType.POSITION
-            ]
-            if hasattr(politician, "properties") and politician.properties
-            else []
+        existing_position_properties = politician.get_properties_by_type(
+            PropertyType.POSITION
         )
 
         if existing_position_properties:
@@ -495,14 +485,8 @@ def extract_birthplaces(
 
         birthplace_analysis_focus = ""
         # Check if politician has existing birthplace properties to provide analysis context
-        existing_birthplace_properties = (
-            [
-                prop
-                for prop in politician.properties
-                if prop.type == PropertyType.BIRTHPLACE
-            ]
-            if hasattr(politician, "properties") and politician.properties
-            else []
+        existing_birthplace_properties = politician.get_properties_by_type(
+            PropertyType.BIRTHPLACE
         )
 
         if existing_birthplace_properties:
@@ -652,7 +636,7 @@ def build_politician_context_xml(
     """Build comprehensive politician context as XML structure for LLM prompts.
 
     Args:
-        politician: Politician model instance
+        politician: Politician model instance with preloaded data
         focus_property_types: Optional list of PropertyType values to include in context.
                             If None, includes all available properties.
 
@@ -667,130 +651,65 @@ def build_politician_context_xml(
         f"<wikidata_id>{politician.wikidata_id}</wikidata_id>",
     ]
 
-    # Add citizenship information if available
-    if hasattr(politician, "citizenships") and politician.citizenships:
-        countries = [
-            citizenship.country.name
-            for citizenship in politician.citizenships
-            if citizenship.country and citizenship.country.name
-        ]
-        if countries:
-            basic_info.append(f"<citizenships>{', '.join(countries)}</citizenships>")
+    # Add citizenship information
+    citizenship_names = politician.get_citizenship_names()
+    if citizenship_names:
+        basic_info.append(
+            f"<citizenships>{', '.join(citizenship_names)}</citizenships>"
+        )
 
     context_sections.append(
         f"<politician_info>\n    {chr(10).join(['    ' + info for info in basic_info])}\n</politician_info>"
     )
 
     # Add existing Wikidata properties based on focus or all available
-    if hasattr(politician, "properties") and politician.properties:
-        # Filter properties based on focus_property_types if specified
-        if focus_property_types:
-            relevant_properties = [
-                prop
-                for prop in politician.properties
-                if prop.type in focus_property_types
+    if politician.properties:
+        # Filter focus types if specified
+        relevant_types = (
+            focus_property_types
+            if focus_property_types
+            else [
+                PropertyType.BIRTH_DATE,
+                PropertyType.DEATH_DATE,
+                PropertyType.POSITION,
+                PropertyType.BIRTHPLACE,
             ]
-        else:
-            relevant_properties = politician.properties
-
-        # Group properties by type for organized output
-        date_properties = []
-        position_properties = []
-        birthplace_properties = []
-        citizenship_properties = []
-
-        for prop in relevant_properties:
-            if prop.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
-                date_properties.append(prop)
-            elif prop.type == PropertyType.POSITION:
-                position_properties.append(prop)
-            elif prop.type == PropertyType.BIRTHPLACE:
-                birthplace_properties.append(prop)
-            elif prop.type == PropertyType.CITIZENSHIP:
-                citizenship_properties.append(prop)
+        )
 
         # Add date properties section
-        if date_properties:
-            date_items = [
-                f"- {prop.type.value}: {prop.value}" for prop in date_properties
-            ]
-            context_sections.append(f"""<existing_wikidata>
-{chr(10).join(date_items)}
-</existing_wikidata>""")
+        if any(
+            t in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]
+            for t in relevant_types
+        ):
+            date_items = politician.get_date_properties_formatted()
+            if date_items:
+                context_sections.append(
+                    f"""<existing_wikidata>
+{chr(10).join([f"- {item}" for item in date_items])}
+</existing_wikidata>"""
+                )
 
         # Add positions section
-        if position_properties:
-            position_items = []
-            for prop in position_properties:
-                date_range = _extract_date_range_from_qualifiers(prop.qualifiers_json)
-                position_name = prop.entity_id  # Could be improved with joins
-                position_items.append(f"- {position_name}{date_range}")
-
-            context_sections.append(f"""<existing_wikidata_positions>
-{chr(10).join(position_items)}
-</existing_wikidata_positions>""")
+        if PropertyType.POSITION in relevant_types:
+            position_items = politician.get_position_names_with_dates()
+            if position_items:
+                context_sections.append(
+                    f"""<existing_wikidata_positions>
+{chr(10).join([f"- {item}" for item in position_items])}
+</existing_wikidata_positions>"""
+                )
 
         # Add birthplaces section
-        if birthplace_properties:
-            birthplace_items = [f"- {prop.entity_id}" for prop in birthplace_properties]
-            context_sections.append(f"""<existing_wikidata_birthplaces>
-{chr(10).join(birthplace_items)}
-</existing_wikidata_birthplaces>""")
-
-        # Add citizenships section
-        if citizenship_properties:
-            citizenship_items = [
-                f"- {prop.entity_id}" for prop in citizenship_properties
-            ]
-            context_sections.append(f"""<existing_wikidata_citizenships>
-{chr(10).join(citizenship_items)}
-</existing_wikidata_citizenships>""")
+        if PropertyType.BIRTHPLACE in relevant_types:
+            birthplace_items = politician.get_birthplace_names()
+            if birthplace_items:
+                context_sections.append(
+                    f"""<existing_wikidata_birthplaces>
+{chr(10).join([f"- {item}" for item in birthplace_items])}
+</existing_wikidata_birthplaces>"""
+                )
 
     return chr(10).join(context_sections)
-
-
-def _extract_date_range_from_qualifiers(qualifiers_json):
-    """Extract formatted date range from qualifiers_json.
-
-    Args:
-        qualifiers_json: Dict containing Wikidata qualifiers
-
-    Returns:
-        Formatted date range string like " (2020 - 2023)" or empty string
-    """
-    if not qualifiers_json:
-        return ""
-
-    start_date = None
-    end_date = None
-
-    # Extract P580 (start date) and P582 (end date) from qualifiers
-    if "P580" in qualifiers_json:
-        start_qual = qualifiers_json["P580"][0]
-        if "datavalue" in start_qual and "value" in start_qual["datavalue"]:
-            time_val = start_qual["datavalue"]["value"]["time"]
-            # Parse time format like "+2020-01-00T00:00:00Z"
-            if time_val.startswith("+"):
-                start_date = time_val[1:5]  # Extract year
-
-    if "P582" in qualifiers_json:
-        end_qual = qualifiers_json["P582"][0]
-        if "datavalue" in end_qual and "value" in end_qual["datavalue"]:
-            time_val = end_qual["datavalue"]["value"]["time"]
-            if time_val.startswith("+"):
-                end_date = time_val[1:5]  # Extract year
-
-    if start_date:
-        date_range = f" ({start_date}"
-        if end_date:
-            date_range += f" - {end_date})"
-        else:
-            date_range += " - present)"
-        return date_range
-    elif end_date:
-        return f" (until {end_date})"
-
-    return ""
 
 
 def build_entity_description(entity) -> str:
@@ -1008,7 +927,11 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
     Enrich a politician's data by extracting information from their Wikipedia sources.
 
     Args:
-        politician: The Politician model instance to enrich
+        politician: The Politician model instance to enrich. Must have the following
+                   relationships pre-loaded using selectinload():
+                   - wikidata_entity
+                   - properties (with entity and parent_relations)
+                   - wikipedia_links
 
     Raises:
         ValueError: If politician has no Wikipedia links or no English Wikipedia link
@@ -1017,9 +940,6 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
 
     with Session(get_engine()) as db:
         try:
-            # Merge the politician into this session
-            politician = db.merge(politician)
-
             if not politician.wikipedia_links:
                 raise ValueError(
                     f"No Wikipedia links found for politician {politician.name}"

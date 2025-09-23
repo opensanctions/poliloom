@@ -3,7 +3,7 @@
 import asyncio
 import click
 import logging
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from datetime import datetime, timezone
 import httpx
 from typing import Optional
@@ -24,6 +24,8 @@ from poliloom.models import (
     Location,
     Property,
     WikidataDump,
+    WikidataEntity,
+    WikidataRelation,
 )
 
 # Configure logging
@@ -273,6 +275,17 @@ def enrich_wikipedia(limit: Optional[int]) -> None:
         with Session(get_engine()) as session:
             query = (
                 session.query(Politician)
+                .options(
+                    # Load the politician's wikidata entity
+                    selectinload(Politician.wikidata_entity),
+                    # Load all properties with their related entities and relations
+                    selectinload(Politician.properties)
+                    .selectinload(Property.entity)
+                    .selectinload(WikidataEntity.parent_relations)
+                    .selectinload(WikidataRelation.parent_entity),
+                    # Load Wikipedia links
+                    selectinload(Politician.wikipedia_links),
+                )
                 .filter(Politician.wikipedia_links.any(language_code="en"))
                 .order_by(Politician.enriched_at.asc().nullsfirst())
             )
