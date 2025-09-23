@@ -357,6 +357,155 @@ class TestWikidataPoliticianImporter:
         wiki_languages = {w.language_code for w in wiki_links}
         assert wiki_languages == {"en", "fr"}
 
+    def test_insert_politicians_batch_with_qualifiers_json(self, db_session):
+        """Test inserting politicians with qualifiers JSON data preservation."""
+        # First create the required related entities
+        Position.create_with_entity(db_session, "Q30185", "Mayor")
+        Location.create_with_entity(db_session, "Q60", "New York City")
+        db_session.commit()
+
+        # Test qualifiers data that should be preserved
+        position_qualifiers = {
+            "P4100": [  # political party
+                {
+                    "snaktype": "value",
+                    "property": "P4100",
+                    "datavalue": {
+                        "value": {"entity-type": "item", "id": "Q6365037"},
+                        "type": "wikibase-entityid",
+                    },
+                }
+            ],
+            "P768": [  # electoral district
+                {
+                    "snaktype": "value",
+                    "property": "P768",
+                    "datavalue": {
+                        "value": {"entity-type": "item", "id": "Q123456"},
+                        "type": "wikibase-entityid",
+                    },
+                }
+            ],
+            "P580": [  # start time (we also process this specifically)
+                {
+                    "snaktype": "value",
+                    "property": "P580",
+                    "datavalue": {
+                        "value": {
+                            "time": "+2020-01-01T00:00:00Z",
+                            "timezone": 0,
+                            "before": 0,
+                            "after": 0,
+                            "precision": 11,
+                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                        },
+                        "type": "time",
+                    },
+                }
+            ],
+        }
+
+        birthplace_qualifiers = {
+            "P585": [  # point in time
+                {
+                    "snaktype": "value",
+                    "property": "P585",
+                    "datavalue": {
+                        "value": {
+                            "time": "+1970-01-01T00:00:00Z",
+                            "timezone": 0,
+                            "before": 0,
+                            "after": 0,
+                            "precision": 11,
+                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                        },
+                        "type": "time",
+                    },
+                }
+            ],
+            "P1480": [  # sourcing circumstances
+                {
+                    "snaktype": "value",
+                    "property": "P1480",
+                    "datavalue": {
+                        "value": {"entity-type": "item", "id": "Q5727902"},
+                        "type": "wikibase-entityid",
+                    },
+                }
+            ],
+        }
+
+        politicians = [
+            {
+                "wikidata_id": "Q1",
+                "name": "John Doe",
+                "properties": [],
+                "citizenships": [],
+                "positions": [
+                    {
+                        "wikidata_id": "Q30185",
+                        "start_date": "2020-01-01",
+                        "start_date_precision": 11,
+                        "end_date": None,
+                        "end_date_precision": None,
+                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C81",
+                        "qualifiers_json": position_qualifiers,
+                    }
+                ],
+                "birthplaces": [
+                    {
+                        "location_id": "Q60",
+                        "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C83",
+                        "qualifiers_json": birthplace_qualifiers,
+                    }
+                ],
+                "wikipedia_links": [],
+            }
+        ]
+
+        _insert_politicians_batch(politicians, get_engine())
+
+        # Verify politician was created
+        politician = (
+            db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
+        )
+        assert politician is not None
+
+        # Check position with qualifiers_json
+        positions = (
+            db_session.query(HoldsPosition)
+            .filter(HoldsPosition.politician_id == politician.id)
+            .all()
+        )
+        assert len(positions) == 1
+        position = positions[0]
+        assert position.position.wikidata_id == "Q30185"
+        assert position.start_date == "2020-01-01"
+        assert position.qualifiers_json is not None
+
+        # Verify all qualifier properties are preserved
+        qualifiers = position.qualifiers_json
+        assert "P4100" in qualifiers  # political party
+        assert "P768" in qualifiers  # electoral district
+        assert "P580" in qualifiers  # start time
+        assert qualifiers["P4100"][0]["datavalue"]["value"]["id"] == "Q6365037"
+        assert qualifiers["P768"][0]["datavalue"]["value"]["id"] == "Q123456"
+
+        # Check birthplace with qualifiers_json
+        birthplaces = (
+            db_session.query(BornAt).filter(BornAt.politician_id == politician.id).all()
+        )
+        assert len(birthplaces) == 1
+        birthplace = birthplaces[0]
+        assert birthplace.location.wikidata_id == "Q60"
+        assert birthplace.qualifiers_json is not None
+
+        # Verify all qualifier properties are preserved
+        bp_qualifiers = birthplace.qualifiers_json
+        assert "P585" in bp_qualifiers  # point in time
+        assert "P1480" in bp_qualifiers  # sourcing circumstances
+        assert bp_qualifiers["P1480"][0]["datavalue"]["value"]["id"] == "Q5727902"
+
 
 class TestIsPolitician:
     """Test the _is_politician helper function."""

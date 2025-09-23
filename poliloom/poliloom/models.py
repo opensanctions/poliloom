@@ -17,7 +17,7 @@ from sqlalchemy import (
     Enum as SQLEnum,
 )
 from sqlalchemy.orm import Session
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy import event
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -438,6 +438,7 @@ class HoldsPosition(Base, TimestampMixin):
         String, nullable=True
     )  # NULL for Wikidata imports, set for extracted data
     statement_id = Column(String, nullable=True)
+    qualifiers_json = Column(JSONB, nullable=True)  # Store all qualifiers as JSON
 
     @hybrid_property
     def is_extracted(self) -> bool:
@@ -491,6 +492,7 @@ class BornAt(Base, TimestampMixin):
         String, nullable=True
     )  # NULL for Wikidata imports, set for extracted data
     statement_id = Column(String, nullable=True)
+    qualifiers_json = Column(JSONB, nullable=True)  # Store all qualifiers as JSON
 
     @hybrid_property
     def is_extracted(self) -> bool:
