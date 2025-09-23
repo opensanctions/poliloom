@@ -30,6 +30,45 @@ from .wikidata_date import WikidataDate
 
 logger = logging.getLogger(__name__)
 
+
+def create_qualifiers_json_for_position(
+    start_date: Optional[str], end_date: Optional[str]
+) -> Optional[dict]:
+    """Create qualifiers_json for a position with start and end dates using WikidataDate."""
+    if not start_date and not end_date:
+        return None
+
+    qualifiers_json = {}
+
+    # Add start date (P580)
+    if start_date:
+        wikidata_date = WikidataDate.from_date_string(start_date)
+        if wikidata_date:
+            wikidata_value = wikidata_date.to_wikidata_value()
+            qualifiers_json["P580"] = [
+                {
+                    "datatype": "time",
+                    "snaktype": "value",
+                    "datavalue": {"type": "time", "value": wikidata_value["content"]},
+                }
+            ]
+
+    # Add end date (P582)
+    if end_date:
+        wikidata_date = WikidataDate.from_date_string(end_date)
+        if wikidata_date:
+            wikidata_value = wikidata_date.to_wikidata_value()
+            qualifiers_json["P582"] = [
+                {
+                    "datatype": "time",
+                    "snaktype": "value",
+                    "datavalue": {"type": "time", "value": wikidata_value["content"]},
+                }
+            ]
+
+    return qualifiers_json if qualifiers_json else None
+
+
 # Global cached embedding model
 _embedding_model = None
 
@@ -1065,85 +1104,35 @@ def store_extracted_data(
                         )
                         continue
 
-                    # Check for overlapping position timeframes
-                    all_existing_holds = (
-                        db.query(HoldsPosition)
-                        .filter_by(
-                            politician_id=politician.id,
-                            position_id=position.wikidata_id,
-                        )
-                        .all()
+                    # Create qualifiers_json with dates
+                    qualifiers_json = create_qualifiers_json_for_position(
+                        position_data.start_date, position_data.end_date
                     )
 
-                    overlapping_hold = None
+                    # Always add as new record (no more automatic merging)
+                    holds_position = HoldsPosition(
+                        politician_id=politician.id,
+                        position_id=position.wikidata_id,
+                        qualifiers_json=qualifiers_json,
+                        archived_page_id=archived_page.id,
+                        proof_line=position_data.proof,
+                    )
+                    db.add(holds_position)
+                    db.flush()
 
-                    for existing_hold in all_existing_holds:
-                        # Check if the date ranges could refer to the same time period
-                        if WikidataDate.dates_could_be_same(
-                            existing_hold.start_date, position_data.start_date
-                        ) and WikidataDate.dates_could_be_same(
-                            existing_hold.end_date, position_data.end_date
-                        ):
-                            overlapping_hold = existing_hold
-                            break
-
-                    if overlapping_hold:
-                        # Dates could be the same - use precision to decide
-                        new_prec = WikidataDate.get_date_precision(
-                            position_data.start_date
-                        ) + WikidataDate.get_date_precision(position_data.end_date)
-                        existing_prec = WikidataDate.get_date_precision(
-                            overlapping_hold.start_date
-                        ) + WikidataDate.get_date_precision(overlapping_hold.end_date)
-
-                        if new_prec > existing_prec:
-                            # New data has higher precision - update existing record
-                            old_range = f"{overlapping_hold.start_date or 'unknown'}-{overlapping_hold.end_date or 'present'}"
-                            new_range = f"{position_data.start_date or 'unknown'}-{position_data.end_date or 'present'}"
-
-                            overlapping_hold.start_date = position_data.start_date
-                            overlapping_hold.end_date = position_data.end_date
-                            overlapping_hold.archived_page_id = archived_page.id
-                            overlapping_hold.proof_line = position_data.proof
-                            db.flush()
-
-                            logger.info(
-                                f"Updated position with higher precision: '{position.name}' ({position.wikidata_id}) "
-                                f"from ({old_range}) to ({new_range}) for {politician.name}"
-                            )
+                    date_range = ""
+                    if position_data.start_date:
+                        date_range = f" ({position_data.start_date}"
+                        if position_data.end_date:
+                            date_range += f" - {position_data.end_date})"
                         else:
-                            # Existing data has equal or higher precision - skip new data
-                            logger.info(
-                                f"Skipped position with equal/lower precision: '{position.name}' ({position.wikidata_id}) "
-                                f"({position_data.start_date or 'unknown'}-{position_data.end_date or 'present'}) "
-                                f"for {politician.name}"
-                            )
-                    else:
-                        # No overlap, add as new record
-                        holds_position = HoldsPosition(
-                            politician_id=politician.id,
-                            position_id=position.wikidata_id,
-                            start_date=position_data.start_date,
-                            end_date=position_data.end_date,
-                            archived_page_id=archived_page.id,
-                            proof_line=position_data.proof,
-                        )
-                        db.add(holds_position)
-                        db.flush()
+                            date_range += " - present)"
+                    elif position_data.end_date:
+                        date_range = f" (until {position_data.end_date})"
 
-                        date_range = ""
-                        if position_data.start_date:
-                            date_range = f" ({position_data.start_date}"
-                            if position_data.end_date:
-                                date_range += f" - {position_data.end_date})"
-                            else:
-                                date_range += " - present)"
-                        elif position_data.end_date:
-                            date_range = f" (until {position_data.end_date})"
-
-                        logger.info(
-                            f"Added new position: '{position.name}' ({position.wikidata_id}){date_range} for {politician.name}"
-                        )
+                    logger.info(
+                        f"Added new position: '{position.name}' ({position.wikidata_id}){date_range} for {politician.name}"
+                    )
 
         # Store birthplaces - only link to existing locations
         if birthplaces:

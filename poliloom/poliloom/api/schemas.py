@@ -40,10 +40,6 @@ class PositionStatementResponse(UUIDBaseModel):
     """Schema for position statements (holds_position relationships)."""
 
     id: UUID
-    start_date: Optional[str] = None
-    start_date_precision: Optional[int] = None
-    end_date: Optional[str] = None
-    end_date_precision: Optional[int] = None
     proof_line: Optional[str] = None
     archived_page: Optional[ArchivedPageResponse] = None
     statement_id: Optional[str] = None

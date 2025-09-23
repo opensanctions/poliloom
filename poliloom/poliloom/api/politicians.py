@@ -135,21 +135,14 @@ async def get_politicians(
                 )
                 properties_by_type[prop.type].append(statement)
 
-            # Group positions by entity (sorted by start_date for chronological order)
+            # Group positions by entity
             positions_by_entity = {}
-            for pos in sorted(
-                politician.positions_held,
-                key=lambda x: (x.start_date or "", x.end_date or ""),
-            ):
+            for pos in politician.positions_held:
                 key = (pos.position.wikidata_id, pos.position.name)
                 if key not in positions_by_entity:
                     positions_by_entity[key] = []
                 statement = PositionStatementResponse(
                     id=pos.id,
-                    start_date=pos.start_date,
-                    start_date_precision=pos.start_date_precision,
-                    end_date=pos.end_date,
-                    end_date_precision=pos.end_date_precision,
                     proof_line=pos.proof_line,
                     statement_id=pos.statement_id,
                     qualifiers=pos.qualifiers_json,

@@ -269,18 +269,82 @@ class TestWikidataPoliticianImporter:
                 "positions": [
                     {
                         "wikidata_id": "Q30185",
-                        "start_date": "2020-01-01",
-                        "start_date_precision": 11,
-                        "end_date": "2024-01-01",
-                        "end_date_precision": 11,
+                        "qualifiers_json": {
+                            "P580": [
+                                {
+                                    "datatype": "time",
+                                    "snaktype": "value",
+                                    "datavalue": {
+                                        "type": "time",
+                                        "value": {
+                                            "time": "+2020-01-01T00:00:00Z",
+                                            "after": 0,
+                                            "before": 0,
+                                            "timezone": 0,
+                                            "precision": 11,
+                                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                                        },
+                                    },
+                                }
+                            ],
+                            "P582": [
+                                {
+                                    "datatype": "time",
+                                    "snaktype": "value",
+                                    "datavalue": {
+                                        "type": "time",
+                                        "value": {
+                                            "time": "+2024-01-01T00:00:00Z",
+                                            "after": 0,
+                                            "before": 0,
+                                            "timezone": 0,
+                                            "precision": 11,
+                                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                                        },
+                                    },
+                                }
+                            ],
+                        },
                         "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C81",
                     },
                     {
                         "wikidata_id": "Q11696",
-                        "start_date": "2018-01-01",
-                        "start_date_precision": 11,
-                        "end_date": "2020-01-01",
-                        "end_date_precision": 11,
+                        "qualifiers_json": {
+                            "P580": [
+                                {
+                                    "datatype": "time",
+                                    "snaktype": "value",
+                                    "datavalue": {
+                                        "type": "time",
+                                        "value": {
+                                            "time": "+2018-01-01T00:00:00Z",
+                                            "after": 0,
+                                            "before": 0,
+                                            "timezone": 0,
+                                            "precision": 11,
+                                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                                        },
+                                    },
+                                }
+                            ],
+                            "P582": [
+                                {
+                                    "datatype": "time",
+                                    "snaktype": "value",
+                                    "datavalue": {
+                                        "type": "time",
+                                        "value": {
+                                            "time": "+2020-01-01T00:00:00Z",
+                                            "after": 0,
+                                            "before": 0,
+                                            "timezone": 0,
+                                            "precision": 11,
+                                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                                        },
+                                    },
+                                }
+                            ],
+                        },
                         "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C82",
                     },
                 ],
@@ -447,10 +511,6 @@ class TestWikidataPoliticianImporter:
                 "positions": [
                     {
                         "wikidata_id": "Q30185",
-                        "start_date": "2020-01-01",
-                        "start_date_precision": 11,
-                        "end_date": None,
-                        "end_date_precision": None,
                         "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C81",
                         "qualifiers_json": position_qualifiers,
                     }
@@ -483,7 +543,6 @@ class TestWikidataPoliticianImporter:
         assert len(positions) == 1
         position = positions[0]
         assert position.position.wikidata_id == "Q30185"
-        assert position.start_date == "2020-01-01"
         assert position.qualifiers_json is not None
 
         # Verify all qualifier properties are preserved

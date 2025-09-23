@@ -14,6 +14,7 @@ from poliloom.models import (
     ArchivedPage,
     Base,
     Country,
+    HoldsPosition,
     Location,
     Politician,
     Position,
@@ -179,3 +180,55 @@ def sample_wikipedia_link(db_session, sample_politician):
     db_session.commit()
     db_session.refresh(wikipedia_link)
     return wikipedia_link
+
+
+@pytest.fixture
+def sample_holds_position(db_session, sample_politician, sample_position):
+    """Return a created and committed HoldsPosition entity with qualifiers_json."""
+    # Create qualifiers_json with start and end dates
+    qualifiers_json = {
+        "P580": [
+            {
+                "datatype": "time",
+                "snaktype": "value",
+                "datavalue": {
+                    "type": "time",
+                    "value": {
+                        "time": "+2020-01-00T00:00:00Z",
+                        "after": 0,
+                        "before": 0,
+                        "timezone": 0,
+                        "precision": 10,
+                        "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                    },
+                },
+            }
+        ],
+        "P582": [
+            {
+                "datatype": "time",
+                "snaktype": "value",
+                "datavalue": {
+                    "type": "time",
+                    "value": {
+                        "time": "+2023-12-31T00:00:00Z",
+                        "after": 0,
+                        "before": 0,
+                        "timezone": 0,
+                        "precision": 11,
+                        "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                    },
+                },
+            }
+        ],
+    }
+
+    holds_position = HoldsPosition(
+        politician_id=sample_politician.id,
+        position_id=sample_position.wikidata_id,
+        qualifiers_json=qualifiers_json,
+    )
+    db_session.add(holds_position)
+    db_session.commit()
+    db_session.refresh(holds_position)
+    return holds_position

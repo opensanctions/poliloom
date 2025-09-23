@@ -103,8 +103,42 @@ def politician_with_unevaluated_data(
     extracted_position = HoldsPosition(
         politician_id=politician.id,
         position_id=position.wikidata_id,
-        start_date="2020",
-        end_date="2024",
+        qualifiers_json={
+            "P580": [
+                {
+                    "datatype": "time",
+                    "snaktype": "value",
+                    "datavalue": {
+                        "type": "time",
+                        "value": {
+                            "time": "+2020-01-01T00:00:00Z",
+                            "after": 0,
+                            "before": 0,
+                            "timezone": 0,
+                            "precision": 9,
+                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                        },
+                    },
+                }
+            ],
+            "P582": [
+                {
+                    "datatype": "time",
+                    "snaktype": "value",
+                    "datavalue": {
+                        "type": "time",
+                        "value": {
+                            "time": "+2024-01-01T00:00:00Z",
+                            "after": 0,
+                            "before": 0,
+                            "timezone": 0,
+                            "precision": 9,
+                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                        },
+                    },
+                }
+            ],
+        },
         archived_page_id=archived_page.id,
         proof_line="Served as Mayor from 2020 to 2024",
     )
@@ -127,8 +161,42 @@ def politician_with_unevaluated_data(
     wikidata_position = HoldsPosition(
         politician_id=politician.id,
         position_id=position.wikidata_id,
-        start_date="2018",
-        end_date="2020",
+        qualifiers_json={
+            "P580": [
+                {
+                    "datatype": "time",
+                    "snaktype": "value",
+                    "datavalue": {
+                        "type": "time",
+                        "value": {
+                            "time": "+2018-01-01T00:00:00Z",
+                            "after": 0,
+                            "before": 0,
+                            "timezone": 0,
+                            "precision": 9,
+                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                        },
+                    },
+                }
+            ],
+            "P582": [
+                {
+                    "datatype": "time",
+                    "snaktype": "value",
+                    "datavalue": {
+                        "type": "time",
+                        "value": {
+                            "time": "+2020-01-01T00:00:00Z",
+                            "after": 0,
+                            "before": 0,
+                            "timezone": 0,
+                            "precision": 9,
+                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                        },
+                    },
+                }
+            ],
+        },
         archived_page_id=None,  # This makes it Wikidata data
     )
 
@@ -222,7 +290,25 @@ def politician_with_only_wikidata(db_session):
     wikidata_position = HoldsPosition(
         politician_id=politician.id,
         position_id=position.wikidata_id,
-        start_date="2016",
+        qualifiers_json={
+            "P580": [
+                {
+                    "datatype": "time",
+                    "snaktype": "value",
+                    "datavalue": {
+                        "type": "time",
+                        "value": {
+                            "time": "+2016-01-01T00:00:00Z",
+                            "after": 0,
+                            "before": 0,
+                            "timezone": 0,
+                            "precision": 9,
+                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                        },
+                    },
+                }
+            ]
+        },
         archived_page_id=None,  # This makes it Wikidata data
         statement_id="Q345678$87654321-4321-4321-4321-210987654321",  # Wikidata statement ID
     )
@@ -462,7 +548,25 @@ class TestGetPoliticiansEndpoint:
         unevaluated_pos = HoldsPosition(
             politician_id=politician.id,
             position_id=position.wikidata_id,
-            start_date="2020",
+            qualifiers_json={
+                "P580": [
+                    {
+                        "datatype": "time",
+                        "snaktype": "value",
+                        "datavalue": {
+                            "type": "time",
+                            "value": {
+                                "time": "+2020-01-01T00:00:00Z",
+                                "after": 0,
+                                "before": 0,
+                                "timezone": 0,
+                                "precision": 9,
+                                "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                            },
+                        },
+                    }
+                ]
+            },
             archived_page_id=archived_page.id,
         )
 

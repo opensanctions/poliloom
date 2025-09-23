@@ -5,7 +5,6 @@ from poliloom.models import (
     Property,
     PropertyType,
     PropertyEvaluation,
-    HoldsPosition,
     PositionEvaluation,
     BornAt,
     BirthplaceEvaluation,
@@ -103,24 +102,11 @@ class TestPositionEvaluation:
     def test_position_evaluation_creation(
         self,
         db_session,
-        sample_politician,
-        sample_position,
+        sample_holds_position,
     ):
         """Test creating a position evaluation."""
-        # Use fixture entities
-        politician = sample_politician
-        position = sample_position
-
-        # Create holds position
-        holds_pos = HoldsPosition(
-            politician_id=politician.id,
-            position_id=position.wikidata_id,
-            start_date="2020-01",
-            archived_page_id=None,
-        )
-        db_session.add(holds_pos)
-        db_session.commit()
-        db_session.refresh(holds_pos)
+        # Use fixture holds position
+        holds_pos = sample_holds_position
 
         # Create evaluation
         evaluation = PositionEvaluation(

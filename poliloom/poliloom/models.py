@@ -430,14 +430,6 @@ class HoldsPosition(Base, TimestampMixin, StatementMixin):
         nullable=False,
     )
     position_id = Column(String, ForeignKey("positions.wikidata_id"), nullable=False)
-    start_date = Column(String)  # Allowing incomplete dates as strings
-    start_date_precision = Column(
-        Integer
-    )  # Wikidata precision integer (9=year, 10=month, 11=day)
-    end_date = Column(String)  # Allowing incomplete dates as strings
-    end_date_precision = Column(
-        Integer
-    )  # Wikidata precision integer (9=year, 10=month, 11=day)
     archived_page_id = Column(
         UUID(as_uuid=True), ForeignKey("archived_pages.id"), nullable=True
     )  # NULL for Wikidata imports, set for extracted data

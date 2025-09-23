@@ -240,10 +240,6 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
                 {
                     "politician_id": politician_obj.id,
                     "position_id": pos["wikidata_id"],
-                    "start_date": pos.get("start_date"),
-                    "start_date_precision": pos.get("start_date_precision"),
-                    "end_date": pos.get("end_date"),
-                    "end_date_precision": pos.get("end_date_precision"),
                     "statement_id": pos["statement_id"],
                     "archived_page_id": None,
                     "qualifiers_json": pos.get("qualifiers_json"),
@@ -258,10 +254,6 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
                     index_elements=["statement_id"],
                     index_where=text("statement_id IS NOT NULL"),
                     set_={
-                        "start_date": stmt.excluded.start_date,
-                        "start_date_precision": stmt.excluded.start_date_precision,
-                        "end_date": stmt.excluded.end_date,
-                        "end_date_precision": stmt.excluded.end_date_precision,
                         "qualifiers_json": stmt.excluded.qualifiers_json,
                         "references_json": stmt.excluded.references_json,
                     },
@@ -443,18 +435,19 @@ def _process_politicians_chunk(
                         ):
                             continue
 
-                        # Extract start and end dates from qualifiers
-                        start_date = None
-                        start_date_precision = None
-                        end_date = None
-                        end_date_precision = None
+                        # Extract qualifiers and references as JSON for data preservation
                         qualifiers_json = None
                         references_json = None
+
+                        # Extract dates for deduplication purposes only
+                        start_date = None
+                        end_date = None
 
                         if "qualifiers" in claim:
                             # Store all qualifiers as JSON for data preservation
                             qualifiers_json = claim["qualifiers"]
-                            # Start date (P580)
+
+                            # Extract start and end dates for deduplication key only
                             if "P580" in claim["qualifiers"]:
                                 start_qual = claim["qualifiers"]["P580"][0]
                                 if "datavalue" in start_qual:
@@ -463,32 +456,25 @@ def _process_politicians_chunk(
                                     )
                                     if start_info:
                                         start_date = start_info.date
-                                        start_date_precision = start_info.precision
 
-                            # End date (P582)
                             if "P582" in claim["qualifiers"]:
                                 end_qual = claim["qualifiers"]["P582"][0]
                                 if "datavalue" in end_qual:
                                     end_info = entity.extract_date_from_claim(end_qual)
                                     if end_info:
                                         end_date = end_info.date
-                                        end_date_precision = end_info.precision
 
                         if "references" in claim:
                             # Store all references as JSON for data preservation
                             references_json = claim["references"]
 
-                        # Create unique key for deduplication
+                        # Create unique key for deduplication (still use dates for this)
                         position_key = (position_id, start_date, end_date)
                         if position_key not in seen_positions:
                             seen_positions.add(position_key)
                             politician_data["positions"].append(
                                 {
                                     "wikidata_id": position_id,
-                                    "start_date": start_date,
-                                    "start_date_precision": start_date_precision,
-                                    "end_date": end_date,
-                                    "end_date_precision": end_date_precision,
                                     "statement_id": claim["id"],
                                     "qualifiers_json": qualifiers_json,
                                     "references_json": references_json,

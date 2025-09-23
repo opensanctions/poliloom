@@ -1,96 +1,52 @@
 """Tests for the HoldsPosition model."""
 
-from poliloom.models import Position, HoldsPosition
+from poliloom.models import HoldsPosition
+from poliloom.enrichment import create_qualifiers_json_for_position
 from ..conftest import assert_model_fields
 
 
 class TestHoldsPosition:
     """Test cases for the HoldsPosition model."""
 
-    def test_holds_position_creation(
-        self,
-        db_session,
-        sample_politician,
-        sample_position,
-    ):
-        """Test basic holds position creation."""
-        # Entities are already created and committed by fixtures
-        politician = sample_politician
-        position = sample_position
+    def test_holds_position_creation(self, sample_holds_position):
+        """Test basic holds position creation using fixture."""
+        holds_pos = sample_holds_position
 
-        # Create holds position
+        # Verify basic fields
+        assert holds_pos.politician_id is not None
+        assert holds_pos.position_id is not None
+        assert holds_pos.qualifiers_json is not None
+
+        # Verify qualifiers_json structure has expected date qualifiers
+        assert "P580" in holds_pos.qualifiers_json  # start time
+        assert "P582" in holds_pos.qualifiers_json  # end time
+
+    def test_holds_position_with_qualifiers_json(
+        self, db_session, sample_politician, sample_position
+    ):
+        """Test creating HoldsPosition with custom qualifiers_json."""
+        qualifiers_json = create_qualifiers_json_for_position("2020", "2023-06")
+
         holds_pos = HoldsPosition(
-            politician_id=politician.id,
-            position_id=position.wikidata_id,
-            start_date="2019-01",
-            end_date="2023-12-31",
-            archived_page_id=None,
+            politician_id=sample_politician.id,
+            position_id=sample_position.wikidata_id,
+            qualifiers_json=qualifiers_json,
         )
         db_session.add(holds_pos)
         db_session.commit()
         db_session.refresh(holds_pos)
 
-        assert_model_fields(
-            holds_pos,
-            {
-                "politician_id": politician.id,
-                "position_id": position.wikidata_id,
-                "start_date": "2019-01",
-                "end_date": "2023-12-31",
-                "archived_page_id": None,
-            },
-        )
-
-    def test_holds_position_incomplete_dates(self, db_session, sample_politician):
-        """Test handling of incomplete dates in HoldsPosition."""
-        # Use fixture politician
-        politician = sample_politician
-
-        # Test various incomplete date formats - each with a different position or archived_page_id
-        # to avoid unique constraint violations
-        test_cases = [
-            ("2020", None, "Q1001"),  # Only year
-            ("2020-03", "2021", "Q1002"),  # Year-month to year
-            ("1995", "2000-06-15", "Q1003"),  # Year to full date
-            (None, "2024", "Q1004"),  # No start date
-            ("2022", None, "Q1005"),  # No end date
-        ]
-
-        for start_date, end_date, position_qid in test_cases:
-            # Create a unique position for each test case
-            position = Position.create_with_entity(
-                db_session, position_qid, f"Test Position {position_qid}"
-            )
-            db_session.commit()
-            db_session.refresh(position)
-
-            holds_pos = HoldsPosition(
-                politician_id=politician.id,
-                position_id=position.wikidata_id,
-                start_date=start_date,
-                end_date=end_date,
-            )
-            db_session.add(holds_pos)
-            db_session.commit()
-            db_session.refresh(holds_pos)
-
-            assert holds_pos.start_date == start_date
-            assert holds_pos.end_date == end_date
+        assert holds_pos.qualifiers_json is not None
+        assert "P580" in holds_pos.qualifiers_json
+        assert "P582" in holds_pos.qualifiers_json
 
     def test_holds_position_default_values(
-        self,
-        db_session,
-        sample_politician,
-        sample_position,
+        self, db_session, sample_politician, sample_position
     ):
         """Test default values for holds position fields."""
-        # Use fixture entities
-        politician = sample_politician
-        position = sample_position
-
         # Create holds position with minimal data
         holds_pos = HoldsPosition(
-            politician_id=politician.id, position_id=position.wikidata_id
+            politician_id=sample_politician.id, position_id=sample_position.wikidata_id
         )
         db_session.add(holds_pos)
         db_session.commit()
@@ -99,10 +55,33 @@ class TestHoldsPosition:
         assert_model_fields(
             holds_pos,
             {
-                "politician_id": politician.id,
-                "position_id": position.wikidata_id,
+                "politician_id": sample_politician.id,
+                "position_id": sample_position.wikidata_id,
                 "archived_page_id": None,
-                "start_date": None,
-                "end_date": None,
+                "qualifiers_json": None,
             },
         )
+
+    def test_create_qualifiers_json_for_position(self):
+        """Test the helper function for creating qualifiers_json."""
+        # Test with both dates
+        qualifiers = create_qualifiers_json_for_position("2020-01", "2023-12-31")
+        assert qualifiers is not None
+        assert "P580" in qualifiers
+        assert "P582" in qualifiers
+
+        # Test with only start date
+        qualifiers = create_qualifiers_json_for_position("2020", None)
+        assert qualifiers is not None
+        assert "P580" in qualifiers
+        assert "P582" not in qualifiers
+
+        # Test with only end date
+        qualifiers = create_qualifiers_json_for_position(None, "2023")
+        assert qualifiers is not None
+        assert "P580" not in qualifiers
+        assert "P582" in qualifiers
+
+        # Test with no dates
+        qualifiers = create_qualifiers_json_for_position(None, None)
+        assert qualifiers is None
