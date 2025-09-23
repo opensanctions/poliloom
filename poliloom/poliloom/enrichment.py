@@ -229,7 +229,7 @@ async def fetch_and_archive_page(url: str, db: Session) -> ArchivedPage:
         return archived_page
 
 
-def extract_properties(
+def extract_dates(
     openai_client: OpenAI,
     content: str,
     politician: Politician,
@@ -239,11 +239,22 @@ def extract_properties(
         # Build comprehensive politician context
         politician_context = build_politician_context_xml(
             politician,
-            existing_properties=politician.properties,
+            focus_property_types=[PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE],
         )
 
         validation_focus = ""
-        if politician.properties:
+        # Check if politician has existing date properties to provide validation context
+        existing_date_properties = (
+            [
+                prop
+                for prop in politician.properties
+                if prop.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]
+            ]
+            if hasattr(politician, "properties") and politician.properties
+            else []
+        )
+
+        if existing_date_properties:
             validation_focus = """
 <validation_focus>
 Use this information to:
@@ -317,11 +328,22 @@ def extract_positions(
         # Build comprehensive politician context
         politician_context = build_politician_context_xml(
             politician,
-            existing_positions=politician.wikidata_positions,
+            focus_property_types=[PropertyType.POSITION],
         )
 
         position_analysis_focus = ""
-        if politician.wikidata_positions:
+        # Check if politician has existing position properties to provide analysis context
+        existing_position_properties = (
+            [
+                prop
+                for prop in politician.properties
+                if prop.type == PropertyType.POSITION
+            ]
+            if hasattr(politician, "properties") and politician.properties
+            else []
+        )
+
+        if existing_position_properties:
             position_analysis_focus = """
 <position_analysis_focus>
 Use this information to:
@@ -419,7 +441,7 @@ Extract all political positions from the provided content following these rules:
                 {
                     "qid": pos.wikidata_id,
                     "name": pos.name,
-                    "description": build_entity_description(db, pos),
+                    "description": build_entity_description(pos),
                 }
                 for pos in similar_positions
             ]
@@ -468,11 +490,22 @@ def extract_birthplaces(
         # Build comprehensive politician context
         politician_context = build_politician_context_xml(
             politician,
-            existing_birthplaces=politician.wikidata_birthplaces,
+            focus_property_types=[PropertyType.BIRTHPLACE],
         )
 
         birthplace_analysis_focus = ""
-        if politician.wikidata_birthplaces:
+        # Check if politician has existing birthplace properties to provide analysis context
+        existing_birthplace_properties = (
+            [
+                prop
+                for prop in politician.properties
+                if prop.type == PropertyType.BIRTHPLACE
+            ]
+            if hasattr(politician, "properties") and politician.properties
+            else []
+        )
+
+        if existing_birthplace_properties:
             birthplace_analysis_focus = """
 <birthplace_analysis_focus>
 Use this information to:
@@ -566,7 +599,7 @@ Extract birthplace information following these rules:
                 {
                     "qid": loc.wikidata_id,
                     "name": loc.name,
-                    "description": build_entity_description(db, loc),
+                    "description": build_entity_description(loc),
                 }
                 for loc in similar_locations
             ]
@@ -614,17 +647,14 @@ def format_candidates_as_xml(candidates: List[dict]) -> str:
 
 def build_politician_context_xml(
     politician,
-    existing_properties=None,
-    existing_positions=None,
-    existing_birthplaces=None,
+    focus_property_types=None,
 ) -> str:
     """Build comprehensive politician context as XML structure for LLM prompts.
 
     Args:
         politician: Politician model instance
-        existing_properties: Optional list of existing Property instances
-        existing_positions: Optional list of existing HoldsPosition instances
-        existing_birthplaces: Optional list of existing BornAt instances
+        focus_property_types: Optional list of PropertyType values to include in context.
+                            If None, includes all available properties.
 
     Returns:
         XML formatted politician context string
@@ -638,7 +668,7 @@ def build_politician_context_xml(
     ]
 
     # Add citizenship information if available
-    if politician.citizenships:
+    if hasattr(politician, "citizenships") and politician.citizenships:
         countries = [
             citizenship.country.name
             for citizenship in politician.citizenships
@@ -651,57 +681,122 @@ def build_politician_context_xml(
         f"<politician_info>\n    {chr(10).join(['    ' + info for info in basic_info])}\n</politician_info>"
     )
 
-    # Add existing Wikidata properties
-    if existing_properties:
-        existing_props = []
-        for prop in existing_properties:
-            if prop.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
-                existing_props.append(f"- {prop.type.value}: {prop.value}")
+    # Add existing Wikidata properties based on focus or all available
+    if hasattr(politician, "properties") and politician.properties:
+        # Filter properties based on focus_property_types if specified
+        if focus_property_types:
+            relevant_properties = [
+                prop
+                for prop in politician.properties
+                if prop.type in focus_property_types
+            ]
+        else:
+            relevant_properties = politician.properties
 
-        if existing_props:
+        # Group properties by type for organized output
+        date_properties = []
+        position_properties = []
+        birthplace_properties = []
+        citizenship_properties = []
+
+        for prop in relevant_properties:
+            if prop.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
+                date_properties.append(prop)
+            elif prop.type == PropertyType.POSITION:
+                position_properties.append(prop)
+            elif prop.type == PropertyType.BIRTHPLACE:
+                birthplace_properties.append(prop)
+            elif prop.type == PropertyType.CITIZENSHIP:
+                citizenship_properties.append(prop)
+
+        # Add date properties section
+        if date_properties:
+            date_items = [
+                f"- {prop.type.value}: {prop.value}" for prop in date_properties
+            ]
             context_sections.append(f"""<existing_wikidata>
-{chr(10).join(existing_props)}
+{chr(10).join(date_items)}
 </existing_wikidata>""")
 
-    # Add existing positions
-    if existing_positions:
-        existing_pos = []
-        for holds in existing_positions:
-            date_range = ""
-            if holds.start_date:
-                date_range = f" ({holds.start_date}"
-                if holds.end_date:
-                    date_range += f" - {holds.end_date})"
-                else:
-                    date_range += " - present)"
-            elif holds.end_date:
-                date_range = f" (until {holds.end_date})"
-            existing_pos.append(f"- {holds.position.name}{date_range}")
+        # Add positions section
+        if position_properties:
+            position_items = []
+            for prop in position_properties:
+                date_range = _extract_date_range_from_qualifiers(prop.qualifiers_json)
+                position_name = prop.entity_id  # Could be improved with joins
+                position_items.append(f"- {position_name}{date_range}")
 
-        if existing_pos:
             context_sections.append(f"""<existing_wikidata_positions>
-{chr(10).join(existing_pos)}
+{chr(10).join(position_items)}
 </existing_wikidata_positions>""")
 
-    # Add existing birthplaces
-    if existing_birthplaces:
-        existing_bp = []
-        for born_at in existing_birthplaces:
-            existing_bp.append(f"- {born_at.location.name}")
-
-        if existing_bp:
+        # Add birthplaces section
+        if birthplace_properties:
+            birthplace_items = [f"- {prop.entity_id}" for prop in birthplace_properties]
             context_sections.append(f"""<existing_wikidata_birthplaces>
-{chr(10).join(existing_bp)}
+{chr(10).join(birthplace_items)}
 </existing_wikidata_birthplaces>""")
+
+        # Add citizenships section
+        if citizenship_properties:
+            citizenship_items = [
+                f"- {prop.entity_id}" for prop in citizenship_properties
+            ]
+            context_sections.append(f"""<existing_wikidata_citizenships>
+{chr(10).join(citizenship_items)}
+</existing_wikidata_citizenships>""")
 
     return chr(10).join(context_sections)
 
 
-def build_entity_description(db: Session, entity) -> str:
+def _extract_date_range_from_qualifiers(qualifiers_json):
+    """Extract formatted date range from qualifiers_json.
+
+    Args:
+        qualifiers_json: Dict containing Wikidata qualifiers
+
+    Returns:
+        Formatted date range string like " (2020 - 2023)" or empty string
+    """
+    if not qualifiers_json:
+        return ""
+
+    start_date = None
+    end_date = None
+
+    # Extract P580 (start date) and P582 (end date) from qualifiers
+    if "P580" in qualifiers_json:
+        start_qual = qualifiers_json["P580"][0]
+        if "datavalue" in start_qual and "value" in start_qual["datavalue"]:
+            time_val = start_qual["datavalue"]["value"]["time"]
+            # Parse time format like "+2020-01-00T00:00:00Z"
+            if time_val.startswith("+"):
+                start_date = time_val[1:5]  # Extract year
+
+    if "P582" in qualifiers_json:
+        end_qual = qualifiers_json["P582"][0]
+        if "datavalue" in end_qual and "value" in end_qual["datavalue"]:
+            time_val = end_qual["datavalue"]["value"]["time"]
+            if time_val.startswith("+"):
+                end_date = time_val[1:5]  # Extract year
+
+    if start_date:
+        date_range = f" ({start_date}"
+        if end_date:
+            date_range += f" - {end_date})"
+        else:
+            date_range += " - present)"
+        return date_range
+    elif end_date:
+        return f" (until {end_date})"
+
+    return ""
+
+
+def build_entity_description(entity) -> str:
     """Build rich description from WikidataRelations dynamically.
 
     Args:
-        db: Database session (unused when relations are preloaded)
         entity: Position or Location instance with preloaded relations
 
     Returns:
@@ -973,8 +1068,8 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
             text = soup.get_text()
             content = " ".join(text.split())
 
-            # Extract properties
-            properties = extract_properties(openai_client, content, politician)
+            # Extract dates
+            date_properties = extract_dates(openai_client, content, politician)
 
             # Extract positions
             positions = extract_positions(
@@ -996,12 +1091,12 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
             logger.info(
                 f"LLM extracted data for {politician.name} ({politician.wikidata_id}):"
             )
-            if properties:
-                logger.info(f"  Properties ({len(properties)}):")
-                for prop in properties:
+            if date_properties:
+                logger.info(f"  Date Properties ({len(date_properties)}):")
+                for prop in date_properties:
                     logger.info(f"    {prop.type}: {prop.value}")
             else:
-                logger.info("  No properties extracted")
+                logger.info("  No date properties extracted")
 
             if positions:
                 logger.info(f"  Positions ({len(positions)}):")
@@ -1028,7 +1123,7 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
 
             # Store extracted data in database
             success = store_extracted_data(
-                db, politician, archived_page, properties, positions, birthplaces
+                db, politician, archived_page, date_properties, positions, birthplaces
             )
 
             if success:

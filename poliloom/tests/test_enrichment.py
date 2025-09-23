@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from poliloom.enrichment import (
     enrich_politician_from_wikipedia,
-    extract_properties,
+    extract_dates,
     extract_positions,
     extract_birthplaces,
     store_extracted_data,
@@ -16,9 +16,6 @@ from poliloom.enrichment import (
     PropertyType,
 )
 from poliloom.models import (
-    BornAt,
-    HasCitizenship,
-    HoldsPosition,
     Location,
     Position,
     Politician,
@@ -35,8 +32,8 @@ class TestEnrichment:
         """Create a mock OpenAI client."""
         return Mock()
 
-    def test_extract_properties_success(self, mock_openai_client):
-        """Test successful property extraction."""
+    def test_extract_dates_success(self, mock_openai_client):
+        """Test successful date extraction."""
         # Mock OpenAI response
         mock_parsed = Mock()
         mock_parsed.properties = [
@@ -62,9 +59,7 @@ class TestEnrichment:
         mock_politician.properties = []
         mock_politician.citizenships = []
 
-        properties = extract_properties(
-            mock_openai_client, "test content", mock_politician
-        )
+        properties = extract_dates(mock_openai_client, "test content", mock_politician)
 
         assert properties is not None
         assert len(properties) == 2
@@ -72,23 +67,23 @@ class TestEnrichment:
         assert properties[0].value == "1970-01-15"
         assert properties[1].type == PropertyType.DEATH_DATE
 
-    def test_extract_properties_none_parsed(self, mock_openai_client):
-        """Test property extraction when LLM returns None."""
+    def test_extract_dates_none_parsed(self, mock_openai_client):
+        """Test date extraction when LLM returns None."""
         mock_response = Mock()
         mock_response.output_parsed = None
         mock_openai_client.responses.parse.return_value = mock_response
 
-        properties = extract_properties(
+        properties = extract_dates(
             mock_openai_client, "test content", "Test Politician"
         )
 
         assert properties is None
 
-    def test_extract_properties_exception(self, mock_openai_client):
-        """Test property extraction handles exceptions."""
+    def test_extract_dates_exception(self, mock_openai_client):
+        """Test date extraction handles exceptions."""
         mock_openai_client.responses.parse.side_effect = Exception("API Error")
 
-        properties = extract_properties(
+        properties = extract_dates(
             mock_openai_client, "test content", "Test Politician"
         )
 
@@ -140,7 +135,7 @@ class TestEnrichment:
         mock_politician = Mock()
         mock_politician.name = "Test Politician"
         mock_politician.wikidata_id = "Q123456"
-        mock_politician.wikidata_positions = []
+        mock_politician.properties = []  # Unified properties instead of separate relations
         mock_politician.citizenships = []
 
         # Mock embedding generation
@@ -170,7 +165,7 @@ class TestEnrichment:
         mock_politician = Mock()
         mock_politician.name = "Test Politician"
         mock_politician.wikidata_id = "Q123456"
-        mock_politician.wikidata_positions = []
+        mock_politician.properties = []  # Unified properties instead of separate relations
         mock_politician.citizenships = []
 
         positions = extract_positions(
@@ -221,7 +216,7 @@ class TestEnrichment:
         mock_politician = Mock()
         mock_politician.name = "Test Politician"
         mock_politician.wikidata_id = "Q123456"
-        mock_politician.wikidata_birthplaces = []
+        mock_politician.properties = []  # Unified properties instead of separate relations
         mock_politician.citizenships = []
 
         # Mock embedding generation
@@ -249,9 +244,11 @@ class TestEnrichment:
         # Use fixture entities
         db_session.commit()
 
-        # Add citizenship (Wikipedia link already created by fixture)
-        citizenship = HasCitizenship(
-            politician_id=sample_politician.id, country_id=sample_country.wikidata_id
+        # Add citizenship as Property (Wikipedia link already created by fixture)
+        citizenship = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=sample_country.wikidata_id,
         )
         db_session.add(citizenship)
         db_session.commit()
@@ -303,9 +300,11 @@ class TestEnrichment:
         db_session.add(sample_archived_page)
         db_session.commit()
 
-        # Add citizenship and Wikipedia link
-        citizenship = HasCitizenship(
-            politician_id=sample_politician.id, country_id=sample_country.wikidata_id
+        # Add citizenship as Property and Wikipedia link
+        citizenship = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=sample_country.wikidata_id,
         )
         # Wikipedia link created by sample_wikipedia_link fixture
         db_session.add(citizenship)
@@ -331,19 +330,20 @@ class TestEnrichment:
 
         assert success is True
 
-        # Verify position was stored
-        holds_position = (
-            db_session.query(HoldsPosition)
+        # Verify position was stored as Property
+        position_property = (
+            db_session.query(Property)
             .filter_by(
                 politician_id=sample_politician.id,
-                position_id=sample_position.wikidata_id,
+                type=PropertyType.POSITION,
+                entity_id=sample_position.wikidata_id,
             )
             .first()
         )
-        assert holds_position is not None
-        assert holds_position.qualifiers_json is not None
-        assert "P580" in holds_position.qualifiers_json  # start time
-        assert "P582" in holds_position.qualifiers_json  # end time
+        assert position_property is not None
+        assert position_property.qualifiers_json is not None
+        assert "P580" in position_property.qualifiers_json  # start time
+        assert "P582" in position_property.qualifiers_json  # end time
 
     def test_store_extracted_data_birthplaces(
         self,
@@ -359,9 +359,11 @@ class TestEnrichment:
         db_session.add(sample_archived_page)
         db_session.commit()
 
-        # Add citizenship and Wikipedia link
-        citizenship = HasCitizenship(
-            politician_id=sample_politician.id, country_id=sample_country.wikidata_id
+        # Add citizenship as Property and Wikipedia link
+        citizenship = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=sample_country.wikidata_id,
         )
         # Wikipedia link created by sample_wikipedia_link fixture
         db_session.add(citizenship)
@@ -382,17 +384,18 @@ class TestEnrichment:
 
         assert success is True
 
-        # Verify birthplace was stored
-        born_at = (
-            db_session.query(BornAt)
+        # Verify birthplace was stored as Property
+        birthplace_property = (
+            db_session.query(Property)
             .filter_by(
                 politician_id=sample_politician.id,
-                location_id=sample_location.wikidata_id,
+                type=PropertyType.BIRTHPLACE,
+                entity_id=sample_location.wikidata_id,
             )
             .first()
         )
-        assert born_at is not None
-        assert born_at.archived_page_id == sample_archived_page.id
+        assert birthplace_property is not None
+        assert birthplace_property.archived_page_id == sample_archived_page.id
 
     def test_store_extracted_data_skips_nonexistent_position(
         self,
@@ -405,9 +408,11 @@ class TestEnrichment:
         # Use fixture entities
         db_session.commit()
 
-        # Add citizenship and Wikipedia link
-        citizenship = HasCitizenship(
-            politician_id=sample_politician.id, country_id=sample_country.wikidata_id
+        # Add citizenship as Property and Wikipedia link
+        citizenship = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=sample_country.wikidata_id,
         )
         # Wikipedia link created by sample_wikipedia_link fixture
         db_session.add(citizenship)
@@ -434,12 +439,12 @@ class TestEnrichment:
         assert success is True
 
         # Verify no position was stored
-        holds_positions = (
-            db_session.query(HoldsPosition)
-            .filter_by(politician_id=sample_politician.id)
+        position_properties = (
+            db_session.query(Property)
+            .filter_by(politician_id=sample_politician.id, type=PropertyType.POSITION)
             .all()
         )
-        assert len(holds_positions) == 0
+        assert len(position_properties) == 0
 
     def test_store_extracted_data_error_handling(
         self,
