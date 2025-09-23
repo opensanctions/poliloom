@@ -348,11 +348,6 @@ def _process_politicians_chunk(
 
                 # Extract positions held - only include positions that exist in our database
                 position_claims = entity.get_truthy_claims("P39")
-                # Wikidata can contain duplicate P39 statements for the same position with identical qualifiers
-                # This happens due to multiple statement IDs or data quality issues, so we deduplicate here
-                seen_positions = (
-                    set()
-                )  # Track unique (position_id, start_date, end_date) combinations
 
                 for claim in position_claims:
                     if "mainsnak" in claim and "datavalue" in claim["mainsnak"]:
@@ -366,51 +361,18 @@ def _process_politicians_chunk(
                             continue
 
                         # Extract qualifiers and references as JSON for data preservation
-                        qualifiers_json = None
-                        references_json = None
+                        qualifiers_json = claim.get("qualifiers")
+                        references_json = claim.get("references")
 
-                        # Extract dates for deduplication purposes only
-                        start_date = None
-                        end_date = None
-
-                        if "qualifiers" in claim:
-                            # Store all qualifiers as JSON for data preservation
-                            qualifiers_json = claim["qualifiers"]
-
-                            # Extract start and end dates for deduplication key only
-                            if "P580" in claim["qualifiers"]:
-                                start_qual = claim["qualifiers"]["P580"][0]
-                                if "datavalue" in start_qual:
-                                    start_info = entity.extract_date_from_claim(
-                                        start_qual
-                                    )
-                                    if start_info:
-                                        start_date = start_info.date
-
-                            if "P582" in claim["qualifiers"]:
-                                end_qual = claim["qualifiers"]["P582"][0]
-                                if "datavalue" in end_qual:
-                                    end_info = entity.extract_date_from_claim(end_qual)
-                                    if end_info:
-                                        end_date = end_info.date
-
-                        if "references" in claim:
-                            # Store all references as JSON for data preservation
-                            references_json = claim["references"]
-
-                        # Create unique key for deduplication (still use dates for this)
-                        position_key = (position_id, start_date, end_date)
-                        if position_key not in seen_positions:
-                            seen_positions.add(position_key)
-                            politician_data["properties"].append(
-                                {
-                                    "type": PropertyType.POSITION,
-                                    "entity_id": position_id,
-                                    "statement_id": claim["id"],
-                                    "qualifiers_json": qualifiers_json,
-                                    "references_json": references_json,
-                                }
-                            )
+                        politician_data["properties"].append(
+                            {
+                                "type": PropertyType.POSITION,
+                                "entity_id": position_id,
+                                "statement_id": claim["id"],
+                                "qualifiers_json": qualifiers_json,
+                                "references_json": references_json,
+                            }
+                        )
 
                 # Extract citizenships - only include countries that exist in our database
                 citizenship_claims = entity.get_truthy_claims("P27")
