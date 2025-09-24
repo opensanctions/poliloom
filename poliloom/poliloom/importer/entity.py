@@ -229,7 +229,7 @@ def _process_supporting_entities_chunk(
 
     # Extract counts from collections
     counts = {
-        collection.model_class.__name__.lower() + "s": collection.count
+        collection.model_class.__name__.lower(): collection.count
         for collection in entity_collections
     }
     return counts, entity_count
@@ -346,9 +346,9 @@ def import_entities(
 
     # Merge results from all chunks
     total_counts = {
-        "positions": 0,
-        "locations": 0,
-        "countries": 0,
+        "position": 0,
+        "location": 0,
+        "country": 0,
     }
     total_entities = 0
 
@@ -359,7 +359,7 @@ def import_entities(
 
     logger.info(f"Extraction complete. Total processed: {total_entities}")
     logger.info(
-        f"Extracted: {total_counts['positions']} positions, {total_counts['locations']} locations, {total_counts['countries']} countries"
+        f"Extracted: {total_counts['position']} positions, {total_counts['location']} locations, {total_counts['country']} countries"
     )
 
     return total_counts

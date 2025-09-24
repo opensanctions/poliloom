@@ -118,40 +118,6 @@ class WikidataDate:
             },
         }
 
-    def is_more_precise_than(self, other: "WikidataDate") -> bool:
-        """Check if this date has higher precision than another date."""
-        return self.precision > other.precision
-
-    def get_more_precise(self, other: "WikidataDate") -> Optional["WikidataDate"]:
-        """Return the date with higher precision, or None if equal precision."""
-        if self.precision > other.precision:
-            return self
-        elif other.precision > self.precision:
-            return other
-        else:
-            return None
-
-    def could_be_same_as(self, other: "WikidataDate") -> bool:
-        """
-        Check if this date could refer to the same time period as another date.
-
-        Examples:
-        - "2025" and "2025-03-10" could be the same (specific date within year)
-        - "2024-03" and "2024-05-10" are not the same (different months)
-        - "2025-03" and "2025-03-15" could be the same (specific date within month)
-        """
-        # Get the longer (more specific) and shorter (less specific) dates
-        if len(self.date) > len(other.date):
-            specific, general = self.date, other.date
-        elif len(other.date) > len(self.date):
-            specific, general = other.date, self.date
-        else:
-            # Same length - must be exact match
-            return self.date == other.date
-
-        # Check if the specific date starts with the general date
-        return specific.startswith(general)
-
     @staticmethod
     def dates_could_be_same(date1: Optional[str], date2: Optional[str]) -> bool:
         """
