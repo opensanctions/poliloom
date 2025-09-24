@@ -10,6 +10,7 @@ from openai import OpenAI
 from pydantic import BaseModel, field_validator, create_model
 from unmhtml import MHTMLConverter
 from bs4 import BeautifulSoup
+from dicttoxml import dicttoxml
 
 from .models import (
     Politician,
@@ -605,16 +606,6 @@ Extract birthplace information following these rules:
         return None
 
 
-def format_candidates_as_xml(candidates: List[dict]) -> str:
-    """Format candidate entities as XML structure with rich descriptions."""
-    return "\n".join(
-        [
-            f"<entity>\n    <qid>{candidate['qid']}</qid>\n    <name>{candidate['name']}</name>\n    <description>{candidate['description']}</description>\n</entity>"
-            for candidate in candidates
-        ]
-    )
-
-
 def build_politician_context_xml(
     politician,
     focus_property_types=None,
@@ -629,24 +620,17 @@ def build_politician_context_xml(
     Returns:
         XML formatted politician context string
     """
-    context_sections = []
-
-    # Basic politician info
-    basic_info = [
-        f"<name>{politician.name}</name>",
-        f"<wikidata_id>{politician.wikidata_id}</wikidata_id>",
-    ]
+    context_data = {
+        "politician_info": {
+            "name": politician.name,
+            "wikidata_id": politician.wikidata_id,
+        }
+    }
 
     # Add citizenship information
     citizenship_names = politician.get_citizenship_names()
     if citizenship_names:
-        basic_info.append(
-            f"<citizenships>{', '.join(citizenship_names)}</citizenships>"
-        )
-
-    context_sections.append(
-        f"<politician_info>\n    {chr(10).join(['    ' + info for info in basic_info])}\n</politician_info>"
-    )
+        context_data["politician_info"]["citizenships"] = ", ".join(citizenship_names)
 
     # Add existing Wikidata properties based on focus or all available
     if politician.properties:
@@ -669,33 +653,27 @@ def build_politician_context_xml(
         ):
             date_items = politician.get_date_properties_formatted()
             if date_items:
-                context_sections.append(
-                    f"""<existing_wikidata>
-{chr(10).join([f"- {item}" for item in date_items])}
-</existing_wikidata>"""
-                )
+                context_data["existing_wikidata"] = date_items
 
         # Add positions section
         if PropertyType.POSITION in relevant_types:
             position_items = politician.get_position_names_with_dates()
             if position_items:
-                context_sections.append(
-                    f"""<existing_wikidata_positions>
-{chr(10).join([f"- {item}" for item in position_items])}
-</existing_wikidata_positions>"""
-                )
+                context_data["existing_wikidata_positions"] = position_items
 
         # Add birthplaces section
         if PropertyType.BIRTHPLACE in relevant_types:
             birthplace_items = politician.get_birthplace_names()
             if birthplace_items:
-                context_sections.append(
-                    f"""<existing_wikidata_birthplaces>
-{chr(10).join([f"- {item}" for item in birthplace_items])}
-</existing_wikidata_birthplaces>"""
-                )
+                context_data["existing_wikidata_birthplaces"] = birthplace_items
 
-    return chr(10).join(context_sections)
+    xml_bytes = dicttoxml(
+        context_data,
+        custom_root="politician_context",
+        attr_type=False,
+        xml_declaration=False,
+    )
+    return xml_bytes.decode("utf-8")
 
 
 def build_entity_description(entity) -> str:
@@ -790,7 +768,14 @@ Map the extracted position to the most accurate Wikidata position following thes
 </rejection_criteria>"""
 
         # Format candidates with XML structure and rich descriptions
-        candidates_text = format_candidates_as_xml(candidate_positions)
+        candidates_xml = dicttoxml(
+            candidate_positions,
+            custom_root="candidates",
+            item_func=lambda x: "entity",
+            attr_type=False,
+            xml_declaration=False,
+        )
+        candidates_text = candidates_xml.decode("utf-8")
 
         # Build politician context for stage 2 mapping
         politician_context = build_politician_context_xml(politician)
@@ -871,7 +856,14 @@ Map the extracted birthplace to the correct Wikidata location entity.
 </rejection_criteria>"""
 
         # Format candidates with XML structure and rich descriptions
-        candidates_text = format_candidates_as_xml(candidate_locations)
+        candidates_xml = dicttoxml(
+            candidate_locations,
+            custom_root="candidates",
+            item_func=lambda x: "entity",
+            attr_type=False,
+            xml_declaration=False,
+        )
+        candidates_text = candidates_xml.decode("utf-8")
 
         # Build politician context for stage 2 mapping
         politician_context = build_politician_context_xml(politician)
