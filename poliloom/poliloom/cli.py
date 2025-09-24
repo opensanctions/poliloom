@@ -452,6 +452,8 @@ def dump_import_hierarchy(file, batch_size):
                 session.merge(latest_dump)
                 session.commit()
 
+        click.echo("✅ Successfully imported hierarchy trees from dump")
+
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
         click.echo("❌ Hierarchy tree import was cancelled.")
@@ -505,7 +507,7 @@ def dump_import_entities(file, batch_size):
         click.echo("Press Ctrl+C to interrupt...")
 
         # Import supporting entities only
-        counts = import_entities(file, batch_size=batch_size)
+        import_entities(file, batch_size=batch_size)
 
         # Mark as imported
         if latest_dump is not None:
@@ -519,11 +521,7 @@ def dump_import_entities(file, batch_size):
                     dump_record.imported_entities_at = datetime.now(timezone.utc)
                     session.commit()
 
-        click.echo("✅ Successfully imported supporting entities from dump:")
-        click.echo(f"  • Positions: {counts['positions']}")
-        click.echo(f"  • Locations: {counts['locations']}")
-        click.echo(f"  • Countries: {counts['countries']}")
-        click.echo(f"  • Total: {sum(counts.values())}")
+        click.echo("✅ Successfully imported supporting entities from dump")
 
         # Suggest next steps
         click.echo()
@@ -586,7 +584,7 @@ def dump_import_politicians(file, batch_size):
         click.echo("Press Ctrl+C to interrupt...")
 
         # Import politicians only
-        politicians_count = import_politicians(file, batch_size=batch_size)
+        import_politicians(file, batch_size=batch_size)
 
         # Mark as imported
         if latest_dump is not None:
@@ -595,8 +593,7 @@ def dump_import_politicians(file, batch_size):
                 session.merge(latest_dump)
                 session.commit()
 
-        click.echo("✅ Successfully imported politicians from dump:")
-        click.echo(f"  • Politicians: {politicians_count}")
+        click.echo("✅ Successfully imported politicians from dump")
 
         # Suggest next steps
         click.echo()

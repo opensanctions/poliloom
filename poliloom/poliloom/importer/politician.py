@@ -418,16 +418,13 @@ def _process_politicians_chunk(
 def import_politicians(
     dump_file_path: str,
     batch_size: int = 1000,
-) -> int:
+) -> None:
     """
     Import politicians from the Wikidata dump using parallel processing.
 
     Args:
         dump_file_path: Path to the Wikidata JSON dump file
         batch_size: Number of entities to process in each database batch
-
-    Returns:
-        Total count of imported politicians
     """
     # Load existing entity QIDs from database for filtering
     with Session(get_engine()) as session:
@@ -520,5 +517,3 @@ def import_politicians(
 
     logger.info(f"Extraction complete. Total processed: {total_entities}")
     logger.info(f"Extracted: {total_politicians} politicians")
-
-    return total_politicians

@@ -238,7 +238,7 @@ def _process_supporting_entities_chunk(
 def import_entities(
     dump_file_path: str,
     batch_size: int = 1000,
-) -> Dict[str, int]:
+) -> None:
     """
     Import supporting entities from the Wikidata dump using parallel processing.
     Uses frozensets to efficiently share descendant QIDs across workers with O(1) lookups.
@@ -246,9 +246,6 @@ def import_entities(
     Args:
         dump_file_path: Path to the Wikidata JSON dump file
         batch_size: Number of entities to process in each database batch
-
-    Returns:
-        Dictionary with counts of imported entities (positions, locations, countries)
     """
     # Load only position and location descendants from database (optimized)
     with Session(get_engine()) as session:
@@ -361,5 +358,3 @@ def import_entities(
     logger.info(
         f"Extracted: {total_counts['position']} positions, {total_counts['location']} locations, {total_counts['country']} countries"
     )
-
-    return total_counts

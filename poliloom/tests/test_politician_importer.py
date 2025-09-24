@@ -91,10 +91,7 @@ class TestWikidataPoliticianImporter:
                 file_size = os.path.getsize(temp_file_path)
                 mock_chunks.return_value = [(0, file_size)]
 
-                result = import_politicians(temp_file_path, batch_size=10)
-
-            # Verify count returned
-            assert result == 1
+                import_politicians(temp_file_path, batch_size=10)
 
             # Verify politician was actually saved to database
             with Session(get_engine()) as session:

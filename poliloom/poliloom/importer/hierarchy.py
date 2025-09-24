@@ -329,5 +329,3 @@ def import_hierarchy_trees(
     # Summarize second pass results
     total_processed = sum(second_pass_results)
     logger.info(f"Second pass complete: Processed {total_processed} target entities")
-
-    logger.info("✅ Hierarchy import complete")

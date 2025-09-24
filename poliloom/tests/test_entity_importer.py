@@ -230,12 +230,7 @@ class TestWikidataEntityImporter:
                 file_size = os.path.getsize(temp_file_path)
                 mock_chunks.return_value = [(0, file_size)]
 
-                result = import_entities(temp_file_path, batch_size=10)
-
-            # Verify counts returned
-            assert result["position"] == 1
-            assert result["location"] == 1
-            assert result["country"] == 1
+                import_entities(temp_file_path, batch_size=10)
 
             # Verify entities were actually saved to database
             positions = db_session.query(Position).all()
