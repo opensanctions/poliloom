@@ -36,6 +36,13 @@ class PropertyType(str, Enum):
     CITIZENSHIP = "P27"
 
 
+class PreferenceType(str, Enum):
+    """Enumeration of user preference types."""
+
+    LANGUAGE = "language"
+    COUNTRY = "country"
+
+
 class RelationType(str, Enum):
     """Enumeration of Wikidata relation types."""
 
@@ -138,6 +145,33 @@ class Evaluation(Base, TimestampMixin):
 
     # Relationships
     property = relationship("Property", back_populates="evaluations")
+
+
+class Preference(Base, TimestampMixin):
+    """User preference entity for storing user language and country preferences."""
+
+    __tablename__ = "preferences"
+    __table_args__ = (
+        Index(
+            "uq_preferences_user_type_entity",
+            "user_id",
+            "preference_type",
+            "entity_id",
+            unique=True,
+        ),
+    )
+
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    user_id = Column(String, nullable=False)
+    preference_type = Column(SQLEnum(PreferenceType), nullable=False)
+    entity_id = Column(
+        String, ForeignKey("wikidata_entities.wikidata_id"), nullable=False
+    )
+
+    # Relationships
+    entity = relationship("WikidataEntity")
 
 
 class Politician(Base, TimestampMixin, UpsertMixin):
