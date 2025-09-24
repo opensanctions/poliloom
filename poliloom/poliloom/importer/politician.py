@@ -357,7 +357,10 @@ def _process_politicians_chunk(
                 # Extract Wikipedia links from sitelinks
                 if entity.sitelinks:
                     for site_key, sitelink in entity.sitelinks.items():
-                        if site_key.endswith("wiki"):  # Wikipedia sites
+                        if site_key.endswith("wiki") and site_key not in (
+                            "commonswiki",
+                            "simplewiki",
+                        ):  # Wikipedia sites, exclude commons and simple
                             language = site_key.replace("wiki", "")
                             url = f"https://{language}.wikipedia.org/wiki/{sitelink['title'].replace(' ', '_')}"
                             politician_data["wikipedia_links"].append(
