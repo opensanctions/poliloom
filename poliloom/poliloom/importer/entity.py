@@ -2,7 +2,8 @@
 
 import logging
 import multiprocessing as mp
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Type
+from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
@@ -18,6 +19,40 @@ from ..models import (
 from ..wikidata_entity_processor import WikidataEntityProcessor
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EntityCollection:
+    """Collection for tracking entities, relations, and metadata for a specific entity type."""
+
+    entities: list[dict] = field(default_factory=list)
+    relations: list[dict] = field(default_factory=list)
+    count: int = 0
+    model_class: Type = None
+    shared_classes: frozenset[str] = None
+
+    def add_entity(self, entity_data: dict) -> None:
+        """Add an entity to the collection."""
+        self.entities.append(entity_data)
+        self.count += 1
+
+    def add_relations(self, relations: list[dict]) -> None:
+        """Add relations for the last added entity."""
+        self.relations.extend(relations)
+
+    def clear_batch(self) -> None:
+        """Clear entities and relations for batch processing."""
+        self.entities = []
+        self.relations = []
+
+    def has_entities(self) -> bool:
+        """Check if collection has entities."""
+        return len(self.entities) > 0
+
+    def batch_size(self) -> int:
+        """Get current batch size."""
+        return len(self.entities)
+
 
 # Progress reporting frequency for chunk processing
 PROGRESS_REPORT_FREQUENCY = 50000
@@ -41,10 +76,10 @@ def init_entity_worker(
 
 
 def _insert_entities_batch(
-    entities: list[dict], relations: list[dict], model_class, entity_type: str, engine
+    collection: EntityCollection, entity_type: str, engine
 ) -> None:
-    """Insert a batch of entities (positions or locations) and their relations into the database."""
-    if not entities:
+    """Insert a batch of entities and their relations into the database."""
+    if not collection.has_entities():
         return
 
     with Session(engine) as session:
@@ -54,25 +89,25 @@ def _insert_entities_batch(
                 "wikidata_id": entity["wikidata_id"],
                 "name": entity["name"],
             }
-            for entity in entities
+            for entity in collection.entities
         ]
 
         WikidataEntity.upsert_batch(session, entity_data)
 
         # Insert entities referencing the WikidataEntity records
         # Remove 'name' key since it's now stored in WikidataEntity
-        for entity in entities:
+        for entity in collection.entities:
             entity.pop("name", None)
 
-        model_class.upsert_batch(session, entities)
+        collection.model_class.upsert_batch(session, collection.entities)
 
         # Insert relations for these entities
-        if relations:
-            WikidataRelation.upsert_batch(session, relations)
+        if collection.relations:
+            WikidataRelation.upsert_batch(session, collection.relations)
 
         session.commit()
         logger.debug(
-            f"Processed {len(entities)} {entity_type} with {len(relations)} relations"
+            f"Processed {len(collection.entities)} {entity_type} with {len(collection.relations)} relations"
         )
 
 
@@ -97,27 +132,18 @@ def _process_supporting_entities_chunk(
 
     # Entity collections organized by type
     entity_collections = {
-        "positions": {
-            "entities": [],
-            "relations": [],
-            "count": 0,
-            "model_class": Position,
-            "shared_classes": shared_position_classes,
-        },
-        "locations": {
-            "entities": [],
-            "relations": [],
-            "count": 0,
-            "model_class": Location,
-            "shared_classes": shared_location_classes,
-        },
-        "countries": {
-            "entities": [],
-            "relations": [],
-            "count": 0,
-            "model_class": Country,
-            "shared_classes": shared_country_classes,
-        },
+        "positions": EntityCollection(
+            model_class=Position,
+            shared_classes=shared_position_classes,
+        ),
+        "locations": EntityCollection(
+            model_class=Location,
+            shared_classes=shared_location_classes,
+        ),
+        "countries": EntityCollection(
+            model_class=Country,
+            shared_classes=shared_country_classes,
+        ),
     }
     entity_count = 0
     try:
@@ -154,8 +180,7 @@ def _process_supporting_entities_chunk(
             # Process each entity type
             for entity_type, collection in entity_collections.items():
                 if any(
-                    class_id in collection["shared_classes"]
-                    for class_id in all_class_ids
+                    class_id in collection.shared_classes for class_id in all_class_ids
                 ):
                     # Handle special case for countries requiring ISO code
                     if entity_type == "countries":
@@ -174,33 +199,24 @@ def _process_supporting_entities_chunk(
                             # Create separate copy for countries with iso_code
                             country_data = entity_data.copy()
                             country_data["iso_code"] = iso_code
-                            collection["entities"].append(country_data)
-                            collection["count"] += 1
+                            collection.add_entity(country_data)
 
                             # Extract relations for this country
                             entity_relations = entity.extract_all_relations()
-                            collection["relations"].extend(entity_relations)
+                            collection.add_relations(entity_relations)
                     else:
                         # Standard processing for positions and locations
-                        collection["entities"].append(entity_data.copy())
-                        collection["count"] += 1
+                        collection.add_entity(entity_data.copy())
 
                         # Extract relations for this entity
                         entity_relations = entity.extract_all_relations()
-                        collection["relations"].extend(entity_relations)
+                        collection.add_relations(entity_relations)
 
             # Process batches when they reach the batch size
             for entity_type, collection in entity_collections.items():
-                if len(collection["entities"]) >= batch_size:
-                    _insert_entities_batch(
-                        collection["entities"],
-                        collection["relations"],
-                        collection["model_class"],
-                        entity_type,
-                        engine,
-                    )
-                    collection["entities"] = []
-                    collection["relations"] = []
+                if collection.batch_size() >= batch_size:
+                    _insert_entities_batch(collection, entity_type, engine)
+                    collection.clear_batch()
 
     except Exception as e:
         logger.error(f"Worker {worker_id}: error processing chunk: {e}")
@@ -208,20 +224,14 @@ def _process_supporting_entities_chunk(
 
     # Process remaining entities in final batches on successful completion
     for entity_type, collection in entity_collections.items():
-        if collection["entities"]:
-            _insert_entities_batch(
-                collection["entities"],
-                collection["relations"],
-                collection["model_class"],
-                entity_type,
-                engine,
-            )
+        if collection.has_entities():
+            _insert_entities_batch(collection, entity_type, engine)
 
     logger.info(f"Worker {worker_id}: finished processing {entity_count} entities")
 
     # Extract counts from collections
     counts = {
-        entity_type: collection["count"]
+        entity_type: collection.count
         for entity_type, collection in entity_collections.items()
     }
     return counts, entity_count
