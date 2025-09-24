@@ -5,7 +5,6 @@ import multiprocessing as mp
 from typing import Set, Tuple
 
 from sqlalchemy import Engine
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from .. import dump_reader
@@ -164,12 +163,7 @@ def _insert_wikidata_entities_batch(
 
     try:
         with Session(engine) as session:
-            stmt = insert(WikidataEntity).values(wikidata_entities)
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["wikidata_id"],
-                set_={"name": stmt.excluded.name},
-            )
-            session.execute(stmt)
+            WikidataEntity.upsert_batch(session, wikidata_entities)
             session.commit()
 
             logger.debug(
@@ -189,9 +183,7 @@ def _insert_wikidata_relations_batch(
 
     try:
         with Session(engine) as session:
-            stmt = insert(WikidataRelation).values(wikidata_relations)
-            stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
-            session.execute(stmt)
+            WikidataRelation.upsert_batch(session, wikidata_relations)
             session.commit()
 
             logger.debug(
@@ -290,9 +282,7 @@ def import_hierarchy_trees(
         for i in range(0, len(entity_data), batch_size_inserts):
             batch = entity_data[i : i + batch_size_inserts]
             with Session(get_engine()) as session:
-                stmt = insert(WikidataEntity).values(batch)
-                stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
-                session.execute(stmt)
+                WikidataEntity.upsert_batch(session, batch)
                 session.commit()
             logger.info(
                 f"Inserted batch {i // batch_size_inserts + 1} ({len(batch)} records)"

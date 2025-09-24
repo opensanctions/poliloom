@@ -58,14 +58,7 @@ def _insert_entities_batch(
             for entity in entities
         ]
 
-        stmt = insert(WikidataEntity).values(entity_data)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["wikidata_id"],
-            set_={
-                "name": stmt.excluded.name,
-            },
-        )
-        session.execute(stmt)
+        WikidataEntity.upsert_batch(session, entity_data)
 
         # Insert entities referencing the WikidataEntity records
         # Remove 'name' key since it's now stored in WikidataEntity
@@ -79,11 +72,7 @@ def _insert_entities_batch(
 
         # Insert relations for these entities
         if relations:
-            stmt = insert(WikidataRelation).values(relations)
-            stmt = stmt.on_conflict_do_nothing(
-                index_elements=["parent_entity_id", "child_entity_id", "relation_type"]
-            )
-            session.execute(stmt)
+            WikidataRelation.upsert_batch(session, relations)
 
         session.commit()
         logger.debug(

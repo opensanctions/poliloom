@@ -67,6 +67,50 @@ class StatementMixin:
     references_json = Column(JSONB, nullable=True)  # Store all references as JSON
 
 
+class UpsertMixin:
+    """Mixin for adding batch upsert functionality."""
+
+    # Override this in subclasses to specify which columns to update on conflict
+    _upsert_update_columns = []
+    # Override this in subclasses to specify the conflict columns (defaults to primary key)
+    _upsert_conflict_columns = None
+
+    @classmethod
+    def upsert_batch(cls, session: Session, data: List[dict]) -> None:
+        """
+        Upsert a batch of records.
+
+        Args:
+            session: Database session
+            data: List of dicts with column data
+        """
+        if not data:
+            return
+
+        from sqlalchemy.dialects.postgresql import insert
+
+        stmt = insert(cls).values(data)
+
+        # Use specified conflict columns or default to primary key
+        conflict_columns = cls._upsert_conflict_columns
+        if conflict_columns is None:
+            conflict_columns = [col.name for col in cls.__table__.primary_key.columns]
+
+        # Update specified columns on conflict
+        if cls._upsert_update_columns:
+            update_dict = {
+                col: getattr(stmt.excluded, col) for col in cls._upsert_update_columns
+            }
+            stmt = stmt.on_conflict_do_update(
+                index_elements=conflict_columns,
+                set_=update_dict,
+            )
+        else:
+            stmt = stmt.on_conflict_do_nothing(index_elements=conflict_columns)
+
+        session.execute(stmt)
+
+
 class Evaluation(Base, TimestampMixin):
     """Evaluation entity for tracking user evaluations of extracted properties."""
 
@@ -478,10 +522,13 @@ class WikidataDump(Base, TimestampMixin):
     )  # When politicians import completed
 
 
-class WikidataEntity(Base, TimestampMixin):
+class WikidataEntity(Base, TimestampMixin, UpsertMixin):
     """Wikidata entity for hierarchy storage."""
 
     __tablename__ = "wikidata_entities"
+
+    # UpsertMixin configuration
+    _upsert_update_columns = ["name"]
 
     wikidata_id = Column(String, primary_key=True)  # Wikidata QID as primary key
     name = Column(
@@ -578,10 +625,13 @@ class WikidataEntity(Base, TimestampMixin):
         return {row[0] for row in result.fetchall()}
 
 
-class WikidataRelation(Base, TimestampMixin):
+class WikidataRelation(Base, TimestampMixin, UpsertMixin):
     """Wikidata relationship between entities."""
 
     __tablename__ = "wikidata_relations"
+
+    # UpsertMixin configuration
+    _upsert_update_columns = ["parent_entity_id", "child_entity_id", "relation_type"]
 
     parent_entity_id = Column(
         String,
