@@ -414,5 +414,5 @@ def import_entities(
 
     logger.info(f"Extraction complete. Total processed: {total_entities}")
     logger.info(
-        f"Extracted: {total_counts['position']} positions, {total_counts['location']} locations, {total_counts['country']} countries"
+        f"Extracted: {total_counts['position']} positions, {total_counts['location']} locations, {total_counts['country']} countries, {total_counts['language']} languages"
     )
