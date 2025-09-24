@@ -446,14 +446,19 @@ class Language(Base, TimestampMixin, UpsertMixin):
     """Language entity for storing language information."""
 
     __tablename__ = "languages"
+    __table_args__ = (
+        Index("idx_languages_iso1_code", "iso1_code"),
+        Index("idx_languages_iso3_code", "iso3_code"),
+    )
 
     # UpsertMixin configuration
-    _upsert_update_columns = ["iso_code"]
+    _upsert_update_columns = ["iso1_code", "iso3_code"]
 
     wikidata_id = Column(
         String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
     )
-    iso_code = Column(String, index=True)  # ISO 639-1 language code
+    iso1_code = Column(String, index=True)  # ISO 639-1 language code (2 characters)
+    iso3_code = Column(String, index=True)  # ISO 639-3 language code (3 characters)
 
     # Relationships
     wikidata_entity = relationship(
@@ -467,7 +472,12 @@ class Language(Base, TimestampMixin, UpsertMixin):
 
     @classmethod
     def create_with_entity(
-        cls, session, wikidata_id: str, name: str, iso_code: str = None
+        cls,
+        session,
+        wikidata_id: str,
+        name: str,
+        iso1_code: str = None,
+        iso3_code: str = None,
     ):
         """Create a Language with its associated WikidataEntity."""
         # Create WikidataEntity first
@@ -475,7 +485,9 @@ class Language(Base, TimestampMixin, UpsertMixin):
         session.add(wikidata_entity)
 
         # Create Language
-        language = cls(wikidata_id=wikidata_id, iso_code=iso_code)
+        language = cls(
+            wikidata_id=wikidata_id, iso1_code=iso1_code, iso3_code=iso3_code
+        )
         session.add(language)
 
         return language

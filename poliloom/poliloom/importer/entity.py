@@ -218,23 +218,34 @@ def _process_supporting_entities_chunk(
                             country_data = entity_data.copy()
                             country_data["iso_code"] = iso_code
                             collection.add_entity(country_data)
-                    # Handle special case for languages requiring ISO 639-1 code
+                    # Handle special case for languages requiring ISO codes
                     elif collection.model_class is Language:
-                        # Extract ISO 639-1 code for languages
-                        iso_code = None
-                        iso_claims = entity.get_truthy_claims("P218")
-                        for claim in iso_claims:
+                        # Extract ISO 639-1 code for languages (P218)
+                        iso1_code = None
+                        iso1_claims = entity.get_truthy_claims("P218")
+                        for claim in iso1_claims:
                             try:
-                                iso_code = claim["mainsnak"]["datavalue"]["value"]
+                                iso1_code = claim["mainsnak"]["datavalue"]["value"]
                                 break
                             except (KeyError, TypeError):
                                 continue
 
-                        # Only import languages that have an ISO 639-1 code
-                        if iso_code:
-                            # Create separate copy for languages with iso_code
+                        # Extract ISO 639-3 code for languages (P219)
+                        iso3_code = None
+                        iso3_claims = entity.get_truthy_claims("P219")
+                        for claim in iso3_claims:
+                            try:
+                                iso3_code = claim["mainsnak"]["datavalue"]["value"]
+                                break
+                            except (KeyError, TypeError):
+                                continue
+
+                        # Import languages that have either ISO code (or both)
+                        if iso1_code or iso3_code:
+                            # Create separate copy for languages with ISO codes
                             language_data = entity_data.copy()
-                            language_data["iso_code"] = iso_code
+                            language_data["iso1_code"] = iso1_code
+                            language_data["iso3_code"] = iso3_code
                             collection.add_entity(language_data)
                     else:
                         # Standard processing for positions and locations
