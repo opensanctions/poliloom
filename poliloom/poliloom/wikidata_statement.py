@@ -201,123 +201,98 @@ async def push_evaluation(
     Returns:
         True if successful, False if failed
     """
-    eval_type = type(evaluation).__name__
-
-    # Map evaluation types to entity attributes, classes, and builder functions
-    entity_map = {
-        "Evaluation": ("property_id", Property, _build_property_statement),
-    }
-
-    entity_attr, entity_class, builder_func = entity_map.get(
-        eval_type, (None, None, None)
-    )
-    if not entity_attr:
-        logger.error(
-            f"Unknown evaluation type: {eval_type} for evaluation {evaluation.id}"
-        )
-        return False
-
-    entity_id = getattr(evaluation, entity_attr)
-    entity = db.get(entity_class, entity_id)
-
-    if not entity:
-        logger.error(
-            f"{entity_class.__name__} {entity_id} not found for {eval_type} {evaluation.id}"
-        )
-        return False
-
     # Access politician relationship while entity is bound to session
-    politician_wikidata_id = entity.politician.wikidata_id
+    politician_wikidata_id = evaluation.property.politician.wikidata_id
 
     # Check if this is existing Wikidata data (has statement_id but no archived_page_id)
-    is_existing_statement = entity.statement_id and not entity.archived_page_id
+    is_existing_statement = (
+        evaluation.property.statement_id and not evaluation.property.archived_page_id
+    )
 
     try:
         if not evaluation.is_confirmed and is_existing_statement:
             # Negative evaluation of existing statement - delete from Wikidata
             logger.info(
-                f"Processing negative evaluation {evaluation.id} (type: {eval_type}) - deleting from Wikidata"
+                f"Processing negative evaluation {evaluation.id} - deleting from Wikidata"
             )
 
             logger.info(
-                f"Deleting {entity_class.__name__.lower()} statement {entity.statement_id} for politician {politician_wikidata_id}"
+                f"Deleting property statement {evaluation.property.statement_id} for politician {politician_wikidata_id}"
             )
 
             await delete_statement(
                 politician_wikidata_id,
-                entity.statement_id,
+                evaluation.property.statement_id,
                 jwt_token,
             )
 
             # Only delete from database if Wikidata deletion succeeded
-            db.delete(entity)
+            db.delete(evaluation.property)
             db.commit()
             logger.info(
-                f"Successfully deleted {entity_class.__name__.lower()} statement for politician {politician_wikidata_id}"
+                f"Successfully deleted property statement for politician {politician_wikidata_id}"
             )
 
         elif not evaluation.is_confirmed and not is_existing_statement:
             # Negative evaluation of extracted data - delete from database only
             logger.info(
-                f"Processing negative evaluation {evaluation.id} (type: {eval_type}) - removing extracted data"
+                f"Processing negative evaluation {evaluation.id} - removing extracted data"
             )
 
-            db.delete(entity)
+            db.delete(evaluation.property)
             db.commit()
             logger.info(
-                f"Successfully removed {entity_class.__name__.lower()} extracted data for politician {politician_wikidata_id}"
+                f"Successfully removed property extracted data for politician {politician_wikidata_id}"
             )
 
         elif evaluation.is_confirmed and not is_existing_statement:
             # Confirmed evaluation of extracted data - create new statement
             logger.info(
-                f"Processing confirmed evaluation {evaluation.id} (type: {eval_type}) - creating in Wikidata"
+                f"Processing confirmed evaluation {evaluation.id} - creating in Wikidata"
             )
 
             logger.info(
-                f"Processing {eval_type} {evaluation.id}: politician {politician_wikidata_id}"
+                f"Processing evaluation {evaluation.id}: politician {politician_wikidata_id}"
             )
 
             # Build statement data using the appropriate builder function
-            wikidata_value, qualifiers = builder_func(entity)
+            wikidata_value, qualifiers = _build_property_statement(evaluation.property)
 
             # Use qualifiers from Property model if available, otherwise use builder result
-            if entity.qualifiers_json:
-                qualifiers = entity.qualifiers_json
+            if evaluation.property.qualifiers_json:
+                qualifiers = evaluation.property.qualifiers_json
 
             # Create statement using property type as Wikidata property ID
             statement_id = await create_statement(
                 politician_wikidata_id,
-                entity.type.value,  # PropertyType enum values are the Wikidata property IDs
+                evaluation.property.type.value,  # PropertyType enum values are the Wikidata property IDs
                 wikidata_value,
-                references=entity.references_json,
+                references=evaluation.property.references_json,
                 qualifiers=qualifiers,
                 jwt_token=jwt_token,
             )
 
-            # Update the entity with the statement ID
-            entity.statement_id = statement_id
+            # Update the evaluation.property with the statement ID
+            evaluation.property.statement_id = statement_id
             db.commit()
             logger.info(
-                f"Successfully pushed {eval_type} {evaluation.id} to Wikidata with statement ID {statement_id}"
+                f"Successfully pushed evaluation {evaluation.id} to Wikidata with statement ID {statement_id}"
             )
 
         else:
             # Skip other cases (confirmed existing statements)
             logger.info(
-                f"Skipping evaluation {evaluation.id} (type: {eval_type}) - no Wikidata action needed"
+                f"Skipping evaluation {evaluation.id} - no Wikidata action needed"
             )
 
         return True
 
     except Exception as e:
-        logger.error(
-            f"Error processing evaluation {evaluation.id} (type: {eval_type}): {e}"
-        )
+        logger.error(f"Error processing evaluation {evaluation.id}: {e}")
         return False
 
 
-def _build_property_statement(entity: Property) -> tuple[dict, list]:
+def _build_property_statement(property: Property) -> tuple[dict, list]:
     """
     Build statement data for Property.
 
@@ -325,24 +300,28 @@ def _build_property_statement(entity: Property) -> tuple[dict, list]:
         tuple of (wikidata_value, qualifiers)
     """
     # Handle date properties (birth date, death date)
-    if entity.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
-        if not entity.value:
-            raise ValueError(f"Date value is required for property type {entity.type}")
-        wikidata_value = _parse_date_for_wikidata(entity.value)
+    if property.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
+        if not property.value:
+            raise ValueError(
+                f"Date value is required for property type {property.type}"
+            )
+        wikidata_value = _parse_date_for_wikidata(property.value)
         if not wikidata_value:
-            raise ValueError(f"Cannot parse date value: {entity.value}")
+            raise ValueError(f"Cannot parse date value: {property.value}")
         return wikidata_value, None
 
-    # Handle entity properties (birthplace, position, citizenship)
-    elif entity.type in [
+    # Handle property properties (birthplace, position, citizenship)
+    elif property.type in [
         PropertyType.BIRTHPLACE,
         PropertyType.POSITION,
         PropertyType.CITIZENSHIP,
     ]:
-        if not entity.entity_id:
-            raise ValueError(f"Entity ID is required for property type {entity.type}")
-        wikidata_value = {"type": "value", "content": entity.entity_id}
+        if not property.entity_id:
+            raise ValueError(
+                f"Property ID is required for property type {property.type}"
+            )
+        wikidata_value = {"type": "value", "content": property.entity_id}
         return wikidata_value, None
 
     else:
-        raise ValueError(f"Unknown property type: {entity.type}")
+        raise ValueError(f"Unknown property type: {property.type}")
