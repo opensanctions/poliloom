@@ -69,6 +69,9 @@ def _create_database_triggers(engine: Engine):
             "politicians",
             "positions",
             "properties",
+            "wikidata_dumps",
+            "wikidata_entities",
+            "wikidata_relations",
             "wikipedia_links",
         ]
 
