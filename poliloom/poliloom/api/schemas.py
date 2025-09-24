@@ -113,3 +113,24 @@ class EvaluationResponse(UUIDBaseModel):
             }
         }
     )
+
+
+class LanguageResponse(BaseModel):
+    """Schema for language response."""
+
+    wikidata_id: str
+    name: str
+    iso1_code: Optional[str] = None
+    iso3_code: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CountryResponse(BaseModel):
+    """Schema for country response."""
+
+    wikidata_id: str
+    name: str
+    iso_code: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
