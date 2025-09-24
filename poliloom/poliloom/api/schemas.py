@@ -41,6 +41,11 @@ class PropertyResponse(UUIDBaseModel):
     references: Optional[List[Dict[str, Any]]] = None
     archived_page: Optional[ArchivedPageResponse] = None
 
+    @field_serializer("type")
+    def serialize_property_type(self, value: PropertyType) -> str:
+        """Return enum name instead of value for better API readability."""
+        return value.name if value else None
+
 
 class PoliticianResponse(UUIDBaseModel):
     """Simplified politician response."""

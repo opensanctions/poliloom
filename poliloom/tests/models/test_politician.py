@@ -78,3 +78,132 @@ class TestPolitician:
             db_session.query(Property).filter_by(politician_id=politician.id).first()
             is None
         )
+
+    def test_politician_with_all_property_types(
+        self,
+        db_session,
+        sample_politician,
+        sample_position,
+        sample_location,
+        sample_country,
+    ):
+        """Test politician with all property types stored correctly."""
+        # Use fixture entities
+        politician = sample_politician
+        position = sample_position
+        location = sample_location
+        country = sample_country
+
+        # Create properties of all types
+        birth_date = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1970-01-15",
+            value_precision=11,
+        )
+        death_date = Property(
+            politician_id=politician.id,
+            type=PropertyType.DEATH_DATE,
+            value="2020-12-31",
+            value_precision=11,
+        )
+        birthplace = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTHPLACE,
+            entity_id=location.wikidata_id,
+        )
+        pos_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            qualifiers_json={
+                "P580": [
+                    {
+                        "datatype": "time",
+                        "snaktype": "value",
+                        "datavalue": {
+                            "type": "time",
+                            "value": {
+                                "time": "+2020-01-01T00:00:00Z",
+                                "precision": 9,
+                            },
+                        },
+                    }
+                ],
+                "P582": [
+                    {
+                        "datatype": "time",
+                        "snaktype": "value",
+                        "datavalue": {
+                            "type": "time",
+                            "value": {
+                                "time": "+2024-01-01T00:00:00Z",
+                                "precision": 9,
+                            },
+                        },
+                    }
+                ],
+            },
+        )
+        citizenship = Property(
+            politician_id=politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=country.wikidata_id,
+        )
+
+        db_session.add_all(
+            [birth_date, death_date, birthplace, pos_property, citizenship]
+        )
+        db_session.commit()
+        db_session.refresh(politician)
+
+        # Verify all properties are in politician.properties
+        properties = politician.properties
+        assert len(properties) == 5
+
+        # Group by type for easy verification
+        properties_by_type = {prop.type: prop for prop in properties}
+
+        # Verify each property type exists with correct type enum value
+        assert PropertyType.BIRTH_DATE in properties_by_type
+        assert (
+            properties_by_type[PropertyType.BIRTH_DATE].type == PropertyType.BIRTH_DATE
+        )
+        assert properties_by_type[PropertyType.BIRTH_DATE].value == "1970-01-15"
+        assert properties_by_type[PropertyType.BIRTH_DATE].entity_id is None
+
+        assert PropertyType.DEATH_DATE in properties_by_type
+        assert (
+            properties_by_type[PropertyType.DEATH_DATE].type == PropertyType.DEATH_DATE
+        )
+        assert properties_by_type[PropertyType.DEATH_DATE].value == "2020-12-31"
+        assert properties_by_type[PropertyType.DEATH_DATE].entity_id is None
+
+        assert PropertyType.BIRTHPLACE in properties_by_type
+        assert (
+            properties_by_type[PropertyType.BIRTHPLACE].type == PropertyType.BIRTHPLACE
+        )
+        assert (
+            properties_by_type[PropertyType.BIRTHPLACE].entity_id
+            == location.wikidata_id
+        )
+        assert properties_by_type[PropertyType.BIRTHPLACE].value is None
+
+        assert PropertyType.POSITION in properties_by_type
+        assert properties_by_type[PropertyType.POSITION].type == PropertyType.POSITION
+        assert (
+            properties_by_type[PropertyType.POSITION].entity_id == position.wikidata_id
+        )
+        assert properties_by_type[PropertyType.POSITION].value is None
+        assert properties_by_type[PropertyType.POSITION].qualifiers_json is not None
+
+        assert PropertyType.CITIZENSHIP in properties_by_type
+        assert (
+            properties_by_type[PropertyType.CITIZENSHIP].type
+            == PropertyType.CITIZENSHIP
+        )
+        assert (
+            properties_by_type[PropertyType.CITIZENSHIP].entity_id
+            == country.wikidata_id
+        )
+        assert properties_by_type[PropertyType.CITIZENSHIP].value is None
