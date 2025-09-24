@@ -546,12 +546,15 @@ class WikidataEntity(Base, TimestampMixin, UpsertMixin):
     __tablename__ = "wikidata_entities"
 
     # UpsertMixin configuration
-    _upsert_update_columns = ["name"]
+    _upsert_update_columns = ["name", "description"]
 
     wikidata_id = Column(String, primary_key=True)  # Wikidata QID as primary key
     name = Column(
         String, nullable=True
     )  # Entity name from Wikidata labels (can be None)
+    description = Column(
+        String, nullable=True
+    )  # Entity description from Wikidata descriptions (can be None)
 
     # Relationships
     parent_relations = relationship(

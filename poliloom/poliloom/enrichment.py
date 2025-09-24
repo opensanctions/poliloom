@@ -701,6 +701,10 @@ def build_entity_description(entity) -> str:
 
     description_parts = []
 
+    # Add Wikidata description if available
+    if entity.wikidata_entity.description:
+        description_parts.append(entity.wikidata_entity.description)
+
     # Build description based on available relations
     if relations_by_type[RelationType.INSTANCE_OF]:
         instances = relations_by_type[RelationType.INSTANCE_OF]

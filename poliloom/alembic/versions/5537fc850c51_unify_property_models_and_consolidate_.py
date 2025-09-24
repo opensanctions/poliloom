@@ -61,65 +61,14 @@ def upgrade() -> None:
     )
 
     # 4. Add trigger for evaluations updated_at
-    op.execute("""
+    op.execute(
+        """
         CREATE TRIGGER trigger_update_evaluations_updated_at
         BEFORE UPDATE ON evaluations
         FOR EACH ROW
         EXECUTE FUNCTION update_updated_at_column();
-    """)
-
-    # 5. Migrate data from born_at table to properties
-    op.execute("""
-        INSERT INTO properties (id, politician_id, type, entity_id, archived_page_id, proof_line, statement_id, qualifiers_json, references_json, created_at, updated_at)
-        SELECT gen_random_uuid(), politician_id, 'BIRTHPLACE', location_id, archived_page_id, proof_line, statement_id, qualifiers_json, references_json, created_at, updated_at
-        FROM born_at;
-    """)
-
-    # 6. Migrate data from holds_position table to properties
-    op.execute("""
-        INSERT INTO properties (id, politician_id, type, entity_id, archived_page_id, proof_line, statement_id, qualifiers_json, references_json, created_at, updated_at)
-        SELECT gen_random_uuid(), politician_id, 'POSITION', position_id, archived_page_id, proof_line, statement_id, qualifiers_json, references_json, created_at, updated_at
-        FROM holds_position;
-    """)
-
-    # 7. Migrate data from has_citizenship table to properties
-    op.execute("""
-        INSERT INTO properties (id, politician_id, type, entity_id, statement_id, created_at, updated_at)
-        SELECT gen_random_uuid(), politician_id, 'CITIZENSHIP', country_id, statement_id, created_at, updated_at
-        FROM has_citizenship;
-    """)
-
-    # 8. Migrate evaluation data to new evaluations table
-    # First, migrate property evaluations (already exist in property_evaluations)
-    op.execute("""
-        INSERT INTO evaluations (id, user_id, is_confirmed, property_id, created_at, updated_at)
-        SELECT id, user_id, is_confirmed, property_id, created_at, updated_at
-        FROM property_evaluations;
-    """)
-
-    # 9. Migrate position evaluations
-    op.execute("""
-        INSERT INTO evaluations (id, user_id, is_confirmed, property_id, created_at, updated_at)
-        SELECT pe.id, pe.user_id, pe.is_confirmed, p.id, pe.created_at, pe.updated_at
-        FROM position_evaluations pe
-        JOIN holds_position hp ON pe.holds_position_id = hp.id
-        JOIN properties p ON p.politician_id = hp.politician_id
-            AND p.entity_id = hp.position_id
-            AND p.type = 'POSITION'
-            AND p.statement_id IS NOT DISTINCT FROM hp.statement_id;
-    """)
-
-    # 10. Migrate birthplace evaluations
-    op.execute("""
-        INSERT INTO evaluations (id, user_id, is_confirmed, property_id, created_at, updated_at)
-        SELECT be.id, be.user_id, be.is_confirmed, p.id, be.created_at, be.updated_at
-        FROM birthplace_evaluations be
-        JOIN born_at ba ON be.born_at_id = ba.id
-        JOIN properties p ON p.politician_id = ba.politician_id
-            AND p.entity_id = ba.location_id
-            AND p.type = 'BIRTHPLACE'
-            AND p.statement_id IS NOT DISTINCT FROM ba.statement_id;
-    """)
+    """
+    )
 
     # 11. Drop old tables
     op.drop_table("position_evaluations")
@@ -130,14 +79,16 @@ def upgrade() -> None:
     op.drop_table("has_citizenship")
 
     # 12. Add check constraint to ensure correct field usage based on type
-    op.execute("""
+    op.execute(
+        """
         ALTER TABLE properties ADD CONSTRAINT check_property_fields
         CHECK (
             (type IN ('BIRTH_DATE', 'DEATH_DATE') AND value IS NOT NULL AND entity_id IS NULL)
             OR
             (type IN ('BIRTHPLACE', 'POSITION', 'CITIZENSHIP') AND entity_id IS NOT NULL AND value IS NULL)
         );
-    """)
+    """
+    )
 
 
 def downgrade() -> None:

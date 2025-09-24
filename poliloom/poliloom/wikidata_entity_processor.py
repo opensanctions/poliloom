@@ -16,6 +16,7 @@ class WikidataEntityProcessor:
         self._entity_id = raw_data.get("id", "")
         self._claims = raw_data.get("claims", {})
         self._labels = raw_data.get("labels", {})
+        self._descriptions = raw_data.get("descriptions", {})
         self._sitelinks = raw_data.get("sitelinks", {})
 
     def get_wikidata_id(self) -> str:
@@ -39,6 +40,26 @@ class WikidataEntityProcessor:
         # Fallback to any available language
         if self._labels:
             return next(iter(self._labels.values()))["value"]
+
+        return None
+
+    def get_entity_description(self) -> Optional[str]:
+        """Extract the primary description from the entity's descriptions.
+
+        Returns:
+            Primary description string, preferring multilingual, then English, or None if no descriptions exist
+        """
+        # Try multilingual (mul) first - most universally appropriate
+        if "mul" in self._descriptions:
+            return self._descriptions["mul"]["value"]
+
+        # Try English as second choice
+        if "en" in self._descriptions:
+            return self._descriptions["en"]["value"]
+
+        # Fallback to any available language
+        if self._descriptions:
+            return next(iter(self._descriptions.values()))["value"]
 
         return None
 
