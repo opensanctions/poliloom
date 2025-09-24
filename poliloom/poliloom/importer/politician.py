@@ -4,7 +4,6 @@ import logging
 import multiprocessing as mp
 from typing import Tuple
 from datetime import datetime, date
-from types import SimpleNamespace
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -153,59 +152,37 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
         # First, ensure WikidataEntity records exist for all politicians
         from ..models import WikidataEntity
 
-        wikidata_stmt = insert(WikidataEntity).values(
-            [
-                {
-                    "wikidata_id": p["wikidata_id"],
-                    "name": p["name"],
-                }
-                for p in politicians
-            ]
-        )
-        # On conflict, update the name (in case it changed in Wikidata)
-        wikidata_stmt = wikidata_stmt.on_conflict_do_nothing()
-        session.execute(wikidata_stmt)
+        wikidata_data = [
+            {
+                "wikidata_id": p["wikidata_id"],
+                "name": p["name"],
+            }
+            for p in politicians
+        ]
+        WikidataEntity.upsert_batch(session, wikidata_data)
 
-        # Use PostgreSQL UPSERT for politicians
-        stmt = insert(Politician).values(
-            [
-                {
-                    "wikidata_id": p["wikidata_id"],
-                    "name": p["name"],
-                }
-                for p in politicians
-            ]
-        )
-
-        # On conflict, update the name (in case it changed in Wikidata)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["wikidata_id"],
-            set_={
-                "name": stmt.excluded.name,
-            },
+        # Use UpsertMixin for politicians with RETURNING to get IDs directly
+        politician_data = [
+            {
+                "wikidata_id": p["wikidata_id"],
+                "name": p["name"],
+            }
+            for p in politicians
+        ]
+        politician_rows = Politician.upsert_batch(
+            session,
+            politician_data,
+            returning_columns=[Politician.id, Politician.wikidata_id],
         )
 
-        # Execute UPSERT with RETURNING to get IDs directly
-        stmt = stmt.returning(Politician.id, Politician.wikidata_id)
-        result = session.execute(stmt)
-        politician_rows = result.fetchall()
-
-        # Create mapping directly from RETURNING results
-        politician_map = {
-            row.wikidata_id: SimpleNamespace(id=row.id, wikidata_id=row.wikidata_id)
-            for row in politician_rows
-        }
-
-        # Now process properties for each politician
-        for politician_data in politicians:
-            politician_obj = politician_map[politician_data["wikidata_id"]]
-
+        # Process properties for each politician (order is guaranteed by PostgreSQL)
+        for row, politician_data in zip(politician_rows, politicians):
             # Handle properties: all properties (birth/death dates, positions, citizenships, birthplaces) are stored in the unified Property model
 
             # Add properties using batch UPSERT - update only if NOT extracted (preserve user evaluations)
             property_batch = [
                 {
-                    "politician_id": politician_obj.id,
+                    "politician_id": row.id,
                     "type": prop["type"],
                     "value": prop.get("value"),
                     "value_precision": prop.get("value_precision"),
@@ -238,7 +215,7 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
             # Add Wikipedia links using batch UPSERT
             wikipedia_batch = [
                 {
-                    "politician_id": politician_obj.id,
+                    "politician_id": row.id,
                     "url": wiki_link["url"],
                     "language_code": wiki_link.get("language", "en"),
                 }
@@ -310,19 +287,14 @@ def _process_politicians_chunk(
                 for claim in birth_claims:
                     birth_info = entity.extract_date_from_claim(claim)
                     if birth_info:
-                        # Store all qualifiers as JSON for data preservation
-                        qualifiers_json = claim.get("qualifiers")
-                        # Store all references as JSON for data preservation
-                        references_json = claim.get("references")
-
                         politician_data["properties"].append(
                             {
                                 "type": PropertyType.BIRTH_DATE,
                                 "value": birth_info.date,
                                 "value_precision": birth_info.precision,
                                 "statement_id": claim["id"],
-                                "qualifiers_json": qualifiers_json,
-                                "references_json": references_json,
+                                "qualifiers_json": claim.get("qualifiers"),
+                                "references_json": claim.get("references"),
                             }
                         )
 
@@ -330,19 +302,14 @@ def _process_politicians_chunk(
                 for claim in death_claims:
                     death_info = entity.extract_date_from_claim(claim)
                     if death_info:
-                        # Store all qualifiers as JSON for data preservation
-                        qualifiers_json = claim.get("qualifiers")
-                        # Store all references as JSON for data preservation
-                        references_json = claim.get("references")
-
                         politician_data["properties"].append(
                             {
                                 "type": PropertyType.DEATH_DATE,
                                 "value": death_info.date,
                                 "value_precision": death_info.precision,
                                 "statement_id": claim["id"],
-                                "qualifiers_json": qualifiers_json,
-                                "references_json": references_json,
+                                "qualifiers_json": claim.get("qualifiers"),
+                                "references_json": claim.get("references"),
                             }
                         )
 
@@ -360,17 +327,13 @@ def _process_politicians_chunk(
                         ):
                             continue
 
-                        # Extract qualifiers and references as JSON for data preservation
-                        qualifiers_json = claim.get("qualifiers")
-                        references_json = claim.get("references")
-
                         politician_data["properties"].append(
                             {
                                 "type": PropertyType.POSITION,
                                 "entity_id": position_id,
                                 "statement_id": claim["id"],
-                                "qualifiers_json": qualifiers_json,
-                                "references_json": references_json,
+                                "qualifiers_json": claim.get("qualifiers"),
+                                "references_json": claim.get("references"),
                             }
                         )
 
@@ -386,17 +349,13 @@ def _process_politicians_chunk(
                             shared_country_qids
                             and citizenship_id in shared_country_qids
                         ):
-                            # Store all qualifiers as JSON for data preservation
-                            qualifiers_json = claim.get("qualifiers")
-                            # Store all references as JSON for data preservation
-                            references_json = claim.get("references")
                             politician_data["properties"].append(
                                 {
                                     "type": PropertyType.CITIZENSHIP,
                                     "entity_id": citizenship_id,
                                     "statement_id": claim["id"],
-                                    "qualifiers_json": qualifiers_json,
-                                    "references_json": references_json,
+                                    "qualifiers_json": claim.get("qualifiers"),
+                                    "references_json": claim.get("references"),
                                 }
                             )
 
@@ -407,10 +366,6 @@ def _process_politicians_chunk(
                 for claim in birthplace_claims:
                     if "mainsnak" in claim and "datavalue" in claim["mainsnak"]:
                         birthplace_id = claim["mainsnak"]["datavalue"]["value"]["id"]
-                        # Store all qualifiers as JSON for data preservation
-                        qualifiers_json = claim.get("qualifiers")
-                        # Store all references as JSON for data preservation
-                        references_json = claim.get("references")
                         # Only include locations that are in our database
                         if (
                             shared_location_qids
@@ -421,8 +376,8 @@ def _process_politicians_chunk(
                                     "type": PropertyType.BIRTHPLACE,
                                     "entity_id": birthplace_id,
                                     "statement_id": claim["id"],
-                                    "qualifiers_json": qualifiers_json,
-                                    "references_json": references_json,
+                                    "qualifiers_json": claim.get("qualifiers"),
+                                    "references_json": claim.get("references"),
                                 }
                             )
 

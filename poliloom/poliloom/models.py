@@ -76,16 +76,20 @@ class UpsertMixin:
     _upsert_conflict_columns = None
 
     @classmethod
-    def upsert_batch(cls, session: Session, data: List[dict]) -> None:
+    def upsert_batch(cls, session: Session, data: List[dict], returning_columns=None):
         """
         Upsert a batch of records.
 
         Args:
             session: Database session
             data: List of dicts with column data
+            returning_columns: Optional list of columns to return from the upsert
+
+        Returns:
+            List of inserted/updated records if returning_columns specified, None otherwise
         """
         if not data:
-            return
+            return [] if returning_columns else None
 
         from sqlalchemy.dialects.postgresql import insert
 
@@ -108,7 +112,14 @@ class UpsertMixin:
         else:
             stmt = stmt.on_conflict_do_nothing(index_elements=conflict_columns)
 
-        session.execute(stmt)
+        # Add RETURNING clause if requested
+        if returning_columns:
+            stmt = stmt.returning(*returning_columns)
+            result = session.execute(stmt)
+            return result.fetchall()
+        else:
+            session.execute(stmt)
+            return None
 
 
 class Evaluation(Base, TimestampMixin):
@@ -129,10 +140,14 @@ class Evaluation(Base, TimestampMixin):
     property = relationship("Property", back_populates="evaluations")
 
 
-class Politician(Base, TimestampMixin):
+class Politician(Base, TimestampMixin, UpsertMixin):
     """Politician entity."""
 
     __tablename__ = "politicians"
+
+    # UpsertMixin configuration
+    _upsert_update_columns = ["name"]
+    _upsert_conflict_columns = ["wikidata_id"]
 
     id = Column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
