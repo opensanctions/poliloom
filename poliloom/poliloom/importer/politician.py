@@ -190,7 +190,7 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
                 {
                     "politician_id": row.id,
                     "url": wiki_link["url"],
-                    "language_code": wiki_link.get("language", "en"),
+                    "iso_code": wiki_link.get("language", "en"),
                 }
                 for wiki_link in politician_data.get("wikipedia_links", [])
             ]
@@ -198,7 +198,7 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
             if wikipedia_batch:
                 stmt = insert(WikipediaLink).values(wikipedia_batch)
                 stmt = stmt.on_conflict_do_update(
-                    index_elements=["politician_id", "language_code"],
+                    index_elements=["politician_id", "iso_code"],
                     set_={
                         "url": stmt.excluded.url,
                     },

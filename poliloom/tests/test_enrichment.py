@@ -484,7 +484,7 @@ class TestEnrichment:
         wikipedia_link = WikipediaLink(
             politician_id=sample_politician.id,
             url="https://fr.wikipedia.org/wiki/Test_Politician",
-            language_code="fr",
+            iso_code="fr",
         )
         db_session.add(wikipedia_link)
         db_session.commit()

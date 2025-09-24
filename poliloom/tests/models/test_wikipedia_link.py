@@ -16,7 +16,7 @@ class TestWikipediaLink:
         wikipedia_link = WikipediaLink(
             politician_id=politician.id,
             url="https://en.wikipedia.org/wiki/John_Doe",
-            language_code="en",
+            iso_code="en",
         )
         db_session.add(wikipedia_link)
         db_session.commit()
@@ -27,7 +27,7 @@ class TestWikipediaLink:
             {
                 "politician_id": politician.id,
                 "url": "https://en.wikipedia.org/wiki/John_Doe",
-                "language_code": "en",
+                "iso_code": "en",
             },
         )
 
@@ -46,12 +46,12 @@ class TestWikipediaLinkRelationships:
         wiki_link1 = WikipediaLink(
             politician_id=politician.id,
             url="https://en.wikipedia.org/wiki/John_Doe",
-            language_code="en",
+            iso_code="en",
         )
         wiki_link2 = WikipediaLink(
             politician_id=politician.id,
             url="https://de.wikipedia.org/wiki/John_Doe",
-            language_code="de",
+            iso_code="de",
         )
         db_session.add_all([wiki_link1, wiki_link2])
         db_session.commit()

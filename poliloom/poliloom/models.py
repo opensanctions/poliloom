@@ -286,6 +286,7 @@ class ArchivedPage(Base, TimestampMixin):
     fetch_timestamp = Column(
         DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
+    iso_code = Column(String, index=True)  # Language ISO code for the archived content
 
     # Relationships
     properties = relationship("Property", back_populates="archived_page")
@@ -325,9 +326,9 @@ class WikipediaLink(Base, TimestampMixin):
     __tablename__ = "wikipedia_links"
     __table_args__ = (
         Index(
-            "idx_wikipedia_links_politician_language",
+            "idx_wikipedia_links_politician_iso_code",
             "politician_id",
-            "language_code",
+            "iso_code",
             unique=True,
         ),
     )
@@ -341,7 +342,7 @@ class WikipediaLink(Base, TimestampMixin):
         nullable=False,
     )
     url = Column(String, nullable=False)
-    language_code = Column(String, nullable=False)  # e.g., 'en', 'de', 'fr'
+    iso_code = Column(String, nullable=False, index=True)  # e.g., 'en', 'de', 'fr'
 
     # Relationships
     politician = relationship("Politician", back_populates="wikipedia_links")
@@ -439,6 +440,45 @@ class Country(Base, TimestampMixin, UpsertMixin):
         session.add(country)
 
         return country
+
+
+class Language(Base, TimestampMixin, UpsertMixin):
+    """Language entity for storing language information."""
+
+    __tablename__ = "languages"
+
+    # UpsertMixin configuration
+    _upsert_update_columns = ["iso_code"]
+
+    wikidata_id = Column(
+        String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
+    )
+    iso_code = Column(String, index=True)  # ISO 639-1 language code
+
+    # Relationships
+    wikidata_entity = relationship(
+        "WikidataEntity", back_populates="language", lazy="joined"
+    )
+
+    @hybrid_property
+    def name(self) -> str:
+        """Get the language name from the related WikidataEntity."""
+        return self.wikidata_entity.name if self.wikidata_entity else None
+
+    @classmethod
+    def create_with_entity(
+        cls, session, wikidata_id: str, name: str, iso_code: str = None
+    ):
+        """Create a Language with its associated WikidataEntity."""
+        # Create WikidataEntity first
+        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, name=name)
+        session.add(wikidata_entity)
+
+        # Create Language
+        language = cls(wikidata_id=wikidata_id, iso_code=iso_code)
+        session.add(language)
+
+        return language
 
 
 class Location(Base, TimestampMixin, UpsertMixin):
@@ -573,6 +613,7 @@ class WikidataEntity(Base, TimestampMixin, UpsertMixin):
     location = relationship("Location", back_populates="wikidata_entity")
     position = relationship("Position", back_populates="wikidata_entity")
     country = relationship("Country", back_populates="wikidata_entity")
+    language = relationship("Language", back_populates="wikidata_entity")
 
     @classmethod
     def query_hierarchy_descendants(

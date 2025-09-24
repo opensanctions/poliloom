@@ -283,7 +283,7 @@ def enrich_wikipedia(limit: Optional[int]) -> None:
                     # Load Wikipedia links
                     selectinload(Politician.wikipedia_links),
                 )
-                .filter(Politician.wikipedia_links.any(language_code="en"))
+                .filter(Politician.wikipedia_links.any(iso_code="en"))
                 .order_by(Politician.enriched_at.asc().nullsfirst())
             )
 

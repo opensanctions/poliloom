@@ -246,7 +246,7 @@ def sample_wikipedia_link(db_session, sample_politician):
     wikipedia_link = WikipediaLink(
         politician_id=sample_politician.id,
         url="https://en.wikipedia.org/wiki/Test_Politician",
-        language_code="en",
+        iso_code="en",
     )
     db_session.add(wikipedia_link)
     db_session.commit()

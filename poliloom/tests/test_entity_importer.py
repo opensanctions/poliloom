@@ -11,6 +11,7 @@ from poliloom.models import (
     Position,
     Location,
     Country,
+    Language,
 )
 from poliloom.importer.entity import (
     import_entities,
@@ -261,8 +262,16 @@ class TestWikidataEntityImporter:
     def test_insert_positions_batch(self, db_session):
         """Test inserting a batch of positions."""
         positions = [
-            {"wikidata_id": "Q1", "name": "Position 1"},
-            {"wikidata_id": "Q2", "name": "Position 2"},
+            {
+                "wikidata_id": "Q1",
+                "name": "Position 1",
+                "description": "First position",
+            },
+            {
+                "wikidata_id": "Q2",
+                "name": "Position 2",
+                "description": "Second position",
+            },
         ]
 
         collection = EntityCollection(model_class=Position, shared_classes=frozenset())
@@ -281,8 +290,16 @@ class TestWikidataEntityImporter:
         """Test inserting positions with some duplicates."""
         # Insert initial batch
         initial_positions = [
-            {"wikidata_id": "Q1", "name": "Position 1"},
-            {"wikidata_id": "Q2", "name": "Position 2"},
+            {
+                "wikidata_id": "Q1",
+                "name": "Position 1",
+                "description": "First position",
+            },
+            {
+                "wikidata_id": "Q2",
+                "name": "Position 2",
+                "description": "Second position",
+            },
         ]
         collection = EntityCollection(model_class=Position, shared_classes=frozenset())
         for pos in initial_positions:
@@ -294,9 +311,18 @@ class TestWikidataEntityImporter:
             {
                 "wikidata_id": "Q1",
                 "name": "Position 1 Updated",
+                "description": "First position updated",
             },  # Duplicate (should update)
-            {"wikidata_id": "Q2", "name": "Position 2"},  # Duplicate (no change)
-            {"wikidata_id": "Q3", "name": "Position 3"},  # New
+            {
+                "wikidata_id": "Q2",
+                "name": "Position 2",
+                "description": "Second position",
+            },  # Duplicate (no change)
+            {
+                "wikidata_id": "Q3",
+                "name": "Position 3",
+                "description": "Third position",
+            },  # New
         ]
         collection = EntityCollection(model_class=Position, shared_classes=frozenset())
         for pos in positions_with_duplicates:
@@ -329,8 +355,16 @@ class TestWikidataEntityImporter:
     def test_insert_locations_batch(self, db_session):
         """Test inserting a batch of locations."""
         locations = [
-            {"wikidata_id": "Q1", "name": "Location 1"},
-            {"wikidata_id": "Q2", "name": "Location 2"},
+            {
+                "wikidata_id": "Q1",
+                "name": "Location 1",
+                "description": "First location",
+            },
+            {
+                "wikidata_id": "Q2",
+                "name": "Location 2",
+                "description": "Second location",
+            },
         ]
 
         collection = EntityCollection(model_class=Location, shared_classes=frozenset())
@@ -348,9 +382,21 @@ class TestWikidataEntityImporter:
     def test_insert_locations_batch_with_duplicates(self, db_session):
         """Test inserting locations with some duplicates."""
         locations = [
-            {"wikidata_id": "Q1", "name": "Location 1"},
-            {"wikidata_id": "Q2", "name": "Location 2"},
-            {"wikidata_id": "Q3", "name": "Location 3"},
+            {
+                "wikidata_id": "Q1",
+                "name": "Location 1",
+                "description": "First location",
+            },
+            {
+                "wikidata_id": "Q2",
+                "name": "Location 2",
+                "description": "Second location",
+            },
+            {
+                "wikidata_id": "Q3",
+                "name": "Location 3",
+                "description": "Third location",
+            },
         ]
 
         collection = EntityCollection(model_class=Location, shared_classes=frozenset())
@@ -360,8 +406,16 @@ class TestWikidataEntityImporter:
 
         # Insert again with some duplicates - should handle gracefully
         locations_with_duplicates = [
-            {"wikidata_id": "Q1", "name": "Location 1 Updated"},  # Duplicate
-            {"wikidata_id": "Q4", "name": "Location 4"},  # New
+            {
+                "wikidata_id": "Q1",
+                "name": "Location 1 Updated",
+                "description": "First location updated",
+            },  # Duplicate
+            {
+                "wikidata_id": "Q4",
+                "name": "Location 4",
+                "description": "Fourth location",
+            },  # New
         ]
         collection = EntityCollection(model_class=Location, shared_classes=frozenset())
         for loc in locations_with_duplicates:
@@ -388,8 +442,18 @@ class TestWikidataEntityImporter:
     def test_insert_countries_batch(self, db_session):
         """Test inserting a batch of countries."""
         countries = [
-            {"wikidata_id": "Q1", "name": "Country 1", "iso_code": "C1"},
-            {"wikidata_id": "Q2", "name": "Country 2", "iso_code": "C2"},
+            {
+                "wikidata_id": "Q1",
+                "name": "Country 1",
+                "description": "First country",
+                "iso_code": "C1",
+            },
+            {
+                "wikidata_id": "Q2",
+                "name": "Country 2",
+                "description": "Second country",
+                "iso_code": "C2",
+            },
         ]
 
         collection = EntityCollection(model_class=Country, shared_classes=frozenset())
@@ -423,7 +487,12 @@ class TestWikidataEntityImporter:
     def test_insert_countries_batch_with_duplicates_handling(self, db_session):
         """Test that countries batch uses ON CONFLICT DO UPDATE."""
         countries = [
-            {"wikidata_id": "Q1", "name": "Country 1", "iso_code": "C1"},
+            {
+                "wikidata_id": "Q1",
+                "name": "Country 1",
+                "description": "First country",
+                "iso_code": "C1",
+            },
         ]
 
         # Insert first time
@@ -434,7 +503,12 @@ class TestWikidataEntityImporter:
 
         # Insert again with updated name - should update
         updated_countries = [
-            {"wikidata_id": "Q1", "name": "Country 1 Updated", "iso_code": "C1"},
+            {
+                "wikidata_id": "Q1",
+                "name": "Country 1 Updated",
+                "description": "First country updated",
+                "iso_code": "C1",
+            },
         ]
         collection = EntityCollection(model_class=Country, shared_classes=frozenset())
         for country in updated_countries:
@@ -446,3 +520,82 @@ class TestWikidataEntityImporter:
         assert len(final_countries) == 1
         assert final_countries[0].wikidata_id == "Q1"
         assert final_countries[0].name == "Country 1 Updated"
+
+    def test_insert_languages_batch(self, db_session):
+        """Test inserting a batch of languages."""
+        languages = [
+            {
+                "wikidata_id": "Q1",
+                "name": "English",
+                "description": "English language",
+                "iso_code": "en",
+            },
+            {
+                "wikidata_id": "Q2",
+                "name": "Spanish",
+                "description": "Spanish language",
+                "iso_code": "es",
+            },
+        ]
+
+        collection = EntityCollection(model_class=Language, shared_classes=frozenset())
+        for lang in languages:
+            collection.add_entity(lang)
+        _insert_entities_batch(collection, get_engine())
+
+        # Verify languages were inserted
+        inserted_languages = db_session.query(Language).all()
+        assert len(inserted_languages) == 2
+        wikidata_ids = {lang.wikidata_id for lang in inserted_languages}
+        assert wikidata_ids == {"Q1", "Q2"}
+        iso_codes = {lang.iso_code for lang in inserted_languages}
+        assert iso_codes == {"en", "es"}
+
+    def test_insert_languages_batch_with_duplicates_handling(self, db_session):
+        """Test that languages batch uses ON CONFLICT DO UPDATE."""
+        languages = [
+            {
+                "wikidata_id": "Q1",
+                "name": "English",
+                "description": "English language",
+                "iso_code": "en",
+            },
+        ]
+
+        # Insert first time
+        collection = EntityCollection(model_class=Language, shared_classes=frozenset())
+        for lang in languages:
+            collection.add_entity(lang)
+        _insert_entities_batch(collection, get_engine())
+
+        # Insert again with updated name - should update
+        updated_languages = [
+            {
+                "wikidata_id": "Q1",
+                "name": "English Language",
+                "description": "English language updated",
+                "iso_code": "en",
+            },
+        ]
+        collection = EntityCollection(model_class=Language, shared_classes=frozenset())
+        for lang in updated_languages:
+            collection.add_entity(lang)
+        _insert_entities_batch(collection, get_engine())
+
+        # Should still have only one language but with updated name
+        final_languages = db_session.query(Language).all()
+        assert len(final_languages) == 1
+        assert final_languages[0].wikidata_id == "Q1"
+        assert final_languages[0].name == "English Language"
+        assert final_languages[0].iso_code == "en"
+
+    def test_insert_languages_batch_empty(self, db_session):
+        """Test inserting empty batch of languages."""
+        collection = EntityCollection(model_class=Language, shared_classes=frozenset())
+
+        # Should handle empty batch gracefully without errors
+        _insert_entities_batch(collection, get_engine())
+
+        # Verify no languages were inserted
+        inserted_languages = db_session.query(Language).all()
+        assert len(inserted_languages) == 0

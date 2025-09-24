@@ -13,6 +13,7 @@ from ..models import (
     Position,
     Location,
     Country,
+    Language,
     WikidataEntity,
     WikidataRelation,
 )
@@ -61,18 +62,25 @@ PROGRESS_REPORT_FREQUENCY = 50000
 shared_position_classes: frozenset[str] | None = None
 shared_location_classes: frozenset[str] | None = None
 shared_country_classes: frozenset[str] | None = None
+shared_language_classes: frozenset[str] | None = None
 
 
 def init_entity_worker(
     pos_classes: frozenset[str],
     loc_classes: frozenset[str],
     country_classes: frozenset[str],
+    language_classes: frozenset[str],
 ) -> None:
     """Initializer runs in each worker process once at startup."""
-    global shared_position_classes, shared_location_classes, shared_country_classes
+    global \
+        shared_position_classes, \
+        shared_location_classes, \
+        shared_country_classes, \
+        shared_language_classes
     shared_position_classes = pos_classes
     shared_location_classes = loc_classes
     shared_country_classes = country_classes
+    shared_language_classes = language_classes
 
 
 def _insert_entities_batch(collection: EntityCollection, engine) -> None:
@@ -125,7 +133,11 @@ def _process_supporting_entities_chunk(
     Each worker independently reads and parses its assigned chunk.
     Returns entity counts found in this chunk.
     """
-    global shared_position_classes, shared_location_classes, shared_country_classes
+    global \
+        shared_position_classes, \
+        shared_location_classes, \
+        shared_country_classes, \
+        shared_language_classes
 
     # Create a fresh engine for this worker process
     engine = create_engine(pool_size=2, max_overflow=3)
@@ -143,6 +155,10 @@ def _process_supporting_entities_chunk(
         EntityCollection(
             model_class=Country,
             shared_classes=shared_country_classes,
+        ),
+        EntityCollection(
+            model_class=Language,
+            shared_classes=shared_language_classes,
         ),
     ]
     entity_count = 0
@@ -202,10 +218,24 @@ def _process_supporting_entities_chunk(
                             country_data = entity_data.copy()
                             country_data["iso_code"] = iso_code
                             collection.add_entity(country_data)
+                    # Handle special case for languages requiring ISO 639-1 code
+                    elif collection.model_class is Language:
+                        # Extract ISO 639-1 code for languages
+                        iso_code = None
+                        iso_claims = entity.get_truthy_claims("P218")
+                        for claim in iso_claims:
+                            try:
+                                iso_code = claim["mainsnak"]["datavalue"]["value"]
+                                break
+                            except (KeyError, TypeError):
+                                continue
 
-                            # Extract relations for this country
-                            entity_relations = entity.extract_all_relations()
-                            collection.add_relations(entity_relations)
+                        # Only import languages that have an ISO 639-1 code
+                        if iso_code:
+                            # Create separate copy for languages with iso_code
+                            language_data = entity_data.copy()
+                            language_data["iso_code"] = iso_code
+                            collection.add_entity(language_data)
                     else:
                         # Standard processing for positions and locations
                         collection.add_entity(entity_data.copy())
@@ -290,18 +320,26 @@ def import_entities(
             session, country_root_ids
         )
 
+        # Language root IDs (languoid)
+        language_root_ids = ["Q17376908"]  # languoid
+        language_classes = WikidataEntity.query_hierarchy_descendants(
+            session, language_root_ids
+        )
+
         logger.info(
-            f"Filtering for {len(position_classes)} position types, {len(location_classes)} location types, and {len(country_classes)} country types"
+            f"Filtering for {len(position_classes)} position types, {len(location_classes)} location types, {len(country_classes)} country types, and {len(language_classes)} language types"
         )
 
     # Build frozensets once in parent, BEFORE starting Pool
     position_classes = frozenset(position_classes)
     location_classes = frozenset(location_classes)
     country_classes = frozenset(country_classes)
+    language_classes = frozenset(language_classes)
 
     logger.info(f"Prepared {len(position_classes)} position classes")
     logger.info(f"Prepared {len(location_classes)} location classes")
     logger.info(f"Prepared {len(country_classes)} country classes")
+    logger.info(f"Prepared {len(language_classes)} language classes")
 
     num_workers = mp.cpu_count()
     logger.info(f"Using parallel processing with {num_workers} workers")
@@ -317,7 +355,12 @@ def import_entities(
         pool = mp.Pool(
             processes=num_workers,
             initializer=init_entity_worker,
-            initargs=(position_classes, location_classes, country_classes),
+            initargs=(
+                position_classes,
+                location_classes,
+                country_classes,
+                language_classes,
+            ),
         )
 
         async_result = pool.starmap_async(

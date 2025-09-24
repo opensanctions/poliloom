@@ -485,7 +485,7 @@ class TestWikidataPoliticianImporter:
             .all()
         )
         assert len(wiki_links) == 2
-        wiki_languages = {w.language_code for w in wiki_links}
+        wiki_languages = {w.iso_code for w in wiki_links}
         assert wiki_languages == {"en", "fr"}
 
 
