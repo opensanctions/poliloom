@@ -387,10 +387,13 @@ class Property(Base, TimestampMixin, StatementMixin):
     )
 
 
-class Country(Base, TimestampMixin):
+class Country(Base, TimestampMixin, UpsertMixin):
     """Country entity for storing country information."""
 
     __tablename__ = "countries"
+
+    # UpsertMixin configuration
+    _upsert_update_columns = ["iso_code"]
 
     wikidata_id = Column(
         String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
@@ -423,7 +426,7 @@ class Country(Base, TimestampMixin):
         return country
 
 
-class Location(Base, TimestampMixin):
+class Location(Base, TimestampMixin, UpsertMixin):
     """Location entity for geographic locations."""
 
     __tablename__ = "locations"
@@ -459,7 +462,7 @@ class Location(Base, TimestampMixin):
         return location
 
 
-class Position(Base, TimestampMixin):
+class Position(Base, TimestampMixin, UpsertMixin):
     """Position entity for political positions."""
 
     __tablename__ = "positions"

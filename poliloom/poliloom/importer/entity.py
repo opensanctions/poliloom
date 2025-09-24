@@ -5,7 +5,6 @@ import multiprocessing as mp
 from typing import Dict, Tuple
 
 from sqlalchemy.orm import Session
-from sqlalchemy.dialects.postgresql import insert
 
 from .. import dump_reader
 from ..database import create_engine, get_engine
@@ -65,10 +64,7 @@ def _insert_entities_batch(
         for entity in entities:
             entity.pop("name", None)
 
-        stmt = insert(model_class).values(entities)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
-
-        session.execute(stmt)
+        model_class.upsert_batch(session, entities)
 
         # Insert relations for these entities
         if relations:
@@ -99,13 +95,30 @@ def _process_supporting_entities_chunk(
     # Create a fresh engine for this worker process
     engine = create_engine(pool_size=2, max_overflow=3)
 
-    positions = []
-    locations = []
-    countries = []
-    position_relations = []
-    location_relations = []
-    country_relations = []
-    counts = {"positions": 0, "locations": 0, "countries": 0}
+    # Entity collections organized by type
+    entity_collections = {
+        "positions": {
+            "entities": [],
+            "relations": [],
+            "count": 0,
+            "model_class": Position,
+            "shared_classes": shared_position_classes,
+        },
+        "locations": {
+            "entities": [],
+            "relations": [],
+            "count": 0,
+            "model_class": Location,
+            "shared_classes": shared_location_classes,
+        },
+        "countries": {
+            "entities": [],
+            "relations": [],
+            "count": 0,
+            "model_class": Country,
+            "shared_classes": shared_country_classes,
+        },
+    }
     entity_count = 0
     try:
         for entity in dump_reader.read_chunk_entities(
@@ -138,87 +151,79 @@ def _process_supporting_entities_chunk(
             subclass_ids = entity.get_subclass_of_ids()
             all_class_ids = instance_ids.union(subclass_ids)
 
-            if any(class_id in shared_position_classes for class_id in all_class_ids):
-                positions.append(entity_data.copy())
-                counts["positions"] += 1
+            # Process each entity type
+            for entity_type, collection in entity_collections.items():
+                if any(
+                    class_id in collection["shared_classes"]
+                    for class_id in all_class_ids
+                ):
+                    # Handle special case for countries requiring ISO code
+                    if entity_type == "countries":
+                        # Extract ISO 3166-1 alpha-2 code for countries
+                        iso_code = None
+                        iso_claims = entity.get_truthy_claims("P297")
+                        for claim in iso_claims:
+                            try:
+                                iso_code = claim["mainsnak"]["datavalue"]["value"]
+                                break
+                            except (KeyError, TypeError):
+                                continue
 
-                # Extract relations for this position
-                entity_relations = entity.extract_all_relations()
-                position_relations.extend(entity_relations)
+                        # Only import countries that have an ISO code
+                        if iso_code:
+                            # Create separate copy for countries with iso_code
+                            country_data = entity_data.copy()
+                            country_data["iso_code"] = iso_code
+                            collection["entities"].append(country_data)
+                            collection["count"] += 1
 
-            if any(class_id in shared_location_classes for class_id in all_class_ids):
-                locations.append(entity_data.copy())
-                counts["locations"] += 1
+                            # Extract relations for this country
+                            entity_relations = entity.extract_all_relations()
+                            collection["relations"].extend(entity_relations)
+                    else:
+                        # Standard processing for positions and locations
+                        collection["entities"].append(entity_data.copy())
+                        collection["count"] += 1
 
-                # Extract relations for this location
-                entity_relations = entity.extract_all_relations()
-                location_relations.extend(entity_relations)
-
-            if any(class_id in shared_country_classes for class_id in all_class_ids):
-                # Extract ISO 3166-1 alpha-2 code for countries
-                iso_code = None
-                iso_claims = entity.get_truthy_claims("P297")
-                for claim in iso_claims:
-                    try:
-                        iso_code = claim["mainsnak"]["datavalue"]["value"]
-                        break
-                    except (KeyError, TypeError):
-                        continue
-
-                # Only import countries that have an ISO code
-                if iso_code:
-                    # Create separate copy for countries with iso_code
-                    country_data = entity_data.copy()
-                    country_data["iso_code"] = iso_code
-                    countries.append(country_data)
-                    counts["countries"] += 1
-
-                    # Extract relations for this country
-                    entity_relations = entity.extract_all_relations()
-                    country_relations.extend(entity_relations)
+                        # Extract relations for this entity
+                        entity_relations = entity.extract_all_relations()
+                        collection["relations"].extend(entity_relations)
 
             # Process batches when they reach the batch size
-            if len(positions) >= batch_size:
-                _insert_entities_batch(
-                    positions, position_relations, Position, "positions", engine
-                )
-                positions = []
-                position_relations = []
-
-            if len(locations) >= batch_size:
-                _insert_entities_batch(
-                    locations, location_relations, Location, "locations", engine
-                )
-                locations = []
-                location_relations = []
-
-            if len(countries) >= batch_size:
-                _insert_entities_batch(
-                    countries, country_relations, Country, "countries", engine
-                )
-                countries = []
-                country_relations = []
+            for entity_type, collection in entity_collections.items():
+                if len(collection["entities"]) >= batch_size:
+                    _insert_entities_batch(
+                        collection["entities"],
+                        collection["relations"],
+                        collection["model_class"],
+                        entity_type,
+                        engine,
+                    )
+                    collection["entities"] = []
+                    collection["relations"] = []
 
     except Exception as e:
         logger.error(f"Worker {worker_id}: error processing chunk: {e}")
         raise
 
     # Process remaining entities in final batches on successful completion
-    if positions:
-        _insert_entities_batch(
-            positions, position_relations, Position, "positions", engine
-        )
-    if locations:
-        _insert_entities_batch(
-            locations, location_relations, Location, "locations", engine
-        )
-    if countries:
-        _insert_entities_batch(
-            countries, country_relations, Country, "countries", engine
-        )
+    for entity_type, collection in entity_collections.items():
+        if collection["entities"]:
+            _insert_entities_batch(
+                collection["entities"],
+                collection["relations"],
+                collection["model_class"],
+                entity_type,
+                engine,
+            )
 
     logger.info(f"Worker {worker_id}: finished processing {entity_count} entities")
 
+    # Extract counts from collections
+    counts = {
+        entity_type: collection["count"]
+        for entity_type, collection in entity_collections.items()
+    }
     return counts, entity_count
 
 
