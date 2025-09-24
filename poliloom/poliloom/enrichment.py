@@ -1058,15 +1058,14 @@ def store_extracted_data(
         # Store properties
         if properties:
             for property_data in properties:
-                # Parse the date to get precision
+                # Convert date string to WikidataDate and store the time_string
                 wikidata_date = WikidataDate.from_date_string(property_data.value)
-                precision = wikidata_date.precision if wikidata_date else None
 
                 new_property = Property(
                     politician_id=politician.id,
                     type=property_data.type,
-                    value=property_data.value,
-                    value_precision=precision,
+                    value=wikidata_date.time_string,
+                    value_precision=wikidata_date.precision,
                     qualifiers_json=None,  # For extracted dates, no qualifiers initially
                     references_json=archived_page.create_references_json(),
                     archived_page_id=archived_page.id,

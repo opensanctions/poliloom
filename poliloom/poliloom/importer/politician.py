@@ -3,7 +3,7 @@
 import logging
 import multiprocessing as mp
 from typing import Tuple
-from datetime import datetime, date
+from datetime import date
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -89,32 +89,13 @@ def _should_import_politician(entity: WikidataEntityProcessor) -> bool:
                 if death_info.is_bce:
                     return False
 
-                try:
-                    death_date_str = death_info.date
-                    precision = death_info.precision
-
-                    # Parse date based on precision
-                    if precision >= 11:  # day precision
-                        death_date = datetime.strptime(
-                            death_date_str, "%Y-%m-%d"
-                        ).date()
-                    elif precision == 10:  # month precision
-                        death_date = datetime.strptime(
-                            death_date_str + "-01", "%Y-%m-%d"
-                        ).date()
-                    elif precision == 9:  # year precision
-                        death_date = datetime.strptime(
-                            death_date_str + "-01-01", "%Y-%m-%d"
-                        ).date()
-                    else:
-                        death_date = None
-
+                # Use the new to_python_date method
+                death_date = death_info.to_python_date()
+                if death_date:
                     # Skip if died more than 5 years ago
                     cutoff_date = date.today().replace(year=date.today().year - 5)
-                    if death_date and death_date < cutoff_date:
+                    if death_date < cutoff_date:
                         return False
-                except (ValueError, TypeError):
-                    pass  # Include if we can't parse the date
     else:
         # No death date - check if born over 120 years ago
         birth_claims = entity.get_truthy_claims(PropertyType.BIRTH_DATE.value)
@@ -125,20 +106,12 @@ def _should_import_politician(entity: WikidataEntityProcessor) -> bool:
                 if birth_info.is_bce:
                     return False
 
-                try:
-                    birth_date_str = birth_info.date
-                    precision = birth_info.precision
-
-                    # Parse birth year based on precision
-                    if precision >= 9:  # year precision or better
-                        birth_year = int(birth_date_str.split("-")[0])
-                        current_year = date.today().year
-
-                        # Skip if born over 120 years ago
-                        if current_year - birth_year > 120:
-                            return False
-                except (ValueError, TypeError, IndexError):
-                    pass  # Include if we can't parse the birth date
+                birth_date = birth_info.to_python_date()
+                if birth_date:
+                    current_year = date.today().year
+                    # Skip if born over 120 years ago
+                    if current_year - birth_date.year > 120:
+                        return False
 
     return True
 
@@ -290,7 +263,7 @@ def _process_politicians_chunk(
                         politician_data["properties"].append(
                             {
                                 "type": PropertyType.BIRTH_DATE,
-                                "value": birth_info.date,
+                                "value": birth_info.time_string,
                                 "value_precision": birth_info.precision,
                                 "statement_id": claim["id"],
                                 "qualifiers_json": claim.get("qualifiers"),
@@ -305,7 +278,7 @@ def _process_politicians_chunk(
                         politician_data["properties"].append(
                             {
                                 "type": PropertyType.DEATH_DATE,
-                                "value": death_info.date,
+                                "value": death_info.time_string,
                                 "value_precision": death_info.precision,
                                 "statement_id": claim["id"],
                                 "qualifiers_json": claim.get("qualifiers"),

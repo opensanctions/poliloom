@@ -259,7 +259,7 @@ class TestEnrichment:
             .first()
         )
         assert property_obj is not None
-        assert property_obj.value == "1970-01-15"
+        assert property_obj.value == "+1970-01-15T00:00:00Z"
         assert property_obj.value_precision == 11  # Day precision
         assert property_obj.archived_page_id == sample_archived_page.id
 

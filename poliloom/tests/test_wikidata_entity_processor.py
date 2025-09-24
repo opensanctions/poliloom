@@ -96,11 +96,14 @@ class TestWikidataEntityProcessor:
         date_info = entity.extract_date_from_claim(claims[0])
 
         assert date_info is not None
-        assert date_info.date == "1970-06-15"
+        assert date_info.time_string == "+1970-06-15T00:00:00Z"
         assert date_info.precision == 11
         assert not date_info.is_bce
 
-        # Test year precision
+        # Test year precision with actual year precision data
+        entity_data["claims"]["P580"][0]["mainsnak"]["datavalue"]["value"]["time"] = (
+            "+1970-00-00T00:00:00Z"
+        )
         entity_data["claims"]["P580"][0]["mainsnak"]["datavalue"]["value"][
             "precision"
         ] = 9
@@ -109,7 +112,7 @@ class TestWikidataEntityProcessor:
         claims = entity.get_truthy_claims("P580")
         date_info = entity.extract_date_from_claim(claims[0])
 
-        assert date_info.date == "1970"
+        assert date_info.time_string == "+1970-00-00T00:00:00Z"
         assert date_info.precision == 9
 
     def test_bce_date_extraction(self):
@@ -139,7 +142,7 @@ class TestWikidataEntityProcessor:
         date_info = entity.extract_date_from_claim(claims[0])
 
         assert date_info is not None
-        assert date_info.date == "0347"  # The negative sign is stripped
+        assert date_info.time_string == "-0347-00-00T00:00:00Z"
         assert date_info.precision == 9
         assert date_info.is_bce
 
@@ -154,7 +157,7 @@ class TestWikidataEntityProcessor:
         date_info = entity.extract_date_from_claim(claims[0])
 
         assert date_info is not None
-        assert date_info.date == "0322-10-07"
+        assert date_info.time_string == "-0322-10-07T00:00:00Z"
         assert date_info.precision == 11
         assert date_info.is_bce
 
@@ -169,7 +172,7 @@ class TestWikidataEntityProcessor:
         date_info = entity.extract_date_from_claim(claims[0])
 
         assert date_info is not None
-        assert date_info.date == "0348"  # Should parse decade as year
+        assert date_info.time_string == "-0348-00-00T00:00:00Z"
         assert date_info.precision == 8
         assert date_info.is_bce
 
@@ -184,7 +187,7 @@ class TestWikidataEntityProcessor:
         date_info = entity.extract_date_from_claim(claims[0])
 
         assert date_info is not None
-        assert date_info.date == "0400"  # Should parse century as year
+        assert date_info.time_string == "-0400-00-00T00:00:00Z"
         assert date_info.precision == 7
         assert date_info.is_bce
 
@@ -199,7 +202,7 @@ class TestWikidataEntityProcessor:
         date_info = entity.extract_date_from_claim(claims[0])
 
         assert date_info is not None
-        assert date_info.date == "1000"  # Should parse millennium as year
+        assert date_info.time_string == "-1000-00-00T00:00:00Z"
         assert date_info.precision == 6
         assert date_info.is_bce
 

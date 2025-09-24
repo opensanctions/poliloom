@@ -36,31 +36,45 @@ class TestDatesSameness:
 
     def test_dates_could_be_same_year_and_specific(self):
         """Test year and specific date within year."""
-        assert WikidataDate.dates_could_be_same("2025", "2025-03-10")
-        assert WikidataDate.dates_could_be_same("2025-03-10", "2025")
+        year_date = WikidataDate.from_date_string("2025")
+        specific_date = WikidataDate.from_date_string("2025-03-10")
+        assert WikidataDate.dates_could_be_same(year_date, specific_date)
+        assert WikidataDate.dates_could_be_same(specific_date, year_date)
 
     def test_dates_could_be_same_different_months(self):
         """Test different months are not same."""
-        assert not WikidataDate.dates_could_be_same("2024-03", "2024-05-10")
+        march_date = WikidataDate.from_date_string("2024-03")
+        may_date = WikidataDate.from_date_string("2024-05-10")
+        assert not WikidataDate.dates_could_be_same(march_date, may_date)
 
     def test_dates_could_be_same_month_and_specific(self):
         """Test month and specific date within month."""
-        assert WikidataDate.dates_could_be_same("2025-03", "2025-03-15")
-        assert WikidataDate.dates_could_be_same("2025-03-15", "2025-03")
+        month_date = WikidataDate.from_date_string("2025-03")
+        specific_date = WikidataDate.from_date_string("2025-03-15")
+        assert WikidataDate.dates_could_be_same(month_date, specific_date)
+        assert WikidataDate.dates_could_be_same(specific_date, month_date)
 
     def test_dates_could_be_same_identical(self):
         """Test identical dates."""
-        assert WikidataDate.dates_could_be_same("2025", "2025")
-        assert WikidataDate.dates_could_be_same("2025-03-10", "2025-03-10")
+        year1 = WikidataDate.from_date_string("2025")
+        year2 = WikidataDate.from_date_string("2025")
+        date1 = WikidataDate.from_date_string("2025-03-10")
+        date2 = WikidataDate.from_date_string("2025-03-10")
+        assert WikidataDate.dates_could_be_same(year1, year2)
+        assert WikidataDate.dates_could_be_same(date1, date2)
 
     def test_dates_could_be_same_different_years(self):
         """Test different years are not same."""
-        assert not WikidataDate.dates_could_be_same("2024", "2025-01-01")
+        date1 = WikidataDate.from_date_string("2024")
+        date2 = WikidataDate.from_date_string("2025-01-01")
+        assert not WikidataDate.dates_could_be_same(date1, date2)
 
     def test_dates_could_be_same_with_none(self):
         """Test None handling."""
-        assert not WikidataDate.dates_could_be_same(None, "2025")
-        assert not WikidataDate.dates_could_be_same("2025", None)
+        date = WikidataDate.from_date_string("2025")
+        assert not WikidataDate.dates_could_be_same(None, date)
+        assert not WikidataDate.dates_could_be_same(date, None)
+        assert not WikidataDate.dates_could_be_same(None, None)
 
 
 class TestDateComparisonScenarios:
@@ -69,16 +83,22 @@ class TestDateComparisonScenarios:
     def test_scenario_date_precision_preference(self):
         """Test that more precise dates are preferred."""
         # Year vs specific date in same year - could be same
-        assert WikidataDate.dates_could_be_same("1962", "1962-06-15")
+        year1962 = WikidataDate.from_date_string("1962")
+        date1962 = WikidataDate.from_date_string("1962-06-15")
+        assert WikidataDate.dates_could_be_same(year1962, date1962)
 
         # Different years - not same
-        assert not WikidataDate.dates_could_be_same("1961", "1962-06-15")
+        year1961 = WikidataDate.from_date_string("1961")
+        assert not WikidataDate.dates_could_be_same(year1961, date1962)
 
         # Month vs specific date in same month - could be same
-        assert WikidataDate.dates_could_be_same("2025-03", "2025-03-15")
+        month_march = WikidataDate.from_date_string("2025-03")
+        date_march = WikidataDate.from_date_string("2025-03-15")
+        assert WikidataDate.dates_could_be_same(month_march, date_march)
 
         # Different months - not same
-        assert not WikidataDate.dates_could_be_same("2025-02", "2025-03-15")
+        month_feb = WikidataDate.from_date_string("2025-02")
+        assert not WikidataDate.dates_could_be_same(month_feb, date_march)
 
 
 class TestDatePrecision:
@@ -109,16 +129,23 @@ class TestDatePrecision:
 
     def test_more_precise_date_higher_precision(self):
         """Test selecting more precise date."""
-        assert WikidataDate.more_precise_date("1962", "1962-06-15") == "1962-06-15"
-        assert WikidataDate.more_precise_date("1962-06-15", "1962") == "1962-06-15"
+        year_date = WikidataDate.from_date_string("1962")
+        specific_date = WikidataDate.from_date_string("1962-06-15")
+        assert WikidataDate.more_precise_date(year_date, specific_date) == specific_date
+        assert WikidataDate.more_precise_date(specific_date, year_date) == specific_date
 
     def test_more_precise_date_equal_precision(self):
         """Test equal precision returns None."""
-        assert WikidataDate.more_precise_date("1962", "1965") is None
-        assert WikidataDate.more_precise_date("1962-06-15", "1965-12-31") is None
+        year1 = WikidataDate.from_date_string("1962")
+        year2 = WikidataDate.from_date_string("1965")
+        date1 = WikidataDate.from_date_string("1962-06-15")
+        date2 = WikidataDate.from_date_string("1965-12-31")
+        assert WikidataDate.more_precise_date(year1, year2) is None
+        assert WikidataDate.more_precise_date(date1, date2) is None
 
     def test_more_precise_date_with_none(self):
         """Test handling None values."""
-        assert WikidataDate.more_precise_date(None, "1962") == "1962"
-        assert WikidataDate.more_precise_date("1962", None) == "1962"
+        date = WikidataDate.from_date_string("1962")
+        assert WikidataDate.more_precise_date(None, date) == date
+        assert WikidataDate.more_precise_date(date, None) == date
         assert WikidataDate.more_precise_date(None, None) is None

@@ -2,6 +2,7 @@
 
 import re
 from dataclasses import dataclass
+from datetime import date
 from typing import Optional, Dict, Any
 
 
@@ -9,9 +10,37 @@ from typing import Optional, Dict, Any
 class WikidataDate:
     """Represents a Wikidata date with precision and BCE handling."""
 
-    date: str  # The date part without sign (e.g., "0347-10-15", "1970", "1970-06")
+    time_string: str  # Raw Wikidata time string (e.g., "+1970-06-15T00:00:00Z", "-0347-10-15T00:00:00Z")
     precision: int  # Wikidata precision level (9=year, 10=month, 11=day)
-    is_bce: bool  # True if this is a BCE (Before Common Era) date
+
+    @property
+    def is_bce(self) -> bool:
+        """True if this is a BCE (Before Common Era) date."""
+        return self.time_string.startswith("-")
+
+    def to_python_date(self) -> Optional[date]:
+        """Convert to Python date object.
+
+        Returns None for BCE dates or if parsing fails.
+        For year/month precision, uses first day of year/month.
+        """
+        if self.is_bce:
+            return None
+
+        try:
+            from datetime import datetime
+
+            # Remove the + sign: "+2011-00-00T00:05:23Z" -> "2011-00-00T00:05:23Z"
+            iso_string = self.time_string[1:]
+
+            # Replace -00- with valid values for parsing
+            iso_string = iso_string.replace("-00-", "-01-").replace("-00T", "-01T")
+
+            # Parse and return date part
+            dt = datetime.fromisoformat(iso_string)
+            return dt.date()
+        except (ValueError, TypeError):
+            return None
 
     @classmethod
     def from_wikidata_time(
@@ -29,28 +58,7 @@ class WikidataDate:
         if not time_value or not time_value.startswith(("+", "-")):
             return None
 
-        is_bce = time_value.startswith("-")
-        # Split on T to remove time portion, then remove the +/- sign
-        date_part = time_value.split("T")[0][1:]
-
-        # Truncate based on precision
-        if precision >= 11:  # day precision
-            pass  # Full YYYY-MM-DD
-        elif precision == 10:  # month precision
-            date_part = date_part[:7]  # YYYY-MM
-        elif precision == 9:  # year precision
-            date_part = date_part[:4]  # YYYY
-        elif precision == 8:  # decade precision
-            date_part = date_part[:4]  # YYYY (treat decade as year)
-        elif precision == 7:  # century precision
-            date_part = date_part[:4]  # YYYY (treat century as year)
-        elif precision == 6:  # millennium precision
-            date_part = date_part[:4]  # YYYY (treat millennium as year)
-        else:
-            # Lower precision not commonly used for dates
-            return None
-
-        return cls(date=date_part, precision=precision, is_bce=is_bce)
+        return cls(time_string=time_value, precision=precision)
 
     @classmethod
     def from_date_string(cls, date_value: str) -> Optional["WikidataDate"]:
@@ -65,7 +73,24 @@ class WikidataDate:
         try:
             validated_date = WikidataDate.validate_date_format(date_value)
             precision = WikidataDate.get_date_precision(validated_date)
-            return cls(date=validated_date, precision=precision, is_bce=False)
+
+            # Convert to Wikidata time string format
+            parts = validated_date.split("-")
+            year = int(parts[0])
+            month = int(parts[1]) if len(parts) > 1 else 0
+            day = int(parts[2]) if len(parts) > 2 else 0
+
+            # Format as Wikidata time string
+            if precision == 11:  # Day precision (YYYY-MM-DD)
+                time_str = f"+{year:04d}-{month:02d}-{day:02d}T00:00:00Z"
+            elif precision == 10:  # Month precision (YYYY-MM)
+                time_str = f"+{year:04d}-{month:02d}-00T00:00:00Z"
+            elif precision == 9:  # Year precision (YYYY)
+                time_str = f"+{year:04d}-00-00T00:00:00Z"
+            else:
+                raise ValueError(f"Unsupported date precision {precision}")
+
+            return cls(time_string=time_str, precision=precision)
         except ValueError:
             return None
 
@@ -75,27 +100,8 @@ class WikidataDate:
         Returns:
             Dict with time, precision, timezone, before, after, and calendarmodel
         """
-        # Parse the components
-        parts = self.date.split("-")
-        year = int(parts[0])
-        month = int(parts[1]) if len(parts) > 1 else 0
-        day = int(parts[2]) if len(parts) > 2 else 0
-
-        # Handle BCE dates
-        sign = "-" if self.is_bce else "+"
-
-        # Format time string based on precision
-        if self.precision == 11:  # Day precision (YYYY-MM-DD)
-            time_str = f"{sign}{year:04d}-{month:02d}-{day:02d}T00:00:00Z"
-        elif self.precision == 10:  # Month precision (YYYY-MM)
-            time_str = f"{sign}{year:04d}-{month:02d}-00T00:00:00Z"
-        elif self.precision == 9:  # Year precision (YYYY)
-            time_str = f"{sign}{year:04d}-00-00T00:00:00Z"
-        else:
-            raise ValueError(f"Unsupported date precision {self.precision}")
-
         return {
-            "time": time_str,
+            "time": self.time_string,
             "timezone": 0,
             "before": 0,
             "after": 0,
@@ -119,33 +125,55 @@ class WikidataDate:
         }
 
     @staticmethod
-    def dates_could_be_same(date1: Optional[str], date2: Optional[str]) -> bool:
+    def dates_could_be_same(
+        date1: Optional["WikidataDate"], date2: Optional["WikidataDate"]
+    ) -> bool:
         """
-        Check if two date strings could refer to the same time period.
+        Check if two WikidataDate objects could refer to the same time period.
+
+        Args:
+            date1: First WikidataDate object
+            date2: Second WikidataDate object
 
         Examples:
-        - "2025" and "2025-03-10" could be the same (specific date within year)
-        - "2024-03" and "2024-05-10" are not the same (different months)
-        - "2025-03" and "2025-03-15" could be the same (specific date within month)
+        - Year precision and day precision in same year could be the same
+        - Month precision and day precision in same month could be the same
+        - Different months/years are not the same
         """
         if date1 is None or date2 is None:
             return False
 
-        # Get the longer (more specific) and shorter (less specific) dates
-        if len(date1) > len(date2):
-            specific, general = date1, date2
-        elif len(date2) > len(date1):
-            specific, general = date2, date1
-        else:
-            # Same length - must be exact match
-            return date1 == date2
+        # Extract the date parts (remove sign and time portion)
+        date1_part = date1.time_string.split("T")[0][
+            1:
+        ]  # Remove + or - and time portion
+        date2_part = date2.time_string.split("T")[0][
+            1:
+        ]  # Remove + or - and time portion
 
-        # Check if the specific date starts with the general date
-        return specific.startswith(general)
+        # Replace -00- with wildcards for comparison based on precision
+        date1_pattern = date1_part.replace("-00", "-XX")
+        date2_pattern = date2_part.replace("-00", "-XX")
+
+        # Get the more and less precise dates
+        if date1.precision > date2.precision:
+            more_precise, less_precise = date1_pattern, date2_pattern
+        elif date2.precision > date1.precision:
+            more_precise, less_precise = date2_pattern, date1_pattern
+        else:
+            # Same precision - must match exactly
+            return date1_pattern == date2_pattern
+
+        # Check if the more precise date could be within the less precise period
+        return more_precise.replace("-XX", "").startswith(
+            less_precise.replace("-XX", "")
+        )
 
     @staticmethod
-    def more_precise_date(date1: Optional[str], date2: Optional[str]) -> Optional[str]:
-        """Return the date with higher precision, or None if equal precision."""
+    def more_precise_date(
+        date1: Optional["WikidataDate"], date2: Optional["WikidataDate"]
+    ) -> Optional["WikidataDate"]:
+        """Return the WikidataDate with higher precision, or None if equal precision."""
         if date1 is None and date2 is None:
             return None
         if date1 is None:
@@ -153,12 +181,9 @@ class WikidataDate:
         if date2 is None:
             return date1
 
-        prec1 = WikidataDate.get_date_precision(date1)
-        prec2 = WikidataDate.get_date_precision(date2)
-
-        if prec1 > prec2:
+        if date1.precision > date2.precision:
             return date1
-        elif prec2 > prec1:
+        elif date2.precision > date1.precision:
             return date2
         else:
             return None
