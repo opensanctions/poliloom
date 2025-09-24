@@ -25,11 +25,11 @@ logger = logging.getLogger(__name__)
 class EntityCollection:
     """Collection for tracking entities, relations, and metadata for a specific entity type."""
 
+    model_class: Type
+    shared_classes: frozenset[str]
     entities: list[dict] = field(default_factory=list)
     relations: list[dict] = field(default_factory=list)
     count: int = 0
-    model_class: Type = None
-    shared_classes: frozenset[str] = None
 
     def add_entity(self, entity_data: dict) -> None:
         """Add an entity to the collection."""
@@ -75,9 +75,7 @@ def init_entity_worker(
     shared_country_classes = country_classes
 
 
-def _insert_entities_batch(
-    collection: EntityCollection, entity_type: str, engine
-) -> None:
+def _insert_entities_batch(collection: EntityCollection, engine) -> None:
     """Insert a batch of entities and their relations into the database."""
     if not collection.has_entities():
         return
@@ -107,7 +105,7 @@ def _insert_entities_batch(
 
         session.commit()
         logger.debug(
-            f"Processed {len(collection.entities)} {entity_type} with {len(collection.relations)} relations"
+            f"Processed {len(collection.entities)} {collection.model_class.__name__.lower()}s with {len(collection.relations)} relations"
         )
 
 
@@ -131,20 +129,20 @@ def _process_supporting_entities_chunk(
     engine = create_engine(pool_size=2, max_overflow=3)
 
     # Entity collections organized by type
-    entity_collections = {
-        "positions": EntityCollection(
+    entity_collections = [
+        EntityCollection(
             model_class=Position,
             shared_classes=shared_position_classes,
         ),
-        "locations": EntityCollection(
+        EntityCollection(
             model_class=Location,
             shared_classes=shared_location_classes,
         ),
-        "countries": EntityCollection(
+        EntityCollection(
             model_class=Country,
             shared_classes=shared_country_classes,
         ),
-    }
+    ]
     entity_count = 0
     try:
         for entity in dump_reader.read_chunk_entities(
@@ -178,12 +176,12 @@ def _process_supporting_entities_chunk(
             all_class_ids = instance_ids.union(subclass_ids)
 
             # Process each entity type
-            for entity_type, collection in entity_collections.items():
+            for collection in entity_collections:
                 if any(
                     class_id in collection.shared_classes for class_id in all_class_ids
                 ):
                     # Handle special case for countries requiring ISO code
-                    if entity_type == "countries":
+                    if collection.model_class is Country:
                         # Extract ISO 3166-1 alpha-2 code for countries
                         iso_code = None
                         iso_claims = entity.get_truthy_claims("P297")
@@ -213,9 +211,9 @@ def _process_supporting_entities_chunk(
                         collection.add_relations(entity_relations)
 
             # Process batches when they reach the batch size
-            for entity_type, collection in entity_collections.items():
+            for collection in entity_collections:
                 if collection.batch_size() >= batch_size:
-                    _insert_entities_batch(collection, entity_type, engine)
+                    _insert_entities_batch(collection, engine)
                     collection.clear_batch()
 
     except Exception as e:
@@ -223,16 +221,16 @@ def _process_supporting_entities_chunk(
         raise
 
     # Process remaining entities in final batches on successful completion
-    for entity_type, collection in entity_collections.items():
+    for collection in entity_collections:
         if collection.has_entities():
-            _insert_entities_batch(collection, entity_type, engine)
+            _insert_entities_batch(collection, engine)
 
     logger.info(f"Worker {worker_id}: finished processing {entity_count} entities")
 
     # Extract counts from collections
     counts = {
-        entity_type: collection.count
-        for entity_type, collection in entity_collections.items()
+        collection.model_class.__name__.lower() + "s": collection.count
+        for collection in entity_collections
     }
     return counts, entity_count
 
