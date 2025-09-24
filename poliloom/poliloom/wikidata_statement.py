@@ -23,9 +23,9 @@ WIKIDATA_API_ROOT = os.getenv(
 USER_AGENT = "PoliLoom API/0.1.0"
 
 
-def _parse_date_for_wikidata(date_value: str) -> Optional[Dict[str, Any]]:
+def _parse_date_for_rest_api(date_value: str) -> Optional[Dict[str, Any]]:
     """
-    Parse a date string and convert it to Wikidata time format.
+    Parse a date string and convert it to Wikidata REST API format.
 
     Supports YYYY, YYYY-MM, and YYYY-MM-DD formats.
 
@@ -33,7 +33,7 @@ def _parse_date_for_wikidata(date_value: str) -> Optional[Dict[str, Any]]:
         date_value: Date string in YYYY, YYYY-MM, or YYYY-MM-DD format
 
     Returns:
-        Wikidata time value dict or None if parsing fails
+        Wikidata REST API time value dict or None if parsing fails
     """
     try:
         wikidata_date = WikidataDate.from_date_string(date_value)
@@ -41,7 +41,12 @@ def _parse_date_for_wikidata(date_value: str) -> Optional[Dict[str, Any]]:
             logger.error(f"Cannot parse date value: {date_value}")
             return None
 
-        return wikidata_date.to_wikidata_value()
+        # Convert to REST API format
+        time_value = wikidata_date.to_wikidata_value()
+        return {
+            "type": "value",
+            "content": time_value,
+        }
 
     except Exception as e:
         logger.error(f"Cannot parse date value: {date_value} - {e}")
@@ -305,7 +310,7 @@ def _build_property_statement(property: Property) -> tuple[dict, list]:
             raise ValueError(
                 f"Date value is required for property type {property.type}"
             )
-        wikidata_value = _parse_date_for_wikidata(property.value)
+        wikidata_value = _parse_date_for_rest_api(property.value)
         if not wikidata_value:
             raise ValueError(f"Cannot parse date value: {property.value}")
         return wikidata_value, None

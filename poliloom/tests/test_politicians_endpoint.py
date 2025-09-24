@@ -16,6 +16,7 @@ from poliloom.models import (
     ArchivedPage,
     Evaluation,
 )
+from poliloom.wikidata_date import WikidataDate
 
 
 def extract_properties_by_type(
@@ -98,40 +99,8 @@ def politician_with_unevaluated_data(
         type=PropertyType.POSITION,
         entity_id=position.wikidata_id,
         qualifiers_json={
-            "P580": [
-                {
-                    "datatype": "time",
-                    "snaktype": "value",
-                    "datavalue": {
-                        "type": "time",
-                        "value": {
-                            "time": "+2020-01-01T00:00:00Z",
-                            "after": 0,
-                            "before": 0,
-                            "timezone": 0,
-                            "precision": 9,
-                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                        },
-                    },
-                }
-            ],
-            "P582": [
-                {
-                    "datatype": "time",
-                    "snaktype": "value",
-                    "datavalue": {
-                        "type": "time",
-                        "value": {
-                            "time": "+2024-01-01T00:00:00Z",
-                            "after": 0,
-                            "before": 0,
-                            "timezone": 0,
-                            "precision": 9,
-                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                        },
-                    },
-                }
-            ],
+            "P580": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()],
+            "P582": [WikidataDate.from_date_string("2024").to_wikidata_qualifier()],
         },
         archived_page_id=archived_page.id,
         proof_line="Served as Mayor from 2020 to 2024",
@@ -158,40 +127,8 @@ def politician_with_unevaluated_data(
         type=PropertyType.POSITION,
         entity_id=position.wikidata_id,
         qualifiers_json={
-            "P580": [
-                {
-                    "datatype": "time",
-                    "snaktype": "value",
-                    "datavalue": {
-                        "type": "time",
-                        "value": {
-                            "time": "+2018-01-01T00:00:00Z",
-                            "after": 0,
-                            "before": 0,
-                            "timezone": 0,
-                            "precision": 9,
-                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                        },
-                    },
-                }
-            ],
-            "P582": [
-                {
-                    "datatype": "time",
-                    "snaktype": "value",
-                    "datavalue": {
-                        "type": "time",
-                        "value": {
-                            "time": "+2020-01-01T00:00:00Z",
-                            "after": 0,
-                            "before": 0,
-                            "timezone": 0,
-                            "precision": 9,
-                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                        },
-                    },
-                }
-            ],
+            "P580": [WikidataDate.from_date_string("2018").to_wikidata_qualifier()],
+            "P582": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()],
         },
         archived_page_id=None,  # This makes it Wikidata data
     )
@@ -289,23 +226,7 @@ def politician_with_only_wikidata(db_session):
         type=PropertyType.POSITION,
         entity_id=position.wikidata_id,
         qualifiers_json={
-            "P580": [
-                {
-                    "datatype": "time",
-                    "snaktype": "value",
-                    "datavalue": {
-                        "type": "time",
-                        "value": {
-                            "time": "+2016-01-01T00:00:00Z",
-                            "after": 0,
-                            "before": 0,
-                            "timezone": 0,
-                            "precision": 9,
-                            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                        },
-                    },
-                }
-            ]
+            "P580": [WikidataDate.from_date_string("2016").to_wikidata_qualifier()]
         },
         archived_page_id=None,  # This makes it Wikidata data
         statement_id="Q345678$87654321-4321-4321-4321-210987654321",  # Wikidata statement ID
@@ -542,23 +463,7 @@ class TestGetPoliticiansEndpoint:
             type=PropertyType.POSITION,
             entity_id=position.wikidata_id,
             qualifiers_json={
-                "P580": [
-                    {
-                        "datatype": "time",
-                        "snaktype": "value",
-                        "datavalue": {
-                            "type": "time",
-                            "value": {
-                                "time": "+2020-01-01T00:00:00Z",
-                                "after": 0,
-                                "before": 0,
-                                "timezone": 0,
-                                "precision": 9,
-                                "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                            },
-                        },
-                    }
-                ]
+                "P580": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()]
             },
             archived_page_id=archived_page.id,
         )

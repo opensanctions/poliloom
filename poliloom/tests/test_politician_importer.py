@@ -23,6 +23,7 @@ from poliloom.importer.politician import (
     _should_import_politician,
 )
 from poliloom.wikidata_entity_processor import WikidataEntityProcessor
+from poliloom.wikidata_date import WikidataDate
 
 
 class TestWikidataPoliticianImporter:
@@ -232,30 +233,14 @@ class TestWikidataPoliticianImporter:
                         "statement_id": "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C81",
                         "qualifiers_json": {
                             "P580": [
-                                {
-                                    "datatype": "time",
-                                    "snaktype": "value",
-                                    "datavalue": {
-                                        "type": "time",
-                                        "value": {
-                                            "time": "+2020-01-01T00:00:00Z",
-                                            "precision": 11,
-                                        },
-                                    },
-                                }
+                                WikidataDate.from_date_string(
+                                    "2020-01-01"
+                                ).to_wikidata_qualifier()
                             ],
                             "P582": [
-                                {
-                                    "datatype": "time",
-                                    "snaktype": "value",
-                                    "datavalue": {
-                                        "type": "time",
-                                        "value": {
-                                            "time": "+2024-01-01T00:00:00Z",
-                                            "precision": 11,
-                                        },
-                                    },
-                                }
+                                WikidataDate.from_date_string(
+                                    "2024-01-01"
+                                ).to_wikidata_qualifier()
                             ],
                         },
                         "references_json": None,

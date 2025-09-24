@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from poliloom.models import Politician, Property, PropertyType
+from poliloom.wikidata_date import WikidataDate
 from ..conftest import assert_model_fields
 
 
@@ -117,32 +118,8 @@ class TestPolitician:
             type=PropertyType.POSITION,
             entity_id=position.wikidata_id,
             qualifiers_json={
-                "P580": [
-                    {
-                        "datatype": "time",
-                        "snaktype": "value",
-                        "datavalue": {
-                            "type": "time",
-                            "value": {
-                                "time": "+2020-01-01T00:00:00Z",
-                                "precision": 9,
-                            },
-                        },
-                    }
-                ],
-                "P582": [
-                    {
-                        "datatype": "time",
-                        "snaktype": "value",
-                        "datavalue": {
-                            "type": "time",
-                            "value": {
-                                "time": "+2024-01-01T00:00:00Z",
-                                "precision": 9,
-                            },
-                        },
-                    }
-                ],
+                "P580": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()],
+                "P582": [WikidataDate.from_date_string("2024").to_wikidata_qualifier()],
             },
         )
         citizenship = Property(

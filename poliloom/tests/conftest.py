@@ -23,6 +23,7 @@ from poliloom.models import (
 )
 from poliloom.enrichment import generate_embedding
 from poliloom.database import get_engine
+from poliloom.wikidata_date import WikidataDate
 from sqlalchemy.orm import Session
 
 
@@ -186,42 +187,12 @@ def sample_wikipedia_link(db_session, sample_politician):
 @pytest.fixture
 def sample_position_property(db_session, sample_politician, sample_position):
     """Return a created and committed Property entity for a position with qualifiers_json."""
-    # Create qualifiers_json with start and end dates
+    # Create qualifiers_json with start and end dates using WikidataDate
+    start_date = WikidataDate.from_date_string("2020-01")
+    end_date = WikidataDate.from_date_string("2023-12-31")
     qualifiers_json = {
-        "P580": [
-            {
-                "datatype": "time",
-                "snaktype": "value",
-                "datavalue": {
-                    "type": "time",
-                    "value": {
-                        "time": "+2020-01-00T00:00:00Z",
-                        "after": 0,
-                        "before": 0,
-                        "timezone": 0,
-                        "precision": 10,
-                        "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                    },
-                },
-            }
-        ],
-        "P582": [
-            {
-                "datatype": "time",
-                "snaktype": "value",
-                "datavalue": {
-                    "type": "time",
-                    "value": {
-                        "time": "+2023-12-31T00:00:00Z",
-                        "after": 0,
-                        "before": 0,
-                        "timezone": 0,
-                        "precision": 11,
-                        "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
-                    },
-                },
-            }
-        ],
+        "P580": [start_date.to_wikidata_qualifier()],
+        "P582": [end_date.to_wikidata_qualifier()],
     }
 
     position_property = Property(

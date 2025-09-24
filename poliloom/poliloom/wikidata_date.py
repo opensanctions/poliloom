@@ -70,10 +70,10 @@ class WikidataDate:
             return None
 
     def to_wikidata_value(self) -> Dict[str, Any]:
-        """Convert this WikidataDate to Wikidata statement value format.
+        """Convert this WikidataDate to core Wikidata time values.
 
         Returns:
-            Wikidata time value dict
+            Dict with time, precision, timezone, before, after, and calendarmodel
         """
         # Parse the components
         parts = self.date.split("-")
@@ -95,14 +95,26 @@ class WikidataDate:
             raise ValueError(f"Unsupported date precision {self.precision}")
 
         return {
-            "type": "value",
-            "content": {
-                "time": time_str,
-                "timezone": 0,
-                "before": 0,
-                "after": 0,
-                "precision": self.precision,
-                "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+            "time": time_str,
+            "timezone": 0,
+            "before": 0,
+            "after": 0,
+            "precision": self.precision,
+            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+        }
+
+    def to_wikidata_qualifier(self) -> Dict[str, Any]:
+        """Convert this WikidataDate to Wikidata qualifier/reference format.
+
+        Returns:
+            Full Wikidata time structure with datatype, snaktype, and datavalue
+        """
+        return {
+            "datatype": "time",
+            "snaktype": "value",
+            "datavalue": {
+                "type": "time",
+                "value": self.to_wikidata_value(),
             },
         }
 

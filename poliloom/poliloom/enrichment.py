@@ -42,27 +42,13 @@ def create_qualifiers_json_for_position(
     if start_date:
         wikidata_date = WikidataDate.from_date_string(start_date)
         if wikidata_date:
-            wikidata_value = wikidata_date.to_wikidata_value()
-            qualifiers_json["P580"] = [
-                {
-                    "datatype": "time",
-                    "snaktype": "value",
-                    "datavalue": {"type": "time", "value": wikidata_value["content"]},
-                }
-            ]
+            qualifiers_json["P580"] = [wikidata_date.to_wikidata_qualifier()]
 
     # Add end date (P582)
     if end_date:
         wikidata_date = WikidataDate.from_date_string(end_date)
         if wikidata_date:
-            wikidata_value = wikidata_date.to_wikidata_value()
-            qualifiers_json["P582"] = [
-                {
-                    "datatype": "time",
-                    "snaktype": "value",
-                    "datavalue": {"type": "time", "value": wikidata_value["content"]},
-                }
-            ]
+            qualifiers_json["P582"] = [wikidata_date.to_wikidata_qualifier()]
 
     return qualifiers_json if qualifiers_json else None
 
