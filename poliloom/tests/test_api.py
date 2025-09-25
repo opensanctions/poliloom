@@ -36,7 +36,7 @@ class TestAPIAuthentication:
     def test_evaluate_requires_auth(self, client):
         """Test that /evaluate requires authentication."""
         evaluation_data = {"evaluations": []}
-        response = client.post("/politicians/evaluate", json=evaluation_data)
+        response = client.post("/evaluations/", json=evaluation_data)
         assert response.status_code == 403  # No auth token provided
 
     def test_invalid_token_format_rejected(self, client):
@@ -83,7 +83,7 @@ class TestAPIAuthentication:
             headers = {"Authorization": "Bearer valid_jwt_token"}
             evaluation_data = {"evaluations": []}
             response = client.post(
-                "/politicians/evaluate", json=evaluation_data, headers=headers
+                "/evaluations/", json=evaluation_data, headers=headers
             )
 
             # Should be 200 (auth should pass)
@@ -111,7 +111,7 @@ class TestAPIEndpointsStructure:
     def test_evaluate_endpoint_exists(self, client):
         """Test that evaluate endpoint exists."""
         evaluation_data = {"evaluations": []}
-        response = client.post("/politicians/evaluate", json=evaluation_data)
+        response = client.post("/evaluations/", json=evaluation_data)
         # Should fail with 403 (auth required) not 404 (not found)
         assert response.status_code == 403
 
@@ -123,7 +123,7 @@ class TestAPIResponseSchemas:
         """Test that evaluation request validates input schema."""
         # Test with invalid JSON structure
         invalid_data = {"invalid_field": "value"}
-        response = client.post("/politicians/evaluate", json=invalid_data)
+        response = client.post("/evaluations/", json=invalid_data)
 
         # Should either be 403 (auth required) or 422 (validation error)
         # The auth error takes precedence
