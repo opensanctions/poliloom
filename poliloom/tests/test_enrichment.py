@@ -521,6 +521,12 @@ class TestEnrichment:
         self, db_session, sample_politician, sample_wikipedia_link
     ):
         """Test get_priority_wikipedia_links when only English link available."""
+        # Create English language entry
+        Language.create_with_entity(
+            db_session, "Q1860", "English", iso1_code="en", iso3_code="eng"
+        )
+        db_session.commit()
+
         # sample_wikipedia_link fixture creates an English link
         result = get_priority_wikipedia_links(sample_politician, db_session)
 
@@ -593,7 +599,7 @@ class TestEnrichment:
 
         result = get_priority_wikipedia_links(sample_politician, db_session)
 
-        # Should get both German (from citizenship) and English
+        # Should get both German (from citizenship) and English, but German should be prioritized
         assert len(result) >= 1
         # German should be first due to citizenship priority
         wiki_link, iso1_code, iso3_code = result[0]
@@ -656,13 +662,21 @@ class TestEnrichment:
 
         result = get_priority_wikipedia_links(sample_politician, db_session)
 
-        # Should fallback to most popular languages, limited to 3
+        # Debug: print what we actually got
+        print(f"Result length: {len(result)}")
+        for i, (link, iso1, iso3) in enumerate(result):
+            print(f"  {i}: {link.iso_code} -> {iso1}/{iso3}")
+
+        # Should return top 3 languages by popularity, limited to 3
         assert len(result) <= 3
         assert len(result) >= 1
 
-        # Should include English even without citizenship
-        english_found = any(link.iso_code == "en" for link, _, _ in result)
-        assert english_found
+        # Should prioritize by popularity - French should be first (most popular)
+        if result:
+            wiki_link, iso1_code, iso3_code = result[0]
+            assert wiki_link.iso_code == "fr", (
+                f"Expected 'fr' first, got '{wiki_link.iso_code}'"
+            )
 
     def test_get_priority_wikipedia_links_multiple_citizenships(
         self, db_session, sample_politician
@@ -735,11 +749,11 @@ class TestEnrichment:
 
         result = get_priority_wikipedia_links(sample_politician, db_session)
 
-        # Should get both languages from citizenships (limited to top 2)
-        assert len(result) <= 3  # Max 2 from citizenship + English
+        # Should get languages from citizenships prioritized, up to 3 total
+        assert len(result) <= 3
         assert len(result) >= 1
 
-        # Both citizenship languages should be represented
+        # Both citizenship languages should be represented (they get priority boost)
         iso_codes = {link.iso_code for link, _, _ in result}
         assert (
             "en" in iso_codes or "de" in iso_codes

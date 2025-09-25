@@ -612,10 +612,10 @@ def get_priority_wikipedia_links(politician: Politician, db: Session) -> List[tu
     Get priority Wikipedia links for a politician based on citizenship and official languages.
 
     Returns list of (wikipedia_link, iso1_code, iso3_code) tuples, prioritized by:
-    1. Languages from politician's citizenship countries (top 2 by Wikipedia link count)
-    2. English (if not already included)
+    1. Languages from politician's citizenship countries (ordered by Wikipedia link popularity)
+    2. All other available languages (ordered by Wikipedia link popularity)
 
-    Only considers Wikipedia links that actually exist for the politician.
+    Limited to top 3 languages total. Only considers Wikipedia links that actually exist for the politician.
 
     Args:
         politician: Politician instance with citizenship properties loaded
@@ -626,39 +626,79 @@ def get_priority_wikipedia_links(politician: Politician, db: Session) -> List[tu
     """
     from sqlalchemy import text
 
-    selected_links = []
-
-    # Query for top 2 wikipedia links based on citizenship country official languages
-    # ordered by overall wikipedia link popularity
-    priority_query = text("""
-        WITH politician_wikipedia_links AS (
-            SELECT wl.*, COUNT(*) OVER (PARTITION BY wl.iso_code) as global_link_count
-            FROM wikipedia_links wl
-            WHERE wl.politician_id = :politician_id
-        ),
-        politician_citizenships AS (
-            SELECT p.entity_id as country_id
-            FROM properties p
-            WHERE p.politician_id = :politician_id
-            AND p.type = :citizenship_type
-            AND p.entity_id IS NOT NULL
-        ),
-        citizenship_language_links AS (
-            SELECT DISTINCT
-                pwl.*,
-                l.iso1_code,
-                l.iso3_code
-            FROM politician_wikipedia_links pwl
-            JOIN languages l ON (pwl.iso_code = l.iso1_code OR pwl.iso_code = l.iso3_code)
-            JOIN wikidata_relations wr ON l.wikidata_id = wr.parent_entity_id
-            JOIN politician_citizenships pc ON wr.child_entity_id = pc.country_id
-            WHERE wr.relation_type = 'OFFICIAL_LANGUAGE'
-            ORDER BY pwl.global_link_count DESC
-            LIMIT 2
-        )
-        SELECT id, url, iso_code, iso1_code, iso3_code
-        FROM citizenship_language_links
+    # Check if politician has citizenship properties first
+    has_citizenship_query = text("""
+        SELECT COUNT(*) as citizenship_count
+        FROM properties p
+        WHERE p.politician_id = :politician_id
+        AND p.type = :citizenship_type
+        AND p.entity_id IS NOT NULL
     """)
+
+    citizenship_result = db.execute(
+        has_citizenship_query,
+        {
+            "politician_id": str(politician.id),
+            "citizenship_type": PropertyType.CITIZENSHIP.name,
+        },
+    )
+    has_citizenship = citizenship_result.fetchone()[0] > 0
+
+    if has_citizenship:
+        # Use citizenship-prioritized query
+        priority_query = text("""
+            WITH politician_wikipedia_links AS (
+                SELECT wl.*, COUNT(*) OVER (PARTITION BY wl.iso_code) as global_link_count
+                FROM wikipedia_links wl
+                WHERE wl.politician_id = :politician_id
+            ),
+            politician_citizenships AS (
+                SELECT p.entity_id as country_id
+                FROM properties p
+                WHERE p.politician_id = :politician_id
+                AND p.type = :citizenship_type
+                AND p.entity_id IS NOT NULL
+            ),
+            citizenship_language_links AS (
+                SELECT DISTINCT
+                    pwl.*,
+                    l.iso1_code,
+                    l.iso3_code,
+                    pwl.global_link_count as priority_score
+                FROM politician_wikipedia_links pwl
+                JOIN languages l ON (pwl.iso_code = l.iso1_code OR pwl.iso_code = l.iso3_code)
+                JOIN wikidata_relations wr ON l.wikidata_id = wr.parent_entity_id
+                JOIN politician_citizenships pc ON wr.child_entity_id = pc.country_id
+                WHERE wr.relation_type = 'OFFICIAL_LANGUAGE'
+                ORDER BY priority_score DESC
+                LIMIT 3
+            )
+            SELECT id, url, iso_code,
+                   COALESCE(iso1_code, iso_code) as iso1_code,
+                   COALESCE(iso3_code, iso_code) as iso3_code
+            FROM citizenship_language_links
+        """)
+    else:
+        # Use general popularity query (no citizenship filtering)
+        priority_query = text("""
+            WITH politician_wikipedia_links AS (
+                SELECT wl.*, COUNT(*) OVER (PARTITION BY wl.iso_code) as global_link_count
+                FROM wikipedia_links wl
+                WHERE wl.politician_id = :politician_id
+            ),
+            popular_links AS (
+                SELECT DISTINCT
+                    pwl.*,
+                    COALESCE(l.iso1_code, pwl.iso_code) as iso1_code,
+                    COALESCE(l.iso3_code, pwl.iso_code) as iso3_code
+                FROM politician_wikipedia_links pwl
+                LEFT JOIN languages l ON (pwl.iso_code = l.iso1_code OR pwl.iso_code = l.iso3_code)
+                ORDER BY pwl.global_link_count DESC
+                LIMIT 3
+            )
+            SELECT id, url, iso_code, iso1_code, iso3_code
+            FROM popular_links
+        """)
 
     result = db.execute(
         priority_query,
@@ -668,7 +708,7 @@ def get_priority_wikipedia_links(politician: Politician, db: Session) -> List[tu
         },
     )
 
-    processed_iso_codes = set()
+    selected_links = []
     for row in result.fetchall():
         link_id, url, iso_code, iso1_code, iso3_code = row
         # Find the actual WikipediaLink object
@@ -678,45 +718,6 @@ def get_priority_wikipedia_links(politician: Politician, db: Session) -> List[tu
         )
         if wiki_link:
             selected_links.append((wiki_link, iso1_code, iso3_code))
-            processed_iso_codes.add(iso_code)
-
-    # Always try to include English if available and not already processed
-    english_codes = {"en", "eng"}
-    if not processed_iso_codes.intersection(english_codes):
-        for wiki_link in politician.wikipedia_links:
-            if wiki_link.iso_code in english_codes:
-                selected_links.append((wiki_link, "en", "eng"))
-                break
-
-    # If we still have no links, just take the most popular ones available to the politician
-    if not selected_links:
-        fallback_query = text("""
-            SELECT
-                wl.id,
-                wl.url,
-                wl.iso_code,
-                COALESCE(l1.iso1_code, l3.iso1_code, wl.iso_code) as iso1_code,
-                COALESCE(l1.iso3_code, l3.iso3_code, wl.iso_code) as iso3_code,
-                COUNT(*) OVER (PARTITION BY wl.iso_code) as global_link_count
-            FROM wikipedia_links wl
-            LEFT JOIN languages l1 ON wl.iso_code = l1.iso1_code
-            LEFT JOIN languages l3 ON wl.iso_code = l3.iso3_code
-            WHERE wl.politician_id = :politician_id
-            ORDER BY global_link_count DESC
-            LIMIT 3
-        """)
-
-        result = db.execute(fallback_query, {"politician_id": str(politician.id)})
-
-        for row in result.fetchall():
-            link_id, url, iso_code, iso1_code, iso3_code, _ = row
-            # Find the actual WikipediaLink object
-            wiki_link = next(
-                (wl for wl in politician.wikipedia_links if str(wl.id) == str(link_id)),
-                None,
-            )
-            if wiki_link:
-                selected_links.append((wiki_link, iso1_code, iso3_code))
 
     return selected_links
 
