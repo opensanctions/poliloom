@@ -448,3 +448,58 @@ class TestPolitician:
         assert (
             "en" in iso_codes or "de" in iso_codes
         )  # At least one citizenship language
+
+    def test_get_priority_wikipedia_links_citizenship_no_matching_language(
+        self, db_session, sample_politician
+    ):
+        """Test get_priority_wikipedia_links when politician has citizenship but Wikipedia link language doesn't match official languages."""
+        # Create a country and language that don't match
+        argentina = Country.create_with_entity(db_session, "Q414", "Argentina")
+        argentina.iso_code = "AR"
+
+        # Spanish as official language of Argentina
+        spanish = Language.create_with_entity(db_session, "Q1321", "Spanish")
+        spanish.iso1_code = "es"
+        spanish.iso3_code = "spa"
+
+        # English language (not official in Argentina)
+        english = Language.create_with_entity(db_session, "Q1860", "English")
+        english.iso1_code = "en"
+        english.iso3_code = "eng"
+        db_session.commit()
+
+        # Create official language relation: Spanish is official language of Argentina
+        relation = WikidataRelation(
+            parent_entity_id=spanish.wikidata_id,
+            child_entity_id=argentina.wikidata_id,
+            relation_type=RelationType.OFFICIAL_LANGUAGE,
+            statement_id="test_statement_es_ar",
+        )
+        db_session.add(relation)
+
+        # Give politician Argentine citizenship
+        citizenship = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=argentina.wikidata_id,
+        )
+        db_session.add(citizenship)
+
+        # Create only an English Wikipedia link (not matching the official language)
+        english_link = WikipediaLink(
+            politician_id=sample_politician.id,
+            url="https://en.wikipedia.org/wiki/Carlos_Cánepa",
+            iso_code="en",
+        )
+        db_session.add(english_link)
+        db_session.commit()
+
+        result = sample_politician.get_priority_wikipedia_links(db_session)
+
+        # Should return the English link even though it's not an official language
+        # When no links match official languages, should fall back to all available links
+        assert len(result) == 1, f"Expected 1 result but got {len(result)}: {result}"
+        url, iso1_code, iso3_code = result[0]
+        assert "en.wikipedia.org" in url
+        assert iso1_code == "en"
+        assert iso3_code == "eng"

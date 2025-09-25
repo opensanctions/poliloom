@@ -321,8 +321,8 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         """
         Get top 3 most popular Wikipedia links for a politician, optionally filtered by citizenship languages.
 
-        If politician has citizenships, only considers links in official languages of those countries,
-        then returns the 3 most popular among those.
+        If politician has citizenships, prefers links in official languages of those countries.
+        If no links match official languages, falls back to all available links.
         Otherwise returns the 3 most popular languages overall for the politician.
         Uses proper ISO codes from languages table (no fallbacks).
 
@@ -348,25 +348,46 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
                 FROM wikipedia_links
                 GROUP BY iso_code
             ),
-            filtered_links AS (
+            links_with_citizenship_flag AS (
                 SELECT DISTINCT wl.url, l.iso1_code, l.iso3_code,
-                       lp.global_count as language_popularity
+                       lp.global_count as language_popularity,
+                       CASE
+                           WHEN EXISTS (SELECT 1 FROM politician_citizenships)
+                                AND EXISTS (
+                                    SELECT 1 FROM wikidata_relations wr
+                                    JOIN politician_citizenships pc ON wr.child_entity_id = pc.country_id
+                                    WHERE wr.parent_entity_id = l.wikidata_id
+                                    AND wr.relation_type = 'OFFICIAL_LANGUAGE'
+                                )
+                           THEN 1
+                           ELSE 0
+                       END as matches_citizenship,
+                       -- Check if ANY link matches citizenship requirements using window function
+                       MAX(CASE
+                           WHEN EXISTS (SELECT 1 FROM politician_citizenships)
+                                AND EXISTS (
+                                    SELECT 1 FROM wikidata_relations wr
+                                    JOIN politician_citizenships pc ON wr.child_entity_id = pc.country_id
+                                    WHERE wr.parent_entity_id = l.wikidata_id
+                                    AND wr.relation_type = 'OFFICIAL_LANGUAGE'
+                                )
+                           THEN 1
+                           ELSE 0
+                       END) OVER () as any_matches_citizenship
                 FROM wikipedia_links wl
                 JOIN languages l ON (wl.iso_code = l.iso1_code OR wl.iso_code = l.iso3_code)
                 JOIN language_popularity lp ON lp.iso_code = wl.iso_code
                 WHERE wl.politician_id = :politician_id
-                AND (
-                    NOT EXISTS (SELECT 1 FROM politician_citizenships)
-                    OR EXISTS (
-                        SELECT 1 FROM wikidata_relations wr
-                        JOIN politician_citizenships pc ON wr.child_entity_id = pc.country_id
-                        WHERE wr.parent_entity_id = l.wikidata_id
-                        AND wr.relation_type = 'OFFICIAL_LANGUAGE'
-                    )
-                )
             )
             SELECT url, iso1_code, iso3_code
-            FROM filtered_links
+            FROM links_with_citizenship_flag
+            WHERE
+                -- If no citizenships exist, return all
+                NOT EXISTS (SELECT 1 FROM politician_citizenships)
+                -- If citizenships exist but no links match, return all
+                OR any_matches_citizenship = 0
+                -- If citizenships exist and some links match, only return matches
+                OR matches_citizenship = 1
             ORDER BY language_popularity DESC
             LIMIT 3
         """
