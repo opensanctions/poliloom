@@ -361,19 +361,7 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
                                 )
                            THEN 1
                            ELSE 0
-                       END as matches_citizenship,
-                       -- Check if ANY link matches citizenship requirements using window function
-                       MAX(CASE
-                           WHEN EXISTS (SELECT 1 FROM politician_citizenships)
-                                AND EXISTS (
-                                    SELECT 1 FROM wikidata_relations wr
-                                    JOIN politician_citizenships pc ON wr.child_entity_id = pc.country_id
-                                    WHERE wr.parent_entity_id = l.wikidata_id
-                                    AND wr.relation_type = 'OFFICIAL_LANGUAGE'
-                                )
-                           THEN 1
-                           ELSE 0
-                       END) OVER () as any_matches_citizenship
+                       END as matches_citizenship
                 FROM wikipedia_links wl
                 JOIN languages l ON (wl.iso_code = l.iso1_code OR wl.iso_code = l.iso3_code)
                 JOIN language_popularity lp ON lp.iso_code = wl.iso_code
@@ -381,14 +369,9 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
             )
             SELECT url, iso1_code, iso3_code
             FROM links_with_citizenship_flag
-            WHERE
-                -- If no citizenships exist, return all
-                NOT EXISTS (SELECT 1 FROM politician_citizenships)
-                -- If citizenships exist but no links match, return all
-                OR any_matches_citizenship = 0
-                -- If citizenships exist and some links match, only return matches
-                OR matches_citizenship = 1
-            ORDER BY language_popularity DESC
+            ORDER BY
+                matches_citizenship DESC,  -- Prioritize citizenship matches first
+                language_popularity DESC   -- Then by global popularity
             LIMIT 3
         """
         )

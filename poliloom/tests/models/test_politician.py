@@ -503,3 +503,72 @@ class TestPolitician:
         assert "en.wikipedia.org" in url
         assert iso1_code == "en"
         assert iso3_code == "eng"
+
+    def test_get_priority_wikipedia_links_returns_all_three_with_citizenship_match(
+        self, db_session, sample_politician
+    ):
+        """Test get_priority_wikipedia_links returns all 3 links when one matches citizenship language."""
+        # Create Iceland country and Icelandic language
+        iceland = Country.create_with_entity(db_session, "Q189", "Iceland")
+        iceland.iso_code = "IS"
+
+        # Create languages: Icelandic and English (arz will be missing to simulate the real issue)
+        icelandic = Language.create_with_entity(db_session, "Q294", "Icelandic")
+        icelandic.iso1_code = "is"
+        icelandic.iso3_code = "isl"
+
+        english = Language.create_with_entity(db_session, "Q1860", "English")
+        english.iso1_code = "en"
+        english.iso3_code = "eng"
+        db_session.commit()
+
+        # Create official language relation: Icelandic is official language of Iceland
+        relation = WikidataRelation(
+            parent_entity_id=icelandic.wikidata_id,
+            child_entity_id=iceland.wikidata_id,
+            relation_type=RelationType.OFFICIAL_LANGUAGE,
+            statement_id="test_statement_is_is",
+        )
+        db_session.add(relation)
+
+        # Give politician Icelandic citizenship
+        citizenship = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=iceland.wikidata_id,
+        )
+        db_session.add(citizenship)
+
+        # Create 3 Wikipedia links like in the real case
+        links = [
+            WikipediaLink(
+                politician_id=sample_politician.id,
+                url="https://en.wikipedia.org/wiki/Ásgeir_Jónsson",
+                iso_code="en",
+            ),
+            WikipediaLink(
+                politician_id=sample_politician.id,
+                url="https://is.wikipedia.org/wiki/Ásgeir_Jónsson",
+                iso_code="is",
+            ),
+            WikipediaLink(
+                politician_id=sample_politician.id,
+                url="https://arz.wikipedia.org/wiki/اسجير_چونسون",
+                iso_code="arz",  # Egyptian Arabic - no matching language entry
+            ),
+        ]
+        for link in links:
+            db_session.add(link)
+        db_session.commit()
+
+        result = sample_politician.get_priority_wikipedia_links(db_session)
+
+        # Should return 2 links (not 3 because arz has no language entry)
+        # But importantly, should return BOTH en and is, not just is
+        assert len(result) == 2, f"Expected 2 results but got {len(result)}: {result}"
+
+        iso_codes = {iso1_code for _, iso1_code, _ in result}
+        assert "is" in iso_codes, (
+            "Icelandic link should be included (citizenship match)"
+        )
+        assert "en" in iso_codes, "English link should also be included"
