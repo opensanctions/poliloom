@@ -607,82 +607,6 @@ CITIZENSHIPS_CONFIG = TwoStageExtractionConfig(
 )
 
 
-def get_priority_wikipedia_links(politician: Politician, db: Session) -> List[tuple]:
-    """
-    Get top 3 most popular Wikipedia links for a politician, optionally filtered by citizenship languages.
-
-    If politician has citizenships, only considers links in official languages of those countries,
-    then returns the 3 most popular among those.
-    Otherwise returns the 3 most popular languages overall for the politician.
-    Uses proper ISO codes from languages table (no fallbacks).
-
-    Args:
-        politician: Politician instance with citizenship properties loaded
-        db: Database session
-
-    Returns:
-        List of (WikipediaLink, iso1_code, iso3_code) tuples, limited to top 3 by popularity
-    """
-    from sqlalchemy import text
-
-    query = text("""
-        WITH politician_citizenships AS (
-            SELECT p.entity_id as country_id
-            FROM properties p
-            WHERE p.politician_id = :politician_id
-            AND p.type = :citizenship_type
-            AND p.entity_id IS NOT NULL
-        ),
-        language_popularity AS (
-            SELECT iso_code, COUNT(*) as global_count
-            FROM wikipedia_links
-            GROUP BY iso_code
-        ),
-        filtered_links AS (
-            SELECT DISTINCT wl.id, wl.url, wl.iso_code, l.iso1_code, l.iso3_code,
-                   lp.global_count as language_popularity
-            FROM wikipedia_links wl
-            JOIN languages l ON (wl.iso_code = l.iso1_code OR wl.iso_code = l.iso3_code)
-            JOIN language_popularity lp ON lp.iso_code = wl.iso_code
-            WHERE wl.politician_id = :politician_id
-            AND (
-                NOT EXISTS (SELECT 1 FROM politician_citizenships)
-                OR EXISTS (
-                    SELECT 1 FROM wikidata_relations wr
-                    JOIN politician_citizenships pc ON wr.child_entity_id = pc.country_id
-                    WHERE wr.parent_entity_id = l.wikidata_id
-                    AND wr.relation_type = 'OFFICIAL_LANGUAGE'
-                )
-            )
-        )
-        SELECT id, url, iso_code, iso1_code, iso3_code
-        FROM filtered_links
-        ORDER BY language_popularity DESC
-        LIMIT 3
-    """)
-
-    result = db.execute(
-        query,
-        {
-            "politician_id": str(politician.id),
-            "citizenship_type": PropertyType.CITIZENSHIP.name,
-        },
-    )
-
-    selected_links = []
-    for row in result.fetchall():
-        link_id, url, iso_code, iso1_code, iso3_code = row
-        # Find the actual WikipediaLink object
-        wiki_link = next(
-            (wl for wl in politician.wikipedia_links if str(wl.id) == str(link_id)),
-            None,
-        )
-        if wiki_link:
-            selected_links.append((wiki_link, iso1_code, iso3_code))
-
-    return selected_links
-
-
 def build_entity_description(entity) -> str:
     """Build rich description from WikidataRelations dynamically.
 
@@ -767,7 +691,7 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
                 )
 
             # Get priority Wikipedia links based on citizenship and language popularity
-            priority_links = get_priority_wikipedia_links(politician, db)
+            priority_links = politician.get_priority_wikipedia_links(db)
 
             if not priority_links:
                 raise ValueError(
