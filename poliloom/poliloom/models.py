@@ -66,14 +66,6 @@ class TimestampMixin:
     )
 
 
-class StatementMixin:
-    """Mixin for adding Wikidata statement metadata fields."""
-
-    statement_id = Column(String, nullable=True)
-    qualifiers_json = Column(JSONB, nullable=True)  # Store all qualifiers as JSON
-    references_json = Column(JSONB, nullable=True)  # Store all references as JSON
-
-
 class SoftDeleteMixin:
     """Mixin for adding soft delete functionality."""
 
@@ -569,8 +561,12 @@ class WikipediaLink(Base, TimestampMixin):
     politician = relationship("Politician", back_populates="wikipedia_links")
 
 
-class Property(Base, TimestampMixin, SoftDeleteMixin, StatementMixin):
+class Property(Base, TimestampMixin, SoftDeleteMixin):
     """Property entity for storing extracted politician properties."""
+
+    statement_id = Column(String, nullable=True)
+    qualifiers_json = Column(JSONB, nullable=True)  # Store all qualifiers as JSON
+    references_json = Column(JSONB, nullable=True)  # Store all references as JSON
 
     __tablename__ = "properties"
     __table_args__ = (
