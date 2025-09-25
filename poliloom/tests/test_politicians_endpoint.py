@@ -13,6 +13,8 @@ from poliloom.models import (
     PropertyType,
     Position,
     Location,
+    Country,
+    Language,
     ArchivedPage,
     Evaluation,
 )
@@ -415,8 +417,8 @@ class TestGetPoliticiansEndpoint:
         data = response.json()
         assert len(data) == 3
 
-        # Test offset parameter
-        response = client.get("/politicians/?offset=2&limit=2", headers=mock_auth)
+        # Test different limit value
+        response = client.get("/politicians/?limit=2", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
@@ -624,3 +626,344 @@ class TestGetPoliticiansEndpoint:
             key in politician
             for key in ["positions", "birthplaces", "properties_by_type"]
         )
+
+    def test_language_filtering(self, client, mock_auth, db_session):
+        """Test filtering politicians by language QIDs based on archived page iso codes."""
+        # Create language entities
+        Language.create_with_entity(
+            db_session, "Q1860", "English", iso1_code="en", iso3_code="eng"
+        )
+        Language.create_with_entity(
+            db_session, "Q188", "German", iso1_code="de", iso3_code="deu"
+        )
+        Language.create_with_entity(
+            db_session, "Q150", "French", iso1_code="fr", iso3_code="fra"
+        )
+
+        # Create archived pages with different language codes
+        english_page = ArchivedPage(
+            url="https://en.example.com/test", content_hash="en123", iso1_code="en"
+        )
+        german_page = ArchivedPage(
+            url="https://de.example.com/test", content_hash="de123", iso3_code="deu"
+        )
+
+        db_session.add_all([english_page, german_page])
+        db_session.flush()
+
+        # Create politicians with properties from different language pages
+        english_politician = Politician.create_with_entity(
+            db_session, "Q1001", "English Politician"
+        )
+        german_politician = Politician.create_with_entity(
+            db_session, "Q1002", "German Politician"
+        )
+        no_lang_politician = Politician.create_with_entity(
+            db_session, "Q1003", "No Language Politician"
+        )
+
+        db_session.add_all([english_politician, german_politician, no_lang_politician])
+        db_session.flush()
+
+        # Add properties linked to language-specific archived pages
+        english_prop = Property(
+            politician_id=english_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1970-01-01",
+            archived_page_id=english_page.id,
+        )
+
+        german_prop = Property(
+            politician_id=german_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1971-01-01",
+            archived_page_id=german_page.id,
+        )
+
+        # Property without archived page (should not appear in language filtering)
+        no_lang_prop = Property(
+            politician_id=no_lang_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1972-01-01",
+            archived_page_id=None,  # No archived page = no language filtering
+        )
+
+        db_session.add_all([english_prop, german_prop, no_lang_prop])
+        db_session.commit()
+
+        # Test filtering by English language QID
+        response = client.get("/politicians/?languages=Q1860", headers=mock_auth)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["name"] == "English Politician"
+
+        # Test filtering by German language QID
+        response = client.get("/politicians/?languages=Q188", headers=mock_auth)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["name"] == "German Politician"
+
+        # Test filtering by multiple languages
+        response = client.get(
+            "/politicians/?languages=Q1860&languages=Q188", headers=mock_auth
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        politician_names = {p["name"] for p in data}
+        assert politician_names == {"English Politician", "German Politician"}
+
+        # Test filtering by non-existent language
+        response = client.get("/politicians/?languages=Q999999", headers=mock_auth)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 0
+
+    def test_country_filtering(self, client, mock_auth, db_session):
+        """Test filtering politicians by country QIDs based on citizenship properties."""
+        # Create country entities
+        usa_country = Country.create_with_entity(
+            db_session, "Q30", "United States", iso_code="US"
+        )
+        germany_country = Country.create_with_entity(
+            db_session, "Q183", "Germany", iso_code="DE"
+        )
+        Country.create_with_entity(db_session, "Q142", "France", iso_code="FR")
+
+        # Create archived page
+        archived_page = ArchivedPage(
+            url="https://example.com/test",
+            content_hash="test123",
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
+        # Create politicians
+        american_politician = Politician.create_with_entity(
+            db_session, "Q2001", "American Politician"
+        )
+        german_politician = Politician.create_with_entity(
+            db_session, "Q2002", "German Politician"
+        )
+        dual_citizen_politician = Politician.create_with_entity(
+            db_session, "Q2003", "Dual Citizen Politician"
+        )
+        no_citizenship_politician = Politician.create_with_entity(
+            db_session, "Q2004", "No Citizenship Politician"
+        )
+
+        db_session.add_all(
+            [
+                american_politician,
+                german_politician,
+                dual_citizen_politician,
+                no_citizenship_politician,
+            ]
+        )
+        db_session.flush()
+
+        # Add citizenship properties
+        american_citizenship = Property(
+            politician_id=american_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=usa_country.wikidata_id,
+            archived_page_id=archived_page.id,
+        )
+
+        german_citizenship = Property(
+            politician_id=german_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=germany_country.wikidata_id,
+            archived_page_id=archived_page.id,
+        )
+
+        # Dual citizen - add both citizenships
+        dual_usa_citizenship = Property(
+            politician_id=dual_citizen_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=usa_country.wikidata_id,
+            archived_page_id=archived_page.id,
+        )
+
+        dual_germany_citizenship = Property(
+            politician_id=dual_citizen_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=germany_country.wikidata_id,
+            archived_page_id=archived_page.id,
+        )
+
+        # Non-citizenship property for politician without citizenship
+        birth_date_prop = Property(
+            politician_id=no_citizenship_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1980-01-01",
+            archived_page_id=archived_page.id,
+        )
+
+        db_session.add_all(
+            [
+                american_citizenship,
+                german_citizenship,
+                dual_usa_citizenship,
+                dual_germany_citizenship,
+                birth_date_prop,
+            ]
+        )
+        db_session.commit()
+
+        # Test filtering by USA citizenship
+        response = client.get("/politicians/?countries=Q30", headers=mock_auth)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        politician_names = {p["name"] for p in data}
+        assert politician_names == {"American Politician", "Dual Citizen Politician"}
+
+        # Test filtering by German citizenship
+        response = client.get("/politicians/?countries=Q183", headers=mock_auth)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        politician_names = {p["name"] for p in data}
+        assert politician_names == {"German Politician", "Dual Citizen Politician"}
+
+        # Test filtering by multiple countries
+        response = client.get(
+            "/politicians/?countries=Q30&countries=Q183", headers=mock_auth
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 3
+        politician_names = {p["name"] for p in data}
+        assert politician_names == {
+            "American Politician",
+            "German Politician",
+            "Dual Citizen Politician",
+        }
+
+        # Test filtering by non-existent country
+        response = client.get("/politicians/?countries=Q999999", headers=mock_auth)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 0
+
+    def test_combined_language_and_country_filtering(
+        self, client, mock_auth, db_session
+    ):
+        """Test filtering by both language and country filters combined."""
+        # Create entities
+        Language.create_with_entity(
+            db_session, "Q1860", "English", iso1_code="en", iso3_code="eng"
+        )
+        usa_country = Country.create_with_entity(
+            db_session, "Q30", "United States", iso_code="US"
+        )
+        germany_country = Country.create_with_entity(
+            db_session, "Q183", "Germany", iso_code="DE"
+        )
+
+        # Create archived pages
+        english_page = ArchivedPage(
+            url="https://en.example.com/test", content_hash="en123", iso1_code="en"
+        )
+        db_session.add(english_page)
+        db_session.flush()
+
+        # Create politicians
+        american_english_politician = Politician.create_with_entity(
+            db_session, "Q3001", "American English Speaking Politician"
+        )
+        german_english_politician = Politician.create_with_entity(
+            db_session, "Q3002", "German English Speaking Politician"
+        )
+        american_non_english_politician = Politician.create_with_entity(
+            db_session, "Q3003", "American Non-English Speaking Politician"
+        )
+
+        db_session.add_all(
+            [
+                american_english_politician,
+                german_english_politician,
+                american_non_english_politician,
+            ]
+        )
+        db_session.flush()
+
+        # Add properties for American English speaking politician
+        american_eng_citizenship = Property(
+            politician_id=american_english_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=usa_country.wikidata_id,
+            archived_page_id=english_page.id,
+        )
+        american_eng_birth = Property(
+            politician_id=american_english_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1970-01-01",
+            archived_page_id=english_page.id,
+        )
+
+        # Add properties for German English speaking politician
+        german_eng_citizenship = Property(
+            politician_id=german_english_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=germany_country.wikidata_id,
+            archived_page_id=english_page.id,
+        )
+        german_eng_birth = Property(
+            politician_id=german_english_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1971-01-01",
+            archived_page_id=english_page.id,
+        )
+
+        # Add properties for American non-English speaking politician
+        american_non_eng_citizenship = Property(
+            politician_id=american_non_english_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=usa_country.wikidata_id,
+            archived_page_id=None,  # No archived page = won't match language filter
+        )
+
+        db_session.add_all(
+            [
+                american_eng_citizenship,
+                american_eng_birth,
+                german_eng_citizenship,
+                german_eng_birth,
+                american_non_eng_citizenship,
+            ]
+        )
+        db_session.commit()
+
+        # Test combined filtering: English language AND American citizenship
+        response = client.get(
+            "/politicians/?languages=Q1860&countries=Q30", headers=mock_auth
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["name"] == "American English Speaking Politician"
+
+        # Test combined filtering: English language AND German citizenship
+        response = client.get(
+            "/politicians/?languages=Q1860&countries=Q183", headers=mock_auth
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["name"] == "German English Speaking Politician"
+
+        # Test that individual filters work correctly
+        # English language only - should return both English speaking politicians
+        response = client.get("/politicians/?languages=Q1860", headers=mock_auth)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        politician_names = {p["name"] for p in data}
+        assert politician_names == {
+            "American English Speaking Politician",
+            "German English Speaking Politician",
+        }
