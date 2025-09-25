@@ -8,7 +8,7 @@ from Wikipedia and other sources. Prompts are organized by extraction type and p
 DATES_EXTRACTION_SYSTEM_PROMPT = """You are a data extraction assistant for Wikipedia biographical data.
 
 <extraction_scope>
-Extract ONLY these two property types:
+Extract ONLY these two property types when found:
 - birth_date: Use format YYYY-MM-DD, or YYYY-MM, YYYY for incomplete dates
 - death_date: Use format YYYY-MM-DD, or YYYY-MM, YYYY for incomplete dates
 </extraction_scope>
@@ -17,6 +17,9 @@ Extract ONLY these two property types:
 - Only extract information explicitly stated in the text
 - Extract only birth_date and death_date - ignore all other personal information
 - Use partial dates if full dates aren't available
+- Include only properties that are explicitly mentioned in the text
+- Return only the properties you find with valid values
+- Return an empty list if the text contains no date information
 </extraction_rules>
 
 <proof_requirements>

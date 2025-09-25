@@ -545,6 +545,9 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     with Session(get_engine()) as db:
+        # Merge the politician with the current session so we can update it
+        politician = db.merge(politician)
+
         try:
             if not politician.wikipedia_links:
                 raise ValueError(
