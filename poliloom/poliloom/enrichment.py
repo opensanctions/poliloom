@@ -185,16 +185,13 @@ def extract_properties_generic(
     """Generic property extraction using provided configuration."""
     try:
         # Build comprehensive politician context
-        politician_context = build_politician_context_xml(
-            politician,
+        politician_context = politician.to_xml_context(
             focus_property_types=config.property_types,
         )
 
         # Build analysis focus if politician has existing properties
         analysis_focus = ""
-        existing_properties = []
-        for prop_type in config.property_types:
-            existing_properties.extend(politician.get_properties_by_type(prop_type))
+        existing_properties = politician.get_properties_by_types(config.property_types)
 
         if existing_properties:
             analysis_focus = config.analysis_focus_template
@@ -381,7 +378,7 @@ def map_to_wikidata_entity(
         candidates_text = candidates_xml.decode("utf-8")
 
         # Build politician context for stage 2 mapping
-        politician_context = build_politician_context_xml(politician)
+        politician_context = politician.to_xml_context()
 
         entity_label = "position" if entity_type == "position" else "birthplace"
         user_prompt = f"""Map this extracted {entity_label} to the correct Wikidata {entity_type}:
@@ -477,92 +474,6 @@ async def fetch_and_archive_page(
 
         db.commit()
         return archived_page
-
-
-def build_politician_context_xml(
-    politician,
-    focus_property_types=None,
-) -> str:
-    """Build comprehensive politician context as XML structure for LLM prompts.
-
-    Args:
-        politician: Politician model instance with preloaded data
-        focus_property_types: Optional list of PropertyType values to include in context.
-                            If None, includes all available properties.
-
-    Returns:
-        XML formatted politician context string
-    """
-    context_data = {
-        "name": politician.name,
-        "wikidata_id": politician.wikidata_id,
-    }
-
-    # Add existing Wikidata properties based on focus or all available
-    if politician.properties:
-        # Filter focus types if specified
-        relevant_types = (
-            focus_property_types
-            if focus_property_types
-            else [
-                PropertyType.BIRTH_DATE,
-                PropertyType.DEATH_DATE,
-                PropertyType.POSITION,
-                PropertyType.BIRTHPLACE,
-                PropertyType.CITIZENSHIP,
-            ]
-        )
-
-        # Add date properties section
-        if any(
-            t in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]
-            for t in relevant_types
-        ):
-            date_items = [
-                f"{prop.type.value}: {prop.value}"
-                for prop in politician.properties
-                if prop.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]
-            ]
-            if date_items:
-                context_data["existing_wikidata"] = date_items
-
-        # Add positions section
-        if PropertyType.POSITION in relevant_types:
-            position_items = [
-                f"{prop.entity.name}{prop.format_timeframe()}"
-                for prop in politician.properties
-                if prop.type == PropertyType.POSITION
-            ]
-            if position_items:
-                context_data["existing_wikidata_positions"] = position_items
-
-        # Add birthplaces section
-        if PropertyType.BIRTHPLACE in relevant_types:
-            birthplace_items = [
-                prop.entity.name
-                for prop in politician.properties
-                if prop.type == PropertyType.BIRTHPLACE
-            ]
-            if birthplace_items:
-                context_data["existing_wikidata_birthplaces"] = birthplace_items
-
-        # Add citizenships section
-        if PropertyType.CITIZENSHIP in relevant_types:
-            citizenship_items = [
-                prop.entity.name
-                for prop in politician.properties
-                if prop.type == PropertyType.CITIZENSHIP
-            ]
-            if citizenship_items:
-                context_data["existing_wikidata_citizenships"] = citizenship_items
-
-    xml_bytes = dicttoxml(
-        context_data,
-        custom_root="politician_context",
-        attr_type=False,
-        xml_declaration=False,
-    )
-    return xml_bytes.decode("utf-8")
 
 
 # Configuration instances for different extraction types

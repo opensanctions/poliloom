@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy import event
 from sqlalchemy.ext.hybrid import hybrid_property
 from pgvector.sqlalchemy import Vector
+from dicttoxml import dicttoxml
 
 Base = declarative_base()
 
@@ -318,9 +319,11 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         """Check if politician is deceased based on death_date property."""
         return any(prop.type == PropertyType.DEATH_DATE for prop in self.properties)
 
-    def get_properties_by_type(self, property_type: PropertyType) -> List["Property"]:
-        """Get all properties of a specific type."""
-        return [prop for prop in self.properties if prop.type == property_type]
+    def get_properties_by_types(
+        self, property_types: List[PropertyType]
+    ) -> List["Property"]:
+        """Get all properties of the specified types."""
+        return [prop for prop in self.properties if prop.type in property_types]
 
     def get_priority_wikipedia_links(self, db: Session) -> List[tuple]:
         """
@@ -386,6 +389,90 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         )
 
         return result.fetchall()
+
+    def to_xml_context(self, focus_property_types=None) -> str:
+        """Build comprehensive politician context as XML structure for LLM prompts.
+
+        Args:
+            focus_property_types: Optional list of PropertyType values to include in context.
+                                If None, includes all available properties.
+
+        Returns:
+            XML formatted politician context string
+        """
+        context_data = {
+            "name": self.name,
+            "wikidata_id": self.wikidata_id,
+        }
+
+        # Add existing Wikidata properties based on focus or all available
+        if self.properties:
+            # Filter focus types if specified
+            relevant_types = (
+                focus_property_types
+                if focus_property_types
+                else [
+                    PropertyType.BIRTH_DATE,
+                    PropertyType.DEATH_DATE,
+                    PropertyType.POSITION,
+                    PropertyType.BIRTHPLACE,
+                    PropertyType.CITIZENSHIP,
+                ]
+            )
+
+            # Add date properties section
+            if any(
+                t in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]
+                for t in relevant_types
+            ):
+                date_properties = self.get_properties_by_types(
+                    [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]
+                )
+                date_items = [
+                    f"{prop.type.value}: {prop.value}" for prop in date_properties
+                ]
+                if date_items:
+                    context_data["existing_wikidata"] = date_items
+
+            # Add positions section
+            if PropertyType.POSITION in relevant_types:
+                position_properties = self.get_properties_by_types(
+                    [PropertyType.POSITION]
+                )
+                position_items = [
+                    f"{prop.entity.name}{prop.format_timeframe()}"
+                    for prop in position_properties
+                ]
+                if position_items:
+                    context_data["existing_wikidata_positions"] = position_items
+
+            # Add birthplaces section
+            if PropertyType.BIRTHPLACE in relevant_types:
+                birthplace_properties = self.get_properties_by_types(
+                    [PropertyType.BIRTHPLACE]
+                )
+                birthplace_items = [prop.entity.name for prop in birthplace_properties]
+                if birthplace_items:
+                    context_data["existing_wikidata_birthplaces"] = birthplace_items
+
+            # Add citizenships section
+            if PropertyType.CITIZENSHIP in relevant_types:
+                citizenship_properties = self.get_properties_by_types(
+                    [PropertyType.CITIZENSHIP]
+                )
+                citizenship_items = [
+                    prop.entity.name for prop in citizenship_properties
+                ]
+                if citizenship_items:
+                    context_data["existing_wikidata_citizenships"] = citizenship_items
+
+        xml_bytes = dicttoxml(
+            context_data,
+            custom_root="politician_context",
+            attr_type=False,
+            xml_declaration=False,
+        )
+        return xml_bytes.decode("utf-8")
 
     @classmethod
     def create_with_entity(cls, session, wikidata_id: str, name: str):
