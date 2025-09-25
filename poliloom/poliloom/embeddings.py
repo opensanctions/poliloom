@@ -30,7 +30,9 @@ def get_embedding_model():
         logger.info("Loading SentenceTransformer model...")
         device = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {device}")
-        _embedding_model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
+        _embedding_model = SentenceTransformer(
+            "paraphrase-multilingual-MiniLM-L12-v2", device=device
+        )
         logger.info("SentenceTransformer model loaded and cached successfully")
     return _embedding_model
 

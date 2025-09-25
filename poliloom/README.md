@@ -93,7 +93,7 @@ uv run uvicorn poliloom.api:app --reload
 
 ### Vector Search
 
-- **SentenceTransformers** with 'all-MiniLM-L6-v2' model for embeddings
+- **SentenceTransformers** with 'paraphrase-multilingual-MiniLM-L12-v2' model for embeddings
 - **pgvector** extension for efficient similarity search
 - Supports mapping extracted text to existing Wikidata entities
 
