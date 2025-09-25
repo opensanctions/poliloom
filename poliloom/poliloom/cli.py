@@ -299,7 +299,7 @@ def enrich_wikipedia(limit: Optional[int]) -> None:
         success_count = 0
         for i, politician in enumerate(politicians, 1):
             click.echo(
-                f"[{i}/{len(politicians)}] Enriching {politician.wikidata_id} ({politician.name})..."
+                f"[{i}/{len(politicians)}] Enriching {politician.wikidata_id} ({politician.name}) - https://www.wikidata.org/wiki/{politician.wikidata_id}"
             )
 
             try:
