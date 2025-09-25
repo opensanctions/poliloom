@@ -129,6 +129,13 @@ class UpsertMixin:
             return None
 
 
+class LanguageCodeMixin:
+    """Mixin for adding language code fields."""
+
+    iso1_code = Column(String, index=True)  # ISO 639-1 language code (2 characters)
+    iso3_code = Column(String, index=True)  # ISO 639-3 language code (3 characters)
+
+
 class Evaluation(Base, TimestampMixin):
     """Evaluation entity for tracking user evaluations of extracted properties."""
 
@@ -305,7 +312,7 @@ class Politician(Base, TimestampMixin, UpsertMixin):
     )
 
 
-class ArchivedPage(Base, TimestampMixin):
+class ArchivedPage(Base, TimestampMixin, LanguageCodeMixin):
     """Archived page entity for storing fetched web page metadata."""
 
     __tablename__ = "archived_pages"
@@ -320,7 +327,6 @@ class ArchivedPage(Base, TimestampMixin):
     fetch_timestamp = Column(
         DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
-    iso_code = Column(String, index=True)  # Language ISO code for the archived content
 
     # Relationships
     properties = relationship("Property", back_populates="archived_page")
@@ -477,7 +483,7 @@ class Country(Base, TimestampMixin, UpsertMixin):
         return country
 
 
-class Language(Base, TimestampMixin, UpsertMixin):
+class Language(Base, TimestampMixin, LanguageCodeMixin, UpsertMixin):
     """Language entity for storing language information."""
 
     __tablename__ = "languages"
@@ -492,8 +498,6 @@ class Language(Base, TimestampMixin, UpsertMixin):
     wikidata_id = Column(
         String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
     )
-    iso1_code = Column(String, index=True)  # ISO 639-1 language code (2 characters)
-    iso3_code = Column(String, index=True)  # ISO 639-3 language code (3 characters)
 
     # Relationships
     wikidata_entity = relationship(
