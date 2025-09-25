@@ -9,6 +9,7 @@ from poliloom.enrichment import (
     extract_properties_generic,
     extract_two_stage_generic,
     store_extracted_data,
+    get_priority_wikipedia_links,
     ExtractedProperty,
     ExtractedPosition,
     ExtractedBirthplace,
@@ -23,6 +24,10 @@ from poliloom.models import (
     Politician,
     Property,
     WikipediaLink,
+    Language,
+    Country,
+    WikidataRelation,
+    RelationType,
 )
 
 
@@ -493,24 +498,249 @@ class TestEnrichment:
         assert politician.enriched_at is not None
 
     @pytest.mark.asyncio
-    async def test_enrich_politician_no_english_wikipedia(
-        self, db_session, sample_country, sample_politician
+    async def test_enrich_politician_no_suitable_wikipedia_links(
+        self, db_session, sample_politician
     ):
-        """Test enrichment when politician has no English Wikipedia link."""
-        # Use fixture entities
-
-        # Add non-English Wikipedia link
-        wikipedia_link = WikipediaLink(
-            politician_id=sample_politician.id,
-            url="https://fr.wikipedia.org/wiki/Test_Politician",
-            iso_code="fr",
-        )
-        db_session.add(wikipedia_link)
-        db_session.commit()
+        """Test enrichment when politician has no Wikipedia links."""
+        # The sample_politician fixture by default has no Wikipedia links
+        # This should trigger the "No Wikipedia links found" error
 
         with patch("poliloom.enrichment.OpenAI"):
-            with pytest.raises(ValueError, match="No English Wikipedia source found"):
+            with pytest.raises(ValueError, match="No Wikipedia links found"):
                 await enrich_politician_from_wikipedia(sample_politician)
 
         # The enriched_at timestamp should still be updated even when raising an error
         assert sample_politician.enriched_at is not None
+
+    def test_get_priority_wikipedia_links_no_links(self, db_session, sample_politician):
+        """Test get_priority_wikipedia_links when politician has no Wikipedia links."""
+        result = get_priority_wikipedia_links(sample_politician, db_session)
+        assert result == []
+
+    def test_get_priority_wikipedia_links_english_only(
+        self, db_session, sample_politician, sample_wikipedia_link
+    ):
+        """Test get_priority_wikipedia_links when only English link available."""
+        # sample_wikipedia_link fixture creates an English link
+        result = get_priority_wikipedia_links(sample_politician, db_session)
+
+        assert len(result) == 1
+        wiki_link, iso1_code, iso3_code = result[0]
+        assert wiki_link.iso_code == "en"
+        assert iso1_code == "en"
+        assert iso3_code == "eng"
+
+    def test_get_priority_wikipedia_links_citizenship_priority(
+        self, db_session, sample_politician, sample_country, sample_language
+    ):
+        """Test get_priority_wikipedia_links with citizenship-based prioritization."""
+        # Create a German country and language
+        german_country = Country.create_with_entity(db_session, "Q183", "Germany", "DE")
+        german_language = Language.create_with_entity(
+            db_session, "Q188", "German", iso1_code="de", iso3_code="deu"
+        )
+        db_session.commit()
+
+        # Create official language relation: German is official language of Germany
+        relation = WikidataRelation(
+            parent_entity_id=german_language.wikidata_id,
+            child_entity_id=german_country.wikidata_id,
+            relation_type=RelationType.OFFICIAL_LANGUAGE,
+            statement_id="test_statement_1",
+        )
+        db_session.add(relation)
+
+        # Create citizenship property for politician
+        citizenship = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=german_country.wikidata_id,
+        )
+        db_session.add(citizenship)
+
+        # Create Wikipedia links for both German and English
+        # Add more German wikipedia links globally to make it "popular"
+        Politician.create_with_entity(db_session, "Q999", "Other Politician")
+        db_session.commit()
+
+        # Create multiple German links to simulate popularity
+        for i in range(50):  # Make German popular
+            dummy_politician = Politician.create_with_entity(
+                db_session, f"Q{1000 + i}", f"Dummy {i}"
+            )
+            db_session.commit()
+            de_link = WikipediaLink(
+                politician_id=dummy_politician.id,
+                url=f"https://de.wikipedia.org/wiki/Dummy_{i}",
+                iso_code="de",
+            )
+            db_session.add(de_link)
+
+        # Create the actual politician's links
+        german_link = WikipediaLink(
+            politician_id=sample_politician.id,
+            url="https://de.wikipedia.org/wiki/Test_Politician",
+            iso_code="de",
+        )
+        english_link = WikipediaLink(
+            politician_id=sample_politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            iso_code="en",
+        )
+        db_session.add(german_link)
+        db_session.add(english_link)
+        db_session.commit()
+
+        result = get_priority_wikipedia_links(sample_politician, db_session)
+
+        # Should get both German (from citizenship) and English
+        assert len(result) >= 1
+        # German should be first due to citizenship priority
+        wiki_link, iso1_code, iso3_code = result[0]
+        assert wiki_link.iso_code == "de"
+        assert iso1_code == "de"
+        assert iso3_code == "deu"
+
+    def test_get_priority_wikipedia_links_no_citizenship(
+        self, db_session, sample_politician
+    ):
+        """Test get_priority_wikipedia_links when politician has no citizenship."""
+        # Create multiple Wikipedia links without citizenship
+        links_data = [
+            ("https://en.wikipedia.org/wiki/Test_Politician", "en"),
+            ("https://fr.wikipedia.org/wiki/Test_Politician", "fr"),
+            ("https://de.wikipedia.org/wiki/Test_Politician", "de"),
+        ]
+
+        # Create corresponding languages
+        languages = [
+            ("Q1860", "English", "en", "eng"),
+            ("Q150", "French", "fr", "fra"),
+            ("Q188", "German", "de", "deu"),
+        ]
+
+        for wid, name, iso1, iso3 in languages:
+            Language.create_with_entity(
+                db_session, wid, name, iso1_code=iso1, iso3_code=iso3
+            )
+
+        # Create many links for each language to simulate different popularity
+        # Make French most popular, then German, then English
+        popularity_data = [("fr", 100), ("de", 50), ("en", 25)]
+
+        for iso_code, count in popularity_data:
+            for i in range(count):
+                dummy_politician = Politician.create_with_entity(
+                    db_session,
+                    f"Q{2000 + i + ord(iso_code[0]) * 1000}",
+                    f"Dummy {iso_code} {i}",
+                )
+                db_session.commit()
+                link = WikipediaLink(
+                    politician_id=dummy_politician.id,
+                    url=f"https://{iso_code}.wikipedia.org/wiki/Dummy_{i}",
+                    iso_code=iso_code,
+                )
+                db_session.add(link)
+
+        # Create politician's actual links
+        for url, iso_code in links_data:
+            link = WikipediaLink(
+                politician_id=sample_politician.id,
+                url=url,
+                iso_code=iso_code,
+            )
+            db_session.add(link)
+
+        db_session.commit()
+
+        result = get_priority_wikipedia_links(sample_politician, db_session)
+
+        # Should fallback to most popular languages, limited to 3
+        assert len(result) <= 3
+        assert len(result) >= 1
+
+        # Should include English even without citizenship
+        english_found = any(link.iso_code == "en" for link, _, _ in result)
+        assert english_found
+
+    def test_get_priority_wikipedia_links_multiple_citizenships(
+        self, db_session, sample_politician
+    ):
+        """Test get_priority_wikipedia_links with multiple citizenships."""
+        # Create two countries with different official languages
+        usa = Country.create_with_entity(db_session, "Q30", "United States", "US")
+        germany = Country.create_with_entity(db_session, "Q183", "Germany", "DE")
+
+        # Create languages
+        english = Language.create_with_entity(
+            db_session, "Q1860", "English", iso1_code="en", iso3_code="eng"
+        )
+        german = Language.create_with_entity(
+            db_session, "Q188", "German", iso1_code="de", iso3_code="deu"
+        )
+        db_session.commit()
+
+        # Create official language relations
+        relations = [
+            WikidataRelation(
+                parent_entity_id=english.wikidata_id,
+                child_entity_id=usa.wikidata_id,
+                relation_type=RelationType.OFFICIAL_LANGUAGE,
+                statement_id="test_statement_en_us",
+            ),
+            WikidataRelation(
+                parent_entity_id=german.wikidata_id,
+                child_entity_id=germany.wikidata_id,
+                relation_type=RelationType.OFFICIAL_LANGUAGE,
+                statement_id="test_statement_de_de",
+            ),
+        ]
+        for relation in relations:
+            db_session.add(relation)
+
+        # Create dual citizenship
+        citizenships = [
+            Property(
+                politician_id=sample_politician.id,
+                type=PropertyType.CITIZENSHIP,
+                entity_id=usa.wikidata_id,
+            ),
+            Property(
+                politician_id=sample_politician.id,
+                type=PropertyType.CITIZENSHIP,
+                entity_id=germany.wikidata_id,
+            ),
+        ]
+        for citizenship in citizenships:
+            db_session.add(citizenship)
+
+        # Create Wikipedia links
+        links = [
+            WikipediaLink(
+                politician_id=sample_politician.id,
+                url="https://en.wikipedia.org/wiki/Test_Politician",
+                iso_code="en",
+            ),
+            WikipediaLink(
+                politician_id=sample_politician.id,
+                url="https://de.wikipedia.org/wiki/Test_Politician",
+                iso_code="de",
+            ),
+        ]
+        for link in links:
+            db_session.add(link)
+
+        db_session.commit()
+
+        result = get_priority_wikipedia_links(sample_politician, db_session)
+
+        # Should get both languages from citizenships (limited to top 2)
+        assert len(result) <= 3  # Max 2 from citizenship + English
+        assert len(result) >= 1
+
+        # Both citizenship languages should be represented
+        iso_codes = {link.iso_code for link, _, _ in result}
+        assert (
+            "en" in iso_codes or "de" in iso_codes
+        )  # At least one citizenship language

@@ -418,11 +418,15 @@ Select the best matching QID or None if no good match exists."""
         return None
 
 
-async def fetch_and_archive_page(url: str, db: Session) -> ArchivedPage:
+async def fetch_and_archive_page(
+    url: str, db: Session, iso1_code: str = None, iso3_code: str = None
+) -> ArchivedPage:
     """Fetch web page content and archive it."""
     # Create and insert ArchivedPage first
     now = datetime.now(timezone.utc)
-    archived_page = ArchivedPage(url=url, fetch_timestamp=now)
+    archived_page = ArchivedPage(
+        url=url, fetch_timestamp=now, iso1_code=iso1_code, iso3_code=iso3_code
+    )
     db.add(archived_page)
     db.flush()
 
@@ -603,6 +607,120 @@ CITIZENSHIPS_CONFIG = TwoStageExtractionConfig(
 )
 
 
+def get_priority_wikipedia_links(politician: Politician, db: Session) -> List[tuple]:
+    """
+    Get priority Wikipedia links for a politician based on citizenship and official languages.
+
+    Returns list of (wikipedia_link, iso1_code, iso3_code) tuples, prioritized by:
+    1. Languages from politician's citizenship countries (top 2 by Wikipedia link count)
+    2. English (if not already included)
+
+    Only considers Wikipedia links that actually exist for the politician.
+
+    Args:
+        politician: Politician instance with citizenship properties loaded
+        db: Database session
+
+    Returns:
+        List of (WikipediaLink, iso1_code, iso3_code) tuples
+    """
+    from sqlalchemy import text
+
+    selected_links = []
+
+    # Query for top 2 wikipedia links based on citizenship country official languages
+    # ordered by overall wikipedia link popularity
+    priority_query = text("""
+        WITH politician_wikipedia_links AS (
+            SELECT wl.*, COUNT(*) OVER (PARTITION BY wl.iso_code) as global_link_count
+            FROM wikipedia_links wl
+            WHERE wl.politician_id = :politician_id
+        ),
+        politician_citizenships AS (
+            SELECT p.entity_id as country_id
+            FROM properties p
+            WHERE p.politician_id = :politician_id
+            AND p.type = :citizenship_type
+            AND p.entity_id IS NOT NULL
+        ),
+        citizenship_language_links AS (
+            SELECT DISTINCT
+                pwl.*,
+                l.iso1_code,
+                l.iso3_code
+            FROM politician_wikipedia_links pwl
+            JOIN languages l ON (pwl.iso_code = l.iso1_code OR pwl.iso_code = l.iso3_code)
+            JOIN wikidata_relations wr ON l.wikidata_id = wr.parent_entity_id
+            JOIN politician_citizenships pc ON wr.child_entity_id = pc.country_id
+            WHERE wr.relation_type = 'OFFICIAL_LANGUAGE'
+            ORDER BY pwl.global_link_count DESC
+            LIMIT 2
+        )
+        SELECT id, url, iso_code, iso1_code, iso3_code
+        FROM citizenship_language_links
+    """)
+
+    result = db.execute(
+        priority_query,
+        {
+            "politician_id": str(politician.id),
+            "citizenship_type": PropertyType.CITIZENSHIP.name,
+        },
+    )
+
+    processed_iso_codes = set()
+    for row in result.fetchall():
+        link_id, url, iso_code, iso1_code, iso3_code = row
+        # Find the actual WikipediaLink object
+        wiki_link = next(
+            (wl for wl in politician.wikipedia_links if str(wl.id) == str(link_id)),
+            None,
+        )
+        if wiki_link:
+            selected_links.append((wiki_link, iso1_code, iso3_code))
+            processed_iso_codes.add(iso_code)
+
+    # Always try to include English if available and not already processed
+    english_codes = {"en", "eng"}
+    if not processed_iso_codes.intersection(english_codes):
+        for wiki_link in politician.wikipedia_links:
+            if wiki_link.iso_code in english_codes:
+                selected_links.append((wiki_link, "en", "eng"))
+                break
+
+    # If we still have no links, just take the most popular ones available to the politician
+    if not selected_links:
+        fallback_query = text("""
+            SELECT
+                wl.id,
+                wl.url,
+                wl.iso_code,
+                COALESCE(l1.iso1_code, l3.iso1_code, wl.iso_code) as iso1_code,
+                COALESCE(l1.iso3_code, l3.iso3_code, wl.iso_code) as iso3_code,
+                COUNT(*) OVER (PARTITION BY wl.iso_code) as global_link_count
+            FROM wikipedia_links wl
+            LEFT JOIN languages l1 ON wl.iso_code = l1.iso1_code
+            LEFT JOIN languages l3 ON wl.iso_code = l3.iso3_code
+            WHERE wl.politician_id = :politician_id
+            ORDER BY global_link_count DESC
+            LIMIT 3
+        """)
+
+        result = db.execute(fallback_query, {"politician_id": str(politician.id)})
+
+        for row in result.fetchall():
+            link_id, url, iso_code, iso1_code, iso3_code, _ = row
+            # Find the actual WikipediaLink object
+            wiki_link = next(
+                (wl for wl in politician.wikipedia_links if str(wl.id) == str(link_id)),
+                None,
+            )
+            if wiki_link:
+                selected_links.append((wiki_link, iso1_code, iso3_code))
+
+    return selected_links
+
+
 def build_entity_description(entity) -> str:
     """Build rich description from WikidataRelations dynamically.
 
@@ -664,6 +782,9 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
     """
     Enrich a politician's data by extracting information from their Wikipedia sources.
 
+    Now processes multiple Wikipedia articles based on politician's citizenship and
+    official languages of their countries, prioritized by Wikipedia link popularity.
+
     Args:
         politician: The Politician model instance to enrich. Must have the following
                    relationships pre-loaded using selectinload():
@@ -672,7 +793,7 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
                    - wikipedia_links
 
     Raises:
-        ValueError: If politician has no Wikipedia links or no English Wikipedia link
+        ValueError: If politician has no Wikipedia links
     """
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -683,100 +804,129 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
                     f"No Wikipedia links found for politician {politician.name}"
                 )
 
-            # Process only English Wikipedia source
-            english_wikipedia_link = None
-            for wikipedia_link in politician.wikipedia_links:
-                if "en.wikipedia.org" in wikipedia_link.url:
-                    english_wikipedia_link = wikipedia_link
-                    break
+            # Get priority Wikipedia links based on citizenship and language popularity
+            priority_links = get_priority_wikipedia_links(politician, db)
 
-            if not english_wikipedia_link:
+            if not priority_links:
                 raise ValueError(
-                    f"No English Wikipedia source found for politician {politician.name}"
+                    f"No suitable Wikipedia links found for politician {politician.name}"
                 )
 
             logger.info(
-                f"Processing English Wikipedia source: {english_wikipedia_link.url}"
+                f"Processing {len(priority_links)} Wikipedia sources for {politician.name}: "
+                f"{[f'{link.iso_code} ({link.url})' for link, _, _ in priority_links]}"
             )
 
-            # Check if we already have this page archived
-            existing_page = (
-                db.query(ArchivedPage)
-                .filter(ArchivedPage.url == english_wikipedia_link.url)
-                .first()
-            )
+            # Track totals across all sources
+            total_dates = 0
+            total_positions = 0
+            total_birthplaces = 0
+            total_citizenships = 0
+            processed_sources = 0
 
-            if existing_page:
-                logger.info(
-                    f"Using existing archived page for {english_wikipedia_link.url}"
-                )
-                archived_page = existing_page
-            else:
-                # Fetch and archive the page
-                archived_page = await fetch_and_archive_page(
-                    english_wikipedia_link.url, db
-                )
+            # Process each priority Wikipedia link individually
+            for wikipedia_link, iso1_code, iso3_code in priority_links:
+                logger.info(f"Processing Wikipedia source: {wikipedia_link.url}")
 
-            # Read content from archived page
-            html_content = archive.read_archived_content(
-                archived_page.path_root, "html"
-            )
-
-            soup = BeautifulSoup(html_content, "html.parser")
-            text = soup.get_text()
-            content = " ".join(text.split())
-
-            # Extract dates
-            date_properties = extract_properties_generic(
-                openai_client, content, politician, DATES_CONFIG
-            )
-
-            # Extract positions
-            positions = extract_two_stage_generic(
-                openai_client, db, content, politician, POSITIONS_CONFIG
-            )
-
-            # Extract birthplaces
-            birthplaces = extract_two_stage_generic(
-                openai_client, db, content, politician, BIRTHPLACES_CONFIG
-            )
-
-            # Extract citizenships
-            citizenships = extract_two_stage_generic(
-                openai_client, db, content, politician, CITIZENSHIPS_CONFIG
-            )
-
-            # Store extracted data in database
-            success = store_extracted_data(
-                db,
-                politician,
-                archived_page,
-                date_properties,
-                positions,
-                birthplaces,
-                citizenships,
-            )
-
-            if success:
-                db.commit()
-                # Count what was extracted for summary logging
-                date_count = len(date_properties) if date_properties else 0
-                position_count = len(positions) if positions else 0
-                birthplace_count = len(birthplaces) if birthplaces else 0
-                citizenship_count = len(citizenships) if citizenships else 0
-                total_count = (
-                    date_count + position_count + birthplace_count + citizenship_count
+                # Check if we already have this page archived
+                existing_page = (
+                    db.query(ArchivedPage)
+                    .filter(ArchivedPage.url == wikipedia_link.url)
+                    .first()
                 )
 
-                logger.info(
-                    f"Successfully enriched {politician.name} ({politician.wikidata_id}): "
-                    f"{total_count} total items ({date_count} dates, {position_count} positions, {birthplace_count} birthplaces, {citizenship_count} citizenships)"
+                if existing_page:
+                    logger.info(
+                        f"Using existing archived page for {wikipedia_link.url}"
+                    )
+                    archived_page = existing_page
+                    # Update language codes if missing
+                    if not archived_page.iso1_code or not archived_page.iso3_code:
+                        archived_page.iso1_code = iso1_code
+                        archived_page.iso3_code = iso3_code
+                        db.flush()
+                else:
+                    # Fetch and archive the page with language codes
+                    archived_page = await fetch_and_archive_page(
+                        wikipedia_link.url, db, iso1_code, iso3_code
+                    )
+
+                # Read content from archived page
+                html_content = archive.read_archived_content(
+                    archived_page.path_root, "html"
                 )
-            else:
-                db.rollback()
-                raise RuntimeError(
-                    f"Failed to store extracted data for {politician.name} ({politician.wikidata_id})"
+
+                soup = BeautifulSoup(html_content, "html.parser")
+                text = soup.get_text()
+                content = " ".join(text.split())
+
+                # Extract data from this specific source
+                date_properties = extract_properties_generic(
+                    openai_client, content, politician, DATES_CONFIG
                 )
+
+                positions = extract_two_stage_generic(
+                    openai_client, db, content, politician, POSITIONS_CONFIG
+                )
+
+                birthplaces = extract_two_stage_generic(
+                    openai_client, db, content, politician, BIRTHPLACES_CONFIG
+                )
+
+                citizenships = extract_two_stage_generic(
+                    openai_client, db, content, politician, CITIZENSHIPS_CONFIG
+                )
+
+                # Store extracted data for this specific source
+                success = store_extracted_data(
+                    db,
+                    politician,
+                    archived_page,
+                    date_properties,
+                    positions,
+                    birthplaces,
+                    citizenships,
+                )
+
+                if success:
+                    # Count what was extracted from this source
+                    date_count = len(date_properties) if date_properties else 0
+                    position_count = len(positions) if positions else 0
+                    birthplace_count = len(birthplaces) if birthplaces else 0
+                    citizenship_count = len(citizenships) if citizenships else 0
+
+                    total_dates += date_count
+                    total_positions += position_count
+                    total_birthplaces += birthplace_count
+                    total_citizenships += citizenship_count
+                    processed_sources += 1
+
+                    source_total = (
+                        date_count
+                        + position_count
+                        + birthplace_count
+                        + citizenship_count
+                    )
+                    logger.info(
+                        f"Extracted {source_total} items from {wikipedia_link.url} "
+                        f"({date_count} dates, {position_count} positions, {birthplace_count} birthplaces, {citizenship_count} citizenships)"
+                    )
+                else:
+                    logger.warning(
+                        f"Failed to store extracted data from {wikipedia_link.url} for {politician.name}"
+                    )
+
+            # Commit all changes
+            db.commit()
+
+            # Final summary
+            grand_total = (
+                total_dates + total_positions + total_birthplaces + total_citizenships
+            )
+            logger.info(
+                f"Successfully enriched {politician.name} ({politician.wikidata_id}) from {processed_sources}/{len(priority_links)} sources: "
+                f"{grand_total} total items ({total_dates} dates, {total_positions} positions, {total_birthplaces} birthplaces, {total_citizenships} citizenships)"
+            )
 
         except Exception as e:
             logger.error(f"Error enriching politician {politician.wikidata_id}: {e}")
