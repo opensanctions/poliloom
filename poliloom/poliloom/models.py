@@ -157,6 +157,32 @@ class WikidataEntityMixin:
         return self.wikidata_entity.name
 
 
+class EntityCreationMixin:
+    """Mixin for entities that can be created with their associated WikidataEntity."""
+
+    @classmethod
+    def create_with_entity(cls, session, wikidata_id: str, name: str):
+        """Create an entity with its associated WikidataEntity.
+
+        Args:
+            session: Database session
+            wikidata_id: Wikidata ID for the entity
+            name: Name of the entity
+
+        Returns:
+            The created entity instance (other properties can be set after creation)
+        """
+        # Create WikidataEntity first
+        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, name=name)
+        session.add(wikidata_entity)
+
+        # Create the entity instance
+        entity = cls(wikidata_id=wikidata_id)
+        session.add(entity)
+
+        return entity
+
+
 class LanguageCodeMixin:
     """Mixin for adding language code fields."""
 
@@ -209,7 +235,7 @@ class Preference(Base, TimestampMixin):
     entity = relationship("WikidataEntity")
 
 
-class Politician(Base, TimestampMixin, UpsertMixin):
+class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
     """Politician entity."""
 
     __tablename__ = "politicians"
@@ -394,14 +420,10 @@ class Politician(Base, TimestampMixin, UpsertMixin):
     @classmethod
     def create_with_entity(cls, session, wikidata_id: str, name: str):
         """Create a Politician with its associated WikidataEntity."""
-        # Create WikidataEntity first
-        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, name=name)
-        session.add(wikidata_entity)
-
-        # Create Politician
-        politician = cls(name=name, wikidata_id=wikidata_id)
-        session.add(politician)
-
+        # Call parent mixin method
+        politician = super().create_with_entity(session, wikidata_id, name)
+        # Set the name directly on the politician (since it doesn't inherit from WikidataEntityMixin)
+        politician.name = name
         return politician
 
     # Relationships
@@ -545,7 +567,9 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, StatementMixin):
     )
 
 
-class Country(Base, TimestampMixin, UpsertMixin, WikidataEntityMixin):
+class Country(
+    Base, TimestampMixin, UpsertMixin, WikidataEntityMixin, EntityCreationMixin
+):
     """Country entity for storing country information."""
 
     __tablename__ = "countries"
@@ -556,24 +580,14 @@ class Country(Base, TimestampMixin, UpsertMixin, WikidataEntityMixin):
     iso_code = Column(String, index=True)  # ISO 3166-1 alpha-2 code
     embedding = Column(Vector(384), nullable=True)
 
-    @classmethod
-    def create_with_entity(
-        cls, session, wikidata_id: str, name: str, iso_code: str = None
-    ):
-        """Create a Country with its associated WikidataEntity."""
-        # Create WikidataEntity first
-        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, name=name)
-        session.add(wikidata_entity)
-
-        # Create Country
-        country = cls(wikidata_id=wikidata_id, iso_code=iso_code)
-        session.add(country)
-
-        return country
-
 
 class Language(
-    Base, TimestampMixin, LanguageCodeMixin, UpsertMixin, WikidataEntityMixin
+    Base,
+    TimestampMixin,
+    LanguageCodeMixin,
+    UpsertMixin,
+    WikidataEntityMixin,
+    EntityCreationMixin,
 ):
     """Language entity for storing language information."""
 
@@ -586,73 +600,25 @@ class Language(
     # UpsertMixin configuration
     _upsert_update_columns = ["iso1_code", "iso3_code"]
 
-    @classmethod
-    def create_with_entity(
-        cls,
-        session,
-        wikidata_id: str,
-        name: str,
-        iso1_code: str = None,
-        iso3_code: str = None,
-    ):
-        """Create a Language with its associated WikidataEntity."""
-        # Create WikidataEntity first
-        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, name=name)
-        session.add(wikidata_entity)
 
-        # Create Language
-        language = cls(
-            wikidata_id=wikidata_id, iso1_code=iso1_code, iso3_code=iso3_code
-        )
-        session.add(language)
-
-        return language
-
-
-class Location(Base, TimestampMixin, UpsertMixin, WikidataEntityMixin):
+class Location(
+    Base, TimestampMixin, UpsertMixin, WikidataEntityMixin, EntityCreationMixin
+):
     """Location entity for geographic locations."""
 
     __tablename__ = "locations"
 
     embedding = Column(Vector(384), nullable=True)
 
-    @classmethod
-    def create_with_entity(cls, session, wikidata_id: str, name: str, embedding=None):
-        """Create a Location with its associated WikidataEntity."""
-        # Create WikidataEntity first
-        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, name=name)
-        session.add(wikidata_entity)
 
-        # Create Location
-        location = cls(wikidata_id=wikidata_id)
-        if embedding is not None:
-            location.embedding = embedding
-        session.add(location)
-
-        return location
-
-
-class Position(Base, TimestampMixin, UpsertMixin, WikidataEntityMixin):
+class Position(
+    Base, TimestampMixin, UpsertMixin, WikidataEntityMixin, EntityCreationMixin
+):
     """Position entity for political positions."""
 
     __tablename__ = "positions"
 
     embedding = Column(Vector(384), nullable=True)
-
-    @classmethod
-    def create_with_entity(cls, session, wikidata_id: str, name: str, embedding=None):
-        """Create a Position with its associated WikidataEntity."""
-        # Create WikidataEntity first
-        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, name=name)
-        session.add(wikidata_entity)
-
-        # Create Position
-        position = cls(wikidata_id=wikidata_id)
-        if embedding is not None:
-            position.embedding = embedding
-        session.add(position)
-
-        return position
 
 
 class WikidataDump(Base, TimestampMixin):

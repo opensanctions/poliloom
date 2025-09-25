@@ -9,7 +9,8 @@ class TestCountry:
 
     def test_country_creation(self, db_session):
         """Test basic country creation."""
-        country = Country.create_with_entity(db_session, "Q183", "Germany", "DE")
+        country = Country.create_with_entity(db_session, "Q183", "Germany")
+        country.iso_code = "DE"
         db_session.commit()
         db_session.refresh(country)
 

@@ -595,12 +595,12 @@ class TestGetPoliticiansEndpoint:
     def test_language_filtering(self, client, mock_auth, db_session, sample_language):
         """Test filtering politicians by language QIDs based on archived page iso codes."""
         # Use the sample_language fixture (English) and create additional languages
-        Language.create_with_entity(
-            db_session, "Q188", "German", iso1_code="de", iso3_code="deu"
-        )
-        Language.create_with_entity(
-            db_session, "Q150", "French", iso1_code="fr", iso3_code="fra"
-        )
+        german_lang = Language.create_with_entity(db_session, "Q188", "German")
+        german_lang.iso1_code = "de"
+        german_lang.iso3_code = "deu"
+        french_lang = Language.create_with_entity(db_session, "Q150", "French")
+        french_lang.iso1_code = "fr"
+        french_lang.iso3_code = "fra"
 
         # Create archived pages with different language codes
         english_page = ArchivedPage(
@@ -687,10 +687,10 @@ class TestGetPoliticiansEndpoint:
         """Test filtering politicians by country QIDs based on citizenship properties."""
         # Use the sample_country fixture (USA) and create additional countries
         usa_country = sample_country
-        germany_country = Country.create_with_entity(
-            db_session, "Q183", "Germany", iso_code="DE"
-        )
-        Country.create_with_entity(db_session, "Q142", "France", iso_code="FR")
+        germany_country = Country.create_with_entity(db_session, "Q183", "Germany")
+        germany_country.iso_code = "DE"
+        france_country = Country.create_with_entity(db_session, "Q142", "France")
+        france_country.iso_code = "FR"
 
         # Create archived page
         archived_page = ArchivedPage(
@@ -815,9 +815,8 @@ class TestGetPoliticiansEndpoint:
         """Test filtering by both language and country filters combined."""
         # Use fixtures for English language and USA country
         usa_country = sample_country
-        germany_country = Country.create_with_entity(
-            db_session, "Q183", "Germany", iso_code="DE"
-        )
+        germany_country = Country.create_with_entity(db_session, "Q183", "Germany")
+        germany_country.iso_code = "DE"
 
         # Create archived pages
         english_page = ArchivedPage(

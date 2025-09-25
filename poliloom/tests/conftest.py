@@ -221,7 +221,8 @@ def sample_location(db_session):
 @pytest.fixture
 def sample_country(db_session):
     """Return a created and committed country entity."""
-    country = Country.create_with_entity(db_session, "Q30", "United States", "US")
+    country = Country.create_with_entity(db_session, "Q30", "United States")
+    country.iso_code = "US"
     db_session.commit()
     db_session.refresh(country)
     return country
@@ -230,9 +231,9 @@ def sample_country(db_session):
 @pytest.fixture
 def sample_language(db_session):
     """Return a created and committed language entity."""
-    language = Language.create_with_entity(
-        db_session, "Q1860", "English", iso1_code="en", iso3_code="eng"
-    )
+    language = Language.create_with_entity(db_session, "Q1860", "English")
+    language.iso1_code = "en"
+    language.iso3_code = "eng"
     db_session.commit()
     db_session.refresh(language)
     return language

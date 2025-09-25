@@ -90,9 +90,8 @@ class TestEnrichment:
     ):
         """Test successful position extraction and mapping."""
         # Create position in database
-        Position.create_with_entity(
-            db_session, "Q30185", "Test Position", embedding=[0.1] * 384
-        )
+        position = Position.create_with_entity(db_session, "Q30185", "Test Position")
+        position.embedding = [0.1] * 384
         db_session.commit()
 
         # Mock Stage 1: Free-form extraction
@@ -173,9 +172,8 @@ class TestEnrichment:
     ):
         """Test successful birthplace extraction and mapping."""
         # Create location in database
-        Location.create_with_entity(
-            db_session, "Q28513", "Test Location", embedding=[0.2] * 384
-        )
+        location = Location.create_with_entity(db_session, "Q28513", "Test Location")
+        location.embedding = [0.2] * 384
         db_session.commit()
 
         # Mock Stage 1: Free-form extraction

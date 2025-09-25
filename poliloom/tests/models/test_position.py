@@ -45,9 +45,10 @@ class TestPositionVectorSimilarity:
 
         for entity_data in entities_data:
             embedding = enrichment.generate_embedding(entity_data["name"])
-            Position.create_with_entity(
-                db_session, entity_data["wikidata_id"], entity_data["name"], embedding
+            position = Position.create_with_entity(
+                db_session, entity_data["wikidata_id"], entity_data["name"]
             )
+            position.embedding = embedding
 
         db_session.commit()
 

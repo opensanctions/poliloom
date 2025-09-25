@@ -204,9 +204,9 @@ class TestPolitician:
     ):
         """Test get_priority_wikipedia_links when only English link available."""
         # Create English language entry
-        Language.create_with_entity(
-            db_session, "Q1860", "English", iso1_code="en", iso3_code="eng"
-        )
+        english_lang = Language.create_with_entity(db_session, "Q1860", "English")
+        english_lang.iso1_code = "en"
+        english_lang.iso3_code = "eng"
         db_session.commit()
 
         # sample_wikipedia_link fixture creates an English link
@@ -223,10 +223,11 @@ class TestPolitician:
     ):
         """Test get_priority_wikipedia_links with citizenship-based prioritization."""
         # Create a German country and language
-        german_country = Country.create_with_entity(db_session, "Q183", "Germany", "DE")
-        german_language = Language.create_with_entity(
-            db_session, "Q188", "German", iso1_code="de", iso3_code="deu"
-        )
+        german_country = Country.create_with_entity(db_session, "Q183", "Germany")
+        german_country.iso_code = "DE"
+        german_language = Language.create_with_entity(db_session, "Q188", "German")
+        german_language.iso1_code = "de"
+        german_language.iso3_code = "deu"
         db_session.commit()
 
         # Create official language relation: German is official language of Germany
@@ -313,9 +314,9 @@ class TestPolitician:
         ]
 
         for wid, name, iso1, iso3 in languages:
-            Language.create_with_entity(
-                db_session, wid, name, iso1_code=iso1, iso3_code=iso3
-            )
+            lang = Language.create_with_entity(db_session, wid, name)
+            lang.iso1_code = iso1
+            lang.iso3_code = iso3
 
         # Create many links for each language to simulate different popularity
         # Make French most popular (100), German second (50), Spanish third (30), English least (25)
@@ -370,16 +371,18 @@ class TestPolitician:
     ):
         """Test get_priority_wikipedia_links with multiple citizenships."""
         # Create two countries with different official languages
-        usa = Country.create_with_entity(db_session, "Q30", "United States", "US")
-        germany = Country.create_with_entity(db_session, "Q183", "Germany", "DE")
+        usa = Country.create_with_entity(db_session, "Q30", "United States")
+        usa.iso_code = "US"
+        germany = Country.create_with_entity(db_session, "Q183", "Germany")
+        germany.iso_code = "DE"
 
         # Create languages
-        english = Language.create_with_entity(
-            db_session, "Q1860", "English", iso1_code="en", iso3_code="eng"
-        )
-        german = Language.create_with_entity(
-            db_session, "Q188", "German", iso1_code="de", iso3_code="deu"
-        )
+        english = Language.create_with_entity(db_session, "Q1860", "English")
+        english.iso1_code = "en"
+        english.iso3_code = "eng"
+        german = Language.create_with_entity(db_session, "Q188", "German")
+        german.iso1_code = "de"
+        german.iso3_code = "deu"
         db_session.commit()
 
         # Create official language relations

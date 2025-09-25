@@ -313,7 +313,8 @@ class TestWikidataPoliticianImporter:
     def test_import_citizenship(self, db_session):
         """Test importing citizenship from Wikidata claim."""
         # Create country first
-        Country.create_with_entity(db_session, "Q30", "United States", "US")
+        country = Country.create_with_entity(db_session, "Q30", "United States")
+        country.iso_code = "US"
         db_session.commit()
 
         politicians = [
@@ -355,7 +356,8 @@ class TestWikidataPoliticianImporter:
         # Create required entities
         Position.create_with_entity(db_session, "Q30185", "Mayor")
         Location.create_with_entity(db_session, "Q60", "New York City")
-        Country.create_with_entity(db_session, "Q30", "United States", "US")
+        country = Country.create_with_entity(db_session, "Q30", "United States")
+        country.iso_code = "US"
         db_session.commit()
 
         politicians = [
