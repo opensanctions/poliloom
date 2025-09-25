@@ -74,6 +74,16 @@ class StatementMixin:
     references_json = Column(JSONB, nullable=True)  # Store all references as JSON
 
 
+class SoftDeleteMixin:
+    """Mixin for adding soft delete functionality."""
+
+    deleted_at = Column(DateTime, nullable=True)
+
+    def soft_delete(self):
+        """Mark the entity as deleted by setting the deleted_at timestamp."""
+        self.deleted_at = datetime.now(timezone.utc)
+
+
 class UpsertMixin:
     """Mixin for adding batch upsert functionality."""
 
@@ -388,7 +398,7 @@ class WikipediaLink(Base, TimestampMixin):
     politician = relationship("Politician", back_populates="wikipedia_links")
 
 
-class Property(Base, TimestampMixin, StatementMixin):
+class Property(Base, TimestampMixin, SoftDeleteMixin, StatementMixin):
     """Property entity for storing extracted politician properties."""
 
     __tablename__ = "properties"
@@ -631,7 +641,7 @@ class WikidataDump(Base, TimestampMixin):
     )  # When politicians import completed
 
 
-class WikidataEntity(Base, TimestampMixin, UpsertMixin):
+class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     """Wikidata entity for hierarchy storage."""
 
     __tablename__ = "wikidata_entities"
@@ -738,7 +748,7 @@ class WikidataEntity(Base, TimestampMixin, UpsertMixin):
         return {row[0] for row in result.fetchall()}
 
 
-class WikidataRelation(Base, TimestampMixin, UpsertMixin):
+class WikidataRelation(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     """Wikidata relationship between entities."""
 
     __tablename__ = "wikidata_relations"
