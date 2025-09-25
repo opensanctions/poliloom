@@ -616,6 +616,10 @@ class TestEnrichment:
             ("https://en.wikipedia.org/wiki/Test_Politician", "en"),
             ("https://fr.wikipedia.org/wiki/Test_Politician", "fr"),
             ("https://de.wikipedia.org/wiki/Test_Politician", "de"),
+            (
+                "https://es.wikipedia.org/wiki/Test_Politician",
+                "es",
+            ),  # Add Spanish as 4th language
         ]
 
         # Create corresponding languages
@@ -623,6 +627,7 @@ class TestEnrichment:
             ("Q1860", "English", "en", "eng"),
             ("Q150", "French", "fr", "fra"),
             ("Q188", "German", "de", "deu"),
+            ("Q1321", "Spanish", "es", "spa"),
         ]
 
         for wid, name, iso1, iso3 in languages:
@@ -631,14 +636,16 @@ class TestEnrichment:
             )
 
         # Create many links for each language to simulate different popularity
-        # Make French most popular, then German, then English
-        popularity_data = [("fr", 100), ("de", 50), ("en", 25)]
+        # Make French most popular (100), German second (50), Spanish third (30), English least (25)
+        popularity_data = [("fr", 100), ("de", 50), ("es", 30), ("en", 25)]
 
+        base_qid = 50000  # Use a higher base to avoid conflicts
         for iso_code, count in popularity_data:
             for i in range(count):
+                qid = f"Q{base_qid + i}"
                 dummy_politician = Politician.create_with_entity(
                     db_session,
-                    f"Q{2000 + i + ord(iso_code[0]) * 1000}",
+                    qid,
                     f"Dummy {iso_code} {i}",
                 )
                 db_session.commit()
@@ -648,6 +655,7 @@ class TestEnrichment:
                     iso_code=iso_code,
                 )
                 db_session.add(link)
+            base_qid += count  # Increment base to avoid overlaps
 
         # Create politician's actual links
         for url, iso_code in links_data:
@@ -662,21 +670,18 @@ class TestEnrichment:
 
         result = get_priority_wikipedia_links(sample_politician, db_session)
 
-        # Debug: print what we actually got
-        print(f"Result length: {len(result)}")
-        for i, (link, iso1, iso3) in enumerate(result):
-            print(f"  {i}: {link.iso_code} -> {iso1}/{iso3}")
+        # Should return exactly 3 languages (the most popular ones available)
+        assert len(result) == 3, f"Expected exactly 3 results, got {len(result)}"
 
-        # Should return top 3 languages by popularity, limited to 3
-        assert len(result) <= 3
-        assert len(result) >= 1
+        # Get the ISO codes of returned languages
+        returned_iso_codes = {link.iso_code for link, _, _ in result}
 
-        # Should prioritize by popularity - French should be first (most popular)
-        if result:
-            wiki_link, iso1_code, iso3_code = result[0]
-            assert wiki_link.iso_code == "fr", (
-                f"Expected 'fr' first, got '{wiki_link.iso_code}'"
-            )
+        # Should contain the 3 most popular languages: fr (100), de (50), es (30)
+        # Should NOT contain en (25) as it's the 4th most popular
+        expected_top_3 = {"fr", "de", "es"}
+        assert returned_iso_codes == expected_top_3, (
+            f"Expected top 3 languages {expected_top_3}, got {returned_iso_codes}"
+        )
 
     def test_get_priority_wikipedia_links_multiple_citizenships(
         self, db_session, sample_politician

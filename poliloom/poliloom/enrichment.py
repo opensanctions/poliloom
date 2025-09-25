@@ -609,99 +609,60 @@ CITIZENSHIPS_CONFIG = TwoStageExtractionConfig(
 
 def get_priority_wikipedia_links(politician: Politician, db: Session) -> List[tuple]:
     """
-    Get priority Wikipedia links for a politician based on citizenship and official languages.
+    Get top 3 most popular Wikipedia links for a politician, optionally filtered by citizenship languages.
 
-    Returns list of (wikipedia_link, iso1_code, iso3_code) tuples, prioritized by:
-    1. Languages from politician's citizenship countries (ordered by Wikipedia link popularity)
-    2. All other available languages (ordered by Wikipedia link popularity)
-
-    Limited to top 3 languages total. Only considers Wikipedia links that actually exist for the politician.
+    If politician has citizenships, only considers links in official languages of those countries,
+    then returns the 3 most popular among those.
+    Otherwise returns the 3 most popular languages overall for the politician.
+    Uses proper ISO codes from languages table (no fallbacks).
 
     Args:
         politician: Politician instance with citizenship properties loaded
         db: Database session
 
     Returns:
-        List of (WikipediaLink, iso1_code, iso3_code) tuples
+        List of (WikipediaLink, iso1_code, iso3_code) tuples, limited to top 3 by popularity
     """
     from sqlalchemy import text
 
-    # Check if politician has citizenship properties first
-    has_citizenship_query = text("""
-        SELECT COUNT(*) as citizenship_count
-        FROM properties p
-        WHERE p.politician_id = :politician_id
-        AND p.type = :citizenship_type
-        AND p.entity_id IS NOT NULL
+    query = text("""
+        WITH politician_citizenships AS (
+            SELECT p.entity_id as country_id
+            FROM properties p
+            WHERE p.politician_id = :politician_id
+            AND p.type = :citizenship_type
+            AND p.entity_id IS NOT NULL
+        ),
+        language_popularity AS (
+            SELECT iso_code, COUNT(*) as global_count
+            FROM wikipedia_links
+            GROUP BY iso_code
+        ),
+        filtered_links AS (
+            SELECT DISTINCT wl.id, wl.url, wl.iso_code, l.iso1_code, l.iso3_code,
+                   lp.global_count as language_popularity
+            FROM wikipedia_links wl
+            JOIN languages l ON (wl.iso_code = l.iso1_code OR wl.iso_code = l.iso3_code)
+            JOIN language_popularity lp ON lp.iso_code = wl.iso_code
+            WHERE wl.politician_id = :politician_id
+            AND (
+                NOT EXISTS (SELECT 1 FROM politician_citizenships)
+                OR EXISTS (
+                    SELECT 1 FROM wikidata_relations wr
+                    JOIN politician_citizenships pc ON wr.child_entity_id = pc.country_id
+                    WHERE wr.parent_entity_id = l.wikidata_id
+                    AND wr.relation_type = 'OFFICIAL_LANGUAGE'
+                )
+            )
+        )
+        SELECT id, url, iso_code, iso1_code, iso3_code
+        FROM filtered_links
+        ORDER BY language_popularity DESC
+        LIMIT 3
     """)
 
-    citizenship_result = db.execute(
-        has_citizenship_query,
-        {
-            "politician_id": str(politician.id),
-            "citizenship_type": PropertyType.CITIZENSHIP.name,
-        },
-    )
-    has_citizenship = citizenship_result.fetchone()[0] > 0
-
-    if has_citizenship:
-        # Use citizenship-prioritized query
-        priority_query = text("""
-            WITH politician_wikipedia_links AS (
-                SELECT wl.*, COUNT(*) OVER (PARTITION BY wl.iso_code) as global_link_count
-                FROM wikipedia_links wl
-                WHERE wl.politician_id = :politician_id
-            ),
-            politician_citizenships AS (
-                SELECT p.entity_id as country_id
-                FROM properties p
-                WHERE p.politician_id = :politician_id
-                AND p.type = :citizenship_type
-                AND p.entity_id IS NOT NULL
-            ),
-            citizenship_language_links AS (
-                SELECT DISTINCT
-                    pwl.*,
-                    l.iso1_code,
-                    l.iso3_code,
-                    pwl.global_link_count as priority_score
-                FROM politician_wikipedia_links pwl
-                JOIN languages l ON (pwl.iso_code = l.iso1_code OR pwl.iso_code = l.iso3_code)
-                JOIN wikidata_relations wr ON l.wikidata_id = wr.parent_entity_id
-                JOIN politician_citizenships pc ON wr.child_entity_id = pc.country_id
-                WHERE wr.relation_type = 'OFFICIAL_LANGUAGE'
-                ORDER BY priority_score DESC
-                LIMIT 3
-            )
-            SELECT id, url, iso_code,
-                   COALESCE(iso1_code, iso_code) as iso1_code,
-                   COALESCE(iso3_code, iso_code) as iso3_code
-            FROM citizenship_language_links
-        """)
-    else:
-        # Use general popularity query (no citizenship filtering)
-        priority_query = text("""
-            WITH politician_wikipedia_links AS (
-                SELECT wl.*, COUNT(*) OVER (PARTITION BY wl.iso_code) as global_link_count
-                FROM wikipedia_links wl
-                WHERE wl.politician_id = :politician_id
-            ),
-            popular_links AS (
-                SELECT DISTINCT
-                    pwl.*,
-                    COALESCE(l.iso1_code, pwl.iso_code) as iso1_code,
-                    COALESCE(l.iso3_code, pwl.iso_code) as iso3_code
-                FROM politician_wikipedia_links pwl
-                LEFT JOIN languages l ON (pwl.iso_code = l.iso1_code OR pwl.iso_code = l.iso3_code)
-                ORDER BY pwl.global_link_count DESC
-                LIMIT 3
-            )
-            SELECT id, url, iso_code, iso1_code, iso3_code
-            FROM popular_links
-        """)
-
     result = db.execute(
-        priority_query,
+        query,
         {
             "politician_id": str(politician.id),
             "citizenship_type": PropertyType.CITIZENSHIP.name,
