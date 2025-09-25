@@ -17,8 +17,6 @@ from poliloom.logging import setup_logging
 from sqlalchemy.orm import Session
 from poliloom.models import (
     Politician,
-    Position,
-    Location,
     Property,
     WikidataDump,
     WikidataEntity,
@@ -333,69 +331,13 @@ def enrich_wikipedia(limit: Optional[int]) -> None:
 )
 def embed_entities(batch_size, encode_batch_size):
     """Generate embeddings for all positions and locations missing embeddings, efficiently and cleanly."""
-    import torch
-    from sentence_transformers import SentenceTransformer
-
-    # Use GPU if available
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    click.echo(f"Using device for encoding: {device}")
-
-    model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
+    from poliloom.embeddings import generate_all_embeddings
 
     try:
-        with Session(get_engine()) as session:
-            for model_class, entity_name in [
-                (Position, "positions"),
-                (Location, "locations"),
-            ]:
-                click.echo(f"Processing {entity_name}...")
-
-                # Get total count
-                total_count = (
-                    session.query(model_class)
-                    .filter(model_class.embedding.is_(None))
-                    .count()
-                )
-
-                if total_count == 0:
-                    click.echo(f"✅ All {entity_name} already have embeddings")
-                    continue
-
-                click.echo(f"Found {total_count} {entity_name} without embeddings")
-                processed = 0
-
-                # Process entities in batches
-                while True:
-                    # Query full ORM objects to use the name property
-                    batch = (
-                        session.query(model_class)
-                        .filter(model_class.embedding.is_(None))
-                        .limit(batch_size)
-                        .all()
-                    )
-
-                    if not batch:
-                        break
-
-                    # Use the name property from ORM objects
-                    names = [entity.name for entity in batch]
-
-                    # Generate embeddings (typed lists). Use encode_batch_size for both CPU/GPU
-                    embeddings = model.encode(
-                        names, convert_to_tensor=False, batch_size=encode_batch_size
-                    )
-
-                    # Update embeddings on the ORM objects
-                    for entity, embedding in zip(batch, embeddings):
-                        entity.embedding = embedding
-
-                    session.commit()
-
-                    processed += len(batch)
-                    click.echo(f"Processed {processed}/{total_count} {entity_name}")
-
-                click.echo(f"✅ Generated embeddings for {processed} {entity_name}")
-
+        generate_all_embeddings(
+            batch_size=batch_size, encode_batch_size=encode_batch_size
+        )
+        click.echo("✅ Embedding generation completed successfully")
     except Exception as e:
         click.echo(f"❌ Error generating embeddings: {e}")
         exit(1)

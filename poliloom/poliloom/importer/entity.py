@@ -404,6 +404,7 @@ def import_entities(
         "position": 0,
         "location": 0,
         "country": 0,
+        "language": 0,
     }
     total_entities = 0
 

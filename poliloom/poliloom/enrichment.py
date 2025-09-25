@@ -27,6 +27,7 @@ from .models import (
 )
 from . import archive
 from .database import get_engine
+from .embeddings import generate_embedding
 from .wikidata_date import WikidataDate
 from . import prompts
 
@@ -55,32 +56,6 @@ def create_qualifiers_json_for_position(
             qualifiers_json["P582"] = [wikidata_date.to_wikidata_qualifier()]
 
     return qualifiers_json if qualifiers_json else None
-
-
-# Global cached embedding model
-_embedding_model = None
-
-
-def get_embedding_model():
-    """Get or create the cached SentenceTransformer model."""
-    import torch
-    from sentence_transformers import SentenceTransformer
-
-    global _embedding_model
-    if _embedding_model is None:
-        logger.info("Loading SentenceTransformer model...")
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        logger.info(f"Using device: {device}")
-        _embedding_model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
-        logger.info("SentenceTransformer model loaded and cached successfully")
-    return _embedding_model
-
-
-def generate_embedding(text: str) -> List[float]:
-    """Generate embedding for a single text string."""
-    model = get_embedding_model()
-    embedding = model.encode(text, convert_to_tensor=False)
-    return embedding.tolist()
 
 
 class ExtractedProperty(BaseModel):
