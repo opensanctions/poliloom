@@ -264,85 +264,6 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         """Get all properties of a specific type."""
         return [prop for prop in self.properties if prop.type == property_type]
 
-    def get_citizenship_names(self) -> List[str]:
-        """Get list of citizenship country names."""
-        citizenship_props = self.get_properties_by_type(PropertyType.CITIZENSHIP)
-        return [
-            prop.entity.name
-            for prop in citizenship_props
-            if prop.entity and prop.entity.name
-        ]
-
-    def get_position_names_with_dates(self) -> List[str]:
-        """Get list of position names with date ranges."""
-        position_props = self.get_properties_by_type(PropertyType.POSITION)
-        items = []
-        for prop in position_props:
-            position_name = prop.entity.name if prop.entity else prop.entity_id
-            date_range = self._extract_date_range_from_qualifiers(prop.qualifiers_json)
-            items.append(f"{position_name}{date_range}")
-        return items
-
-    def get_birthplace_names(self) -> List[str]:
-        """Get list of birthplace names."""
-        birthplace_props = self.get_properties_by_type(PropertyType.BIRTHPLACE)
-        return [
-            prop.entity.name if prop.entity else prop.entity_id
-            for prop in birthplace_props
-        ]
-
-    def get_date_properties_formatted(self) -> List[str]:
-        """Get formatted date properties (birth_date, death_date)."""
-        date_props = [
-            prop
-            for prop in self.properties
-            if prop.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]
-        ]
-        return [f"{prop.type.value}: {prop.value}" for prop in date_props]
-
-    def _extract_date_range_from_qualifiers(self, qualifiers_json):
-        """Extract formatted date range from qualifiers_json.
-
-        Args:
-            qualifiers_json: Dict containing Wikidata qualifiers
-
-        Returns:
-            Formatted date range string like " (2020 - 2023)" or empty string
-        """
-        if not qualifiers_json:
-            return ""
-
-        start_date = None
-        end_date = None
-
-        # Extract P580 (start date) and P582 (end date) from qualifiers
-        if "P580" in qualifiers_json:
-            start_qual = qualifiers_json["P580"][0]
-            if "datavalue" in start_qual and "value" in start_qual["datavalue"]:
-                time_val = start_qual["datavalue"]["value"]["time"]
-                # Parse time format like "+2020-01-00T00:00:00Z"
-                if time_val.startswith("+"):
-                    start_date = time_val[1:5]  # Extract year
-
-        if "P582" in qualifiers_json:
-            end_qual = qualifiers_json["P582"][0]
-            if "datavalue" in end_qual and "value" in end_qual["datavalue"]:
-                time_val = end_qual["datavalue"]["value"]["time"]
-                if time_val.startswith("+"):
-                    end_date = time_val[1:5]  # Extract year
-
-        if start_date:
-            date_range = f" ({start_date}"
-            if end_date:
-                date_range += f" - {end_date})"
-            else:
-                date_range += " - present)"
-            return date_range
-        elif end_date:
-            return f" (until {end_date})"
-
-        return ""
-
     def get_priority_wikipedia_links(self, db: Session) -> List[tuple]:
         """
         Get top 3 most popular Wikipedia links for a politician, optionally filtered by citizenship languages.
@@ -360,7 +281,8 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         """
         from sqlalchemy import text
 
-        query = text("""
+        query = text(
+            """
             WITH politician_citizenships AS (
                 SELECT p.entity_id as country_id
                 FROM properties p
@@ -394,7 +316,8 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
             FROM filtered_links
             ORDER BY language_popularity DESC
             LIMIT 3
-        """)
+        """
+        )
 
         result = db.execute(
             query,
@@ -554,6 +477,46 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, StatementMixin):
     evaluations = relationship(
         "Evaluation", back_populates="property", cascade="all, delete-orphan"
     )
+
+    def format_timeframe(self) -> str:
+        """Extract formatted date range from qualifiers_json.
+
+        Returns:
+            Formatted date range string like " (2020 - 2023)" or empty string
+        """
+        if not self.qualifiers_json:
+            return ""
+
+        start_date = None
+        end_date = None
+
+        # Extract P580 (start date) and P582 (end date) from qualifiers
+        if "P580" in self.qualifiers_json:
+            start_qual = self.qualifiers_json["P580"][0]
+            if "datavalue" in start_qual and "value" in start_qual["datavalue"]:
+                time_val = start_qual["datavalue"]["value"]["time"]
+                # Parse time format like "+2020-01-00T00:00:00Z"
+                if time_val.startswith("+"):
+                    start_date = time_val[1:5]  # Extract year
+
+        if "P582" in self.qualifiers_json:
+            end_qual = self.qualifiers_json["P582"][0]
+            if "datavalue" in end_qual and "value" in end_qual["datavalue"]:
+                time_val = end_qual["datavalue"]["value"]["time"]
+                if time_val.startswith("+"):
+                    end_date = time_val[1:5]  # Extract year
+
+        if start_date:
+            date_range = f" ({start_date}"
+            if end_date:
+                date_range += f" - {end_date})"
+            else:
+                date_range += " - present)"
+            return date_range
+        elif end_date:
+            return f" (until {end_date})"
+
+        return ""
 
 
 class Country(

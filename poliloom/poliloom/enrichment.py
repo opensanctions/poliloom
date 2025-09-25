@@ -496,16 +496,9 @@ def build_politician_context_xml(
         XML formatted politician context string
     """
     context_data = {
-        "politician_info": {
-            "name": politician.name,
-            "wikidata_id": politician.wikidata_id,
-        }
+        "name": politician.name,
+        "wikidata_id": politician.wikidata_id,
     }
-
-    # Add citizenship information
-    citizenship_names = politician.get_citizenship_names()
-    if citizenship_names:
-        context_data["politician_info"]["citizenships"] = ", ".join(citizenship_names)
 
     # Add existing Wikidata properties based on focus or all available
     if politician.properties:
@@ -527,25 +520,41 @@ def build_politician_context_xml(
             t in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]
             for t in relevant_types
         ):
-            date_items = politician.get_date_properties_formatted()
+            date_items = [
+                f"{prop.type.value}: {prop.value}"
+                for prop in politician.properties
+                if prop.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]
+            ]
             if date_items:
                 context_data["existing_wikidata"] = date_items
 
         # Add positions section
         if PropertyType.POSITION in relevant_types:
-            position_items = politician.get_position_names_with_dates()
+            position_items = [
+                f"{prop.entity.name}{prop.format_timeframe()}"
+                for prop in politician.properties
+                if prop.type == PropertyType.POSITION
+            ]
             if position_items:
                 context_data["existing_wikidata_positions"] = position_items
 
         # Add birthplaces section
         if PropertyType.BIRTHPLACE in relevant_types:
-            birthplace_items = politician.get_birthplace_names()
+            birthplace_items = [
+                prop.entity.name
+                for prop in politician.properties
+                if prop.type == PropertyType.BIRTHPLACE
+            ]
             if birthplace_items:
                 context_data["existing_wikidata_birthplaces"] = birthplace_items
 
         # Add citizenships section
         if PropertyType.CITIZENSHIP in relevant_types:
-            citizenship_items = politician.get_citizenship_names()
+            citizenship_items = [
+                prop.entity.name
+                for prop in politician.properties
+                if prop.type == PropertyType.CITIZENSHIP
+            ]
             if citizenship_items:
                 context_data["existing_wikidata_citizenships"] = citizenship_items
 
