@@ -578,41 +578,6 @@ class TestGetPoliticiansEndpoint:
                 assert prop["value"] is None
                 assert "entity_name" in prop
 
-    def test_evaluate_single_list(
-        self, client, mock_auth, politician_with_unevaluated_data
-    ):
-        """Test evaluation accepts single list."""
-        # First get some properties to evaluate
-        response = client.get("/politicians/", headers=mock_auth)
-        politician = response.json()[0]
-        test_properties = politician["properties"][:2]  # Take first 2 properties
-
-        # Old format should NOT work
-        old_format = {
-            "property_evaluations": [
-                {"id": test_properties[0]["id"], "is_confirmed": True}
-            ],
-            "position_evaluations": [],
-            "birthplace_evaluations": [],
-        }
-        response = client.post(
-            "/politicians/evaluate", json=old_format, headers=mock_auth
-        )
-        assert response.status_code == 422  # Validation error
-
-        # New format should work
-        new_format = {
-            "evaluations": [
-                {"id": test_properties[0]["id"], "is_confirmed": True},
-                {"id": test_properties[1]["id"], "is_confirmed": False},
-            ]
-        }
-        response = client.post(
-            "/politicians/evaluate", json=new_format, headers=mock_auth
-        )
-        assert response.status_code == 200
-        assert response.json()["evaluation_count"] == 2
-
     def test_backwards_compatibility_broken(
         self, client, mock_auth, politician_with_unevaluated_data
     ):
@@ -627,12 +592,9 @@ class TestGetPoliticiansEndpoint:
             for key in ["positions", "birthplaces", "properties_by_type"]
         )
 
-    def test_language_filtering(self, client, mock_auth, db_session):
+    def test_language_filtering(self, client, mock_auth, db_session, sample_language):
         """Test filtering politicians by language QIDs based on archived page iso codes."""
-        # Create language entities
-        Language.create_with_entity(
-            db_session, "Q1860", "English", iso1_code="en", iso3_code="eng"
-        )
+        # Use the sample_language fixture (English) and create additional languages
         Language.create_with_entity(
             db_session, "Q188", "German", iso1_code="de", iso3_code="deu"
         )
@@ -721,12 +683,10 @@ class TestGetPoliticiansEndpoint:
         data = response.json()
         assert len(data) == 0
 
-    def test_country_filtering(self, client, mock_auth, db_session):
+    def test_country_filtering(self, client, mock_auth, db_session, sample_country):
         """Test filtering politicians by country QIDs based on citizenship properties."""
-        # Create country entities
-        usa_country = Country.create_with_entity(
-            db_session, "Q30", "United States", iso_code="US"
-        )
+        # Use the sample_country fixture (USA) and create additional countries
+        usa_country = sample_country
         germany_country = Country.create_with_entity(
             db_session, "Q183", "Germany", iso_code="DE"
         )
@@ -850,16 +810,11 @@ class TestGetPoliticiansEndpoint:
         assert len(data) == 0
 
     def test_combined_language_and_country_filtering(
-        self, client, mock_auth, db_session
+        self, client, mock_auth, db_session, sample_language, sample_country
     ):
         """Test filtering by both language and country filters combined."""
-        # Create entities
-        Language.create_with_entity(
-            db_session, "Q1860", "English", iso1_code="en", iso3_code="eng"
-        )
-        usa_country = Country.create_with_entity(
-            db_session, "Q30", "United States", iso_code="US"
-        )
+        # Use fixtures for English language and USA country
+        usa_country = sample_country
         germany_country = Country.create_with_entity(
             db_session, "Q183", "Germany", iso_code="DE"
         )

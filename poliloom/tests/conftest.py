@@ -12,6 +12,7 @@ from poliloom.models import (
     ArchivedPage,
     Base,
     Country,
+    Language,
     Location,
     Politician,
     Position,
@@ -224,6 +225,17 @@ def sample_country(db_session):
     db_session.commit()
     db_session.refresh(country)
     return country
+
+
+@pytest.fixture
+def sample_language(db_session):
+    """Return a created and committed language entity."""
+    language = Language.create_with_entity(
+        db_session, "Q1860", "English", iso1_code="en", iso3_code="eng"
+    )
+    db_session.commit()
+    db_session.refresh(language)
+    return language
 
 
 @pytest.fixture
