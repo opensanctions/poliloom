@@ -6,14 +6,16 @@ from pydantic import BaseModel
 
 from poliloom.enrichment import (
     enrich_politician_from_wikipedia,
-    extract_dates,
-    extract_positions,
-    extract_birthplaces,
+    extract_properties_generic,
+    extract_two_stage_generic,
     store_extracted_data,
     ExtractedProperty,
     ExtractedPosition,
     ExtractedBirthplace,
     PropertyType,
+    DATES_CONFIG,
+    POSITIONS_CONFIG,
+    BIRTHPLACES_CONFIG,
 )
 from poliloom.models import (
     Location,
@@ -52,8 +54,8 @@ class TestEnrichment:
         mock_response.output_parsed = mock_parsed
         mock_openai_client.responses.parse.return_value = mock_response
 
-        properties = extract_dates(
-            mock_openai_client, "test content", sample_politician
+        properties = extract_properties_generic(
+            mock_openai_client, "test content", sample_politician, DATES_CONFIG
         )
 
         assert properties is not None
@@ -68,8 +70,8 @@ class TestEnrichment:
         mock_response.output_parsed = None
         mock_openai_client.responses.parse.return_value = mock_response
 
-        properties = extract_dates(
-            mock_openai_client, "test content", sample_politician
+        properties = extract_properties_generic(
+            mock_openai_client, "test content", sample_politician, DATES_CONFIG
         )
 
         assert properties is None
@@ -78,8 +80,8 @@ class TestEnrichment:
         """Test date extraction handles exceptions."""
         mock_openai_client.responses.parse.side_effect = Exception("API Error")
 
-        properties = extract_dates(
-            mock_openai_client, "test content", sample_politician
+        properties = extract_properties_generic(
+            mock_openai_client, "test content", sample_politician, DATES_CONFIG
         )
 
         assert properties is None
@@ -133,8 +135,12 @@ class TestEnrichment:
             "poliloom.enrichment.generate_embedding",
             return_value=[0.1] * 384,
         ):
-            positions = extract_positions(
-                mock_openai_client, db_session, "test content", sample_politician
+            positions = extract_two_stage_generic(
+                mock_openai_client,
+                db_session,
+                "test content",
+                sample_politician,
+                POSITIONS_CONFIG,
             )
 
         assert positions is not None
@@ -153,8 +159,12 @@ class TestEnrichment:
         mock_response.output_parsed = mock_parsed
         mock_openai_client.responses.parse.return_value = mock_response
 
-        positions = extract_positions(
-            mock_openai_client, db_session, "test content", sample_politician
+        positions = extract_two_stage_generic(
+            mock_openai_client,
+            db_session,
+            "test content",
+            sample_politician,
+            POSITIONS_CONFIG,
         )
 
         assert positions == []
@@ -171,7 +181,7 @@ class TestEnrichment:
 
         # Mock Stage 1: Free-form extraction
         class FreeFormBirthplace(BaseModel):
-            location_name: str
+            name: str  # Updated to match actual model
             proof: str
 
         class FreeFormBirthplaceResult(BaseModel):
@@ -180,7 +190,7 @@ class TestEnrichment:
         mock_parsed1 = FreeFormBirthplaceResult(
             birthplaces=[
                 FreeFormBirthplace(
-                    location_name="Springfield, Illinois",
+                    name="Springfield, Illinois",  # Updated field name
                     proof="born in Springfield, Illinois",
                 )
             ]
@@ -204,8 +214,12 @@ class TestEnrichment:
             "poliloom.enrichment.generate_embedding",
             return_value=[0.2] * 384,
         ):
-            birthplaces = extract_birthplaces(
-                mock_openai_client, db_session, "test content", sample_politician
+            birthplaces = extract_two_stage_generic(
+                mock_openai_client,
+                db_session,
+                "test content",
+                sample_politician,
+                BIRTHPLACES_CONFIG,
             )
 
         assert birthplaces is not None

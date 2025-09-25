@@ -4,13 +4,15 @@ import os
 import logging
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Type, Union, Any
 from sqlalchemy.orm import Session, selectinload
 from openai import OpenAI
 from pydantic import BaseModel, field_validator, create_model
 from unmhtml import MHTMLConverter
 from bs4 import BeautifulSoup
 from dicttoxml import dicttoxml
+from dataclasses import dataclass
+
 
 from .models import (
     Politician,
@@ -26,6 +28,7 @@ from .models import (
 from . import archive
 from .database import get_engine
 from .wikidata_date import WikidataDate
+from . import prompts
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +150,7 @@ class FreeFormPositionResult(BaseModel):
 class FreeFormBirthplace(BaseModel):
     """Free-form birthplace extracted before mapping to Wikidata."""
 
-    location_name: str
+    name: str
     proof: str
 
 
@@ -155,6 +158,261 @@ class FreeFormBirthplaceResult(BaseModel):
     """Response model for free-form birthplace extraction."""
 
     birthplaces: List[FreeFormBirthplace]
+
+
+@dataclass
+class ExtractionConfig:
+    """Base configuration for property extraction."""
+
+    property_types: List[PropertyType]
+    system_prompt: str
+    result_model: Type[BaseModel]
+    user_prompt_template: str
+    analysis_focus_template: str
+    result_field_name: str = "properties"  # Field name in result model
+
+
+@dataclass
+class TwoStageExtractionConfig(ExtractionConfig):
+    """Configuration for two-stage extraction (free-form -> mapping)."""
+
+    entity_class: Type[Union[Position, Location]] = None
+    mapping_entity_name: str = ""  # "position" or "location"
+    mapping_system_prompt: str = ""  # System prompt for mapping stage
+    final_model: Type[BaseModel] = None
+
+
+def extract_properties_generic(
+    openai_client: OpenAI,
+    content: str,
+    politician: Politician,
+    config: ExtractionConfig,
+) -> Optional[List[Any]]:
+    """Generic property extraction using provided configuration."""
+    try:
+        # Build comprehensive politician context
+        politician_context = build_politician_context_xml(
+            politician,
+            focus_property_types=config.property_types,
+        )
+
+        # Build analysis focus if politician has existing properties
+        analysis_focus = ""
+        existing_properties = []
+        for prop_type in config.property_types:
+            existing_properties.extend(politician.get_properties_by_type(prop_type))
+
+        if existing_properties:
+            analysis_focus = config.analysis_focus_template
+
+        user_prompt = config.user_prompt_template.format(
+            politician_name=politician.name,
+            politician_context=politician_context,
+            analysis_focus=analysis_focus,
+            content=content,
+        )
+
+        logger.debug(f"Extracting {config.property_types} for {politician.name}")
+
+        response = openai_client.responses.parse(
+            model="gpt-5",
+            input=[
+                {"role": "system", "content": config.system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            text_format=config.result_model,
+            reasoning={"effort": "minimal"},
+        )
+
+        if response.output_parsed is None:
+            logger.error(f"OpenAI extraction returned None for {config.property_types}")
+            return None
+
+        return getattr(response.output_parsed, config.result_field_name)
+
+    except Exception as e:
+        logger.error(f"Error extracting {config.property_types} with LLM: {e}")
+        return None
+
+
+def extract_two_stage_generic(
+    openai_client: OpenAI,
+    db: Session,
+    content: str,
+    politician: Politician,
+    config: TwoStageExtractionConfig,
+) -> Optional[List[Any]]:
+    """Generic two-stage extraction (free-form -> mapping)."""
+    try:
+        # Stage 1: Free-form extraction
+        free_form_results = extract_properties_generic(
+            openai_client, content, politician, config
+        )
+
+        if not free_form_results:
+            logger.info(
+                f"No {config.mapping_entity_name}s extracted for {politician.name}"
+            )
+            return []
+
+        logger.info(
+            f"Stage 1: Extracted {len(free_form_results)} free-form {config.mapping_entity_name}s for {politician.name}"
+        )
+
+        # Stage 2: Map to Wikidata entities
+        mapped_results = []
+        for free_item in free_form_results:
+            # Find similar entities using embeddings
+            query_embedding = generate_embedding(free_item.name)
+
+            similar_entities = (
+                db.query(config.entity_class)
+                .options(
+                    selectinload(getattr(config.entity_class, "wikidata_entity"))
+                    .selectinload(WikidataEntity.parent_relations)
+                    .selectinload(WikidataRelation.parent_entity)
+                )
+                .filter(getattr(config.entity_class, "embedding").isnot(None))
+                .order_by(
+                    getattr(config.entity_class, "embedding").cosine_distance(
+                        query_embedding
+                    )
+                )
+                .limit(100)
+                .all()
+            )
+
+            if not similar_entities:
+                logger.debug(
+                    f"No similar {config.mapping_entity_name}s found for '{free_item.name}'"
+                )
+                continue
+
+            # Use LLM to map to correct entity
+            candidate_entities = [
+                {
+                    "qid": entity.wikidata_id,
+                    "name": entity.name,
+                    "description": build_entity_description(entity),
+                }
+                for entity in similar_entities
+            ]
+
+            mapped_qid = map_to_wikidata_entity(
+                openai_client,
+                free_item.name,
+                free_item.proof,
+                candidate_entities,
+                politician,
+                config.mapping_entity_name,
+                config.mapping_system_prompt,
+            )
+
+            if mapped_qid:
+                # Verify entity exists in database
+                entity = (
+                    db.query(config.entity_class)
+                    .filter_by(wikidata_id=mapped_qid)
+                    .first()
+                )
+                if entity:
+                    # Create result based on entity type
+                    if config.mapping_entity_name == "position":
+                        mapped_results.append(
+                            ExtractedPosition(
+                                wikidata_id=entity.wikidata_id,
+                                start_date=getattr(free_item, "start_date", None),
+                                end_date=getattr(free_item, "end_date", None),
+                                proof=free_item.proof,
+                            )
+                        )
+                    else:  # location
+                        mapped_results.append(
+                            ExtractedBirthplace(
+                                wikidata_id=entity.wikidata_id,
+                                proof=free_item.proof,
+                            )
+                        )
+                    logger.debug(
+                        f"Mapped '{free_item.name}' -> '{entity.name}' ({mapped_qid})"
+                    )
+
+        logger.info(
+            f"Stage 2: Mapped {len(mapped_results)} of {len(free_form_results)} {config.mapping_entity_name}s for {politician.name}"
+        )
+        return mapped_results
+
+    except Exception as e:
+        logger.error(f"Error extracting {config.mapping_entity_name}s: {e}")
+        return None
+
+
+def map_to_wikidata_entity(
+    openai_client: OpenAI,
+    extracted_name: str,
+    proof_text: str,
+    candidate_entities: List[dict],
+    politician: Politician,
+    entity_type: str,
+    system_prompt: str,
+) -> Optional[str]:
+    """Generic mapping function for positions and locations."""
+    try:
+        # Create dynamic model with candidate entity QIDs
+        entity_qids = [
+            entity["qid"] for entity in candidate_entities if entity.get("qid")
+        ]
+        EntityQidType = Optional[Literal[tuple(entity_qids)]]
+
+        field_name = f"wikidata_{entity_type}_qid"
+        DynamicMappingResult = create_model(
+            f"{entity_type.title()}MappingResult", **{field_name: (EntityQidType, None)}
+        )
+
+        # Format candidates with XML structure and rich descriptions
+        candidates_xml = dicttoxml(
+            candidate_entities,
+            custom_root="candidates",
+            item_func=lambda x: "entity",
+            attr_type=False,
+            xml_declaration=False,
+        )
+        candidates_text = candidates_xml.decode("utf-8")
+
+        # Build politician context for stage 2 mapping
+        politician_context = build_politician_context_xml(politician)
+
+        entity_label = "position" if entity_type == "position" else "birthplace"
+        user_prompt = f"""Map this extracted {entity_label} to the correct Wikidata {entity_type}:
+
+{politician_context}
+
+Extracted {entity_label.title()}: "{extracted_name}"
+Proof Context: "{proof_text}"
+
+Candidate Wikidata {entity_type.title()}s:
+{candidates_text}
+
+Select the best matching QID or None if no good match exists."""
+
+        response = openai_client.responses.parse(
+            model="gpt-5",
+            input=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            text_format=DynamicMappingResult,
+            reasoning={"effort": "minimal"},
+        )
+
+        if response.output_parsed is None:
+            return None
+
+        return getattr(response.output_parsed, field_name)
+
+    except Exception as e:
+        logger.error(f"Error mapping {entity_type} with LLM: {e}")
+        return None
 
 
 async def fetch_and_archive_page(url: str, db: Session) -> ArchivedPage:
@@ -214,396 +472,6 @@ async def fetch_and_archive_page(url: str, db: Session) -> ArchivedPage:
 
         db.commit()
         return archived_page
-
-
-def extract_dates(
-    openai_client: OpenAI,
-    content: str,
-    politician: Politician,
-) -> Optional[List[ExtractedProperty]]:
-    """Extract birth and death dates from content using OpenAI."""
-    try:
-        # Build comprehensive politician context
-        politician_context = build_politician_context_xml(
-            politician,
-            focus_property_types=[PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE],
-        )
-
-        validation_focus = ""
-        # Check if politician has existing date properties to provide validation context
-        existing_date_properties = [
-            prop
-            for prop in politician.properties
-            if prop.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]
-        ]
-
-        if existing_date_properties:
-            validation_focus = """
-<validation_focus>
-Use this information to:
-- Focus on finding additional or conflicting dates not already in Wikidata
-- Validate or provide more precise versions of existing dates
-- Identify any discrepancies between the article and Wikidata
-</validation_focus>
-"""
-
-        system_prompt = """You are a data extraction assistant for Wikipedia biographical data.
-
-<extraction_scope>
-Extract ONLY these two property types:
-- birth_date: Use format YYYY-MM-DD, or YYYY-MM, YYYY for incomplete dates
-- death_date: Use format YYYY-MM-DD, or YYYY-MM, YYYY for incomplete dates
-</extraction_scope>
-
-<extraction_rules>
-- Only extract information explicitly stated in the text
-- Extract only birth_date and death_date - ignore all other personal information
-- Use partial dates if full dates aren't available
-</extraction_rules>
-
-<proof_requirements>
-- Each property must include one exact verbatim quote from the source content that mentions this property
-- The quote must be copied exactly as it appears in the source, word-for-word
-- When multiple sentences support the claim, choose the most important and relevant single quote
-- The quote must actually exist in the provided content
-</proof_requirements>"""
-
-        user_prompt = f"""Extract personal properties of {politician.name} from this Wikipedia article text:
-
-{politician_context}
-{validation_focus}
-
-<article_content>
-{content}
-</article_content>"""
-
-        logger.debug(f"Extracting properties for {politician.name}")
-
-        response = openai_client.responses.parse(
-            model="gpt-5",
-            input=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            text_format=PropertyExtractionResult,
-            reasoning={"effort": "minimal"},
-        )
-
-        if response.output_parsed is None:
-            logger.error("OpenAI property extraction returned None for parsed data")
-            return None
-
-        return response.output_parsed.properties
-
-    except Exception as e:
-        logger.error(f"Error extracting properties with LLM: {e}")
-        return None
-
-
-def extract_positions(
-    openai_client: OpenAI,
-    db: Session,
-    content: str,
-    politician: Politician,
-) -> Optional[List[ExtractedPosition]]:
-    """Extract political positions from content using two-stage approach."""
-    try:
-        # Build comprehensive politician context
-        politician_context = build_politician_context_xml(
-            politician,
-            focus_property_types=[PropertyType.POSITION],
-        )
-
-        position_analysis_focus = ""
-        # Check if politician has existing position properties to provide analysis context
-        existing_position_properties = politician.get_properties_by_type(
-            PropertyType.POSITION
-        )
-
-        if existing_position_properties:
-            position_analysis_focus = """
-<position_analysis_focus>
-Use this information to:
-- Identify mentions of these positions in the text (they may appear with different wordings)
-- Find additional positions not already in Wikidata
-- Discover more specific date ranges for known positions
-- Identify more specific variants of generic positions (e.g., specific committee memberships)
-</position_analysis_focus>
-"""
-
-        # Stage 1: Free-form extraction
-        system_prompt = """You are a political data analyst specializing in extracting structured information from Wikipedia articles and official government websites.
-
-<extraction_scope>
-Extract all political positions from the provided content following these rules:
-- Extract any political offices, government roles, elected positions, or political appointments
-- When the article clearly indicates the country/jurisdiction context, enhance position names with that context in parentheses (e.g., "Minister of Defence (Myanmar)")
-- Only add jurisdictional context when you have high confidence from the article content
-- Preserve the original position name without additions when jurisdiction is uncertain
-- Return an empty list if no political positions are found in the content
-</extraction_scope>
-
-<date_formatting_rules>
-- Use format YYYY-MM-DD
-- Use YYYY-MM, or YYYY for incomplete dates
-- Leave end_date null if position is current or unknown
-</date_formatting_rules>
-
-<proof_requirements>
-- Each position must include one exact verbatim quote from the source content that mentions this position
-- The quote must be copied exactly as it appears in the source, word-for-word
-- When multiple sentences support the claim, choose the most important and relevant single quote
-- The quote must actually exist in the provided content
-</proof_requirements>"""
-
-        user_prompt = f"""Extract all political positions held by {politician.name} from the content below.
-
-{politician_context}
-{position_analysis_focus}
-
-<article_content>
-{content}
-</article_content>"""
-
-        logger.debug(f"Stage 1: Extracting positions for {politician.name}")
-
-        response = openai_client.responses.parse(
-            model="gpt-5",
-            input=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            text_format=FreeFormPositionResult,
-            reasoning={"effort": "minimal"},
-        )
-
-        if response.output_parsed is None:
-            logger.error("OpenAI position extraction returned None")
-            return None
-
-        free_form_positions = response.output_parsed.positions
-        if not free_form_positions:
-            logger.info(f"No positions extracted for {politician.name}")
-            return []
-
-        logger.info(
-            f"Stage 1: Extracted {len(free_form_positions)} free-form positions for {politician.name}"
-        )
-
-        # Stage 2: Map to Wikidata positions
-        mapped_positions = []
-        for free_position in free_form_positions:
-            # Find similar positions using embeddings
-            query_embedding = generate_embedding(free_position.name)
-
-            similar_positions = (
-                db.query(Position)
-                .options(
-                    selectinload(Position.wikidata_entity)
-                    .selectinload(WikidataEntity.parent_relations)
-                    .selectinload(WikidataRelation.parent_entity)
-                )
-                .filter(Position.embedding.isnot(None))
-                .order_by(Position.embedding.cosine_distance(query_embedding))
-                .limit(100)
-                .all()
-            )
-
-            if not similar_positions:
-                logger.debug(f"No similar positions found for '{free_position.name}'")
-                continue
-
-            # Use LLM to map to correct position
-            candidate_positions = [
-                {
-                    "qid": pos.wikidata_id,
-                    "name": pos.name,
-                    "description": build_entity_description(pos),
-                }
-                for pos in similar_positions
-            ]
-            mapped_qid = map_to_wikidata_position(
-                openai_client,
-                free_position.name,
-                free_position.proof,
-                candidate_positions,
-                politician,
-            )
-
-            if mapped_qid:
-                # Verify position exists in database
-                position = db.query(Position).filter_by(wikidata_id=mapped_qid).first()
-                if position:
-                    mapped_positions.append(
-                        ExtractedPosition(
-                            wikidata_id=position.wikidata_id,
-                            start_date=free_position.start_date,
-                            end_date=free_position.end_date,
-                            proof=free_position.proof,
-                        )
-                    )
-                    logger.debug(
-                        f"Mapped '{free_position.name}' -> '{position.name}' ({mapped_qid})"
-                    )
-
-        logger.info(
-            f"Stage 2: Mapped {len(mapped_positions)} of {len(free_form_positions)} positions for {politician.name}"
-        )
-        return mapped_positions
-
-    except Exception as e:
-        logger.error(f"Error extracting positions: {e}")
-        return None
-
-
-def extract_birthplaces(
-    openai_client: OpenAI,
-    db: Session,
-    content: str,
-    politician: Politician,
-) -> Optional[List[ExtractedBirthplace]]:
-    """Extract birthplace from content using two-stage approach."""
-    try:
-        # Build comprehensive politician context
-        politician_context = build_politician_context_xml(
-            politician,
-            focus_property_types=[PropertyType.BIRTHPLACE],
-        )
-
-        birthplace_analysis_focus = ""
-        # Check if politician has existing birthplace properties to provide analysis context
-        existing_birthplace_properties = politician.get_properties_by_type(
-            PropertyType.BIRTHPLACE
-        )
-
-        if existing_birthplace_properties:
-            birthplace_analysis_focus = """
-<birthplace_analysis_focus>
-Use this information to:
-- Identify mentions of these locations in the text (they may appear with different wordings)
-- Find more specific birthplace information (e.g., specific city if only country is known)
-- Identify any conflicting birthplace claims
-</birthplace_analysis_focus>
-"""
-
-        # Stage 1: Free-form extraction
-        system_prompt = """You are a biographical data specialist extracting location information from Wikipedia articles and official government profiles.
-
-<extraction_scope>
-Extract birthplace information following these rules:
-- Extract birthplace as mentioned in the source (city, town, village or region)
-- When the article clearly indicates the geographic context, enhance location names with state/country information (e.g., "Yangon, Myanmar" or "Springfield, Illinois, USA")
-- Only add geographic context when you have high confidence from the article content
-- Preserve the original location name without additions when geographic context is uncertain
-- Return an empty list if no birthplace information is found in the content
-- Only extract actual location names that are explicitly stated in the text
-</extraction_scope>
-
-<proof_requirements>
-- Provide one exact verbatim quote from the source content that mentions the birthplace
-- The quote must be copied exactly as it appears in the source, word-for-word
-- When multiple sentences support the claim, choose the most important and relevant single quote
-- The quote must actually exist in the provided content
-</proof_requirements>"""
-
-        user_prompt = f"""Extract the birthplace of {politician.name} from the content below.
-
-{politician_context}
-{birthplace_analysis_focus}
-
-<article_content>
-{content}
-</article_content>"""
-
-        logger.debug(f"Stage 1: Extracting birthplace for {politician.name}")
-
-        response = openai_client.responses.parse(
-            model="gpt-5",
-            input=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            text_format=FreeFormBirthplaceResult,
-            reasoning={"effort": "minimal"},
-        )
-
-        if response.output_parsed is None:
-            logger.error("OpenAI birthplace extraction returned None")
-            return None
-
-        free_form_birthplaces = response.output_parsed.birthplaces
-        if not free_form_birthplaces:
-            logger.info(f"No birthplace extracted for {politician.name}")
-            return []
-
-        logger.info(
-            f"Stage 1: Extracted {len(free_form_birthplaces)} free-form birthplaces for {politician.name}"
-        )
-
-        # Stage 2: Map to Wikidata locations
-        mapped_birthplaces = []
-        for free_birthplace in free_form_birthplaces:
-            # Find similar locations using embeddings
-            query_embedding = generate_embedding(free_birthplace.location_name)
-
-            similar_locations = (
-                db.query(Location)
-                .options(
-                    selectinload(Location.wikidata_entity)
-                    .selectinload(WikidataEntity.parent_relations)
-                    .selectinload(WikidataRelation.parent_entity)
-                )
-                .filter(Location.embedding.isnot(None))
-                .order_by(Location.embedding.cosine_distance(query_embedding))
-                .limit(100)
-                .all()
-            )
-
-            if not similar_locations:
-                logger.debug(
-                    f"No similar locations found for '{free_birthplace.location_name}'"
-                )
-                continue
-
-            # Use LLM to map to correct location
-            candidate_locations = [
-                {
-                    "qid": loc.wikidata_id,
-                    "name": loc.name,
-                    "description": build_entity_description(loc),
-                }
-                for loc in similar_locations
-            ]
-            mapped_qid = map_to_wikidata_location(
-                openai_client,
-                free_birthplace.location_name,
-                free_birthplace.proof,
-                candidate_locations,
-                politician,
-            )
-
-            if mapped_qid:
-                # Verify location exists in database
-                location = db.query(Location).filter_by(wikidata_id=mapped_qid).first()
-                if location:
-                    mapped_birthplaces.append(
-                        ExtractedBirthplace(
-                            wikidata_id=location.wikidata_id,
-                            proof=free_birthplace.proof,
-                        )
-                    )
-                    logger.debug(
-                        f"Mapped '{free_birthplace.location_name}' -> '{location.name}' ({mapped_qid})"
-                    )
-
-        logger.info(
-            f"Stage 2: Mapped {len(mapped_birthplaces)} of {len(free_form_birthplaces)} birthplaces for {politician.name}"
-        )
-        return mapped_birthplaces
-
-    except Exception as e:
-        logger.error(f"Error extracting birthplaces: {e}")
-        return None
 
 
 def build_politician_context_xml(
@@ -676,6 +544,42 @@ def build_politician_context_xml(
     return xml_bytes.decode("utf-8")
 
 
+# Configuration instances for different extraction types
+DATES_CONFIG = ExtractionConfig(
+    property_types=[PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE],
+    system_prompt=prompts.DATES_EXTRACTION_SYSTEM_PROMPT,
+    result_model=PropertyExtractionResult,
+    user_prompt_template=prompts.EXTRACTION_USER_PROMPT_TEMPLATE,
+    analysis_focus_template=prompts.DATES_ANALYSIS_FOCUS_TEMPLATE,
+)
+
+POSITIONS_CONFIG = TwoStageExtractionConfig(
+    property_types=[PropertyType.POSITION],
+    system_prompt=prompts.POSITIONS_EXTRACTION_SYSTEM_PROMPT,
+    result_model=FreeFormPositionResult,
+    user_prompt_template=prompts.POSITIONS_USER_PROMPT_TEMPLATE,
+    analysis_focus_template=prompts.POSITIONS_ANALYSIS_FOCUS_TEMPLATE,
+    result_field_name="positions",
+    entity_class=Position,
+    mapping_entity_name="position",
+    mapping_system_prompt=prompts.POSITION_MAPPING_SYSTEM_PROMPT,
+    final_model=ExtractedPosition,
+)
+
+BIRTHPLACES_CONFIG = TwoStageExtractionConfig(
+    property_types=[PropertyType.BIRTHPLACE],
+    system_prompt=prompts.BIRTHPLACES_EXTRACTION_SYSTEM_PROMPT,
+    result_model=FreeFormBirthplaceResult,
+    user_prompt_template=prompts.BIRTHPLACES_USER_PROMPT_TEMPLATE,
+    analysis_focus_template=prompts.BIRTHPLACES_ANALYSIS_FOCUS_TEMPLATE,
+    result_field_name="birthplaces",
+    entity_class=Location,
+    mapping_entity_name="location",
+    mapping_system_prompt=prompts.LOCATION_MAPPING_SYSTEM_PROMPT,
+    final_model=ExtractedBirthplace,
+)
+
+
 def build_entity_description(entity) -> str:
     """Build rich description from WikidataRelations dynamically.
 
@@ -731,177 +635,6 @@ def build_entity_description(entity) -> str:
         description_parts.append(f"country {', '.join(countries)}")
 
     return ", ".join(description_parts) if description_parts else ""
-
-
-def map_to_wikidata_position(
-    openai_client: OpenAI,
-    extracted_name: str,
-    proof_text: str,
-    candidate_positions: List[dict],
-    politician: Politician,
-) -> Optional[str]:
-    """Map extracted position name to Wikidata position using LLM."""
-    try:
-        # Create dynamic model with candidate position QIDs
-        entity_qids = [
-            position["qid"] for position in candidate_positions if position.get("qid")
-        ]
-        PositionQidType = Optional[Literal[tuple(entity_qids)]]
-
-        DynamicMappingResult = create_model(
-            "PositionMappingResult",
-            wikidata_position_qid=(PositionQidType, None),
-        )
-
-        system_prompt = """You are a Wikidata mapping specialist with expertise in political positions and government structures.
-
-<mapping_objective>
-Map the extracted position to the most accurate Wikidata position following these rules:
-</mapping_objective>
-
-<matching_criteria>
-1. Strongly prefer country-specific positions (e.g., "Minister of Foreign Affairs (Myanmar)" over generic "Minister of Foreign Affairs")
-2. Prefer positions from the same political system/country context
-3. Match only when confidence is high - be precise about role equivalence
-</matching_criteria>
-
-<rejection_criteria>
-- Return None if no candidate is a good match
-- Reject if the positions clearly refer to different roles
-- Reject if geographic/jurisdictional scope differs significantly
-</rejection_criteria>"""
-
-        # Format candidates with XML structure and rich descriptions
-        candidates_xml = dicttoxml(
-            candidate_positions,
-            custom_root="candidates",
-            item_func=lambda x: "entity",
-            attr_type=False,
-            xml_declaration=False,
-        )
-        candidates_text = candidates_xml.decode("utf-8")
-
-        # Build politician context for stage 2 mapping
-        politician_context = build_politician_context_xml(politician)
-
-        user_prompt = f"""Map this extracted position to the correct Wikidata position:
-
-{politician_context}
-
-Extracted Position: "{extracted_name}"
-Proof Context: "{proof_text}"
-
-Candidate Wikidata Positions:
-{candidates_text}
-
-Select the best matching QID or None if no good match exists."""
-
-        response = openai_client.responses.parse(
-            model="gpt-5",
-            input=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            text_format=DynamicMappingResult,
-            reasoning={"effort": "minimal"},
-        )
-
-        if response.output_parsed is None:
-            return None
-
-        return response.output_parsed.wikidata_position_qid
-
-    except Exception as e:
-        logger.error(f"Error mapping position with LLM: {e}")
-        return None
-
-
-def map_to_wikidata_location(
-    openai_client: OpenAI,
-    extracted_name: str,
-    proof_text: str,
-    candidate_locations: List[dict],
-    politician: Politician,
-) -> Optional[str]:
-    """Map extracted location name to Wikidata location using LLM."""
-    try:
-        # Create dynamic model with candidate location QIDs
-        entity_qids = [
-            location["qid"] for location in candidate_locations if location.get("qid")
-        ]
-        LocationQidType = Optional[Literal[tuple(entity_qids)]]
-
-        DynamicMappingResult = create_model(
-            "LocationMappingResult",
-            wikidata_location_qid=(LocationQidType, None),
-        )
-
-        system_prompt = """You are a Wikidata location mapping specialist with expertise in geographic locations and administrative divisions.
-
-<mapping_objective>
-Map the extracted birthplace to the correct Wikidata location entity.
-</mapping_objective>
-
-<matching_criteria>
-1. Match the most specific location level mentioned in the proof text
-   - If proof says "City, Country" → match the city, not the country
-   - If proof says only "Country" → match the country
-
-2. Use context from the proof text to disambiguate between similar names
-   - Look for parent locations mentioned (district, region, country)
-   - These help identify which specific location is meant
-
-3. Account for spelling variations and transliterations
-</matching_criteria>
-
-<rejection_criteria>
-- Return None if uncertain which candidate matches
-- Return None if the location type doesn't match what's described
-</rejection_criteria>"""
-
-        # Format candidates with XML structure and rich descriptions
-        candidates_xml = dicttoxml(
-            candidate_locations,
-            custom_root="candidates",
-            item_func=lambda x: "entity",
-            attr_type=False,
-            xml_declaration=False,
-        )
-        candidates_text = candidates_xml.decode("utf-8")
-
-        # Build politician context for stage 2 mapping
-        politician_context = build_politician_context_xml(politician)
-
-        user_prompt = f"""Map this extracted birthplace to the correct Wikidata location:
-
-{politician_context}
-
-Extracted Birthplace: "{extracted_name}"
-Proof Context: "{proof_text}"
-
-Candidate Wikidata Locations:
-{candidates_text}
-
-Select the best matching QID or None if no good match exists."""
-
-        response = openai_client.responses.parse(
-            model="gpt-5",
-            input=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            text_format=DynamicMappingResult,
-            reasoning={"effort": "minimal"},
-        )
-
-        if response.output_parsed is None:
-            return None
-
-        return response.output_parsed.wikidata_location_qid
-
-    except Exception as e:
-        logger.error(f"Error mapping location with LLM: {e}")
-        return None
 
 
 async def enrich_politician_from_wikipedia(politician: Politician) -> None:
@@ -971,57 +704,19 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
             content = " ".join(text.split())
 
             # Extract dates
-            date_properties = extract_dates(openai_client, content, politician)
+            date_properties = extract_properties_generic(
+                openai_client, content, politician, DATES_CONFIG
+            )
 
             # Extract positions
-            positions = extract_positions(
-                openai_client,
-                db,
-                content,
-                politician,
+            positions = extract_two_stage_generic(
+                openai_client, db, content, politician, POSITIONS_CONFIG
             )
 
             # Extract birthplaces
-            birthplaces = extract_birthplaces(
-                openai_client,
-                db,
-                content,
-                politician,
+            birthplaces = extract_two_stage_generic(
+                openai_client, db, content, politician, BIRTHPLACES_CONFIG
             )
-
-            # Log extraction results
-            logger.info(
-                f"LLM extracted data for {politician.name} ({politician.wikidata_id}):"
-            )
-            if date_properties:
-                logger.info(f"  Date Properties ({len(date_properties)}):")
-                for prop in date_properties:
-                    logger.info(f"    {prop.type}: {prop.value}")
-            else:
-                logger.info("  No date properties extracted")
-
-            if positions:
-                logger.info(f"  Positions ({len(positions)}):")
-                for position in positions:
-                    date_info = ""
-                    if position.start_date:
-                        date_info = f" ({position.start_date}"
-                        if position.end_date:
-                            date_info += f" - {position.end_date})"
-                        else:
-                            date_info += " - present)"
-                    elif position.end_date:
-                        date_info = f" (until {position.end_date})"
-                    logger.info(f"    {position.wikidata_id}{date_info}")
-            else:
-                logger.info("  No positions extracted")
-
-            if birthplaces:
-                logger.info(f"  Birthplaces ({len(birthplaces)}):")
-                for birthplace in birthplaces:
-                    logger.info(f"    {birthplace.wikidata_id}")
-            else:
-                logger.info("  No birthplaces extracted")
 
             # Store extracted data in database
             success = store_extracted_data(
@@ -1030,8 +725,15 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
 
             if success:
                 db.commit()
+                # Count what was extracted for summary logging
+                date_count = len(date_properties) if date_properties else 0
+                position_count = len(positions) if positions else 0
+                birthplace_count = len(birthplaces) if birthplaces else 0
+                total_count = date_count + position_count + birthplace_count
+
                 logger.info(
-                    f"Successfully enriched politician {politician.name} ({politician.wikidata_id})"
+                    f"Successfully enriched {politician.name} ({politician.wikidata_id}): "
+                    f"{total_count} total items ({date_count} dates, {position_count} positions, {birthplace_count} birthplaces)"
                 )
             else:
                 db.rollback()
@@ -1103,7 +805,7 @@ def store_extracted_data(
                         position_data.start_date, position_data.end_date
                     )
 
-                    # Always add as new record (no more automatic merging)
+                    # Always add as new record
                     position_property = Property(
                         politician_id=politician.id,
                         type=PropertyType.POSITION,

@@ -27,6 +27,12 @@ def setup_logging() -> None:
     logging.getLogger("httpx").setLevel(numeric_level)
     logging.getLogger("httpcore").setLevel(numeric_level)
 
+    # Configure dicttoxml to only log INFO when in DEBUG mode
+    dicttoxml_level = (
+        logging.WARNING if numeric_level > logging.DEBUG else numeric_level
+    )
+    logging.getLogger("dicttoxml").setLevel(dicttoxml_level)
+
     # Log the configured level
     logger = logging.getLogger(__name__)
     logger.info(f"Logging configured at {log_level} level")
