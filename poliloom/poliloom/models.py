@@ -16,7 +16,7 @@ from sqlalchemy import (
     func,
     Enum as SQLEnum,
 )
-from sqlalchemy.orm import Session, relationship, declarative_base
+from sqlalchemy.orm import Session, relationship, declarative_base, declared_attr
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy import event
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -136,6 +136,25 @@ class UpsertMixin:
         else:
             session.execute(stmt)
             return None
+
+
+class WikidataEntityMixin:
+    """Mixin for entities that have a wikidata_id and wikidata_entity relationship."""
+
+    @declared_attr
+    def wikidata_id(cls):
+        return Column(
+            String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
+        )
+
+    @declared_attr
+    def wikidata_entity(cls):
+        return relationship("WikidataEntity", lazy="joined")
+
+    @property
+    def name(self) -> str:
+        """Get the name from the associated WikidataEntity."""
+        return self.wikidata_entity.name
 
 
 class LanguageCodeMixin:
@@ -526,7 +545,7 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, StatementMixin):
     )
 
 
-class Country(Base, TimestampMixin, UpsertMixin):
+class Country(Base, TimestampMixin, UpsertMixin, WikidataEntityMixin):
     """Country entity for storing country information."""
 
     __tablename__ = "countries"
@@ -534,21 +553,8 @@ class Country(Base, TimestampMixin, UpsertMixin):
     # UpsertMixin configuration
     _upsert_update_columns = ["iso_code"]
 
-    wikidata_id = Column(
-        String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
-    )
     iso_code = Column(String, index=True)  # ISO 3166-1 alpha-2 code
     embedding = Column(Vector(384), nullable=True)
-
-    # Relationships
-    wikidata_entity = relationship(
-        "WikidataEntity", back_populates="country", lazy="joined"
-    )
-
-    @hybrid_property
-    def name(self) -> str:
-        """Get the country name from the related WikidataEntity."""
-        return self.wikidata_entity.name if self.wikidata_entity else None
 
     @classmethod
     def create_with_entity(
@@ -566,7 +572,9 @@ class Country(Base, TimestampMixin, UpsertMixin):
         return country
 
 
-class Language(Base, TimestampMixin, LanguageCodeMixin, UpsertMixin):
+class Language(
+    Base, TimestampMixin, LanguageCodeMixin, UpsertMixin, WikidataEntityMixin
+):
     """Language entity for storing language information."""
 
     __tablename__ = "languages"
@@ -577,20 +585,6 @@ class Language(Base, TimestampMixin, LanguageCodeMixin, UpsertMixin):
 
     # UpsertMixin configuration
     _upsert_update_columns = ["iso1_code", "iso3_code"]
-
-    wikidata_id = Column(
-        String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
-    )
-
-    # Relationships
-    wikidata_entity = relationship(
-        "WikidataEntity", back_populates="language", lazy="joined"
-    )
-
-    @hybrid_property
-    def name(self) -> str:
-        """Get the language name from the related WikidataEntity."""
-        return self.wikidata_entity.name if self.wikidata_entity else None
 
     @classmethod
     def create_with_entity(
@@ -615,25 +609,12 @@ class Language(Base, TimestampMixin, LanguageCodeMixin, UpsertMixin):
         return language
 
 
-class Location(Base, TimestampMixin, UpsertMixin):
+class Location(Base, TimestampMixin, UpsertMixin, WikidataEntityMixin):
     """Location entity for geographic locations."""
 
     __tablename__ = "locations"
 
-    wikidata_id = Column(
-        String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
-    )
     embedding = Column(Vector(384), nullable=True)
-
-    # Relationships
-    wikidata_entity = relationship(
-        "WikidataEntity", back_populates="location", lazy="joined"
-    )
-
-    @property
-    def name(self) -> str:
-        """Get the name from the associated WikidataEntity."""
-        return self.wikidata_entity.name
 
     @classmethod
     def create_with_entity(cls, session, wikidata_id: str, name: str, embedding=None):
@@ -651,25 +632,12 @@ class Location(Base, TimestampMixin, UpsertMixin):
         return location
 
 
-class Position(Base, TimestampMixin, UpsertMixin):
+class Position(Base, TimestampMixin, UpsertMixin, WikidataEntityMixin):
     """Position entity for political positions."""
 
     __tablename__ = "positions"
 
-    wikidata_id = Column(
-        String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
-    )
     embedding = Column(Vector(384), nullable=True)
-
-    # Relationships
-    wikidata_entity = relationship(
-        "WikidataEntity", back_populates="position", lazy="joined"
-    )
-
-    @property
-    def name(self) -> str:
-        """Get the name from the associated WikidataEntity."""
-        return self.wikidata_entity.name
 
     @classmethod
     def create_with_entity(cls, session, wikidata_id: str, name: str, embedding=None):
