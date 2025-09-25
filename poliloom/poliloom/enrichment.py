@@ -2,7 +2,6 @@
 
 import os
 import logging
-from collections import defaultdict
 from datetime import datetime, timezone
 from typing import List, Optional, Literal, Type, Union, Any
 from sqlalchemy.orm import Session, selectinload
@@ -24,7 +23,6 @@ from .models import (
     ArchivedPage,
     WikidataRelation,
     WikidataEntity,
-    RelationType,
 )
 from . import archive
 from .database import get_engine
@@ -289,7 +287,7 @@ def extract_two_stage_generic(
                 {
                     "qid": entity.wikidata_id,
                     "name": entity.name,
-                    "description": build_entity_description(entity),
+                    "description": entity.description,
                 }
                 for entity in similar_entities
             ]
@@ -614,63 +612,6 @@ CITIZENSHIPS_CONFIG = TwoStageExtractionConfig(
     mapping_system_prompt=prompts.COUNTRY_MAPPING_SYSTEM_PROMPT,
     final_model=ExtractedCitizenship,
 )
-
-
-def build_entity_description(entity) -> str:
-    """Build rich description from WikidataRelations dynamically.
-
-    Args:
-        entity: Position, Location, or Country instance with preloaded relations
-
-    Returns:
-        Rich description string built from relations
-    """
-    if not hasattr(entity, "wikidata_entity") or not entity.wikidata_entity:
-        return ""
-
-    # Use preloaded relations instead of querying database
-    relations = entity.wikidata_entity.parent_relations
-
-    # Group relations by type using defaultdict
-    relations_by_type = defaultdict(list)
-    for relation in relations:
-        if relation.parent_entity and relation.parent_entity.name:
-            relations_by_type[relation.relation_type].append(
-                relation.parent_entity.name
-            )
-
-    description_parts = []
-
-    # Add Wikidata description if available
-    if entity.wikidata_entity.description:
-        description_parts.append(entity.wikidata_entity.description)
-
-    # Build description based on available relations
-    if relations_by_type[RelationType.INSTANCE_OF]:
-        instances = relations_by_type[RelationType.INSTANCE_OF]
-        description_parts.append(", ".join(instances))
-
-    if relations_by_type[RelationType.SUBCLASS_OF]:
-        subclasses = relations_by_type[RelationType.SUBCLASS_OF]
-        description_parts.append(f"subclass of {', '.join(subclasses)}")
-
-    if relations_by_type[RelationType.PART_OF]:
-        parts = relations_by_type[RelationType.PART_OF]
-        description_parts.append(f"part of {', '.join(parts)}")
-
-    if relations_by_type[RelationType.APPLIES_TO_JURISDICTION]:
-        jurisdictions = relations_by_type[RelationType.APPLIES_TO_JURISDICTION]
-        description_parts.append(f"applies to jurisdiction {', '.join(jurisdictions)}")
-
-    if relations_by_type[RelationType.LOCATED_IN]:
-        locations = relations_by_type[RelationType.LOCATED_IN]
-        description_parts.append(f"located in {', '.join(locations)}")
-
-    if relations_by_type[RelationType.COUNTRY]:
-        countries = relations_by_type[RelationType.COUNTRY]
-        description_parts.append(f"country {', '.join(countries)}")
-
-    return ", ".join(description_parts) if description_parts else ""
 
 
 async def enrich_politician_from_wikipedia(politician: Politician) -> None:
