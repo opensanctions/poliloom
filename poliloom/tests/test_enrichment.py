@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 from pydantic import BaseModel
 
 from poliloom.enrichment import (
-    enrich_politician_from_wikipedia,
+    enrich_politicians_from_wikipedia,
     extract_properties_generic,
     extract_two_stage_generic,
     store_extracted_data,
@@ -20,7 +20,6 @@ from poliloom.enrichment import (
 from poliloom.models import (
     Location,
     Position,
-    Politician,
     Property,
 )
 
@@ -475,31 +474,22 @@ class TestEnrichment:
         assert success is False
 
     @pytest.mark.asyncio
-    async def test_enrich_politician_no_wikipedia_links(self, db_session):
-        """Test enrichment when politician has no Wikipedia links."""
-        politician = Politician.create_with_entity(
-            db_session, "Q999999", "No Links Politician"
-        )
-        db_session.commit()
-
-        with patch("poliloom.enrichment.OpenAI"):
-            with pytest.raises(ValueError, match="No Wikipedia links found"):
-                await enrich_politician_from_wikipedia(politician)
-
-        # The enriched_at timestamp should still be updated even when raising an error
-        assert politician.enriched_at is not None
-
-    @pytest.mark.asyncio
-    async def test_enrich_politician_no_suitable_wikipedia_links(
+    async def test_enrich_politicians_no_wikipedia_links(
         self, db_session, sample_politician
     ):
-        """Test enrichment when politician has no Wikipedia links."""
+        """Test enrichment when no politicians have Wikipedia links."""
         # The sample_politician fixture by default has no Wikipedia links
-        # This should trigger the "No Wikipedia links found" error
+        # The function should filter these out and return (0, 0)
 
         with patch("poliloom.enrichment.OpenAI"):
-            with pytest.raises(ValueError, match="No Wikipedia links found"):
-                await enrich_politician_from_wikipedia(sample_politician)
+            success_count, total_count = await enrich_politicians_from_wikipedia(
+                limit=10
+            )
 
-        # The enriched_at timestamp should still be updated even when raising an error
-        assert sample_politician.enriched_at is not None
+        # Should find no politicians to enrich since they're filtered out by the query
+        assert success_count == 0
+        assert total_count == 0
+
+        # The enriched_at timestamp should remain None since the politician was never processed
+        db_session.refresh(sample_politician)
+        assert sample_politician.enriched_at is None

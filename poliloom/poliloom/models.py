@@ -17,8 +17,9 @@ from sqlalchemy import (
     Enum as SQLEnum,
 )
 from sqlalchemy.orm import Session, relationship, declarative_base, declared_attr
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID, JSONB, insert
 from sqlalchemy import event
+from collections import defaultdict
 from sqlalchemy.ext.hybrid import hybrid_property
 from pgvector.sqlalchemy import Vector
 from dicttoxml import dicttoxml
@@ -100,8 +101,6 @@ class UpsertMixin:
         if not data:
             return [] if returning_columns else None
 
-        from sqlalchemy.dialects.postgresql import insert
-
         stmt = insert(cls).values(data)
 
         # Use specified conflict columns or default to primary key
@@ -156,7 +155,6 @@ class WikidataEntityMixin:
         Returns:
             Rich description string built from relations
         """
-        from collections import defaultdict
 
         if not hasattr(self, "wikidata_entity") or not self.wikidata_entity:
             return ""
@@ -332,7 +330,6 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         Returns:
             List of (url, iso1_code, iso3_code) tuples, limited to top 3 by popularity
         """
-        from sqlalchemy import text
 
         query = text(
             """

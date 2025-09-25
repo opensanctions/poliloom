@@ -3,11 +3,10 @@
 import asyncio
 import click
 import logging
-from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
 import httpx
 from typing import Optional
-from poliloom.enrichment import enrich_politician_from_wikipedia
+from poliloom.enrichment import enrich_politicians_from_wikipedia
 from poliloom.storage import StorageFactory
 from poliloom.importer.hierarchy import import_hierarchy_trees
 from poliloom.importer.entity import import_entities
@@ -16,11 +15,7 @@ from poliloom.database import get_engine
 from poliloom.logging import setup_logging
 from sqlalchemy.orm import Session
 from poliloom.models import (
-    Politician,
-    Property,
     WikidataDump,
-    WikidataEntity,
-    WikidataRelation,
 )
 
 # Configure logging
@@ -267,51 +262,16 @@ def enrich_wikipedia(limit: Optional[int]) -> None:
     - No arguments: Enrich all politicians with Wikipedia links
     """
     try:
-        with Session(get_engine()) as session:
-            query = (
-                session.query(Politician)
-                .options(
-                    # Load the politician's wikidata entity
-                    selectinload(Politician.wikidata_entity),
-                    # Load all properties with their related entities and relations
-                    selectinload(Politician.properties)
-                    .selectinload(Property.entity)
-                    .selectinload(WikidataEntity.parent_relations)
-                    .selectinload(WikidataRelation.parent_entity),
-                    # Load Wikipedia links
-                    selectinload(Politician.wikipedia_links),
-                )
-                .filter(Politician.wikipedia_links.any())
-                .order_by(Politician.enriched_at.asc().nullsfirst())
-            )
-
-            if limit:
-                politicians = query.limit(limit).all()
-            else:
-                politicians = query.all()
-
-        if not politicians:
-            click.echo("✅ No politicians found that need enrichment")
-            return
-
-        click.echo(f"Found {len(politicians)} politician(s) to enrich")
-
-        success_count = 0
-        for i, politician in enumerate(politicians, 1):
-            click.echo(
-                f"[{i}/{len(politicians)}] Enriching {politician.wikidata_id} ({politician.name}) - https://www.wikidata.org/wiki/{politician.wikidata_id}"
-            )
-
-            try:
-                asyncio.run(enrich_politician_from_wikipedia(politician))
-                success_count += 1
-                click.echo(f"  ✅ Successfully enriched {politician.wikidata_id}")
-            except Exception as e:
-                click.echo(f"  ❌ Failed to enrich {politician.wikidata_id}: {e}")
-
-        click.echo(
-            f"✅ Successfully enriched {success_count}/{len(politicians)} politicians"
+        success_count, total_count = asyncio.run(
+            enrich_politicians_from_wikipedia(limit)
         )
+
+        if total_count == 0:
+            click.echo("✅ No politicians found that need enrichment")
+        else:
+            click.echo(
+                f"✅ Successfully enriched {success_count}/{total_count} politicians"
+            )
 
     except Exception as e:
         click.echo(f"❌ Error enriching politician(s): {e}")
