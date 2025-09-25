@@ -23,6 +23,7 @@ class PreferenceResponse(BaseModel):
 
     qid: str
     name: str
+    preference_type: str
 
 
 class PreferenceRequest(BaseModel):
@@ -31,23 +32,16 @@ class PreferenceRequest(BaseModel):
     entity_qids: List[str]
 
 
-@router.get("/{preference_type}", response_model=List[PreferenceResponse])
+@router.get("", response_model=List[PreferenceResponse])
 async def get_user_preferences(
-    preference_type: PreferenceType = Path(
-        ..., description="Type of preferences to retrieve"
-    ),
     current_user: User = Depends(get_current_user),
 ):
-    """Get user's preferences for a specific type (language or country)."""
+    """Get all user preferences as a flat list."""
     with Session(get_engine()) as db:
         query = (
             select(Preference)
             .options(selectinload(Preference.entity))
-            .where(
-                Preference.user_id == str(current_user.user_id),
-                Preference.preference_type == preference_type,
-            )
-            .order_by(Preference.created_at)
+            .where(Preference.user_id == str(current_user.user_id))
         )
 
         preferences = db.execute(query).scalars().all()
@@ -59,6 +53,7 @@ async def get_user_preferences(
                     PreferenceResponse(
                         qid=pref.entity_id,
                         name=pref.entity.name or pref.entity_id,
+                        preference_type=pref.preference_type.value,
                     )
                 )
 
