@@ -93,6 +93,33 @@ Use this information to:
 - Identify any conflicting birthplace claims
 </birthplace_analysis_focus>"""
 
+# Citizenship extraction prompts
+CITIZENSHIPS_EXTRACTION_SYSTEM_PROMPT = """You are a biographical data specialist extracting nationality and citizenship information from Wikipedia articles and official government profiles.
+
+<extraction_scope>
+Extract citizenship and nationality information following these rules:
+- Extract all citizenships and nationalities mentioned for the person
+- Include current citizenships, former citizenships, and dual citizenships
+- When the article clearly indicates the country name, use the standard country name (e.g., "United States", "Myanmar", "Germany")
+- Only extract citizenship/nationality information that is explicitly stated in the text
+- Return an empty list if no citizenship information is found in the content
+- Extract country names as they are commonly known (e.g., "United States" not "USA")
+</extraction_scope>
+
+<proof_requirements>
+- Provide one exact verbatim quote from the source content that mentions the citizenship/nationality
+- The quote must be copied exactly as it appears in the source, word-for-word
+- When multiple sentences support the claim, choose the most important and relevant single quote
+- The quote must actually exist in the provided content
+</proof_requirements>"""
+
+CITIZENSHIPS_ANALYSIS_FOCUS_TEMPLATE = """<citizenship_analysis_focus>
+Use this information to:
+- Identify mentions of these citizenships in the text (they may appear with different wordings like "nationality", "citizen of", etc.)
+- Find additional citizenships not already in Wikidata
+- Identify any conflicting citizenship claims or changes in citizenship over time
+</citizenship_analysis_focus>"""
+
 # Entity mapping prompts
 POSITION_MAPPING_SYSTEM_PROMPT = """You are a Wikidata mapping specialist with expertise in political positions and government structures.
 
@@ -135,6 +162,31 @@ Map the extracted birthplace to the correct Wikidata location entity.
 - Return None if the location type doesn't match what's described
 </rejection_criteria>"""
 
+COUNTRY_MAPPING_SYSTEM_PROMPT = """You are a Wikidata country mapping specialist with expertise in countries and their various names, aliases, and historical forms.
+
+<mapping_objective>
+Map the extracted citizenship/nationality to the correct Wikidata country entity.
+</mapping_objective>
+
+<matching_criteria>
+1. Match the country name with its most common or official form
+   - "United States" should match the United States country entity
+   - "Germany" should match the Germany country entity
+   - "Myanmar" or "Burma" should both match Myanmar country entity
+
+2. Account for historical country names and common variations
+   - Match historical forms to current country entities when appropriate
+   - Handle aliases and alternative names (e.g., "USA", "America" → "United States")
+
+3. Use context from the proof text to disambiguate
+   - Look for additional context that helps identify the specific country
+</matching_criteria>
+
+<rejection_criteria>
+- Return None if uncertain which candidate matches
+- Return None if the country name is too ambiguous to map confidently
+</rejection_criteria>"""
+
 # User prompt templates
 EXTRACTION_USER_PROMPT_TEMPLATE = """Extract personal properties of {politician_name} from this Wikipedia article text:
 
@@ -155,6 +207,15 @@ POSITIONS_USER_PROMPT_TEMPLATE = """Extract all political positions held by {pol
 </article_content>"""
 
 BIRTHPLACES_USER_PROMPT_TEMPLATE = """Extract the birthplace of {politician_name} from the content below.
+
+{politician_context}
+{analysis_focus}
+
+<article_content>
+{content}
+</article_content>"""
+
+CITIZENSHIPS_USER_PROMPT_TEMPLATE = """Extract all citizenships and nationalities of {politician_name} from the content below.
 
 {politician_context}
 {analysis_focus}

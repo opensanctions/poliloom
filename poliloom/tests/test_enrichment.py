@@ -262,6 +262,7 @@ class TestEnrichment:
             properties,
             None,  # positions
             None,  # birthplaces
+            None,  # citizenships
         )
 
         assert success is True
@@ -320,6 +321,7 @@ class TestEnrichment:
             None,  # properties
             positions,
             None,  # birthplaces
+            None,  # citizenships
         )
 
         assert success is True
@@ -374,6 +376,7 @@ class TestEnrichment:
             None,  # properties
             None,  # positions
             birthplaces,
+            None,  # citizenships
         )
 
         assert success is True
@@ -428,6 +431,7 @@ class TestEnrichment:
             None,  # properties
             positions,
             None,  # birthplaces
+            None,  # citizenships
         )
 
         assert success is True
@@ -468,6 +472,7 @@ class TestEnrichment:
                 properties,
                 None,
                 None,
+                None,  # citizenships
             )
 
         assert success is False

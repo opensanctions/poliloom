@@ -20,6 +20,7 @@ from .models import (
     PropertyType,
     Position,
     Location,
+    Country,
     ArchivedPage,
     WikidataRelation,
     WikidataEntity,
@@ -97,7 +98,7 @@ class ExtractedBirthplace(BaseModel):
 class PropertyExtractionResult(BaseModel):
     """Response model for property extraction."""
 
-    properties: List[ExtractedProperty]
+    properties: Optional[List[ExtractedProperty]]
 
 
 class FreeFormPosition(BaseModel):
@@ -119,7 +120,7 @@ class FreeFormPosition(BaseModel):
 class FreeFormPositionResult(BaseModel):
     """Response model for free-form position extraction."""
 
-    positions: List[FreeFormPosition]
+    positions: Optional[List[FreeFormPosition]]
 
 
 class FreeFormBirthplace(BaseModel):
@@ -132,7 +133,27 @@ class FreeFormBirthplace(BaseModel):
 class FreeFormBirthplaceResult(BaseModel):
     """Response model for free-form birthplace extraction."""
 
-    birthplaces: List[FreeFormBirthplace]
+    birthplaces: Optional[List[FreeFormBirthplace]]
+
+
+class FreeFormCitizenship(BaseModel):
+    """Free-form citizenship extracted before mapping to Wikidata."""
+
+    name: str
+    proof: str
+
+
+class FreeFormCitizenshipResult(BaseModel):
+    """Response model for free-form citizenship extraction."""
+
+    citizenships: Optional[List[FreeFormCitizenship]]
+
+
+class ExtractedCitizenship(BaseModel):
+    """Schema for extracted citizenship data."""
+
+    wikidata_id: str
+    proof: str
 
 
 @dataclass
@@ -151,8 +172,8 @@ class ExtractionConfig:
 class TwoStageExtractionConfig(ExtractionConfig):
     """Configuration for two-stage extraction (free-form -> mapping)."""
 
-    entity_class: Type[Union[Position, Location]] = None
-    mapping_entity_name: str = ""  # "position" or "location"
+    entity_class: Type[Union[Position, Location, Country]] = None
+    mapping_entity_name: str = ""  # "position", "location", or "country"
     mapping_system_prompt: str = ""  # System prompt for mapping stage
     final_model: Type[BaseModel] = None
 
@@ -301,9 +322,16 @@ def extract_two_stage_generic(
                                 proof=free_item.proof,
                             )
                         )
-                    else:  # location
+                    elif config.mapping_entity_name == "location":
                         mapped_results.append(
                             ExtractedBirthplace(
+                                wikidata_id=entity.wikidata_id,
+                                proof=free_item.proof,
+                            )
+                        )
+                    else:  # country
+                        mapped_results.append(
+                            ExtractedCitizenship(
                                 wikidata_id=entity.wikidata_id,
                                 proof=free_item.proof,
                             )
@@ -486,6 +514,7 @@ def build_politician_context_xml(
                 PropertyType.DEATH_DATE,
                 PropertyType.POSITION,
                 PropertyType.BIRTHPLACE,
+                PropertyType.CITIZENSHIP,
             ]
         )
 
@@ -509,6 +538,12 @@ def build_politician_context_xml(
             birthplace_items = politician.get_birthplace_names()
             if birthplace_items:
                 context_data["existing_wikidata_birthplaces"] = birthplace_items
+
+        # Add citizenships section
+        if PropertyType.CITIZENSHIP in relevant_types:
+            citizenship_items = politician.get_citizenship_names()
+            if citizenship_items:
+                context_data["existing_wikidata_citizenships"] = citizenship_items
 
     xml_bytes = dicttoxml(
         context_data,
@@ -554,12 +589,25 @@ BIRTHPLACES_CONFIG = TwoStageExtractionConfig(
     final_model=ExtractedBirthplace,
 )
 
+CITIZENSHIPS_CONFIG = TwoStageExtractionConfig(
+    property_types=[PropertyType.CITIZENSHIP],
+    system_prompt=prompts.CITIZENSHIPS_EXTRACTION_SYSTEM_PROMPT,
+    result_model=FreeFormCitizenshipResult,
+    user_prompt_template=prompts.CITIZENSHIPS_USER_PROMPT_TEMPLATE,
+    analysis_focus_template=prompts.CITIZENSHIPS_ANALYSIS_FOCUS_TEMPLATE,
+    result_field_name="citizenships",
+    entity_class=Country,
+    mapping_entity_name="country",
+    mapping_system_prompt=prompts.COUNTRY_MAPPING_SYSTEM_PROMPT,
+    final_model=ExtractedCitizenship,
+)
+
 
 def build_entity_description(entity) -> str:
     """Build rich description from WikidataRelations dynamically.
 
     Args:
-        entity: Position or Location instance with preloaded relations
+        entity: Position, Location, or Country instance with preloaded relations
 
     Returns:
         Rich description string built from relations
@@ -693,9 +741,20 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
                 openai_client, db, content, politician, BIRTHPLACES_CONFIG
             )
 
+            # Extract citizenships
+            citizenships = extract_two_stage_generic(
+                openai_client, db, content, politician, CITIZENSHIPS_CONFIG
+            )
+
             # Store extracted data in database
             success = store_extracted_data(
-                db, politician, archived_page, date_properties, positions, birthplaces
+                db,
+                politician,
+                archived_page,
+                date_properties,
+                positions,
+                birthplaces,
+                citizenships,
             )
 
             if success:
@@ -704,11 +763,14 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
                 date_count = len(date_properties) if date_properties else 0
                 position_count = len(positions) if positions else 0
                 birthplace_count = len(birthplaces) if birthplaces else 0
-                total_count = date_count + position_count + birthplace_count
+                citizenship_count = len(citizenships) if citizenships else 0
+                total_count = (
+                    date_count + position_count + birthplace_count + citizenship_count
+                )
 
                 logger.info(
                     f"Successfully enriched {politician.name} ({politician.wikidata_id}): "
-                    f"{total_count} total items ({date_count} dates, {position_count} positions, {birthplace_count} birthplaces)"
+                    f"{total_count} total items ({date_count} dates, {position_count} positions, {birthplace_count} birthplaces, {citizenship_count} citizenships)"
                 )
             else:
                 db.rollback()
@@ -733,6 +795,7 @@ def store_extracted_data(
     properties: Optional[List[ExtractedProperty]],
     positions: Optional[List[ExtractedPosition]],
     birthplaces: Optional[List[ExtractedBirthplace]],
+    citizenships: Optional[List[ExtractedCitizenship]],
 ) -> bool:
     """Store extracted data in the database."""
     try:
@@ -848,6 +911,49 @@ def store_extracted_data(
                         db.flush()
                         logger.info(
                             f"Added new birthplace: '{location.name}' ({location.wikidata_id}) for {politician.name}"
+                        )
+
+        # Store citizenships - only link to existing countries
+        if citizenships:
+            for citizenship_data in citizenships:
+                if citizenship_data.wikidata_id:
+                    # Only find existing countries, don't create new ones
+                    country = (
+                        db.query(Country)
+                        .filter_by(wikidata_id=citizenship_data.wikidata_id)
+                        .first()
+                    )
+
+                    if not country:
+                        logger.warning(
+                            f"Country '{citizenship_data.wikidata_id}' not found in database for {politician.name} - skipping"
+                        )
+                        continue
+
+                    # Check if this citizenship relationship already exists
+                    existing_citizenship = (
+                        db.query(Property)
+                        .filter_by(
+                            politician_id=politician.id,
+                            type=PropertyType.CITIZENSHIP,
+                            entity_id=country.wikidata_id,
+                        )
+                        .first()
+                    )
+
+                    if not existing_citizenship:
+                        citizenship_property = Property(
+                            politician_id=politician.id,
+                            type=PropertyType.CITIZENSHIP,
+                            entity_id=country.wikidata_id,
+                            references_json=archived_page.create_references_json(),
+                            archived_page_id=archived_page.id,
+                            proof_line=citizenship_data.proof,
+                        )
+                        db.add(citizenship_property)
+                        db.flush()
+                        logger.info(
+                            f"Added new citizenship: '{country.name}' ({country.wikidata_id}) for {politician.name}"
                         )
 
         return True

@@ -10,14 +10,14 @@ from typing import List, Optional, Type, TypeVar
 from sqlalchemy.orm import Session
 
 from poliloom.database import get_engine
-from poliloom.models import Location, Position
+from poliloom.models import Location, Position, Country
 
 logger = logging.getLogger(__name__)
 
 # Global cached embedding model
 _embedding_model = None
 
-T = TypeVar("T", Position, Location)
+T = TypeVar("T", Position, Location, Country)
 
 
 def get_embedding_model():
@@ -133,6 +133,7 @@ def generate_all_embeddings(
             for model_class, entity_name in [
                 (Position, "positions"),
                 (Location, "locations"),
+                (Country, "countries"),
             ]:
                 logger.info(f"Processing {entity_name}...")
                 generate_embeddings_for_entities(
