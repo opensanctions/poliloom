@@ -700,7 +700,7 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
 
             logger.info(
                 f"Processing {len(priority_links)} Wikipedia sources for {politician.name}: "
-                f"{[f'{link.iso_code} ({link.url})' for link, _, _ in priority_links]}"
+                f"{[f'{iso1_code} ({url})' for url, iso1_code, _ in priority_links]}"
             )
 
             # Track totals across all sources
@@ -711,20 +711,16 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
             processed_sources = 0
 
             # Process each priority Wikipedia link individually
-            for wikipedia_link, iso1_code, iso3_code in priority_links:
-                logger.info(f"Processing Wikipedia source: {wikipedia_link.url}")
+            for url, iso1_code, iso3_code in priority_links:
+                logger.info(f"Processing Wikipedia source: {url}")
 
                 # Check if we already have this page archived
                 existing_page = (
-                    db.query(ArchivedPage)
-                    .filter(ArchivedPage.url == wikipedia_link.url)
-                    .first()
+                    db.query(ArchivedPage).filter(ArchivedPage.url == url).first()
                 )
 
                 if existing_page:
-                    logger.info(
-                        f"Using existing archived page for {wikipedia_link.url}"
-                    )
+                    logger.info(f"Using existing archived page for {url}")
                     archived_page = existing_page
                     # Update language codes if missing
                     if not archived_page.iso1_code or not archived_page.iso3_code:
@@ -734,7 +730,7 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
                 else:
                     # Fetch and archive the page with language codes
                     archived_page = await fetch_and_archive_page(
-                        wikipedia_link.url, db, iso1_code, iso3_code
+                        url, db, iso1_code, iso3_code
                     )
 
                 # Read content from archived page
@@ -794,12 +790,12 @@ async def enrich_politician_from_wikipedia(politician: Politician) -> None:
                         + citizenship_count
                     )
                     logger.info(
-                        f"Extracted {source_total} items from {wikipedia_link.url} "
+                        f"Extracted {source_total} items from {url} "
                         f"({date_count} dates, {position_count} positions, {birthplace_count} birthplaces, {citizenship_count} citizenships)"
                     )
                 else:
                     logger.warning(
-                        f"Failed to store extracted data from {wikipedia_link.url} for {politician.name}"
+                        f"Failed to store extracted data from {url} for {politician.name}"
                     )
 
             # Commit all changes

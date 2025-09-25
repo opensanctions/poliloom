@@ -213,8 +213,8 @@ class TestPolitician:
         result = sample_politician.get_priority_wikipedia_links(db_session)
 
         assert len(result) == 1
-        wiki_link, iso1_code, iso3_code = result[0]
-        assert wiki_link.iso_code == "en"
+        url, iso1_code, iso3_code = result[0]
+        assert "en.wikipedia.org" in url
         assert iso1_code == "en"
         assert iso3_code == "eng"
 
@@ -285,8 +285,8 @@ class TestPolitician:
         # Should get both German (from citizenship) and English, but German should be prioritized
         assert len(result) >= 1
         # German should be first due to citizenship priority
-        wiki_link, iso1_code, iso3_code = result[0]
-        assert wiki_link.iso_code == "de"
+        url, iso1_code, iso3_code = result[0]
+        assert "de.wikipedia.org" in url
         assert iso1_code == "de"
         assert iso3_code == "deu"
 
@@ -357,7 +357,7 @@ class TestPolitician:
         assert len(result) == 3, f"Expected exactly 3 results, got {len(result)}"
 
         # Get the ISO codes of returned languages
-        returned_iso_codes = {link.iso_code for link, _, _ in result}
+        returned_iso_codes = {iso1_code for _, iso1_code, _ in result}
 
         # Should contain the 3 most popular languages: fr (100), de (50), es (30)
         # Should NOT contain en (25) as it's the 4th most popular
@@ -444,7 +444,7 @@ class TestPolitician:
         assert len(result) >= 1
 
         # Both citizenship languages should be represented (they get priority boost)
-        iso_codes = {link.iso_code for link, _, _ in result}
+        iso_codes = {iso1_code for _, iso1_code, _ in result}
         assert (
             "en" in iso_codes or "de" in iso_codes
         )  # At least one citizenship language

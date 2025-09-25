@@ -356,7 +356,7 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
             db: Database session
 
         Returns:
-            List of (WikipediaLink, iso1_code, iso3_code) tuples, limited to top 3 by popularity
+            List of (url, iso1_code, iso3_code) tuples, limited to top 3 by popularity
         """
         from sqlalchemy import text
 
@@ -374,7 +374,7 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
                 GROUP BY iso_code
             ),
             filtered_links AS (
-                SELECT DISTINCT wl.id, wl.url, wl.iso_code, l.iso1_code, l.iso3_code,
+                SELECT DISTINCT wl.url, l.iso1_code, l.iso3_code,
                        lp.global_count as language_popularity
                 FROM wikipedia_links wl
                 JOIN languages l ON (wl.iso_code = l.iso1_code OR wl.iso_code = l.iso3_code)
@@ -390,7 +390,7 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
                     )
                 )
             )
-            SELECT id, url, iso_code, iso1_code, iso3_code
+            SELECT url, iso1_code, iso3_code
             FROM filtered_links
             ORDER BY language_popularity DESC
             LIMIT 3
@@ -404,18 +404,7 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
             },
         )
 
-        selected_links = []
-        for row in result.fetchall():
-            link_id, url, iso_code, iso1_code, iso3_code = row
-            # Find the actual WikipediaLink object
-            wiki_link = next(
-                (wl for wl in self.wikipedia_links if str(wl.id) == str(link_id)),
-                None,
-            )
-            if wiki_link:
-                selected_links.append((wiki_link, iso1_code, iso3_code))
-
-        return selected_links
+        return result.fetchall()
 
     @classmethod
     def create_with_entity(cls, session, wikidata_id: str, name: str):
