@@ -1,4 +1,4 @@
-import { ArchivedPageResponse } from '@/types';
+import { ArchivedPageResponse } from "@/types";
 
 interface StatementSourceProps {
   proofLine: string | null;
@@ -15,7 +15,7 @@ export function StatementSource({
   isWikidataStatement,
   isActive,
   onShowArchived,
-  onHover
+  onHover,
 }: StatementSourceProps) {
   return (
     <div className="space-y-1" onMouseEnter={onHover}>
@@ -25,19 +25,17 @@ export function StatementSource({
             onClick={onShowArchived}
             className={`text-sm font-medium px-2 py-1 rounded transition-colors cursor-pointer ${
               isActive
-                ? 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                ? "bg-gray-200 text-gray-800 hover:bg-gray-300"
+                : "bg-blue-100 text-blue-700 hover:bg-blue-200"
             }`}
           >
-            • {isActive ? 'Viewing Source' : 'View Source'}
+            • {isActive ? "Viewing Source" : "View Source"}
           </button>
-          <span className="text-sm text-gray-500">
-            {archivedPage.url}
-          </span>
+          <span className="text-sm text-gray-500">{archivedPage.url}</span>
         </div>
       )}
       {proofLine && (
-        <div className="text-sm text-gray-600 italic py-1">
+        <div className="text-sm text-gray-600 italic py-2">
           &quot;{proofLine}&quot;
         </div>
       )}

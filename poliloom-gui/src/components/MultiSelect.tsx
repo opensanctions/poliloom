@@ -148,13 +148,13 @@ export function MultiSelect({
           {selectedOptions.map(option => (
             <span
               key={option.value}
-              className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-indigo-100 text-indigo-800"
+              className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700"
             >
               {option.label}
               {!disabled && (
                 <button
                   type="button"
-                  className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-indigo-200 focus:outline-none focus:bg-indigo-200 text-indigo-600 font-bold text-xs leading-none"
+                  className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-blue-200 focus:outline-none focus:bg-blue-200 text-blue-600 font-bold text-xs leading-none"
                   onClick={(e) => {
                     e.stopPropagation()
                     removeOption(option.value)

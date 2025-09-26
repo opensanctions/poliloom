@@ -1,13 +1,17 @@
-import { Property, PropertyType } from '@/types';
-import { parseWikidataDate } from '@/lib/wikidata/dateParser';
-import { parsePositionQualifiers, formatPositionDates } from '@/lib/wikidata/qualifierParser';
-import { EvaluationActions } from './EvaluationActions';
-import { StatementSource } from './StatementSource';
+import { Property, PropertyType } from "@/types";
+import { parseWikidataDate } from "@/lib/wikidata/dateParser";
+import {
+  parsePositionQualifiers,
+  formatPositionDates,
+} from "@/lib/wikidata/qualifierParser";
+import { EvaluationActions } from "./EvaluationActions";
+import { StatementSource } from "./StatementSource";
+import { WikidataMetadata } from "./WikidataMetadata";
 
 interface PropertyDisplayProps {
   property: Property;
   evaluations: Map<string, boolean>;
-  onAction: (propertyId: string, action: 'confirm' | 'discard') => void;
+  onAction: (propertyId: string, action: "confirm" | "discard") => void;
   onShowArchived: (property: Property) => void;
   onHover: (property: Property) => void;
   activeArchivedPageId: string | null;
@@ -19,7 +23,7 @@ export function PropertyDisplay({
   onAction,
   onShowArchived,
   onHover,
-  activeArchivedPageId
+  activeArchivedPageId,
 }: PropertyDisplayProps) {
   const renderPropertyContent = () => {
     switch (property.type) {
@@ -27,21 +31,29 @@ export function PropertyDisplay({
       case PropertyType.P570:
         // Date properties
         if (property.value && property.value_precision) {
-          const parsed = parseWikidataDate(property.value, property.value_precision);
+          const parsed = parseWikidataDate(
+            property.value,
+            property.value_precision,
+          );
           return <span className="text-gray-700 flex-1">{parsed.display}</span>;
         }
-        return <span className="text-gray-700 flex-1">{property.value || 'Unknown'}</span>;
+        return (
+          <span className="text-gray-700 flex-1">
+            {property.value || "Unknown"}
+          </span>
+        );
 
       case PropertyType.P39:
         // Position properties - show only date range since position name is in title
-        const dates = property.qualifiers ? parsePositionQualifiers(property.qualifiers) : { startDate: null, endDate: null };
+        const dates = property.qualifiers
+          ? parsePositionQualifiers(property.qualifiers)
+          : { startDate: null, endDate: null };
         const dateRange = formatPositionDates(dates);
 
-        return (
-          <span className={`flex-1 ${dates.startDate === null && dates.endDate === null ? 'text-gray-400' : 'text-gray-700'}`}>
-            {dateRange}
-          </span>
-        );
+        if (dates.startDate === null && dates.endDate === null) {
+          return null;
+        }
+        return <span className="flex-1 text-gray-700">{dateRange}</span>;
 
       case PropertyType.P19:
       case PropertyType.P27:
@@ -49,15 +61,16 @@ export function PropertyDisplay({
         return <span className="text-gray-700 flex-1"></span>;
 
       default:
-        return <span className="text-gray-700 flex-1">{property.value || property.entity_name || 'Unknown'}</span>;
+        return (
+          <span className="text-gray-700 flex-1">
+            {property.value || property.entity_name || "Unknown"}
+          </span>
+        );
     }
   };
 
   return (
-    <div
-      className="space-y-2"
-      onMouseEnter={() => onHover(property)}
-    >
+    <div className="space-y-2" onMouseEnter={() => onHover(property)}>
       <div className="flex justify-between items-start gap-4">
         {renderPropertyContent()}
         <EvaluationActions
@@ -67,14 +80,21 @@ export function PropertyDisplay({
           onAction={onAction}
         />
       </div>
-      <StatementSource
-        proofLine={property.proof_line || null}
-        archivedPage={property.archived_page || null}
-        isWikidataStatement={!!property.statement_id}
-        isActive={activeArchivedPageId === property.archived_page?.id}
-        onShowArchived={() => onShowArchived(property)}
-        onHover={() => onHover(property)}
-      />
+      {!!property.statement_id ? (
+        <WikidataMetadata
+          qualifiers={property.qualifiers}
+          references={property.references}
+        />
+      ) : (
+        <StatementSource
+          proofLine={property.proof_line || null}
+          archivedPage={property.archived_page || null}
+          isWikidataStatement={!!property.statement_id}
+          isActive={activeArchivedPageId === property.archived_page?.id}
+          onShowArchived={() => onShowArchived(property)}
+          onHover={() => onHover(property)}
+        />
+      )}
     </div>
   );
 }
