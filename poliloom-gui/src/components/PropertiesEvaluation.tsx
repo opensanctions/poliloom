@@ -52,25 +52,79 @@ export function PropertiesEvaluation({
     }
   };
 
-  // Group properties by section for ordering
-  const sections = [
-    {
-      title: 'Properties',
-      properties: properties.filter(p => [PropertyType.P569, PropertyType.P570].includes(p.type))
-    },
-    {
-      title: 'Political Positions',
-      properties: properties.filter(p => p.type === PropertyType.P39)
-    },
-    {
-      title: 'Birthplaces',
-      properties: properties.filter(p => p.type === PropertyType.P19)
-    },
-    {
-      title: 'Citizenships',
-      properties: properties.filter(p => p.type === PropertyType.P27)
+  const getGroupedProperties = () => {
+    const sections = [];
+
+    // Group properties by type for section organization
+    const propertiesByType = new Map<PropertyType, Property[]>();
+    properties.forEach(property => {
+      if (!propertiesByType.has(property.type)) {
+        propertiesByType.set(property.type, []);
+      }
+      propertiesByType.get(property.type)!.push(property);
+    });
+
+    // Process each property type
+    propertiesByType.forEach((typeProperties, propertyType) => {
+      const sectionTitle = getSectionTitle(propertyType);
+      const hasEntity = typeProperties.some(p => p.entity_id || p.entity_name);
+
+      if (hasEntity) {
+        // Entity-based properties: group by entity
+        const entityGroups = new Map<string, Property[]>();
+
+        typeProperties.forEach(property => {
+          const key = property.entity_id || property.entity_name || 'Unknown';
+          if (!entityGroups.has(key)) {
+            entityGroups.set(key, []);
+          }
+          entityGroups.get(key)!.push(property);
+        });
+
+        sections.push({
+          title: sectionTitle,
+          items: Array.from(entityGroups.entries()).map(([entityKey, entityProperties]) => {
+            const firstProperty = entityProperties[0];
+            return {
+              title: getPropertyTitle(firstProperty),
+              properties: entityProperties,
+              key: entityKey
+            };
+          })
+        });
+      } else {
+        // Value-based properties: group by property type
+        sections.push({
+          title: sectionTitle,
+          items: [{
+            title: getPropertyTitle(typeProperties[0]),
+            properties: typeProperties,
+            key: propertyType
+          }]
+        });
+      }
+    });
+
+    return sections;
+  };
+
+  const getSectionTitle = (propertyType: PropertyType): string => {
+    switch (propertyType) {
+      case PropertyType.P569:
+      case PropertyType.P570:
+        return 'Properties';
+      case PropertyType.P39:
+        return 'Political Positions';
+      case PropertyType.P19:
+        return 'Birthplaces';
+      case PropertyType.P27:
+        return 'Citizenships';
+      default:
+        return 'Other Properties';
     }
-  ].filter(section => section.properties.length > 0);
+  };
+
+  const sections = getGroupedProperties();
 
   return (
     <div className="space-y-8">
@@ -78,24 +132,32 @@ export function PropertiesEvaluation({
         <div key={section.title} className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">{section.title}</h2>
           <div className="space-y-4">
-            {section.properties.map((property) => (
+            {section.items.map((item) => (
               <EvaluationItem
-                key={property.id}
-                title={getPropertyTitle(property)}
+                key={item.key}
+                title={item.title}
                 onHover={() => {
-                  if (property.archived_page && !property.statement_id) {
-                    onHover(property);
+                  const firstWithArchive = item.properties.find(
+                    (p) => p.archived_page && !p.statement_id
+                  );
+                  if (firstWithArchive) {
+                    onHover(firstWithArchive);
                   }
                 }}
               >
-                <PropertyDisplay
-                  property={property}
-                  evaluations={evaluations}
-                  onAction={onAction}
-                  onShowArchived={onShowArchived}
-                  onHover={onHover}
-                  activeArchivedPageId={activeArchivedPageId}
-                />
+                {item.properties.map((property, index) => (
+                  <div key={property.id}>
+                    {index > 0 && <hr className="border-gray-300 my-2" />}
+                    <PropertyDisplay
+                      property={property}
+                      evaluations={evaluations}
+                      onAction={onAction}
+                      onShowArchived={onShowArchived}
+                      onHover={onHover}
+                      activeArchivedPageId={activeArchivedPageId}
+                    />
+                  </div>
+                ))}
               </EvaluationItem>
             ))}
           </div>
