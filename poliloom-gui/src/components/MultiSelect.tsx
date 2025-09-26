@@ -38,6 +38,7 @@ export function MultiSelect({
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false)
         setSearchTerm("")
+        setFocusedIndex(-1)
       }
     }
 
@@ -106,6 +107,7 @@ export function MultiSelect({
         e.preventDefault()
         if (focusedIndex >= 0 && focusedIndex < filteredOptions.length) {
           toggleOption(filteredOptions[focusedIndex].value)
+          setSearchTerm("")
         }
         break
       case 'Tab':
@@ -153,7 +155,10 @@ export function MultiSelect({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={handleKeyDown}
-              onFocus={() => setIsOpen(true)}
+              onFocus={() => {
+                setIsOpen(true)
+                setFocusedIndex(-1)
+              }}
               className="w-full border-none outline-none text-sm bg-transparent text-gray-900 placeholder-gray-400"
               placeholder={selectedOptions.length === 0 ? placeholder : "Search..."}
               disabled={disabled || loading}
@@ -166,7 +171,10 @@ export function MultiSelect({
             )}
             <button
               type="button"
-              onClick={() => setIsOpen(!isOpen)}
+              onClick={() => {
+                setIsOpen(!isOpen)
+                setFocusedIndex(-1)
+              }}
               disabled={disabled || loading}
               className="text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed"
             >
