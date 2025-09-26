@@ -33,50 +33,20 @@ export function PropertyDisplay({
         return <span className="text-gray-700 flex-1">{property.value || 'Unknown'}</span>;
 
       case PropertyType.P39:
-        // Position properties
-        const positionDisplay = property.entity_name || property.entity_id || 'Unknown Position';
-        const wikiLink = property.entity_id ? (
-          <a
-            href={`https://www.wikidata.org/wiki/${property.entity_id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:underline text-blue-600"
-          >
-            {positionDisplay} <span className="text-gray-500 font-normal">({property.entity_id})</span>
-          </a>
-        ) : positionDisplay;
-
+        // Position properties - show only date range since position name is in title
         const dates = property.qualifiers ? parsePositionQualifiers(property.qualifiers) : { startDate: null, endDate: null };
         const dateRange = formatPositionDates(dates);
 
-        return (
-          <div className="flex-1">
-            <div className="text-gray-700">{wikiLink}</div>
-            {dateRange && (
-              <p className="text-gray-600 text-sm mt-1">{dateRange}</p>
-            )}
-          </div>
+        return dateRange ? (
+          <span className="text-gray-700 flex-1">{dateRange}</span>
+        ) : (
+          <span className="text-gray-700 flex-1"></span>
         );
 
       case PropertyType.P19:
       case PropertyType.P27:
-        // Place/citizenship properties
-        const entityDisplay = property.entity_name || property.entity_id || 'Unknown';
-        if (property.entity_id) {
-          return (
-            <span className="text-gray-700 flex-1">
-              <a
-                href={`https://www.wikidata.org/wiki/${property.entity_id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:underline text-blue-600"
-              >
-                {entityDisplay} <span className="text-gray-500 font-normal">({property.entity_id})</span>
-              </a>
-            </span>
-          );
-        }
-        return <span className="text-gray-700 flex-1">{entityDisplay}</span>;
+        // Place/citizenship properties - no content needed as entity name is shown in title
+        return <span className="text-gray-700 flex-1"></span>;
 
       default:
         return <span className="text-gray-700 flex-1">{property.value || property.entity_name || 'Unknown'}</span>;
