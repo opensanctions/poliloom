@@ -51,7 +51,7 @@ export function PropertyDisplay({
         const dateRange = formatPositionDates(dates);
 
         if (dates.startDate === null && dates.endDate === null) {
-          return null;
+          return <span className="flex-1 text-gray-400 italic">No timeframe specified</span>;
         }
         return <span className="flex-1 text-gray-700">{dateRange}</span>;
 

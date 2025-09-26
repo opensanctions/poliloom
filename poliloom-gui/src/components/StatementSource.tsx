@@ -25,7 +25,7 @@ export function StatementSource({
             onClick={onShowArchived}
             className={`text-sm font-medium px-2 py-1 rounded transition-colors cursor-pointer ${
               isActive
-                ? "bg-gray-200 text-gray-800 hover:bg-gray-300"
+                ? "bg-blue-700 text-white hover:bg-blue-800"
                 : "bg-blue-100 text-blue-700 hover:bg-blue-200"
             }`}
           >

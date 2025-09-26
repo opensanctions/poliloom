@@ -13,7 +13,7 @@ export function EvaluationActions({
 }: EvaluationActionsProps) {
   return (
     <div className="flex gap-2">
-{!isWikidataStatement && (
+      {!isWikidataStatement ? (
         <button
           onClick={() => onAction(statementId, "confirm")}
           className={`px-2 py-1 text-sm font-medium rounded transition-colors cursor-pointer ${
@@ -24,6 +24,10 @@ export function EvaluationActions({
         >
           ✓ Confirm
         </button>
+      ) : (
+        <span className="px-2 py-1 text-sm font-medium text-gray-500 bg-gray-100 rounded">
+          Current in Wikidata
+        </span>
       )}
       <button
         onClick={() => onAction(statementId, "discard")}
