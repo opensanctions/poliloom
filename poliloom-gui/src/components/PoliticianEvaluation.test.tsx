@@ -130,9 +130,7 @@ describe('PoliticianEvaluation', () => {
       json: async () => ({
         success: true,
         message: 'Success',
-        property_count: 1,
-        position_count: 1,
-        birthplace_count: 1,
+        evaluation_count: 1,
         errors: [],
       }),
     } as Response);
@@ -146,15 +144,13 @@ describe('PoliticianEvaluation', () => {
     fireEvent.click(submitButton);
     
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith('/api/politicians/evaluate', {
+      expect(fetch).toHaveBeenCalledWith('/api/evaluations', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          property_evaluations: [{ id: 'prop-1', is_confirmed: true }],
-          position_evaluations: [],
-          birthplace_evaluations: [],
+          evaluations: [{ id: 'prop-1', is_confirmed: true }],
         }),
       });
     });
@@ -268,9 +264,7 @@ describe('PoliticianEvaluation', () => {
           json: async () => ({
             success: true,
             message: 'Success',
-            property_count: 1,
-            position_count: 1,
-            birthplace_count: 1,
+            evaluation_count: 1,
             errors: [],
           }),
         } as Response);
@@ -289,7 +283,7 @@ describe('PoliticianEvaluation', () => {
 
         // Should call API and progress to next
         await waitFor(() => {
-          expect(fetch).toHaveBeenCalledWith('/api/politicians/evaluate', expect.any(Object));
+          expect(fetch).toHaveBeenCalledWith('/api/evaluations', expect.any(Object));
         });
 
         await waitFor(() => {

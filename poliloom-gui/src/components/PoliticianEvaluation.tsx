@@ -110,7 +110,7 @@ export function PoliticianEvaluation({
         evaluations: evaluationItems,
       };
 
-      const response = await fetch("/api/politicians/evaluate", {
+      const response = await fetch("/api/evaluations", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

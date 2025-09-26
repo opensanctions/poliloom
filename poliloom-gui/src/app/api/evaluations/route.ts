@@ -4,11 +4,11 @@ import { fetchWithAuth, handleApiError } from '@/lib/api-auth';
 export async function POST(request: NextRequest) {
   try {
     const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:8000';
-    const url = `${apiBaseUrl}/politicians/evaluate`;
-    
+    const url = `${apiBaseUrl}/evaluations/`;
+
     // Get the request body
     const body = await request.json();
-    
+
     const response = await fetchWithAuth(url, {
       method: 'POST',
       headers: {
@@ -32,6 +32,6 @@ export async function POST(request: NextRequest) {
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    return handleApiError(error, 'POST /api/politicians/evaluate');
+    return handleApiError(error, 'POST /api/evaluations');
   }
 }
