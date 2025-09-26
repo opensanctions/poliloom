@@ -49,3 +49,14 @@ export interface EvaluationResponse {
   evaluation_count: number;
   errors: string[];
 }
+
+export interface PreferenceResponse {
+  qid: string;
+  name: string;
+  preference_type: string;
+}
+
+export enum PreferenceType {
+  LANGUAGE = "language",
+  COUNTRY = "country"
+}

@@ -27,6 +27,12 @@ export function Header() {
                 <div className="text-sm text-gray-700">
                   Welcome, {session.user.name || session.user.email}
                 </div>
+                <Link
+                  href="/preferences"
+                  className="text-sm text-gray-600 hover:text-gray-800 transition-colors font-medium"
+                >
+                  Preferences
+                </Link>
                 <button
                   onClick={() => signOut()}
                   className="text-sm text-gray-500 hover:text-gray-700 font-medium"
