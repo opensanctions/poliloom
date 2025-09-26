@@ -279,8 +279,8 @@ class Preference(Base, TimestampMixin):
     id = Column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
-    user_id = Column(String, nullable=False)
-    preference_type = Column(SQLEnum(PreferenceType), nullable=False)
+    user_id = Column(String, nullable=False, index=True)
+    preference_type = Column(SQLEnum(PreferenceType), nullable=False, index=True)
     entity_id = Column(
         String, ForeignKey("wikidata_entities.wikidata_id"), nullable=False
     )

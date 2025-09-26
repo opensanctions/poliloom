@@ -46,11 +46,6 @@ export function MultiSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Create collator for diacritic-insensitive comparison
-  const collator = new Intl.Collator('en', {
-    sensitivity: 'base',
-    ignorePunctuation: true
-  })
 
   // Normalize text for searching (removes diacritics)
   const normalizeText = (text: string) =>

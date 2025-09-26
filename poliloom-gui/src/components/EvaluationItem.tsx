@@ -17,7 +17,7 @@ export function EvaluationItem({
       onMouseEnter={onHover}
     >
       <h3
-        className="font-medium text-gray-900 mb-2"
+        className="font-medium text-gray-900 mb-3"
         dangerouslySetInnerHTML={{ __html: title }}
       />
       <div className="space-y-3">{children}</div>

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { PreferenceResponse, PreferenceType } from '@/types'
 
@@ -69,7 +69,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   }
 
   // Fetch preferences from server
-  const fetchPreferences = async () => {
+  const fetchPreferences = useCallback(async () => {
     if (status !== 'authenticated') return
 
     setLoading(true)
@@ -99,7 +99,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     } finally {
       setLoading(false)
     }
-  }
+  }, [status])
 
   // Update preferences on server and locally
   const updatePreferences = async (preferenceType: PreferenceType, qids: string[]) => {
@@ -145,7 +145,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     if (status === 'authenticated') {
       fetchPreferences()
     }
-  }, [status])
+  }, [status, fetchPreferences])
 
   const value: PreferencesContextType = {
     languagePreferences,

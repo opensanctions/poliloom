@@ -3,7 +3,8 @@ import { proxyToBackend } from '@/lib/api-auth';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { preference_type: string } }
+  { params }: { params: Promise<{ preference_type: string }> }
 ) {
-  return proxyToBackend(request, `/preferences/${params.preference_type}`);
+  const { preference_type } = await params;
+  return proxyToBackend(request, `/preferences/${preference_type}`);
 }
