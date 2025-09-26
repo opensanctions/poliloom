@@ -62,54 +62,61 @@ export function PropertiesEvaluation({
       }>;
     }> = [];
 
-    // Group properties by type for section organization
-    const propertiesByType = new Map<PropertyType, Property[]>();
+    // Collect date properties (birth/death)
+    const dateProps: Property[] = [];
+    const entityBasedProps = new Map<PropertyType, Property[]>();
+
     properties.forEach(property => {
-      if (!propertiesByType.has(property.type)) {
-        propertiesByType.set(property.type, []);
+      if (property.type === PropertyType.P569 || property.type === PropertyType.P570) {
+        dateProps.push(property);
+      } else {
+        if (!entityBasedProps.has(property.type)) {
+          entityBasedProps.set(property.type, []);
+        }
+        entityBasedProps.get(property.type)!.push(property);
       }
-      propertiesByType.get(property.type)!.push(property);
     });
 
-    // Process each property type
-    propertiesByType.forEach((typeProperties, propertyType) => {
+    // Add Properties section (birth and death dates)
+    if (dateProps.length > 0) {
+      // Group by property type (P569 for birth, P570 for death)
+      const dateGroups = new Map<PropertyType, Property[]>();
+      dateProps.forEach(prop => {
+        if (!dateGroups.has(prop.type)) {
+          dateGroups.set(prop.type, []);
+        }
+        dateGroups.get(prop.type)!.push(prop);
+      });
+
+      const items = Array.from(dateGroups.entries()).map(([type, props]) => ({
+        title: getPropertyTitle(props[0]),
+        properties: props,
+        key: type
+      }));
+      sections.push({ title: 'Properties', items });
+    }
+
+    // Process entity-based properties (positions, birthplaces, citizenships)
+    entityBasedProps.forEach((typeProperties, propertyType) => {
       const sectionTitle = getSectionTitle(propertyType);
-      const hasEntity = typeProperties.some(p => p.entity_id || p.entity_name);
 
-      if (hasEntity) {
-        // Entity-based properties: group by entity
-        const entityGroups = new Map<string, Property[]>();
+      // Group by entity_id
+      const entityGroups = new Map<string, Property[]>();
+      typeProperties.forEach(property => {
+        const key = property.entity_id!;
+        if (!entityGroups.has(key)) {
+          entityGroups.set(key, []);
+        }
+        entityGroups.get(key)!.push(property);
+      });
 
-        typeProperties.forEach(property => {
-          const key = property.entity_id || property.entity_name || 'Unknown';
-          if (!entityGroups.has(key)) {
-            entityGroups.set(key, []);
-          }
-          entityGroups.get(key)!.push(property);
-        });
+      const items = Array.from(entityGroups.entries()).map(([entityKey, entityProperties]) => ({
+        title: getPropertyTitle(entityProperties[0]),
+        properties: entityProperties,
+        key: entityKey
+      }));
 
-        sections.push({
-          title: sectionTitle,
-          items: Array.from(entityGroups.entries()).map(([entityKey, entityProperties]) => {
-            const firstProperty = entityProperties[0];
-            return {
-              title: getPropertyTitle(firstProperty),
-              properties: entityProperties,
-              key: entityKey
-            };
-          })
-        });
-      } else {
-        // Value-based properties: group by property type
-        sections.push({
-          title: sectionTitle,
-          items: [{
-            title: getPropertyTitle(typeProperties[0]),
-            properties: typeProperties,
-            key: propertyType
-          }]
-        });
-      }
+      sections.push({ title: sectionTitle, items });
     });
 
     return sections;
