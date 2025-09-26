@@ -12,7 +12,9 @@ export default function PreferencesPage() {
   const {
     preferences,
     updating,
-    error: preferencesError
+    error: preferencesError,
+    updateLanguagePreferences,
+    updateCountryPreferences
   } = usePreferences()
 
   const [languages, setLanguages] = useState<LanguageResponse[]>([])
@@ -21,16 +23,6 @@ export default function PreferencesPage() {
   const [loadingCountries, setLoadingCountries] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const updatePreferences = async (type: PreferenceType, qids: string[]) => {
-    const response = await fetch(`/api/preferences/${type}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entity_qids: qids })
-    })
-    if (!response.ok) {
-      throw new Error(`Failed to update ${type} preferences`)
-    }
-  }
 
   const getSelectedQids = (type: PreferenceType) =>
     preferences.filter(p => p.preference_type === type).map(p => p.qid)
@@ -78,24 +70,6 @@ export default function PreferencesPage() {
     fetchCountries()
   }, [])
 
-  const handleSave = async () => {
-    try {
-      await Promise.all([
-        updateLanguagePreferences(selectedLanguages),
-        updateCountryPreferences(selectedCountries)
-      ])
-      router.push('/')
-    } catch (err) {
-      // Error is already handled by the hook
-      console.error('Failed to save preferences:', err)
-    }
-  }
-
-  const handleCancel = () => {
-    setSelectedLanguages(languagePreferences)
-    setSelectedCountries(countryPreferences)
-    router.push('/')
-  }
 
   // Convert languages to MultiSelect options
   const languageOptions: MultiSelectOption[] = languages.map(lang => ({
@@ -143,7 +117,7 @@ export default function PreferencesPage() {
                 <MultiSelect
                   options={languageOptions}
                   selected={getSelectedQids(PreferenceType.LANGUAGE)}
-                  onChange={(qids) => updatePreferences(PreferenceType.LANGUAGE, qids)}
+                  onChange={updateLanguagePreferences}
                   placeholder="Select languages..."
                   loading={loadingLanguages}
                   disabled={updating}
@@ -160,7 +134,7 @@ export default function PreferencesPage() {
                 <MultiSelect
                   options={countryOptions}
                   selected={getSelectedQids(PreferenceType.COUNTRY)}
-                  onChange={(qids) => updatePreferences(PreferenceType.COUNTRY, qids)}
+                  onChange={updateCountryPreferences}
                   placeholder="Select countries..."
                   loading={loadingCountries}
                   disabled={updating}
