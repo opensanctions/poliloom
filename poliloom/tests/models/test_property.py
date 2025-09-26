@@ -539,3 +539,38 @@ class TestPropertyShouldStore:
         )
 
         assert new_property.should_store(db_session) is False
+
+    def test_should_store_position_no_dates_when_dates_exist(
+        self, db_session, sample_politician, sample_position
+    ):
+        """Test not storing position without dates when position with dates exists."""
+        politician = sample_politician
+        position = sample_position
+
+        # Create existing position with dates (May 24, 2016 - present)
+        existing_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            qualifiers_json={
+                "P580": [
+                    {
+                        "datavalue": {
+                            "value": {"time": "+2016-05-24T00:00:00Z", "precision": 11}
+                        }
+                    }
+                ]
+            },
+        )
+        db_session.add(existing_property)
+        db_session.commit()
+
+        # Try to store same position without any dates
+        new_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            qualifiers_json=None,  # No dates specified
+        )
+
+        assert new_property.should_store(db_session) is False

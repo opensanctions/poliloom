@@ -763,6 +763,12 @@ class Property(Base, TimestampMixin, SoftDeleteMixin):
                         end_data["time"], end_data["precision"]
                     )
 
+            # Don't store position without dates when we already have position with dates
+            new_has_no_dates = new_start is None and new_end is None
+            existing_has_dates = existing_start is not None or existing_end is not None
+            if new_has_no_dates and existing_has_dates:
+                return False
+
             # Check if timeframes could be the same
             start_same = WikidataDate.dates_could_be_same(new_start, existing_start)
             end_same = WikidataDate.dates_could_be_same(new_end, existing_end)
