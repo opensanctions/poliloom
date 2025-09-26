@@ -89,13 +89,6 @@ export function MultiSelect({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      setIsOpen(false)
-      setSearchTerm("")
-      setFocusedIndex(-1)
-      return
-    }
-
     if (!isOpen) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault()
@@ -131,6 +124,15 @@ export function MultiSelect({
         setSearchTerm("")
         setFocusedIndex(-1)
         break
+    }
+  }
+
+  const handleBlur = (e: React.FocusEvent) => {
+    // Check if the new focus target is within our dropdown
+    if (dropdownRef.current && !dropdownRef.current.contains(e.relatedTarget as Node)) {
+      setIsOpen(false)
+      setSearchTerm("")
+      setFocusedIndex(-1)
     }
   }
 
@@ -175,6 +177,7 @@ export function MultiSelect({
                 setIsOpen(true)
                 setFocusedIndex(-1)
               }}
+              onBlur={handleBlur}
               className="w-full border-none outline-none text-sm bg-transparent text-gray-900 placeholder-gray-400"
               placeholder={selectedOptions.length === 0 ? placeholder : "Search..."}
               disabled={disabled || loading}
@@ -229,6 +232,7 @@ export function MultiSelect({
                       ? 'ring-2 ring-indigo-500 ring-inset bg-indigo-50'
                       : ''
                   }`}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => toggleOption(option.value)}
                   onMouseEnter={() => setFocusedIndex(index)}
                 >
