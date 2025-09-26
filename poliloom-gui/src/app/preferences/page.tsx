@@ -3,12 +3,15 @@
 import { useState, useEffect } from "react"
 import { Header } from "@/components/Header"
 import { MultiSelect, MultiSelectOption } from "@/components/MultiSelect"
-import { LanguageResponse } from "@/types"
+import { LanguageResponse, CountryResponse } from "@/types"
 
 export default function PreferencesPage() {
   const [languages, setLanguages] = useState<LanguageResponse[]>([])
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([])
   const [loadingLanguages, setLoadingLanguages] = useState(true)
+  const [countries, setCountries] = useState<CountryResponse[]>([])
+  const [selectedCountries, setSelectedCountries] = useState<string[]>([])
+  const [loadingCountries, setLoadingCountries] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // Fetch available languages
@@ -32,10 +35,37 @@ export default function PreferencesPage() {
     fetchLanguages()
   }, [])
 
+  // Fetch available countries
+  useEffect(() => {
+    const fetchCountries = async () => {
+      try {
+        const response = await fetch('/api/countries')
+        if (!response.ok) {
+          throw new Error(`Failed to fetch countries: ${response.statusText}`)
+        }
+        const data: CountryResponse[] = await response.json()
+        setCountries(data)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch countries')
+        console.error('Error fetching countries:', err)
+      } finally {
+        setLoadingCountries(false)
+      }
+    }
+
+    fetchCountries()
+  }, [])
+
   // Convert languages to MultiSelect options
   const languageOptions: MultiSelectOption[] = languages.map(lang => ({
     value: lang.wikidata_id,
     label: lang.name
+  }))
+
+  // Convert countries to MultiSelect options
+  const countryOptions: MultiSelectOption[] = countries.map(country => ({
+    value: country.wikidata_id,
+    label: country.name
   }))
 
   return (
@@ -83,9 +113,19 @@ export default function PreferencesPage() {
                 <p className="text-sm text-gray-500 mb-4">
                   Filter politicians based on their citizenship.
                 </p>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-500">
-                  Country multiselect component coming later...
-                </div>
+                {error ? (
+                  <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                    <p className="text-red-800 text-sm">{error}</p>
+                  </div>
+                ) : (
+                  <MultiSelect
+                    options={countryOptions}
+                    selected={selectedCountries}
+                    onChange={setSelectedCountries}
+                    placeholder="Select countries..."
+                    loading={loadingCountries}
+                  />
+                )}
               </div>
 
               <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
