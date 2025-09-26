@@ -74,8 +74,8 @@ describe('PoliticianEvaluation', () => {
     render(<PoliticianEvaluation {...defaultProps} />);
 
     expect(screen.getByText('Properties')).toBeInTheDocument();
-    expect(screen.getByText('birth_date')).toBeInTheDocument();
-    expect(screen.getByText('1970-01-01')).toBeInTheDocument();
+    expect(screen.getByText('Birth Date')).toBeInTheDocument();
+    expect(screen.getByText('January 1, 1970')).toBeInTheDocument();
     expect(screen.getByText('"born on January 1, 1970"')).toBeInTheDocument();
   });
 
@@ -85,7 +85,7 @@ describe('PoliticianEvaluation', () => {
     expect(screen.getByText('Political Positions')).toBeInTheDocument();
     expect(screen.getByText(/Mayor of Test City/)).toBeInTheDocument();
     expect(screen.getByText(/Q555777/)).toBeInTheDocument();
-    expect(screen.getByText('2020-01-01 - 2024-01-01')).toBeInTheDocument();
+    expect(screen.getByText('January 1, 2020 – January 1, 2024')).toBeInTheDocument();
     
     // Check that the Wikidata link exists
     const wikidataLink = screen.getByRole('link', { name: /Mayor of Test City.*Q555777/ });
@@ -205,7 +205,7 @@ describe('PoliticianEvaluation', () => {
         render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianWithConflicts} />);
 
         // Should show the new extracted value
-        expect(screen.getByText('1970-01-02')).toBeInTheDocument(); // New extracted value from mock data
+        expect(screen.getByText('January 2, 1970')).toBeInTheDocument(); // New extracted value from mock data
         // Note: Current/existing values might not be shown in this implementation
       });
 

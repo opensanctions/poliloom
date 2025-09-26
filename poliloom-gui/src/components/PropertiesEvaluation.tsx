@@ -53,7 +53,14 @@ export function PropertiesEvaluation({
   };
 
   const getGroupedProperties = () => {
-    const sections = [];
+    const sections: Array<{
+      title: string;
+      items: Array<{
+        title: string;
+        properties: Property[];
+        key: string;
+      }>;
+    }> = [];
 
     // Group properties by type for section organization
     const propertiesByType = new Map<PropertyType, Property[]>();
