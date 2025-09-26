@@ -60,3 +60,16 @@ export enum PreferenceType {
   LANGUAGE = "language",
   COUNTRY = "country"
 }
+
+export interface LanguageResponse {
+  wikidata_id: string;
+  name: string;
+  iso1_code?: string;
+  iso3_code?: string;
+}
+
+export interface CountryResponse {
+  wikidata_id: string;
+  name: string;
+  iso_code?: string;
+}
