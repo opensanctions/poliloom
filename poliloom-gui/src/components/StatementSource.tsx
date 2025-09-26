@@ -23,8 +23,10 @@ export function StatementSource({
         <div className="flex items-center gap-2">
           <button
             onClick={onShowArchived}
-            className={`text-blue-600 hover:text-blue-800 text-sm font-medium px-2 py-1 rounded transition-colors cursor-pointer ${
-              isActive ? 'bg-blue-100' : 'hover:bg-blue-50'
+            className={`text-sm font-medium px-2 py-1 rounded transition-colors cursor-pointer ${
+              isActive
+                ? 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
             }`}
           >
             • {isActive ? 'Viewing Source' : 'View Source'}
