@@ -20,7 +20,7 @@ interface WikidataSnak {
  * @param qualifiers - Record containing qualifier data with P580 (start) and P582 (end) properties
  * @returns Parsed start and end dates, or null if not found
  */
-export function parsePositionQualifiers(qualifiers: Record<string, any>): ParsedPositionDates {
+export function parsePositionQualifiers(qualifiers: Record<string, unknown>): ParsedPositionDates {
   let startDate: ParsedWikidataDate | null = null;
   let endDate: ParsedWikidataDate | null = null;
 

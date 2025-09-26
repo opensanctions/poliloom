@@ -95,8 +95,8 @@ export function PropertyDisplay({
         />
       </div>
       <StatementSource
-        proofLine={property.proof_line}
-        archivedPage={property.archived_page}
+        proofLine={property.proof_line || null}
+        archivedPage={property.archived_page || null}
         isWikidataStatement={!!property.statement_id}
         isActive={activeArchivedPageId === property.archived_page?.id}
         onShowArchived={() => onShowArchived(property)}

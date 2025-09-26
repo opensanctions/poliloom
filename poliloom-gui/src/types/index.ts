@@ -21,9 +21,9 @@ export interface Property {
   entity_id?: string;
   entity_name?: string;
   proof_line?: string;
-  statement_id?: string;
-  qualifiers?: Record<string, any>;
-  references?: Array<Record<string, any>>;
+  statement_id?: string | null;
+  qualifiers?: Record<string, unknown>;
+  references?: Array<Record<string, unknown>>;
   archived_page?: ArchivedPageResponse;
 }
 
