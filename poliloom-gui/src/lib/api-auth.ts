@@ -1,16 +1,15 @@
 import { auth } from '@/auth'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const session = await auth()
-  
+
   if (!session?.accessToken) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ message: "Not authenticated" }, { status: 401 })
   }
 
-  // If session has an error (like RefreshAccessTokenError), return 401
   if (session.error) {
-    return NextResponse.json({ error: 'Token refresh failed' }, { status: 401 })
+    return NextResponse.json({ message: "Token refresh failed" }, { status: 401 })
   }
 
   const response = await fetch(url, {
@@ -21,13 +20,10 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
     },
   })
 
-  // If we get a 401 from the backend, the token might have expired
-  // between our session check and the API call. The client will need to
-  // handle this by refreshing the page or making a new request.
-  if (response.status === 401) {
+  if (!response.ok) {
     return NextResponse.json(
-      { error: 'Backend authentication failed. Please refresh and try again.' },
-      { status: 401 }
+      { message: `Backend request failed: ${response.statusText}` },
+      { status: response.status }
     )
   }
 
@@ -40,4 +36,42 @@ export function handleApiError(error: unknown, context: string) {
     { error: 'Internal server error' },
     { status: 500 }
   )
+}
+
+export async function proxyToBackend(
+  request: NextRequest,
+  backendPath: string
+) {
+  const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:8000'
+
+  // Forward query parameters
+  const { searchParams } = new URL(request.url)
+  const queryString = searchParams.toString()
+  const url = `${apiBaseUrl}${backendPath}${queryString ? `?${queryString}` : ''}`
+
+  // Prepare request options
+  const requestOptions: RequestInit = {
+    method: request.method,
+  }
+
+  // Forward body for POST/PUT/PATCH requests
+  if (['POST', 'PUT', 'PATCH'].includes(request.method)) {
+    const body = await request.text()
+    if (body) {
+      requestOptions.body = body
+      requestOptions.headers = {
+        'Content-Type': 'application/json',
+      }
+    }
+  }
+
+  const response = await fetchWithAuth(url, requestOptions)
+
+  // If fetchWithAuth returned an error response, return it directly
+  if (response instanceof NextResponse) {
+    return response
+  }
+
+  const data = await response.json()
+  return NextResponse.json(data)
 }
