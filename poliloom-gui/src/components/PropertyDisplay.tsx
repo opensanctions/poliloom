@@ -54,7 +54,10 @@ export function PropertyDisplay({
   };
 
   return (
-    <div className="space-y-2">
+    <div
+      className="space-y-2"
+      onMouseEnter={() => onHover(property)}
+    >
       <div className="flex justify-between items-start gap-4">
         {renderPropertyContent()}
         <EvaluationActions
