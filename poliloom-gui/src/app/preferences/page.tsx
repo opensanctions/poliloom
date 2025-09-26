@@ -1,18 +1,40 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Header } from "@/components/Header"
 import { MultiSelect, MultiSelectOption } from "@/components/MultiSelect"
-import { LanguageResponse, CountryResponse } from "@/types"
+import { usePreferences } from "@/hooks/usePreferences"
+import { LanguageResponse, CountryResponse, PreferenceType } from "@/types"
 
 export default function PreferencesPage() {
+  const router = useRouter()
+  const {
+    preferences,
+    updating,
+    error: preferencesError
+  } = usePreferences()
+
   const [languages, setLanguages] = useState<LanguageResponse[]>([])
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([])
   const [loadingLanguages, setLoadingLanguages] = useState(true)
   const [countries, setCountries] = useState<CountryResponse[]>([])
-  const [selectedCountries, setSelectedCountries] = useState<string[]>([])
   const [loadingCountries, setLoadingCountries] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const updatePreferences = async (type: PreferenceType, qids: string[]) => {
+    const response = await fetch(`/api/preferences/${type}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entity_qids: qids })
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to update ${type} preferences`)
+    }
+  }
+
+  const getSelectedQids = (type: PreferenceType) =>
+    preferences.filter(p => p.preference_type === type).map(p => p.qid)
+
 
   // Fetch available languages
   useEffect(() => {
@@ -56,6 +78,25 @@ export default function PreferencesPage() {
     fetchCountries()
   }, [])
 
+  const handleSave = async () => {
+    try {
+      await Promise.all([
+        updateLanguagePreferences(selectedLanguages),
+        updateCountryPreferences(selectedCountries)
+      ])
+      router.push('/')
+    } catch (err) {
+      // Error is already handled by the hook
+      console.error('Failed to save preferences:', err)
+    }
+  }
+
+  const handleCancel = () => {
+    setSelectedLanguages(languagePreferences)
+    setSelectedCountries(countryPreferences)
+    router.push('/')
+  }
+
   // Convert languages to MultiSelect options
   const languageOptions: MultiSelectOption[] = languages.map(lang => ({
     value: lang.wikidata_id,
@@ -67,6 +108,8 @@ export default function PreferencesPage() {
     value: country.wikidata_id,
     label: country.name
   }))
+
+  const displayError = error || preferencesError
 
   return (
     <>
@@ -84,6 +127,12 @@ export default function PreferencesPage() {
             </div>
 
             <div className="px-6 py-6 space-y-8">
+              {displayError && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                  <p className="text-red-800 text-sm">{displayError}</p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Languages
@@ -91,19 +140,14 @@ export default function PreferencesPage() {
                 <p className="text-sm text-gray-500 mb-4">
                   Filter politicians based on the languages of their source documents.
                 </p>
-                {error ? (
-                  <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                    <p className="text-red-800 text-sm">{error}</p>
-                  </div>
-                ) : (
-                  <MultiSelect
-                    options={languageOptions}
-                    selected={selectedLanguages}
-                    onChange={setSelectedLanguages}
-                    placeholder="Select languages..."
-                    loading={loadingLanguages}
-                  />
-                )}
+                <MultiSelect
+                  options={languageOptions}
+                  selected={getSelectedQids(PreferenceType.LANGUAGE)}
+                  onChange={(qids) => updatePreferences(PreferenceType.LANGUAGE, qids)}
+                  placeholder="Select languages..."
+                  loading={loadingLanguages}
+                  disabled={updating}
+                />
               </div>
 
               <div>
@@ -113,35 +157,16 @@ export default function PreferencesPage() {
                 <p className="text-sm text-gray-500 mb-4">
                   Filter politicians based on their citizenship.
                 </p>
-                {error ? (
-                  <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                    <p className="text-red-800 text-sm">{error}</p>
-                  </div>
-                ) : (
-                  <MultiSelect
-                    options={countryOptions}
-                    selected={selectedCountries}
-                    onChange={setSelectedCountries}
-                    placeholder="Select countries..."
-                    loading={loadingCountries}
-                  />
-                )}
+                <MultiSelect
+                  options={countryOptions}
+                  selected={getSelectedQids(PreferenceType.COUNTRY)}
+                  onChange={(qids) => updatePreferences(PreferenceType.COUNTRY, qids)}
+                  placeholder="Select countries..."
+                  loading={loadingCountries}
+                  disabled={updating}
+                />
               </div>
 
-              <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
-                <button
-                  type="button"
-                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  Save Preferences
-                </button>
-              </div>
             </div>
           </div>
         </div>
