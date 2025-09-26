@@ -28,6 +28,7 @@ export function MultiSelect({
 }: MultiSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [focusedIndex, setFocusedIndex] = useState(-1)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -51,6 +52,11 @@ export function MultiSelect({
     )
     .sort((a, b) => a.label.localeCompare(b.label))
 
+  // Reset focused index when filtered options change
+  useEffect(() => {
+    setFocusedIndex(-1)
+  }, [filteredOptions.length, searchTerm])
+
   const selectedOptions = options.filter(option => selected.includes(option.value))
 
   const toggleOption = (value: string) => {
@@ -69,6 +75,44 @@ export function MultiSelect({
     if (e.key === 'Escape') {
       setIsOpen(false)
       setSearchTerm("")
+      setFocusedIndex(-1)
+      return
+    }
+
+    if (!isOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        setIsOpen(true)
+        setFocusedIndex(0)
+      }
+      return
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setFocusedIndex(prev =>
+          prev < filteredOptions.length - 1 ? prev + 1 : 0
+        )
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setFocusedIndex(prev =>
+          prev > 0 ? prev - 1 : filteredOptions.length - 1
+        )
+        break
+      case 'Enter':
+      case ' ':
+        e.preventDefault()
+        if (focusedIndex >= 0 && focusedIndex < filteredOptions.length) {
+          toggleOption(filteredOptions[focusedIndex].value)
+        }
+        break
+      case 'Tab':
+        setIsOpen(false)
+        setSearchTerm("")
+        setFocusedIndex(-1)
+        break
     }
   }
 
@@ -146,15 +190,23 @@ export function MultiSelect({
               {searchTerm ? 'No matching options' : 'No options available'}
             </div>
           ) : (
-            filteredOptions.map(option => {
+            filteredOptions.map((option, index) => {
               const isSelected = selected.includes(option.value)
+              const isFocused = index === focusedIndex
               return (
                 <div
                   key={option.value}
                   className={`px-3 py-2 cursor-pointer text-sm hover:bg-gray-50 ${
-                    isSelected ? 'bg-indigo-50 text-indigo-700' : 'text-gray-900'
+                    isSelected
+                      ? 'bg-indigo-50 text-indigo-700'
+                      : 'text-gray-900'
+                  } ${
+                    isFocused
+                      ? 'ring-2 ring-indigo-500 ring-inset bg-indigo-50'
+                      : ''
                   }`}
                   onClick={() => toggleOption(option.value)}
+                  onMouseEnter={() => setFocusedIndex(index)}
                 >
                   <div className="flex items-center justify-between">
                     <span>{option.label}</span>
