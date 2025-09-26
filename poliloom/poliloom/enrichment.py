@@ -380,12 +380,11 @@ def map_to_wikidata_entity(
         # Build politician context for stage 2 mapping
         politician_context = politician.to_xml_context()
 
-        entity_label = "position" if entity_type == "position" else "birthplace"
-        user_prompt = f"""Map this extracted {entity_label} to the correct Wikidata {entity_type}:
+        user_prompt = f"""Map this extracted {entity_type} to the correct Wikidata {entity_type}:
 
 {politician_context}
 
-Extracted {entity_label.title()}: "{extracted_name}"
+Extracted {entity_type.title()}: "{extracted_name}"
 Proof Context: "{proof_text}"
 
 Candidate Wikidata {entity_type.title()}s:

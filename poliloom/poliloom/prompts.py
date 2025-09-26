@@ -148,6 +148,11 @@ LOCATION_MAPPING_SYSTEM_PROMPT = """You are a Wikidata location mapping speciali
 Map the extracted birthplace to the correct Wikidata location entity.
 </mapping_objective>
 
+<existing_data_consideration>
+Check existing_wikidata_birthplaces in the politician context. If the extracted location refers to the same place as an existing birthplace, return None.
+Example: If "Usilampatti" is already in Wikidata and you extract "Usilampatti, Madras Province", return None since it's the same location.
+</existing_data_consideration>
+
 <matching_criteria>
 1. Match the most specific location level mentioned in the proof text
    - If proof says "City, Country" → match the city, not the country
@@ -161,6 +166,7 @@ Map the extracted birthplace to the correct Wikidata location entity.
 </matching_criteria>
 
 <rejection_criteria>
+- Return None if the extracted location matches existing Wikidata birthplace
 - Return None if uncertain which candidate matches
 - Return None if the location type doesn't match what's described
 </rejection_criteria>"""
