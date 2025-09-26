@@ -3,22 +3,16 @@
 import { useState, useRef, useEffect } from "react";
 import {
   Politician,
-  PropertyStatement,
-  PositionStatement,
-  BirthplaceStatement,
+  Property,
   EvaluationRequest,
-  PropertyEvaluationItem,
-  PositionEvaluationItem,
-  BirthplaceEvaluationItem,
+  EvaluationItem,
   ArchivedPageResponse,
   EvaluationResponse,
 } from "@/types";
 import { useIframeAutoHighlight } from "@/hooks/useIframeHighlighting";
 import { highlightTextInScope } from "@/lib/textHighlighter";
 import { useArchivedPageCache } from "@/contexts/ArchivedPageContext";
-import { PropertyEvaluation } from "./PropertyEvaluation";
-import { PositionEvaluation } from "./PositionEvaluation";
-import { BirthplaceEvaluation } from "./BirthplaceEvaluation";
+import { PropertiesEvaluation } from "./PropertiesEvaluation";
 
 interface PoliticianEvaluationProps {
   politician: Politician;
@@ -29,15 +23,9 @@ export function PoliticianEvaluation({
   politician,
   onNext,
 }: PoliticianEvaluationProps) {
-  const [propertyEvaluations, setPropertyEvaluations] = useState<
-    Map<string, boolean>
-  >(new Map());
-  const [positionEvaluations, setPositionEvaluations] = useState<
-    Map<string, boolean>
-  >(new Map());
-  const [birthplaceEvaluations, setBirthplaceEvaluations] = useState<
-    Map<string, boolean>
-  >(new Map());
+  const [evaluations, setEvaluations] = useState<Map<string, boolean>>(
+    new Map(),
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedArchivedPage, setSelectedArchivedPage] =
     useState<ArchivedPageResponse | null>(null);
@@ -45,11 +33,9 @@ export function PoliticianEvaluation({
     null,
   );
 
-  // Helper function to find first statement with archived page
-  const findFirstStatementWithArchive = (
-    statements: (PropertyStatement | PositionStatement | BirthplaceStatement)[],
-  ) => {
-    return statements.find((s) => s.archived_page);
+  // Helper function to find first property with archived page
+  const findFirstPropertyWithArchive = (properties: Property[]) => {
+    return properties.find((p) => p.archived_page);
   };
 
   // Refs and hooks for iframe highlighting
@@ -61,13 +47,7 @@ export function PoliticianEvaluation({
 
   // Auto-load first archived page found
   useEffect(() => {
-    const allStatements = [
-      ...politician.properties.flatMap((p) => p.statements),
-      ...politician.positions.flatMap((p) => p.statements),
-      ...politician.birthplaces.flatMap((b) => b.statements),
-    ];
-
-    const firstWithArchive = findFirstStatementWithArchive(allStatements);
+    const firstWithArchive = findFirstPropertyWithArchive(politician.properties);
     if (firstWithArchive && firstWithArchive.archived_page) {
       setSelectedArchivedPage(firstWithArchive.archived_page);
       setSelectedProofLine(firstWithArchive.proof_line || null);
@@ -87,11 +67,8 @@ export function PoliticianEvaluation({
     }
   }, [selectedProofLine, isIframeLoaded, handleProofLineChange]);
 
-  const handlePropertyAction = (
-    propertyId: string,
-    action: "confirm" | "discard",
-  ) => {
-    setPropertyEvaluations((prev) => {
+  const handleEvaluate = (propertyId: string, action: "confirm" | "discard") => {
+    setEvaluations((prev) => {
       const newMap = new Map(prev);
       const currentValue = newMap.get(propertyId);
       const targetValue = action === "confirm";
@@ -107,88 +84,30 @@ export function PoliticianEvaluation({
     });
   };
 
-  const handlePositionAction = (
-    positionId: string,
-    action: "confirm" | "discard",
-  ) => {
-    setPositionEvaluations((prev) => {
-      const newMap = new Map(prev);
-      const currentValue = newMap.get(positionId);
-      const targetValue = action === "confirm";
-
-      if (currentValue === targetValue) {
-        // Toggle off - remove from map
-        newMap.delete(positionId);
-      } else {
-        // Set new value
-        newMap.set(positionId, targetValue);
-      }
-      return newMap;
-    });
-  };
-
-  const handleBirthplaceAction = (
-    birthplaceId: string,
-    action: "confirm" | "discard",
-  ) => {
-    setBirthplaceEvaluations((prev) => {
-      const newMap = new Map(prev);
-      const currentValue = newMap.get(birthplaceId);
-      const targetValue = action === "confirm";
-
-      if (currentValue === targetValue) {
-        // Toggle off - remove from map
-        newMap.delete(birthplaceId);
-      } else {
-        // Set new value
-        newMap.set(birthplaceId, targetValue);
-      }
-      return newMap;
-    });
-  };
-
-  // Unified hover handler for all statement types
-  const handleStatementHover = (
-    statement: PropertyStatement | PositionStatement | BirthplaceStatement,
-  ) => {
-    // Only update proof line (which triggers highlighting) if we're viewing this statement's archived page
+  // Unified hover handler for all property types
+  const handlePropertyHover = (property: Property) => {
+    // Only update proof line (which triggers highlighting) if we're viewing this property's archived page
     if (
-      statement.archived_page &&
-      selectedArchivedPage?.id === statement.archived_page.id &&
-      statement.proof_line
+      property.archived_page &&
+      selectedArchivedPage?.id === property.archived_page.id &&
+      property.proof_line
     ) {
-      setSelectedProofLine(statement.proof_line);
+      setSelectedProofLine(property.proof_line);
     }
   };
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      const propertyEvaluationItems: PropertyEvaluationItem[] = Array.from(
-        propertyEvaluations.entries(),
-      ).map(([id, isConfirmed]) => ({
-        id,
-        is_confirmed: isConfirmed,
-      }));
-
-      const positionEvaluationItems: PositionEvaluationItem[] = Array.from(
-        positionEvaluations.entries(),
-      ).map(([id, isConfirmed]) => ({
-        id,
-        is_confirmed: isConfirmed,
-      }));
-
-      const birthplaceEvaluationItems: BirthplaceEvaluationItem[] = Array.from(
-        birthplaceEvaluations.entries(),
+      const evaluationItems: EvaluationItem[] = Array.from(
+        evaluations.entries(),
       ).map(([id, isConfirmed]) => ({
         id,
         is_confirmed: isConfirmed,
       }));
 
       const evaluationData: EvaluationRequest = {
-        property_evaluations: propertyEvaluationItems,
-        position_evaluations: positionEvaluationItems,
-        birthplace_evaluations: birthplaceEvaluationItems,
+        evaluations: evaluationItems,
       };
 
       const response = await fetch("/api/politicians/evaluate", {
@@ -246,45 +165,17 @@ export function PoliticianEvaluation({
             )}
           </div>
 
-          <PropertyEvaluation
+          <PropertiesEvaluation
             properties={politician.properties}
-            evaluations={propertyEvaluations}
-            onAction={handlePropertyAction}
+            evaluations={evaluations}
+            onAction={handleEvaluate}
             onShowArchived={(property) => {
               if (property.archived_page) {
                 setSelectedArchivedPage(property.archived_page);
                 setSelectedProofLine(property.proof_line || null);
               }
             }}
-            onHover={handleStatementHover}
-            activeArchivedPageId={selectedArchivedPage?.id || null}
-          />
-
-          <PositionEvaluation
-            positions={politician.positions}
-            evaluations={positionEvaluations}
-            onAction={handlePositionAction}
-            onShowArchived={(position) => {
-              if (position.archived_page) {
-                setSelectedArchivedPage(position.archived_page);
-                setSelectedProofLine(position.proof_line || null);
-              }
-            }}
-            onHover={handleStatementHover}
-            activeArchivedPageId={selectedArchivedPage?.id || null}
-          />
-
-          <BirthplaceEvaluation
-            birthplaces={politician.birthplaces}
-            evaluations={birthplaceEvaluations}
-            onAction={handleBirthplaceAction}
-            onShowArchived={(birthplace) => {
-              if (birthplace.archived_page) {
-                setSelectedArchivedPage(birthplace.archived_page);
-                setSelectedProofLine(birthplace.proof_line || null);
-              }
-            }}
-            onHover={handleStatementHover}
+            onHover={handlePropertyHover}
             activeArchivedPageId={selectedArchivedPage?.id || null}
           />
         </div>
