@@ -46,11 +46,27 @@ export function MultiSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Create collator for diacritic-insensitive comparison
+  const collator = new Intl.Collator('en', {
+    sensitivity: 'base',
+    ignorePunctuation: true
+  })
+
+  // Normalize text for searching (removes diacritics)
+  const normalizeText = (text: string) =>
+    text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
   // Filter and sort options based on search term
   const filteredOptions = options
-    .filter(option =>
-      option.label.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    .filter(option => {
+      const label = option.label.toLowerCase()
+      const search = searchTerm.toLowerCase()
+      const normalizedLabel = normalizeText(option.label)
+      const normalizedSearch = normalizeText(searchTerm)
+
+      // Match either the original text or normalized text
+      return label.includes(search) || normalizedLabel.includes(normalizedSearch)
+    })
     .sort((a, b) => a.label.localeCompare(b.label))
 
   // Reset focused index when filtered options change
