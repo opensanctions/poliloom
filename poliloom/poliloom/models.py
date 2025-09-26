@@ -984,6 +984,84 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         return {row[0] for row in result.fetchall()}
 
 
+class CurrentImportEntity(Base):
+    """Temporary tracking table for entities seen during current import."""
+
+    __tablename__ = "current_import_entities"
+
+    entity_id = Column(
+        String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
+    )
+
+
+class CurrentImportStatement(Base):
+    """Temporary tracking table for statements seen during current import."""
+
+    __tablename__ = "current_import_statements"
+
+    statement_id = Column(String, primary_key=True)
+
+    @classmethod
+    def cleanup_missing_entities(cls, session: Session) -> dict:
+        """
+        Soft-delete entities that were not seen during the current import.
+
+        Returns:
+            dict: Counts of entities that were soft-deleted
+        """
+        # Soft-delete WikidataEntity records not in tracking table
+        entities_result = session.execute(
+            text("""
+            UPDATE wikidata_entities
+            SET deleted_at = NOW()
+            WHERE wikidata_id NOT IN (SELECT entity_id FROM current_import_entities)
+            AND deleted_at IS NULL
+        """)
+        )
+
+        return {"entities": entities_result.rowcount}
+
+    @classmethod
+    def cleanup_missing_statements(cls, session: Session) -> dict:
+        """
+        Soft-delete statements that were not seen during the current import.
+
+        Returns:
+            dict: Counts of statements that were soft-deleted
+        """
+        # Soft-delete Property records not in tracking table
+        properties_result = session.execute(
+            text("""
+            UPDATE properties
+            SET deleted_at = NOW()
+            WHERE statement_id IS NOT NULL
+            AND statement_id NOT IN (SELECT statement_id FROM current_import_statements)
+            AND deleted_at IS NULL
+        """)
+        )
+
+        # Soft-delete WikidataRelation records not in tracking table
+        relations_result = session.execute(
+            text("""
+            UPDATE wikidata_relations
+            SET deleted_at = NOW()
+            WHERE statement_id NOT IN (SELECT statement_id FROM current_import_statements)
+            AND deleted_at IS NULL
+        """)
+        )
+
+        return {
+            "properties": properties_result.rowcount,
+            "relations": relations_result.rowcount,
+        }
+
+    @classmethod
+    def clear_tracking_tables(cls, session: Session) -> None:
+        """Clear both tracking tables after cleanup is complete."""
+        session.execute(text("TRUNCATE current_import_entities"))
+        session.execute(text("TRUNCATE current_import_statements"))
+
+
 class WikidataRelation(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     """Wikidata relationship between entities."""
 
