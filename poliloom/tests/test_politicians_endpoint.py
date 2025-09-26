@@ -35,11 +35,11 @@ def extract_properties_by_type(
         Dictionary with keys by property type containing lists of matching properties
     """
     result = {
-        "BIRTH_DATE": [],
-        "DEATH_DATE": [],
-        "POSITION": [],
-        "BIRTHPLACE": [],
-        "CITIZENSHIP": [],
+        "P569": [],  # BIRTH_DATE
+        "P570": [],  # DEATH_DATE
+        "P39": [],  # POSITION
+        "P19": [],  # BIRTHPLACE
+        "P27": [],  # CITIZENSHIP
     }
 
     # Extract properties by type
@@ -270,10 +270,10 @@ class TestGetPoliticiansEndpoint:
 
         # Verify all property types in single list
         property_types = [prop["type"] for prop in politician_data["properties"]]
-        assert "BIRTH_DATE" in property_types
-        assert "DEATH_DATE" in property_types
-        assert "POSITION" in property_types
-        assert "BIRTHPLACE" in property_types
+        assert "P569" in property_types  # BIRTH_DATE
+        assert "P570" in property_types  # DEATH_DATE
+        assert "P39" in property_types  # POSITION
+        assert "P19" in property_types  # BIRTHPLACE
 
     def test_includes_politicians_with_evaluated_data_without_statement_id(
         self, client, mock_auth, politician_with_evaluated_data
@@ -343,21 +343,21 @@ class TestGetPoliticiansEndpoint:
         )
 
         # Check extracted property
-        assert len(extracted_properties["BIRTH_DATE"]) == 1
-        extracted_prop = extracted_properties["BIRTH_DATE"][0]
+        assert len(extracted_properties["P569"]) == 1  # BIRTH_DATE
+        extracted_prop = extracted_properties["P569"][0]
         assert extracted_prop["proof_line"] == "Born on January 15, 1970"
         assert extracted_prop["archived_page"] is not None
         assert "url" in extracted_prop["archived_page"]
 
         # Check extracted position
-        assert len(extracted_properties["POSITION"]) == 1
-        extracted_pos = extracted_properties["POSITION"][0]
+        assert len(extracted_properties["P39"]) == 1  # POSITION
+        extracted_pos = extracted_properties["P39"][0]
         assert extracted_pos["proof_line"] == "Served as Mayor from 2020 to 2024"
         assert extracted_pos["archived_page"] is not None
 
         # Check extracted birthplace
-        assert len(extracted_properties["BIRTHPLACE"]) == 1
-        extracted_bp = extracted_properties["BIRTHPLACE"][0]
+        assert len(extracted_properties["P19"]) == 1  # BIRTHPLACE
+        extracted_bp = extracted_properties["P19"][0]
         assert extracted_bp["proof_line"] == "Born in Springfield"
         assert extracted_bp["archived_page"] is not None
 
@@ -376,8 +376,8 @@ class TestGetPoliticiansEndpoint:
         )
 
         # Wikidata properties should not have proof_line or archived_page
-        assert len(wikidata_properties["DEATH_DATE"]) >= 1
-        wikidata_prop = wikidata_properties["DEATH_DATE"][0]
+        assert len(wikidata_properties["P570"]) >= 1  # DEATH_DATE
+        wikidata_prop = wikidata_properties["P570"][0]
         assert wikidata_prop.get("proof_line") is None
         assert wikidata_prop.get("archived_page") is None
 
@@ -487,9 +487,11 @@ class TestGetPoliticiansEndpoint:
         )
 
         assert (
-            len(extracted_properties["BIRTH_DATE"]) == 1
+            len(extracted_properties["P569"]) == 1  # BIRTH_DATE
         )  # Evaluated but no statement_id, so still returned for re-evaluation
-        assert len(extracted_properties["POSITION"]) == 1  # Unevaluated, so returned
+        assert (
+            len(extracted_properties["P39"]) == 1
+        )  # POSITION - Unevaluated, so returned
 
     def test_politician_with_partial_unevaluated_data_types(
         self, client, mock_auth, db_session
@@ -531,9 +533,9 @@ class TestGetPoliticiansEndpoint:
             politician_data, extracted=True
         )
 
-        assert len(extracted_properties["BIRTH_DATE"]) == 0
-        assert len(extracted_properties["POSITION"]) == 0
-        assert len(extracted_properties["BIRTHPLACE"]) == 1
+        assert len(extracted_properties["P569"]) == 0  # BIRTH_DATE
+        assert len(extracted_properties["P39"]) == 0  # POSITION
+        assert len(extracted_properties["P19"]) == 1  # BIRTHPLACE
 
     def test_get_politicians_returns_flat_property_list(
         self, client, mock_auth, politician_with_unevaluated_data
@@ -555,9 +557,9 @@ class TestGetPoliticiansEndpoint:
 
         # Verify all property types in single list
         property_types = [prop["type"] for prop in politician["properties"]]
-        assert "BIRTH_DATE" in property_types
-        assert "POSITION" in property_types
-        assert "BIRTHPLACE" in property_types
+        assert "P569" in property_types  # BIRTH_DATE
+        assert "P39" in property_types  # POSITION
+        assert "P19" in property_types  # BIRTHPLACE
 
     def test_property_response_structure(
         self, client, mock_auth, politician_with_unevaluated_data
@@ -570,10 +572,14 @@ class TestGetPoliticiansEndpoint:
             assert "id" in prop
             assert "type" in prop
 
-            if prop["type"] in ["BIRTH_DATE", "DEATH_DATE"]:
+            if prop["type"] in ["P569", "P570"]:  # BIRTH_DATE, DEATH_DATE
                 assert prop["value"] is not None
                 assert prop["entity_id"] is None
-            elif prop["type"] in ["BIRTHPLACE", "POSITION", "CITIZENSHIP"]:
+            elif prop["type"] in [
+                "P19",
+                "P39",
+                "P27",
+            ]:  # BIRTHPLACE, POSITION, CITIZENSHIP
                 assert prop["entity_id"] is not None
                 assert prop["value"] is None
                 assert "entity_name" in prop

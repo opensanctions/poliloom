@@ -43,8 +43,8 @@ class PropertyResponse(UUIDBaseModel):
 
     @field_serializer("type")
     def serialize_property_type(self, value: PropertyType) -> str:
-        """Return enum name instead of value for better API readability."""
-        return value.name if value else None
+        """Return enum value (Wikidata P... identifier) instead of name."""
+        return value.value if value else None
 
 
 class PoliticianResponse(UUIDBaseModel):
