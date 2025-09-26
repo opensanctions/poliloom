@@ -141,6 +141,15 @@ export default function PreferencesPage() {
               </div>
 
             </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={() => router.push('/')}
+                className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700"
+              >
+                Start Evaluating
+              </button>
+            </div>
           </div>
         </div>
       </main>

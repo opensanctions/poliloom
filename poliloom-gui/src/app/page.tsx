@@ -1,91 +1,88 @@
-"use client"
+"use client";
 
-import { useAuthSession } from "@/hooks/useAuthSession"
-import { useState, useEffect, useCallback } from "react"
-import { Header } from "@/components/Header"
-import { PoliticianEvaluation } from "@/components/PoliticianEvaluation"
-import { handleSignIn } from "@/lib/actions"
-import { usePreferencesContext } from "@/contexts/PreferencesContext"
-import { Politician } from "@/types"
+import { useAuthSession } from "@/hooks/useAuthSession";
+import { useState, useEffect, useCallback } from "react";
+import { Header } from "@/components/Header";
+import { PoliticianEvaluation } from "@/components/PoliticianEvaluation";
+import { handleSignIn } from "@/lib/actions";
+import { usePreferencesContext } from "@/contexts/PreferencesContext";
+import { Politician } from "@/types";
 
 export default function Home() {
-  const { session, status, isAuthenticated } = useAuthSession()
-  const { languagePreferences, countryPreferences } = usePreferencesContext()
-  const [politician, setPolitician] = useState<Politician | null>(null)
-  const [nextPolitician, setNextPolitician] = useState<Politician | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { session, status, isAuthenticated } = useAuthSession();
+  const { languagePreferences, countryPreferences } = usePreferencesContext();
+  const [politician, setPolitician] = useState<Politician | null>(null);
+  const [nextPolitician, setNextPolitician] = useState<Politician | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchPolitician = useCallback(async (): Promise<Politician | null> => {
-    if (!session?.accessToken) return null
+    if (!session?.accessToken) return null;
 
     // Build query parameters with preferences
-    const params = new URLSearchParams({ limit: '1' })
+    const params = new URLSearchParams({ limit: "1" });
 
     if (languagePreferences.length > 0) {
-      languagePreferences.forEach(qid => params.append('languages', qid))
+      languagePreferences.forEach((qid) => params.append("languages", qid));
     }
 
     if (countryPreferences.length > 0) {
-      countryPreferences.forEach(qid => params.append('countries', qid))
+      countryPreferences.forEach((qid) => params.append("countries", qid));
     }
 
-    const response = await fetch(`/api/politicians/?${params.toString()}`)
+    const response = await fetch(`/api/politicians/?${params.toString()}`);
     if (!response.ok) {
-      throw new Error(`Failed to fetch politician: ${response.statusText}`)
+      throw new Error(`Failed to fetch politician: ${response.statusText}`);
     }
-    const politicians: Politician[] = await response.json()
-    return politicians.length > 0 ? politicians[0] : null
-  }, [session?.accessToken, languagePreferences, countryPreferences])
+    const politicians: Politician[] = await response.json();
+    return politicians.length > 0 ? politicians[0] : null;
+  }, [session?.accessToken, languagePreferences, countryPreferences]);
 
   const loadInitialData = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
-      const politician = await fetchPolitician()
-      setPolitician(politician)
-      
+      const politician = await fetchPolitician();
+      setPolitician(politician);
+
       // Pre-load next politician in background
       if (politician) {
         fetchPolitician()
           .then(setNextPolitician)
-          .catch(() => setNextPolitician(null))
+          .catch(() => setNextPolitician(null));
       }
     } catch (error) {
-      console.error('Error fetching politicians:', error)
-      setError('Failed to load politician data. Please try again.')
+      console.error("Error fetching politicians:", error);
+      setError("Failed to load politician data. Please try again.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [fetchPolitician])
+  }, [fetchPolitician]);
 
   useEffect(() => {
     if (isAuthenticated && session?.accessToken) {
-      loadInitialData()
+      loadInitialData();
     }
-  }, [isAuthenticated, session?.accessToken, loadInitialData])
+  }, [isAuthenticated, session?.accessToken, loadInitialData]);
 
   const handleNext = () => {
-    if (!nextPolitician) return
+    if (!nextPolitician) return;
 
     // Show next politician immediately
-    setPolitician(nextPolitician)
-    
+    setPolitician(nextPolitician);
+
     // Pre-load another politician in background
     fetchPolitician()
       .then(setNextPolitician)
-      .catch(() => setNextPolitician(null))
-  }
+      .catch(() => setNextPolitician(null));
+  };
 
   return (
     <>
       <Header />
-      
+
       {politician && session?.accessToken ? (
-        <PoliticianEvaluation
-          politician={politician}
-          onNext={handleNext}
-        />
+        <PoliticianEvaluation politician={politician} onNext={handleNext} />
       ) : (
         <main className="bg-gray-50 grid place-items-center py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
           <div className="text-center max-w-2xl">
@@ -93,17 +90,21 @@ export default function Home() {
               PoliLoom Data Evaluation
             </h1>
             <p className="text-lg text-gray-600 mb-8">
-              Help evaluate politician data extracted from Wikipedia and other sources
+              Help evaluate politician data extracted from Wikipedia and other
+              sources
             </p>
-            
+
             {status === "loading" && (
-              <div className="text-gray-500">Loading authentication status...</div>
+              <div className="text-gray-500">
+                Loading authentication status...
+              </div>
             )}
-            
+
             {status === "unauthenticated" && (
               <div className="space-y-4">
                 <p className="text-gray-600">
-                  Please sign in with your MediaWiki account to start evaluating data.
+                  Please sign in with your MediaWiki account to start evaluating
+                  data.
                 </p>
                 <form action={handleSignIn}>
                   <button
@@ -115,7 +116,7 @@ export default function Home() {
                 </form>
               </div>
             )}
-            
+
             {isAuthenticated && (
               <div className="space-y-6">
                 {loading && (
@@ -123,7 +124,7 @@ export default function Home() {
                     <p className="text-blue-800">Loading politician data...</p>
                   </div>
                 )}
-                
+
                 {error && (
                   <div className="bg-red-50 border border-red-200 rounded-md p-4">
                     <p className="text-red-800">{error}</p>
@@ -135,10 +136,19 @@ export default function Home() {
                     </button>
                   </div>
                 )}
-                
+
                 {!loading && !error && !politician && (
                   <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
-                    <p className="text-gray-600">No politicians available for evaluation at this time.</p>
+                    <p className="text-gray-600">
+                      No politicians available. Check your{" "}
+                      <a
+                        href="/preferences"
+                        className="text-gray-700 hover:text-gray-900 underline"
+                      >
+                        preferences
+                      </a>{" "}
+                      or wait for new data.
+                    </p>
                   </div>
                 )}
               </div>
@@ -147,5 +157,5 @@ export default function Home() {
         </main>
       )}
     </>
-  )
+  );
 }
