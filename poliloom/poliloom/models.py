@@ -85,6 +85,8 @@ class UpsertMixin:
     _upsert_update_columns = []
     # Override this in subclasses to specify the conflict columns (defaults to primary key)
     _upsert_conflict_columns = None
+    # Override this in subclasses to specify the index WHERE clause for partial indexes
+    _upsert_index_where = None
 
     @classmethod
     def upsert_batch(cls, session: Session, data: List[dict], returning_columns=None):
@@ -109,17 +111,19 @@ class UpsertMixin:
         if conflict_columns is None:
             conflict_columns = [col.name for col in cls.__table__.primary_key.columns]
 
+        # Build conflict handling kwargs
+        conflict_kwargs = {"index_elements": conflict_columns}
+        if cls._upsert_index_where is not None:
+            conflict_kwargs["index_where"] = cls._upsert_index_where
+
         # Update specified columns on conflict
         if cls._upsert_update_columns:
             update_dict = {
                 col: getattr(stmt.excluded, col) for col in cls._upsert_update_columns
             }
-            stmt = stmt.on_conflict_do_update(
-                index_elements=conflict_columns,
-                set_=update_dict,
-            )
+            stmt = stmt.on_conflict_do_update(set_=update_dict, **conflict_kwargs)
         else:
-            stmt = stmt.on_conflict_do_nothing(index_elements=conflict_columns)
+            stmt = stmt.on_conflict_do_nothing(**conflict_kwargs)
 
         # Add RETURNING clause if requested
         if returning_columns:
@@ -535,7 +539,7 @@ def generate_archived_page_content_hash(mapper, connection, target):
         target.content_hash = ArchivedPage._generate_content_hash(target.url)
 
 
-class WikipediaLink(Base, TimestampMixin):
+class WikipediaLink(Base, TimestampMixin, UpsertMixin):
     """Wikipedia link entity for storing politician Wikipedia article URLs."""
 
     __tablename__ = "wikipedia_links"
@@ -547,6 +551,10 @@ class WikipediaLink(Base, TimestampMixin):
             unique=True,
         ),
     )
+
+    # UpsertMixin configuration
+    _upsert_conflict_columns = ["politician_id", "iso_code"]
+    _upsert_update_columns = ["url"]
 
     id = Column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
@@ -563,7 +571,7 @@ class WikipediaLink(Base, TimestampMixin):
     politician = relationship("Politician", back_populates="wikipedia_links")
 
 
-class Property(Base, TimestampMixin, SoftDeleteMixin):
+class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     """Property entity for storing extracted politician properties."""
 
     statement_id = Column(String, nullable=True)
@@ -579,6 +587,17 @@ class Property(Base, TimestampMixin, SoftDeleteMixin):
             postgresql_where=Column("statement_id").isnot(None),
         ),
     )
+
+    # UpsertMixin configuration
+    _upsert_conflict_columns = ["statement_id"]
+    _upsert_index_where = text("statement_id IS NOT NULL")
+    _upsert_update_columns = [
+        "value",
+        "value_precision",
+        "entity_id",
+        "qualifiers_json",
+        "references_json",
+    ]
 
     id = Column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
@@ -993,6 +1012,33 @@ class CurrentImportEntity(Base):
         String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
     )
 
+    @classmethod
+    def cleanup_missing(cls, session: Session) -> dict:
+        """
+        Soft-delete entities that were not seen during the current import.
+
+        Returns:
+            dict: Counts of entities that were soft-deleted
+        """
+        # Soft-delete WikidataEntity records not in tracking table
+        entities_result = session.execute(
+            text(
+                """
+            UPDATE wikidata_entities
+            SET deleted_at = NOW()
+            WHERE wikidata_id NOT IN (SELECT entity_id FROM current_import_entities)
+            AND deleted_at IS NULL
+        """
+            )
+        )
+
+        return {"entities": entities_result.rowcount}
+
+    @classmethod
+    def clear_tracking_table(cls, session: Session) -> None:
+        """Clear the entity tracking table."""
+        session.execute(text("TRUNCATE current_import_entities"))
+
 
 class CurrentImportStatement(Base):
     """Temporary tracking table for statements seen during current import."""
@@ -1002,27 +1048,7 @@ class CurrentImportStatement(Base):
     statement_id = Column(String, primary_key=True)
 
     @classmethod
-    def cleanup_missing_entities(cls, session: Session) -> dict:
-        """
-        Soft-delete entities that were not seen during the current import.
-
-        Returns:
-            dict: Counts of entities that were soft-deleted
-        """
-        # Soft-delete WikidataEntity records not in tracking table
-        entities_result = session.execute(
-            text("""
-            UPDATE wikidata_entities
-            SET deleted_at = NOW()
-            WHERE wikidata_id NOT IN (SELECT entity_id FROM current_import_entities)
-            AND deleted_at IS NULL
-        """)
-        )
-
-        return {"entities": entities_result.rowcount}
-
-    @classmethod
-    def cleanup_missing_statements(cls, session: Session) -> dict:
+    def cleanup_missing(cls, session: Session) -> dict:
         """
         Soft-delete statements that were not seen during the current import.
 
@@ -1031,23 +1057,27 @@ class CurrentImportStatement(Base):
         """
         # Soft-delete Property records not in tracking table
         properties_result = session.execute(
-            text("""
+            text(
+                """
             UPDATE properties
             SET deleted_at = NOW()
             WHERE statement_id IS NOT NULL
             AND statement_id NOT IN (SELECT statement_id FROM current_import_statements)
             AND deleted_at IS NULL
-        """)
+        """
+            )
         )
 
         # Soft-delete WikidataRelation records not in tracking table
         relations_result = session.execute(
-            text("""
+            text(
+                """
             UPDATE wikidata_relations
             SET deleted_at = NOW()
             WHERE statement_id NOT IN (SELECT statement_id FROM current_import_statements)
             AND deleted_at IS NULL
-        """)
+        """
+            )
         )
 
         return {
@@ -1056,9 +1086,8 @@ class CurrentImportStatement(Base):
         }
 
     @classmethod
-    def clear_tracking_tables(cls, session: Session) -> None:
-        """Clear both tracking tables after cleanup is complete."""
-        session.execute(text("TRUNCATE current_import_entities"))
+    def clear_tracking_table(cls, session: Session) -> None:
+        """Clear the statement tracking table."""
         session.execute(text("TRUNCATE current_import_statements"))
 
 

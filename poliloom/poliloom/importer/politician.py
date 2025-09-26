@@ -5,9 +5,7 @@ import multiprocessing as mp
 from typing import Tuple
 from datetime import date
 
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 
 from .. import dump_reader
 from ..database import create_engine, get_engine
@@ -18,6 +16,7 @@ from ..models import (
     Politician,
     Property,
     PropertyType,
+    WikidataEntity,
     WikipediaLink,
 )
 from ..wikidata_entity_processor import WikidataEntityProcessor
@@ -123,8 +122,6 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
 
     with Session(engine) as session:
         # First, ensure WikidataEntity records exist for all politicians
-        from ..models import WikidataEntity
-
         wikidata_data = [
             {
                 "wikidata_id": p["wikidata_id"],
@@ -154,34 +151,12 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
 
             # Add properties using batch UPSERT - update only if NOT extracted (preserve user evaluations)
             property_batch = [
-                {
-                    "politician_id": row.id,
-                    "type": prop["type"],
-                    "value": prop.get("value"),
-                    "value_precision": prop.get("value_precision"),
-                    "entity_id": prop.get("entity_id"),
-                    "statement_id": prop["statement_id"],
-                    "qualifiers_json": prop.get("qualifiers_json"),
-                    "references_json": prop.get("references_json"),
-                    "archived_page_id": None,
-                }
+                {"politician_id": row.id, "archived_page_id": None, **prop}
                 for prop in politician_data.get("properties", [])
             ]
 
             if property_batch:
-                stmt = insert(Property).values(property_batch)
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=["statement_id"],
-                    index_where=text("statement_id IS NOT NULL"),
-                    set_={
-                        "value": stmt.excluded.value,
-                        "value_precision": stmt.excluded.value_precision,
-                        "entity_id": stmt.excluded.entity_id,
-                        "qualifiers_json": stmt.excluded.qualifiers_json,
-                        "references_json": stmt.excluded.references_json,
-                    },
-                )
-                session.execute(stmt)
+                Property.upsert_batch(session, property_batch)
 
             # All properties (positions, citizenships, birthplaces) are now handled above in the unified property_batch
 
@@ -196,14 +171,7 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
             ]
 
             if wikipedia_batch:
-                stmt = insert(WikipediaLink).values(wikipedia_batch)
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=["politician_id", "iso_code"],
-                    set_={
-                        "url": stmt.excluded.url,
-                    },
-                )
-                session.execute(stmt)
+                WikipediaLink.upsert_batch(session, wikipedia_batch)
 
         session.commit()
         logger.debug(f"Processed {len(politicians)} politicians (upserted)")

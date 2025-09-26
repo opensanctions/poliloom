@@ -143,11 +143,11 @@ def create_timestamp_triggers(engine: Engine):
             "wikipedia_links",
         ]
 
-        # Create updated_at triggers for each table
+        # Create updated_at triggers for each table (replace if exists)
         for table in tables_with_updated_at:
             conn.execute(
                 text(f"""
-                CREATE TRIGGER trigger_update_{table}_updated_at
+                CREATE OR REPLACE TRIGGER trigger_update_{table}_updated_at
                 BEFORE UPDATE ON {table}
                 FOR EACH ROW
                 EXECUTE FUNCTION update_updated_at_column();
@@ -157,7 +157,7 @@ def create_timestamp_triggers(engine: Engine):
         # Create the embedding reset trigger on wikidata_entities table
         conn.execute(
             text("""
-            CREATE TRIGGER wikidata_entity_name_change_trigger
+            CREATE OR REPLACE TRIGGER wikidata_entity_name_change_trigger
                 AFTER UPDATE ON wikidata_entities
                 FOR EACH ROW
                 EXECUTE FUNCTION reset_embedding_on_name_change();
@@ -171,7 +171,8 @@ def create_import_tracking_triggers(engine: Engine):
     """Create PostgreSQL triggers for import tracking functionality."""
     with engine.connect() as conn:
         # Create simple tracking functions and triggers
-        conn.execute("""
+        conn.execute(
+            text("""
             -- Function to track entity access during imports
             CREATE OR REPLACE FUNCTION track_entity_access()
             RETURNS TRIGGER AS $$
@@ -185,8 +186,10 @@ def create_import_tracking_triggers(engine: Engine):
             END;
             $$ LANGUAGE plpgsql;
         """)
+        )
 
-        conn.execute("""
+        conn.execute(
+            text("""
             -- Function to track statement access during imports
             CREATE OR REPLACE FUNCTION track_statement_access()
             RETURNS TRIGGER AS $$
@@ -202,26 +205,33 @@ def create_import_tracking_triggers(engine: Engine):
             END;
             $$ LANGUAGE plpgsql;
         """)
+        )
 
-        # Create triggers for entity tracking
-        conn.execute("""
-            CREATE TRIGGER track_wikidata_entity_access
+        # Create triggers for entity tracking (replace if exists)
+        conn.execute(
+            text("""
+            CREATE OR REPLACE TRIGGER track_wikidata_entity_access
             AFTER INSERT OR UPDATE ON wikidata_entities
             FOR EACH ROW EXECUTE FUNCTION track_entity_access();
         """)
+        )
 
-        # Create triggers for statement tracking
-        conn.execute("""
-            CREATE TRIGGER track_property_access
+        # Create triggers for statement tracking (replace if exists)
+        conn.execute(
+            text("""
+            CREATE OR REPLACE TRIGGER track_property_access
             AFTER INSERT OR UPDATE ON properties
             FOR EACH ROW EXECUTE FUNCTION track_statement_access();
         """)
+        )
 
-        conn.execute("""
-            CREATE TRIGGER track_relation_access
+        conn.execute(
+            text("""
+            CREATE OR REPLACE TRIGGER track_relation_access
             AFTER INSERT OR UPDATE ON wikidata_relations
             FOR EACH ROW EXECUTE FUNCTION track_statement_access();
         """)
+        )
 
         conn.commit()
 
