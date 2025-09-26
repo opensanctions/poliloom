@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "@/components/SessionProvider";
 import { ArchivedPageProvider } from "@/contexts/ArchivedPageContext";
+import { PreferencesProvider } from "@/contexts/PreferencesContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,9 +31,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased grid grid-rows-[auto_1fr] h-screen`}
       >
         <SessionProvider>
-          <ArchivedPageProvider>
-            {children}
-          </ArchivedPageProvider>
+          <PreferencesProvider>
+            <ArchivedPageProvider>
+              {children}
+            </ArchivedPageProvider>
+          </PreferencesProvider>
         </SessionProvider>
       </body>
     </html>

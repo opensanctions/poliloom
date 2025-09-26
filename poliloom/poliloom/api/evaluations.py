@@ -12,7 +12,7 @@ from ..wikidata_statement import push_evaluation
 router = APIRouter()
 
 
-@router.post("/", response_model=EvaluationResponse)
+@router.post("", response_model=EvaluationResponse)
 async def evaluate_extracted_data(
     request: EvaluationRequest,
     current_user: User = Depends(get_current_user),

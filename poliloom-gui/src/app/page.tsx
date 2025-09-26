@@ -5,10 +5,12 @@ import { useState, useEffect, useCallback } from "react"
 import { Header } from "@/components/Header"
 import { PoliticianEvaluation } from "@/components/PoliticianEvaluation"
 import { handleSignIn } from "@/lib/actions"
+import { usePreferencesContext } from "@/contexts/PreferencesContext"
 import { Politician } from "@/types"
 
 export default function Home() {
   const { session, status, isAuthenticated } = useAuthSession()
+  const { languagePreferences, countryPreferences } = usePreferencesContext()
   const [politician, setPolitician] = useState<Politician | null>(null)
   const [nextPolitician, setNextPolitician] = useState<Politician | null>(null)
   const [loading, setLoading] = useState(false)
@@ -17,13 +19,24 @@ export default function Home() {
   const fetchPolitician = useCallback(async (): Promise<Politician | null> => {
     if (!session?.accessToken) return null
 
-    const response = await fetch('/api/politicians/?limit=1')
+    // Build query parameters with preferences
+    const params = new URLSearchParams({ limit: '1' })
+
+    if (languagePreferences.length > 0) {
+      languagePreferences.forEach(qid => params.append('languages', qid))
+    }
+
+    if (countryPreferences.length > 0) {
+      countryPreferences.forEach(qid => params.append('countries', qid))
+    }
+
+    const response = await fetch(`/api/politicians/?${params.toString()}`)
     if (!response.ok) {
       throw new Error(`Failed to fetch politician: ${response.statusText}`)
     }
     const politicians: Politician[] = await response.json()
     return politicians.length > 0 ? politicians[0] : null
-  }, [session?.accessToken])
+  }, [session?.accessToken, languagePreferences, countryPreferences])
 
   const loadInitialData = useCallback(async () => {
     setLoading(true)

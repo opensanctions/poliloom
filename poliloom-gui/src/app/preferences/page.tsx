@@ -4,18 +4,19 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/Header"
 import { MultiSelect, MultiSelectOption } from "@/components/MultiSelect"
-import { usePreferences } from "@/hooks/usePreferences"
-import { LanguageResponse, CountryResponse, PreferenceType } from "@/types"
+import { usePreferencesContext } from "@/contexts/PreferencesContext"
+import { LanguageResponse, CountryResponse } from "@/types"
 
 export default function PreferencesPage() {
   const router = useRouter()
   const {
-    preferences,
-    updating,
+    languagePreferences,
+    countryPreferences,
+    loading: updating,
     error: preferencesError,
     updateLanguagePreferences,
     updateCountryPreferences
-  } = usePreferences()
+  } = usePreferencesContext()
 
   const [languages, setLanguages] = useState<LanguageResponse[]>([])
   const [loadingLanguages, setLoadingLanguages] = useState(true)
@@ -24,8 +25,6 @@ export default function PreferencesPage() {
   const [error, setError] = useState<string | null>(null)
 
 
-  const getSelectedQids = (type: PreferenceType) =>
-    preferences.filter(p => p.preference_type === type).map(p => p.qid)
 
 
   // Fetch available languages
@@ -116,7 +115,7 @@ export default function PreferencesPage() {
                 </p>
                 <MultiSelect
                   options={languageOptions}
-                  selected={getSelectedQids(PreferenceType.LANGUAGE)}
+                  selected={languagePreferences}
                   onChange={updateLanguagePreferences}
                   placeholder="Select languages..."
                   loading={loadingLanguages}
@@ -133,7 +132,7 @@ export default function PreferencesPage() {
                 </p>
                 <MultiSelect
                   options={countryOptions}
-                  selected={getSelectedQids(PreferenceType.COUNTRY)}
+                  selected={countryPreferences}
                   onChange={updateCountryPreferences}
                   placeholder="Select countries..."
                   loading={loadingCountries}

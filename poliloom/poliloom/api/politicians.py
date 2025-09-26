@@ -22,7 +22,7 @@ from .auth import get_current_user, User
 router = APIRouter()
 
 
-@router.get("/", response_model=List[PoliticianResponse])
+@router.get("", response_model=List[PoliticianResponse])
 async def get_politicians(
     limit: int = Query(
         default=50, le=100, description="Maximum number of politicians to return"
