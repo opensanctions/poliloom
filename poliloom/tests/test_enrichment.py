@@ -390,56 +390,6 @@ class TestEnrichment:
         assert birthplace_property is not None
         assert birthplace_property.archived_page_id == sample_archived_page.id
 
-    def test_store_extracted_data_skips_nonexistent_position(
-        self,
-        db_session,
-        sample_archived_page,
-        sample_country,
-        sample_politician,
-    ):
-        """Test that storing skips positions that don't exist in database."""
-        # Use fixture entities
-        db_session.commit()
-
-        # Add citizenship as Property and Wikipedia link
-        citizenship = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_country.wikidata_id,
-        )
-        # Wikipedia link created by sample_wikipedia_link fixture
-        db_session.add(citizenship)
-        db_session.commit()
-
-        positions = [
-            ExtractedPosition(
-                wikidata_id="Q99999",
-                start_date="2020",
-                end_date="2024",
-                proof="proof text",
-            )
-        ]
-
-        success = store_extracted_data(
-            db_session,
-            sample_politician,
-            sample_archived_page,
-            None,  # properties
-            positions,
-            None,  # birthplaces
-            None,  # citizenships
-        )
-
-        assert success is True
-
-        # Verify no position was stored
-        position_properties = (
-            db_session.query(Property)
-            .filter_by(politician_id=sample_politician.id, type=PropertyType.POSITION)
-            .all()
-        )
-        assert len(position_properties) == 0
-
     def test_store_extracted_data_error_handling(
         self,
         db_session,

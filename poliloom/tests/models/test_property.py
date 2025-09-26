@@ -203,3 +203,339 @@ class TestProperty:
         assert PropertyType.BIRTHPLACE == "P19"
         assert PropertyType.POSITION == "P39"
         assert PropertyType.CITIZENSHIP == "P27"
+
+
+class TestPropertyShouldStore:
+    """Test cases for the Property.should_store() method."""
+
+    def test_should_store_birth_date_no_existing(self, db_session, sample_politician):
+        """Test storing birth date when no existing date exists."""
+        politician = sample_politician
+
+        new_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1990-01-01T00:00:00Z",
+            value_precision=11,
+        )
+
+        assert new_property.should_store(db_session) is True
+
+    def test_should_store_birth_date_more_precise(self, db_session, sample_politician):
+        """Test storing birth date when new date is more precise."""
+        politician = sample_politician
+
+        # Create existing property with year precision
+        existing_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1990-00-00T00:00:00Z",
+            value_precision=9,  # Year precision
+        )
+        db_session.add(existing_property)
+        db_session.commit()
+
+        # Try to store more precise date (day precision)
+        new_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1990-01-01T00:00:00Z",
+            value_precision=11,  # Day precision
+        )
+
+        assert new_property.should_store(db_session) is True
+
+    def test_should_store_birth_date_less_precise(self, db_session, sample_politician):
+        """Test not storing birth date when new date is less precise."""
+        politician = sample_politician
+
+        # Create existing property with day precision
+        existing_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1990-01-01T00:00:00Z",
+            value_precision=11,  # Day precision
+        )
+        db_session.add(existing_property)
+        db_session.commit()
+
+        # Try to store less precise date (year precision)
+        new_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1990-00-00T00:00:00Z",
+            value_precision=9,  # Year precision
+        )
+
+        assert new_property.should_store(db_session) is False
+
+    def test_should_store_birth_date_different_year(
+        self, db_session, sample_politician
+    ):
+        """Test storing birth date when years are different."""
+        politician = sample_politician
+
+        # Create existing property for 1990
+        existing_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1990-01-01T00:00:00Z",
+            value_precision=11,
+        )
+        db_session.add(existing_property)
+        db_session.commit()
+
+        # Try to store date for different year
+        new_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1991-01-01T00:00:00Z",
+            value_precision=11,
+        )
+
+        assert new_property.should_store(db_session) is True
+
+    def test_should_store_position_no_existing(
+        self, db_session, sample_politician, sample_position
+    ):
+        """Test storing position when no existing position exists."""
+        politician = sample_politician
+        position = sample_position
+
+        new_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            qualifiers_json={
+                "P580": [
+                    {
+                        "datavalue": {
+                            "value": {"time": "+2020-00-00T00:00:00Z", "precision": 9}
+                        }
+                    }
+                ]
+            },
+        )
+
+        assert new_property.should_store(db_session) is True
+
+    def test_should_store_position_more_precise_dates(
+        self, db_session, sample_politician, sample_position
+    ):
+        """Test storing position when new dates are more precise."""
+        politician = sample_politician
+        position = sample_position
+
+        # Create existing position with year precision
+        existing_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            qualifiers_json={
+                "P580": [
+                    {
+                        "datavalue": {
+                            "value": {
+                                "time": "+2020-00-00T00:00:00Z",
+                                "precision": 9,  # Year precision
+                            }
+                        }
+                    }
+                ]
+            },
+        )
+        db_session.add(existing_property)
+        db_session.commit()
+
+        # Try to store position with more precise start date
+        new_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            qualifiers_json={
+                "P580": [
+                    {
+                        "datavalue": {
+                            "value": {
+                                "time": "+2020-01-15T00:00:00Z",
+                                "precision": 11,  # Day precision
+                            }
+                        }
+                    }
+                ]
+            },
+        )
+
+        assert new_property.should_store(db_session) is True
+
+    def test_should_store_position_less_precise_dates(
+        self, db_session, sample_politician, sample_position
+    ):
+        """Test not storing position when new dates are less precise."""
+        politician = sample_politician
+        position = sample_position
+
+        # Create existing position with day precision
+        existing_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            qualifiers_json={
+                "P580": [
+                    {
+                        "datavalue": {
+                            "value": {
+                                "time": "+2020-01-15T00:00:00Z",
+                                "precision": 11,  # Day precision
+                            }
+                        }
+                    }
+                ]
+            },
+        )
+        db_session.add(existing_property)
+        db_session.commit()
+
+        # Try to store position with less precise start date
+        new_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            qualifiers_json={
+                "P580": [
+                    {
+                        "datavalue": {
+                            "value": {
+                                "time": "+2020-00-00T00:00:00Z",
+                                "precision": 9,  # Year precision
+                            }
+                        }
+                    }
+                ]
+            },
+        )
+
+        assert new_property.should_store(db_session) is False
+
+    def test_should_store_position_different_timeframe(
+        self, db_session, sample_politician, sample_position
+    ):
+        """Test storing position when timeframes are different."""
+        politician = sample_politician
+        position = sample_position
+
+        # Create existing position for 2020
+        existing_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            qualifiers_json={
+                "P580": [
+                    {
+                        "datavalue": {
+                            "value": {"time": "+2020-01-01T00:00:00Z", "precision": 11}
+                        }
+                    }
+                ]
+            },
+        )
+        db_session.add(existing_property)
+        db_session.commit()
+
+        # Try to store position for different year
+        new_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            qualifiers_json={
+                "P580": [
+                    {
+                        "datavalue": {
+                            "value": {"time": "+2021-01-01T00:00:00Z", "precision": 11}
+                        }
+                    }
+                ]
+            },
+        )
+
+        assert new_property.should_store(db_session) is True
+
+    def test_should_store_birthplace_no_existing(
+        self, db_session, sample_politician, sample_location
+    ):
+        """Test storing birthplace when no existing birthplace exists."""
+        politician = sample_politician
+        location = sample_location
+
+        new_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTHPLACE,
+            entity_id=location.wikidata_id,
+        )
+
+        assert new_property.should_store(db_session) is True
+
+    def test_should_store_birthplace_duplicate(
+        self, db_session, sample_politician, sample_location
+    ):
+        """Test not storing birthplace when duplicate exists."""
+        politician = sample_politician
+        location = sample_location
+
+        # Create existing birthplace
+        existing_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTHPLACE,
+            entity_id=location.wikidata_id,
+        )
+        db_session.add(existing_property)
+        db_session.commit()
+
+        # Try to store duplicate birthplace
+        new_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTHPLACE,
+            entity_id=location.wikidata_id,
+        )
+
+        assert new_property.should_store(db_session) is False
+
+    def test_should_store_citizenship_no_existing(
+        self, db_session, sample_politician, sample_country
+    ):
+        """Test storing citizenship when no existing citizenship exists."""
+        politician = sample_politician
+        country = sample_country
+
+        new_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=country.wikidata_id,
+        )
+
+        assert new_property.should_store(db_session) is True
+
+    def test_should_store_citizenship_duplicate(
+        self, db_session, sample_politician, sample_country
+    ):
+        """Test not storing citizenship when duplicate exists."""
+        politician = sample_politician
+        country = sample_country
+
+        # Create existing citizenship
+        existing_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=country.wikidata_id,
+        )
+        db_session.add(existing_property)
+        db_session.commit()
+
+        # Try to store duplicate citizenship
+        new_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=country.wikidata_id,
+        )
+
+        assert new_property.should_store(db_session) is False

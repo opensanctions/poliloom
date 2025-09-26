@@ -23,6 +23,7 @@ from collections import defaultdict
 from sqlalchemy.ext.hybrid import hybrid_property
 from pgvector.sqlalchemy import Vector
 from dicttoxml import dicttoxml
+from .wikidata_date import WikidataDate
 
 Base = declarative_base()
 
@@ -659,6 +660,134 @@ class Property(Base, TimestampMixin, SoftDeleteMixin):
             return f" (until {end_date})"
 
         return ""
+
+    def should_store(self, db: Session) -> bool:
+        """Check if this property should be stored based on existing data.
+
+        For positions: only store if we have more precise or different timeframe data.
+        For value properties (dates): only store if we have more precise data.
+        For other entity properties: only store if no duplicate exists.
+        """
+        if self.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
+            # For date properties, check for more precise data
+            existing_dates = (
+                db.query(Property)
+                .filter_by(
+                    politician_id=self.politician_id,
+                    type=self.type,
+                )
+                .all()
+            )
+
+            if not existing_dates:
+                return True
+
+            # Convert our date to WikidataDate
+            new_date = WikidataDate.from_wikidata_time(self.value, self.value_precision)
+
+            # Check against existing dates
+            for existing in existing_dates:
+                existing_date = WikidataDate.from_wikidata_time(
+                    existing.value, existing.value_precision
+                )
+
+                # If dates could be the same, check precision
+                if WikidataDate.dates_could_be_same(new_date, existing_date):
+                    more_precise = WikidataDate.more_precise_date(
+                        new_date, existing_date
+                    )
+                    # Only store if we're more precise
+                    if more_precise != new_date:
+                        return False
+            return True
+
+        elif self.type != PropertyType.POSITION:
+            # For non-position entity properties, check for exact duplicates
+            existing = (
+                db.query(Property)
+                .filter_by(
+                    politician_id=self.politician_id,
+                    type=self.type,
+                    entity_id=self.entity_id,
+                )
+                .first()
+            )
+            return existing is None
+
+        # For positions, use sophisticated timeframe comparison
+        existing_positions = (
+            db.query(Property)
+            .filter_by(
+                politician_id=self.politician_id,
+                type=PropertyType.POSITION,
+                entity_id=self.entity_id,
+            )
+            .all()
+        )
+
+        if not existing_positions:
+            return True
+
+        # Extract our dates from qualifiers
+        new_start = None
+        new_end = None
+
+        if self.qualifiers_json:
+            if "P580" in self.qualifiers_json:
+                start_data = self.qualifiers_json["P580"][0]["datavalue"]["value"]
+                new_start = WikidataDate.from_wikidata_time(
+                    start_data["time"], start_data["precision"]
+                )
+            if "P582" in self.qualifiers_json:
+                end_data = self.qualifiers_json["P582"][0]["datavalue"]["value"]
+                new_end = WikidataDate.from_wikidata_time(
+                    end_data["time"], end_data["precision"]
+                )
+
+        # Check against each existing position
+        for existing in existing_positions:
+            existing_start = None
+            existing_end = None
+
+            if existing.qualifiers_json:
+                if "P580" in existing.qualifiers_json:
+                    start_data = existing.qualifiers_json["P580"][0]["datavalue"][
+                        "value"
+                    ]
+                    existing_start = WikidataDate.from_wikidata_time(
+                        start_data["time"], start_data["precision"]
+                    )
+                if "P582" in existing.qualifiers_json:
+                    end_data = existing.qualifiers_json["P582"][0]["datavalue"]["value"]
+                    existing_end = WikidataDate.from_wikidata_time(
+                        end_data["time"], end_data["precision"]
+                    )
+
+            # Check if timeframes could be the same
+            start_same = WikidataDate.dates_could_be_same(new_start, existing_start)
+            end_same = WikidataDate.dates_could_be_same(new_end, existing_end)
+
+            if start_same and end_same:
+                # Same timeframe - check if new data is more precise
+                start_more_precise = WikidataDate.more_precise_date(
+                    new_start, existing_start
+                )
+                end_more_precise = WikidataDate.more_precise_date(new_end, existing_end)
+
+                # Check if we have more precise data
+                # more_precise_date returns None when dates have equal precision or both are None
+                has_more_precise_start = (
+                    start_more_precise is not None and start_more_precise == new_start
+                )
+                has_more_precise_end = (
+                    end_more_precise is not None and end_more_precise == new_end
+                )
+
+                # If we don't have more precise data for any date, don't store
+                if not has_more_precise_start and not has_more_precise_end:
+                    return False
+
+        return True  # New timeframe or more precise data
 
 
 class Country(

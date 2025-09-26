@@ -74,7 +74,8 @@ class TestDatesSameness:
         date = WikidataDate.from_date_string("2025")
         assert not WikidataDate.dates_could_be_same(None, date)
         assert not WikidataDate.dates_could_be_same(date, None)
-        assert not WikidataDate.dates_could_be_same(None, None)
+        # Two None dates should be considered the same (both unspecified)
+        assert WikidataDate.dates_could_be_same(None, None)
 
 
 class TestDateComparisonScenarios:

@@ -723,7 +723,7 @@ def store_extracted_data(
 ) -> bool:
     """Store extracted data in the database."""
     try:
-        # Store properties
+        # Store value properties (dates)
         if properties:
             for property_data in properties:
                 # Convert date string to WikidataDate and store the time_string
@@ -739,146 +739,55 @@ def store_extracted_data(
                     archived_page_id=archived_page.id,
                     proof_line=property_data.proof,
                 )
-                db.add(new_property)
-                db.flush()
-                logger.info(
-                    f"Added new property: {property_data.type} = '{property_data.value}' for {politician.name}"
-                )
 
-        # Store positions - only link to existing positions
-        if positions:
-            for position_data in positions:
-                if position_data.wikidata_id:
-                    # Only find existing positions, don't create new ones
-                    position = (
-                        db.query(Position)
-                        .filter_by(wikidata_id=position_data.wikidata_id)
-                        .first()
-                    )
-
-                    if not position:
-                        logger.warning(
-                            f"Position '{position_data.wikidata_id}' not found in database for {politician.name} - skipping"
-                        )
-                        continue
-
-                    # Create qualifiers_json with dates
-                    qualifiers_json = create_qualifiers_json_for_position(
-                        position_data.start_date, position_data.end_date
-                    )
-
-                    # Always add as new record
-                    position_property = Property(
-                        politician_id=politician.id,
-                        type=PropertyType.POSITION,
-                        entity_id=position.wikidata_id,
-                        qualifiers_json=qualifiers_json,
-                        references_json=archived_page.create_references_json(),
-                        archived_page_id=archived_page.id,
-                        proof_line=position_data.proof,
-                    )
-                    db.add(position_property)
+                if new_property.should_store(db):
+                    db.add(new_property)
                     db.flush()
-
-                    date_range = ""
-                    if position_data.start_date:
-                        date_range = f" ({position_data.start_date}"
-                        if position_data.end_date:
-                            date_range += f" - {position_data.end_date})"
-                        else:
-                            date_range += " - present)"
-                    elif position_data.end_date:
-                        date_range = f" (until {position_data.end_date})"
-
                     logger.info(
-                        f"Added new position: '{position.name}' ({position.wikidata_id}){date_range} for {politician.name}"
+                        f"Added new property: {property_data.type} = '{property_data.value}' for {politician.name}"
                     )
 
-        # Store birthplaces - only link to existing locations
-        if birthplaces:
-            for birthplace_data in birthplaces:
-                if birthplace_data.wikidata_id:
-                    # Only find existing locations, don't create new ones
-                    location = (
-                        db.query(Location)
-                        .filter_by(wikidata_id=birthplace_data.wikidata_id)
-                        .first()
-                    )
+        # Store entity-linked properties
+        entity_configs = [
+            (positions, PropertyType.POSITION, Position, "position"),
+            (birthplaces, PropertyType.BIRTHPLACE, Location, "birthplace"),
+            (citizenships, PropertyType.CITIZENSHIP, Country, "citizenship"),
+        ]
 
-                    if not location:
-                        logger.warning(
-                            f"Location '{birthplace_data.wikidata_id}' not found in database for {politician.name} - skipping"
+        for extracted_data, property_type, entity_class, entity_name in entity_configs:
+            if extracted_data:
+                for item_data in extracted_data:
+                    if item_data.wikidata_id:
+                        entity = (
+                            db.query(entity_class)
+                            .filter_by(wikidata_id=item_data.wikidata_id)
+                            .first()
                         )
-                        continue
 
-                    # Check if this birthplace relationship already exists
-                    existing_birth = (
-                        db.query(Property)
-                        .filter_by(
-                            politician_id=politician.id,
-                            type=PropertyType.BIRTHPLACE,
-                            entity_id=location.wikidata_id,
-                        )
-                        .first()
-                    )
+                        # Create qualifiers for positions with dates
+                        qualifiers_json = None
+                        if property_type == PropertyType.POSITION:
+                            qualifiers_json = create_qualifiers_json_for_position(
+                                getattr(item_data, "start_date", None),
+                                getattr(item_data, "end_date", None),
+                            )
 
-                    if not existing_birth:
-                        birthplace_property = Property(
+                        new_property = Property(
                             politician_id=politician.id,
-                            type=PropertyType.BIRTHPLACE,
-                            entity_id=location.wikidata_id,
+                            type=property_type,
+                            entity_id=entity.wikidata_id,
+                            qualifiers_json=qualifiers_json,
                             references_json=archived_page.create_references_json(),
                             archived_page_id=archived_page.id,
-                            proof_line=birthplace_data.proof,
-                        )
-                        db.add(birthplace_property)
-                        db.flush()
-                        logger.info(
-                            f"Added new birthplace: '{location.name}' ({location.wikidata_id}) for {politician.name}"
+                            proof_line=item_data.proof,
                         )
 
-        # Store citizenships - only link to existing countries
-        if citizenships:
-            for citizenship_data in citizenships:
-                if citizenship_data.wikidata_id:
-                    # Only find existing countries, don't create new ones
-                    country = (
-                        db.query(Country)
-                        .filter_by(wikidata_id=citizenship_data.wikidata_id)
-                        .first()
-                    )
-
-                    if not country:
-                        logger.warning(
-                            f"Country '{citizenship_data.wikidata_id}' not found in database for {politician.name} - skipping"
-                        )
-                        continue
-
-                    # Check if this citizenship relationship already exists
-                    existing_citizenship = (
-                        db.query(Property)
-                        .filter_by(
-                            politician_id=politician.id,
-                            type=PropertyType.CITIZENSHIP,
-                            entity_id=country.wikidata_id,
-                        )
-                        .first()
-                    )
-
-                    if not existing_citizenship:
-                        citizenship_property = Property(
-                            politician_id=politician.id,
-                            type=PropertyType.CITIZENSHIP,
-                            entity_id=country.wikidata_id,
-                            references_json=archived_page.create_references_json(),
-                            archived_page_id=archived_page.id,
-                            proof_line=citizenship_data.proof,
-                        )
-                        db.add(citizenship_property)
-                        db.flush()
-                        logger.info(
-                            f"Added new citizenship: '{country.name}' ({country.wikidata_id}) for {politician.name}"
-                        )
+                        if new_property.should_store(db):
+                            db.add(new_property)
+                            db.flush()
+                            logger.info(
+                                f"Added new {entity_name}: '{entity.name}' ({entity.wikidata_id}) for {politician.name}"
+                            )
 
         return True
 

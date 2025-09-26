@@ -140,8 +140,10 @@ class WikidataDate:
         - Month precision and day precision in same month could be the same
         - Different months/years are not the same
         """
+        if date1 is None and date2 is None:
+            return True  # Both None means same (no date specified)
         if date1 is None or date2 is None:
-            return False
+            return False  # One None, one specified means different
 
         # Extract the date parts (remove sign and time portion)
         date1_part = date1.time_string.split("T")[0][
