@@ -65,7 +65,7 @@ export function formatPositionDates(dates: ParsedPositionDates): string {
   const { startDate, endDate } = dates;
 
   if (!startDate && !endDate) {
-    return '';
+    return 'dates not specified';
   }
 
   if (startDate && endDate) {

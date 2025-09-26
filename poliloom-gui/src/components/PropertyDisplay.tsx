@@ -37,10 +37,10 @@ export function PropertyDisplay({
         const dates = property.qualifiers ? parsePositionQualifiers(property.qualifiers) : { startDate: null, endDate: null };
         const dateRange = formatPositionDates(dates);
 
-        return dateRange ? (
-          <span className="text-gray-700 flex-1">{dateRange}</span>
-        ) : (
-          <span className="text-gray-700 flex-1"></span>
+        return (
+          <span className={`flex-1 ${dates.startDate === null && dates.endDate === null ? 'text-gray-400' : 'text-gray-700'}`}>
+            {dateRange}
+          </span>
         );
 
       case PropertyType.P19:
