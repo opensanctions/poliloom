@@ -1,20 +1,19 @@
 interface EntityLinkProps {
   entityId: string;
-  entityName?: string;
-  fallbackName?: string;
+  entityName: string;
 }
 
-export function EntityLink({ entityId, entityName, fallbackName = "Unknown" }: EntityLinkProps) {
-  const displayName = entityName || entityId || fallbackName;
+export function EntityLink({ entityId, entityName }: EntityLinkProps) {
 
   return (
     <a
       href={`https://www.wikidata.org/wiki/${entityId}`}
       target="_blank"
       rel="noopener noreferrer"
-      className="hover:underline"
+      className="hover:underline font-bold capitalize"
     >
-      {displayName} <span className="text-gray-500 font-normal">({entityId})</span>
+      {entityName}{" "}
+      <span className="text-gray-500 font-normal">({entityId})</span>
     </a>
   );
 }

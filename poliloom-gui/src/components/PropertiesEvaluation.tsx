@@ -28,33 +28,18 @@ export function PropertiesEvaluation({
   const getPropertyTitle = (property: Property): ReactNode => {
     switch (property.type) {
       case PropertyType.P569:
-        return "Birth Date";
+        return <span className="font-bold">Birth Date</span>;
       case PropertyType.P570:
-        return "Death Date";
+        return <span className="font-bold">Death Date</span>;
       case PropertyType.P39:
-        return property.entity_id ? (
-          <EntityLink
-            entityId={property.entity_id}
-            entityName={property.entity_name}
-            fallbackName="Unknown Position"
-          />
-        ) : (property.entity_name || "Unknown Position");
       case PropertyType.P19:
-        return property.entity_id ? (
-          <EntityLink
-            entityId={property.entity_id}
-            entityName={property.entity_name}
-            fallbackName="Unknown Place"
-          />
-        ) : (property.entity_name || "Unknown Place");
       case PropertyType.P27:
-        return property.entity_id ? (
+        return (
           <EntityLink
             entityId={property.entity_id}
             entityName={property.entity_name}
-            fallbackName="Unknown Country"
           />
-        ) : (property.entity_name || "Unknown Country");
+        );
       default:
         return property.entity_name || property.entity_id || "Unknown Property";
     }
@@ -176,7 +161,7 @@ export function PropertiesEvaluation({
               >
                 {item.properties.map((property, index) => (
                   <div key={property.id}>
-                    {index > 0 && <hr className="border-gray-300 my-3" />}
+                    <hr className="border-gray-200 my-3" />
                     <PropertyDisplay
                       property={property}
                       evaluations={evaluations}
