@@ -123,7 +123,7 @@ describe('PoliticianEvaluation', () => {
     // This tests the behavior as implemented rather than ideal UX
   });
 
-  it('submits evaluations successfully and calls onNext', async () => {
+  it('submits evaluations successfully, clears state, and calls onNext', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -137,13 +137,24 @@ describe('PoliticianEvaluation', () => {
     } as Response);
 
     render(<PoliticianEvaluation {...defaultProps} />);
-    
+
     const confirmButtons = screen.getAllByText('✓ Confirm');
-    fireEvent.click(confirmButtons[0]);
-    
+    const discardButtons = screen.getAllByText('× Discard');
+
+    // Make multiple evaluations to ensure state clearing is comprehensive
+    fireEvent.click(confirmButtons[0]); // First item confirmed
+    if (confirmButtons[1]) fireEvent.click(confirmButtons[1]); // Second item confirmed
+    if (discardButtons[0]) fireEvent.click(discardButtons[0]); // First item changed to discard
+
+    // Verify buttons show selected state before submission
+    expect(discardButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-red-600')); // Selected state
+    if (confirmButtons[1]) {
+      expect(confirmButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-green-600')); // Selected state
+    }
+
     const submitButton = screen.getByText('Submit Evaluations & Next');
     fireEvent.click(submitButton);
-    
+
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith('/api/evaluations', {
         method: 'POST',
@@ -151,7 +162,10 @@ describe('PoliticianEvaluation', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          evaluations: [{ id: 'prop-1', is_confirmed: true }],
+          evaluations: [
+            { id: 'prop-1', is_confirmed: false }, // discarded
+            ...(confirmButtons[1] ? [{ id: 'pos-1', is_confirmed: true }] : []) // confirmed if exists
+          ],
         }),
       });
     });
@@ -159,6 +173,115 @@ describe('PoliticianEvaluation', () => {
     await waitFor(() => {
       expect(defaultProps.onNext).toHaveBeenCalled();
     });
+
+    // Verify evaluation state is cleared after successful submission
+    // Buttons should revert to unselected state (no longer have dark backgrounds)
+    await waitFor(() => {
+      expect(discardButtons[0]).not.toHaveAttribute('class', expect.stringContaining('bg-red-600')); // Should be unselected
+      expect(discardButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-red-100')); // Should be default state
+      if (confirmButtons[1]) {
+        expect(confirmButtons[1]).not.toHaveAttribute('class', expect.stringContaining('bg-green-600')); // Should be unselected
+        expect(confirmButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-green-100')); // Should be default state
+      }
+    });
+  });
+
+  it('preserves evaluation state when submission fails', async () => {
+    // Mock a failed API response
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      json: async () => ({
+        success: false,
+        message: 'Server error',
+        evaluation_count: 0,
+        errors: ['Database connection failed'],
+      }),
+    } as Response);
+
+    // Mock window.alert to prevent actual alert dialogs during testing
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+    render(<PoliticianEvaluation {...defaultProps} />);
+
+    const confirmButtons = screen.getAllByText('✓ Confirm');
+    const discardButtons = screen.getAllByText('× Discard');
+
+    // Make evaluations
+    fireEvent.click(confirmButtons[0]); // First item confirmed
+    if (discardButtons[1]) fireEvent.click(discardButtons[1]); // Second item discarded
+
+    // Verify buttons show selected state before submission
+    expect(confirmButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')); // Selected state
+    if (discardButtons[1]) {
+      expect(discardButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-red-600')); // Selected state
+    }
+
+    const submitButton = screen.getByText('Submit Evaluations & Next');
+    fireEvent.click(submitButton);
+
+    // Wait for the failed submission to complete
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalled();
+    });
+
+    // Verify that onNext was NOT called on error
+    expect(defaultProps.onNext).not.toHaveBeenCalled();
+
+    // Verify alert was shown for the error
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('Error submitting evaluations'));
+    });
+
+    // Most importantly: verify evaluation state is PRESERVED after failed submission
+    // Buttons should still show their selected state
+    expect(confirmButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')); // Should remain selected
+    if (discardButtons[1]) {
+      expect(discardButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-red-600')); // Should remain selected
+    }
+
+    alertSpy.mockRestore();
+  });
+
+  it('preserves evaluation state when network request fails', async () => {
+    // Mock a network error (fetch rejection)
+    vi.mocked(fetch).mockRejectedValueOnce(new Error('Network connection failed'));
+
+    // Mock window.alert to prevent actual alert dialogs during testing
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+    render(<PoliticianEvaluation {...defaultProps} />);
+
+    const confirmButtons = screen.getAllByText('✓ Confirm');
+
+    // Make an evaluation
+    fireEvent.click(confirmButtons[0]);
+
+    // Verify button shows selected state before submission
+    expect(confirmButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')); // Selected state
+
+    const submitButton = screen.getByText('Submit Evaluations & Next');
+    fireEvent.click(submitButton);
+
+    // Wait for the failed submission to complete
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalled();
+    });
+
+    // Verify that onNext was NOT called on error
+    expect(defaultProps.onNext).not.toHaveBeenCalled();
+
+    // Verify alert was shown for the error
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith('Error submitting evaluations. Please try again.');
+    });
+
+    // Most importantly: verify evaluation state is PRESERVED after network failure
+    // Button should still show its selected state
+    expect(confirmButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')); // Should remain selected
+
+    alertSpy.mockRestore();
   });
 
   it('does not render sections when politician has no unconfirmed data', () => {

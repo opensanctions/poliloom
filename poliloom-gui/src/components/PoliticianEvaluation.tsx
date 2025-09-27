@@ -124,6 +124,8 @@ export function PoliticianEvaluation({
 
       const result: EvaluationResponse = await response.json();
       if (result.success) {
+        // Clear evaluations state after successful submission
+        setEvaluations(new Map());
         onNext();
       } else {
         console.error("Evaluation errors:", result.errors);
