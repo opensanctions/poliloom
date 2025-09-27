@@ -1032,3 +1032,108 @@ class TestGetPoliticiansEndpoint:
         assert german_prop["value"] == "1970-01-02"
         assert german_prop["proof_line"] == "Geboren am 2. Januar 1970"
         assert german_prop["archived_page"]["url"] == "https://de.wikipedia.org/test"
+
+    def test_excludes_soft_deleted_properties(
+        self,
+        client,
+        mock_auth,
+        db_session,
+        sample_politician,
+        sample_position,
+        sample_archived_page,
+    ):
+        """Test that soft-deleted properties are excluded from results."""
+        from datetime import datetime, timezone
+
+        # Add a normal unevaluated property
+        normal_property = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1980-01-01",
+            archived_page_id=sample_archived_page.id,
+            proof_line="Born on January 1, 1980",
+        )
+
+        # Add a soft-deleted property
+        deleted_property = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.POSITION,
+            entity_id=sample_position.wikidata_id,
+            archived_page_id=sample_archived_page.id,
+            proof_line="Served as Mayor",
+            deleted_at=datetime.now(timezone.utc),  # This makes it soft-deleted
+        )
+
+        db_session.add_all([normal_property, deleted_property])
+        db_session.commit()
+
+        # Request politicians
+        response = client.get("/politicians/", headers=mock_auth)
+        assert response.status_code == 200
+        data = response.json()
+
+        # Should return the politician because they have normal_property
+        assert len(data) == 1
+        politician_data = data[0]
+
+        # Extract properties by type
+        extracted_properties = extract_properties_by_type(
+            politician_data, extracted=True
+        )
+
+        # Should have birth date property but NOT the soft-deleted position
+        assert len(extracted_properties["P569"]) == 1  # BIRTH_DATE (normal)
+        assert (
+            len(extracted_properties["P39"]) == 0
+        )  # POSITION (soft-deleted, excluded)
+
+        # Verify the returned property is the correct one
+        birth_prop = extracted_properties["P569"][0]
+        assert birth_prop["value"] == "1980-01-01"
+        assert birth_prop["proof_line"] == "Born on January 1, 1980"
+
+    def test_excludes_politicians_with_only_soft_deleted_properties(
+        self, client, mock_auth, db_session, sample_archived_page
+    ):
+        """Test that politicians with only soft-deleted unevaluated properties are excluded."""
+        from datetime import datetime, timezone
+
+        # Create additional entities
+        position = Position.create_with_entity(db_session, "Q30185", "Deputy")
+
+        # Create politician with only soft-deleted properties
+        politician = Politician.create_with_entity(
+            db_session, "Q998877", "Only Deleted Properties Politician"
+        )
+        db_session.add(politician)
+        db_session.flush()
+
+        # Add only soft-deleted properties
+        deleted_birth = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1975-05-15",
+            archived_page_id=sample_archived_page.id,
+            proof_line="Born on May 15, 1975",
+            deleted_at=datetime.now(timezone.utc),
+        )
+
+        deleted_position = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            archived_page_id=sample_archived_page.id,
+            proof_line="Served as Deputy",
+            deleted_at=datetime.now(timezone.utc),
+        )
+
+        db_session.add_all([deleted_birth, deleted_position])
+        db_session.commit()
+
+        # Request politicians
+        response = client.get("/politicians/", headers=mock_auth)
+        assert response.status_code == 200
+        data = response.json()
+
+        # Should return empty because this politician has no non-deleted unevaluated properties
+        assert len(data) == 0

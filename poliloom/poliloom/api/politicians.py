@@ -57,7 +57,7 @@ async def get_politicians(
         politician_ids_query = (
             select(Politician.id.distinct())
             .join(Property)
-            .where(Property.statement_id.is_(None))
+            .where(and_(Property.statement_id.is_(None), Property.deleted_at.is_(None)))
         )
 
         # Apply language filtering
@@ -103,23 +103,28 @@ async def get_politicians(
             query = query.options(
                 selectinload(
                     Politician.properties.and_(
-                        or_(
-                            Property.archived_page_id.is_(
+                        and_(
+                            Property.deleted_at.is_(
                                 None
-                            ),  # Include Wikidata properties
-                            Property.archived_page.has(
-                                ArchivedPage.iso1_code.in_(
-                                    select(Language.iso1_code).where(
-                                        Language.wikidata_id.in_(languages)
+                            ),  # Exclude soft-deleted properties
+                            or_(
+                                Property.archived_page_id.is_(
+                                    None
+                                ),  # Include Wikidata properties
+                                Property.archived_page.has(
+                                    ArchivedPage.iso1_code.in_(
+                                        select(Language.iso1_code).where(
+                                            Language.wikidata_id.in_(languages)
+                                        )
                                     )
                                 )
-                            )
-                            | Property.archived_page.has(
-                                ArchivedPage.iso3_code.in_(
-                                    select(Language.iso3_code).where(
-                                        Language.wikidata_id.in_(languages)
+                                | Property.archived_page.has(
+                                    ArchivedPage.iso3_code.in_(
+                                        select(Language.iso3_code).where(
+                                            Language.wikidata_id.in_(languages)
+                                        )
                                     )
-                                )
+                                ),
                             ),
                         )
                     )
@@ -132,7 +137,9 @@ async def get_politicians(
         else:
             # No language filter, load all properties
             query = query.options(
-                selectinload(Politician.properties).options(
+                selectinload(
+                    Politician.properties.and_(Property.deleted_at.is_(None))
+                ).options(
                     selectinload(Property.entity),
                     selectinload(Property.archived_page),
                 ),
