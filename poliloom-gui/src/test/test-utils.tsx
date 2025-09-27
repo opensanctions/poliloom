@@ -1,6 +1,8 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import { ArchivedPageProvider } from '@/contexts/ArchivedPageContext';
+import { PreferencesProvider } from '@/contexts/PreferencesContext';
+import { PoliticiansQueueProvider } from '@/contexts/PoliticiansQueueContext';
 
 // Mock SessionProvider for testing
 const MockSessionProvider = ({ children }: { children: React.ReactNode }) => <>{children}</>;
@@ -8,9 +10,13 @@ const MockSessionProvider = ({ children }: { children: React.ReactNode }) => <>{
 const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
   return (
     <MockSessionProvider>
-      <ArchivedPageProvider>
-        {children}
-      </ArchivedPageProvider>
+      <PreferencesProvider>
+        <PoliticiansQueueProvider>
+          <ArchivedPageProvider>
+            {children}
+          </ArchivedPageProvider>
+        </PoliticiansQueueProvider>
+      </PreferencesProvider>
     </MockSessionProvider>
   );
 };

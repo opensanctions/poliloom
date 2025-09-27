@@ -1,11 +1,33 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor, act } from '@testing-library/react';
-import { render } from '@testing-library/react';
+import { render } from '@/test/test-utils';
 import Home from './page';
 import { mockPolitician } from '@/test/mock-data';
 
 // Mock fetch for API calls
 global.fetch = vi.fn();
+
+// Mock localStorage
+Object.defineProperty(window, 'localStorage', {
+  value: {
+    getItem: vi.fn(),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
+    clear: vi.fn(),
+  },
+  writable: true,
+});
+
+// Mock navigator.languages for browser language detection
+Object.defineProperty(navigator, 'languages', {
+  value: ['en-US'],
+  writable: true,
+});
+
+Object.defineProperty(navigator, 'language', {
+  value: 'en-US',
+  writable: true,
+});
 
 vi.mock('@/lib/actions', () => ({
   handleSignIn: vi.fn(),
@@ -70,12 +92,21 @@ describe('Home Page', () => {
       status: 'authenticated',
     });
 
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: async () => [mockPolitician],
-    } as Response);
+    // Mock fetch for preferences API (first call)
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => [], // empty preferences
+      } as Response)
+      // Mock fetch for politicians API (second call)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => [mockPolitician],
+      } as Response);
 
     await act(async () => {
       render(<Home />);
