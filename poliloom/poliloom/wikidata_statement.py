@@ -24,6 +24,32 @@ WIKIDATA_API_ROOT = os.getenv(
 USER_AGENT = "PoliLoom API/0.1.0"
 
 
+def _convert_qualifiers_to_rest_api(
+    qualifiers_json: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    """Convert qualifiers from Action API format to REST API format."""
+    rest_qualifiers = []
+
+    for property_id, qualifier_list in qualifiers_json.items():
+        for qualifier in qualifier_list:
+            rest_qualifier = {"property": {"id": property_id}}
+
+            if qualifier.get("snaktype") == "value" and "datavalue" in qualifier:
+                datavalue = qualifier["datavalue"]
+                if datavalue["type"] == "wikibase-entityid":
+                    content = datavalue["value"]["id"]
+                else:
+                    content = datavalue["value"]
+
+                rest_qualifier["value"] = {"type": "value", "content": content}
+            else:
+                rest_qualifier["value"] = {"type": qualifier.get("snaktype", "value")}
+
+            rest_qualifiers.append(rest_qualifier)
+
+    return rest_qualifiers
+
+
 def _parse_date_for_rest_api(date_value: str) -> Optional[Dict[str, Any]]:
     """
     Parse a date string and convert it to Wikidata REST API format.
@@ -276,11 +302,14 @@ async def push_evaluation(
             )
 
             # Build statement data using the appropriate builder function
-            wikidata_value, qualifiers = _build_property_statement(evaluation.property)
+            wikidata_value, _ = _build_property_statement(evaluation.property)
 
-            # Use qualifiers from Property model if available, otherwise use builder result
+            # Convert qualifiers from Action API format to REST API format
+            qualifiers = None
             if evaluation.property.qualifiers_json:
-                qualifiers = evaluation.property.qualifiers_json
+                qualifiers = _convert_qualifiers_to_rest_api(
+                    evaluation.property.qualifiers_json
+                )
 
             # Create statement using property type as Wikidata property ID
             statement_id = await create_statement(
