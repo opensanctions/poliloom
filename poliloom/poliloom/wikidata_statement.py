@@ -9,10 +9,8 @@ import httpx
 from sqlalchemy.orm import Session
 
 from .models import (
-    Property,
     PropertyType,
 )
-from .wikidata_date import WikidataDate
 
 logger = logging.getLogger(__name__)
 
@@ -48,36 +46,6 @@ def _convert_qualifiers_to_rest_api(
             rest_qualifiers.append(rest_qualifier)
 
     return rest_qualifiers
-
-
-def _parse_date_for_rest_api(date_value: str) -> Optional[Dict[str, Any]]:
-    """
-    Parse a date string and convert it to Wikidata REST API format.
-
-    Supports YYYY, YYYY-MM, and YYYY-MM-DD formats.
-
-    Args:
-        date_value: Date string in YYYY, YYYY-MM, or YYYY-MM-DD format
-
-    Returns:
-        Wikidata REST API time value dict or None if parsing fails
-    """
-    try:
-        wikidata_date = WikidataDate.from_date_string(date_value)
-        if not wikidata_date:
-            logger.error(f"Cannot parse date value: {date_value}")
-            return None
-
-        # Convert to REST API format
-        time_value = wikidata_date.to_wikidata_value()
-        return {
-            "type": "value",
-            "content": time_value,
-        }
-
-    except Exception as e:
-        logger.error(f"Cannot parse date value: {date_value} - {e}")
-        return None
 
 
 async def delete_statement(
@@ -301,8 +269,21 @@ async def push_evaluation(
                 f"Processing evaluation {evaluation.id}: politician {politician_wikidata_id}"
             )
 
-            # Build statement data using the appropriate builder function
-            wikidata_value, _ = _build_property_statement(evaluation.property)
+            # Build statement value directly from Property fields
+            if evaluation.property.type in [
+                PropertyType.BIRTH_DATE,
+                PropertyType.DEATH_DATE,
+            ]:
+                wikidata_value = {"type": "value", "content": evaluation.property.value}
+            elif evaluation.property.type in [
+                PropertyType.BIRTHPLACE,
+                PropertyType.POSITION,
+                PropertyType.CITIZENSHIP,
+            ]:
+                wikidata_value = {
+                    "type": "value",
+                    "content": evaluation.property.entity_id,
+                }
 
             # Convert qualifiers from Action API format to REST API format
             qualifiers = None
@@ -339,38 +320,3 @@ async def push_evaluation(
     except Exception as e:
         logger.error(f"Error processing evaluation {evaluation.id}: {e}")
         return False
-
-
-def _build_property_statement(property: Property) -> tuple[dict, list]:
-    """
-    Build statement data for Property.
-
-    Returns:
-        tuple of (wikidata_value, qualifiers)
-    """
-    # Handle date properties (birth date, death date)
-    if property.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
-        if not property.value:
-            raise ValueError(
-                f"Date value is required for property type {property.type}"
-            )
-        wikidata_value = _parse_date_for_rest_api(property.value)
-        if not wikidata_value:
-            raise ValueError(f"Cannot parse date value: {property.value}")
-        return wikidata_value, None
-
-    # Handle property properties (birthplace, position, citizenship)
-    elif property.type in [
-        PropertyType.BIRTHPLACE,
-        PropertyType.POSITION,
-        PropertyType.CITIZENSHIP,
-    ]:
-        if not property.entity_id:
-            raise ValueError(
-                f"Property ID is required for property type {property.type}"
-            )
-        wikidata_value = {"type": "value", "content": property.entity_id}
-        return wikidata_value, None
-
-    else:
-        raise ValueError(f"Unknown property type: {property.type}")
