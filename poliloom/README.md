@@ -70,8 +70,8 @@ uv run uvicorn poliloom.api:app --reload
 
 - `poliloom enrich-wikipedia --id <wikidata_id>` - Enrich politician using LLMs
 - `poliloom enrich-wikipedia --limit <N>` - Enrich politicians until N have unevaluated statements
-- `poliloom show-politician --id <wikidata_id>` - Display politician information
 - `poliloom embed-entities` - Generate embeddings for all positions and locations
+- `poliloom garbage-collect` - Clean up entities missing from latest dumps using two-dump validation
 
 ### Server
 

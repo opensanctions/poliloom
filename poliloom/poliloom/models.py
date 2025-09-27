@@ -1013,26 +1013,40 @@ class CurrentImportEntity(Base):
     )
 
     @classmethod
-    def cleanup_missing(cls, session: Session) -> dict:
+    def cleanup_missing(
+        cls, session: Session, previous_dump_timestamp: datetime
+    ) -> dict:
         """
-        Soft-delete entities that were not seen during the current import.
+        Soft-delete entities using two-dump validation strategy.
+        Only deletes entities missing from current dump AND older than previous dump.
+        This prevents race conditions from incorrectly deleting recently added entities.
+
+        Args:
+            session: Database session
+            previous_dump_timestamp: Last modified timestamp of the previous dump.
 
         Returns:
-            dict: Counts of entities that were soft-deleted
+            dict: Count of entities that were soft-deleted
         """
-        # Soft-delete WikidataEntity records not in tracking table
-        entities_result = session.execute(
+        # Only delete if: NOT in current dump AND older than previous dump
+        # Convert timezone-aware timestamp to naive for database comparison
+        previous_dump_naive = previous_dump_timestamp.replace(tzinfo=None)
+        deleted_result = session.execute(
             text(
                 """
             UPDATE wikidata_entities
             SET deleted_at = NOW()
             WHERE wikidata_id NOT IN (SELECT entity_id FROM current_import_entities)
+            AND updated_at <= :previous_dump_timestamp
             AND deleted_at IS NULL
         """
-            )
+            ),
+            {"previous_dump_timestamp": previous_dump_naive},
         )
 
-        return {"entities": entities_result.rowcount}
+        return {
+            "entities_marked_deleted": deleted_result.rowcount,
+        }
 
     @classmethod
     def clear_tracking_table(cls, session: Session) -> None:
@@ -1048,41 +1062,55 @@ class CurrentImportStatement(Base):
     statement_id = Column(String, primary_key=True)
 
     @classmethod
-    def cleanup_missing(cls, session: Session) -> dict:
+    def cleanup_missing(
+        cls, session: Session, previous_dump_timestamp: datetime
+    ) -> dict:
         """
-        Soft-delete statements that were not seen during the current import.
+        Soft-delete statements using two-dump validation strategy.
+        Only deletes statements missing from current dump AND older than previous dump.
+        This prevents race conditions from incorrectly deleting recently added statements.
+
+        Args:
+            session: Database session
+            previous_dump_timestamp: Last modified timestamp of the previous dump.
 
         Returns:
             dict: Counts of statements that were soft-deleted
         """
-        # Soft-delete Property records not in tracking table
-        properties_result = session.execute(
+        # Only delete properties if: NOT in current dump AND older than previous dump
+        # Convert timezone-aware timestamp to naive for database comparison
+        previous_dump_naive = previous_dump_timestamp.replace(tzinfo=None)
+        properties_deleted_result = session.execute(
             text(
                 """
             UPDATE properties
             SET deleted_at = NOW()
             WHERE statement_id IS NOT NULL
             AND statement_id NOT IN (SELECT statement_id FROM current_import_statements)
+            AND updated_at <= :previous_dump_timestamp
             AND deleted_at IS NULL
         """
-            )
+            ),
+            {"previous_dump_timestamp": previous_dump_naive},
         )
 
-        # Soft-delete WikidataRelation records not in tracking table
-        relations_result = session.execute(
+        # Only delete relations if: NOT in current dump AND older than previous dump
+        relations_deleted_result = session.execute(
             text(
                 """
             UPDATE wikidata_relations
             SET deleted_at = NOW()
             WHERE statement_id NOT IN (SELECT statement_id FROM current_import_statements)
+            AND updated_at <= :previous_dump_timestamp
             AND deleted_at IS NULL
         """
-            )
+            ),
+            {"previous_dump_timestamp": previous_dump_naive},
         )
 
         return {
-            "properties": properties_result.rowcount,
-            "relations": relations_result.rowcount,
+            "properties_marked_deleted": properties_deleted_result.rowcount,
+            "relations_marked_deleted": relations_deleted_result.rowcount,
         }
 
     @classmethod

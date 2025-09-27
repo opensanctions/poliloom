@@ -519,44 +519,86 @@ def dump_import_politicians(file, batch_size):
 
 @main.command("garbage-collect")
 def garbage_collect():
-    """Garbage collect by soft-deleting entities and statements not seen in current import, then clearing tracking tables."""
+    """Garbage collect using two-dump validation strategy to safely soft-delete entities and statements."""
 
-    click.echo("🗑️  Starting garbage collection...")
+    click.echo("🗑️  Starting garbage collection with two-dump validation...")
 
-    try:
-        with Session(get_engine()) as session:
+    with Session(get_engine()) as session:
+        try:
+            # Get the latest 2 dumps for two-dump validation
+            dumps = (
+                session.query(WikidataDump)
+                .order_by(WikidataDump.last_modified.desc())
+                .limit(2)
+                .all()
+            )
+
+            if not dumps:
+                click.echo(
+                    "❌ No dump found. Please import a dump before running garbage collection."
+                )
+                raise SystemExit(1)
+
+            latest_dump = dumps[0]
+            click.echo(
+                f"📅 Latest dump timestamp: {latest_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC"
+            )
+
+            if len(dumps) < 2:
+                click.echo(
+                    "ℹ️  Only one dump found - skipping deletion for safety (first import)"
+                )
+                click.echo("   Items will only be deleted after next dump import")
+                click.echo(
+                    "✅ Garbage collection completed (no deletions - first import)"
+                )
+                return
+
+            previous_dump = dumps[1]
+            click.echo(
+                f"📋 Previous dump timestamp: {previous_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC"
+            )
+
             # Clean up missing entities
-            click.echo("⏳ Cleaning up entities not seen in current import...")
-            entity_counts = CurrentImportEntity.cleanup_missing(session)
-            click.echo(f"  • Soft-deleted {entity_counts['entities']} entities")
+            click.echo("⏳ Cleaning up entities using two-dump validation...")
+            entity_counts = CurrentImportEntity.cleanup_missing(
+                session, previous_dump.last_modified
+            )
+            click.echo(
+                f"  • Soft-deleted {entity_counts['entities_marked_deleted']} entities"
+            )
 
             # Clean up missing statements
-            click.echo("⏳ Cleaning up statements not seen in current import...")
-            statement_counts = CurrentImportStatement.cleanup_missing(session)
-            click.echo(f"  • Soft-deleted {statement_counts['properties']} properties")
-            click.echo(f"  • Soft-deleted {statement_counts['relations']} relations")
-
-            # Clear tracking tables
-            click.echo("⏳ Clearing tracking tables...")
-            CurrentImportEntity.clear_tracking_table(session)
-            CurrentImportStatement.clear_tracking_table(session)
-
-            # Commit all changes
-            session.commit()
+            click.echo("⏳ Cleaning up statements using two-dump validation...")
+            statement_counts = CurrentImportStatement.cleanup_missing(
+                session, previous_dump.last_modified
+            )
+            click.echo(
+                f"  • Soft-deleted {statement_counts['properties_marked_deleted']} properties"
+            )
+            click.echo(
+                f"  • Soft-deleted {statement_counts['relations_marked_deleted']} relations"
+            )
 
             total_deleted = (
-                entity_counts["entities"]
-                + statement_counts["properties"]
-                + statement_counts["relations"]
+                entity_counts["entities_marked_deleted"]
+                + statement_counts["properties_marked_deleted"]
+                + statement_counts["relations_marked_deleted"]
             )
 
             click.echo("✅ Garbage collection completed successfully")
             click.echo(f"  • Total items soft-deleted: {total_deleted}")
-            click.echo("  • Tracking tables cleared")
 
-    except Exception as e:
-        click.echo(f"❌ Error during garbage collection: {e}")
-        raise SystemExit(1)
+        except Exception as e:
+            click.echo(f"❌ Error during garbage collection: {e}")
+            raise SystemExit(1)
+        finally:
+            # Clear tracking tables regardless of success/failure/early return
+            click.echo("⏳ Clearing tracking tables...")
+            CurrentImportEntity.clear_tracking_table(session)
+            CurrentImportStatement.clear_tracking_table(session)
+            session.commit()
+            click.echo("  • Tracking tables cleared")
 
 
 if __name__ == "__main__":
