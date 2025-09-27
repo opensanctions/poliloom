@@ -1,0 +1,11 @@
+[Unit]
+Description=Run PostgreSQL backup daily at 2 AM
+Requires=poliloom-backup.service
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=1800
+
+[Install]
+WantedBy=timers.target

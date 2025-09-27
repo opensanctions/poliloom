@@ -1,0 +1,17 @@
+[Unit]
+Description=PostgreSQL backup to Google Cloud Storage
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/poliloom
+EnvironmentFile=/root/poliloom/.env
+EnvironmentFile=/root/poliloom/poliloom/.env
+# (docker compose)
+#ExecStart=/usr/bin/docker compose exec -T postgres pg_dump -U ${DB_USER} -d ${DB_NAME} | gzip | gsutil cp - ${POLILOOM_BACKUP_ROOT}/poliloom-db-$(date +%%Y%%m%%d-%%H%%M%%S).sql.gz
+# (direct psql)
+ExecStart=/bin/bash -c 'pg_dump -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} | gzip | gsutil cp - ${POLILOOM_BACKUP_ROOT}/poliloom-db-$(date +%%Y%%m%%d-%%H%%M%%S).sql.gz'
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=3600
