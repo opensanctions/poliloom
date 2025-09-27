@@ -30,7 +30,7 @@ export default function Home() {
       countryPreferences.forEach((qid) => params.append("countries", qid));
     }
 
-    const response = await fetch(`/api/politicians/?${params.toString()}`);
+    const response = await fetch(`/api/politicians?${params.toString()}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch politician: ${response.statusText}`);
     }

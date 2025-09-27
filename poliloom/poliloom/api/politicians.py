@@ -3,7 +3,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func
 
 from ..models import Language
 
@@ -53,13 +53,19 @@ async def get_politicians(
       for these countries.
     """
     with Session(get_engine()) as db:
-        # Build a single query that fetches politicians with filtered properties
-        query = select(Politician).join(Property).where(Property.statement_id.is_(None))
+        # First, find politician IDs that have unevaluated properties
+        politician_ids_query = (
+            select(Politician.id.distinct())
+            .join(Property)
+            .where(Property.statement_id.is_(None))
+        )
 
-        # Apply language filtering on the filtering property
+        # Apply language filtering
         if languages:
-            query = (
-                query.join(ArchivedPage, Property.archived_page_id == ArchivedPage.id)
+            politician_ids_query = (
+                politician_ids_query.join(
+                    ArchivedPage, Property.archived_page_id == ArchivedPage.id
+                )
                 .join(
                     Language,
                     or_(
@@ -76,7 +82,7 @@ async def get_politicians(
                 .where(Language.wikidata_id.in_(languages))
             )
 
-        # Apply country filtering on citizenship properties
+        # Apply country filtering
         if countries:
             citizenship_subquery = select(Property.politician_id).where(
                 and_(
@@ -84,13 +90,16 @@ async def get_politicians(
                     Property.entity_id.in_(countries),
                 )
             )
-            query = query.where(Politician.id.in_(citizenship_subquery))
+            politician_ids_query = politician_ids_query.where(
+                Politician.id.in_(citizenship_subquery)
+            )
 
-        # Load related data with selectinload, but use a custom loader for properties
-        # that respects our language filter
+        # Now build the main query to fetch politicians with their data
+        query = select(Politician).where(Politician.id.in_(politician_ids_query))
+
+        # Load related data with selectinload
         if languages:
             # When language filter is active, we need to filter properties
-            # Create a filtered relationship loader
             query = query.options(
                 selectinload(
                     Politician.properties.and_(
@@ -130,9 +139,13 @@ async def get_politicians(
                 selectinload(Politician.wikipedia_links),
             )
 
-        # Apply distinct and limit
-        # We need distinct because joins can create duplicate rows
-        query = query.distinct().limit(limit)
+        # Set random seed based on user_id for consistent random ordering per user
+        # Using modulo to keep seed value within PostgreSQL's valid range (0.0 to 1.0)
+        # seed_value = (current_user.user_id % 1000000) / 1000000.0
+        # db.execute(text(f"SELECT setseed({seed_value})"))
+
+        # Apply random ordering and limit
+        query = query.order_by(func.random()).limit(limit)
 
         # Execute query
         politicians = db.execute(query).scalars().all()
