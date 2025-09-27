@@ -105,7 +105,7 @@ export default function PreferencesPage() {
                   options={languageOptions}
                   selected={languagePreferences}
                   onChange={updateLanguagePreferences}
-                  placeholder="Select languages..."
+                  placeholder="No filter - showing all"
                   loading={loadingLanguages}
                   disabled={updating}
                 />
@@ -122,7 +122,7 @@ export default function PreferencesPage() {
                   options={countryOptions}
                   selected={countryPreferences}
                   onChange={updateCountryPreferences}
-                  placeholder="Select countries..."
+                  placeholder="No filter - showing all"
                   loading={loadingCountries}
                   disabled={updating}
                 />
