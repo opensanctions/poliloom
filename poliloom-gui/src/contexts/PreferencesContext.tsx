@@ -19,11 +19,8 @@ const PreferencesContext = createContext<PreferencesContextType | undefined>(und
 
 const STORAGE_KEYS = {
   LANGUAGE_PREFERENCES: 'poliloom_language_preferences',
-  COUNTRY_PREFERENCES: 'poliloom_country_preferences',
-  PREFERENCES_TIMESTAMP: 'poliloom_preferences_timestamp'
+  COUNTRY_PREFERENCES: 'poliloom_country_preferences'
 }
-
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
 // Helper function to detect browser language and match with available languages
 const detectBrowserLanguage = async (): Promise<string[]> => {
@@ -81,21 +78,16 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     const loadFromStorage = () => {
       try {
-        const timestamp = localStorage.getItem(STORAGE_KEYS.PREFERENCES_TIMESTAMP)
-        const isExpired = !timestamp || Date.now() - parseInt(timestamp) > CACHE_DURATION
+        const storedLanguages = localStorage.getItem(STORAGE_KEYS.LANGUAGE_PREFERENCES)
+        const storedCountries = localStorage.getItem(STORAGE_KEYS.COUNTRY_PREFERENCES)
 
-        if (!isExpired) {
-          const storedLanguages = localStorage.getItem(STORAGE_KEYS.LANGUAGE_PREFERENCES)
-          const storedCountries = localStorage.getItem(STORAGE_KEYS.COUNTRY_PREFERENCES)
-
-          if (storedLanguages) {
-            const languages = JSON.parse(storedLanguages)
-            setLanguagePreferences(languages)
-          }
-          if (storedCountries) {
-            const countries = JSON.parse(storedCountries)
-            setCountryPreferences(countries)
-          }
+        if (storedLanguages) {
+          const languages = JSON.parse(storedLanguages)
+          setLanguagePreferences(languages)
+        }
+        if (storedCountries) {
+          const countries = JSON.parse(storedCountries)
+          setCountryPreferences(countries)
         }
       } catch (error) {
         console.warn('Failed to load preferences from localStorage:', error)
@@ -112,7 +104,6 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     try {
       localStorage.setItem(STORAGE_KEYS.LANGUAGE_PREFERENCES, JSON.stringify(languages))
       localStorage.setItem(STORAGE_KEYS.COUNTRY_PREFERENCES, JSON.stringify(countries))
-      localStorage.setItem(STORAGE_KEYS.PREFERENCES_TIMESTAMP, Date.now().toString())
     } catch (error) {
       console.warn('Failed to save preferences to localStorage:', error)
     }
