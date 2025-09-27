@@ -2,6 +2,7 @@
 
 import logging
 import os
+from datetime import datetime
 from typing import Dict, Any, Optional, List
 
 import httpx
@@ -69,7 +70,7 @@ async def delete_statement(
     Raises:
         ValueError: If JWT token is missing
         httpx.RequestError: For network errors
-        Exception: For other errors including failed API responses
+        Exception: For other API errors
     """
     if not jwt_token:
         raise ValueError("JWT token is required for Wikidata API calls")
@@ -98,7 +99,14 @@ async def delete_statement(
                 f"Successfully deleted statement {statement_id} from entity {entity_id}"
             )
             return
+        elif response.status_code == 404:
+            # Statement or entity not found - already deleted, which is the desired state
+            logger.info(
+                f"Statement {statement_id} or entity {entity_id} not found - already deleted"
+            )
+            return
         else:
+            # Other errors - raise exception
             raise Exception(
                 f"Failed to delete statement {statement_id} from entity {entity_id}: HTTP {response.status_code} - {response.text}"
             )
@@ -225,18 +233,25 @@ async def push_evaluation(
                 f"Deleting property statement {evaluation.property.statement_id} for politician {politician_wikidata_id}"
             )
 
-            await delete_statement(
-                politician_wikidata_id,
-                evaluation.property.statement_id,
-                jwt_token,
-            )
+            try:
+                await delete_statement(
+                    politician_wikidata_id,
+                    evaluation.property.statement_id,
+                    jwt_token,
+                )
 
-            # Only delete from database if Wikidata deletion succeeded
-            db.delete(evaluation.property)
-            db.commit()
-            logger.info(
-                f"Successfully deleted property statement for politician {politician_wikidata_id}"
-            )
+                # Soft delete from database if Wikidata deletion succeeded or statement was already deleted
+                evaluation.property.deleted_at = datetime.utcnow()
+                db.commit()
+                logger.info(
+                    f"Successfully processed deletion for property statement for politician {politician_wikidata_id}"
+                )
+            except Exception as e:
+                # Wikidata deletion failed - don't delete from database, but log the issue
+                logger.error(
+                    f"Wikidata deletion failed for statement {evaluation.property.statement_id}: {e} - keeping in database"
+                )
+                return False
 
         elif not evaluation.is_confirmed and not is_existing_statement:
             # Negative evaluation of extracted data - delete from database only
@@ -244,7 +259,7 @@ async def push_evaluation(
                 f"Processing negative evaluation {evaluation.id} - removing extracted data"
             )
 
-            db.delete(evaluation.property)
+            evaluation.property.deleted_at = datetime.utcnow()
             db.commit()
             logger.info(
                 f"Successfully removed property extracted data for politician {politician_wikidata_id}"
