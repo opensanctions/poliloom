@@ -71,7 +71,7 @@ class TimestampMixin:
 class SoftDeleteMixin:
     """Mixin for adding soft delete functionality."""
 
-    deleted_at = Column(DateTime, nullable=True)
+    deleted_at = Column(DateTime, nullable=True, index=True)
 
     def soft_delete(self):
         """Mark the entity as deleted by setting the deleted_at timestamp."""
@@ -606,6 +606,7 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         UUID(as_uuid=True),
         ForeignKey("politicians.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     type = Column(SQLEnum(PropertyType), nullable=False)
     value = Column(String, nullable=True)  # NULL for entity relationships
