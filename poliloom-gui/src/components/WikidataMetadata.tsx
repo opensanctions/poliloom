@@ -1,9 +1,70 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect } from "react";
 
 interface WikidataMetadataProps {
   qualifiers?: Record<string, unknown>;
   references?: Array<Record<string, unknown>>;
   isDiscarding?: boolean;
+}
+
+interface MetadataSectionProps {
+  title: string;
+  data: Record<string, unknown> | Array<Record<string, unknown>>;
+  sectionKey: "qualifiers" | "references";
+  isOpen: boolean;
+  isDiscarding: boolean;
+  wasAutoOpened: boolean;
+  onToggle: (section: "qualifiers" | "references") => void;
+}
+
+function MetadataSectionButton({
+  title,
+  sectionKey,
+  isOpen,
+  onToggle,
+}: {
+  title: string;
+  sectionKey: "qualifiers" | "references";
+  isOpen: boolean;
+  onToggle: (section: "qualifiers" | "references") => void;
+}) {
+  return (
+    <button
+      className="font-medium cursor-pointer flex items-center gap-1 text-gray-700 hover:text-gray-900"
+      onClick={() => onToggle(sectionKey)}
+    >
+      <span
+        className={`transition-transform ${isOpen ? "" : "-rotate-90"}`}
+      >
+        ▼
+      </span>
+      {title}
+    </button>
+  );
+}
+
+function MetadataSectionPanel({
+  data,
+  isDiscarding,
+  wasAutoOpened,
+}: {
+  data: Record<string, unknown> | Array<Record<string, unknown>>;
+  isDiscarding: boolean;
+  wasAutoOpened: boolean;
+}) {
+  return (
+    <div className="mt-2">
+      <div className={`relative p-2 rounded ${(isDiscarding || wasAutoOpened) ? "bg-red-900" : "bg-gray-700"}`}>
+        {(isDiscarding || wasAutoOpened) && (
+          <div className="absolute top-2 right-2 text-white text-xs">
+            Metadata will be lost ⚠
+          </div>
+        )}
+        <pre className="text-white text-xs overflow-x-auto">
+          <code>{JSON.stringify(data, null, 2)}</code>
+        </pre>
+      </div>
+    </div>
+  );
 }
 
 export function WikidataMetadata({
@@ -20,17 +81,13 @@ export function WikidataMetadata({
   const hasReferences = references && references.length > 0;
 
   // Auto-open the panel when discarding
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isDiscarding && (hasQualifiers || hasReferences)) {
       // Only open a panel if none is currently open
-      setOpenSection(prev => {
-        if (prev === null) {
-          setWasAutoOpened(true);
-          // Prefer qualifiers if both exist, otherwise references
-          return hasQualifiers ? "qualifiers" : "references";
-        }
-        return prev; // Keep current section open
-      });
+      if (openSection === null) {
+        setWasAutoOpened(true);
+        setOpenSection(hasQualifiers ? "qualifiers" : "references");
+      }
     } else if (!isDiscarding && wasAutoOpened) {
       // Close panel if it was auto-opened
       setOpenSection(null);
@@ -54,61 +111,42 @@ export function WikidataMetadata({
 
   return (
     <div className="mt-2">
-      <div className="flex gap-4 text-sm">
+      <div className="flex gap-4 text-sm items-center">
         {hasQualifiers && (
-          <button
-            className="font-medium cursor-pointer flex items-center gap-1 text-gray-700 hover:text-gray-900"
-            onClick={() => handleToggle("qualifiers")}
-          >
-            <span
-              className={`transition-transform ${openSection === "qualifiers" ? "" : "-rotate-90"}`}
-            >
-              ▼
-            </span>
-            Qualifiers
-          </button>
+          <MetadataSectionButton
+            title="Qualifiers"
+            sectionKey="qualifiers"
+            isOpen={openSection === "qualifiers"}
+            onToggle={handleToggle}
+          />
         )}
         {hasReferences && (
-          <button
-            className="font-medium cursor-pointer flex items-center gap-1 text-gray-700 hover:text-gray-900"
-            onClick={() => handleToggle("references")}
-          >
-            <span
-              className={`transition-transform ${openSection === "references" ? "" : "-rotate-90"}`}
-            >
-              ▼
-            </span>
-            References
-          </button>
+          <MetadataSectionButton
+            title="References"
+            sectionKey="references"
+            isOpen={openSection === "references"}
+            onToggle={handleToggle}
+          />
+        )}
+        {isDiscarding && openSection === null && (hasQualifiers || hasReferences) && (
+          <span className="text-red-600 text-xs font-medium">
+            ⚠ Metadata will be lost
+          </span>
         )}
       </div>
       {openSection === "qualifiers" && hasQualifiers && (
-        <div className="mt-2">
-          <div className={`relative p-2 rounded ${(isDiscarding || wasAutoOpened) ? "bg-red-900" : "bg-gray-700"}`}>
-            {(isDiscarding || wasAutoOpened) && (
-              <div className="absolute top-2 right-2 text-white text-xs font-medium">
-                Metadata will be lost ⚠
-              </div>
-            )}
-            <pre className="text-white text-xs overflow-x-auto">
-              <code>{JSON.stringify(qualifiers, null, 2)}</code>
-            </pre>
-          </div>
-        </div>
+        <MetadataSectionPanel
+          data={qualifiers!}
+          isDiscarding={isDiscarding}
+          wasAutoOpened={wasAutoOpened}
+        />
       )}
       {openSection === "references" && hasReferences && (
-        <div className="mt-2">
-          <div className={`relative p-2 rounded ${(isDiscarding || wasAutoOpened) ? "bg-red-900" : "bg-gray-700"}`}>
-            {(isDiscarding || wasAutoOpened) && (
-              <div className="absolute top-2 right-2 text-white text-xs font-medium">
-                Metadata will be lost ⚠
-              </div>
-            )}
-            <pre className="text-white text-xs overflow-x-auto">
-              <code>{JSON.stringify(references, null, 2)}</code>
-            </pre>
-          </div>
-        </div>
+        <MetadataSectionPanel
+          data={references!}
+          isDiscarding={isDiscarding}
+          wasAutoOpened={wasAutoOpened}
+        />
       )}
     </div>
   );
