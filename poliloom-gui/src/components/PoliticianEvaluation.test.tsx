@@ -305,6 +305,71 @@ describe('PoliticianEvaluation', () => {
   });
 
   describe('property grouping', () => {
+    it('displays sections in consistent order regardless of data order', () => {
+      // Create politician with properties in different order to test section ordering
+      const mockPoliticianReversedOrder = {
+        ...mockPoliticianWithConflicts,
+        properties: [
+          // Citizenship first (should appear as "Citizenships" section)
+          {
+            id: 'prop-citizenship',
+            type: PropertyType.P27,
+            entity_id: 'Q142',
+            entity_name: 'France',
+            statement_id: null,
+            proof_line: 'French politician',
+            archived_page: null,
+          },
+          // Birthplace second (should appear as "Birthplaces" section)
+          {
+            id: 'birth-1',
+            type: PropertyType.P19,
+            entity_id: 'Q123456',
+            entity_name: 'Test City',
+            statement_id: null,
+            proof_line: 'was born in Test City',
+            archived_page: null,
+          },
+          // Position third (should appear as "Political Positions" section)
+          {
+            id: 'pos-1',
+            type: PropertyType.P39,
+            entity_id: 'Q555777',
+            entity_name: 'Mayor of Test City',
+            statement_id: null,
+            qualifiers: {
+              P580: [{ datavalue: { value: { time: '+2020-01-01T00:00:00Z', precision: 11 } } }],
+              P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }]
+            },
+            proof_line: 'served as mayor from 2020 to 2024',
+            archived_page: null,
+          },
+          // Birth date last (should appear as "Properties" section)
+          {
+            id: 'prop-birth',
+            type: PropertyType.P569,
+            value: '+1970-01-01T00:00:00Z',
+            value_precision: 11,
+            statement_id: null,
+            proof_line: 'born on January 1, 1970',
+            archived_page: null,
+          }
+        ]
+      };
+
+      render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianReversedOrder} />);
+
+      // Get all section headings in order
+      const sectionHeadings = screen.getAllByRole('heading', { level: 2 });
+      const sectionTexts = sectionHeadings.map(heading => heading.textContent);
+
+      // Verify consistent order: Properties, Political Positions, Birthplaces, Citizenships
+      const expectedOrder = ['Properties', 'Political Positions', 'Birthplaces', 'Citizenships'];
+      const actualOrder = sectionTexts.filter(text => expectedOrder.includes(text || ''));
+
+      expect(actualOrder).toEqual(expectedOrder);
+    });
+
     it('groups properties correctly by type and entity', () => {
       render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianWithConflicts} />);
 

@@ -92,8 +92,13 @@ export function PropertiesEvaluation({
       sections.push({ title: "Properties", items });
     }
 
-    // Process entity-based properties (positions, birthplaces, citizenships)
-    entityBasedProps.forEach((typeProperties, propertyType) => {
+    // Process entity-based properties in fixed order (positions, birthplaces, citizenships)
+    const orderedPropertyTypes = [PropertyType.P39, PropertyType.P19, PropertyType.P27];
+
+    orderedPropertyTypes.forEach((propertyType) => {
+      const typeProperties = entityBasedProps.get(propertyType);
+      if (!typeProperties) return;
+
       const sectionTitle = getSectionTitle(propertyType);
 
       // Group by entity_id
