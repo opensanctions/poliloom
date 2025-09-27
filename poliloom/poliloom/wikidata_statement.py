@@ -2,7 +2,7 @@
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 
 import httpx
@@ -235,7 +235,7 @@ async def push_evaluation(
                 )
 
                 # Soft delete from database if Wikidata deletion succeeded or statement was already deleted
-                evaluation.property.deleted_at = datetime.utcnow()
+                evaluation.property.deleted_at = datetime.now(timezone.utc)
                 db.commit()
                 logger.info(
                     f"Successfully processed deletion for property statement for politician {politician_wikidata_id}"
@@ -253,7 +253,7 @@ async def push_evaluation(
                 f"Processing negative evaluation {evaluation.id} - removing extracted data"
             )
 
-            evaluation.property.deleted_at = datetime.utcnow()
+            evaluation.property.deleted_at = datetime.now(timezone.utc)
             db.commit()
             logger.info(
                 f"Successfully removed property extracted data for politician {politician_wikidata_id}"
