@@ -11,7 +11,7 @@ EnvironmentFile=/root/poliloom/poliloom/.env
 # (docker compose)
 #ExecStart=/usr/bin/docker compose exec -T postgres pg_dump -U ${DB_USER} -d ${DB_NAME} | gzip | gsutil cp - ${POLILOOM_BACKUP_ROOT}/poliloom-db-$(date +%%Y%%m%%d-%%H%%M%%S).sql.gz
 # (direct psql)
-ExecStart=/bin/bash -c 'PGPASSWORD=${DB_PASSWORD} pg_dump -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} | gzip | gsutil cp - ${POLILOOM_BACKUP_ROOT}/poliloom-db-$(date +%%Y%%m%%d-%%H%%M%%S).sql.gz'
+ExecStart=/bin/bash -c 'PGPASSWORD=${DB_PASSWORD} pg_dump -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} | lbzip2 | gsutil cp - ${POLILOOM_BACKUP_ROOT}/poliloom-db-$(date +%%Y%%m%%d-%%H%%M%%S).sql.bz2'
 StandardOutput=journal
 StandardError=journal
-TimeoutStartSec=3600
+TimeoutStartSec=7200

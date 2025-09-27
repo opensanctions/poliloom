@@ -33,7 +33,7 @@ sudo systemctl start poliloom-pipeline.timer
 
 - **Schedule**: Daily at 2 AM (±30min random delay)
 - **Function**: PostgreSQL backup to Google Cloud Storage
-- **Timeout**: 1 hour
+- **Timeout**: 2 hours
 
 ### poliloom-pipeline
 
