@@ -1,88 +1,21 @@
 "use client";
 
 import { useAuthSession } from "@/hooks/useAuthSession";
-import { useState, useEffect, useCallback } from "react";
 import { Header } from "@/components/Header";
 import { PoliticianEvaluation } from "@/components/PoliticianEvaluation";
 import { handleSignIn } from "@/lib/actions";
-import { usePreferencesContext } from "@/contexts/PreferencesContext";
-import { Politician } from "@/types";
+import { usePoliticiansQueue } from "@/contexts/PoliticiansQueueContext";
 
 export default function Home() {
   const { session, status, isAuthenticated } = useAuthSession();
-  const { languagePreferences, countryPreferences } = usePreferencesContext();
-  const [politician, setPolitician] = useState<Politician | null>(null);
-  const [nextPolitician, setNextPolitician] = useState<Politician | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchPolitician = useCallback(async (): Promise<Politician | null> => {
-    if (!session?.accessToken) return null;
-
-    // Build query parameters with preferences
-    const params = new URLSearchParams({ limit: "1" });
-
-    if (languagePreferences.length > 0) {
-      languagePreferences.forEach((qid) => params.append("languages", qid));
-    }
-
-    if (countryPreferences.length > 0) {
-      countryPreferences.forEach((qid) => params.append("countries", qid));
-    }
-
-    const response = await fetch(`/api/politicians?${params.toString()}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch politician: ${response.statusText}`);
-    }
-    const politicians: Politician[] = await response.json();
-    return politicians.length > 0 ? politicians[0] : null;
-  }, [session?.accessToken, languagePreferences, countryPreferences]);
-
-  const loadInitialData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const politician = await fetchPolitician();
-      setPolitician(politician);
-
-      // Pre-load next politician in background
-      if (politician) {
-        fetchPolitician()
-          .then(setNextPolitician)
-          .catch(() => setNextPolitician(null));
-      }
-    } catch (error) {
-      console.error("Error fetching politicians:", error);
-      setError("Failed to load politician data. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchPolitician]);
-
-  useEffect(() => {
-    if (isAuthenticated && session?.accessToken) {
-      loadInitialData();
-    }
-  }, [isAuthenticated, session?.accessToken, loadInitialData]);
-
-  const handleNext = () => {
-    if (!nextPolitician) return;
-
-    // Show next politician immediately
-    setPolitician(nextPolitician);
-
-    // Pre-load another politician in background
-    fetchPolitician()
-      .then(setNextPolitician)
-      .catch(() => setNextPolitician(null));
-  };
+  const { currentPolitician, queueLength, loading, error, nextPolitician, refetch } = usePoliticiansQueue();
 
   return (
     <>
       <Header />
 
-      {politician && session?.accessToken ? (
-        <PoliticianEvaluation politician={politician} onNext={handleNext} />
+      {currentPolitician && session?.accessToken ? (
+        <PoliticianEvaluation politician={currentPolitician} onNext={nextPolitician} />
       ) : (
         <main className="bg-gray-50 grid place-items-center py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
           <div className="text-center max-w-2xl">
@@ -129,7 +62,7 @@ export default function Home() {
                   <div className="bg-red-50 border border-red-200 rounded-md p-4">
                     <p className="text-red-800">{error}</p>
                     <button
-                      onClick={loadInitialData}
+                      onClick={refetch}
                       className="mt-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
                     >
                       Try Again
@@ -137,7 +70,7 @@ export default function Home() {
                   </div>
                 )}
 
-                {!loading && !error && !politician && (
+                {!loading && !error && !currentPolitician && (
                   <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
                     <p className="text-gray-600">
                       No politicians available. Check your{" "}

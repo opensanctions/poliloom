@@ -9,6 +9,7 @@ interface PreferencesContextType {
   countryPreferences: string[]
   loading: boolean
   error: string | null
+  initialized: boolean
   updateLanguagePreferences: (qids: string[]) => Promise<void>
   updateCountryPreferences: (qids: string[]) => Promise<void>
   refetch: () => void
@@ -30,6 +31,12 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   const [countryPreferences, setCountryPreferences] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [initialized, setInitialized] = useState(false)
+
+  // Helper function to compare arrays
+  const arraysEqual = (a: string[], b: string[]) => {
+    return a.length === b.length && a.every((val, i) => val === b[i])
+  }
 
   // Load preferences from localStorage on mount
   useEffect(() => {
@@ -43,14 +50,18 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
           const storedCountries = localStorage.getItem(STORAGE_KEYS.COUNTRY_PREFERENCES)
 
           if (storedLanguages) {
-            setLanguagePreferences(JSON.parse(storedLanguages))
+            const languages = JSON.parse(storedLanguages)
+            setLanguagePreferences(languages)
           }
           if (storedCountries) {
-            setCountryPreferences(JSON.parse(storedCountries))
+            const countries = JSON.parse(storedCountries)
+            setCountryPreferences(countries)
           }
         }
       } catch (error) {
         console.warn('Failed to load preferences from localStorage:', error)
+      } finally {
+        setInitialized(true)
       }
     }
 
@@ -75,25 +86,39 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     setLoading(true)
     setError(null)
 
-    const response = await fetch('/api/preferences')
-    if (!response.ok) {
-      throw new Error(`Failed to fetch preferences: ${response.statusText}`)
+    try {
+      const response = await fetch('/api/preferences')
+      if (!response.ok) {
+        throw new Error(`Failed to fetch preferences: ${response.statusText}`)
+      }
+
+      const data: PreferenceResponse[] = await response.json()
+
+      const languages = data
+        .filter(p => p.preference_type === PreferenceType.LANGUAGE)
+        .map(p => p.qid)
+
+      const countries = data
+        .filter(p => p.preference_type === PreferenceType.COUNTRY)
+        .map(p => p.qid)
+
+      // Only update if preferences actually changed
+      setLanguagePreferences(prev => {
+        if (arraysEqual(prev, languages)) return prev
+        return languages
+      })
+
+      setCountryPreferences(prev => {
+        if (arraysEqual(prev, countries)) return prev
+        return countries
+      })
+
+      saveToStorage(languages, countries)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch preferences')
+    } finally {
+      setLoading(false)
     }
-
-    const data: PreferenceResponse[] = await response.json()
-
-    const languages = data
-      .filter(p => p.preference_type === PreferenceType.LANGUAGE)
-      .map(p => p.qid)
-
-    const countries = data
-      .filter(p => p.preference_type === PreferenceType.COUNTRY)
-      .map(p => p.qid)
-
-    setLanguagePreferences(languages)
-    setCountryPreferences(countries)
-    saveToStorage(languages, countries)
-    setLoading(false)
   }, [status])
 
   // Update preferences on server and locally
@@ -135,13 +160,14 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     if (status === 'authenticated') {
       fetchPreferences()
     }
-  }, [status, fetchPreferences])
+  }, [status])
 
   const value: PreferencesContextType = {
     languagePreferences,
     countryPreferences,
     loading,
     error,
+    initialized,
     updateLanguagePreferences,
     updateCountryPreferences,
     refetch: fetchPreferences

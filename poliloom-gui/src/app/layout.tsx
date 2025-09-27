@@ -4,6 +4,7 @@ import "./globals.css";
 import { SessionProvider } from "@/components/SessionProvider";
 import { ArchivedPageProvider } from "@/contexts/ArchivedPageContext";
 import { PreferencesProvider } from "@/contexts/PreferencesContext";
+import { PoliticiansQueueProvider } from "@/contexts/PoliticiansQueueContext";
 import { FetchInterceptor } from "@/components/FetchInterceptor";
 
 const geistSans = Geist({
@@ -34,9 +35,11 @@ export default function RootLayout({
         <SessionProvider>
           <FetchInterceptor />
           <PreferencesProvider>
-            <ArchivedPageProvider>
-              {children}
-            </ArchivedPageProvider>
+            <PoliticiansQueueProvider>
+              <ArchivedPageProvider>
+                {children}
+              </ArchivedPageProvider>
+            </PoliticiansQueueProvider>
           </PreferencesProvider>
         </SessionProvider>
       </body>
