@@ -213,7 +213,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     if (status === 'authenticated') {
       fetchPreferences()
     }
-  }, [status])
+  }, [status, fetchPreferences])
 
   const value: PreferencesContextType = {
     languagePreferences,

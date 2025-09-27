@@ -36,8 +36,8 @@ export function PropertiesEvaluation({
       case PropertyType.P27:
         return (
           <EntityLink
-            entityId={property.entity_id}
-            entityName={property.entity_name}
+            entityId={property.entity_id!}
+            entityName={property.entity_name!}
           />
         );
       default:
@@ -49,7 +49,7 @@ export function PropertiesEvaluation({
     const sections: Array<{
       title: string;
       items: Array<{
-        title: string;
+        title: ReactNode;
         properties: Property[];
         key: string;
       }>;
