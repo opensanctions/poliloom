@@ -927,3 +927,108 @@ class TestGetPoliticiansEndpoint:
             "American English Speaking Politician",
             "German English Speaking Politician",
         }
+
+    def test_language_filter_excludes_properties_from_other_languages(
+        self, client, mock_auth, db_session, sample_language
+    ):
+        """Test that when filtering by language, only properties from that language's archived pages are returned."""
+        # Create languages
+        german_lang = Language.create_with_entity(db_session, "Q188", "German")
+        german_lang.iso1_code = "de"
+        german_lang.iso3_code = "deu"
+
+        # Create archived pages with different language codes
+        english_page = ArchivedPage(
+            url="https://en.wikipedia.org/test", content_hash="en123", iso1_code="en"
+        )
+        german_page = ArchivedPage(
+            url="https://de.wikipedia.org/test", content_hash="de123", iso1_code="de"
+        )
+        no_lang_page = ArchivedPage(
+            url="https://example.com/test",
+            content_hash="none123",  # No language code
+        )
+
+        db_session.add_all([english_page, german_page, no_lang_page])
+        db_session.flush()
+
+        # Create politician with properties from multiple language pages
+        politician = Politician.create_with_entity(
+            db_session, "Q4001", "Multilingual Politician"
+        )
+        db_session.add(politician)
+        db_session.flush()
+
+        # Add properties from different language sources
+        english_birth = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1970-01-01",
+            archived_page_id=english_page.id,
+            proof_line="Born on January 1, 1970",
+        )
+
+        german_birth = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1970-01-02",  # Different date from German source
+            archived_page_id=german_page.id,
+            proof_line="Geboren am 2. Januar 1970",
+        )
+
+        no_lang_birth = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1970-01-03",
+            archived_page_id=no_lang_page.id,
+            proof_line="Unknown language source",
+        )
+
+        # Add a Wikidata property (no archived page)
+        wikidata_death = Property(
+            politician_id=politician.id,
+            type=PropertyType.DEATH_DATE,
+            value="2024-01-01",
+            archived_page_id=None,
+            statement_id="Q4001$12345678-1234-1234-1234-123456789012",
+        )
+
+        db_session.add_all([english_birth, german_birth, no_lang_birth, wikidata_death])
+        db_session.commit()
+
+        # Test filtering by English - should only return English property
+        response = client.get("/politicians/?languages=Q1860", headers=mock_auth)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+
+        politician_data = data[0]
+        # Extract only properties with archived_page (extracted properties)
+        extracted_props = [
+            p for p in politician_data["properties"] if p.get("archived_page")
+        ]
+
+        # Should only have the English property, not German or no-language ones
+        assert len(extracted_props) == 1
+        english_prop = extracted_props[0]
+        assert english_prop["value"] == "1970-01-01"
+        assert english_prop["proof_line"] == "Born on January 1, 1970"
+        assert english_prop["archived_page"]["url"] == "https://en.wikipedia.org/test"
+
+        # Test filtering by German - should only return German property
+        response = client.get("/politicians/?languages=Q188", headers=mock_auth)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+
+        politician_data = data[0]
+        extracted_props = [
+            p for p in politician_data["properties"] if p.get("archived_page")
+        ]
+
+        # Should only have the German property
+        assert len(extracted_props) == 1
+        german_prop = extracted_props[0]
+        assert german_prop["value"] == "1970-01-02"
+        assert german_prop["proof_line"] == "Geboren am 2. Januar 1970"
+        assert german_prop["archived_page"]["url"] == "https://de.wikipedia.org/test"

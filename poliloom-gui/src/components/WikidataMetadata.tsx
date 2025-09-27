@@ -53,8 +53,8 @@ function MetadataSectionPanel({
 }) {
   return (
     <div className="mt-2">
-      <div className={`relative p-2 rounded ${(isDiscarding || wasAutoOpened) ? "bg-red-900" : "bg-gray-700"}`}>
-        {(isDiscarding || wasAutoOpened) && (
+      <div className={`relative p-2 rounded ${isDiscarding ? "bg-red-900" : "bg-gray-700"}`}>
+        {isDiscarding && (
           <div className="absolute top-2 right-2 text-white text-xs">
             Metadata will be lost ⚠
           </div>

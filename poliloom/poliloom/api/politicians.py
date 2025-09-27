@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, and_, or_, func
 
+from ..models import Language
+
 from ..database import get_engine
 from ..models import (
     Politician,
@@ -59,8 +61,6 @@ async def get_politicians(
 
         # Apply language filtering if provided
         if languages:
-            from ..models import Language
-
             # Join with archived pages and then with languages table
             # Match on iso1_code or iso3_code
             base_query = (
