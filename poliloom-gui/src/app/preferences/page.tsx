@@ -30,19 +30,13 @@ export default function PreferencesPage() {
   // Fetch available languages
   useEffect(() => {
     const fetchLanguages = async () => {
-      try {
-        const response = await fetch('/api/languages')
-        if (!response.ok) {
-          throw new Error(`Failed to fetch languages: ${response.statusText}`)
-        }
-        const data: LanguageResponse[] = await response.json()
-        setLanguages(data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch languages')
-        console.error('Error fetching languages:', err)
-      } finally {
-        setLoadingLanguages(false)
+      const response = await fetch('/api/languages')
+      if (!response.ok) {
+        throw new Error(`Failed to fetch languages: ${response.statusText}`)
       }
+      const data: LanguageResponse[] = await response.json()
+      setLanguages(data)
+      setLoadingLanguages(false)
     }
 
     fetchLanguages()
@@ -51,19 +45,13 @@ export default function PreferencesPage() {
   // Fetch available countries
   useEffect(() => {
     const fetchCountries = async () => {
-      try {
-        const response = await fetch('/api/countries')
-        if (!response.ok) {
-          throw new Error(`Failed to fetch countries: ${response.statusText}`)
-        }
-        const data: CountryResponse[] = await response.json()
-        setCountries(data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch countries')
-        console.error('Error fetching countries:', err)
-      } finally {
-        setLoadingCountries(false)
+      const response = await fetch('/api/countries')
+      if (!response.ok) {
+        throw new Error(`Failed to fetch countries: ${response.statusText}`)
       }
+      const data: CountryResponse[] = await response.json()
+      setCountries(data)
+      setLoadingCountries(false)
     }
 
     fetchCountries()

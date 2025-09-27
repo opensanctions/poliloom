@@ -4,6 +4,7 @@ import "./globals.css";
 import { SessionProvider } from "@/components/SessionProvider";
 import { ArchivedPageProvider } from "@/contexts/ArchivedPageContext";
 import { PreferencesProvider } from "@/contexts/PreferencesContext";
+import { FetchInterceptor } from "@/components/FetchInterceptor";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,6 +32,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased grid grid-rows-[auto_1fr] h-screen`}
       >
         <SessionProvider>
+          <FetchInterceptor />
           <PreferencesProvider>
             <ArchivedPageProvider>
               {children}

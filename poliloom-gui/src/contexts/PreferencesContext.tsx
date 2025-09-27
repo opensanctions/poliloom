@@ -75,60 +75,50 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     setLoading(true)
     setError(null)
 
-    try {
-      const response = await fetch('/api/preferences')
-      if (!response.ok) {
-        throw new Error(`Failed to fetch preferences: ${response.statusText}`)
-      }
-
-      const data: PreferenceResponse[] = await response.json()
-
-      const languages = data
-        .filter(p => p.preference_type === PreferenceType.LANGUAGE)
-        .map(p => p.qid)
-
-      const countries = data
-        .filter(p => p.preference_type === PreferenceType.COUNTRY)
-        .map(p => p.qid)
-
-      setLanguagePreferences(languages)
-      setCountryPreferences(countries)
-      saveToStorage(languages, countries)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch preferences')
-    } finally {
-      setLoading(false)
+    const response = await fetch('/api/preferences')
+    if (!response.ok) {
+      throw new Error(`Failed to fetch preferences: ${response.statusText}`)
     }
+
+    const data: PreferenceResponse[] = await response.json()
+
+    const languages = data
+      .filter(p => p.preference_type === PreferenceType.LANGUAGE)
+      .map(p => p.qid)
+
+    const countries = data
+      .filter(p => p.preference_type === PreferenceType.COUNTRY)
+      .map(p => p.qid)
+
+    setLanguagePreferences(languages)
+    setCountryPreferences(countries)
+    saveToStorage(languages, countries)
+    setLoading(false)
   }, [status])
 
   // Update preferences on server and locally
   const updatePreferences = async (preferenceType: PreferenceType, qids: string[]) => {
     setError(null)
 
-    try {
-      const response = await fetch(`/api/preferences/${preferenceType}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ entity_qids: qids }),
-      })
+    const response = await fetch(`/api/preferences/${preferenceType}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ entity_qids: qids }),
+    })
 
-      if (!response.ok) {
-        throw new Error(`Failed to update preferences: ${response.statusText}`)
-      }
+    if (!response.ok) {
+      throw new Error(`Failed to update preferences: ${response.statusText}`)
+    }
 
-      // Update local state immediately
-      if (preferenceType === PreferenceType.LANGUAGE) {
-        setLanguagePreferences(qids)
-        saveToStorage(qids, countryPreferences)
-      } else if (preferenceType === PreferenceType.COUNTRY) {
-        setCountryPreferences(qids)
-        saveToStorage(languagePreferences, qids)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update preferences')
-      throw err
+    // Update local state immediately
+    if (preferenceType === PreferenceType.LANGUAGE) {
+      setLanguagePreferences(qids)
+      saveToStorage(qids, countryPreferences)
+    } else if (preferenceType === PreferenceType.COUNTRY) {
+      setCountryPreferences(qids)
+      saveToStorage(languagePreferences, qids)
     }
   }
 
