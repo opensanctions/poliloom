@@ -1,6 +1,8 @@
+import { ReactNode } from "react";
 import { Property, PropertyType } from "@/types";
 import { EvaluationItem } from "./EvaluationItem";
 import { PropertyDisplay } from "./PropertyDisplay";
+import { EntityLink } from "./EntityLink";
 
 interface PropertiesEvaluationProps {
   properties: Property[];
@@ -23,33 +25,36 @@ export function PropertiesEvaluation({
     return null;
   }
 
-  const getPropertyTitle = (property: Property): string => {
+  const getPropertyTitle = (property: Property): ReactNode => {
     switch (property.type) {
       case PropertyType.P569:
         return "Birth Date";
       case PropertyType.P570:
         return "Death Date";
       case PropertyType.P39:
-        // For positions, show the position name with Wikidata link
-        const positionName =
-          property.entity_name || property.entity_id || "Unknown Position";
-        return property.entity_id
-          ? `<a href="https://www.wikidata.org/wiki/${property.entity_id}" target="_blank" rel="noopener noreferrer" class="hover:underline">${positionName} <span class="text-gray-500 font-normal">(${property.entity_id})</span></a>`
-          : positionName;
+        return property.entity_id ? (
+          <EntityLink
+            entityId={property.entity_id}
+            entityName={property.entity_name}
+            fallbackName="Unknown Position"
+          />
+        ) : (property.entity_name || "Unknown Position");
       case PropertyType.P19:
-        // For birthplaces, show the place name with Wikidata link
-        const birthplaceName =
-          property.entity_name || property.entity_id || "Unknown Place";
-        return property.entity_id
-          ? `<a href="https://www.wikidata.org/wiki/${property.entity_id}" target="_blank" rel="noopener noreferrer" class="hover:underline">${birthplaceName} <span class="text-gray-500 font-normal">(${property.entity_id})</span></a>`
-          : birthplaceName;
+        return property.entity_id ? (
+          <EntityLink
+            entityId={property.entity_id}
+            entityName={property.entity_name}
+            fallbackName="Unknown Place"
+          />
+        ) : (property.entity_name || "Unknown Place");
       case PropertyType.P27:
-        // For citizenship, show the country name with Wikidata link
-        const citizenshipName =
-          property.entity_name || property.entity_id || "Unknown Country";
-        return property.entity_id
-          ? `<a href="https://www.wikidata.org/wiki/${property.entity_id}" target="_blank" rel="noopener noreferrer" class="hover:underline">${citizenshipName} <span class="text-gray-500 font-normal">(${property.entity_id})</span></a>`
-          : citizenshipName;
+        return property.entity_id ? (
+          <EntityLink
+            entityId={property.entity_id}
+            entityName={property.entity_name}
+            fallbackName="Unknown Country"
+          />
+        ) : (property.entity_name || "Unknown Country");
       default:
         return property.entity_name || property.entity_id || "Unknown Property";
     }
