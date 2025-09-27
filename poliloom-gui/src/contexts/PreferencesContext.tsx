@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
-import { PreferenceResponse, PreferenceType } from '@/types'
+import { PreferenceResponse, PreferenceType, LanguageResponse } from '@/types'
 
 interface PreferencesContextType {
   languagePreferences: string[]
@@ -24,6 +24,45 @@ const STORAGE_KEYS = {
 }
 
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+
+// Helper function to detect browser language and match with available languages
+const detectBrowserLanguage = async (): Promise<string[]> => {
+  try {
+    // Get browser language codes (e.g., 'en-US', 'es', 'de-DE')
+    const browserLanguages = navigator.languages || [navigator.language]
+
+    // Extract ISO 639-1 language codes (e.g., 'en' from 'en-US')
+    const iso639Codes = browserLanguages.map(lang => lang.split('-')[0].toLowerCase())
+
+    // Fetch available languages from API
+    const response = await fetch('/api/languages')
+    if (!response.ok) {
+      console.warn('Failed to fetch languages for browser detection')
+      return []
+    }
+
+    const availableLanguages: LanguageResponse[] = await response.json()
+
+    // Find matching languages by ISO 639-1 or ISO 639-3 codes
+    const matchedLanguages: string[] = []
+
+    for (const browserLang of iso639Codes) {
+      const match = availableLanguages.find(lang =>
+        lang.iso1_code?.toLowerCase() === browserLang ||
+        lang.iso3_code?.toLowerCase() === browserLang
+      )
+
+      if (match && !matchedLanguages.includes(match.wikidata_id)) {
+        matchedLanguages.push(match.wikidata_id)
+      }
+    }
+
+    return matchedLanguages
+  } catch (error) {
+    console.warn('Failed to detect browser language:', error)
+    return []
+  }
+}
 
 export function PreferencesProvider({ children }: { children: React.ReactNode }) {
   const { status } = useSession()
@@ -101,6 +140,20 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       const countries = data
         .filter(p => p.preference_type === PreferenceType.COUNTRY)
         .map(p => p.qid)
+
+      // If no server preferences exist and no cached preferences, detect browser language
+      const hasNoStoredPreferences = localStorage.getItem(STORAGE_KEYS.LANGUAGE_PREFERENCES) === null
+      const hasNoServerPreferences = languages.length === 0
+
+      if (hasNoStoredPreferences && hasNoServerPreferences) {
+        const detectedLanguages = await detectBrowserLanguage()
+        if (detectedLanguages.length > 0) {
+          setLanguagePreferences(detectedLanguages)
+          setCountryPreferences(countries)
+          saveToStorage(detectedLanguages, countries)
+          return
+        }
+      }
 
       // Only update if preferences actually changed
       setLanguagePreferences(prev => {
