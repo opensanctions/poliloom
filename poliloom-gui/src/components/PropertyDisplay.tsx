@@ -84,6 +84,7 @@ export function PropertyDisplay({
         <WikidataMetadata
           qualifiers={property.qualifiers}
           references={property.references}
+          isDiscarding={evaluations.get(property.id) === false}
         />
       ) : (
         <StatementSource
