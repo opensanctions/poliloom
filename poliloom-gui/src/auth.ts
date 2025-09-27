@@ -40,7 +40,7 @@ export const config = {
       }
 
       try {
-        const response = await fetch("https://meta.wikimedia.org/oauth2/access_token", {
+        const response = await fetch("https://meta.wikimedia.org/w/rest.php/oauth2/access_token", {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
