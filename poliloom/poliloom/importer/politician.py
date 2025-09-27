@@ -233,6 +233,7 @@ def _process_politicians_chunk(
                                 "type": PropertyType.BIRTH_DATE,
                                 "value": birth_info.time_string,
                                 "value_precision": birth_info.precision,
+                                "entity_id": None,
                                 "statement_id": claim["id"],
                                 "qualifiers_json": claim.get("qualifiers"),
                                 "references_json": claim.get("references"),
@@ -248,6 +249,7 @@ def _process_politicians_chunk(
                                 "type": PropertyType.DEATH_DATE,
                                 "value": death_info.time_string,
                                 "value_precision": death_info.precision,
+                                "entity_id": None,
                                 "statement_id": claim["id"],
                                 "qualifiers_json": claim.get("qualifiers"),
                                 "references_json": claim.get("references"),
@@ -271,6 +273,8 @@ def _process_politicians_chunk(
                         politician_data["properties"].append(
                             {
                                 "type": PropertyType.POSITION,
+                                "value": None,
+                                "value_precision": None,
                                 "entity_id": position_id,
                                 "statement_id": claim["id"],
                                 "qualifiers_json": claim.get("qualifiers"),
@@ -293,6 +297,8 @@ def _process_politicians_chunk(
                             politician_data["properties"].append(
                                 {
                                     "type": PropertyType.CITIZENSHIP,
+                                    "value": None,
+                                    "value_precision": None,
                                     "entity_id": citizenship_id,
                                     "statement_id": claim["id"],
                                     "qualifiers_json": claim.get("qualifiers"),
@@ -315,6 +321,8 @@ def _process_politicians_chunk(
                             politician_data["properties"].append(
                                 {
                                     "type": PropertyType.BIRTHPLACE,
+                                    "value": None,
+                                    "value_precision": None,
                                     "entity_id": birthplace_id,
                                     "statement_id": claim["id"],
                                     "qualifiers_json": claim.get("qualifiers"),
