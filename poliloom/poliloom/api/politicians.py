@@ -3,7 +3,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, and_, or_, func
+from sqlalchemy import select, and_, or_
 
 from ..models import Language
 
@@ -46,38 +46,37 @@ async def get_politicians(
     and unevaluated extracted data for review and evaluation.
 
     Filters:
-    - languages: List of language QIDs. Filters for politicians that have extracted
-      properties from archived pages with matching iso1_code or iso3_code.
+    - languages: List of language QIDs. Returns only properties from archived pages
+      with matching iso1_code or iso3_code. Politicians are included only if they have
+      at least one property matching the language filter.
     - countries: List of country QIDs. Filters for politicians that have citizenship
       for these countries.
     """
     with Session(get_engine()) as db:
-        # Build the base query for politicians that need evaluation
-        base_query = (
-            select(Politician.id)
-            .join(Property, Politician.id == Property.politician_id)
-            .where(Property.statement_id.is_(None))
-        )
+        # Build a single query that fetches politicians with filtered properties
+        query = select(Politician).join(Property).where(Property.statement_id.is_(None))
 
-        # Apply language filtering if provided
+        # Apply language filtering on the filtering property
         if languages:
-            # Join with archived pages and then with languages table
-            # Match on iso1_code or iso3_code
-            base_query = (
-                base_query.join(
-                    ArchivedPage, Property.archived_page_id == ArchivedPage.id
-                )
+            query = (
+                query.join(ArchivedPage, Property.archived_page_id == ArchivedPage.id)
                 .join(
                     Language,
                     or_(
-                        ArchivedPage.iso1_code == Language.iso1_code,
-                        ArchivedPage.iso3_code == Language.iso3_code,
+                        and_(
+                            ArchivedPage.iso1_code.isnot(None),
+                            ArchivedPage.iso1_code == Language.iso1_code,
+                        ),
+                        and_(
+                            ArchivedPage.iso3_code.isnot(None),
+                            ArchivedPage.iso3_code == Language.iso3_code,
+                        ),
                     ),
                 )
                 .where(Language.wikidata_id.in_(languages))
             )
 
-        # Apply country filtering if provided
+        # Apply country filtering on citizenship properties
         if countries:
             citizenship_subquery = select(Property.politician_id).where(
                 and_(
@@ -85,40 +84,64 @@ async def get_politicians(
                     Property.entity_id.in_(countries),
                 )
             )
-            base_query = base_query.where(Politician.id.in_(citizenship_subquery))
+            query = query.where(Politician.id.in_(citizenship_subquery))
 
-        # Apply randomization and limit (offset doesn't make sense with random ordering)
-        # Need to use subquery to apply DISTINCT before ordering by random
-        distinct_subquery = base_query.distinct().subquery()
-        final_query = (
-            select(distinct_subquery.c.id).order_by(func.random()).limit(limit)
-        )
-
-        # Get politician IDs that need evaluation with filters applied
-        result = db.execute(final_query)
-        politician_ids = [row[0] for row in result]
-
-        if not politician_ids:
-            return []
-
-        # Now fetch the full politician objects with relationships
-        query = (
-            select(Politician)
-            .options(
+        # Load related data with selectinload, but use a custom loader for properties
+        # that respects our language filter
+        if languages:
+            # When language filter is active, we need to filter properties
+            # Create a filtered relationship loader
+            query = query.options(
+                selectinload(
+                    Politician.properties.and_(
+                        or_(
+                            Property.archived_page_id.is_(
+                                None
+                            ),  # Include Wikidata properties
+                            Property.archived_page.has(
+                                ArchivedPage.iso1_code.in_(
+                                    select(Language.iso1_code).where(
+                                        Language.wikidata_id.in_(languages)
+                                    )
+                                )
+                            )
+                            | Property.archived_page.has(
+                                ArchivedPage.iso3_code.in_(
+                                    select(Language.iso3_code).where(
+                                        Language.wikidata_id.in_(languages)
+                                    )
+                                )
+                            ),
+                        )
+                    )
+                ).options(
+                    selectinload(Property.entity),
+                    selectinload(Property.archived_page),
+                ),
+                selectinload(Politician.wikipedia_links),
+            )
+        else:
+            # No language filter, load all properties
+            query = query.options(
                 selectinload(Politician.properties).options(
                     selectinload(Property.entity),
                     selectinload(Property.archived_page),
                 ),
                 selectinload(Politician.wikipedia_links),
             )
-            .where(Politician.id.in_(politician_ids))
-        )
 
+        # Apply distinct and limit
+        # We need distinct because joins can create duplicate rows
+        query = query.distinct().limit(limit)
+
+        # Execute query
         politicians = db.execute(query).scalars().all()
+
+        if not politicians:
+            return []
 
         result = []
         for politician in politicians:
-            # Simplified response building - no grouping
             property_responses = []
             for prop in politician.properties:
                 # Add entity name if applicable
