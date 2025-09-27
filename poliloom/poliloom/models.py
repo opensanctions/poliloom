@@ -586,6 +586,7 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             unique=True,
             postgresql_where=Column("statement_id").isnot(None),
         ),
+        Index("idx_properties_updated_at", "updated_at"),
     )
 
     # UpsertMixin configuration
@@ -901,6 +902,7 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     """Wikidata entity for hierarchy storage."""
 
     __tablename__ = "wikidata_entities"
+    __table_args__ = (Index("idx_wikidata_entities_updated_at", "updated_at"),)
 
     # UpsertMixin configuration
     _upsert_update_columns = ["name", "description"]
@@ -1124,6 +1126,7 @@ class WikidataRelation(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     """Wikidata relationship between entities."""
 
     __tablename__ = "wikidata_relations"
+    __table_args__ = (Index("idx_wikidata_relations_updated_at", "updated_at"),)
 
     # UpsertMixin configuration
     _upsert_update_columns = ["parent_entity_id", "child_entity_id", "relation_type"]
