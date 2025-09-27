@@ -16,6 +16,8 @@ from poliloom.logging import setup_logging
 from sqlalchemy.orm import Session
 from poliloom.models import (
     WikidataDump,
+    CurrentImportEntity,
+    CurrentImportStatement,
 )
 
 # Configure logging
@@ -112,7 +114,7 @@ def dump_download(output, force):
     """Download latest Wikidata dump from Wikidata to specified location."""
     url = "https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.bz2"
 
-    click.echo(f"Checking for new Wikidata dump at {url}...")
+    click.echo(f"⏳ Checking for new Wikidata dump at {url}...")
 
     try:
         # Send HEAD request to get metadata
@@ -172,7 +174,7 @@ def dump_download(output, force):
             session.commit()
 
         # Download the file
-        click.echo(f"Downloading Wikidata dump to {output}...")
+        click.echo(f"⏳ Downloading Wikidata dump to {output}...")
         click.echo(
             "This is a large file (~100GB compressed) and may take several hours."
         )
@@ -216,7 +218,7 @@ def dump_extract(input, output):
             )
             raise SystemExit(1)
 
-    click.echo(f"Extracting {input} to {output}...")
+    click.echo(f"⏳ Extracting {input} to {output}...")
 
     # Check if source exists
     backend = StorageFactory.get_backend(input)
@@ -275,7 +277,7 @@ def enrich_wikipedia(limit: Optional[int]) -> None:
 
     except Exception as e:
         click.echo(f"❌ Error enriching politician(s): {e}")
-        exit(1)
+        raise SystemExit(1)
 
 
 @main.command("embed-entities")
@@ -300,7 +302,7 @@ def embed_entities(batch_size, encode_batch_size):
         click.echo("✅ Embedding generation completed successfully")
     except Exception as e:
         click.echo(f"❌ Error generating embeddings: {e}")
-        exit(1)
+        raise SystemExit(1)
 
 
 @main.command("import-hierarchy")
@@ -328,7 +330,7 @@ def dump_import_hierarchy(file, batch_size):
             )
             click.echo("Continuing anyway...")
 
-    click.echo(f"Importing hierarchy trees from dump file: {file}")
+    click.echo(f"⏳ Importing hierarchy trees from dump file: {file}")
 
     # Check if dump file exists using storage backend
     backend = StorageFactory.get_backend(file)
@@ -392,7 +394,7 @@ def dump_import_entities(file, batch_size):
             )
             click.echo("Continuing anyway...")
 
-    click.echo(f"Importing supporting entities from dump file: {file}")
+    click.echo(f"⏳ Importing supporting entities from dump file: {file}")
 
     # Check if dump file exists using storage backend
     backend = StorageFactory.get_backend(file)
@@ -469,7 +471,7 @@ def dump_import_politicians(file, batch_size):
             )
             click.echo("Continuing anyway...")
 
-    click.echo(f"Importing politicians from dump file: {file}")
+    click.echo(f"⏳ Importing politicians from dump file: {file}")
 
     # Check if dump file exists using storage backend
     backend = StorageFactory.get_backend(file)
@@ -512,6 +514,48 @@ def dump_import_politicians(file, batch_size):
         raise SystemExit(1)
     except Exception as e:
         click.echo(f"❌ Error importing politicians: {e}")
+        raise SystemExit(1)
+
+
+@main.command("garbage-collect")
+def garbage_collect():
+    """Garbage collect by soft-deleting entities and statements not seen in current import, then clearing tracking tables."""
+
+    click.echo("🗑️  Starting garbage collection...")
+
+    try:
+        with Session(get_engine()) as session:
+            # Clean up missing entities
+            click.echo("⏳ Cleaning up entities not seen in current import...")
+            entity_counts = CurrentImportEntity.cleanup_missing(session)
+            click.echo(f"  • Soft-deleted {entity_counts['entities']} entities")
+
+            # Clean up missing statements
+            click.echo("⏳ Cleaning up statements not seen in current import...")
+            statement_counts = CurrentImportStatement.cleanup_missing(session)
+            click.echo(f"  • Soft-deleted {statement_counts['properties']} properties")
+            click.echo(f"  • Soft-deleted {statement_counts['relations']} relations")
+
+            # Clear tracking tables
+            click.echo("⏳ Clearing tracking tables...")
+            CurrentImportEntity.clear_tracking_table(session)
+            CurrentImportStatement.clear_tracking_table(session)
+
+            # Commit all changes
+            session.commit()
+
+            total_deleted = (
+                entity_counts["entities"]
+                + statement_counts["properties"]
+                + statement_counts["relations"]
+            )
+
+            click.echo("✅ Garbage collection completed successfully")
+            click.echo(f"  • Total items soft-deleted: {total_deleted}")
+            click.echo("  • Tracking tables cleared")
+
+    except Exception as e:
+        click.echo(f"❌ Error during garbage collection: {e}")
         raise SystemExit(1)
 
 
