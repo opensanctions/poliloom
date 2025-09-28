@@ -77,6 +77,168 @@ class TestDatesSameness:
         # Two None dates should be considered the same (both unspecified)
         assert WikidataDate.dates_could_be_same(None, None)
 
+    def test_dates_could_be_same_year_different_timestamp_formats(self):
+        """Test same year with different Wikidata timestamp formats."""
+        # From production: existing Wikidata date (Jan 1st format)
+        existing_date = WikidataDate.from_wikidata_time("+1962-01-01T00:00:00Z", 9)
+
+        # From production: new Wikipedia extracted date (00-00 format)
+        new_date = WikidataDate.from_wikidata_time("+1962-00-00T00:00:00Z", 9)
+
+        # Both have year precision (9) and same year - should be considered same
+        assert WikidataDate.dates_could_be_same(existing_date, new_date)
+
+    def test_dates_could_be_same_decade_precision(self):
+        """Test decade precision (8) dates."""
+        # 2010s decade
+        decade1 = WikidataDate.from_wikidata_time("+2010-00-00T00:00:00Z", 8)
+        decade2 = WikidataDate.from_wikidata_time("+2010-00-00T00:00:00Z", 8)
+
+        # Same decade should be considered same
+        assert WikidataDate.dates_could_be_same(decade1, decade2)
+
+    def test_dates_could_be_same_century_precision(self):
+        """Test century precision (7) dates."""
+        # 19th century
+        century1 = WikidataDate.from_wikidata_time("+1801-00-00T00:00:00Z", 7)
+        century2 = WikidataDate.from_wikidata_time("+1801-00-00T00:00:00Z", 7)
+
+        # Same century should be considered same
+        assert WikidataDate.dates_could_be_same(century1, century2)
+
+    def test_dates_could_be_same_millennium_precision(self):
+        """Test millennium precision (6) dates."""
+        # Second millennium
+        millennium1 = WikidataDate.from_wikidata_time("+1500-00-00T00:00:00Z", 6)
+        millennium2 = WikidataDate.from_wikidata_time("+1500-00-00T00:00:00Z", 6)
+
+        # Same millennium should be considered same
+        assert WikidataDate.dates_could_be_same(millennium1, millennium2)
+
+    def test_dates_could_be_same_cross_precision_year_vs_decade(self):
+        """Test year precision (enrichment) vs decade precision (Wikidata)."""
+        # Year 2015 from enrichment
+        year_date = WikidataDate.from_wikidata_time("+2015-00-00T00:00:00Z", 9)
+
+        # 2010s decade from Wikidata
+        decade_date = WikidataDate.from_wikidata_time("+2010-00-00T00:00:00Z", 8)
+
+        # 2015 is within the 2010s decade - should be considered same
+        assert WikidataDate.dates_could_be_same(year_date, decade_date)
+        assert WikidataDate.dates_could_be_same(decade_date, year_date)
+
+    def test_dates_could_be_same_cross_precision_year_vs_century(self):
+        """Test year precision (enrichment) vs century precision (Wikidata)."""
+        # Year 1850 from enrichment
+        year_date = WikidataDate.from_wikidata_time("+1850-00-00T00:00:00Z", 9)
+
+        # 19th century from Wikidata (represented as 1801)
+        century_date = WikidataDate.from_wikidata_time("+1801-00-00T00:00:00Z", 7)
+
+        # 1850 is within the 19th century - should be considered same
+        assert WikidataDate.dates_could_be_same(year_date, century_date)
+        assert WikidataDate.dates_could_be_same(century_date, year_date)
+
+    def test_dates_could_be_same_cross_precision_month_vs_decade(self):
+        """Test month precision (enrichment) vs decade precision (Wikidata)."""
+        # June 2018 from enrichment
+        month_date = WikidataDate.from_wikidata_time("+2018-06-00T00:00:00Z", 10)
+
+        # 2010s decade from Wikidata
+        decade_date = WikidataDate.from_wikidata_time("+2010-00-00T00:00:00Z", 8)
+
+        # June 2018 is within the 2010s decade - should be considered same
+        assert WikidataDate.dates_could_be_same(month_date, decade_date)
+        assert WikidataDate.dates_could_be_same(decade_date, month_date)
+
+    def test_dates_could_be_same_cross_precision_day_vs_century(self):
+        """Test day precision (enrichment) vs century precision (Wikidata)."""
+        # Specific date in 19th century from enrichment
+        day_date = WikidataDate.from_wikidata_time("+1875-03-15T00:00:00Z", 11)
+
+        # 19th century from Wikidata
+        century_date = WikidataDate.from_wikidata_time("+1801-00-00T00:00:00Z", 7)
+
+        # March 15, 1875 is within the 19th century - should be considered same
+        assert WikidataDate.dates_could_be_same(day_date, century_date)
+        assert WikidataDate.dates_could_be_same(century_date, day_date)
+
+    def test_dates_could_be_same_cross_precision_different_periods(self):
+        """Test cross-precision dates that are NOT in the same period."""
+        # Year 2005 from enrichment
+        year_2005 = WikidataDate.from_wikidata_time("+2005-00-00T00:00:00Z", 9)
+
+        # 2010s decade from Wikidata
+        decade_2010s = WikidataDate.from_wikidata_time("+2010-00-00T00:00:00Z", 8)
+
+        # 2005 is NOT in the 2010s decade - should be different
+        assert not WikidataDate.dates_could_be_same(year_2005, decade_2010s)
+
+        # Year 1750 from enrichment
+        year_1750 = WikidataDate.from_wikidata_time("+1750-00-00T00:00:00Z", 9)
+
+        # 19th century from Wikidata
+        century_19th = WikidataDate.from_wikidata_time("+1801-00-00T00:00:00Z", 7)
+
+        # 1750 is NOT in the 19th century (it's 18th century) - should be different
+        assert not WikidataDate.dates_could_be_same(year_1750, century_19th)
+
+    def test_dates_could_be_same_cross_precision_day_vs_month(self):
+        """Test day precision vs month precision (both from enrichment)."""
+        # Specific day in March 2020
+        day_date = WikidataDate.from_wikidata_time("+2020-03-15T00:00:00Z", 11)
+
+        # March 2020 (month precision)
+        month_date = WikidataDate.from_wikidata_time("+2020-03-00T00:00:00Z", 10)
+
+        # March 15, 2020 is within March 2020 - should be considered same
+        assert WikidataDate.dates_could_be_same(day_date, month_date)
+        assert WikidataDate.dates_could_be_same(month_date, day_date)
+
+    def test_dates_could_be_same_cross_precision_day_vs_year(self):
+        """Test day precision vs year precision (both from enrichment)."""
+        # Specific day in 2019
+        day_date = WikidataDate.from_wikidata_time("+2019-07-20T00:00:00Z", 11)
+
+        # Year 2019
+        year_date = WikidataDate.from_wikidata_time("+2019-00-00T00:00:00Z", 9)
+
+        # July 20, 2019 is within 2019 - should be considered same
+        assert WikidataDate.dates_could_be_same(day_date, year_date)
+        assert WikidataDate.dates_could_be_same(year_date, day_date)
+
+    def test_dates_could_be_same_cross_precision_month_vs_year(self):
+        """Test month precision vs year precision (both from enrichment)."""
+        # September 2021
+        month_date = WikidataDate.from_wikidata_time("+2021-09-00T00:00:00Z", 10)
+
+        # Year 2021
+        year_date = WikidataDate.from_wikidata_time("+2021-00-00T00:00:00Z", 9)
+
+        # September 2021 is within 2021 - should be considered same
+        assert WikidataDate.dates_could_be_same(month_date, year_date)
+        assert WikidataDate.dates_could_be_same(year_date, month_date)
+
+    def test_dates_could_be_same_cross_precision_enrichment_different_periods(self):
+        """Test cross-precision enrichment dates that are NOT in the same period."""
+        # Day in March vs month of April (different months)
+        day_march = WikidataDate.from_wikidata_time("+2020-03-15T00:00:00Z", 11)
+        month_april = WikidataDate.from_wikidata_time("+2020-04-00T00:00:00Z", 10)
+
+        assert not WikidataDate.dates_could_be_same(day_march, month_april)
+
+        # Day in 2019 vs year 2020 (different years)
+        day_2019 = WikidataDate.from_wikidata_time("+2019-12-31T00:00:00Z", 11)
+        year_2020 = WikidataDate.from_wikidata_time("+2020-00-00T00:00:00Z", 9)
+
+        assert not WikidataDate.dates_could_be_same(day_2019, year_2020)
+
+        # Month in 2018 vs year 2019 (different years)
+        month_2018 = WikidataDate.from_wikidata_time("+2018-11-00T00:00:00Z", 10)
+        year_2019 = WikidataDate.from_wikidata_time("+2019-00-00T00:00:00Z", 9)
+
+        assert not WikidataDate.dates_could_be_same(month_2018, year_2019)
+
 
 class TestDateComparisonScenarios:
     """Test date precision scenarios."""

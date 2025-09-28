@@ -163,13 +163,63 @@ class WikidataDate:
         elif date2.precision > date1.precision:
             more_precise, less_precise = date2_pattern, date1_pattern
         else:
-            # Same precision - must match exactly
-            return date1_pattern == date2_pattern
+            # Same precision - compare based on the precision level
+            if date1.precision <= 8:  # Decade or broader (billion years to decade)
+                # For very broad precisions, we need special handling
+                # For now, treat as exact match after wildcard replacement
+                # TODO: Implement proper decade/century/millennium comparison
+                return date1_pattern == date2_pattern
+            elif date1.precision == 9:  # Year precision
+                # Only compare year part (first 4 characters)
+                return date1_part[:4] == date2_part[:4]
+            elif date1.precision == 10:  # Month precision
+                # Compare year and month (first 7 characters: YYYY-MM)
+                year_month1 = date1_part[:7].replace("-00", "-XX")
+                year_month2 = date2_part[:7].replace("-00", "-XX")
+                return year_month1 == year_month2
+            elif date1.precision == 11:  # Day precision
+                # Compare full date after wildcard replacement
+                return date1_pattern == date2_pattern
+            else:
+                # Future precisions (hour, minute, second) - exact match
+                return date1_pattern == date2_pattern
 
         # Check if the more precise date could be within the less precise period
-        return more_precise.replace("-XX", "").startswith(
-            less_precise.replace("-XX", "")
+        # Handle special cases for decade, century, millennium precision
+        less_precise_precision = (
+            date2.precision if date1.precision > date2.precision else date1.precision
         )
+
+        if less_precise_precision == 8:  # Decade precision
+            # Extract years and check if more precise year is in the decade
+            more_precise_year = int(more_precise.replace("-XX", "")[:4])
+            less_precise_year = int(less_precise.replace("-XX", "")[:4])
+            decade_start = (less_precise_year // 10) * 10
+            return decade_start <= more_precise_year < decade_start + 10
+
+        elif less_precise_precision == 7:  # Century precision
+            # Extract years and check if more precise year is in the century
+            more_precise_year = int(more_precise.replace("-XX", "")[:4])
+            less_precise_year = int(less_precise.replace("-XX", "")[:4])
+            # Century is represented by its first year, e.g., 1801 for 19th century
+            century_start = less_precise_year
+            century_end = century_start + 99
+            return century_start <= more_precise_year <= century_end
+
+        elif less_precise_precision == 6:  # Millennium precision
+            # Extract years and check if more precise year is in the millennium
+            more_precise_year = int(more_precise.replace("-XX", "")[:4])
+            less_precise_year = int(less_precise.replace("-XX", "")[:4])
+            # Millennium is represented by a year within it
+            millennium_start = ((less_precise_year - 1) // 1000) * 1000 + 1
+            millennium_end = millennium_start + 999
+            return millennium_start <= more_precise_year <= millennium_end
+
+        else:
+            # For other precisions, use the original string matching logic
+            return more_precise.replace("-XX", "").startswith(
+                less_precise.replace("-XX", "")
+            )
 
     @staticmethod
     def more_precise_date(
