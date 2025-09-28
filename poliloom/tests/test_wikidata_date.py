@@ -239,6 +239,45 @@ class TestDatesSameness:
 
         assert not WikidataDate.dates_could_be_same(month_2018, year_2019)
 
+    def test_dates_could_be_same_unsupported_precision_levels(self):
+        """Test that unsupported precision levels always return False."""
+        # Test precision 4 (hundred thousand years) vs precision 7 (century)
+        hundred_thousand_years = WikidataDate.from_wikidata_time(
+            "+2500000-01-01T00:00:00Z", 4
+        )
+        century_19th = WikidataDate.from_wikidata_time("+1801-00-00T00:00:00Z", 7)
+
+        assert not WikidataDate.dates_could_be_same(
+            hundred_thousand_years, century_19th
+        )
+        assert not WikidataDate.dates_could_be_same(
+            century_19th, hundred_thousand_years
+        )
+
+        # Test precision 0 (billion years) vs precision 9 (year)
+        billion_years = WikidataDate.from_wikidata_time(
+            "+5000000000-00-00T00:00:00Z", 0
+        )
+        year_2020 = WikidataDate.from_wikidata_time("+2020-00-00T00:00:00Z", 9)
+
+        assert not WikidataDate.dates_could_be_same(billion_years, year_2020)
+        assert not WikidataDate.dates_could_be_same(year_2020, billion_years)
+
+        # Test precision 5 (ten thousand years) vs precision 10 (month)
+        ten_thousand_years = WikidataDate.from_wikidata_time(
+            "+10000-01-01T00:00:00Z", 5
+        )
+        month_precision = WikidataDate.from_wikidata_time("+2020-03-00T00:00:00Z", 10)
+
+        assert not WikidataDate.dates_could_be_same(ten_thousand_years, month_precision)
+        assert not WikidataDate.dates_could_be_same(month_precision, ten_thousand_years)
+
+        # Test two unsupported precisions (both should return False)
+        precision_3 = WikidataDate.from_wikidata_time("+13798000000-01-01T00:00:00Z", 3)
+        precision_1 = WikidataDate.from_wikidata_time("+100000000-01-01T00:00:00Z", 1)
+
+        assert not WikidataDate.dates_could_be_same(precision_3, precision_1)
+
 
 class TestDateComparisonScenarios:
     """Test date precision scenarios."""
