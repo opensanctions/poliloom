@@ -12,6 +12,7 @@ ExecStart=docker compose run --rm api poliloom dump-extract --input ${WIKIDATA_D
 ExecStart=docker compose run --rm api poliloom import-hierarchy --file ${WIKIDATA_DUMP_EXTRACTED}
 ExecStart=docker compose run --rm api poliloom import-entities --file ${WIKIDATA_DUMP_EXTRACTED}
 ExecStart=docker compose run --rm api poliloom import-politicians --file ${WIKIDATA_DUMP_EXTRACTED}
+ExecStart=docker compose run --rm api poliloom embed-entities
 ExecStart=docker compose run --rm api poliloom garbage-collect
 StandardOutput=journal
 StandardError=journal
