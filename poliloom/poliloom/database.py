@@ -78,7 +78,8 @@ def create_engine(pool_size: int = 5, max_overflow: int = 10) -> Engine:
         creator=creator,
         pool_size=pool_size,
         max_overflow=max_overflow,
-        pool_timeout=30,
+        # Get configurable timeout from environment (default 30 seconds)
+        pool_timeout=int(os.getenv("DB_POOL_TIMEOUT", "30")),
         pool_recycle=3600,
         pool_pre_ping=True,
     )
@@ -99,7 +100,8 @@ def create_timestamp_triggers(engine: Engine):
     with engine.connect() as conn:
         # Create the updated_at trigger function
         conn.execute(
-            text("""
+            text(
+                """
             CREATE OR REPLACE FUNCTION update_updated_at_column()
             RETURNS TRIGGER AS $$
             BEGIN
@@ -107,12 +109,14 @@ def create_timestamp_triggers(engine: Engine):
                 RETURN NEW;
             END;
             $$ LANGUAGE plpgsql;
-        """)
+        """
+            )
         )
 
         # Create the embedding reset trigger function
         conn.execute(
-            text("""
+            text(
+                """
             CREATE OR REPLACE FUNCTION reset_embedding_on_name_change()
             RETURNS TRIGGER AS $$
             BEGIN
@@ -125,7 +129,8 @@ def create_timestamp_triggers(engine: Engine):
                 RETURN NEW;
             END;
             $$ LANGUAGE plpgsql;
-        """)
+        """
+            )
         )
 
         # Current tables with updated_at columns (based on actual database schema)
@@ -146,22 +151,26 @@ def create_timestamp_triggers(engine: Engine):
         # Create updated_at triggers for each table (replace if exists)
         for table in tables_with_updated_at:
             conn.execute(
-                text(f"""
+                text(
+                    f"""
                 CREATE OR REPLACE TRIGGER trigger_update_{table}_updated_at
                 BEFORE UPDATE ON {table}
                 FOR EACH ROW
                 EXECUTE FUNCTION update_updated_at_column();
-            """)
+            """
+                )
             )
 
         # Create the embedding reset trigger on wikidata_entities table
         conn.execute(
-            text("""
+            text(
+                """
             CREATE OR REPLACE TRIGGER wikidata_entity_name_change_trigger
                 AFTER UPDATE ON wikidata_entities
                 FOR EACH ROW
                 EXECUTE FUNCTION reset_embedding_on_name_change();
-        """)
+        """
+            )
         )
 
         conn.commit()
@@ -172,7 +181,8 @@ def create_import_tracking_triggers(engine: Engine):
     with engine.connect() as conn:
         # Create simple tracking functions and triggers
         conn.execute(
-            text("""
+            text(
+                """
             -- Function to track entity access during imports
             CREATE OR REPLACE FUNCTION track_entity_access()
             RETURNS TRIGGER AS $$
@@ -185,11 +195,13 @@ def create_import_tracking_triggers(engine: Engine):
                 RETURN NEW;
             END;
             $$ LANGUAGE plpgsql;
-        """)
+        """
+            )
         )
 
         conn.execute(
-            text("""
+            text(
+                """
             -- Function to track statement access during imports
             CREATE OR REPLACE FUNCTION track_statement_access()
             RETURNS TRIGGER AS $$
@@ -204,33 +216,40 @@ def create_import_tracking_triggers(engine: Engine):
                 RETURN NEW;
             END;
             $$ LANGUAGE plpgsql;
-        """)
+        """
+            )
         )
 
         # Create triggers for entity tracking (replace if exists)
         conn.execute(
-            text("""
+            text(
+                """
             CREATE OR REPLACE TRIGGER track_wikidata_entity_access
             AFTER INSERT OR UPDATE ON wikidata_entities
             FOR EACH ROW EXECUTE FUNCTION track_entity_access();
-        """)
+        """
+            )
         )
 
         # Create triggers for statement tracking (replace if exists)
         conn.execute(
-            text("""
+            text(
+                """
             CREATE OR REPLACE TRIGGER track_property_access
             AFTER INSERT OR UPDATE ON properties
             FOR EACH ROW EXECUTE FUNCTION track_statement_access();
-        """)
+        """
+            )
         )
 
         conn.execute(
-            text("""
+            text(
+                """
             CREATE OR REPLACE TRIGGER track_relation_access
             AFTER INSERT OR UPDATE ON wikidata_relations
             FOR EACH ROW EXECUTE FUNCTION track_statement_access();
-        """)
+        """
+            )
         )
 
         conn.commit()
