@@ -1,6 +1,6 @@
 # **PoliLoom API/CLI Project Specification**
 
-This document outlines the high-level architecture and strategy for the PoliLoom project - a proof of concept for extracting politician metadata from Wikipedia and web sources to enrich Wikidata.
+This document outlines the high-level architecture and strategy for the PoliLoom project - extracting politician metadata from Wikipedia and web sources to enrich Wikidata.
 
 ## **1. Project Overview**
 
@@ -12,7 +12,7 @@ This document outlines the high-level architecture and strategy for the PoliLoom
 - Offer CLI tools for data import and enrichment operations
 - Integrate with external services (Wikidata, OpenAI, MediaWiki OAuth)
 
-**Scope:** Backend services and data processing for a usable proof of concept.
+**Scope:** Backend services and data processing.
 
 ## **2. Technology Stack**
 

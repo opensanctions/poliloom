@@ -6,7 +6,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import List, Optional, Literal, Type, Union, Any
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, func
 from openai import AsyncOpenAI
 from pydantic import BaseModel, field_validator, create_model
 from unmhtml import MHTMLConverter
@@ -751,7 +751,13 @@ async def enrich_politicians_from_wikipedia(
     openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     with Session(get_engine()) as db:
-        # Query politicians that need enrichment
+        # Use shared query logic from Politician model
+        politician_ids_query = Politician.query_for_enrichment(
+            languages=languages,
+            countries=countries,
+        )
+
+        # Query politicians using the filtered IDs
         # Ordering strategy:
         # 1. NULL enriched_at first (never enriched)
         # 2. Among NULL, higher QID numbers first (newer politicians)
@@ -770,44 +776,13 @@ async def enrich_politicians_from_wikipedia(
                 # Load Wikipedia links
                 selectinload(Politician.wikipedia_links),
             )
-            .filter(Politician.wikipedia_links.any())
+            .filter(Politician.id.in_(politician_ids_query))
             .filter(Politician.wikidata_id.isnot(None))
             .order_by(
                 Politician.enriched_at.asc().nullsfirst(),
                 Politician.wikidata_id_numeric.desc(),
             )
         )
-
-        # Apply language filtering - only enrich politicians with citizenship in countries
-        # where the filtered languages are official languages (same logic as get_priority_wikipedia_links)
-        if languages:
-            # Find politicians who have citizenship in countries where the filtered languages are official
-            # This matches the logic in get_priority_wikipedia_links
-            language_citizenship_subquery = (
-                select(Property.politician_id.distinct())
-                .join(
-                    WikidataRelation,
-                    Property.entity_id == WikidataRelation.child_entity_id,
-                )
-                .where(
-                    and_(
-                        Property.type == PropertyType.CITIZENSHIP,
-                        WikidataRelation.relation_type == "OFFICIAL_LANGUAGE",
-                        WikidataRelation.parent_entity_id.in_(languages),
-                    )
-                )
-            )
-            query = query.filter(Politician.id.in_(language_citizenship_subquery))
-
-        # Apply country filtering if specified
-        if countries:
-            citizenship_subquery = select(Property.politician_id).where(
-                and_(
-                    Property.type == PropertyType.CITIZENSHIP,
-                    Property.entity_id.in_(countries),
-                )
-            )
-            query = query.filter(Politician.id.in_(citizenship_subquery))
 
         if limit:
             politicians = query.limit(limit).all()

@@ -774,3 +774,454 @@ class TestPoliticianQueryWithUnevaluated:
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 0
+
+
+class TestPoliticianQueryForEnrichment:
+    """Test cases for Politician.query_for_enrichment method."""
+
+    def test_query_returns_politicians_with_wikipedia_links(
+        self, db_session, sample_politician, sample_wikipedia_link
+    ):
+        """Test that query finds politicians with Wikipedia links."""
+        # sample_wikipedia_link fixture creates a Wikipedia link for sample_politician
+        query = Politician.query_for_enrichment()
+        result = db_session.execute(query).scalars().all()
+
+        assert len(result) == 1
+        assert result[0] == sample_politician.id
+
+    def test_query_excludes_politicians_without_wikipedia_links(
+        self, db_session, sample_politician
+    ):
+        """Test that query excludes politicians without Wikipedia links."""
+        # sample_politician has no Wikipedia links by default
+        query = Politician.query_for_enrichment()
+        result = db_session.execute(query).scalars().all()
+
+        assert len(result) == 0
+
+    def test_query_with_language_filter_citizenship_match(
+        self, db_session, sample_politician
+    ):
+        """Test language filtering based on citizenship official languages."""
+        # Create Germany and German language
+        germany = Country.create_with_entity(db_session, "Q183", "Germany")
+        germany.iso_code = "DE"
+        german = Language.create_with_entity(db_session, "Q188", "German")
+        german.iso1_code = "de"
+        german.iso3_code = "deu"
+        db_session.commit()
+
+        # Create official language relation: German is official in Germany
+        relation = WikidataRelation(
+            parent_entity_id=german.wikidata_id,
+            child_entity_id=germany.wikidata_id,
+            relation_type=RelationType.OFFICIAL_LANGUAGE,
+            statement_id="test_statement_de_de",
+        )
+        db_session.add(relation)
+
+        # Give politician German citizenship
+        citizenship = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=germany.wikidata_id,
+        )
+        db_session.add(citizenship)
+
+        # Create German Wikipedia link
+        link = WikipediaLink(
+            politician_id=sample_politician.id,
+            url="https://de.wikipedia.org/wiki/Test_Politician",
+            iso_code="de",
+        )
+        db_session.add(link)
+        db_session.commit()
+
+        # Query with German language filter
+        query = Politician.query_for_enrichment(languages=["Q188"])
+        result = db_session.execute(query).scalars().all()
+
+        # Should find politician because they have German citizenship
+        # and German is official language of Germany
+        assert len(result) == 1
+        assert result[0] == sample_politician.id
+
+    def test_query_with_language_filter_no_citizenship_match_but_has_citizenship_link(
+        self, db_session, sample_politician
+    ):
+        """Test that politicians are excluded when they have citizenship-matched links but filter doesn't match."""
+        # Create Germany and German language
+        germany = Country.create_with_entity(db_session, "Q183", "Germany")
+        germany.iso_code = "DE"
+        german = Language.create_with_entity(db_session, "Q188", "German")
+        german.iso1_code = "de"
+        german.iso3_code = "deu"
+
+        # Create France and French language
+        france = Country.create_with_entity(db_session, "Q142", "France")
+        france.iso_code = "FR"
+        french = Language.create_with_entity(db_session, "Q150", "French")
+        french.iso1_code = "fr"
+        french.iso3_code = "fra"
+        db_session.commit()
+
+        # Create official language relation: French is official in France
+        relation = WikidataRelation(
+            parent_entity_id=french.wikidata_id,
+            child_entity_id=france.wikidata_id,
+            relation_type=RelationType.OFFICIAL_LANGUAGE,
+            statement_id="test_statement_fr_fr",
+        )
+        db_session.add(relation)
+
+        # Give politician French citizenship
+        citizenship = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=france.wikidata_id,
+        )
+        db_session.add(citizenship)
+
+        # Create BOTH French (citizenship match) and German Wikipedia links
+        french_link = WikipediaLink(
+            politician_id=sample_politician.id,
+            url="https://fr.wikipedia.org/wiki/Test_Politician",
+            iso_code="fr",
+        )
+        german_link = WikipediaLink(
+            politician_id=sample_politician.id,
+            url="https://de.wikipedia.org/wiki/Test_Politician",
+            iso_code="de",
+        )
+        db_session.add_all([french_link, german_link])
+        db_session.commit()
+
+        # Query with German language filter
+        query = Politician.query_for_enrichment(languages=["Q188"])
+        result = db_session.execute(query).scalars().all()
+
+        # Should NOT find politician - they have French link (citizenship match)
+        # so French gets priority and German wouldn't be in top 3
+        assert len(result) == 0
+
+    def test_query_with_country_filter(self, db_session, sample_politician):
+        """Test country filtering based on citizenship."""
+        # Create USA
+        usa = Country.create_with_entity(db_session, "Q30", "United States")
+        usa.iso_code = "US"
+        db_session.commit()
+
+        # Give politician US citizenship
+        citizenship = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=usa.wikidata_id,
+        )
+        db_session.add(citizenship)
+
+        # Create Wikipedia link
+        link = WikipediaLink(
+            politician_id=sample_politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            iso_code="en",
+        )
+        db_session.add(link)
+        db_session.commit()
+
+        # Query with US country filter
+        query = Politician.query_for_enrichment(countries=["Q30"])
+        result = db_session.execute(query).scalars().all()
+
+        # Should find politician with US citizenship
+        assert len(result) == 1
+        assert result[0] == sample_politician.id
+
+    def test_query_with_combined_filters(self, db_session, sample_politician):
+        """Test combined language and country filtering."""
+        # Create Germany and German language
+        germany = Country.create_with_entity(db_session, "Q183", "Germany")
+        germany.iso_code = "DE"
+        german = Language.create_with_entity(db_session, "Q188", "German")
+        german.iso1_code = "de"
+        german.iso3_code = "deu"
+        db_session.commit()
+
+        # Create official language relation
+        relation = WikidataRelation(
+            parent_entity_id=german.wikidata_id,
+            child_entity_id=germany.wikidata_id,
+            relation_type=RelationType.OFFICIAL_LANGUAGE,
+            statement_id="test_statement_de_de",
+        )
+        db_session.add(relation)
+
+        # Give politician German citizenship
+        citizenship = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=germany.wikidata_id,
+        )
+        db_session.add(citizenship)
+
+        # Create Wikipedia link
+        link = WikipediaLink(
+            politician_id=sample_politician.id,
+            url="https://de.wikipedia.org/wiki/Test_Politician",
+            iso_code="de",
+        )
+        db_session.add(link)
+        db_session.commit()
+
+        # Query with both filters
+        query = Politician.query_for_enrichment(languages=["Q188"], countries=["Q183"])
+        result = db_session.execute(query).scalars().all()
+
+        # Should find politician matching both filters
+        assert len(result) == 1
+        assert result[0] == sample_politician.id
+
+    def test_query_excludes_politician_not_matching_country_filter(
+        self, db_session, sample_politician
+    ):
+        """Test that politicians without matching citizenship are excluded."""
+        # Create Germany but don't give politician German citizenship
+        germany = Country.create_with_entity(db_session, "Q183", "Germany")
+        germany.iso_code = "DE"
+        db_session.commit()
+
+        # Create Wikipedia link
+        link = WikipediaLink(
+            politician_id=sample_politician.id,
+            url="https://de.wikipedia.org/wiki/Test_Politician",
+            iso_code="de",
+        )
+        db_session.add(link)
+        db_session.commit()
+
+        # Query with German country filter (politician has no German citizenship)
+        query = Politician.query_for_enrichment(countries=["Q183"])
+        result = db_session.execute(query).scalars().all()
+
+        assert len(result) == 0
+
+    def test_query_with_multiple_citizenships_matches_any(
+        self, db_session, sample_politician
+    ):
+        """Test that politicians with multiple citizenships match if any citizenship language has a link."""
+        # Create Germany and France
+        germany = Country.create_with_entity(db_session, "Q183", "Germany")
+        germany.iso_code = "DE"
+        france = Country.create_with_entity(db_session, "Q142", "France")
+        france.iso_code = "FR"
+
+        # Create languages
+        german = Language.create_with_entity(db_session, "Q188", "German")
+        german.iso1_code = "de"
+        german.iso3_code = "deu"
+        french = Language.create_with_entity(db_session, "Q150", "French")
+        french.iso1_code = "fr"
+        french.iso3_code = "fra"
+        db_session.commit()
+
+        # Create official language relations
+        de_relation = WikidataRelation(
+            parent_entity_id=german.wikidata_id,
+            child_entity_id=germany.wikidata_id,
+            relation_type=RelationType.OFFICIAL_LANGUAGE,
+            statement_id="test_statement_de_de",
+        )
+        fr_relation = WikidataRelation(
+            parent_entity_id=french.wikidata_id,
+            child_entity_id=france.wikidata_id,
+            relation_type=RelationType.OFFICIAL_LANGUAGE,
+            statement_id="test_statement_fr_fr",
+        )
+        db_session.add_all([de_relation, fr_relation])
+
+        # Give politician dual citizenship
+        citizenships = [
+            Property(
+                politician_id=sample_politician.id,
+                type=PropertyType.CITIZENSHIP,
+                entity_id=germany.wikidata_id,
+            ),
+            Property(
+                politician_id=sample_politician.id,
+                type=PropertyType.CITIZENSHIP,
+                entity_id=france.wikidata_id,
+            ),
+        ]
+        db_session.add_all(citizenships)
+
+        # Create BOTH German and French Wikipedia links
+        german_link = WikipediaLink(
+            politician_id=sample_politician.id,
+            url="https://de.wikipedia.org/wiki/Test_Politician",
+            iso_code="de",
+        )
+        french_link = WikipediaLink(
+            politician_id=sample_politician.id,
+            url="https://fr.wikipedia.org/wiki/Test_Politician",
+            iso_code="fr",
+        )
+        db_session.add_all([german_link, french_link])
+        db_session.commit()
+
+        # Query with German language filter - should match via German citizenship + German link
+        query = Politician.query_for_enrichment(languages=["Q188"])
+        result = db_session.execute(query).scalars().all()
+
+        assert len(result) == 1
+        assert result[0] == sample_politician.id
+
+        # Query with French language filter - should also match via French citizenship + French link
+        query = Politician.query_for_enrichment(languages=["Q150"])
+        result = db_session.execute(query).scalars().all()
+
+        assert len(result) == 1
+        assert result[0] == sample_politician.id
+
+    def test_query_with_language_filter_requires_wikipedia_link(
+        self, db_session, sample_politician
+    ):
+        """Test that language filtering requires Wikipedia link in that language."""
+        # Create Germany and German language
+        germany = Country.create_with_entity(db_session, "Q183", "Germany")
+        germany.iso_code = "DE"
+        german = Language.create_with_entity(db_session, "Q188", "German")
+        german.iso1_code = "de"
+        german.iso3_code = "deu"
+        db_session.commit()
+
+        # Create official language relation
+        relation = WikidataRelation(
+            parent_entity_id=german.wikidata_id,
+            child_entity_id=germany.wikidata_id,
+            relation_type=RelationType.OFFICIAL_LANGUAGE,
+            statement_id="test_statement_de_de",
+        )
+        db_session.add(relation)
+
+        # Give politician German citizenship
+        citizenship = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=germany.wikidata_id,
+        )
+        db_session.add(citizenship)
+
+        # Create only English Wikipedia link (not German)
+        english = Language.create_with_entity(db_session, "Q1860", "English")
+        english.iso1_code = "en"
+        english.iso3_code = "eng"
+        link = WikipediaLink(
+            politician_id=sample_politician.id,
+            url="https://en.wikipedia.org/wiki/Test_Politician",
+            iso_code="en",
+        )
+        db_session.add(link)
+        db_session.commit()
+
+        # Query with German language filter
+        query = Politician.query_for_enrichment(languages=["Q188"])
+        result = db_session.execute(query).scalars().all()
+
+        # Should NOT find politician - they have German citizenship but no German Wikipedia link
+        assert len(result) == 0
+
+    def test_query_respects_top_3_language_popularity_limit(
+        self, db_session, sample_politician
+    ):
+        """Test that only top 3 most popular citizenship languages are considered."""
+        # Create a country with 5 official languages
+        india = Country.create_with_entity(db_session, "Q668", "India")
+        india.iso_code = "IN"
+
+        # Create 5 languages with different popularity levels
+        languages_data = [
+            ("Q1568", "Hindi", "hi", "hin", 200),  # Most popular
+            ("Q1860", "English", "en", "eng", 150),  # 2nd most popular
+            ("Q5885", "Tamil", "ta", "tam", 100),  # 3rd most popular
+            ("Q5107", "Telugu", "te", "tel", 50),  # 4th - should NOT match
+            ("Q33298", "Bengali", "bn", "ben", 25),  # 5th - should NOT match
+        ]
+
+        languages = []
+        base_qid = 60000
+        for qid, name, iso1, iso3, popularity in languages_data:
+            lang = Language.create_with_entity(db_session, qid, name)
+            lang.iso1_code = iso1
+            lang.iso3_code = iso3
+            languages.append((lang, iso1, popularity))
+
+            # Create official language relation
+            relation = WikidataRelation(
+                parent_entity_id=qid,
+                child_entity_id=india.wikidata_id,
+                relation_type=RelationType.OFFICIAL_LANGUAGE,
+                statement_id=f"test_statement_{iso1}_in",
+            )
+            db_session.add(relation)
+
+            # Create dummy politicians to establish popularity
+            for i in range(popularity):
+                dummy = Politician.create_with_entity(
+                    db_session, f"Q{base_qid + i}", f"Dummy {iso1} {i}"
+                )
+                db_session.commit()
+                dummy_link = WikipediaLink(
+                    politician_id=dummy.id,
+                    url=f"https://{iso1}.wikipedia.org/wiki/Dummy_{i}",
+                    iso_code=iso1,
+                )
+                db_session.add(dummy_link)
+            base_qid += popularity
+
+        db_session.commit()
+
+        # Give sample_politician Indian citizenship
+        citizenship = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=india.wikidata_id,
+        )
+        db_session.add(citizenship)
+
+        # Create Wikipedia links for all 5 languages for sample_politician
+        for lang, iso1, _ in languages:
+            link = WikipediaLink(
+                politician_id=sample_politician.id,
+                url=f"https://{iso1}.wikipedia.org/wiki/Test_Politician",
+                iso_code=iso1,
+            )
+            db_session.add(link)
+        db_session.commit()
+
+        # Query with Hindi (most popular) - should match
+        query = Politician.query_for_enrichment(languages=["Q1568"])
+        result = db_session.execute(query).scalars().all()
+        assert len(result) == 1, "Hindi (top 1) should match"
+        assert result[0] == sample_politician.id
+
+        # Query with English (2nd most popular) - should match
+        query = Politician.query_for_enrichment(languages=["Q1860"])
+        result = db_session.execute(query).scalars().all()
+        assert len(result) == 1, "English (top 2) should match"
+        assert result[0] == sample_politician.id
+
+        # Query with Tamil (3rd most popular) - should match
+        query = Politician.query_for_enrichment(languages=["Q5885"])
+        result = db_session.execute(query).scalars().all()
+        assert len(result) == 1, "Tamil (top 3) should match"
+        assert result[0] == sample_politician.id
+
+        # Query with Telugu (4th most popular) - should NOT match
+        query = Politician.query_for_enrichment(languages=["Q5107"])
+        result = db_session.execute(query).scalars().all()
+        assert len(result) == 0, "Telugu (4th) should NOT match - outside top 3"
+
+        # Query with Bengali (5th most popular) - should NOT match
+        query = Politician.query_for_enrichment(languages=["Q33298"])
+        result = db_session.execute(query).scalars().all()
+        assert len(result) == 0, "Bengali (5th) should NOT match - outside top 3"

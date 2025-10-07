@@ -358,11 +358,7 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         )
 
         # CTE 2: language_popularity - count global usage of each language
-        language_popularity = (
-            select(WikipediaLink.iso_code, func.count().label("global_count"))
-            .group_by(WikipediaLink.iso_code)
-            .cte("language_popularity")
-        )
+        language_popularity = self._get_language_popularity_cte()
 
         # Subquery for checking if politician has any citizenships
         politician_has_citizenships = exists(
@@ -529,6 +525,23 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         politician.name = name
         return politician
 
+    @staticmethod
+    def _get_language_popularity_cte():
+        """
+        Create CTE for global language popularity based on Wikipedia link counts.
+
+        Used by both get_priority_wikipedia_links and query_for_enrichment to ensure
+        consistent popularity calculations.
+
+        Returns:
+            SQLAlchemy CTE with columns: iso_code, global_count
+        """
+        return (
+            select(WikipediaLink.iso_code, func.count().label("global_count"))
+            .group_by(WikipediaLink.iso_code)
+            .cte("language_popularity")
+        )
+
     @classmethod
     def query_with_unevaluated_properties(
         cls,
@@ -538,7 +551,8 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         """
         Build a query for politician IDs that have unevaluated properties.
 
-        This is the canonical query logic shared by API endpoints and enrichment functions.
+        This is the canonical query logic for API endpoints (evaluation workflow).
+        Uses archived page language filtering as optimization since pages already exist.
 
         Args:
             languages: Optional list of language QIDs to filter by
@@ -556,7 +570,7 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
             .where(and_(Property.statement_id.is_(None), Property.deleted_at.is_(None)))
         )
 
-        # Apply language filtering
+        # Apply language filtering via archived pages (performance optimization)
         if languages:
             politician_ids_query = (
                 politician_ids_query.join(
@@ -576,6 +590,112 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
                     ),
                 )
                 .where(Language.wikidata_id.in_(languages))
+            )
+
+        # Apply country filtering
+        if countries:
+            citizenship_subquery = select(Property.politician_id).where(
+                and_(
+                    Property.type == PropertyType.CITIZENSHIP,
+                    Property.entity_id.in_(countries),
+                )
+            )
+            politician_ids_query = politician_ids_query.where(
+                cls.id.in_(citizenship_subquery)
+            )
+
+        return politician_ids_query
+
+    @classmethod
+    def query_for_enrichment(
+        cls,
+        languages: List[str] = None,
+        countries: List[str] = None,
+    ):
+        """
+        Build a query for politicians that should be enriched.
+
+        Uses citizenship-based language filtering that mirrors get_priority_wikipedia_links logic,
+        considering both citizenship matching and language popularity.
+
+        This ensures that filtered languages would actually be selected by get_priority_wikipedia_links.
+
+        Args:
+            languages: Optional list of language QIDs to filter by
+            countries: Optional list of country QIDs to filter by
+
+        Returns:
+            SQLAlchemy select statement for politician IDs
+        """
+        # Base query: politicians with Wikipedia links
+        politician_ids_query = select(cls.id.distinct()).where(
+            exists(select(1).where(WikipediaLink.politician_id == cls.id))
+        )
+
+        # Apply language filtering using citizenship-based matching with top-3 popularity limit
+        if languages:
+            # Strategy: Match politicians where filtered language would be in top 3 selected by get_priority_wikipedia_links
+            # Mimics get_priority_wikipedia_links logic: citizenship match + global popularity, top 3
+
+            # CTE 1: Global language popularity (count of Wikipedia links per language)
+            language_popularity = cls._get_language_popularity_cte()
+
+            # CTE 2: For each politician, their citizenship-matched languages with links, ranked by global popularity
+            politician_language_ranks = (
+                select(
+                    cls.id.label("politician_id"),
+                    Language.wikidata_id.label("language_qid"),
+                    func.row_number()
+                    .over(
+                        partition_by=cls.id,
+                        order_by=language_popularity.c.global_count.desc(),
+                    )
+                    .label("rank"),
+                )
+                .select_from(cls)
+                .join(WikipediaLink, WikipediaLink.politician_id == cls.id)
+                .join(
+                    Language,
+                    or_(
+                        WikipediaLink.iso_code == Language.iso1_code,
+                        WikipediaLink.iso_code == Language.iso3_code,
+                    ),
+                )
+                .join(
+                    language_popularity,
+                    language_popularity.c.iso_code == WikipediaLink.iso_code,
+                )
+                .join(
+                    Property,
+                    and_(
+                        Property.politician_id == cls.id,
+                        Property.type == PropertyType.CITIZENSHIP,
+                    ),
+                )
+                .join(
+                    WikidataRelation,
+                    and_(
+                        Property.entity_id == WikidataRelation.child_entity_id,
+                        WikidataRelation.relation_type == "OFFICIAL_LANGUAGE",
+                        WikidataRelation.parent_entity_id == Language.wikidata_id,
+                    ),
+                )
+                .distinct()
+                .cte("politician_language_ranks")
+            )
+
+            # Subquery: Politicians where filtered language is in top 3 by rank
+            top_3_languages = select(
+                politician_language_ranks.c.politician_id.distinct()
+            ).where(
+                and_(
+                    politician_language_ranks.c.language_qid.in_(languages),
+                    politician_language_ranks.c.rank <= 3,
+                )
+            )
+
+            politician_ids_query = politician_ids_query.where(
+                cls.id.in_(top_3_languages)
             )
 
         # Apply country filtering
