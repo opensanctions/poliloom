@@ -6,6 +6,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import List, Optional, Literal, Type, Union, Any
 from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import select, and_, func
 from openai import AsyncOpenAI
 from pydantic import BaseModel, field_validator, create_model
 from unmhtml import MHTMLConverter
@@ -560,8 +561,83 @@ CITIZENSHIPS_CONFIG = TwoStageExtractionConfig(
 )
 
 
+def count_politicians_with_unevaluated(
+    db: Session,
+    languages: Optional[List[str]] = None,
+    countries: Optional[List[str]] = None,
+) -> int:
+    """
+    Count politicians that have unevaluated extracted properties.
+
+    Args:
+        db: Database session
+        languages: Optional list of language QIDs to filter by
+        countries: Optional list of country QIDs to filter by
+
+    Returns:
+        Number of politicians with unevaluated properties matching filters
+    """
+    # Use the shared query logic from Politician model
+    politician_ids_query = Politician.query_with_unevaluated_properties(
+        languages=languages, countries=countries
+    )
+
+    # Count the results
+    count_query = select(func.count()).select_from(politician_ids_query.subquery())
+    result = db.execute(count_query).scalar()
+    return result or 0
+
+
+async def enrich_until_target(
+    target_politicians: int,
+    languages: Optional[List[str]] = None,
+    countries: Optional[List[str]] = None,
+) -> int:
+    """
+    Enrich politicians until target number have unevaluated statements.
+
+    Args:
+        target_politicians: Target number of politicians with unevaluated statements
+        languages: Optional list of language QIDs to filter by
+        countries: Optional list of country QIDs to filter by
+
+    Returns:
+        Number of politicians enriched during this run
+    """
+    enriched_count = 0
+
+    while True:
+        # Check current count of politicians with unevaluated statements
+        with Session(get_engine()) as db:
+            current_count = count_politicians_with_unevaluated(db, languages, countries)
+
+        logger.info(
+            f"Current politicians with unevaluated statements: {current_count}/{target_politicians}"
+        )
+
+        if current_count >= target_politicians:
+            break
+
+        # Enrich one more politician
+        success_count, total_count = await enrich_politicians_from_wikipedia(
+            limit=1, languages=languages, countries=countries
+        )
+
+        if total_count == 0:
+            # No more politicians to enrich
+            logger.info("No more politicians available to enrich")
+            break
+
+        if success_count > 0:
+            enriched_count += 1
+
+    return enriched_count
+
+
 async def enrich_politicians_from_wikipedia(
     limit: Optional[int] = None,
+    languages: Optional[List[str]] = None,
+    countries: Optional[List[str]] = None,
 ) -> tuple[int, int]:
     """
     Enrich politicians' data by extracting information from their Wikipedia sources.
@@ -571,6 +647,8 @@ async def enrich_politicians_from_wikipedia(
 
     Args:
         limit: Optional limit on number of politicians to enrich. If None, enriches all.
+        languages: Optional list of language QIDs to filter by
+        countries: Optional list of country QIDs to filter by
 
     Returns:
         Tuple of (success_count, total_count)
@@ -594,8 +672,20 @@ async def enrich_politicians_from_wikipedia(
                 selectinload(Politician.wikipedia_links),
             )
             .filter(Politician.wikipedia_links.any())
-            .order_by(Politician.enriched_at.asc().nullsfirst())
+            .order_by(
+                Politician.wikidata_id.desc()
+            )  # Order by QID descending to prioritize newer politicians
         )
+
+        # Apply country filtering if specified
+        if countries:
+            citizenship_subquery = select(Property.politician_id).where(
+                and_(
+                    Property.type == PropertyType.CITIZENSHIP,
+                    Property.entity_id.in_(countries),
+                )
+            )
+            query = query.filter(Politician.id.in_(citizenship_subquery))
 
         if limit:
             politicians = query.limit(limit).all()

@@ -481,6 +481,69 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         politician.name = name
         return politician
 
+    @classmethod
+    def query_with_unevaluated_properties(
+        cls,
+        languages: List[str] = None,
+        countries: List[str] = None,
+    ):
+        """
+        Build a query for politician IDs that have unevaluated properties.
+
+        This is the canonical query logic shared by API endpoints and enrichment functions.
+
+        Args:
+            languages: Optional list of language QIDs to filter by
+            countries: Optional list of country QIDs to filter by
+
+        Returns:
+            SQLAlchemy select statement for politician IDs
+        """
+        from sqlalchemy import select, and_, or_
+
+        # Find politician IDs that have unevaluated properties
+        politician_ids_query = (
+            select(cls.id.distinct())
+            .join(Property)
+            .where(and_(Property.statement_id.is_(None), Property.deleted_at.is_(None)))
+        )
+
+        # Apply language filtering
+        if languages:
+            politician_ids_query = (
+                politician_ids_query.join(
+                    ArchivedPage, Property.archived_page_id == ArchivedPage.id
+                )
+                .join(
+                    Language,
+                    or_(
+                        and_(
+                            ArchivedPage.iso1_code.isnot(None),
+                            ArchivedPage.iso1_code == Language.iso1_code,
+                        ),
+                        and_(
+                            ArchivedPage.iso3_code.isnot(None),
+                            ArchivedPage.iso3_code == Language.iso3_code,
+                        ),
+                    ),
+                )
+                .where(Language.wikidata_id.in_(languages))
+            )
+
+        # Apply country filtering
+        if countries:
+            citizenship_subquery = select(Property.politician_id).where(
+                and_(
+                    Property.type == PropertyType.CITIZENSHIP,
+                    Property.entity_id.in_(countries),
+                )
+            )
+            politician_ids_query = politician_ids_query.where(
+                cls.id.in_(citizenship_subquery)
+            )
+
+        return politician_ids_query
+
     # Relationships
     wikidata_entity = relationship("WikidataEntity", back_populates="politician")
     properties = relationship(

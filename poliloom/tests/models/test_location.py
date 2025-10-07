@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from poliloom.models import Location
-from poliloom import enrichment
+from poliloom.embeddings import generate_embedding
 from ..conftest import assert_model_fields
 
 
@@ -50,13 +50,13 @@ class TestLocation:
         locations = []
         for wikidata_id, name in location_data:
             location = Location.create_with_entity(db_session, wikidata_id, name)
-            location.embedding = enrichment.generate_embedding(name)
+            location.embedding = generate_embedding(name)
             locations.append(location)
 
         db_session.commit()
 
         # Test similarity search - using same session
-        query_embedding = enrichment.generate_embedding("New York")
+        query_embedding = generate_embedding("New York")
         similar = (
             db_session.query(Location)
             .filter(Location.embedding.isnot(None))

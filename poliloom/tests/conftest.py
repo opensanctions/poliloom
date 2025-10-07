@@ -19,7 +19,7 @@ from poliloom.models import (
     PropertyType,
     WikipediaLink,
 )
-from poliloom.enrichment import generate_embedding
+from poliloom.embeddings import generate_embedding
 from poliloom.database import get_engine, setup_test_database
 from poliloom.wikidata_date import WikidataDate
 from sqlalchemy.orm import Session
@@ -40,7 +40,7 @@ def mock_generate_embedding():
         return dummy_embedding
 
     with patch(
-        "poliloom.enrichment.generate_embedding",
+        "poliloom.embeddings.generate_embedding",
         side_effect=mock_embedding,
     ):
         yield

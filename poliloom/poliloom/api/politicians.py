@@ -5,14 +5,12 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, and_, or_, func
 
-from ..models import Language
-
 from ..database import get_engine
 from ..models import (
     Politician,
     Property,
     ArchivedPage,
-    PropertyType,
+    Language,
 )
 from .schemas import (
     PoliticianResponse,
@@ -53,46 +51,10 @@ async def get_politicians(
       for these countries.
     """
     with Session(get_engine()) as db:
-        # First, find politician IDs that have unevaluated properties
-        politician_ids_query = (
-            select(Politician.id.distinct())
-            .join(Property)
-            .where(and_(Property.statement_id.is_(None), Property.deleted_at.is_(None)))
+        # Use the shared query logic from Politician model
+        politician_ids_query = Politician.query_with_unevaluated_properties(
+            languages=languages, countries=countries
         )
-
-        # Apply language filtering
-        if languages:
-            politician_ids_query = (
-                politician_ids_query.join(
-                    ArchivedPage, Property.archived_page_id == ArchivedPage.id
-                )
-                .join(
-                    Language,
-                    or_(
-                        and_(
-                            ArchivedPage.iso1_code.isnot(None),
-                            ArchivedPage.iso1_code == Language.iso1_code,
-                        ),
-                        and_(
-                            ArchivedPage.iso3_code.isnot(None),
-                            ArchivedPage.iso3_code == Language.iso3_code,
-                        ),
-                    ),
-                )
-                .where(Language.wikidata_id.in_(languages))
-            )
-
-        # Apply country filtering
-        if countries:
-            citizenship_subquery = select(Property.politician_id).where(
-                and_(
-                    Property.type == PropertyType.CITIZENSHIP,
-                    Property.entity_id.in_(countries),
-                )
-            )
-            politician_ids_query = politician_ids_query.where(
-                Politician.id.in_(citizenship_subquery)
-            )
 
         # Now build the main query to fetch politicians with their data
         query = select(Politician).where(Politician.id.in_(politician_ids_query))
