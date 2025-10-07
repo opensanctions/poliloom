@@ -7,7 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from jose import JWTError
 
 from poliloom.api.auth import MediaWikiOAuth, get_current_user, get_optional_user, User
-from .conftest import load_json_fixture
+from tests.conftest import load_json_fixture
 
 
 class TestMediaWikiOAuth:

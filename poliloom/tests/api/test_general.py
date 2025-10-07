@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock as SyncMock, patch
 
 from poliloom.api import app
 from poliloom.api.auth import User
-from .conftest import load_json_fixture
+from tests.conftest import load_json_fixture
 
 
 @pytest.fixture

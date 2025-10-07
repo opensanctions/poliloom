@@ -92,21 +92,35 @@ describe('Home Page', () => {
       status: 'authenticated',
     });
 
-    // Mock fetch for preferences API (first call)
-    vi.mocked(fetch)
-      .mockResolvedValueOnce({
+    // Mock all fetch calls
+    vi.mocked(fetch).mockImplementation((url) => {
+      const urlStr = url.toString();
+
+      if (urlStr.includes('/api/preferences')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => [],
+        } as Response);
+      }
+
+      if (urlStr.includes('/api/politicians')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => [mockPolitician],
+        } as Response);
+      }
+
+      return Promise.resolve({
         ok: true,
         status: 200,
         statusText: 'OK',
-        json: async () => [], // empty preferences
-      } as Response)
-      // Mock fetch for politicians API (second call)
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        statusText: 'OK',
-        json: async () => [mockPolitician],
+        json: async () => [],
       } as Response);
+    });
 
     await act(async () => {
       render(<Home />);
@@ -118,5 +132,195 @@ describe('Home Page', () => {
     });
 
     expect(screen.getByText('Header')).toBeInTheDocument();
+  });
+
+  it('triggers enrichment when no politicians available and shows politician after enrichment', async () => {
+    mockUseSession.mockReturnValue({
+      data: { accessToken: 'test-token' },
+      status: 'authenticated',
+    });
+
+    let enrichCalled = false;
+
+    // Mock fetch calls
+    vi.mocked(fetch).mockImplementation((url) => {
+      const urlStr = url.toString();
+
+      if (urlStr.includes('/api/preferences')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => [],
+        } as Response);
+      }
+
+      if (urlStr.includes('/api/enrich')) {
+        enrichCalled = true;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => ({ enriched_count: 1 }),
+        } as Response);
+      }
+
+      if (urlStr.includes('/api/politicians')) {
+        // First call returns empty
+        if (!enrichCalled) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            json: async () => [],
+          } as Response);
+        }
+        // After enrich, return politician
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => [mockPolitician],
+        } as Response);
+      }
+
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => [],
+      } as Response);
+    });
+
+    await act(async () => {
+      render(<Home />);
+    });
+
+    // Wait for politician to appear after enrichment
+    await waitFor(() => {
+      expect(screen.getByText('PoliticianEvaluation Component')).toBeInTheDocument();
+    });
+
+    // Verify enrichment was called
+    expect(enrichCalled).toBe(true);
+  });
+
+  it('shows error message when enrichment fails', async () => {
+    mockUseSession.mockReturnValue({
+      data: { accessToken: 'test-token' },
+      status: 'authenticated',
+    });
+
+    // Mock console.error to suppress expected error output
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    // Mock fetch calls
+    vi.mocked(fetch).mockImplementation((url) => {
+      const urlStr = url.toString();
+
+      if (urlStr.includes('/api/preferences')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => [],
+        } as Response);
+      }
+
+      if (urlStr.includes('/api/enrich')) {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          statusText: 'Internal Server Error',
+        } as Response);
+      }
+
+      if (urlStr.includes('/api/politicians')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => [],
+        } as Response);
+      }
+
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => [],
+      } as Response);
+    });
+
+    render(<Home />);
+
+    // Wait for error message to appear
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to enrich politicians/i)).toBeInTheDocument();
+    });
+
+    // Should show "Try Again" button
+    expect(screen.getByText('Try Again')).toBeInTheDocument();
+
+    // Verify error was logged
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error enriching politicians:', expect.any(Error));
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('shows error when enrichment succeeds but returns no politicians', async () => {
+    mockUseSession.mockReturnValue({
+      data: { accessToken: 'test-token' },
+      status: 'authenticated',
+    });
+
+    // Mock fetch calls
+    vi.mocked(fetch).mockImplementation((url) => {
+      const urlStr = url.toString();
+
+      if (urlStr.includes('/api/preferences')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => [],
+        } as Response);
+      }
+
+      if (urlStr.includes('/api/enrich')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => ({ enriched_count: 0 }),
+        } as Response);
+      }
+
+      if (urlStr.includes('/api/politicians')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => [],
+        } as Response);
+      }
+
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => [],
+      } as Response);
+    });
+
+    render(<Home />);
+
+    // Wait for error message to appear
+    await waitFor(() => {
+      expect(screen.getByText(/No politicians available.*try different preferences/i)).toBeInTheDocument();
+    });
+
+    // Should show "Try Again" button
+    expect(screen.getByText('Try Again')).toBeInTheDocument();
   });
 });

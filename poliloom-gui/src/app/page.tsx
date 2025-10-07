@@ -8,7 +8,7 @@ import { usePoliticiansQueue } from "@/contexts/PoliticiansQueueContext";
 
 export default function Home() {
   const { session, status, isAuthenticated } = useAuthSession();
-  const { currentPolitician, queueLength, loading, error, nextPolitician, refetch } = usePoliticiansQueue();
+  const { currentPolitician, queueLength, loading, enriching, error, nextPolitician, refetch } = usePoliticiansQueue();
 
   return (
     <>
@@ -58,6 +58,15 @@ export default function Home() {
                   </div>
                 )}
 
+                {enriching && (
+                  <div className="bg-purple-50 border border-purple-200 rounded-md p-4">
+                    <p className="text-purple-800">
+                      No politicians available with your current preferences.
+                      Enriching data for you...
+                    </p>
+                  </div>
+                )}
+
                 {error && (
                   <div className="bg-red-50 border border-red-200 rounded-md p-4">
                     <p className="text-red-800">{error}</p>
@@ -70,7 +79,7 @@ export default function Home() {
                   </div>
                 )}
 
-                {!loading && !error && !currentPolitician && (
+                {!loading && !enriching && !error && !currentPolitician && (
                   <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
                     <p className="text-gray-600">
                       No politicians available. Check your{" "}

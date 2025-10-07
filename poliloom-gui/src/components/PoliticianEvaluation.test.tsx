@@ -200,6 +200,9 @@ describe('PoliticianEvaluation', () => {
       }),
     } as Response);
 
+    // Mock console.error to suppress expected error output
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
     // Mock window.alert to prevent actual alert dialogs during testing
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
 
@@ -241,12 +244,19 @@ describe('PoliticianEvaluation', () => {
       expect(discardButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-red-600')); // Should remain selected
     }
 
+    // Verify error was logged
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error submitting evaluations:', expect.any(Error));
+
+    consoleErrorSpy.mockRestore();
     alertSpy.mockRestore();
   });
 
   it('preserves evaluation state when network request fails', async () => {
     // Mock a network error (fetch rejection)
     vi.mocked(fetch).mockRejectedValueOnce(new Error('Network connection failed'));
+
+    // Mock console.error to suppress expected error output
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     // Mock window.alert to prevent actual alert dialogs during testing
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
@@ -281,6 +291,10 @@ describe('PoliticianEvaluation', () => {
     // Button should still show its selected state
     expect(confirmButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')); // Should remain selected
 
+    // Verify error was logged
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error submitting evaluations:', expect.any(Error));
+
+    consoleErrorSpy.mockRestore();
     alertSpy.mockRestore();
   });
 
