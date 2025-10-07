@@ -6,7 +6,7 @@ import React, {
   useEffect,
   useState,
   useCallback,
-  useRef,
+  useMemo,
 } from "react";
 import { Politician, PreferenceType } from "@/types";
 import { useAuthSession } from "@/hooks/useAuthSession";
@@ -40,136 +40,128 @@ export function PoliticiansQueueProvider({
   const [loading, setLoading] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const enrichErrorRef = useRef<string | null>(null);
+  const [needsEnrichment, setNeedsEnrichment] = useState(false);
 
-  const languagePreferences = preferences
-    .filter(p => p.preference_type === PreferenceType.LANGUAGE)
-    .map(p => p.wikidata_id);
-
-  const countryPreferences = preferences
-    .filter(p => p.preference_type === PreferenceType.COUNTRY)
-    .map(p => p.wikidata_id);
-
-  const fetchPoliticians = useCallback(
-    async (limit: number = QUEUE_SIZE): Promise<Politician[]> => {
-      if (!session?.accessToken) return [];
-
-      // Build query parameters with preferences
-      const params = new URLSearchParams({ limit: limit.toString() });
-
-      if (languagePreferences.length > 0) {
-        languagePreferences.forEach((qid) => params.append("languages", qid));
-      }
-
-      if (countryPreferences.length > 0) {
-        countryPreferences.forEach((qid) => params.append("countries", qid));
-      }
-
-      const response = await fetch(`/api/politicians?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch politicians: ${response.statusText}`);
-      }
-
-      const politicians: Politician[] = await response.json();
-      return politicians;
-    },
-    [session?.accessToken, languagePreferences, countryPreferences],
+  // Memoize preference arrays to prevent unnecessary recreations
+  const languagePreferences = useMemo(
+    () =>
+      preferences
+        .filter((p) => p.preference_type === PreferenceType.LANGUAGE)
+        .map((p) => p.wikidata_id),
+    [preferences]
   );
 
-  const enrichPoliticians = useCallback(
-    async (): Promise<void> => {
-      if (!session?.accessToken) return;
-
-      // Build query parameters with preferences
-      const params = new URLSearchParams();
-
-      if (languagePreferences.length > 0) {
-        languagePreferences.forEach((qid) => params.append("languages", qid));
-      }
-
-      if (countryPreferences.length > 0) {
-        countryPreferences.forEach((qid) => params.append("countries", qid));
-      }
-
-      const response = await fetch(`/api/enrich?${params.toString()}`, {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to enrich politicians: ${response.statusText}`);
-      }
-    },
-    [session?.accessToken, languagePreferences, countryPreferences],
+  const countryPreferences = useMemo(
+    () =>
+      preferences
+        .filter((p) => p.preference_type === PreferenceType.COUNTRY)
+        .map((p) => p.wikidata_id),
+    [preferences]
   );
 
-  const loadPoliticians = useCallback(
-    async () => {
-      if (!isAuthenticated || !initialized) return;
+  const buildQueryParams = useCallback(() => {
+    const params = new URLSearchParams({ limit: QUEUE_SIZE.toString() });
+    languagePreferences.forEach((qid) => params.append("languages", qid));
+    countryPreferences.forEach((qid) => params.append("countries", qid));
+    return params;
+  }, [languagePreferences, countryPreferences]);
 
+  const fetchPoliticians = useCallback(async (): Promise<Politician[]> => {
+    if (!session?.accessToken) return [];
+
+    const params = buildQueryParams();
+    const response = await fetch(`/api/politicians?${params.toString()}`);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch politicians: ${response.statusText}`);
+    }
+
+    return response.json();
+  }, [session?.accessToken, buildQueryParams]);
+
+  const triggerEnrichment = useCallback(async (): Promise<void> => {
+    if (!session?.accessToken) return;
+
+    const params = buildQueryParams();
+    const response = await fetch(`/api/enrich?${params.toString()}`, {
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to enrich politicians: ${response.statusText}`);
+    }
+  }, [session?.accessToken, buildQueryParams]);
+
+  // Clear queue when preferences change
+  useEffect(() => {
+    setQueue([]);
+    setError(null);
+    setNeedsEnrichment(false);
+  }, [languagePreferences, countryPreferences]);
+
+  // Fetch politicians when queue is low
+  useEffect(() => {
+    if (!isAuthenticated || !initialized || loading || enriching) return;
+    if (queue.length >= REFETCH_THRESHOLD) return;
+
+    const fetchMore = async () => {
       setLoading(true);
       setError(null);
 
       try {
         const politicians = await fetchPoliticians();
 
-        // If no politicians returned, try to enrich if we haven't hit an error yet
-        if (politicians.length === 0 && !enrichErrorRef.current) {
-          setLoading(false);
-          setEnriching(true);
-          try {
-            await enrichPoliticians();
-            // After enrichment, try to fetch again
-            const enrichedPoliticians = await fetchPoliticians();
-
-            if (enrichedPoliticians.length === 0) {
-              const errorMsg = "No politicians available. Please try different preferences or try again later.";
-              enrichErrorRef.current = errorMsg;
-              setError(errorMsg);
-            }
-
-            setQueue((prev) => [...prev, ...enrichedPoliticians]);
-          } catch (enrichError) {
-            console.error("Error enriching politicians:", enrichError);
-            const errorMsg = "Failed to enrich politicians. Please try again later.";
-            enrichErrorRef.current = errorMsg;
-            setError(errorMsg);
-          } finally {
-            setEnriching(false);
+        if (politicians.length === 0) {
+          if (!needsEnrichment) {
+            setNeedsEnrichment(true);
+          } else {
+            setError("No politicians available. Please try different preferences or try again later.");
           }
         } else {
           setQueue((prev) => [...prev, ...politicians]);
-          // Clear enrich error if we got politicians
-          if (politicians.length > 0) {
-            enrichErrorRef.current = null;
-          }
+          setNeedsEnrichment(false);
         }
-      } catch (error) {
-        console.error("Error fetching politicians:", error);
+      } catch (err) {
+        console.error("Error fetching politicians:", err);
         setError("Failed to load politician data. Please try again.");
       } finally {
         setLoading(false);
       }
-    },
-    [isAuthenticated, initialized, fetchPoliticians, enrichPoliticians],
-  );
+    };
 
-  // Initial load when authenticated and preferences are initialized
-  useEffect(() => {
-    if (isAuthenticated && initialized) {
-      setQueue([]);
-      enrichErrorRef.current = null;
-      loadPoliticians();
-    }
-  }, [isAuthenticated, initialized, preferences]);
+    fetchMore();
+  }, [
+    queue.length,
+    isAuthenticated,
+    initialized,
+    loading,
+    enriching,
+    needsEnrichment,
+    fetchPoliticians,
+  ]);
 
-  // Auto-refetch when queue gets low or empty
+  // Trigger enrichment when needed
   useEffect(() => {
-    if (!loading && !enriching && !error && isAuthenticated && initialized) {
-      if (queue.length === 0 || queue.length === REFETCH_THRESHOLD) {
-        loadPoliticians();
+    if (!needsEnrichment || enriching || !isAuthenticated) return;
+
+    const enrich = async () => {
+      setEnriching(true);
+      setError(null);
+
+      try {
+        await triggerEnrichment();
+        // After enrichment, fetch will be triggered by the effect above
+      } catch (err) {
+        console.error("Error enriching politicians:", err);
+        setError("Failed to enrich politicians. Please try again later.");
+        setNeedsEnrichment(false);
+      } finally {
+        setEnriching(false);
       }
-    }
-  }, [queue.length, loading, enriching, error, isAuthenticated, initialized, loadPoliticians]);
+    };
+
+    enrich();
+  }, [needsEnrichment, enriching, isAuthenticated, triggerEnrichment]);
 
   const nextPolitician = useCallback(() => {
     setQueue((prev) => prev.slice(1));
@@ -177,9 +169,9 @@ export function PoliticiansQueueProvider({
 
   const refetch = useCallback(() => {
     setQueue([]);
-    enrichErrorRef.current = null;
-    loadPoliticians();
-  }, [loadPoliticians]);
+    setError(null);
+    setNeedsEnrichment(false);
+  }, []);
 
   const value: PoliticiansQueueContextType = {
     currentPolitician: queue[0] || null,
@@ -202,7 +194,7 @@ export function usePoliticiansQueue() {
   const context = useContext(PoliticiansQueueContext);
   if (context === undefined) {
     throw new Error(
-      "usePoliticiansQueue must be used within a PoliticiansQueueProvider",
+      "usePoliticiansQueue must be used within a PoliticiansQueueProvider"
     );
   }
   return context;
