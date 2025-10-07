@@ -50,9 +50,12 @@ export interface EvaluationResponse {
   errors: string[];
 }
 
-export interface PreferenceResponse {
-  qid: string;
+export interface WikidataEntity {
+  wikidata_id: string;
   name: string;
+}
+
+export interface PreferenceResponse extends WikidataEntity {
   preference_type: string;
 }
 
@@ -61,15 +64,11 @@ export enum PreferenceType {
   COUNTRY = "country"
 }
 
-export interface LanguageResponse {
-  wikidata_id: string;
-  name: string;
+export interface LanguageResponse extends WikidataEntity {
   iso1_code?: string;
   iso3_code?: string;
 }
 
-export interface CountryResponse {
-  wikidata_id: string;
-  name: string;
+export interface CountryResponse extends WikidataEntity {
   iso_code?: string;
 }

@@ -40,11 +40,11 @@ export function PoliticiansQueueProvider({
 
   const languagePreferences = preferences
     .filter(p => p.preference_type === PreferenceType.LANGUAGE)
-    .map(p => p.qid);
+    .map(p => p.wikidata_id);
 
   const countryPreferences = preferences
     .filter(p => p.preference_type === PreferenceType.COUNTRY)
-    .map(p => p.qid);
+    .map(p => p.wikidata_id);
 
   const fetchPoliticians = useCallback(
     async (limit: number = QUEUE_SIZE): Promise<Politician[]> => {

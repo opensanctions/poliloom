@@ -21,7 +21,7 @@ router = APIRouter()
 class PreferenceResponse(BaseModel):
     """Schema for preference response."""
 
-    qid: str
+    wikidata_id: str
     name: str
     preference_type: str
 
@@ -29,7 +29,7 @@ class PreferenceResponse(BaseModel):
 class PreferenceRequest(BaseModel):
     """Schema for preference request."""
 
-    entity_qids: List[str]
+    wikidata_ids: List[str]
 
 
 @router.get("", response_model=List[PreferenceResponse])
@@ -51,7 +51,7 @@ async def get_user_preferences(
             if pref.entity:
                 result.append(
                     PreferenceResponse(
-                        qid=pref.entity_id,
+                        wikidata_id=pref.entity_id,
                         name=pref.entity.name or pref.entity_id,
                         preference_type=pref.preference_type.value,
                     )
@@ -73,13 +73,13 @@ async def set_user_preferences(
         user_id = str(current_user.user_id)
 
         # Validate entity QIDs exist in the appropriate table
-        if request.entity_qids:
+        if request.wikidata_ids:
             if preference_type == PreferenceType.COUNTRY:
                 # Validate country QIDs exist in countries table
                 existing_entities = (
                     db.execute(
                         select(Country.wikidata_id).where(
-                            Country.wikidata_id.in_(request.entity_qids)
+                            Country.wikidata_id.in_(request.wikidata_ids)
                         )
                     )
                     .scalars()
@@ -91,7 +91,7 @@ async def set_user_preferences(
                 existing_entities = (
                     db.execute(
                         select(Language.wikidata_id).where(
-                            Language.wikidata_id.in_(request.entity_qids)
+                            Language.wikidata_id.in_(request.wikidata_ids)
                         )
                     )
                     .scalars()
@@ -100,7 +100,7 @@ async def set_user_preferences(
                 entity_type = "languages"
 
             existing_entity_set = set(existing_entities)
-            missing_entities = set(request.entity_qids) - existing_entity_set
+            missing_entities = set(request.wikidata_ids) - existing_entity_set
 
             if missing_entities:
                 raise HTTPException(
@@ -116,9 +116,9 @@ async def set_user_preferences(
         db.execute(delete_stmt)
 
         # Add new preferences
-        if request.entity_qids:
+        if request.wikidata_ids:
             new_preferences = []
-            for qid in request.entity_qids:
+            for qid in request.wikidata_ids:
                 new_preferences.append(
                     Preference(
                         user_id=user_id,
@@ -132,7 +132,7 @@ async def set_user_preferences(
             db.commit()
             return {
                 "success": True,
-                "message": f"Updated {len(request.entity_qids)} preferences",
+                "message": f"Updated {len(request.wikidata_ids)} preferences",
             }
 
         except Exception as e:

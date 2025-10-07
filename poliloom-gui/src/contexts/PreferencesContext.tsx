@@ -2,14 +2,14 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
-import { PreferenceResponse, PreferenceType, LanguageResponse } from '@/types'
+import { PreferenceResponse, PreferenceType, LanguageResponse, WikidataEntity } from '@/types'
 
 interface PreferencesContextType {
   preferences: PreferenceResponse[]
   loading: boolean
   error: string | null
   initialized: boolean
-  updatePreferences: (type: PreferenceType, qids: string[]) => Promise<void>
+  updatePreferences: (type: PreferenceType, items: WikidataEntity[]) => Promise<void>
   refetch: () => void
 }
 
@@ -18,7 +18,7 @@ const PreferencesContext = createContext<PreferencesContextType | undefined>(und
 const STORAGE_KEY = 'poliloom_preferences'
 
 // Helper function to detect browser language and match with available languages
-const detectBrowserLanguage = async (): Promise<string[]> => {
+const detectBrowserLanguage = async (): Promise<WikidataEntity[]> => {
   try {
     // Get browser language codes (e.g., 'en-US', 'es', 'de-DE')
     const browserLanguages = navigator.languages || [navigator.language]
@@ -36,7 +36,7 @@ const detectBrowserLanguage = async (): Promise<string[]> => {
     const availableLanguages: LanguageResponse[] = await response.json()
 
     // Find matching languages by ISO 639-1 or ISO 639-3 codes
-    const matchedLanguages: string[] = []
+    const matchedLanguages: WikidataEntity[] = []
 
     for (const browserLang of iso639Codes) {
       const match = availableLanguages.find(lang =>
@@ -44,8 +44,11 @@ const detectBrowserLanguage = async (): Promise<string[]> => {
         lang.iso3_code?.toLowerCase() === browserLang
       )
 
-      if (match && !matchedLanguages.includes(match.wikidata_id)) {
-        matchedLanguages.push(match.wikidata_id)
+      if (match && !matchedLanguages.some(l => l.wikidata_id === match.wikidata_id)) {
+        matchedLanguages.push({
+          wikidata_id: match.wikidata_id,
+          name: match.name
+        })
       }
     }
 
@@ -66,10 +69,10 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   // Helper function to compare preference arrays
   const preferencesEqual = (a: PreferenceResponse[], b: PreferenceResponse[]) => {
     if (a.length !== b.length) return false
-    const sortedA = [...a].sort((x, y) => x.qid.localeCompare(y.qid))
-    const sortedB = [...b].sort((x, y) => x.qid.localeCompare(y.qid))
+    const sortedA = [...a].sort((x, y) => x.wikidata_id.localeCompare(y.wikidata_id))
+    const sortedB = [...b].sort((x, y) => x.wikidata_id.localeCompare(y.wikidata_id))
     return sortedA.every((val, i) =>
-      val.qid === sortedB[i].qid && val.preference_type === sortedB[i].preference_type
+      val.wikidata_id === sortedB[i].wikidata_id && val.preference_type === sortedB[i].preference_type
     )
   }
 
@@ -100,6 +103,40 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       console.warn('Failed to save preferences to localStorage:', error)
     }
   }
+
+  // Update preferences on server and locally
+  const updatePreferences = useCallback(async (
+    preferenceType: PreferenceType,
+    items: WikidataEntity[]
+  ) => {
+    setError(null)
+
+    const wikidata_ids = items.map(item => item.wikidata_id)
+
+    const response = await fetch(`/api/preferences/${preferenceType}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ wikidata_ids }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to update preferences: ${response.statusText}`)
+    }
+
+    // Update local state immediately
+    const updated = [
+      ...preferences.filter(p => p.preference_type !== preferenceType),
+      ...items.map(item => ({
+        wikidata_id: item.wikidata_id,
+        name: item.name,
+        preference_type: preferenceType
+      }))
+    ]
+    setPreferences(updated)
+    saveToStorage(updated)
+  }, [preferences])
 
   // Fetch preferences from server
   const fetchPreferences = useCallback(async () => {
@@ -138,27 +175,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     } finally {
       setLoading(false)
     }
-  }, [status])
-
-  // Update preferences on server and locally
-  const updatePreferences = async (preferenceType: PreferenceType, qids: string[]) => {
-    setError(null)
-
-    const response = await fetch(`/api/preferences/${preferenceType}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ entity_qids: qids }),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to update preferences: ${response.statusText}`)
-    }
-
-    // Refetch to get complete data with names
-    await fetchPreferences()
-  }
+  }, [status, updatePreferences])
 
   // Fetch preferences when authenticated
   useEffect(() => {

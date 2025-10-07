@@ -87,7 +87,7 @@ describe("PreferencesContext", () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [
-          { qid: "Q1860", name: "English", preference_type: PreferenceType.LANGUAGE },
+          { wikidata_id: "Q1860", name: "English", preference_type: PreferenceType.LANGUAGE },
         ],
       });
 
@@ -110,7 +110,7 @@ describe("PreferencesContext", () => {
         "/api/preferences/language",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ entity_qids: ["Q1860"] }),
+          body: JSON.stringify({ wikidata_ids: ["Q1860"] }),
         })
       );
     });
@@ -122,7 +122,7 @@ describe("PreferencesContext", () => {
   it("does NOT detect browser language when localStorage already has preferences", async () => {
     // Pre-populate localStorage
     localStorageMock["poliloom_preferences"] = JSON.stringify([
-      { qid: "Q150", name: "French", preference_type: PreferenceType.LANGUAGE },
+      { wikidata_id: "Q150", name: "French", preference_type: PreferenceType.LANGUAGE },
     ]);
 
     // Mock authenticated session
@@ -172,7 +172,7 @@ describe("PreferencesContext", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => [
-        { qid: "Q150", name: "French", preference_type: PreferenceType.LANGUAGE },
+        { wikidata_id: "Q150", name: "French", preference_type: PreferenceType.LANGUAGE },
       ],
     });
 
@@ -201,7 +201,7 @@ describe("PreferencesContext", () => {
   it("does NOT detect browser language when both localStorage and server have preferences", async () => {
     // Pre-populate localStorage
     localStorageMock["poliloom_preferences"] = JSON.stringify([
-      { qid: "Q150", name: "French", preference_type: PreferenceType.LANGUAGE },
+      { wikidata_id: "Q150", name: "French", preference_type: PreferenceType.LANGUAGE },
     ]);
 
     // Mock authenticated session
@@ -215,7 +215,7 @@ describe("PreferencesContext", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => [
-        { qid: "Q150", name: "French", preference_type: PreferenceType.LANGUAGE },
+        { wikidata_id: "Q150", name: "French", preference_type: PreferenceType.LANGUAGE },
       ],
     });
 

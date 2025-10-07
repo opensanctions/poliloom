@@ -121,7 +121,7 @@ class TestPreferencesEndpoint:
         preferences = response.json()
 
         assert len(preferences) == 1
-        assert preferences[0]["qid"] == sample_country.wikidata_id
+        assert preferences[0]["wikidata_id"] == sample_country.wikidata_id
         assert preferences[0]["name"] == sample_country.name
         assert preferences[0]["preference_type"] == "country"
 
@@ -134,7 +134,7 @@ class TestPreferencesEndpoint:
         preferences = response.json()
 
         assert len(preferences) == 1
-        assert preferences[0]["qid"] == sample_language.wikidata_id
+        assert preferences[0]["wikidata_id"] == sample_language.wikidata_id
         assert preferences[0]["name"] == sample_language.name
         assert preferences[0]["preference_type"] == "language"
 
@@ -158,7 +158,7 @@ class TestPreferencesEndpoint:
 
         # Verify structure of each preference
         for pref in preferences:
-            assert "qid" in pref
+            assert "wikidata_id" in pref
             assert "name" in pref
             assert "preference_type" in pref
             assert pref["preference_type"] in ["country", "language"]
@@ -207,7 +207,7 @@ class TestPreferencesEndpoint:
 
         # Should include the preference with the orphaned entity
         assert len(preferences) == 1
-        assert preferences[0]["qid"] == "Q99999999"
+        assert preferences[0]["wikidata_id"] == "Q99999999"
         assert preferences[0]["name"] == "Orphaned Entity"
         assert preferences[0]["preference_type"] == "country"
 
@@ -229,10 +229,10 @@ class TestPreferencesEndpoint:
         if preferences:  # If not empty
             pref = preferences[0]
             assert isinstance(pref, dict)
-            assert "qid" in pref
+            assert "wikidata_id" in pref
             assert "name" in pref
             assert "preference_type" in pref
-            assert isinstance(pref["qid"], str)
+            assert isinstance(pref["wikidata_id"], str)
             assert isinstance(pref["name"], str)
             assert isinstance(pref["preference_type"], str)
 

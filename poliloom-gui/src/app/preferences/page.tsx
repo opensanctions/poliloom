@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Header } from "@/components/Header"
 import { MultiSelect, MultiSelectOption } from "@/components/MultiSelect"
 import { usePreferencesContext } from "@/contexts/PreferencesContext"
-import { LanguageResponse, CountryResponse, PreferenceType } from "@/types"
+import { LanguageResponse, CountryResponse, PreferenceType, WikidataEntity } from "@/types"
 
 export default function PreferencesPage() {
   const router = useRouter()
@@ -18,11 +18,11 @@ export default function PreferencesPage() {
 
   const languagePreferences = preferences
     .filter(p => p.preference_type === PreferenceType.LANGUAGE)
-    .map(p => p.qid)
+    .map(p => p.wikidata_id)
 
   const countryPreferences = preferences
     .filter(p => p.preference_type === PreferenceType.COUNTRY)
-    .map(p => p.qid)
+    .map(p => p.wikidata_id)
 
   const [languages, setLanguages] = useState<LanguageResponse[]>([])
   const [loadingLanguages, setLoadingLanguages] = useState(true)
@@ -76,6 +76,18 @@ export default function PreferencesPage() {
     label: country.name
   }))
 
+  // Generic handler for preference changes
+  const createPreferenceHandler = (
+    type: PreferenceType,
+    allItems: WikidataEntity[]
+  ) => (qids: string[]) => {
+    const items = allItems.filter(item => qids.includes(item.wikidata_id))
+    updatePreferences(type, items)
+  }
+
+  const handleLanguageChange = createPreferenceHandler(PreferenceType.LANGUAGE, languages)
+  const handleCountryChange = createPreferenceHandler(PreferenceType.COUNTRY, countries)
+
   const displayError = error || preferencesError
 
   return (
@@ -110,7 +122,7 @@ export default function PreferencesPage() {
                 <MultiSelect
                   options={languageOptions}
                   selected={languagePreferences}
-                  onChange={(qids) => updatePreferences(PreferenceType.LANGUAGE, qids)}
+                  onChange={handleLanguageChange}
                   placeholder="No filter - showing all"
                   loading={loadingLanguages}
                   disabled={updating}
@@ -127,7 +139,7 @@ export default function PreferencesPage() {
                 <MultiSelect
                   options={countryOptions}
                   selected={countryPreferences}
-                  onChange={(qids) => updatePreferences(PreferenceType.COUNTRY, qids)}
+                  onChange={handleCountryChange}
                   placeholder="No filter - showing all"
                   loading={loadingCountries}
                   disabled={updating}
