@@ -634,6 +634,99 @@ async def enrich_until_target(
     return enriched_count
 
 
+async def _fetch_and_extract_from_page(
+    openai_client: AsyncOpenAI,
+    db: Session,
+    politician: Politician,
+    url: str,
+    iso1_code: str,
+    iso3_code: str,
+) -> tuple[bool, int, int, int, int]:
+    """
+    Fetch a web page, archive it, and extract politician data from it.
+
+    Args:
+        openai_client: OpenAI async client
+        db: Database session
+        politician: Politician to enrich
+        url: Web page URL
+        iso1_code: ISO 639-1 language code
+        iso3_code: ISO 639-3 language code
+
+    Returns:
+        Tuple of (success, date_count, position_count, birthplace_count, citizenship_count)
+    """
+    try:
+        logger.info(f"Processing source: {url}")
+
+        # Fetch and archive the page
+        archived_page = await fetch_and_archive_page(url, db, iso1_code, iso3_code)
+
+        # Read content from archived page
+        html_content = archive.read_archived_content(archived_page.path_root, "html")
+
+        soup = BeautifulSoup(html_content, "html.parser")
+        text = soup.get_text()
+        content = " ".join(text.split())
+
+        # Extract data from this specific source in parallel
+        (
+            date_properties,
+            positions,
+            birthplaces,
+            citizenships,
+        ) = await asyncio.gather(
+            extract_properties_generic(
+                openai_client, content, politician, DATES_CONFIG
+            ),
+            extract_two_stage_generic(
+                openai_client, db, content, politician, POSITIONS_CONFIG
+            ),
+            extract_two_stage_generic(
+                openai_client, db, content, politician, BIRTHPLACES_CONFIG
+            ),
+            extract_two_stage_generic(
+                openai_client, db, content, politician, CITIZENSHIPS_CONFIG
+            ),
+        )
+
+        # Store extracted data for this specific source
+        success = store_extracted_data(
+            db,
+            politician,
+            archived_page,
+            date_properties,
+            positions,
+            birthplaces,
+            citizenships,
+        )
+
+        if success:
+            # Count what was extracted from this source
+            date_count = len(date_properties) if date_properties else 0
+            position_count = len(positions) if positions else 0
+            birthplace_count = len(birthplaces) if birthplaces else 0
+            citizenship_count = len(citizenships) if citizenships else 0
+
+            source_total = (
+                date_count + position_count + birthplace_count + citizenship_count
+            )
+            logger.info(
+                f"Extracted {source_total} items from {url} "
+                f"({date_count} dates, {position_count} positions, {birthplace_count} birthplaces, {citizenship_count} citizenships)"
+            )
+            return True, date_count, position_count, birthplace_count, citizenship_count
+        else:
+            logger.warning(
+                f"Failed to store extracted data from {url} for {politician.name}"
+            )
+            return False, 0, 0, 0, 0
+
+    except Exception as e:
+        logger.error(f"Error processing page {url}: {e}")
+        return False, 0, 0, 0, 0
+
+
 async def enrich_politicians_from_wikipedia(
     limit: Optional[int] = None,
     languages: Optional[List[str]] = None,
@@ -642,8 +735,9 @@ async def enrich_politicians_from_wikipedia(
     """
     Enrich politicians' data by extracting information from their Wikipedia sources.
 
-    Now processes multiple Wikipedia articles based on politician's citizenship and
-    official languages of their countries, prioritized by Wikipedia link popularity.
+    Now processes multiple Wikipedia articles concurrently based on politician's
+    citizenship and official languages of their countries, prioritized by Wikipedia
+    link popularity.
 
     Args:
         limit: Optional limit on number of politicians to enrich. If None, enriches all.
@@ -658,6 +752,11 @@ async def enrich_politicians_from_wikipedia(
 
     with Session(get_engine()) as db:
         # Query politicians that need enrichment
+        # Ordering strategy:
+        # 1. NULL enriched_at first (never enriched)
+        # 2. Among NULL, higher QID numbers first (newer politicians)
+        # 3. Then by enriched_at ascending (oldest enrichment first)
+        # This ensures we enrich all politicians once before re-enriching any
         query = (
             db.query(Politician)
             .options(
@@ -672,9 +771,11 @@ async def enrich_politicians_from_wikipedia(
                 selectinload(Politician.wikipedia_links),
             )
             .filter(Politician.wikipedia_links.any())
+            .filter(Politician.wikidata_id.isnot(None))
             .order_by(
-                Politician.wikidata_id.desc()
-            )  # Order by QID descending to prioritize newer politicians
+                Politician.enriched_at.asc().nullsfirst(),
+                Politician.wikidata_id_numeric.desc(),
+            )
         )
 
         # Apply country filtering if specified
@@ -712,104 +813,36 @@ async def enrich_politicians_from_wikipedia(
                     f"{[f'{iso1_code} ({url})' for url, iso1_code, _ in priority_links]}"
                 )
 
-                # Track totals across all sources
+                # Process all pages concurrently
+                page_tasks = [
+                    _fetch_and_extract_from_page(
+                        openai_client, db, politician, url, iso1_code, iso3_code
+                    )
+                    for url, iso1_code, iso3_code in priority_links
+                ]
+
+                page_results = await asyncio.gather(*page_tasks)
+
+                # Aggregate results from all pages
                 total_dates = 0
                 total_positions = 0
                 total_birthplaces = 0
                 total_citizenships = 0
                 processed_sources = 0
 
-                # Process each priority Wikipedia link individually
-                for url, iso1_code, iso3_code in priority_links:
-                    logger.info(f"Processing Wikipedia source: {url}")
-
-                    # Check if we already have this page archived
-                    existing_page = (
-                        db.query(ArchivedPage).filter(ArchivedPage.url == url).first()
-                    )
-
-                    if existing_page:
-                        logger.info(f"Using existing archived page for {url}")
-                        archived_page = existing_page
-                        # Update language codes if missing
-                        if not archived_page.iso1_code or not archived_page.iso3_code:
-                            archived_page.iso1_code = iso1_code
-                            archived_page.iso3_code = iso3_code
-                            db.flush()
-                    else:
-                        # Fetch and archive the page with language codes
-                        archived_page = await fetch_and_archive_page(
-                            url, db, iso1_code, iso3_code
-                        )
-
-                    # Read content from archived page
-                    html_content = archive.read_archived_content(
-                        archived_page.path_root, "html"
-                    )
-
-                    soup = BeautifulSoup(html_content, "html.parser")
-                    text = soup.get_text()
-                    content = " ".join(text.split())
-
-                    # Extract data from this specific source in parallel
-                    (
-                        date_properties,
-                        positions,
-                        birthplaces,
-                        citizenships,
-                    ) = await asyncio.gather(
-                        extract_properties_generic(
-                            openai_client, content, politician, DATES_CONFIG
-                        ),
-                        extract_two_stage_generic(
-                            openai_client, db, content, politician, POSITIONS_CONFIG
-                        ),
-                        extract_two_stage_generic(
-                            openai_client, db, content, politician, BIRTHPLACES_CONFIG
-                        ),
-                        extract_two_stage_generic(
-                            openai_client, db, content, politician, CITIZENSHIPS_CONFIG
-                        ),
-                    )
-
-                    # Store extracted data for this specific source
-                    success = store_extracted_data(
-                        db,
-                        politician,
-                        archived_page,
-                        date_properties,
-                        positions,
-                        birthplaces,
-                        citizenships,
-                    )
-
+                for (
+                    success,
+                    date_count,
+                    position_count,
+                    birthplace_count,
+                    citizenship_count,
+                ) in page_results:
                     if success:
-                        # Count what was extracted from this source
-                        date_count = len(date_properties) if date_properties else 0
-                        position_count = len(positions) if positions else 0
-                        birthplace_count = len(birthplaces) if birthplaces else 0
-                        citizenship_count = len(citizenships) if citizenships else 0
-
                         total_dates += date_count
                         total_positions += position_count
                         total_birthplaces += birthplace_count
                         total_citizenships += citizenship_count
                         processed_sources += 1
-
-                        source_total = (
-                            date_count
-                            + position_count
-                            + birthplace_count
-                            + citizenship_count
-                        )
-                        logger.info(
-                            f"Extracted {source_total} items from {url} "
-                            f"({date_count} dates, {position_count} positions, {birthplace_count} birthplaces, {citizenship_count} citizenships)"
-                        )
-                    else:
-                        logger.warning(
-                            f"Failed to store extracted data from {url} for {politician.name}"
-                        )
 
                 # Commit all changes
                 db.commit()

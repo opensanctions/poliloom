@@ -135,6 +135,7 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
         politician_data = [
             {
                 "wikidata_id": p["wikidata_id"],
+                "wikidata_id_numeric": p.get("wikidata_id_numeric"),
                 "name": p["name"],
             }
             for p in politicians
@@ -216,9 +217,19 @@ def _process_politicians_chunk(
                 entity, shared_position_qids
             ) and _should_import_politician(entity):
                 # Build complete politician dict with all relationships
+                wikidata_id = entity.get_wikidata_id()
+                # Extract numeric ID from QID (strip 'Q' prefix)
+                wikidata_id_numeric = None
+                if wikidata_id and wikidata_id.startswith("Q"):
+                    try:
+                        wikidata_id_numeric = int(wikidata_id[1:])
+                    except ValueError:
+                        pass
+
                 politician_data = {
-                    "wikidata_id": entity.get_wikidata_id(),
-                    "name": entity.get_entity_name() or entity.get_wikidata_id(),
+                    "wikidata_id": wikidata_id,
+                    "wikidata_id_numeric": wikidata_id_numeric,
+                    "name": entity.get_entity_name() or wikidata_id,
                     "properties": [],
                     "wikipedia_links": [],
                 }

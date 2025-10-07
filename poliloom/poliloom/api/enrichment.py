@@ -1,5 +1,6 @@
 """Enrichment API endpoints."""
 
+import os
 from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
 
@@ -26,16 +27,26 @@ async def enrich_politicians(
     Enrich politicians until at least one has unevaluated statements, then continue in background.
 
     This endpoint will:
-    1. Enrich politicians until at least 1 has unevaluated statements (fast response)
-    2. Queue a background task to continue enriching until 10 have unevaluated statements
+    1. Enrich politicians until immediate target has unevaluated statements (fast response)
+    2. Queue a background task to continue enriching until background target have unevaluated statements
+
+    Environment variables:
+        ENRICH_IMMEDIATE_TARGET: Number of politicians to enrich before responding (default: 1)
+        ENRICH_BACKGROUND_TARGET: Number of politicians to enrich in background (default: 10)
 
     Returns:
         JSON with enriched_count showing how many politicians were enriched before returning
     """
-    # Enrich until at least 1 politician has unevaluated statements
-    count = await enrich_until_target(1, languages, countries)
+    # Get targets from environment variables with defaults
+    immediate_target = int(os.getenv("ENRICH_IMMEDIATE_TARGET", "1"))
+    background_target = int(os.getenv("ENRICH_BACKGROUND_TARGET", "10"))
 
-    # Queue background task to reach target of 10
-    background_tasks.add_task(enrich_until_target, 10, languages, countries)
+    # Enrich until immediate target is reached
+    count = await enrich_until_target(immediate_target, languages, countries)
+
+    # Queue background task to reach background target
+    background_tasks.add_task(
+        enrich_until_target, background_target, languages, countries
+    )
 
     return {"enriched_count": count}

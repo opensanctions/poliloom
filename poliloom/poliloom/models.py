@@ -305,6 +305,7 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
     wikidata_id = Column(
         String, ForeignKey("wikidata_entities.wikidata_id"), unique=True, index=True
     )
+    wikidata_id_numeric = Column(Integer, nullable=True, index=True)
     enriched_at = Column(
         DateTime, nullable=True
     )  # Timestamp of last enrichment attempt
