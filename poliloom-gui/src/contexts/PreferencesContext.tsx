@@ -5,22 +5,17 @@ import { useSession } from 'next-auth/react'
 import { PreferenceResponse, PreferenceType, LanguageResponse } from '@/types'
 
 interface PreferencesContextType {
-  languagePreferences: string[]
-  countryPreferences: string[]
+  preferences: PreferenceResponse[]
   loading: boolean
   error: string | null
   initialized: boolean
-  updateLanguagePreferences: (qids: string[]) => Promise<void>
-  updateCountryPreferences: (qids: string[]) => Promise<void>
+  updatePreferences: (type: PreferenceType, qids: string[]) => Promise<void>
   refetch: () => void
 }
 
 const PreferencesContext = createContext<PreferencesContextType | undefined>(undefined)
 
-const STORAGE_KEYS = {
-  LANGUAGE_PREFERENCES: 'poliloom_language_preferences',
-  COUNTRY_PREFERENCES: 'poliloom_country_preferences'
-}
+const STORAGE_KEY = 'poliloom_preferences'
 
 // Helper function to detect browser language and match with available languages
 const detectBrowserLanguage = async (): Promise<string[]> => {
@@ -63,31 +58,29 @@ const detectBrowserLanguage = async (): Promise<string[]> => {
 
 export function PreferencesProvider({ children }: { children: React.ReactNode }) {
   const { status } = useSession()
-  const [languagePreferences, setLanguagePreferences] = useState<string[]>([])
-  const [countryPreferences, setCountryPreferences] = useState<string[]>([])
+  const [preferences, setPreferences] = useState<PreferenceResponse[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [initialized, setInitialized] = useState(false)
 
-  // Helper function to compare arrays
-  const arraysEqual = (a: string[], b: string[]) => {
-    return a.length === b.length && a.every((val, i) => val === b[i])
+  // Helper function to compare preference arrays
+  const preferencesEqual = (a: PreferenceResponse[], b: PreferenceResponse[]) => {
+    if (a.length !== b.length) return false
+    const sortedA = [...a].sort((x, y) => x.qid.localeCompare(y.qid))
+    const sortedB = [...b].sort((x, y) => x.qid.localeCompare(y.qid))
+    return sortedA.every((val, i) =>
+      val.qid === sortedB[i].qid && val.preference_type === sortedB[i].preference_type
+    )
   }
 
   // Load preferences from localStorage on mount
   useEffect(() => {
     const loadFromStorage = () => {
       try {
-        const storedLanguages = localStorage.getItem(STORAGE_KEYS.LANGUAGE_PREFERENCES)
-        const storedCountries = localStorage.getItem(STORAGE_KEYS.COUNTRY_PREFERENCES)
-
-        if (storedLanguages) {
-          const languages = JSON.parse(storedLanguages)
-          setLanguagePreferences(languages)
-        }
-        if (storedCountries) {
-          const countries = JSON.parse(storedCountries)
-          setCountryPreferences(countries)
+        const stored = localStorage.getItem(STORAGE_KEY)
+        if (stored) {
+          const prefs = JSON.parse(stored)
+          setPreferences(prefs)
         }
       } catch (error) {
         console.warn('Failed to load preferences from localStorage:', error)
@@ -100,10 +93,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   }, [])
 
   // Save preferences to localStorage
-  const saveToStorage = (languages: string[], countries: string[]) => {
+  const saveToStorage = (prefs: PreferenceResponse[]) => {
     try {
-      localStorage.setItem(STORAGE_KEYS.LANGUAGE_PREFERENCES, JSON.stringify(languages))
-      localStorage.setItem(STORAGE_KEYS.COUNTRY_PREFERENCES, JSON.stringify(countries))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
     } catch (error) {
       console.warn('Failed to save preferences to localStorage:', error)
     }
@@ -124,40 +116,23 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
 
       const data: PreferenceResponse[] = await response.json()
 
-      const languages = data
-        .filter(p => p.preference_type === PreferenceType.LANGUAGE)
-        .map(p => p.qid)
+      const hasNoStoredPreferences = localStorage.getItem(STORAGE_KEY) === null
+      const hasNoLanguagePreferences = !data.some(p => p.preference_type === PreferenceType.LANGUAGE)
 
-      const countries = data
-        .filter(p => p.preference_type === PreferenceType.COUNTRY)
-        .map(p => p.qid)
-
-      // If no server preferences exist and no cached preferences, detect browser language
-      const hasNoStoredPreferences = localStorage.getItem(STORAGE_KEYS.LANGUAGE_PREFERENCES) === null
-      const hasNoServerPreferences = languages.length === 0
-
-      if (hasNoStoredPreferences && hasNoServerPreferences) {
+      if (hasNoStoredPreferences && hasNoLanguagePreferences) {
         const detectedLanguages = await detectBrowserLanguage()
         if (detectedLanguages.length > 0) {
-          setLanguagePreferences(detectedLanguages)
-          setCountryPreferences(countries)
-          saveToStorage(detectedLanguages, countries)
+          await updatePreferences(PreferenceType.LANGUAGE, detectedLanguages)
           return
         }
       }
 
-      // Only update if preferences actually changed
-      setLanguagePreferences(prev => {
-        if (arraysEqual(prev, languages)) return prev
-        return languages
+      setPreferences(prev => {
+        if (preferencesEqual(prev, data)) return prev
+        return data
       })
 
-      setCountryPreferences(prev => {
-        if (arraysEqual(prev, countries)) return prev
-        return countries
-      })
-
-      saveToStorage(languages, countries)
+      saveToStorage(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch preferences')
     } finally {
@@ -181,22 +156,8 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       throw new Error(`Failed to update preferences: ${response.statusText}`)
     }
 
-    // Update local state immediately
-    if (preferenceType === PreferenceType.LANGUAGE) {
-      setLanguagePreferences(qids)
-      saveToStorage(qids, countryPreferences)
-    } else if (preferenceType === PreferenceType.COUNTRY) {
-      setCountryPreferences(qids)
-      saveToStorage(languagePreferences, qids)
-    }
-  }
-
-  const updateLanguagePreferences = async (qids: string[]) => {
-    await updatePreferences(PreferenceType.LANGUAGE, qids)
-  }
-
-  const updateCountryPreferences = async (qids: string[]) => {
-    await updatePreferences(PreferenceType.COUNTRY, qids)
+    // Refetch to get complete data with names
+    await fetchPreferences()
   }
 
   // Fetch preferences when authenticated
@@ -207,13 +168,11 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   }, [status, fetchPreferences])
 
   const value: PreferencesContextType = {
-    languagePreferences,
-    countryPreferences,
+    preferences,
     loading,
     error,
     initialized,
-    updateLanguagePreferences,
-    updateCountryPreferences,
+    updatePreferences,
     refetch: fetchPreferences
   }
 

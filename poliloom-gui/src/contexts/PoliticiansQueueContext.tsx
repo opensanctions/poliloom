@@ -7,7 +7,7 @@ import React, {
   useState,
   useCallback,
 } from "react";
-import { Politician } from "@/types";
+import { Politician, PreferenceType } from "@/types";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { usePreferencesContext } from "./PreferencesContext";
 
@@ -33,11 +33,18 @@ export function PoliticiansQueueProvider({
   children: React.ReactNode;
 }) {
   const { session, isAuthenticated } = useAuthSession();
-  const { languagePreferences, countryPreferences, initialized } =
-    usePreferencesContext();
+  const { preferences, initialized } = usePreferencesContext();
   const [queue, setQueue] = useState<Politician[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const languagePreferences = preferences
+    .filter(p => p.preference_type === PreferenceType.LANGUAGE)
+    .map(p => p.qid);
+
+  const countryPreferences = preferences
+    .filter(p => p.preference_type === PreferenceType.COUNTRY)
+    .map(p => p.qid);
 
   const fetchPoliticians = useCallback(
     async (limit: number = QUEUE_SIZE): Promise<Politician[]> => {
@@ -90,7 +97,7 @@ export function PoliticiansQueueProvider({
     if (isAuthenticated && initialized) {
       loadPoliticians();
     }
-  }, [isAuthenticated, initialized, languagePreferences, countryPreferences]);
+  }, [isAuthenticated, initialized, preferences]);
 
   // Auto-refetch when queue gets low
   useEffect(() => {

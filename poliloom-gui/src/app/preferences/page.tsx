@@ -5,18 +5,24 @@ import { useRouter } from "next/navigation"
 import { Header } from "@/components/Header"
 import { MultiSelect, MultiSelectOption } from "@/components/MultiSelect"
 import { usePreferencesContext } from "@/contexts/PreferencesContext"
-import { LanguageResponse, CountryResponse } from "@/types"
+import { LanguageResponse, CountryResponse, PreferenceType } from "@/types"
 
 export default function PreferencesPage() {
   const router = useRouter()
   const {
-    languagePreferences,
-    countryPreferences,
+    preferences,
     loading: updating,
     error: preferencesError,
-    updateLanguagePreferences,
-    updateCountryPreferences
+    updatePreferences
   } = usePreferencesContext()
+
+  const languagePreferences = preferences
+    .filter(p => p.preference_type === PreferenceType.LANGUAGE)
+    .map(p => p.qid)
+
+  const countryPreferences = preferences
+    .filter(p => p.preference_type === PreferenceType.COUNTRY)
+    .map(p => p.qid)
 
   const [languages, setLanguages] = useState<LanguageResponse[]>([])
   const [loadingLanguages, setLoadingLanguages] = useState(true)
@@ -104,7 +110,7 @@ export default function PreferencesPage() {
                 <MultiSelect
                   options={languageOptions}
                   selected={languagePreferences}
-                  onChange={updateLanguagePreferences}
+                  onChange={(qids) => updatePreferences(PreferenceType.LANGUAGE, qids)}
                   placeholder="No filter - showing all"
                   loading={loadingLanguages}
                   disabled={updating}
@@ -121,7 +127,7 @@ export default function PreferencesPage() {
                 <MultiSelect
                   options={countryOptions}
                   selected={countryPreferences}
-                  onChange={updateCountryPreferences}
+                  onChange={(qids) => updatePreferences(PreferenceType.COUNTRY, qids)}
                   placeholder="No filter - showing all"
                   loading={loadingCountries}
                   disabled={updating}
