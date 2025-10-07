@@ -15,8 +15,15 @@ from sqlalchemy import (
     text,
     func,
     Enum as SQLEnum,
+    select,
+    and_,
+    or_,
+    exists,
+    case,
+    literal,
 )
 from sqlalchemy.orm import Session, relationship, declarative_base, declared_attr
+from sqlalchemy.engine import Row
 from sqlalchemy.dialects.postgresql import UUID, JSONB, insert
 from sqlalchemy import event
 from collections import defaultdict
@@ -321,7 +328,7 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         """Get all properties of the specified types."""
         return [prop for prop in self.properties if prop.type in property_types]
 
-    def get_priority_wikipedia_links(self, db: Session) -> List[tuple]:
+    def get_priority_wikipedia_links(self, db: Session) -> List[Row]:
         """
         Get top 3 most popular Wikipedia links for a politician, optionally filtered by citizenship languages.
 
@@ -334,59 +341,99 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
             db: Database session
 
         Returns:
-            List of (url, iso1_code, iso3_code) tuples, limited to top 3 by popularity
+            List of Row objects containing (url, iso1_code, iso3_code), limited to top 3 by popularity
         """
 
-        query = text(
-            """
-            WITH politician_citizenships AS (
-                SELECT p.entity_id as country_id
-                FROM properties p
-                WHERE p.politician_id = :politician_id
-                AND p.type = :citizenship_type
-                AND p.entity_id IS NOT NULL
-            ),
-            language_popularity AS (
-                SELECT iso_code, COUNT(*) as global_count
-                FROM wikipedia_links
-                GROUP BY iso_code
-            ),
-            links_with_citizenship_flag AS (
-                SELECT DISTINCT wl.url, l.iso1_code, l.iso3_code,
-                       lp.global_count as language_popularity,
-                       CASE
-                           WHEN EXISTS (SELECT 1 FROM politician_citizenships)
-                                AND EXISTS (
-                                    SELECT 1 FROM wikidata_relations wr
-                                    JOIN politician_citizenships pc ON wr.child_entity_id = pc.country_id
-                                    WHERE wr.parent_entity_id = l.wikidata_id
-                                    AND wr.relation_type = 'OFFICIAL_LANGUAGE'
-                                )
-                           THEN 1
-                           ELSE 0
-                       END as matches_citizenship
-                FROM wikipedia_links wl
-                JOIN languages l ON (wl.iso_code = l.iso1_code OR wl.iso_code = l.iso3_code)
-                JOIN language_popularity lp ON lp.iso_code = wl.iso_code
-                WHERE wl.politician_id = :politician_id
+        # CTE 1: politician_citizenships - get all citizenship country IDs
+        politician_citizenships = (
+            select(Property.entity_id.label("country_id"))
+            .where(
+                and_(
+                    Property.politician_id == str(self.id),
+                    Property.type == PropertyType.CITIZENSHIP,
+                    Property.entity_id.isnot(None),
+                )
             )
-            SELECT url, iso1_code, iso3_code
-            FROM links_with_citizenship_flag
-            ORDER BY
-                matches_citizenship DESC,  -- Prioritize citizenship matches first
-                language_popularity DESC   -- Then by global popularity
-            LIMIT 3
-        """
+            .cte("politician_citizenships")
         )
 
-        result = db.execute(
-            query,
-            {
-                "politician_id": str(self.id),
-                "citizenship_type": PropertyType.CITIZENSHIP.name,
-            },
+        # CTE 2: language_popularity - count global usage of each language
+        language_popularity = (
+            select(WikipediaLink.iso_code, func.count().label("global_count"))
+            .group_by(WikipediaLink.iso_code)
+            .cte("language_popularity")
         )
 
+        # Subquery for checking if politician has any citizenships
+        politician_has_citizenships = exists(
+            select(literal(1)).select_from(politician_citizenships)
+        )
+
+        # Subquery for checking if language is official language of citizenship country
+        citizenship_match_exists = exists(
+            select(literal(1))
+            .select_from(WikidataRelation)
+            .join(
+                politician_citizenships,
+                WikidataRelation.child_entity_id
+                == politician_citizenships.c.country_id,
+            )
+            .where(
+                and_(
+                    WikidataRelation.parent_entity_id == Language.wikidata_id,
+                    WikidataRelation.relation_type == "OFFICIAL_LANGUAGE",
+                )
+            )
+        )
+
+        # CTE 3: links_with_citizenship_flag - join all data and compute citizenship match
+        links_with_citizenship_flag = (
+            select(
+                WikipediaLink.url,
+                Language.iso1_code,
+                Language.iso3_code,
+                language_popularity.c.global_count.label("language_popularity"),
+                case(
+                    (
+                        and_(politician_has_citizenships, citizenship_match_exists),
+                        1,
+                    ),
+                    else_=0,
+                ).label("matches_citizenship"),
+            )
+            .select_from(WikipediaLink)
+            .join(
+                Language,
+                or_(
+                    WikipediaLink.iso_code == Language.iso1_code,
+                    WikipediaLink.iso_code == Language.iso3_code,
+                ),
+            )
+            .join(
+                language_popularity,
+                language_popularity.c.iso_code == WikipediaLink.iso_code,
+            )
+            .where(WikipediaLink.politician_id == str(self.id))
+            .distinct()
+            .cte("links_with_citizenship_flag")
+        )
+
+        # Final query: select and order by citizenship match, then popularity
+        query = (
+            select(
+                links_with_citizenship_flag.c.url,
+                links_with_citizenship_flag.c.iso1_code,
+                links_with_citizenship_flag.c.iso3_code,
+            )
+            .select_from(links_with_citizenship_flag)
+            .order_by(
+                links_with_citizenship_flag.c.matches_citizenship.desc(),
+                links_with_citizenship_flag.c.language_popularity.desc(),
+            )
+            .limit(3)
+        )
+
+        result = db.execute(query)
         return result.fetchall()
 
     def to_xml_context(self, focus_property_types=None) -> str:
