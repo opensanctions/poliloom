@@ -778,6 +778,27 @@ async def enrich_politicians_from_wikipedia(
             )
         )
 
+        # Apply language filtering - only enrich politicians with citizenship in countries
+        # where the filtered languages are official languages (same logic as get_priority_wikipedia_links)
+        if languages:
+            # Find politicians who have citizenship in countries where the filtered languages are official
+            # This matches the logic in get_priority_wikipedia_links
+            language_citizenship_subquery = (
+                select(Property.politician_id.distinct())
+                .join(
+                    WikidataRelation,
+                    Property.entity_id == WikidataRelation.child_entity_id,
+                )
+                .where(
+                    and_(
+                        Property.type == PropertyType.CITIZENSHIP,
+                        WikidataRelation.relation_type == "OFFICIAL_LANGUAGE",
+                        WikidataRelation.parent_entity_id.in_(languages),
+                    )
+                )
+            )
+            query = query.filter(Politician.id.in_(language_citizenship_subquery))
+
         # Apply country filtering if specified
         if countries:
             citizenship_subquery = select(Property.politician_id).where(
