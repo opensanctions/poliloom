@@ -646,10 +646,12 @@ class TestPushEvaluation:
 
         # Set appropriate values based on property type
         if property_type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
-            property_mock.value = "1985-03-15"
+            property_mock.value = "+1985-03-15T00:00:00Z"
+            property_mock.value_precision = 11  # Day precision
             property_mock.entity_id = None
         else:
             property_mock.value = None
+            property_mock.value_precision = None
             property_mock.entity_id = "Q67890"
 
         # Create mock evaluation
@@ -780,13 +782,20 @@ class TestPushEvaluation:
 
             assert result is True
 
-            # Verify the statement was created with date value
+            # Verify the statement was created with date value in proper Wikidata format
             call_args = mock_create.call_args
             assert call_args[0][1] == "P569"  # PropertyType.BIRTH_DATE.value
             assert call_args[0][2] == {
                 "type": "value",
-                "content": "1985-03-15",
-            }  # value
+                "content": {
+                    "time": "+1985-03-15T00:00:00Z",
+                    "timezone": 0,
+                    "before": 0,
+                    "after": 0,
+                    "precision": 11,
+                    "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+                },
+            }
 
     @pytest.mark.asyncio
     async def test_wikidata_deletion_failure_prevents_soft_delete(self):

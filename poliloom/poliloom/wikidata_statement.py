@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from .models import (
     PropertyType,
 )
+from .wikidata_date import WikidataDate
 
 logger = logging.getLogger(__name__)
 
@@ -274,7 +275,18 @@ async def push_evaluation(
                 PropertyType.BIRTH_DATE,
                 PropertyType.DEATH_DATE,
             ]:
-                wikidata_value = {"type": "value", "content": evaluation.property.value}
+                # Convert stored date to proper Wikidata format
+                wikidata_date = WikidataDate.from_wikidata_time(
+                    evaluation.property.value, evaluation.property.value_precision
+                )
+                if not wikidata_date:
+                    raise ValueError(
+                        f"Invalid date for property {evaluation.property.id}: {evaluation.property.value}"
+                    )
+                wikidata_value = {
+                    "type": "value",
+                    "content": wikidata_date.to_wikidata_value(),
+                }
             elif evaluation.property.type in [
                 PropertyType.BIRTHPLACE,
                 PropertyType.POSITION,
