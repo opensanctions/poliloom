@@ -44,6 +44,23 @@ def generate_embedding(text: str) -> List[float]:
     return embedding.tolist()
 
 
+def generate_embeddings_batch(texts: List[str]) -> List[List[float]]:
+    """Generate embeddings for multiple text strings in a batch.
+
+    Args:
+        texts: List of text strings to embed
+
+    Returns:
+        List of embeddings (each embedding is a list of floats)
+    """
+    if not texts:
+        return []
+
+    model = get_embedding_model()
+    embeddings = model.encode(texts, convert_to_tensor=False)
+    return [embedding.tolist() for embedding in embeddings]
+
+
 def generate_embeddings_for_entities(
     model_class: Type[T],
     entity_name: str,

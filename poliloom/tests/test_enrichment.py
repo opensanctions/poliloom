@@ -32,7 +32,8 @@ class TestEnrichment:
         """Create a mock OpenAI client."""
         return Mock()
 
-    def test_extract_dates_success(self, mock_openai_client, sample_politician):
+    @pytest.mark.asyncio
+    async def test_extract_dates_success(self, mock_openai_client, sample_politician):
         """Test successful date extraction."""
         # Mock OpenAI response
         mock_parsed = Mock()
@@ -50,9 +51,14 @@ class TestEnrichment:
         ]
         mock_response = Mock()
         mock_response.output_parsed = mock_parsed
-        mock_openai_client.responses.parse.return_value = mock_response
 
-        properties = extract_properties_generic(
+        # Make the mock async
+        async def mock_parse(*args, **kwargs):
+            return mock_response
+
+        mock_openai_client.responses.parse = mock_parse
+
+        properties = await extract_properties_generic(
             mock_openai_client, "test content", sample_politician, DATES_CONFIG
         )
 
@@ -62,29 +68,44 @@ class TestEnrichment:
         assert properties[0].value == "1970-01-15"
         assert properties[1].type == PropertyType.DEATH_DATE
 
-    def test_extract_dates_none_parsed(self, mock_openai_client, sample_politician):
+    @pytest.mark.asyncio
+    async def test_extract_dates_none_parsed(
+        self, mock_openai_client, sample_politician
+    ):
         """Test date extraction when LLM returns None."""
         mock_response = Mock()
         mock_response.output_parsed = None
-        mock_openai_client.responses.parse.return_value = mock_response
 
-        properties = extract_properties_generic(
+        # Make the mock async
+        async def mock_parse(*args, **kwargs):
+            return mock_response
+
+        mock_openai_client.responses.parse = mock_parse
+
+        properties = await extract_properties_generic(
             mock_openai_client, "test content", sample_politician, DATES_CONFIG
         )
 
         assert properties is None
 
-    def test_extract_dates_exception(self, mock_openai_client, sample_politician):
+    @pytest.mark.asyncio
+    async def test_extract_dates_exception(self, mock_openai_client, sample_politician):
         """Test date extraction handles exceptions."""
-        mock_openai_client.responses.parse.side_effect = Exception("API Error")
 
-        properties = extract_properties_generic(
+        # Make the mock async and raise exception
+        async def mock_parse(*args, **kwargs):
+            raise Exception("API Error")
+
+        mock_openai_client.responses.parse = mock_parse
+
+        properties = await extract_properties_generic(
             mock_openai_client, "test content", sample_politician, DATES_CONFIG
         )
 
         assert properties is None
 
-    def test_extract_positions_success(
+    @pytest.mark.asyncio
+    async def test_extract_positions_success(
         self, mock_openai_client, db_session, sample_politician
     ):
         """Test successful position extraction and mapping."""
@@ -122,17 +143,22 @@ class TestEnrichment:
         mock_response2 = Mock()
         mock_response2.output_parsed = mock_parsed2
 
-        mock_openai_client.responses.parse.side_effect = [
-            mock_response1,
-            mock_response2,
-        ]
+        # Make the mock async with side_effect
+        call_count = [0]
 
-        # Mock embedding generation
+        async def mock_parse(*args, **kwargs):
+            result = [mock_response1, mock_response2][call_count[0]]
+            call_count[0] += 1
+            return result
+
+        mock_openai_client.responses.parse = mock_parse
+
+        # Mock embedding generation (batch)
         with patch(
-            "poliloom.enrichment.generate_embedding",
-            return_value=[0.1] * 384,
+            "poliloom.enrichment.generate_embeddings_batch",
+            return_value=[[0.1] * 384],  # Return list of embeddings
         ):
-            positions = extract_two_stage_generic(
+            positions = await extract_two_stage_generic(
                 mock_openai_client,
                 db_session,
                 "test content",
@@ -146,7 +172,8 @@ class TestEnrichment:
         assert positions[0].start_date == "2020"
         assert positions[0].end_date == "2024"
 
-    def test_extract_positions_no_results(
+    @pytest.mark.asyncio
+    async def test_extract_positions_no_results(
         self, mock_openai_client, db_session, sample_politician
     ):
         """Test position extraction with no results."""
@@ -154,9 +181,14 @@ class TestEnrichment:
         mock_parsed.positions = []
         mock_response = Mock()
         mock_response.output_parsed = mock_parsed
-        mock_openai_client.responses.parse.return_value = mock_response
 
-        positions = extract_two_stage_generic(
+        # Make the mock async
+        async def mock_parse(*args, **kwargs):
+            return mock_response
+
+        mock_openai_client.responses.parse = mock_parse
+
+        positions = await extract_two_stage_generic(
             mock_openai_client,
             db_session,
             "test content",
@@ -166,7 +198,8 @@ class TestEnrichment:
 
         assert positions == []
 
-    def test_extract_birthplaces_success(
+    @pytest.mark.asyncio
+    async def test_extract_birthplaces_success(
         self, mock_openai_client, db_session, sample_politician
     ):
         """Test successful birthplace extraction and mapping."""
@@ -200,17 +233,22 @@ class TestEnrichment:
         mock_response2 = Mock()
         mock_response2.output_parsed = mock_parsed2
 
-        mock_openai_client.responses.parse.side_effect = [
-            mock_response1,
-            mock_response2,
-        ]
+        # Make the mock async with side_effect
+        call_count = [0]
 
-        # Mock embedding generation
+        async def mock_parse(*args, **kwargs):
+            result = [mock_response1, mock_response2][call_count[0]]
+            call_count[0] += 1
+            return result
+
+        mock_openai_client.responses.parse = mock_parse
+
+        # Mock embedding generation (batch)
         with patch(
-            "poliloom.enrichment.generate_embedding",
-            return_value=[0.2] * 384,
+            "poliloom.enrichment.generate_embeddings_batch",
+            return_value=[[0.2] * 384],  # Return list of embeddings
         ):
-            birthplaces = extract_two_stage_generic(
+            birthplaces = await extract_two_stage_generic(
                 mock_openai_client,
                 db_session,
                 "test content",
@@ -431,7 +469,7 @@ class TestEnrichment:
         # The sample_politician fixture by default has no Wikipedia links
         # The function should filter these out and return (0, 0)
 
-        with patch("poliloom.enrichment.OpenAI"):
+        with patch("poliloom.enrichment.AsyncOpenAI"):
             success_count, total_count = await enrich_politicians_from_wikipedia(
                 limit=10
             )

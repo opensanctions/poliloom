@@ -2,10 +2,11 @@
 
 import os
 import logging
+import asyncio
 from datetime import datetime, timezone
 from typing import List, Optional, Literal, Type, Union, Any
 from sqlalchemy.orm import Session, selectinload
-from openai import OpenAI
+from openai import AsyncOpenAI
 from pydantic import BaseModel, field_validator, create_model
 from unmhtml import MHTMLConverter
 from bs4 import BeautifulSoup
@@ -26,7 +27,7 @@ from .models import (
 )
 from . import archive
 from .database import get_engine
-from .embeddings import generate_embedding
+from .embeddings import generate_embeddings_batch
 from .wikidata_date import WikidataDate
 from . import prompts
 
@@ -176,8 +177,8 @@ class TwoStageExtractionConfig(ExtractionConfig):
     final_model: Type[BaseModel] = None
 
 
-def extract_properties_generic(
-    openai_client: OpenAI,
+async def extract_properties_generic(
+    openai_client: AsyncOpenAI,
     content: str,
     politician: Politician,
     config: ExtractionConfig,
@@ -205,7 +206,7 @@ def extract_properties_generic(
 
         logger.debug(f"Extracting {config.property_types} for {politician.name}")
 
-        response = openai_client.responses.parse(
+        response = await openai_client.responses.parse(
             model="gpt-5",
             input=[
                 {"role": "system", "content": config.system_prompt},
@@ -226,8 +227,107 @@ def extract_properties_generic(
         return None
 
 
-def extract_two_stage_generic(
-    openai_client: OpenAI,
+async def _map_single_item(
+    openai_client: AsyncOpenAI,
+    db: Session,
+    free_item: Any,
+    query_embedding: List[float],
+    politician: Politician,
+    config: TwoStageExtractionConfig,
+) -> Optional[Any]:
+    """Helper function to map a single free-form item to Wikidata entity.
+
+    Args:
+        openai_client: Async OpenAI client
+        db: Database session
+        free_item: Free-form extracted item
+        query_embedding: Pre-computed embedding for the free-form item
+        politician: Politician being enriched
+        config: Extraction configuration
+    """
+    try:
+        # Find similar entities using pre-computed embedding
+
+        similar_entities = (
+            db.query(config.entity_class)
+            .options(
+                selectinload(getattr(config.entity_class, "wikidata_entity"))
+                .selectinload(WikidataEntity.parent_relations)
+                .selectinload(WikidataRelation.parent_entity)
+            )
+            .filter(getattr(config.entity_class, "embedding").isnot(None))
+            .order_by(
+                getattr(config.entity_class, "embedding").cosine_distance(
+                    query_embedding
+                )
+            )
+            .limit(100)
+            .all()
+        )
+
+        if not similar_entities:
+            logger.debug(
+                f"No similar {config.mapping_entity_name}s found for '{free_item.name}'"
+            )
+            return None
+
+        # Use LLM to map to correct entity
+        candidate_entities = [
+            {
+                "qid": entity.wikidata_id,
+                "name": entity.name,
+                "description": entity.description,
+            }
+            for entity in similar_entities
+        ]
+
+        mapped_qid = await map_to_wikidata_entity(
+            openai_client,
+            free_item.name,
+            free_item.proof,
+            candidate_entities,
+            politician,
+            config.mapping_entity_name,
+            config.mapping_system_prompt,
+        )
+
+        if not mapped_qid:
+            return None
+
+        # Verify entity exists in database
+        entity = db.query(config.entity_class).filter_by(wikidata_id=mapped_qid).first()
+        if not entity:
+            return None
+
+        # Create result based on entity type
+        if config.mapping_entity_name == "position":
+            result = ExtractedPosition(
+                wikidata_id=entity.wikidata_id,
+                start_date=getattr(free_item, "start_date", None),
+                end_date=getattr(free_item, "end_date", None),
+                proof=free_item.proof,
+            )
+        elif config.mapping_entity_name == "location":
+            result = ExtractedBirthplace(
+                wikidata_id=entity.wikidata_id,
+                proof=free_item.proof,
+            )
+        else:  # country
+            result = ExtractedCitizenship(
+                wikidata_id=entity.wikidata_id,
+                proof=free_item.proof,
+            )
+
+        logger.debug(f"Mapped '{free_item.name}' -> '{entity.name}' ({mapped_qid})")
+        return result
+
+    except Exception as e:
+        logger.error(f"Error mapping single {config.mapping_entity_name}: {e}")
+        return None
+
+
+async def extract_two_stage_generic(
+    openai_client: AsyncOpenAI,
     db: Session,
     content: str,
     politician: Politician,
@@ -236,7 +336,7 @@ def extract_two_stage_generic(
     """Generic two-stage extraction (free-form -> mapping)."""
     try:
         # Stage 1: Free-form extraction
-        free_form_results = extract_properties_generic(
+        free_form_results = await extract_properties_generic(
             openai_client, content, politician, config
         )
 
@@ -250,90 +350,26 @@ def extract_two_stage_generic(
             f"Stage 1: Extracted {len(free_form_results)} free-form {config.mapping_entity_name}s for {politician.name}"
         )
 
-        # Stage 2: Map to Wikidata entities
-        mapped_results = []
-        for free_item in free_form_results:
-            # Find similar entities using embeddings
-            query_embedding = generate_embedding(free_item.name)
+        # Generate all embeddings in one batch
+        names = [free_item.name for free_item in free_form_results]
+        embeddings = generate_embeddings_batch(names)
 
-            similar_entities = (
-                db.query(config.entity_class)
-                .options(
-                    selectinload(getattr(config.entity_class, "wikidata_entity"))
-                    .selectinload(WikidataEntity.parent_relations)
-                    .selectinload(WikidataRelation.parent_entity)
-                )
-                .filter(getattr(config.entity_class, "embedding").isnot(None))
-                .order_by(
-                    getattr(config.entity_class, "embedding").cosine_distance(
-                        query_embedding
-                    )
-                )
-                .limit(100)
-                .all()
+        logger.debug(
+            f"Generated {len(embeddings)} embeddings in batch for {config.mapping_entity_name}s"
+        )
+
+        # Stage 2: Map to Wikidata entities in parallel
+        mapping_tasks = [
+            _map_single_item(
+                openai_client, db, free_item, embedding, politician, config
             )
+            for free_item, embedding in zip(free_form_results, embeddings)
+        ]
 
-            if not similar_entities:
-                logger.debug(
-                    f"No similar {config.mapping_entity_name}s found for '{free_item.name}'"
-                )
-                continue
+        mapping_results = await asyncio.gather(*mapping_tasks)
 
-            # Use LLM to map to correct entity
-            candidate_entities = [
-                {
-                    "qid": entity.wikidata_id,
-                    "name": entity.name,
-                    "description": entity.description,
-                }
-                for entity in similar_entities
-            ]
-
-            mapped_qid = map_to_wikidata_entity(
-                openai_client,
-                free_item.name,
-                free_item.proof,
-                candidate_entities,
-                politician,
-                config.mapping_entity_name,
-                config.mapping_system_prompt,
-            )
-
-            if mapped_qid:
-                # Verify entity exists in database
-                entity = (
-                    db.query(config.entity_class)
-                    .filter_by(wikidata_id=mapped_qid)
-                    .first()
-                )
-                if entity:
-                    # Create result based on entity type
-                    if config.mapping_entity_name == "position":
-                        mapped_results.append(
-                            ExtractedPosition(
-                                wikidata_id=entity.wikidata_id,
-                                start_date=getattr(free_item, "start_date", None),
-                                end_date=getattr(free_item, "end_date", None),
-                                proof=free_item.proof,
-                            )
-                        )
-                    elif config.mapping_entity_name == "location":
-                        mapped_results.append(
-                            ExtractedBirthplace(
-                                wikidata_id=entity.wikidata_id,
-                                proof=free_item.proof,
-                            )
-                        )
-                    else:  # country
-                        mapped_results.append(
-                            ExtractedCitizenship(
-                                wikidata_id=entity.wikidata_id,
-                                proof=free_item.proof,
-                            )
-                        )
-                    logger.debug(
-                        f"Mapped '{free_item.name}' -> '{entity.name}' ({mapped_qid})"
-                    )
+        # Filter out None results
+        mapped_results = [result for result in mapping_results if result is not None]
 
         logger.info(
             f"Stage 2: Mapped {len(mapped_results)} of {len(free_form_results)} {config.mapping_entity_name}s for {politician.name}"
@@ -345,8 +381,8 @@ def extract_two_stage_generic(
         return None
 
 
-def map_to_wikidata_entity(
-    openai_client: OpenAI,
+async def map_to_wikidata_entity(
+    openai_client: AsyncOpenAI,
     extracted_name: str,
     proof_text: str,
     candidate_entities: List[dict],
@@ -392,7 +428,7 @@ Candidate Wikidata {entity_type.title()}s:
 
 Select the best matching QID or None if no good match exists."""
 
-        response = openai_client.responses.parse(
+        response = await openai_client.responses.parse(
             model="gpt-5",
             input=[
                 {"role": "system", "content": system_prompt},
@@ -540,7 +576,7 @@ async def enrich_politicians_from_wikipedia(
         Tuple of (success_count, total_count)
     """
 
-    openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     with Session(get_engine()) as db:
         # Query politicians that need enrichment
@@ -625,21 +661,25 @@ async def enrich_politicians_from_wikipedia(
                     text = soup.get_text()
                     content = " ".join(text.split())
 
-                    # Extract data from this specific source
-                    date_properties = extract_properties_generic(
-                        openai_client, content, politician, DATES_CONFIG
-                    )
-
-                    positions = extract_two_stage_generic(
-                        openai_client, db, content, politician, POSITIONS_CONFIG
-                    )
-
-                    birthplaces = extract_two_stage_generic(
-                        openai_client, db, content, politician, BIRTHPLACES_CONFIG
-                    )
-
-                    citizenships = extract_two_stage_generic(
-                        openai_client, db, content, politician, CITIZENSHIPS_CONFIG
+                    # Extract data from this specific source in parallel
+                    (
+                        date_properties,
+                        positions,
+                        birthplaces,
+                        citizenships,
+                    ) = await asyncio.gather(
+                        extract_properties_generic(
+                            openai_client, content, politician, DATES_CONFIG
+                        ),
+                        extract_two_stage_generic(
+                            openai_client, db, content, politician, POSITIONS_CONFIG
+                        ),
+                        extract_two_stage_generic(
+                            openai_client, db, content, politician, BIRTHPLACES_CONFIG
+                        ),
+                        extract_two_stage_generic(
+                            openai_client, db, content, politician, CITIZENSHIPS_CONFIG
+                        ),
                     )
 
                     # Store extracted data for this specific source
