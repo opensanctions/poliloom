@@ -5,7 +5,6 @@ import pytest
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import patch
 
 from poliloom.models import (
     ArchivedPage,
@@ -19,15 +18,18 @@ from poliloom.models import (
     PropertyType,
     WikipediaLink,
 )
-from poliloom.embeddings import generate_embedding
 from poliloom.database import get_engine, setup_test_database
 from poliloom.wikidata_date import WikidataDate
 from sqlalchemy.orm import Session
 
 
-@pytest.fixture(autouse=True)
-def mock_generate_embedding():
-    """Mock generate_embedding to avoid loading models in tests."""
+@pytest.fixture
+def generate_embedding():
+    """Mock generate_embedding to avoid loading models in tests.
+
+    Returns a deterministic mock function that generates embeddings based on text hash.
+    Use this fixture in tests instead of importing the real generate_embedding.
+    """
 
     def mock_embedding(text: str):
         """Generate a deterministic embedding based on text hash."""
@@ -39,11 +41,7 @@ def mock_generate_embedding():
             dummy_embedding.append(val)
         return dummy_embedding
 
-    with patch(
-        "poliloom.embeddings.generate_embedding",
-        side_effect=mock_embedding,
-    ):
-        yield
+    return mock_embedding
 
 
 def load_json_fixture(filename):
@@ -90,7 +88,7 @@ def db_session():
 
 
 @pytest.fixture
-def similarity_searcher(db_session):
+def similarity_searcher(db_session, generate_embedding):
     """Fixture for performing similarity search on models with embeddings."""
 
     def _similarity_search(model_class, query_text, limit=5):

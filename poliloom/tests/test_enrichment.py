@@ -481,3 +481,240 @@ class TestEnrichment:
         # The enriched_at timestamp should remain None since the politician was never processed
         db_session.refresh(sample_politician)
         assert sample_politician.enriched_at is None
+
+
+class TestCountPoliticiansWithUnevaluated:
+    """Test count_politicians_with_unevaluated function."""
+
+    def test_count_with_unevaluated_properties(
+        self, db_session, sample_politician, sample_archived_page
+    ):
+        """Test counting politicians with unevaluated properties."""
+        from poliloom.enrichment import count_politicians_with_unevaluated
+
+        # Add unevaluated property
+        prop = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1980-01-01",
+            archived_page_id=sample_archived_page.id,
+        )
+        db_session.add(prop)
+        db_session.commit()
+
+        count = count_politicians_with_unevaluated(db_session)
+        assert count == 1
+
+    def test_count_excludes_evaluated_properties(
+        self, db_session, sample_politician, sample_archived_page
+    ):
+        """Test that count excludes properties with statement_id."""
+        from poliloom.enrichment import count_politicians_with_unevaluated
+
+        # Add property with statement_id
+        prop = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1980-01-01",
+            archived_page_id=sample_archived_page.id,
+            statement_id="Q123456$12345678-1234-1234-1234-123456789012",
+        )
+        db_session.add(prop)
+        db_session.commit()
+
+        count = count_politicians_with_unevaluated(db_session)
+        assert count == 0
+
+    def test_count_with_language_filter(
+        self, db_session, sample_politician, sample_language
+    ):
+        """Test counting with language filter."""
+        from poliloom.enrichment import count_politicians_with_unevaluated
+        from poliloom.models import ArchivedPage
+
+        # Create English archived page
+        en_page = ArchivedPage(
+            url="https://en.example.com/test", content_hash="en123", iso1_code="en"
+        )
+        db_session.add(en_page)
+        db_session.flush()
+
+        # Add English property
+        prop = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1980-01-01",
+            archived_page_id=en_page.id,
+        )
+        db_session.add(prop)
+        db_session.commit()
+
+        # Count with English filter
+        count = count_politicians_with_unevaluated(db_session, languages=["Q1860"])
+        assert count == 1
+
+        # Count with different language filter
+        count = count_politicians_with_unevaluated(db_session, languages=["Q188"])
+        assert count == 0
+
+    def test_count_with_country_filter(
+        self, db_session, sample_politician, sample_country, sample_archived_page
+    ):
+        """Test counting with country filter."""
+        from poliloom.enrichment import count_politicians_with_unevaluated
+
+        # Add citizenship and unevaluated property
+        citizenship_prop = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=sample_country.wikidata_id,
+            archived_page_id=sample_archived_page.id,
+        )
+        birth_prop = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1980-01-01",
+            archived_page_id=sample_archived_page.id,
+        )
+        db_session.add_all([citizenship_prop, birth_prop])
+        db_session.commit()
+
+        # Count with USA filter
+        count = count_politicians_with_unevaluated(db_session, countries=["Q30"])
+        assert count == 1
+
+        # Count with different country filter
+        count = count_politicians_with_unevaluated(db_session, countries=["Q183"])
+        assert count == 0
+
+
+class TestEnrichUntilTarget:
+    """Test enrich_until_target function."""
+
+    @pytest.mark.asyncio
+    async def test_enrich_until_target_already_met(
+        self, db_session, sample_politician, sample_archived_page
+    ):
+        """Test when target is already met."""
+        from poliloom.enrichment import enrich_until_target
+
+        # Add unevaluated property to meet target
+        prop = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1980-01-01",
+            archived_page_id=sample_archived_page.id,
+        )
+        db_session.add(prop)
+        db_session.commit()
+
+        # Target is 1, already met
+        enriched_count = await enrich_until_target(target_politicians=1)
+        assert enriched_count == 0
+
+    @pytest.mark.asyncio
+    async def test_enrich_until_target_enriches_one(
+        self, db_session, sample_politician, sample_wikipedia_link, sample_archived_page
+    ):
+        """Test enriching until target is reached."""
+        from poliloom.enrichment import enrich_until_target
+
+        # No unevaluated properties initially, target is 1
+        # Mock the enrichment process
+        with patch(
+            "poliloom.enrichment.enrich_politicians_from_wikipedia"
+        ) as mock_enrich:
+            # First call: no unevaluated politicians yet, enriches 1
+            # After enrichment, add property to satisfy target
+            async def mock_enrich_func(limit=None, languages=None, countries=None):
+                # Simulate adding an unevaluated property
+                prop = Property(
+                    politician_id=sample_politician.id,
+                    type=PropertyType.BIRTH_DATE,
+                    value="1980-01-01",
+                    archived_page_id=sample_archived_page.id,
+                )
+                db_session.add(prop)
+                db_session.commit()
+                return (1, 1)  # success_count, total_count
+
+            mock_enrich.side_effect = mock_enrich_func
+
+            enriched_count = await enrich_until_target(target_politicians=1)
+
+        assert enriched_count == 1
+
+    @pytest.mark.asyncio
+    async def test_enrich_until_target_no_more_politicians(self, db_session):
+        """Test when no more politicians available to enrich."""
+        from poliloom.enrichment import enrich_until_target
+
+        # No politicians in database, target cannot be met
+        with patch(
+            "poliloom.enrichment.enrich_politicians_from_wikipedia"
+        ) as mock_enrich:
+            # Mock returns (0, 0) indicating no politicians to enrich
+            mock_enrich.return_value = (0, 0)
+
+            enriched_count = await enrich_until_target(target_politicians=5)
+
+        assert enriched_count == 0
+
+    @pytest.mark.asyncio
+    async def test_enrich_until_target_with_filters(
+        self,
+        db_session,
+        sample_politician,
+        sample_country,
+        sample_language,
+        sample_wikipedia_link,
+        sample_archived_page,
+    ):
+        """Test enrich_until_target with language and country filters."""
+        from poliloom.enrichment import enrich_until_target
+        from poliloom.models import ArchivedPage
+
+        # Add citizenship
+        citizenship_prop = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=sample_country.wikidata_id,
+        )
+        db_session.add(citizenship_prop)
+        db_session.commit()
+
+        # Mock enrichment
+        with patch(
+            "poliloom.enrichment.enrich_politicians_from_wikipedia"
+        ) as mock_enrich:
+
+            async def mock_enrich_func(limit=None, languages=None, countries=None):
+                # Create English archived page
+                en_page = ArchivedPage(
+                    url="https://en.example.com/test",
+                    content_hash="en123",
+                    iso1_code="en",
+                )
+                db_session.add(en_page)
+                db_session.flush()
+
+                # Add property matching filters
+                prop = Property(
+                    politician_id=sample_politician.id,
+                    type=PropertyType.BIRTH_DATE,
+                    value="1980-01-01",
+                    archived_page_id=en_page.id,
+                )
+                db_session.add(prop)
+                db_session.commit()
+                return (1, 1)
+
+            mock_enrich.side_effect = mock_enrich_func
+
+            enriched_count = await enrich_until_target(
+                target_politicians=1, languages=["Q1860"], countries=["Q30"]
+            )
+
+        assert enriched_count == 1
+        # Verify mock was called with correct filters
+        mock_enrich.assert_called_with(limit=1, languages=["Q1860"], countries=["Q30"])

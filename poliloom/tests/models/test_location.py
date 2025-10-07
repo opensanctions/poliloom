@@ -4,7 +4,6 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from poliloom.models import Location
-from poliloom.embeddings import generate_embedding
 from ..conftest import assert_model_fields
 
 
@@ -38,6 +37,7 @@ class TestLocation:
     def test_location_find_similar(
         self,
         db_session,
+        generate_embedding,
     ):
         """Test location similarity search functionality."""
         # Create test locations with embeddings

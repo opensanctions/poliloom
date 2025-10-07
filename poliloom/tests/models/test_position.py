@@ -1,7 +1,6 @@
 """Tests for the Position model."""
 
 from poliloom.models import Position
-from poliloom.embeddings import generate_embedding
 from ..conftest import assert_model_fields
 
 
@@ -23,7 +22,7 @@ class TestPosition:
 class TestPositionVectorSimilarity:
     """Test cases for Position vector similarity search functionality."""
 
-    def test_embedding_deterministic_for_same_text(self):
+    def test_embedding_deterministic_for_same_text(self, generate_embedding):
         """Test that embedding generation is deterministic."""
         # Test deterministic behavior
         embedding1 = generate_embedding("Prime Minister")
@@ -34,6 +33,7 @@ class TestPositionVectorSimilarity:
     def test_similarity_search_functionality(
         self,
         db_session,
+        generate_embedding,
     ):
         """Test similarity search functionality."""
         # Create positions with embeddings
