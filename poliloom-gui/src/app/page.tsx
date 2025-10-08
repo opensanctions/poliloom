@@ -5,6 +5,7 @@ import { Header } from '@/components/Header'
 import { PoliticianEvaluation } from '@/components/PoliticianEvaluation'
 import { handleSignIn } from '@/lib/actions'
 import { usePoliticians } from '@/contexts/PoliticiansContext'
+import Link from 'next/link'
 
 export default function Home() {
   const { session, status, isAuthenticated } = useAuthSession()
@@ -54,20 +55,21 @@ export default function Home() {
                 <div className="text-gray-500">Loading politician data...</div>
               ) : (
                 <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
-                  <p className="text-gray-600 mb-3">
+                  <p className="text-gray-600">
                     Currently no politicians available, we&apos;re enriching more. You can wait a
-                    minute or change your filter{' '}
-                    <a href="/preferences" className="text-gray-700 hover:text-gray-900 underline">
+                    minute, change your filter{' '}
+                    <Link
+                      href="/preferences"
+                      className="text-gray-700 hover:text-gray-900 underline"
+                    >
                       preferences
-                    </a>
+                    </Link>
+                    , or{' '}
+                    <Link href="/" className="text-gray-700 hover:text-gray-900 underline">
+                      reload
+                    </Link>
                     .
                   </p>
-                  <button
-                    onClick={refetch}
-                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-                  >
-                    Reload
-                  </button>
                 </div>
               ))}
           </div>
