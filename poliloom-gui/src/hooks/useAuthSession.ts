@@ -1,4 +1,4 @@
-import { useSession, signIn } from 'next-auth/react'
+import { useSession, signOut } from 'next-auth/react'
 import { useEffect } from 'react'
 
 export function useAuthSession() {
@@ -6,8 +6,8 @@ export function useAuthSession() {
 
   useEffect(() => {
     if (session?.error === 'RefreshAccessTokenError') {
-      // Force sign in to resolve error - redirect directly to MediaWiki
-      signIn('wikimedia')
+      // Redirect to home page when refresh token is expired or missing
+      signOut({ callbackUrl: '/' })
     }
   }, [session])
 
