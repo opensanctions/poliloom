@@ -1,7 +1,8 @@
 """Politicians API endpoints."""
 
+import os
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, and_, or_, func
 
@@ -18,12 +19,14 @@ from .schemas import (
     ArchivedPageResponse,
 )
 from .auth import get_current_user, User
+from ..enrichment import enrich_until_target
 
 router = APIRouter()
 
 
 @router.get("", response_model=List[PoliticianResponse])
 async def get_politicians(
+    background_tasks: BackgroundTasks,
     limit: int = Query(
         default=50, le=100, description="Maximum number of politicians to return"
     ),
@@ -43,12 +46,19 @@ async def get_politicians(
     Returns a list of politicians with their Wikidata properties, positions, birthplaces
     and unevaluated extracted data for review and evaluation.
 
+    Automatically triggers background enrichment if the number of politicians with
+    unevaluated properties falls below MIN_UNEVALUATED_POLITICIANS (default: 10).
+
     Filters:
     - languages: List of language QIDs. Returns only properties from archived pages
       with matching iso1_code or iso3_code. Politicians are included only if they have
       at least one property matching the language filter.
     - countries: List of country QIDs. Filters for politicians that have citizenship
       for these countries.
+
+    Environment variables:
+        MIN_UNEVALUATED_POLITICIANS: Minimum number of politicians with unevaluated
+                                     properties before triggering enrichment (default: 10)
     """
     with Session(get_engine()) as db:
         # Use the shared query logic from Politician model
@@ -57,7 +67,10 @@ async def get_politicians(
         )
 
         # Now build the main query to fetch politicians with their data
-        query = select(Politician).where(Politician.id.in_(politician_ids_query))
+        # Add window function to get total count without separate query
+        query = select(Politician, func.count().over().label("total_count")).where(
+            Politician.id.in_(politician_ids_query)
+        )
 
         # Load related data with selectinload
         if languages:
@@ -117,10 +130,21 @@ async def get_politicians(
         query = query.order_by(func.random()).limit(limit)
 
         # Execute query
-        politicians = db.execute(query).scalars().all()
+        rows = db.execute(query).all()
 
-        if not politicians:
+        if not rows:
             return []
+
+        # Extract politicians and total count from first row
+        politicians = [row[0] for row in rows]
+        total_count = rows[0][1] if rows else 0
+
+        # Trigger background enrichment if below threshold
+        min_unevaluated = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
+        if total_count < min_unevaluated:
+            background_tasks.add_task(
+                enrich_until_target, min_unevaluated, languages, countries
+            )
 
         result = []
         for politician in politicians:
