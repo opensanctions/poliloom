@@ -75,6 +75,7 @@ class TestPolitician:
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
         )
         db_session.add(prop)
         db_session.commit()
@@ -586,6 +587,7 @@ class TestPoliticianQueryWithUnevaluated:
             politician_id=sample_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
             archived_page_id=sample_archived_page.id,
             statement_id=None,  # Unevaluated
         )
@@ -608,6 +610,7 @@ class TestPoliticianQueryWithUnevaluated:
             politician_id=sample_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
             archived_page_id=sample_archived_page.id,
             statement_id="Q123456$12345678-1234-1234-1234-123456789012",
         )
@@ -631,6 +634,7 @@ class TestPoliticianQueryWithUnevaluated:
             politician_id=sample_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
             archived_page_id=sample_archived_page.id,
             deleted_at=datetime.now(timezone.utc),
         )
@@ -664,12 +668,14 @@ class TestPoliticianQueryWithUnevaluated:
             politician_id=sample_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
             archived_page_id=en_page.id,
         )
         de_prop = Property(
             politician_id=sample_politician.id,
             type=PropertyType.DEATH_DATE,
             value="2024-01-01",
+            value_precision=11,
             archived_page_id=de_page.id,
         )
         db_session.add_all([en_prop, de_prop])
@@ -699,6 +705,7 @@ class TestPoliticianQueryWithUnevaluated:
             politician_id=sample_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
             archived_page_id=sample_archived_page.id,
         )
         db_session.add_all([citizenship_prop, birth_prop])
@@ -740,6 +747,7 @@ class TestPoliticianQueryWithUnevaluated:
             politician_id=sample_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
             archived_page_id=en_page.id,
         )
         db_session.add_all([citizenship_prop, birth_prop])
@@ -764,6 +772,7 @@ class TestPoliticianQueryWithUnevaluated:
             politician_id=sample_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
             archived_page_id=sample_archived_page.id,
         )
         db_session.add(prop)

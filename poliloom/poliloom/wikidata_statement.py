@@ -49,6 +49,67 @@ def _convert_qualifiers_to_rest_api(
     return rest_qualifiers
 
 
+async def deprecate_statement(
+    entity_id: str,
+    statement_id: str,
+    jwt_token: str,
+) -> None:
+    """
+    Deprecate a Wikidata statement by setting its rank to 'deprecated'.
+
+    Args:
+        entity_id: Wikidata entity ID (e.g., 'Q42')
+        statement_id: Statement ID to deprecate
+        jwt_token: MediaWiki OAuth 2.0 JWT token
+
+    Raises:
+        ValueError: If JWT token is missing
+        httpx.RequestError: For network errors
+        Exception: For other API errors
+    """
+    if not jwt_token:
+        raise ValueError("JWT token is required for Wikidata API calls")
+
+    logger.info(f"Deprecating statement {statement_id} on entity {entity_id}")
+
+    url = f"{WIKIDATA_API_ROOT}/statements/{statement_id}"
+
+    headers = {
+        "Authorization": f"Bearer {jwt_token}",
+        "Content-Type": "application/json-patch+json",
+        "User-Agent": USER_AGENT,
+    }
+
+    # Use JSON Patch format to update the rank
+    patch_data = [{"op": "replace", "path": "/rank", "value": "deprecated"}]
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.patch(url, json={"patch": patch_data}, headers=headers)
+
+        # Debug logging for request details
+        if logger.isEnabledFor(logging.DEBUG):
+            request = response.request
+            logger.debug(f"Request URL: {request.url}")
+            logger.debug(f"Request Headers: {dict(request.headers)}")
+            logger.debug(f"Request Body: {request.content.decode('utf-8')}")
+            logger.debug(f"Response Status Code: {response.status_code}")
+
+        if response.status_code == 200:
+            logger.info(
+                f"Successfully deprecated statement {statement_id} on entity {entity_id}"
+            )
+            return
+        elif response.status_code == 404:
+            # Statement or entity not found
+            logger.warning(f"Statement {statement_id} or entity {entity_id} not found")
+            raise Exception(f"Statement {statement_id} or entity {entity_id} not found")
+        else:
+            # Other errors - raise exception
+            raise Exception(
+                f"Failed to deprecate statement {statement_id} on entity {entity_id}: HTTP {response.status_code} - {response.text}"
+            )
+
+
 async def delete_statement(
     entity_id: str,
     statement_id: str,
@@ -219,32 +280,32 @@ async def push_evaluation(
 
     try:
         if not evaluation.is_confirmed and is_existing_statement:
-            # Negative evaluation of existing statement - delete from Wikidata
+            # Negative evaluation of existing statement - deprecate on Wikidata
             logger.info(
-                f"Processing negative evaluation {evaluation.id} - deleting from Wikidata"
+                f"Processing negative evaluation {evaluation.id} - deprecating on Wikidata"
             )
 
             logger.info(
-                f"Deleting property statement {evaluation.property.statement_id} for politician {politician_wikidata_id}"
+                f"Deprecating property statement {evaluation.property.statement_id} for politician {politician_wikidata_id}"
             )
 
             try:
-                await delete_statement(
+                await deprecate_statement(
                     politician_wikidata_id,
                     evaluation.property.statement_id,
                     jwt_token,
                 )
 
-                # Soft delete from database if Wikidata deletion succeeded or statement was already deleted
+                # Soft delete from database if Wikidata deprecation succeeded
                 evaluation.property.deleted_at = datetime.now(timezone.utc)
                 db.commit()
                 logger.info(
-                    f"Successfully processed deletion for property statement for politician {politician_wikidata_id}"
+                    f"Successfully processed deprecation for property statement for politician {politician_wikidata_id}"
                 )
             except Exception as e:
-                # Wikidata deletion failed - don't delete from database, but log the issue
+                # Wikidata deprecation failed - don't delete from database, but log the issue
                 logger.error(
-                    f"Wikidata deletion failed for statement {evaluation.property.statement_id}: {e} - keeping in database"
+                    f"Wikidata deprecation failed for statement {evaluation.property.statement_id}: {e} - keeping in database"
                 )
                 return False
 

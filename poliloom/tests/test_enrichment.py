@@ -494,6 +494,7 @@ class TestCountPoliticiansWithUnevaluated:
             politician_id=sample_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
             archived_page_id=sample_archived_page.id,
         )
         db_session.add(prop)
@@ -513,6 +514,7 @@ class TestCountPoliticiansWithUnevaluated:
             politician_id=sample_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
             archived_page_id=sample_archived_page.id,
             statement_id="Q123456$12345678-1234-1234-1234-123456789012",
         )
@@ -541,6 +543,7 @@ class TestCountPoliticiansWithUnevaluated:
             politician_id=sample_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
             archived_page_id=en_page.id,
         )
         db_session.add(prop)
@@ -571,6 +574,7 @@ class TestCountPoliticiansWithUnevaluated:
             politician_id=sample_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
             archived_page_id=sample_archived_page.id,
         )
         db_session.add_all([citizenship_prop, birth_prop])
@@ -600,6 +604,7 @@ class TestEnrichUntilTarget:
             politician_id=sample_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
             archived_page_id=sample_archived_page.id,
         )
         db_session.add(prop)
@@ -629,6 +634,7 @@ class TestEnrichUntilTarget:
                     politician_id=sample_politician.id,
                     type=PropertyType.BIRTH_DATE,
                     value="1980-01-01",
+                    value_precision=11,
                     archived_page_id=sample_archived_page.id,
                 )
                 db_session.add(prop)
@@ -700,6 +706,7 @@ class TestEnrichUntilTarget:
                     politician_id=sample_politician.id,
                     type=PropertyType.BIRTH_DATE,
                     value="1980-01-01",
+                    value_precision=11,
                     archived_page_id=en_page.id,
                 )
                 db_session.add(prop)

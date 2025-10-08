@@ -7,6 +7,7 @@ import httpx
 from poliloom.models import Property, PropertyType, Politician, Evaluation
 from poliloom.wikidata_statement import (
     _convert_qualifiers_to_rest_api,
+    deprecate_statement,
     delete_statement,
     create_statement,
     push_evaluation,
@@ -396,6 +397,99 @@ class TestConvertQualifiersToRestApi:
         assert result == []
 
 
+class TestDeprecateStatement:
+    """Test deprecate_statement function with mocked HTTP calls."""
+
+    @pytest.mark.asyncio
+    async def test_successful_deprecation_200(self):
+        """Test successful statement deprecation (200 response)."""
+        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_client.return_value.__aenter__.return_value.patch.return_value = (
+                mock_response
+            )
+
+            await deprecate_statement("Q42", "Q42$statement-id", "test_jwt_token")
+
+            # Verify the correct URL was called
+            mock_client.return_value.__aenter__.return_value.patch.assert_called_once()
+            call_args = mock_client.return_value.__aenter__.return_value.patch.call_args
+            assert "statements/Q42$statement-id" in call_args[0][0]
+
+            # Verify the patch data
+            request_data = call_args.kwargs["json"]
+            assert request_data == {
+                "patch": [{"op": "replace", "path": "/rank", "value": "deprecated"}]
+            }
+
+    @pytest.mark.asyncio
+    async def test_statement_not_found_404(self):
+        """Test deprecation when statement not found (404 response)."""
+        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
+            mock_response = Mock()
+            mock_response.status_code = 404
+            mock_client.return_value.__aenter__.return_value.patch.return_value = (
+                mock_response
+            )
+
+            # Should raise exception for 404 (statement not found)
+            with pytest.raises(Exception, match="not found"):
+                await deprecate_statement("Q42", "Q42$statement-id", "test_jwt_token")
+
+    @pytest.mark.asyncio
+    async def test_authentication_error_401(self):
+        """Test authentication error (401 response)."""
+        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
+            mock_response = Mock()
+            mock_response.status_code = 401
+            mock_response.text = "Unauthorized"
+            mock_client.return_value.__aenter__.return_value.patch.return_value = (
+                mock_response
+            )
+
+            with pytest.raises(
+                Exception, match="Failed to deprecate statement.*HTTP 401"
+            ):
+                await deprecate_statement("Q42", "Q42$statement-id", "test_jwt_token")
+
+    @pytest.mark.asyncio
+    async def test_server_error_500(self):
+        """Test server error (500 response)."""
+        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
+            mock_response = Mock()
+            mock_response.status_code = 500
+            mock_response.text = "Internal Server Error"
+            mock_client.return_value.__aenter__.return_value.patch.return_value = (
+                mock_response
+            )
+
+            with pytest.raises(
+                Exception, match="Failed to deprecate statement.*HTTP 500"
+            ):
+                await deprecate_statement("Q42", "Q42$statement-id", "test_jwt_token")
+
+    @pytest.mark.asyncio
+    async def test_missing_jwt_token(self):
+        """Test missing JWT token raises ValueError."""
+        with pytest.raises(ValueError, match="JWT token is required"):
+            await deprecate_statement("Q42", "Q42$statement-id", "")
+
+        with pytest.raises(ValueError, match="JWT token is required"):
+            await deprecate_statement("Q42", "Q42$statement-id", None)
+
+    @pytest.mark.asyncio
+    async def test_network_error(self):
+        """Test network error handling."""
+        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
+            mock_client.return_value.__aenter__.return_value.patch.side_effect = (
+                httpx.RequestError("Network error")
+            )
+
+            with pytest.raises(httpx.RequestError):
+                await deprecate_statement("Q42", "Q42$statement-id", "test_jwt_token")
+
+
 class TestDeleteStatement:
     """Test delete_statement function with mocked HTTP calls."""
 
@@ -698,8 +792,8 @@ class TestPushEvaluation:
             mock_db.commit.assert_called()
 
     @pytest.mark.asyncio
-    async def test_negative_existing_statement_deletes_and_soft_deletes(self):
-        """Test negative evaluation of existing statement deletes from Wikidata and soft deletes."""
+    async def test_negative_existing_statement_deprecates_and_soft_deletes(self):
+        """Test negative evaluation of existing statement deprecates on Wikidata and soft deletes."""
         evaluation = self.create_mock_evaluation(
             is_confirmed=False,
             property_type=PropertyType.POSITION,
@@ -710,12 +804,12 @@ class TestPushEvaluation:
         mock_db = Mock()
 
         with patch(
-            "poliloom.wikidata_statement.delete_statement", new_callable=AsyncMock
-        ) as mock_delete:
+            "poliloom.wikidata_statement.deprecate_statement", new_callable=AsyncMock
+        ) as mock_deprecate:
             result = await push_evaluation(evaluation, "test_jwt_token", mock_db)
 
             assert result is True
-            mock_delete.assert_called_once_with(
+            mock_deprecate.assert_called_once_with(
                 "Q12345", "Q12345$statement-id", "test_jwt_token"
             )
 
@@ -798,8 +892,8 @@ class TestPushEvaluation:
             }
 
     @pytest.mark.asyncio
-    async def test_wikidata_deletion_failure_prevents_soft_delete(self):
-        """Test that Wikidata deletion failure prevents soft delete."""
+    async def test_wikidata_deprecation_failure_prevents_soft_delete(self):
+        """Test that Wikidata deprecation failure prevents soft delete."""
         evaluation = self.create_mock_evaluation(
             is_confirmed=False,
             property_type=PropertyType.POSITION,
@@ -810,9 +904,9 @@ class TestPushEvaluation:
         mock_db = Mock()
 
         with patch(
-            "poliloom.wikidata_statement.delete_statement", new_callable=AsyncMock
-        ) as mock_delete:
-            mock_delete.side_effect = Exception("API Error")
+            "poliloom.wikidata_statement.deprecate_statement", new_callable=AsyncMock
+        ) as mock_deprecate:
+            mock_deprecate.side_effect = Exception("API Error")
 
             result = await push_evaluation(evaluation, "test_jwt_token", mock_db)
 

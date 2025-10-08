@@ -92,6 +92,7 @@ def politician_with_unevaluated_data(
         politician_id=politician.id,
         type=PropertyType.BIRTH_DATE,
         value="1970-01-15",
+        value_precision=11,
         archived_page_id=archived_page.id,
         proof_line="Born on January 15, 1970",
     )
@@ -121,6 +122,7 @@ def politician_with_unevaluated_data(
         politician_id=politician.id,
         type=PropertyType.DEATH_DATE,
         value="2024-01-01",
+        value_precision=11,
         archived_page_id=None,  # This makes it Wikidata data
     )
 
@@ -182,6 +184,7 @@ def politician_with_evaluated_data(db_session):
         politician_id=politician.id,
         type=PropertyType.BIRTH_DATE,
         value="1980-05-20",
+        value_precision=11,
         archived_page_id=archived_page.id,
         proof_line="Born on May 20, 1980",
     )
@@ -219,6 +222,7 @@ def politician_with_only_wikidata(db_session):
         politician_id=politician.id,
         type=PropertyType.BIRTH_DATE,
         value="1965-12-10",
+        value_precision=11,
         archived_page_id=None,  # This makes it Wikidata data
         statement_id="Q345678$12345678-1234-1234-1234-123456789012",  # Wikidata statement ID
     )
@@ -404,6 +408,7 @@ class TestGetPoliticiansEndpoint:
                 politician_id=politician.id,
                 type=PropertyType.BIRTH_DATE,
                 value=f"19{70 + i}-01-01",
+                value_precision=11,
                 archived_page_id=archived_page.id,
             )
             db_session.add(prop)
@@ -448,6 +453,7 @@ class TestGetPoliticiansEndpoint:
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1975-03-15",
+            value_precision=11,
             archived_page_id=archived_page.id,
         )
         db_session.add(evaluated_prop)
@@ -638,6 +644,7 @@ class TestGetPoliticiansEndpoint:
             politician_id=english_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1970-01-01",
+            value_precision=11,
             archived_page_id=english_page.id,
         )
 
@@ -645,6 +652,7 @@ class TestGetPoliticiansEndpoint:
             politician_id=german_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1971-01-01",
+            value_precision=11,
             archived_page_id=german_page.id,
         )
 
@@ -653,6 +661,7 @@ class TestGetPoliticiansEndpoint:
             politician_id=no_lang_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1972-01-01",
+            value_precision=11,
             archived_page_id=None,  # No archived page = no language filtering
         )
 
@@ -765,6 +774,7 @@ class TestGetPoliticiansEndpoint:
             politician_id=no_citizenship_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
             archived_page_id=archived_page.id,
         )
 
@@ -866,6 +876,7 @@ class TestGetPoliticiansEndpoint:
             politician_id=american_english_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1970-01-01",
+            value_precision=11,
             archived_page_id=english_page.id,
         )
 
@@ -880,6 +891,7 @@ class TestGetPoliticiansEndpoint:
             politician_id=german_english_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1971-01-01",
+            value_precision=11,
             archived_page_id=english_page.id,
         )
 
@@ -968,6 +980,7 @@ class TestGetPoliticiansEndpoint:
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1970-01-01",
+            value_precision=11,
             archived_page_id=english_page.id,
             proof_line="Born on January 1, 1970",
         )
@@ -976,6 +989,7 @@ class TestGetPoliticiansEndpoint:
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1970-01-02",  # Different date from German source
+            value_precision=11,
             archived_page_id=german_page.id,
             proof_line="Geboren am 2. Januar 1970",
         )
@@ -984,6 +998,7 @@ class TestGetPoliticiansEndpoint:
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1970-01-03",
+            value_precision=11,
             archived_page_id=no_lang_page.id,
             proof_line="Unknown language source",
         )
@@ -993,6 +1008,7 @@ class TestGetPoliticiansEndpoint:
             politician_id=politician.id,
             type=PropertyType.DEATH_DATE,
             value="2024-01-01",
+            value_precision=11,
             archived_page_id=None,
             statement_id="Q4001$12345678-1234-1234-1234-123456789012",
         )
@@ -1054,6 +1070,7 @@ class TestGetPoliticiansEndpoint:
             politician_id=sample_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
+            value_precision=11,
             archived_page_id=sample_archived_page.id,
             proof_line="Born on January 1, 1980",
         )
@@ -1117,6 +1134,7 @@ class TestGetPoliticiansEndpoint:
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1975-05-15",
+            value_precision=11,
             archived_page_id=sample_archived_page.id,
             proof_line="Born on May 15, 1975",
             deleted_at=datetime.now(timezone.utc),

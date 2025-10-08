@@ -49,6 +49,7 @@ def politician_with_unevaluated_data(db_session, sample_politician, sample_posit
         politician_id=politician.id,
         type=PropertyType.BIRTH_DATE,
         value="1970-01-15",
+        value_precision=11,
         archived_page_id=archived_page.id,
         proof_line="Born on January 15, 1970",
     )

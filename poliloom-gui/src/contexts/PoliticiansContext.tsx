@@ -97,7 +97,7 @@ export function PoliticiansProvider({ children }: { children: React.ReactNode })
     }
 
     fetch()
-  }, [isAuthenticated, initialized, fetchPoliticians, currentPolitician, loading])
+  }, [isAuthenticated, initialized, fetchPoliticians, currentPolitician])
 
   const refetch = useCallback(() => {
     // Immediately move next to current for instant UI update

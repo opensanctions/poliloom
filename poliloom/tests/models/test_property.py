@@ -168,7 +168,7 @@ class TestProperty:
             politician_id=politician.id,
             type=PropertyType.DEATH_DATE,
             value="2020-12-31",
-            value_precision=11,  # Day precision
+            value_precision=11,
             archived_page_id=None,
         )
         db_session.add(prop)

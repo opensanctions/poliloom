@@ -14,12 +14,9 @@ from poliloom.models import (
     Location,
     Politician,
     Position,
-    Property,
-    PropertyType,
     WikipediaLink,
 )
 from poliloom.database import get_engine, setup_test_database
-from poliloom.wikidata_date import WikidataDate
 from sqlalchemy.orm import Session
 
 
@@ -188,26 +185,3 @@ def sample_wikipedia_link(db_session, sample_politician):
     db_session.commit()
     db_session.refresh(wikipedia_link)
     return wikipedia_link
-
-
-@pytest.fixture
-def sample_position_property(db_session, sample_politician, sample_position):
-    """Return a created and committed Property entity for a position with qualifiers_json."""
-    # Create qualifiers_json with start and end dates using WikidataDate
-    start_date = WikidataDate.from_date_string("2020-01")
-    end_date = WikidataDate.from_date_string("2023-12-31")
-    qualifiers_json = {
-        "P580": [start_date.to_wikidata_qualifier()],
-        "P582": [end_date.to_wikidata_qualifier()],
-    }
-
-    position_property = Property(
-        politician_id=sample_politician.id,
-        type=PropertyType.POSITION,
-        entity_id=sample_position.wikidata_id,
-        qualifiers_json=qualifiers_json,
-    )
-    db_session.add(position_property)
-    db_session.commit()
-    db_session.refresh(position_property)
-    return position_property

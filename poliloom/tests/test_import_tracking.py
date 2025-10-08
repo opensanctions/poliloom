@@ -14,6 +14,7 @@ from poliloom.models import (
     CurrentImportStatement,
     Politician,
     Position,
+    Location,
     WikidataDump,
 )
 
@@ -120,6 +121,7 @@ class TestStatementTracking:
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1990-01-01",
+            value_precision=11,
             statement_id="Q999$12345-abcd-4567-8901-123456789abc",
         )
         db_session.add(prop)
@@ -149,6 +151,7 @@ class TestStatementTracking:
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1990-01-01",
+            value_precision=11,
             statement_id=None,
         )
         db_session.add(prop)
@@ -239,6 +242,7 @@ class TestStatementTracking:
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1990-01-01",
+            value_precision=11,
             statement_id="Q777$statement-1",
         )
         prop2 = Property(
@@ -448,6 +452,7 @@ class TestCleanupFunctionality:
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1990-01-01",
+            value_precision=11,
             statement_id="Q600$test-prop",
         )
         db_session.add(prop)
@@ -491,6 +496,7 @@ class TestCleanupFunctionality:
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1990-01-01",
+            value_precision=11,
             statement_id="Q456$test-statement",
         )
         db_session.add(prop)
@@ -561,12 +567,14 @@ class TestIntegrationWorkflow:
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1990-01-01",
+            value_precision=11,
             statement_id="Q_pol$old_prop",
         )
         keep_prop = Property(
             politician_id=politician.id,
             type=PropertyType.DEATH_DATE,
             value="2020-01-01",
+            value_precision=11,
             statement_id="Q_pol$keep_prop",
         )
 
@@ -599,11 +607,17 @@ class TestIntegrationWorkflow:
         db_session.add(import_entity)
         db_session.commit()
 
+        # Add new position for the property
+        import_position = Position.create_with_entity(
+            db_session, "Q_import_position", "New Position"
+        )
+        db_session.commit()
+
         # Add new prop during import
         import_prop = Property(
             politician_id=politician.id,
             type=PropertyType.POSITION,
-            value="New Position",
+            entity_id=import_position.wikidata_id,
             statement_id="Q_pol$import_prop",
         )
         db_session.add(import_prop)
@@ -727,6 +741,7 @@ class TestIntegrationWorkflow:
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,  # P569 birth date
             value="1980-01-01",
+            value_precision=11,
             statement_id=None,  # No statement_id yet - extracted from web
         )
         db_session.add(enriched_prop)
@@ -773,10 +788,14 @@ class TestIntegrationWorkflow:
         db_session.commit()
 
         # Step 3: Enrich after dump - create property without statement_id
+        # First create the location entity
+        location = Location.create_with_entity(db_session, "Q123456", "Test Location")
+        db_session.commit()
+
         enriched_prop = Property(
             politician_id=politician.id,
             type=PropertyType.BIRTHPLACE,  # P19 birth place
-            value="Q123456",
+            entity_id=location.wikidata_id,
             statement_id=None,  # Extracted from web
         )
         db_session.add(enriched_prop)
@@ -845,6 +864,7 @@ class TestIntegrationWorkflow:
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="1985-06-15",
+            value_precision=11,
             statement_id="Q_politician_in_dump$in_dump_stmt",
         )
         db_session.add(dump_property)

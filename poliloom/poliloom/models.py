@@ -12,6 +12,7 @@ from sqlalchemy import (
     Integer,
     Boolean,
     Index,
+    CheckConstraint,
     text,
     func,
     Enum as SQLEnum,
@@ -818,6 +819,11 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             postgresql_where=Column("statement_id").isnot(None),
         ),
         Index("idx_properties_updated_at", "updated_at"),
+        CheckConstraint(
+            "(type IN ('BIRTH_DATE', 'DEATH_DATE') AND value IS NOT NULL AND value_precision IS NOT NULL AND entity_id IS NULL) "
+            "OR (type IN ('BIRTHPLACE', 'POSITION', 'CITIZENSHIP') AND entity_id IS NOT NULL AND value IS NULL)",
+            name="check_property_fields",
+        ),
     )
 
     # UpsertMixin configuration
