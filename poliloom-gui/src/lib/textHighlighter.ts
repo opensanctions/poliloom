@@ -3,42 +3,38 @@
  * Simplified: single-pass, cross-node, whitespace-coalescing matcher
  */
 
-const HIGHLIGHT_NAME = 'poliloom';
-const WHITESPACE_REGEX = /\s/;
-const EXCLUDED_TAG_NAMES = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT']);
+const HIGHLIGHT_NAME = 'poliloom'
+const WHITESPACE_REGEX = /\s/
+const EXCLUDED_TAG_NAMES = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT'])
 
 // Public utilities kept for tests and callers
 export function stripHtmlTags(html: string): string {
-  if (!html || !html.trim()) return '';
+  if (!html || !html.trim()) return ''
   try {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    return normalizeWhitespace(doc.body.textContent || '');
+    const doc = new DOMParser().parseFromString(html, 'text/html')
+    return normalizeWhitespace(doc.body.textContent || '')
   } catch {
-    return normalizeWhitespace(html.replace(/<[^>]*>/g, ''));
+    return normalizeWhitespace(html.replace(/<[^>]*>/g, ''))
   }
 }
 
 export function normalizeWhitespace(text: string): string {
-  return text.replace(/\s+/g, ' ').trim();
+  return text.replace(/\s+/g, ' ').trim()
 }
 
 function isWhitespace(ch: string): boolean {
-  return WHITESPACE_REGEX.test(ch);
+  return WHITESPACE_REGEX.test(ch)
 }
 
 function createTextNodeWalker(document: Document, root: Node): TreeWalker {
-  return document.createTreeWalker(
-    root,
-    NodeFilter.SHOW_TEXT,
-    {
-      acceptNode: (node: Node) => {
-        const parent = (node as Text).parentElement;
-        return parent && EXCLUDED_TAG_NAMES.has(parent.tagName)
-          ? NodeFilter.FILTER_REJECT
-          : NodeFilter.FILTER_ACCEPT;
-      }
-    }
-  );
+  return document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node: Node) => {
+      const parent = (node as Text).parentElement
+      return parent && EXCLUDED_TAG_NAMES.has(parent.tagName)
+        ? NodeFilter.FILTER_REJECT
+        : NodeFilter.FILTER_ACCEPT
+    },
+  })
 }
 
 /**
@@ -46,137 +42,135 @@ function createTextNodeWalker(document: Document, root: Node): TreeWalker {
  * - Case-insensitive
  * - Collapses any run of document whitespace into a single matcher unit
  */
-function findRangesAcrossNodes(
-  document: Document,
-  scope: Element,
-  searchText: string
-): Range[] {
-  const needle = normalizeWhitespace(searchText).toLowerCase();
-  if (!needle) return [];
+function findRangesAcrossNodes(document: Document, scope: Element, searchText: string): Range[] {
+  const needle = normalizeWhitespace(searchText).toLowerCase()
+  if (!needle) return []
 
-  const walker = createTextNodeWalker(document, scope);
-  let node = walker.nextNode() as Text | null;
+  const walker = createTextNodeWalker(document, scope)
+  let node = walker.nextNode() as Text | null
 
-  const ranges: Range[] = [];
-  let matchIdx = 0;
-  let matchStartNode: Text | null = null;
-  let matchStartOffset = 0;
-  let lastEndNode: Text | null = null;
-  let lastEndOffset = 0;
+  const ranges: Range[] = []
+  let matchIdx = 0
+  let matchStartNode: Text | null = null
+  let matchStartOffset = 0
+  let lastEndNode: Text | null = null
+  let lastEndOffset = 0
 
   // Track if the last emitted unit was a space to coalesce whitespace across nodes
-  let prevUnitWasSpace = false;
+  let prevUnitWasSpace = false
   // Track if the last successfully matched needle char was a space
-  let justMatchedSpace = false;
+  let justMatchedSpace = false
   // Remember the previous non-space character (lowercased) for virtual-boundary space matching
-  let prevNonSpaceChar: string | null = null;
+  let prevNonSpaceChar: string | null = null
 
-  const firstNeedleChar = needle[0];
+  const firstNeedleChar = needle[0]
 
   while (node) {
-    const text = node.textContent || '';
-    let i = 0;
+    const text = node.textContent || ''
+    let i = 0
 
     while (i < text.length) {
       // Produce next normalized unit from the document stream
-      let unitChar: string;
-      const unitStart = i;
-      let unitEnd = i + 1;
+      let unitChar: string
+      const unitStart = i
+      let unitEnd = i + 1
 
       if (isWhitespace(text[i])) {
         // Consume full run of whitespace
-        while (unitEnd < text.length && isWhitespace(text[unitEnd])) unitEnd++;
+        while (unitEnd < text.length && isWhitespace(text[unitEnd])) unitEnd++
 
         if (prevUnitWasSpace) {
           // Extend previous space unit if we are in the middle of a match
           if (justMatchedSpace && matchIdx > 0 && lastEndNode) {
-            lastEndNode = node;
-            lastEndOffset = unitEnd;
+            lastEndNode = node
+            lastEndOffset = unitEnd
           }
           // Skip emitting another space unit
-          i = unitEnd;
-          continue;
+          i = unitEnd
+          continue
         }
-        unitChar = ' ';
+        unitChar = ' '
       } else {
-        unitChar = text[unitStart].toLowerCase();
+        unitChar = text[unitStart].toLowerCase()
       }
 
       // Compare with current needle char
-      const expected = needle[matchIdx];
+      const expected = needle[matchIdx]
 
       // Allow a virtual space match at cross-element boundaries when both sides are word chars
       if (
         expected === ' ' &&
         unitChar !== ' ' &&
         !prevUnitWasSpace &&
-        prevNonSpaceChar && /[\p{L}\p{N}]/u.test(prevNonSpaceChar) && /[\p{L}\p{N}]/u.test(unitChar)
+        prevNonSpaceChar &&
+        /[\p{L}\p{N}]/u.test(prevNonSpaceChar) &&
+        /[\p{L}\p{N}]/u.test(unitChar)
       ) {
         // Matched a virtual space without consuming any document character
         if (matchIdx === 0) {
           // Needle never starts with space due to normalization, so ignore
         } else {
-          matchIdx++;
-          justMatchedSpace = true;
+          matchIdx++
+          justMatchedSpace = true
           // Do not advance i; re-evaluate this same unit against the next expected char
-          continue;
+          continue
         }
       }
       if (expected === unitChar) {
         // Start match
         if (matchIdx === 0) {
-          matchStartNode = node;
-          matchStartOffset = unitStart;
+          matchStartNode = node
+          matchStartOffset = unitStart
         }
-        lastEndNode = node;
-        lastEndOffset = unitEnd;
-        matchIdx++;
-        justMatchedSpace = unitChar === ' ';
+        lastEndNode = node
+        lastEndOffset = unitEnd
+        matchIdx++
+        justMatchedSpace = unitChar === ' '
 
         // If completed a match, create range
         if (matchIdx === needle.length) {
-          const range = document.createRange();
-          range.setStart(matchStartNode!, matchStartOffset);
-          range.setEnd(lastEndNode!, lastEndOffset);
-          ranges.push(range);
+          const range = document.createRange()
+          range.setStart(matchStartNode!, matchStartOffset)
+          range.setEnd(lastEndNode!, lastEndOffset)
+          ranges.push(range)
 
           // Reset for next potential match (non-overlapping search)
-          matchIdx = 0;
-          matchStartNode = null;
-          justMatchedSpace = false;
+          matchIdx = 0
+          matchStartNode = null
+          justMatchedSpace = false
         }
 
         // Advance
-        i = unitEnd;
-        prevUnitWasSpace = unitChar === ' ';
-        if (unitChar !== ' ') prevNonSpaceChar = unitChar;
-        continue;
+        i = unitEnd
+        prevUnitWasSpace = unitChar === ' '
+        if (unitChar !== ' ') prevNonSpaceChar = unitChar
+        continue
       }
 
       // Mismatch: reset state and consider current unit as new start if it matches first char
-      matchIdx = 0;
-      matchStartNode = null;
-      justMatchedSpace = false;
+      matchIdx = 0
+      matchStartNode = null
+      justMatchedSpace = false
 
       if (firstNeedleChar === unitChar && unitChar !== ' ') {
-        matchIdx = 1;
-        matchStartNode = node;
-        matchStartOffset = unitStart;
-        lastEndNode = node;
-        lastEndOffset = unitEnd;
+        matchIdx = 1
+        matchStartNode = node
+        matchStartOffset = unitStart
+        lastEndNode = node
+        lastEndOffset = unitEnd
       }
 
       // Advance
-      i = unitEnd;
-      prevUnitWasSpace = unitChar === ' ';
-      if (unitChar !== ' ') prevNonSpaceChar = unitChar;
+      i = unitEnd
+      prevUnitWasSpace = unitChar === ' '
+      if (unitChar !== ' ') prevNonSpaceChar = unitChar
     }
 
     // Move to next node
-    node = walker.nextNode() as Text | null;
+    node = walker.nextNode() as Text | null
   }
 
-  return ranges;
+  return ranges
 }
 
 /**
@@ -186,44 +180,48 @@ function findRangesAcrossNodes(
 export function highlightTextInScope(
   document: Document,
   scope: Element,
-  searchText: string
+  searchText: string,
 ): number {
-  if (!searchText.trim()) return 0;
+  if (!searchText.trim()) return 0
 
-  const ranges = findRangesAcrossNodes(document, scope, searchText);
+  const ranges = findRangesAcrossNodes(document, scope, searchText)
   if (ranges.length > 0) {
-    const highlight = new Highlight(...ranges);
-    const documentCSS = document.defaultView?.CSS || CSS;
-    documentCSS.highlights.set(HIGHLIGHT_NAME, highlight);
+    const highlight = new Highlight(...ranges)
+    const documentCSS = document.defaultView?.CSS || CSS
+    documentCSS.highlights.set(HIGHLIGHT_NAME, highlight)
   }
-  return ranges.length;
+  return ranges.length
 }
 
 /**
  * Scrolls to the first highlighted range in the document
  */
 export function scrollToFirstHighlight(document: Document): boolean {
-  const documentCSS = document.defaultView?.CSS || CSS;
-  const highlight = documentCSS.highlights.get(HIGHLIGHT_NAME);
+  const documentCSS = document.defaultView?.CSS || CSS
+  const highlight = documentCSS.highlights.get(HIGHLIGHT_NAME)
   if (highlight && highlight.size > 0) {
-    const firstRange = highlight.values().next().value as Range;
+    const firstRange = highlight.values().next().value as Range
     if (firstRange && 'getBoundingClientRect' in firstRange) {
-      const iframeWindow = document.defaultView || window;
-      const scrollContainer = document.body.scrollHeight > document.documentElement.scrollHeight
-        ? document.body
-        : document.documentElement;
+      const iframeWindow = document.defaultView || window
+      const scrollContainer =
+        document.body.scrollHeight > document.documentElement.scrollHeight
+          ? document.body
+          : document.documentElement
 
-      const rect = firstRange.getBoundingClientRect();
-      const scrollTop = scrollContainer.scrollTop;
-      const targetPosition = scrollTop + rect.top - (iframeWindow.innerHeight / 2) + (rect.height / 2);
+      const rect = firstRange.getBoundingClientRect()
+      const scrollTop = scrollContainer.scrollTop
+      const targetPosition = scrollTop + rect.top - iframeWindow.innerHeight / 2 + rect.height / 2
 
       if (typeof (scrollContainer as Element).scrollTo === 'function') {
-        (scrollContainer as Element).scrollTo({ top: Math.max(0, targetPosition), behavior: 'smooth' });
+        ;(scrollContainer as Element).scrollTo({
+          top: Math.max(0, targetPosition),
+          behavior: 'smooth',
+        })
       } else {
-        (scrollContainer as Element).scrollTop = Math.max(0, targetPosition);
+        ;(scrollContainer as Element).scrollTop = Math.max(0, targetPosition)
       }
-      return true;
+      return true
     }
   }
-  return false;
+  return false
 }

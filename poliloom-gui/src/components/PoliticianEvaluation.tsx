@@ -1,6 +1,6 @@
-"use client";
+'use client'
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from 'react'
 import {
   Politician,
   Property,
@@ -8,81 +8,77 @@ import {
   EvaluationItem,
   ArchivedPageResponse,
   EvaluationResponse,
-} from "@/types";
-import { useIframeAutoHighlight } from "@/hooks/useIframeHighlighting";
-import { highlightTextInScope } from "@/lib/textHighlighter";
-import { useArchivedPageCache } from "@/contexts/ArchivedPageContext";
-import { PropertiesEvaluation } from "./PropertiesEvaluation";
+} from '@/types'
+import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting'
+import { highlightTextInScope } from '@/lib/textHighlighter'
+import { useArchivedPageCache } from '@/contexts/ArchivedPageContext'
+import { PropertiesEvaluation } from './PropertiesEvaluation'
 
 interface PoliticianEvaluationProps {
-  politician: Politician;
-  onNext: () => void;
+  politician: Politician
+  onNext: () => void
 }
 
-export function PoliticianEvaluation({
-  politician,
-  onNext,
-}: PoliticianEvaluationProps) {
-  const [evaluations, setEvaluations] = useState<Map<string, boolean>>(
-    new Map(),
-  );
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedArchivedPage, setSelectedArchivedPage] =
-    useState<ArchivedPageResponse | null>(null);
-  const [selectedProofLine, setSelectedProofLine] = useState<string | null>(
+export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluationProps) {
+  const [evaluations, setEvaluations] = useState<Map<string, boolean>>(new Map())
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedArchivedPage, setSelectedArchivedPage] = useState<ArchivedPageResponse | null>(
     null,
-  );
+  )
+  const [selectedProofLine, setSelectedProofLine] = useState<string | null>(null)
 
   // Helper function to find first property with archived page
   const findFirstPropertyWithArchive = (properties: Property[]) => {
-    return properties.find((p) => p.archived_page);
-  };
+    return properties.find((p) => p.archived_page)
+  }
 
   // Refs and hooks for iframe highlighting
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const leftPanelRef = useRef<HTMLDivElement | null>(null);
-  const archivedPageCache = useArchivedPageCache();
-  const { isIframeLoaded, handleIframeLoad, handleProofLineChange } =
-    useIframeAutoHighlight(iframeRef, selectedProofLine);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null)
+  const leftPanelRef = useRef<HTMLDivElement | null>(null)
+  const archivedPageCache = useArchivedPageCache()
+  const { isIframeLoaded, handleIframeLoad, handleProofLineChange } = useIframeAutoHighlight(
+    iframeRef,
+    selectedProofLine,
+  )
 
   // Auto-load first archived page found
   useEffect(() => {
-    const firstWithArchive = findFirstPropertyWithArchive(politician.properties);
+    const firstWithArchive = findFirstPropertyWithArchive(politician.properties)
     if (firstWithArchive && firstWithArchive.archived_page) {
-      setSelectedArchivedPage(firstWithArchive.archived_page);
-      setSelectedProofLine(firstWithArchive.proof_line || null);
+      setSelectedArchivedPage(firstWithArchive.archived_page)
+      setSelectedProofLine(firstWithArchive.proof_line || null)
     }
-  }, [politician]);
+  }, [politician])
 
   // Update highlighting when proof line changes
   useEffect(() => {
     // Left panel highlighting - always do this when proof line changes
     if (leftPanelRef.current && selectedProofLine) {
-      highlightTextInScope(document, leftPanelRef.current, selectedProofLine);
+      highlightTextInScope(document, leftPanelRef.current, selectedProofLine)
     }
 
     // Iframe highlighting - only when iframe is loaded
     if (isIframeLoaded && selectedProofLine) {
-      handleProofLineChange(selectedProofLine);
+      handleProofLineChange(selectedProofLine)
     }
-  }, [selectedProofLine, isIframeLoaded, handleProofLineChange]);
+  }, [selectedProofLine, isIframeLoaded, handleProofLineChange])
 
-  const handleEvaluate = (propertyId: string, action: "confirm" | "discard") => {
+  const handleEvaluate = (propertyId: string, action: 'confirm' | 'discard') => {
     setEvaluations((prev) => {
-      const newMap = new Map(prev);
-      const currentValue = newMap.get(propertyId);
-      const targetValue = action === "confirm";
+      const newMap = new Map(prev)
+      const currentValue = newMap.get(propertyId)
+      const targetValue = action === 'confirm'
 
       if (currentValue === targetValue) {
         // Toggle off - remove from map
-        newMap.delete(propertyId);
+        newMap.delete(propertyId)
       } else {
         // Set new value
-        newMap.set(propertyId, targetValue);
+        newMap.set(propertyId, targetValue)
       }
-      return newMap;
-    });
-  };
+      return newMap
+    })
+  }
 
   // Unified hover handler for all property types
   const handlePropertyHover = (property: Property) => {
@@ -92,52 +88,52 @@ export function PoliticianEvaluation({
       selectedArchivedPage?.id === property.archived_page.id &&
       property.proof_line
     ) {
-      setSelectedProofLine(property.proof_line);
+      setSelectedProofLine(property.proof_line)
     }
-  };
+  }
 
   const handleSubmit = async () => {
-    setIsSubmitting(true);
+    setIsSubmitting(true)
     try {
-      const evaluationItems: EvaluationItem[] = Array.from(
-        evaluations.entries(),
-      ).map(([id, isConfirmed]) => ({
-        id,
-        is_confirmed: isConfirmed,
-      }));
+      const evaluationItems: EvaluationItem[] = Array.from(evaluations.entries()).map(
+        ([id, isConfirmed]) => ({
+          id,
+          is_confirmed: isConfirmed,
+        }),
+      )
 
       const evaluationData: EvaluationRequest = {
         evaluations: evaluationItems,
-      };
+      }
 
-      const response = await fetch("/api/evaluations", {
-        method: "POST",
+      const response = await fetch('/api/evaluations', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(evaluationData),
-      });
+      })
 
       if (!response.ok) {
-        throw new Error(`Failed to submit evaluations: ${response.statusText}`);
+        throw new Error(`Failed to submit evaluations: ${response.statusText}`)
       }
 
-      const result: EvaluationResponse = await response.json();
+      const result: EvaluationResponse = await response.json()
       if (result.success) {
         // Clear evaluations state after successful submission
-        setEvaluations(new Map());
-        onNext();
+        setEvaluations(new Map())
+        onNext()
       } else {
-        console.error("Evaluation errors:", result.errors);
-        alert(`Error submitting evaluations: ${result.message}`);
+        console.error('Evaluation errors:', result.errors)
+        alert(`Error submitting evaluations: ${result.message}`)
       }
     } catch (error) {
-      console.error("Error submitting evaluations:", error);
-      alert("Error submitting evaluations. Please try again.");
+      console.error('Error submitting evaluations:', error)
+      alert('Error submitting evaluations. Please try again.')
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   return (
     <div className="grid grid-cols-[48rem_1fr] bg-gray-100 min-h-0">
@@ -154,16 +150,12 @@ export function PoliticianEvaluation({
                   rel="noopener noreferrer"
                   className="hover:underline"
                 >
-                  {politician.name}{" "}
-                  <span className="text-gray-500 font-normal">
-                    ({politician.wikidata_id})
-                  </span>
+                  {politician.name}{' '}
+                  <span className="text-gray-500 font-normal">({politician.wikidata_id})</span>
                 </a>
               </h1>
             ) : (
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                {politician.name}
-              </h1>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">{politician.name}</h1>
             )}
           </div>
 
@@ -173,8 +165,8 @@ export function PoliticianEvaluation({
             onAction={handleEvaluate}
             onShowArchived={(property) => {
               if (property.archived_page) {
-                setSelectedArchivedPage(property.archived_page);
-                setSelectedProofLine(property.proof_line || null);
+                setSelectedArchivedPage(property.archived_page)
+                setSelectedProofLine(property.proof_line || null)
               }
             }}
             onHover={handlePropertyHover}
@@ -190,7 +182,7 @@ export function PoliticianEvaluation({
               disabled={isSubmitting}
               className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? "Submitting..." : "Submit Evaluations & Next"}
+              {isSubmitting ? 'Submitting...' : 'Submit Evaluations & Next'}
             </button>
           </div>
         </div>
@@ -200,14 +192,12 @@ export function PoliticianEvaluation({
       <div className="bg-gray-50 border-l border-gray-200 grid grid-rows-[auto_1fr] min-h-0">
         <div className="p-4 border-b border-gray-200 bg-white">
           <h3 className="text-lg font-semibold text-gray-900">
-            {selectedArchivedPage
-              ? "Archived Page"
-              : "Select an item to view source"}
+            {selectedArchivedPage ? 'Archived Page' : 'Select an item to view source'}
           </h3>
           {selectedArchivedPage && (
             <div className="mt-2">
               <p className="text-sm text-gray-600">
-                Source:{" "}
+                Source:{' '}
                 <a
                   href={selectedArchivedPage.url}
                   target="_blank"
@@ -218,10 +208,7 @@ export function PoliticianEvaluation({
                 </a>
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                Fetched:{" "}
-                {new Date(
-                  selectedArchivedPage.fetch_timestamp,
-                ).toLocaleDateString()}
+                Fetched: {new Date(selectedArchivedPage.fetch_timestamp).toLocaleDateString()}
               </p>
             </div>
           )}
@@ -235,23 +222,20 @@ export function PoliticianEvaluation({
               title="Archived Page"
               sandbox="allow-scripts allow-same-origin"
               onLoad={() => {
-                archivedPageCache.markPageAsLoaded(selectedArchivedPage.id);
-                handleIframeLoad();
+                archivedPageCache.markPageAsLoaded(selectedArchivedPage.id)
+                handleIframeLoad()
               }}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-500">
               <div className="text-center">
                 <p className="text-lg mb-2">📄</p>
-                <p>
-                  Click &ldquo;View Source&rdquo; on any item to see the
-                  archived page
-                </p>
+                <p>Click &ldquo;View Source&rdquo; on any item to see the archived page</p>
               </div>
             </div>
           )}
         </div>
       </div>
     </div>
-  );
+  )
 }

@@ -620,17 +620,16 @@ async def enrich_until_target(
             break
 
         # Enrich one more politician
-        success_count, total_count = await enrich_politicians_from_wikipedia(
-            limit=1, languages=languages, countries=countries
+        politician_found = await enrich_politician_from_wikipedia(
+            languages=languages, countries=countries
         )
 
-        if total_count == 0:
+        if not politician_found:
             # No more politicians to enrich
             logger.info("No more politicians available to enrich")
             break
 
-        if success_count > 0:
-            enriched_count += 1
+        enriched_count += 1
 
     return enriched_count
 
@@ -728,25 +727,26 @@ async def _fetch_and_extract_from_page(
         return False, 0, 0, 0, 0
 
 
-async def enrich_politicians_from_wikipedia(
-    limit: Optional[int] = None,
+async def enrich_politician_from_wikipedia(
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,
-) -> tuple[int, int]:
+) -> bool:
     """
-    Enrich politicians' data by extracting information from their Wikipedia sources.
+    Enrich a single politician's data by extracting information from their Wikipedia sources.
 
-    Now processes multiple Wikipedia articles concurrently based on politician's
+    Processes multiple Wikipedia articles concurrently based on politician's
     citizenship and official languages of their countries, prioritized by Wikipedia
     link popularity.
 
+    Uses FOR UPDATE SKIP LOCKED to prevent concurrent processes from enriching
+    the same politician.
+
     Args:
-        limit: Optional limit on number of politicians to enrich. If None, enriches all.
         languages: Optional list of language QIDs to filter by
         countries: Optional list of country QIDs to filter by
 
     Returns:
-        Tuple of (success_count, total_count)
+        True if a politician was found and enriched (successfully or not), False if no politician available
     """
 
     openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -758,12 +758,15 @@ async def enrich_politicians_from_wikipedia(
             countries=countries,
         )
 
-        # Query politicians using the filtered IDs
+        # Query for a single politician using the filtered IDs
         # Ordering strategy:
         # 1. NULL enriched_at first (never enriched)
         # 2. Among NULL, higher QID numbers first (newer politicians)
         # 3. Then by enriched_at ascending (oldest enrichment first)
         # This ensures we enrich all politicians once before re-enriching any
+        #
+        # Use FOR UPDATE SKIP LOCKED to prevent concurrent processes from
+        # selecting the same politician
         query = (
             db.query(Politician)
             .options(
@@ -783,92 +786,81 @@ async def enrich_politicians_from_wikipedia(
                 Politician.enriched_at.asc().nullsfirst(),
                 Politician.wikidata_id_numeric.desc(),
             )
+            .limit(1)
+            .with_for_update(skip_locked=True)
         )
 
-        if limit:
-            politicians = query.limit(limit).all()
-        else:
-            politicians = query.all()
+        politician = query.first()
 
-        if not politicians:
-            return 0, 0
+        if not politician:
+            return False
 
-        success_count = 0
+        try:
+            # Get priority Wikipedia links based on citizenship and language popularity
+            priority_links = politician.get_priority_wikipedia_links(db)
 
-        for politician in politicians:
-            try:
-                # Get priority Wikipedia links based on citizenship and language popularity
-                priority_links = politician.get_priority_wikipedia_links(db)
-
-                if not priority_links:
-                    raise ValueError(
-                        f"No suitable Wikipedia links found for politician {politician.name}"
-                    )
-
-                logger.info(
-                    f"Processing {len(priority_links)} Wikipedia sources for {politician.name}: "
-                    f"{[f'{iso1_code} ({url})' for url, iso1_code, _ in priority_links]}"
+            if not priority_links:
+                raise ValueError(
+                    f"No suitable Wikipedia links found for politician {politician.name}"
                 )
 
-                # Process all pages concurrently
-                page_tasks = [
-                    _fetch_and_extract_from_page(
-                        openai_client, db, politician, url, iso1_code, iso3_code
-                    )
-                    for url, iso1_code, iso3_code in priority_links
-                ]
+            logger.info(
+                f"Processing {len(priority_links)} Wikipedia sources for {politician.name}: "
+                f"{[f'{iso1_code} ({url})' for url, iso1_code, _ in priority_links]}"
+            )
 
-                page_results = await asyncio.gather(*page_tasks)
-
-                # Aggregate results from all pages
-                total_dates = 0
-                total_positions = 0
-                total_birthplaces = 0
-                total_citizenships = 0
-                processed_sources = 0
-
-                for (
-                    success,
-                    date_count,
-                    position_count,
-                    birthplace_count,
-                    citizenship_count,
-                ) in page_results:
-                    if success:
-                        total_dates += date_count
-                        total_positions += position_count
-                        total_birthplaces += birthplace_count
-                        total_citizenships += citizenship_count
-                        processed_sources += 1
-
-                # Commit all changes
-                db.commit()
-
-                # Final summary
-                grand_total = (
-                    total_dates
-                    + total_positions
-                    + total_birthplaces
-                    + total_citizenships
+            # Process all pages concurrently
+            page_tasks = [
+                _fetch_and_extract_from_page(
+                    openai_client, db, politician, url, iso1_code, iso3_code
                 )
-                logger.info(
-                    f"Successfully enriched {politician.name} ({politician.wikidata_id}) from {processed_sources}/{len(priority_links)} sources: "
-                    f"{grand_total} total items ({total_dates} dates, {total_positions} positions, {total_birthplaces} birthplaces, {total_citizenships} citizenships)"
-                )
-                success_count += 1
+                for url, iso1_code, iso3_code in priority_links
+            ]
 
-            except Exception as e:
-                logger.error(
-                    f"Error enriching politician {politician.wikidata_id}: {e}"
-                )
-                # Don't raise, continue with next politician
+            page_results = await asyncio.gather(*page_tasks)
 
-            finally:
-                # Always update enriched_at timestamp regardless of success/failure
-                politician.enriched_at = datetime.now(timezone.utc)
-                db.commit()
+            # Aggregate results from all pages
+            total_dates = 0
+            total_positions = 0
+            total_birthplaces = 0
+            total_citizenships = 0
+            processed_sources = 0
 
-        return success_count, len(politicians)
+            for (
+                success,
+                date_count,
+                position_count,
+                birthplace_count,
+                citizenship_count,
+            ) in page_results:
+                if success:
+                    total_dates += date_count
+                    total_positions += position_count
+                    total_birthplaces += birthplace_count
+                    total_citizenships += citizenship_count
+                    processed_sources += 1
+
+            # Commit all changes
+            db.commit()
+
+            # Final summary
+            grand_total = (
+                total_dates + total_positions + total_birthplaces + total_citizenships
+            )
+            logger.info(
+                f"Successfully enriched {politician.name} ({politician.wikidata_id}) from {processed_sources}/{len(priority_links)} sources: "
+                f"{grand_total} total items ({total_dates} dates, {total_positions} positions, {total_birthplaces} birthplaces, {total_citizenships} citizenships)"
+            )
+
+        except Exception as e:
+            logger.error(f"Error enriching politician {politician.wikidata_id}: {e}")
+
+        finally:
+            # Always update enriched_at timestamp regardless of success/failure
+            politician.enriched_at = datetime.now(timezone.utc)
+            db.commit()
+
+        return True
 
 
 def store_extracted_data(

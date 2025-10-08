@@ -12,6 +12,7 @@ A Next.js interface for confirming politician data extracted by LLMs before subm
 ## Setup
 
 1. Install dependencies:
+
 ```bash
 npm install
 ```
@@ -19,6 +20,7 @@ npm install
 2. Copy `.env.example` to `.env.local` and fill in your credentials
 
 3. Run development server:
+
 ```bash
 npm run dev
 ```

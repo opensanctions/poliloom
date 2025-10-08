@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 from pydantic import BaseModel
 
 from poliloom.enrichment import (
-    enrich_politicians_from_wikipedia,
+    enrich_politician_from_wikipedia,
     extract_properties_generic,
     extract_two_stage_generic,
     store_extracted_data,
@@ -462,21 +462,18 @@ class TestEnrichment:
         assert success is False
 
     @pytest.mark.asyncio
-    async def test_enrich_politicians_no_wikipedia_links(
+    async def test_enrich_politician_no_wikipedia_links(
         self, db_session, sample_politician
     ):
         """Test enrichment when no politicians have Wikipedia links."""
         # The sample_politician fixture by default has no Wikipedia links
-        # The function should filter these out and return (0, 0)
+        # The function should filter these out and return False
 
         with patch("poliloom.enrichment.AsyncOpenAI"):
-            success_count, total_count = await enrich_politicians_from_wikipedia(
-                limit=10
-            )
+            politician_found = await enrich_politician_from_wikipedia()
 
         # Should find no politicians to enrich since they're filtered out by the query
-        assert success_count == 0
-        assert total_count == 0
+        assert politician_found is False
 
         # The enriched_at timestamp should remain None since the politician was never processed
         db_session.refresh(sample_politician)
@@ -622,11 +619,11 @@ class TestEnrichUntilTarget:
         # No unevaluated properties initially, target is 1
         # Mock the enrichment process
         with patch(
-            "poliloom.enrichment.enrich_politicians_from_wikipedia"
+            "poliloom.enrichment.enrich_politician_from_wikipedia"
         ) as mock_enrich:
             # First call: no unevaluated politicians yet, enriches 1
             # After enrichment, add property to satisfy target
-            async def mock_enrich_func(limit=None, languages=None, countries=None):
+            async def mock_enrich_func(languages=None, countries=None):
                 # Simulate adding an unevaluated property
                 prop = Property(
                     politician_id=sample_politician.id,
@@ -636,7 +633,7 @@ class TestEnrichUntilTarget:
                 )
                 db_session.add(prop)
                 db_session.commit()
-                return (1, 1)  # success_count, total_count
+                return True  # politician_found
 
             mock_enrich.side_effect = mock_enrich_func
 
@@ -651,10 +648,10 @@ class TestEnrichUntilTarget:
 
         # No politicians in database, target cannot be met
         with patch(
-            "poliloom.enrichment.enrich_politicians_from_wikipedia"
+            "poliloom.enrichment.enrich_politician_from_wikipedia"
         ) as mock_enrich:
-            # Mock returns (0, 0) indicating no politicians to enrich
-            mock_enrich.return_value = (0, 0)
+            # Mock returns False indicating no politicians to enrich
+            mock_enrich.return_value = False
 
             enriched_count = await enrich_until_target(target_politicians=5)
 
@@ -685,10 +682,10 @@ class TestEnrichUntilTarget:
 
         # Mock enrichment
         with patch(
-            "poliloom.enrichment.enrich_politicians_from_wikipedia"
+            "poliloom.enrichment.enrich_politician_from_wikipedia"
         ) as mock_enrich:
 
-            async def mock_enrich_func(limit=None, languages=None, countries=None):
+            async def mock_enrich_func(languages=None, countries=None):
                 # Create English archived page
                 en_page = ArchivedPage(
                     url="https://en.example.com/test",
@@ -707,7 +704,7 @@ class TestEnrichUntilTarget:
                 )
                 db_session.add(prop)
                 db_session.commit()
-                return (1, 1)
+                return True
 
             mock_enrich.side_effect = mock_enrich_func
 
@@ -717,4 +714,4 @@ class TestEnrichUntilTarget:
 
         assert enriched_count == 1
         # Verify mock was called with correct filters
-        mock_enrich.assert_called_with(limit=1, languages=["Q1860"], countries=["Q30"])
+        mock_enrich.assert_called_with(languages=["Q1860"], countries=["Q30"])

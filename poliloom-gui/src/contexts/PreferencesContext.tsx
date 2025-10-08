@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
@@ -24,7 +24,7 @@ const detectBrowserLanguage = async (): Promise<WikidataEntity[]> => {
     const browserLanguages = navigator.languages || [navigator.language]
 
     // Extract ISO 639-1 language codes (e.g., 'en' from 'en-US')
-    const iso639Codes = browserLanguages.map(lang => lang.split('-')[0].toLowerCase())
+    const iso639Codes = browserLanguages.map((lang) => lang.split('-')[0].toLowerCase())
 
     // Fetch available languages from API
     const response = await fetch('/api/languages')
@@ -39,15 +39,16 @@ const detectBrowserLanguage = async (): Promise<WikidataEntity[]> => {
     const matchedLanguages: WikidataEntity[] = []
 
     for (const browserLang of iso639Codes) {
-      const match = availableLanguages.find(lang =>
-        lang.iso1_code?.toLowerCase() === browserLang ||
-        lang.iso3_code?.toLowerCase() === browserLang
+      const match = availableLanguages.find(
+        (lang) =>
+          lang.iso1_code?.toLowerCase() === browserLang ||
+          lang.iso3_code?.toLowerCase() === browserLang,
       )
 
-      if (match && !matchedLanguages.some(l => l.wikidata_id === match.wikidata_id)) {
+      if (match && !matchedLanguages.some((l) => l.wikidata_id === match.wikidata_id)) {
         matchedLanguages.push({
           wikidata_id: match.wikidata_id,
-          name: match.name
+          name: match.name,
         })
       }
     }
@@ -71,8 +72,10 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     if (a.length !== b.length) return false
     const sortedA = [...a].sort((x, y) => x.wikidata_id.localeCompare(y.wikidata_id))
     const sortedB = [...b].sort((x, y) => x.wikidata_id.localeCompare(y.wikidata_id))
-    return sortedA.every((val, i) =>
-      val.wikidata_id === sortedB[i].wikidata_id && val.preference_type === sortedB[i].preference_type
+    return sortedA.every(
+      (val, i) =>
+        val.wikidata_id === sortedB[i].wikidata_id &&
+        val.preference_type === sortedB[i].preference_type,
     )
   }
 
@@ -105,38 +108,38 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   }
 
   // Update preferences on server and locally
-  const updatePreferences = useCallback(async (
-    preferenceType: PreferenceType,
-    items: WikidataEntity[]
-  ) => {
-    setError(null)
+  const updatePreferences = useCallback(
+    async (preferenceType: PreferenceType, items: WikidataEntity[]) => {
+      setError(null)
 
-    const wikidata_ids = items.map(item => item.wikidata_id)
+      const wikidata_ids = items.map((item) => item.wikidata_id)
 
-    const response = await fetch(`/api/preferences/${preferenceType}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ wikidata_ids }),
-    })
+      const response = await fetch(`/api/preferences/${preferenceType}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ wikidata_ids }),
+      })
 
-    if (!response.ok) {
-      throw new Error(`Failed to update preferences: ${response.statusText}`)
-    }
+      if (!response.ok) {
+        throw new Error(`Failed to update preferences: ${response.statusText}`)
+      }
 
-    // Update local state immediately
-    const updated = [
-      ...preferences.filter(p => p.preference_type !== preferenceType),
-      ...items.map(item => ({
-        wikidata_id: item.wikidata_id,
-        name: item.name,
-        preference_type: preferenceType
-      }))
-    ]
-    setPreferences(updated)
-    saveToStorage(updated)
-  }, [preferences])
+      // Update local state immediately
+      const updated = [
+        ...preferences.filter((p) => p.preference_type !== preferenceType),
+        ...items.map((item) => ({
+          wikidata_id: item.wikidata_id,
+          name: item.name,
+          preference_type: preferenceType,
+        })),
+      ]
+      setPreferences(updated)
+      saveToStorage(updated)
+    },
+    [preferences],
+  )
 
   // Fetch preferences from server
   const fetchPreferences = useCallback(async () => {
@@ -154,7 +157,9 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       const data: PreferenceResponse[] = await response.json()
 
       const hasNoStoredPreferences = localStorage.getItem(STORAGE_KEY) === null
-      const hasNoLanguagePreferences = !data.some(p => p.preference_type === PreferenceType.LANGUAGE)
+      const hasNoLanguagePreferences = !data.some(
+        (p) => p.preference_type === PreferenceType.LANGUAGE,
+      )
 
       if (hasNoStoredPreferences && hasNoLanguagePreferences) {
         const detectedLanguages = await detectBrowserLanguage()
@@ -164,7 +169,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         }
       }
 
-      setPreferences(prev => {
+      setPreferences((prev) => {
         if (preferencesEqual(prev, data)) return prev
         return data
       })
@@ -190,14 +195,10 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     error,
     initialized,
     updatePreferences,
-    refetch: fetchPreferences
+    refetch: fetchPreferences,
   }
 
-  return (
-    <PreferencesContext.Provider value={value}>
-      {children}
-    </PreferencesContext.Provider>
-  )
+  return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>
 }
 
 export function usePreferencesContext() {

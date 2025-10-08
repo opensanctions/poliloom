@@ -1,11 +1,11 @@
-"use client"
+'use client'
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Header } from "@/components/Header"
-import { MultiSelect, MultiSelectOption } from "@/components/MultiSelect"
-import { usePreferencesContext } from "@/contexts/PreferencesContext"
-import { LanguageResponse, CountryResponse, PreferenceType, WikidataEntity } from "@/types"
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Header } from '@/components/Header'
+import { MultiSelect, MultiSelectOption } from '@/components/MultiSelect'
+import { usePreferencesContext } from '@/contexts/PreferencesContext'
+import { LanguageResponse, CountryResponse, PreferenceType, WikidataEntity } from '@/types'
 
 export default function PreferencesPage() {
   const router = useRouter()
@@ -13,25 +13,21 @@ export default function PreferencesPage() {
     preferences,
     loading: updating,
     error: preferencesError,
-    updatePreferences
+    updatePreferences,
   } = usePreferencesContext()
 
   const languagePreferences = preferences
-    .filter(p => p.preference_type === PreferenceType.LANGUAGE)
-    .map(p => p.wikidata_id)
+    .filter((p) => p.preference_type === PreferenceType.LANGUAGE)
+    .map((p) => p.wikidata_id)
 
   const countryPreferences = preferences
-    .filter(p => p.preference_type === PreferenceType.COUNTRY)
-    .map(p => p.wikidata_id)
+    .filter((p) => p.preference_type === PreferenceType.COUNTRY)
+    .map((p) => p.wikidata_id)
 
   const [languages, setLanguages] = useState<LanguageResponse[]>([])
   const [loadingLanguages, setLoadingLanguages] = useState(true)
   const [countries, setCountries] = useState<CountryResponse[]>([])
   const [loadingCountries, setLoadingCountries] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-
-
 
   // Fetch available languages
   useEffect(() => {
@@ -63,32 +59,27 @@ export default function PreferencesPage() {
     fetchCountries()
   }, [])
 
-
   // Convert languages to MultiSelect options
-  const languageOptions: MultiSelectOption[] = languages.map(lang => ({
+  const languageOptions: MultiSelectOption[] = languages.map((lang) => ({
     value: lang.wikidata_id,
-    label: lang.name
+    label: lang.name,
   }))
 
   // Convert countries to MultiSelect options
-  const countryOptions: MultiSelectOption[] = countries.map(country => ({
+  const countryOptions: MultiSelectOption[] = countries.map((country) => ({
     value: country.wikidata_id,
-    label: country.name
+    label: country.name,
   }))
 
   // Generic handler for preference changes
-  const createPreferenceHandler = (
-    type: PreferenceType,
-    allItems: WikidataEntity[]
-  ) => (qids: string[]) => {
-    const items = allItems.filter(item => qids.includes(item.wikidata_id))
-    updatePreferences(type, items)
-  }
+  const createPreferenceHandler =
+    (type: PreferenceType, allItems: WikidataEntity[]) => (qids: string[]) => {
+      const items = allItems.filter((item) => qids.includes(item.wikidata_id))
+      updatePreferences(type, items)
+    }
 
   const handleLanguageChange = createPreferenceHandler(PreferenceType.LANGUAGE, languages)
   const handleCountryChange = createPreferenceHandler(PreferenceType.COUNTRY, countries)
-
-  const displayError = error || preferencesError
 
   return (
     <>
@@ -97,25 +88,21 @@ export default function PreferencesPage() {
         <div className="max-w-2xl w-full">
           <div className="bg-white shadow rounded-lg">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h1 className="text-xl font-semibold text-gray-900">
-                Filter Preferences
-              </h1>
+              <h1 className="text-xl font-semibold text-gray-900">Filter Preferences</h1>
               <p className="mt-1 text-sm text-gray-600">
                 Choose which languages and countries to filter politicians by.
               </p>
             </div>
 
             <div className="px-6 py-6 space-y-8">
-              {displayError && (
+              {preferencesError && (
                 <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                  <p className="text-red-800 text-sm">{displayError}</p>
+                  <p className="text-red-800 text-sm">{preferencesError}</p>
                 </div>
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Languages
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-3">Languages</label>
                 <p className="text-sm text-gray-500 mb-4">
                   Filter politicians based on the languages of their source documents.
                 </p>
@@ -130,9 +117,7 @@ export default function PreferencesPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Countries
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-3">Countries</label>
                 <p className="text-sm text-gray-500 mb-4">
                   Filter politicians based on their citizenship.
                 </p>
@@ -145,7 +130,6 @@ export default function PreferencesPage() {
                   disabled={updating}
                 />
               </div>
-
             </div>
 
             <div className="px-6 py-4 border-t border-gray-200 flex justify-end">

@@ -1,9 +1,9 @@
 export interface ParsedWikidataDate {
-  display: string;
-  year: number | null;
-  month: number | null;
-  day: number | null;
-  precision: number;
+  display: string
+  year: number | null
+  month: number | null
+  day: number | null
+  precision: number
 }
 
 /**
@@ -16,49 +16,79 @@ export interface ParsedWikidataDate {
  */
 export function parseWikidataDate(dateString: string, precision: number): ParsedWikidataDate {
   // Remove the leading '+' and 'T00:00:00Z' suffix
-  const cleanDate = dateString.replace(/^\+/, '').replace(/T00:00:00Z$/, '');
-  const [yearStr, monthStr, dayStr] = cleanDate.split('-');
+  const cleanDate = dateString.replace(/^\+/, '').replace(/T00:00:00Z$/, '')
+  const [yearStr, monthStr, dayStr] = cleanDate.split('-')
 
-  const year = parseInt(yearStr, 10);
-  const month = monthStr !== '00' ? parseInt(monthStr, 10) : null;
-  const day = dayStr !== '00' ? parseInt(dayStr, 10) : null;
+  const year = parseInt(yearStr, 10)
+  const month = monthStr !== '00' ? parseInt(monthStr, 10) : null
+  const day = dayStr !== '00' ? parseInt(dayStr, 10) : null
 
-  let display: string;
+  let display: string
 
   switch (precision) {
     case 9: // Year only
-      display = year.toString();
-      break;
+      display = year.toString()
+      break
     case 10: // Month and year
       if (month) {
         const monthNames = [
-          'January', 'February', 'March', 'April', 'May', 'June',
-          'July', 'August', 'September', 'October', 'November', 'December'
-        ];
-        display = `${monthNames[month - 1]} ${year}`;
+          'January',
+          'February',
+          'March',
+          'April',
+          'May',
+          'June',
+          'July',
+          'August',
+          'September',
+          'October',
+          'November',
+          'December',
+        ]
+        display = `${monthNames[month - 1]} ${year}`
       } else {
-        display = year.toString();
+        display = year.toString()
       }
-      break;
+      break
     case 11: // Full date
       if (month && day) {
         const monthNames = [
-          'January', 'February', 'March', 'April', 'May', 'June',
-          'July', 'August', 'September', 'October', 'November', 'December'
-        ];
-        display = `${monthNames[month - 1]} ${day}, ${year}`;
+          'January',
+          'February',
+          'March',
+          'April',
+          'May',
+          'June',
+          'July',
+          'August',
+          'September',
+          'October',
+          'November',
+          'December',
+        ]
+        display = `${monthNames[month - 1]} ${day}, ${year}`
       } else if (month) {
         const monthNames = [
-          'January', 'February', 'March', 'April', 'May', 'June',
-          'July', 'August', 'September', 'October', 'November', 'December'
-        ];
-        display = `${monthNames[month - 1]} ${year}`;
+          'January',
+          'February',
+          'March',
+          'April',
+          'May',
+          'June',
+          'July',
+          'August',
+          'September',
+          'October',
+          'November',
+          'December',
+        ]
+        display = `${monthNames[month - 1]} ${year}`
       } else {
-        display = year.toString();
+        display = year.toString()
       }
-      break;
+      break
     default:
-      display = year.toString();
+      display = year.toString()
   }
 
   return {
@@ -66,6 +96,6 @@ export function parseWikidataDate(dateString: string, precision: number): Parsed
     year,
     month,
     day,
-    precision
-  };
+    precision,
+  }
 }

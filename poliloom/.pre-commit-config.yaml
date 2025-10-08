@@ -5,3 +5,26 @@ repos:
       - id: ruff-check
         args: [--fix]
       - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: gui-format
+        name: GUI Prettier
+        entry: bash -c 'cd poliloom-gui && npm run format'
+        language: system
+        files: ^poliloom-gui/.*\.(ts|tsx|js|jsx|json|css|md)$
+        pass_filenames: false
+
+      - id: gui-lint
+        name: GUI ESLint
+        entry: bash -c 'cd poliloom-gui && npm run lint'
+        language: system
+        files: ^poliloom-gui/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: false
+
+      - id: gui-typecheck
+        name: GUI TypeScript
+        entry: bash -c 'cd poliloom-gui && npm run typecheck'
+        language: system
+        files: ^poliloom-gui/.*\.(ts|tsx)$
+        pass_filenames: false

@@ -1,8 +1,8 @@
-"use client"
+'use client'
 
-import { useSession, signOut } from "next-auth/react"
-import Link from "next/link"
-import { handleSignIn } from "@/lib/actions"
+import { useSession, signOut } from 'next-auth/react'
+import Link from 'next/link'
+import { handleSignIn } from '@/lib/actions'
 
 export function Header() {
   const { data: session, status } = useSession()
@@ -16,13 +16,11 @@ export function Header() {
               PoliLoom
             </Link>
           </div>
-          
+
           <div className="flex items-center space-x-4">
-            {status === "loading" && (
-              <div className="text-sm text-gray-500">Loading...</div>
-            )}
-            
-            {status === "authenticated" && session?.user && (
+            {status === 'loading' && <div className="text-sm text-gray-500">Loading...</div>}
+
+            {status === 'authenticated' && session?.user && (
               <>
                 <div className="text-sm text-gray-700">
                   Welcome, {session.user.name || session.user.email}
@@ -41,8 +39,8 @@ export function Header() {
                 </button>
               </>
             )}
-            
-            {status === "unauthenticated" && (
+
+            {status === 'unauthenticated' && (
               <form action={handleSignIn}>
                 <button
                   type="submit"

@@ -1,15 +1,11 @@
-import {
-  Politician,
-  PropertyType,
-  ArchivedPageResponse
-} from '@/types';
+import { Politician, PropertyType, ArchivedPageResponse } from '@/types'
 
 const mockArchivedPage: ArchivedPageResponse = {
   id: 'archived-1',
   url: 'https://en.wikipedia.org/wiki/Test_Politician',
   content_hash: 'abc123',
   fetch_timestamp: '2024-01-01T00:00:00Z',
-};
+}
 
 export const mockPolitician: Politician = {
   id: 'pol-1',
@@ -33,7 +29,7 @@ export const mockPolitician: Politician = {
       statement_id: null,
       qualifiers: {
         P580: [{ datavalue: { value: { time: '+2020-01-01T00:00:00Z', precision: 11 } } }],
-        P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }]
+        P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }],
       },
       proof_line: 'served as mayor from 2020 to 2024',
       archived_page: mockArchivedPage,
@@ -46,16 +42,16 @@ export const mockPolitician: Politician = {
       statement_id: null,
       proof_line: 'was born in Test City',
       archived_page: mockArchivedPage,
-    }
-  ]
-};
+    },
+  ],
+}
 
 export const mockEmptyPolitician: Politician = {
   id: 'pol-2',
   name: 'Empty Politician',
   wikidata_id: null,
-  properties: []
-};
+  properties: [],
+}
 
 export const mockPoliticianWithConflicts: Politician = {
   id: 'pol-conflicted',
@@ -91,7 +87,7 @@ export const mockPoliticianWithConflicts: Politician = {
       statement_id: null,
       qualifiers: {
         P580: [{ datavalue: { value: { time: '+2020-01-01T00:00:00Z', precision: 11 } } }],
-        P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }]
+        P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }],
       },
       proof_line: 'served as mayor from 2020 to 2024',
       archived_page: mockArchivedPage,
@@ -104,7 +100,7 @@ export const mockPoliticianWithConflicts: Politician = {
       entity_name: 'Council Member',
       statement_id: null,
       qualifiers: {
-        P580: [{ datavalue: { value: { time: '+2018-01-01T00:00:00Z', precision: 11 } } }]
+        P580: [{ datavalue: { value: { time: '+2018-01-01T00:00:00Z', precision: 11 } } }],
       },
       proof_line: 'council member since 2018',
       archived_page: mockArchivedPage,
@@ -128,9 +124,9 @@ export const mockPoliticianWithConflicts: Politician = {
       statement_id: null,
       proof_line: 'was born in New City',
       archived_page: mockArchivedPage,
-    }
-  ]
-};
+    },
+  ],
+}
 
 export const mockPoliticianExtractedOnly: Politician = {
   id: 'pol-extracted',
@@ -163,7 +159,7 @@ export const mockPoliticianExtractedOnly: Politician = {
       statement_id: null,
       qualifiers: {
         P580: [{ datavalue: { value: { time: '+2019-01-01T00:00:00Z', precision: 11 } } }],
-        P582: [{ datavalue: { value: { time: '+2023-01-01T00:00:00Z', precision: 11 } } }]
+        P582: [{ datavalue: { value: { time: '+2023-01-01T00:00:00Z', precision: 11 } } }],
       },
       proof_line: 'served as minister from 2019 to 2023',
       archived_page: mockArchivedPage,
@@ -176,16 +172,16 @@ export const mockPoliticianExtractedOnly: Politician = {
       statement_id: null,
       proof_line: 'was born in Berlin',
       archived_page: mockArchivedPage,
-    }
-  ]
-};
+    },
+  ],
+}
 
 export const mockPoliticianExistingOnly: Politician = {
   id: 'pol-existing',
   name: 'Existing Only Politician',
   wikidata_id: 'Q555666',
-  properties: [] // No unconfirmed properties - everything exists in Wikidata already
-};
+  properties: [], // No unconfirmed properties - everything exists in Wikidata already
+}
 
 export const mockPoliticianWithEdgeCases: Politician = {
   id: 'pol-edge-cases',
@@ -221,7 +217,7 @@ export const mockPoliticianWithEdgeCases: Politician = {
       statement_id: 'Q123456$87654321-4321-4321-4321-210987654321',
       qualifiers: {
         P580: [{ datavalue: { value: { time: '+2020-01-01T00:00:00Z', precision: 11 } } }],
-        P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }]
+        P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }],
       },
       proof_line: 'served as mayor from 2020 to 2024',
       archived_page: mockArchivedPage, // Should be hidden
@@ -235,6 +231,6 @@ export const mockPoliticianWithEdgeCases: Politician = {
       statement_id: 'Q987654$11111111-2222-3333-4444-555555555555',
       proof_line: 'was born in Test City',
       archived_page: mockArchivedPage, // Should be hidden
-    }
-  ]
-};
+    },
+  ],
+}

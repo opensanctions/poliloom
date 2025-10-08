@@ -1,38 +1,25 @@
-"use client";
+'use client'
 
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  useMemo,
-} from "react";
-import { Politician, PreferenceType } from "@/types";
-import { useAuthSession } from "@/hooks/useAuthSession";
-import { usePreferencesContext } from "./PreferencesContext";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
+import { Politician, PreferenceType } from '@/types'
+import { useAuthSession } from '@/hooks/useAuthSession'
+import { usePreferencesContext } from './PreferencesContext'
 
 interface PoliticiansContextType {
-  currentPolitician: Politician | null;
-  nextPolitician: Politician | null;
-  loading: boolean;
-  refetch: () => void;
+  currentPolitician: Politician | null
+  nextPolitician: Politician | null
+  loading: boolean
+  refetch: () => void
 }
 
-const PoliticiansContext = createContext<
-  PoliticiansContextType | undefined
->(undefined);
+const PoliticiansContext = createContext<PoliticiansContextType | undefined>(undefined)
 
-export function PoliticiansProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const { session, isAuthenticated } = useAuthSession();
-  const { preferences, initialized } = usePreferencesContext();
-  const [currentPolitician, setCurrentPolitician] = useState<Politician | null>(null);
-  const [nextPolitician, setNextPolitician] = useState<Politician | null>(null);
-  const [loading, setLoading] = useState(false);
+export function PoliticiansProvider({ children }: { children: React.ReactNode }) {
+  const { session, isAuthenticated } = useAuthSession()
+  const { preferences, initialized } = usePreferencesContext()
+  const [currentPolitician, setCurrentPolitician] = useState<Politician | null>(null)
+  const [nextPolitician, setNextPolitician] = useState<Politician | null>(null)
+  const [loading, setLoading] = useState(false)
 
   // Memoize preference arrays to prevent unnecessary recreations
   const languagePreferences = useMemo(
@@ -40,117 +27,111 @@ export function PoliticiansProvider({
       preferences
         .filter((p) => p.preference_type === PreferenceType.LANGUAGE)
         .map((p) => p.wikidata_id),
-    [preferences]
-  );
+    [preferences],
+  )
 
   const countryPreferences = useMemo(
     () =>
       preferences
         .filter((p) => p.preference_type === PreferenceType.COUNTRY)
         .map((p) => p.wikidata_id),
-    [preferences]
-  );
+    [preferences],
+  )
 
-  const buildQueryParams = useCallback((limit: number = 1, offset: number = 0) => {
-    const params = new URLSearchParams({
-      limit: limit.toString(),
-      offset: offset.toString()
-    });
-    languagePreferences.forEach((qid) => params.append("languages", qid));
-    countryPreferences.forEach((qid) => params.append("countries", qid));
-    return params;
-  }, [languagePreferences, countryPreferences]);
+  const buildQueryParams = useCallback(
+    (limit: number = 1, offset: number = 0) => {
+      const params = new URLSearchParams({
+        limit: limit.toString(),
+        offset: offset.toString(),
+      })
+      languagePreferences.forEach((qid) => params.append('languages', qid))
+      countryPreferences.forEach((qid) => params.append('countries', qid))
+      return params
+    },
+    [languagePreferences, countryPreferences],
+  )
 
-  const fetchPoliticians = useCallback(async (limit: number = 1, offset: number = 0): Promise<Politician[]> => {
-    if (!session?.accessToken) return [];
+  const fetchPoliticians = useCallback(
+    async (limit: number = 1, offset: number = 0): Promise<Politician[]> => {
+      if (!session?.accessToken) return []
 
-    const params = buildQueryParams(limit, offset);
-    const response = await fetch(`/api/politicians?${params.toString()}`);
+      const params = buildQueryParams(limit, offset)
+      const response = await fetch(`/api/politicians?${params.toString()}`)
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch politicians: ${response.statusText}`);
-    }
+      if (!response.ok) {
+        throw new Error(`Failed to fetch politicians: ${response.statusText}`)
+      }
 
-    return response.json();
-  }, [session?.accessToken, buildQueryParams]);
+      return response.json()
+    },
+    [session?.accessToken, buildQueryParams],
+  )
 
   // Clear politicians when preferences change
   useEffect(() => {
-    setCurrentPolitician(null);
-    setNextPolitician(null);
-  }, [languagePreferences, countryPreferences]);
+    setCurrentPolitician(null)
+    setNextPolitician(null)
+  }, [languagePreferences, countryPreferences])
 
   // Fetch politicians when current is null
   useEffect(() => {
-    if (!isAuthenticated || !initialized || loading) return;
-    if (currentPolitician !== null) return;
+    if (!isAuthenticated || !initialized || loading) return
+    if (currentPolitician !== null) return
 
     // Set loading immediately to prevent re-entry
-    setLoading(true);
+    setLoading(true)
 
     const fetch = async () => {
       try {
-        const politicians = await fetchPoliticians(2);
+        const politicians = await fetchPoliticians(2)
 
         if (politicians.length > 0) {
-          setCurrentPolitician(politicians[0]);
-          setNextPolitician(politicians[1] || null);
+          setCurrentPolitician(politicians[0])
+          setNextPolitician(politicians[1] || null)
         }
       } catch (err) {
-        console.error("Error fetching politicians:", err);
+        console.error('Error fetching politicians:', err)
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
+    }
 
-    fetch();
-  }, [
-    isAuthenticated,
-    initialized,
-    fetchPoliticians,
-    currentPolitician,
-    loading,
-  ]);
+    fetch()
+  }, [isAuthenticated, initialized, fetchPoliticians, currentPolitician, loading])
 
   const refetch = useCallback(() => {
     // Immediately move next to current for instant UI update
-    setCurrentPolitician(nextPolitician);
-    setNextPolitician(null);
+    setCurrentPolitician(nextPolitician)
+    setNextPolitician(null)
 
     // Fetch new next politician in the background with offset=1 to skip the current one
     if (nextPolitician) {
       fetchPoliticians(1, 1)
-        .then(politicians => {
+        .then((politicians) => {
           if (politicians.length > 0) {
-            setNextPolitician(politicians[0]);
+            setNextPolitician(politicians[0])
           }
         })
-        .catch(err => {
-          console.error("Error fetching next politician:", err);
-        });
+        .catch((err) => {
+          console.error('Error fetching next politician:', err)
+        })
     }
-  }, [nextPolitician, fetchPoliticians]);
+  }, [nextPolitician, fetchPoliticians])
 
   const value: PoliticiansContextType = {
     currentPolitician,
     nextPolitician,
     loading,
     refetch,
-  };
+  }
 
-  return (
-    <PoliticiansContext.Provider value={value}>
-      {children}
-    </PoliticiansContext.Provider>
-  );
+  return <PoliticiansContext.Provider value={value}>{children}</PoliticiansContext.Provider>
 }
 
 export function usePoliticians() {
-  const context = useContext(PoliticiansContext);
+  const context = useContext(PoliticiansContext)
   if (context === undefined) {
-    throw new Error(
-      "usePoliticians must be used within a PoliticiansProvider"
-    );
+    throw new Error('usePoliticians must be used within a PoliticiansProvider')
   }
-  return context;
+  return context
 }

@@ -47,6 +47,7 @@ The application integrates with the PoliLoom API backend to:
 - Retrieve archived web pages from various sources for context and verification
 
 The API specification is available via OpenAPI documentation from the backend service. The backend server is likely running at `http://localhost:8000` in the development environment. You can fetch the OpenAPI spec with:
+
 ```bash
 curl http://localhost:8000/openapi.json
 ```

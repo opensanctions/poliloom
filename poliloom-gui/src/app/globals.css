@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
   --background: #ffffff;
@@ -32,4 +32,3 @@ body {
 ::highlight(poliloom) {
   background-color: yellow;
 }
-

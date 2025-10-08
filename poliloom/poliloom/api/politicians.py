@@ -4,7 +4,7 @@ import os
 from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, and_, or_, func
+from sqlalchemy import select, and_, or_, func, text
 
 from ..database import get_engine
 from ..models import (
@@ -124,8 +124,8 @@ async def get_politicians(
 
         # Set random seed based on user_id for consistent random ordering per user
         # Using modulo to keep seed value within PostgreSQL's valid range (0.0 to 1.0)
-        # seed_value = (current_user.user_id % 1000000) / 1000000.0
-        # db.execute(text(f"SELECT setseed({seed_value})"))
+        seed_value = (current_user.user_id % 1000000) / 1000000.0
+        db.execute(text(f"SELECT setseed({seed_value})"))
 
         # Apply random ordering, offset, and limit
         query = query.order_by(func.random()).offset(offset).limit(limit)

@@ -1,6 +1,6 @@
-import NextAuth from "next-auth"
-import type { NextAuthConfig } from "next-auth"
-import Wikimedia from "next-auth/providers/wikimedia"
+import NextAuth from 'next-auth'
+import type { NextAuthConfig } from 'next-auth'
+import Wikimedia from 'next-auth/providers/wikimedia'
 
 export const config = {
   providers: [
@@ -8,13 +8,13 @@ export const config = {
       clientId: process.env.MEDIAWIKI_OAUTH_CLIENT_ID!,
       clientSecret: process.env.MEDIAWIKI_OAUTH_CLIENT_SECRET!,
       client: {
-        token_endpoint_auth_method: "client_secret_post",
+        token_endpoint_auth_method: 'client_secret_post',
       },
     }),
   ],
   pages: {
-    signIn: "/login",
-    error: "/login",
+    signIn: '/login',
+    error: '/login',
   },
   callbacks: {
     async jwt({ token, account }) {
@@ -35,20 +35,20 @@ export const config = {
 
       // Token expired, attempt refresh
       if (!token.refresh_token) {
-        console.error("Missing refresh_token for token refresh")
-        return { ...token, error: "RefreshAccessTokenError" }
+        console.error('Missing refresh_token for token refresh')
+        return { ...token, error: 'RefreshAccessTokenError' }
       }
 
       try {
-        const response = await fetch("https://meta.wikimedia.org/w/rest.php/oauth2/access_token", {
-          method: "POST",
+        const response = await fetch('https://meta.wikimedia.org/w/rest.php/oauth2/access_token', {
+          method: 'POST',
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
+            'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: new URLSearchParams({
             client_id: process.env.MEDIAWIKI_OAUTH_CLIENT_ID!,
             client_secret: process.env.MEDIAWIKI_OAUTH_CLIENT_SECRET!,
-            grant_type: "refresh_token",
+            grant_type: 'refresh_token',
             refresh_token: token.refresh_token as string,
           }),
         })
@@ -56,8 +56,8 @@ export const config = {
         const refreshedTokens = await response.json()
 
         if (!response.ok) {
-          console.error("Failed to refresh token:", refreshedTokens)
-          return { ...token, error: "RefreshAccessTokenError" }
+          console.error('Failed to refresh token:', refreshedTokens)
+          return { ...token, error: 'RefreshAccessTokenError' }
         }
 
         return {
@@ -68,8 +68,8 @@ export const config = {
           error: undefined,
         }
       } catch (error) {
-        console.error("Error refreshing access token:", error)
-        return { ...token, error: "RefreshAccessTokenError" }
+        console.error('Error refreshing access token:', error)
+        return { ...token, error: 'RefreshAccessTokenError' }
       }
     },
     async session({ session, token }) {
@@ -78,7 +78,7 @@ export const config = {
       return session
     },
     async redirect({ url, baseUrl }) {
-      if (url.startsWith("/")) return `${baseUrl}${url}`
+      if (url.startsWith('/')) return `${baseUrl}${url}`
       else if (new URL(url).origin === baseUrl) return url
       return baseUrl
     },

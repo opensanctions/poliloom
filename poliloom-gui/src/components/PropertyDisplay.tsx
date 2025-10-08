@@ -1,20 +1,17 @@
-import { Property, PropertyType } from "@/types";
-import { parseWikidataDate } from "@/lib/wikidata/dateParser";
-import {
-  parsePositionQualifiers,
-  formatPositionDates,
-} from "@/lib/wikidata/qualifierParser";
-import { EvaluationActions } from "./EvaluationActions";
-import { StatementSource } from "./StatementSource";
-import { WikidataMetadata } from "./WikidataMetadata";
+import { Property, PropertyType } from '@/types'
+import { parseWikidataDate } from '@/lib/wikidata/dateParser'
+import { parsePositionQualifiers, formatPositionDates } from '@/lib/wikidata/qualifierParser'
+import { EvaluationActions } from './EvaluationActions'
+import { StatementSource } from './StatementSource'
+import { WikidataMetadata } from './WikidataMetadata'
 
 interface PropertyDisplayProps {
-  property: Property;
-  evaluations: Map<string, boolean>;
-  onAction: (propertyId: string, action: "confirm" | "discard") => void;
-  onShowArchived: (property: Property) => void;
-  onHover: (property: Property) => void;
-  activeArchivedPageId: string | null;
+  property: Property
+  evaluations: Map<string, boolean>
+  onAction: (propertyId: string, action: 'confirm' | 'discard') => void
+  onShowArchived: (property: Property) => void
+  onHover: (property: Property) => void
+  activeArchivedPageId: string | null
 }
 
 export function PropertyDisplay({
@@ -31,43 +28,36 @@ export function PropertyDisplay({
       case PropertyType.P570:
         // Date properties
         if (property.value && property.value_precision) {
-          const parsed = parseWikidataDate(
-            property.value,
-            property.value_precision,
-          );
-          return <span className="text-gray-700 flex-1">{parsed.display}</span>;
+          const parsed = parseWikidataDate(property.value, property.value_precision)
+          return <span className="text-gray-700 flex-1">{parsed.display}</span>
         }
-        return (
-          <span className="text-gray-700 flex-1">
-            {property.value || "Unknown"}
-          </span>
-        );
+        return <span className="text-gray-700 flex-1">{property.value || 'Unknown'}</span>
 
       case PropertyType.P39:
         // Position properties - show only date range since position name is in title
         const dates = property.qualifiers
           ? parsePositionQualifiers(property.qualifiers)
-          : { startDate: null, endDate: null };
-        const dateRange = formatPositionDates(dates);
+          : { startDate: null, endDate: null }
+        const dateRange = formatPositionDates(dates)
 
         if (dates.startDate === null && dates.endDate === null) {
-          return <span className="flex-1 text-gray-400 italic">No timeframe specified</span>;
+          return <span className="flex-1 text-gray-400 italic">No timeframe specified</span>
         }
-        return <span className="flex-1 text-gray-700">{dateRange}</span>;
+        return <span className="flex-1 text-gray-700">{dateRange}</span>
 
       case PropertyType.P19:
       case PropertyType.P27:
         // Place/citizenship properties - no content needed as entity name is shown in title
-        return <span className="text-gray-700 flex-1"></span>;
+        return <span className="text-gray-700 flex-1"></span>
 
       default:
         return (
           <span className="text-gray-700 flex-1">
-            {property.value || property.entity_name || "Unknown"}
+            {property.value || property.entity_name || 'Unknown'}
           </span>
-        );
+        )
     }
-  };
+  }
 
   return (
     <div className="space-y-2" onMouseEnter={() => onHover(property)}>
@@ -97,5 +87,5 @@ export function PropertyDisplay({
         />
       )}
     </div>
-  );
+  )
 }

@@ -1,31 +1,31 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { SessionProvider } from "@/components/SessionProvider";
-import { ArchivedPageProvider } from "@/contexts/ArchivedPageContext";
-import { PreferencesProvider } from "@/contexts/PreferencesContext";
-import { PoliticiansProvider } from "@/contexts/PoliticiansContext";
-import { FetchInterceptor } from "@/components/FetchInterceptor";
+import type { Metadata } from 'next'
+import { Geist, Geist_Mono } from 'next/font/google'
+import './globals.css'
+import { SessionProvider } from '@/components/SessionProvider'
+import { ArchivedPageProvider } from '@/contexts/ArchivedPageContext'
+import { PreferencesProvider } from '@/contexts/PreferencesContext'
+import { PoliticiansProvider } from '@/contexts/PoliticiansContext'
+import { FetchInterceptor } from '@/components/FetchInterceptor'
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
+})
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
+})
 
 export const metadata: Metadata = {
-  title: "PoliLoom - Data Confirmation",
-  description: "Confirm politician data extracted from Wikipedia",
-};
+  title: 'PoliLoom - Data Confirmation',
+  description: 'Confirm politician data extracted from Wikipedia',
+}
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: React.ReactNode
 }>) {
   return (
     <html lang="en">
@@ -36,13 +36,11 @@ export default function RootLayout({
           <FetchInterceptor />
           <PreferencesProvider>
             <PoliticiansProvider>
-              <ArchivedPageProvider>
-                {children}
-              </ArchivedPageProvider>
+              <ArchivedPageProvider>{children}</ArchivedPageProvider>
             </PoliticiansProvider>
           </PreferencesProvider>
         </SessionProvider>
       </body>
     </html>
-  );
+  )
 }

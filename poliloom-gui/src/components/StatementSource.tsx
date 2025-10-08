@@ -1,12 +1,12 @@
-import { ArchivedPageResponse } from "@/types";
+import { ArchivedPageResponse } from '@/types'
 
 interface StatementSourceProps {
-  proofLine: string | null;
-  archivedPage: ArchivedPageResponse | null;
-  isWikidataStatement: boolean;
-  isActive: boolean;
-  onShowArchived: () => void;
-  onHover: () => void;
+  proofLine: string | null
+  archivedPage: ArchivedPageResponse | null
+  isWikidataStatement: boolean
+  isActive: boolean
+  onShowArchived: () => void
+  onHover: () => void
 }
 
 export function StatementSource({
@@ -25,20 +25,18 @@ export function StatementSource({
             onClick={onShowArchived}
             className={`text-sm font-medium px-2 py-1 rounded transition-colors cursor-pointer ${
               isActive
-                ? "bg-blue-700 text-white hover:bg-blue-800"
-                : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                ? 'bg-blue-700 text-white hover:bg-blue-800'
+                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
             }`}
           >
-            • {isActive ? "Viewing Source" : "View Source"}
+            • {isActive ? 'Viewing Source' : 'View Source'}
           </button>
           <span className="text-sm text-gray-500">{archivedPage.url}</span>
         </div>
       )}
       {proofLine && (
-        <div className="text-sm text-gray-600 italic py-2">
-          &quot;{proofLine}&quot;
-        </div>
+        <div className="text-sm text-gray-600 italic py-2">&quot;{proofLine}&quot;</div>
       )}
     </div>
-  );
+  )
 }

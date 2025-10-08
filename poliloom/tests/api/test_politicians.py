@@ -780,7 +780,7 @@ class TestGetPoliticiansEndpoint:
         db_session.commit()
 
         # Test filtering by USA citizenship
-        response = client.get("/politicians/?countries=Q30", headers=mock_auth)
+        response = client.get("/politicians/?countries=Q30&limit=10", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
@@ -788,7 +788,9 @@ class TestGetPoliticiansEndpoint:
         assert politician_names == {"American Politician", "Dual Citizen Politician"}
 
         # Test filtering by German citizenship
-        response = client.get("/politicians/?countries=Q183", headers=mock_auth)
+        response = client.get(
+            "/politicians/?countries=Q183&limit=10", headers=mock_auth
+        )
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
@@ -797,7 +799,7 @@ class TestGetPoliticiansEndpoint:
 
         # Test filtering by multiple countries
         response = client.get(
-            "/politicians/?countries=Q30&countries=Q183", headers=mock_auth
+            "/politicians/?countries=Q30&countries=Q183&limit=10", headers=mock_auth
         )
         assert response.status_code == 200
         data = response.json()
@@ -810,7 +812,9 @@ class TestGetPoliticiansEndpoint:
         }
 
         # Test filtering by non-existent country
-        response = client.get("/politicians/?countries=Q999999", headers=mock_auth)
+        response = client.get(
+            "/politicians/?countries=Q999999&limit=10", headers=mock_auth
+        )
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 0
