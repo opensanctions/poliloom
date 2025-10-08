@@ -4,18 +4,18 @@ import { useAuthSession } from "@/hooks/useAuthSession";
 import { Header } from "@/components/Header";
 import { PoliticianEvaluation } from "@/components/PoliticianEvaluation";
 import { handleSignIn } from "@/lib/actions";
-import { usePoliticiansQueue } from "@/contexts/PoliticiansQueueContext";
+import { usePoliticians } from "@/contexts/PoliticiansContext";
 
 export default function Home() {
   const { session, status, isAuthenticated } = useAuthSession();
-  const { currentPolitician, queueLength, loading, enriching, error, nextPolitician, refetch } = usePoliticiansQueue();
+  const { currentPolitician, loading, error, moveToNext, refetch } = usePoliticians();
 
   return (
     <>
       <Header />
 
       {currentPolitician && session?.accessToken ? (
-        <PoliticianEvaluation politician={currentPolitician} onNext={nextPolitician} />
+        <PoliticianEvaluation politician={currentPolitician} onNext={moveToNext} />
       ) : (
         <main className="bg-gray-50 grid place-items-center py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
           <div className="text-center max-w-2xl">
@@ -58,15 +58,6 @@ export default function Home() {
                   </div>
                 )}
 
-                {enriching && (
-                  <div className="bg-purple-50 border border-purple-200 rounded-md p-4">
-                    <p className="text-purple-800">
-                      No politicians available with your current preferences.
-                      Enriching data for you...
-                    </p>
-                  </div>
-                )}
-
                 {error && (
                   <div className="bg-red-50 border border-red-200 rounded-md p-4">
                     <p className="text-red-800">{error}</p>
@@ -79,7 +70,7 @@ export default function Home() {
                   </div>
                 )}
 
-                {!loading && !enriching && !error && !currentPolitician && (
+                {!loading && !error && !currentPolitician && (
                   <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
                     <p className="text-gray-600">
                       No politicians available. Check your{" "}
