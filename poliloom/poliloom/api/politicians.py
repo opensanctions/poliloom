@@ -28,8 +28,9 @@ router = APIRouter()
 async def get_politicians(
     background_tasks: BackgroundTasks,
     limit: int = Query(
-        default=50, le=100, description="Maximum number of politicians to return"
+        default=2, le=100, description="Maximum number of politicians to return"
     ),
+    offset: int = Query(default=0, ge=0, description="Number of politicians to skip"),
     languages: Optional[List[str]] = Query(
         default=None,
         description="Filter by language QIDs - politicians with properties from archived pages with matching iso1_code or iso3_code",
@@ -126,18 +127,19 @@ async def get_politicians(
         # seed_value = (current_user.user_id % 1000000) / 1000000.0
         # db.execute(text(f"SELECT setseed({seed_value})"))
 
-        # Apply random ordering and limit
-        query = query.order_by(func.random()).limit(limit)
+        # Apply random ordering, offset, and limit
+        query = query.order_by(func.random()).offset(offset).limit(limit)
 
         # Execute query
         rows = db.execute(query).all()
 
-        if not rows:
-            return []
-
-        # Extract politicians and total count from first row
-        politicians = [row[0] for row in rows]
-        total_count = rows[0][1] if rows else 0
+        # Extract politicians and total count
+        if rows:
+            politicians = [row[0] for row in rows]
+            total_count = rows[0][1]
+        else:
+            politicians = []
+            total_count = 0
 
         # Trigger background enrichment if below threshold
         min_unevaluated = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
@@ -145,6 +147,9 @@ async def get_politicians(
             background_tasks.add_task(
                 enrich_until_target, min_unevaluated, languages, countries
             )
+
+        if not politicians:
+            return []
 
         result = []
         for politician in politicians:

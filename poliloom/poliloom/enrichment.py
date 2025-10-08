@@ -13,6 +13,7 @@ from unmhtml import MHTMLConverter
 from bs4 import BeautifulSoup
 from dicttoxml import dicttoxml
 from dataclasses import dataclass
+from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
 
 
 from .models import (
@@ -461,9 +462,6 @@ async def fetch_and_archive_page(
     db.add(archived_page)
     db.flush()
 
-    # Lazy import crawl4ai
-    from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
-
     config = CrawlerRunConfig(
         capture_mhtml=True,
         verbose=True,
@@ -604,6 +602,9 @@ async def enrich_until_target(
     Returns:
         Number of politicians enriched during this run
     """
+    # Yield control immediately so API response can be sent before sync logic
+    await asyncio.sleep(0)
+
     enriched_count = 0
 
     while True:

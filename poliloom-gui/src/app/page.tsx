@@ -8,14 +8,18 @@ import { usePoliticians } from "@/contexts/PoliticiansContext";
 
 export default function Home() {
   const { session, status, isAuthenticated } = useAuthSession();
-  const { currentPolitician, loading, error, moveToNext, refetch } = usePoliticians();
+  const { currentPolitician, loading, refetch } = usePoliticians();
 
   return (
     <>
       <Header />
 
       {currentPolitician && session?.accessToken ? (
-        <PoliticianEvaluation politician={currentPolitician} onNext={moveToNext} />
+        <PoliticianEvaluation
+          key={currentPolitician.id}
+          politician={currentPolitician}
+          onNext={refetch}
+        />
       ) : (
         <main className="bg-gray-50 grid place-items-center py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
           <div className="text-center max-w-2xl">
@@ -50,41 +54,30 @@ export default function Home() {
               </div>
             )}
 
-            {isAuthenticated && (
-              <div className="space-y-6">
-                {loading && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-                    <p className="text-blue-800">Loading politician data...</p>
-                  </div>
-                )}
-
-                {error && (
-                  <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                    <p className="text-red-800">{error}</p>
-                    <button
-                      onClick={refetch}
-                      className="mt-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+            {isAuthenticated && !currentPolitician && (
+              loading ? (
+                <div className="text-gray-500">
+                  Loading politician data...
+                </div>
+              ) : (
+                <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
+                  <p className="text-gray-600 mb-3">
+                    Currently no politicians available, we're enriching more. You can wait a minute or change your filter{" "}
+                    <a
+                      href="/preferences"
+                      className="text-gray-700 hover:text-gray-900 underline"
                     >
-                      Try Again
-                    </button>
-                  </div>
-                )}
-
-                {!loading && !error && !currentPolitician && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
-                    <p className="text-gray-600">
-                      No politicians available. Check your{" "}
-                      <a
-                        href="/preferences"
-                        className="text-gray-700 hover:text-gray-900 underline"
-                      >
-                        preferences
-                      </a>{" "}
-                      or wait for new data.
-                    </p>
-                  </div>
-                )}
-              </div>
+                      preferences
+                    </a>.
+                  </p>
+                  <button
+                    onClick={refetch}
+                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                  >
+                    Reload
+                  </button>
+                </div>
+              )
             )}
           </div>
         </main>
