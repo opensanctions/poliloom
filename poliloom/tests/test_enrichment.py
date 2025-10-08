@@ -592,8 +592,7 @@ class TestCountPoliticiansWithUnevaluated:
 class TestEnrichUntilTarget:
     """Test enrich_until_target function."""
 
-    @pytest.mark.asyncio
-    async def test_enrich_until_target_already_met(
+    def test_enrich_until_target_already_met(
         self, db_session, sample_politician, sample_archived_page
     ):
         """Test when target is already met."""
@@ -611,11 +610,10 @@ class TestEnrichUntilTarget:
         db_session.commit()
 
         # Target is 1, already met
-        enriched_count = await enrich_until_target(target_politicians=1)
+        enriched_count = enrich_until_target(target_politicians=1)
         assert enriched_count == 0
 
-    @pytest.mark.asyncio
-    async def test_enrich_until_target_enriches_one(
+    def test_enrich_until_target_enriches_one(
         self, db_session, sample_politician, sample_wikipedia_link, sample_archived_page
     ):
         """Test enriching until target is reached."""
@@ -643,12 +641,11 @@ class TestEnrichUntilTarget:
 
             mock_enrich.side_effect = mock_enrich_func
 
-            enriched_count = await enrich_until_target(target_politicians=1)
+            enriched_count = enrich_until_target(target_politicians=1)
 
         assert enriched_count == 1
 
-    @pytest.mark.asyncio
-    async def test_enrich_until_target_no_more_politicians(self, db_session):
+    def test_enrich_until_target_no_more_politicians(self, db_session):
         """Test when no more politicians available to enrich."""
         from poliloom.enrichment import enrich_until_target
 
@@ -657,14 +654,16 @@ class TestEnrichUntilTarget:
             "poliloom.enrichment.enrich_politician_from_wikipedia"
         ) as mock_enrich:
             # Mock returns False indicating no politicians to enrich
-            mock_enrich.return_value = False
+            async def mock_enrich_func(languages=None, countries=None):
+                return False
 
-            enriched_count = await enrich_until_target(target_politicians=5)
+            mock_enrich.side_effect = mock_enrich_func
+
+            enriched_count = enrich_until_target(target_politicians=5)
 
         assert enriched_count == 0
 
-    @pytest.mark.asyncio
-    async def test_enrich_until_target_with_filters(
+    def test_enrich_until_target_with_filters(
         self,
         db_session,
         sample_politician,
@@ -715,7 +714,7 @@ class TestEnrichUntilTarget:
 
             mock_enrich.side_effect = mock_enrich_func
 
-            enriched_count = await enrich_until_target(
+            enriched_count = enrich_until_target(
                 target_politicians=1, languages=["Q1860"], countries=["Q30"]
             )
 

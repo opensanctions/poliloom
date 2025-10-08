@@ -586,13 +586,16 @@ def count_politicians_with_unevaluated(
     return result or 0
 
 
-async def enrich_until_target(
+def enrich_until_target(
     target_politicians: int,
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,
 ) -> int:
     """
     Enrich politicians until target number have unevaluated statements.
+
+    This function is synchronous and uses asyncio.run() to call async enrichment functions.
+    It's designed to be run in a ThreadPoolExecutor to avoid blocking API workers.
 
     Args:
         target_politicians: Target number of politicians with unevaluated statements
@@ -602,9 +605,6 @@ async def enrich_until_target(
     Returns:
         Number of politicians enriched during this run
     """
-    # Yield control immediately so API response can be sent before sync logic
-    await asyncio.sleep(0)
-
     enriched_count = 0
 
     while True:
@@ -619,9 +619,9 @@ async def enrich_until_target(
         if current_count >= target_politicians:
             break
 
-        # Enrich one more politician
-        politician_found = await enrich_politician_from_wikipedia(
-            languages=languages, countries=countries
+        # Enrich one more politician - run async function in new event loop
+        politician_found = asyncio.run(
+            enrich_politician_from_wikipedia(languages=languages, countries=countries)
         )
 
         if not politician_found:

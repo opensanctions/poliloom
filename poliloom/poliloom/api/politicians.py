@@ -1,8 +1,10 @@
 """Politicians API endpoints."""
 
+import asyncio
 import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, and_, or_, func, text
 
@@ -23,10 +25,14 @@ from ..enrichment import enrich_until_target
 
 router = APIRouter()
 
+# Thread pool for background enrichment tasks
+_enrichment_executor = ThreadPoolExecutor(
+    max_workers=2, thread_name_prefix="enrichment"
+)
+
 
 @router.get("", response_model=List[PoliticianResponse])
 async def get_politicians(
-    background_tasks: BackgroundTasks,
     limit: int = Query(
         default=2, le=100, description="Maximum number of politicians to return"
     ),
@@ -144,8 +150,14 @@ async def get_politicians(
         # Trigger background enrichment if below threshold
         min_unevaluated = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
         if total_count < min_unevaluated:
-            background_tasks.add_task(
-                enrich_until_target, min_unevaluated, languages, countries
+            # Run enrichment in separate thread to avoid blocking API workers
+            loop = asyncio.get_running_loop()
+            loop.run_in_executor(
+                _enrichment_executor,
+                enrich_until_target,
+                min_unevaluated,
+                languages,
+                countries,
             )
 
         if not politicians:
