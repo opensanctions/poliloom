@@ -1159,3 +1159,46 @@ class TestGetPoliticiansEndpoint:
 
         # Should return empty because this politician has no non-deleted unevaluated properties
         assert len(data) == 0
+
+    def test_excludes_politicians_with_soft_deleted_wikidata_entity(
+        self, client, mock_auth, db_session, sample_archived_page
+    ):
+        """Test that politicians whose WikidataEntity has been soft-deleted are excluded."""
+
+        # Create politician with unevaluated properties
+        politician = Politician.create_with_entity(
+            db_session, "Q997766", "Soft Deleted Entity Politician"
+        )
+        db_session.add(politician)
+        db_session.flush()
+
+        # Add unevaluated property
+        property = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1985-07-20",
+            value_precision=11,
+            archived_page_id=sample_archived_page.id,
+            proof_line="Born on July 20, 1985",
+        )
+        db_session.add(property)
+        db_session.commit()
+
+        # Verify politician appears before soft-delete
+        response = client.get("/politicians/", headers=mock_auth)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["wikidata_id"] == "Q997766"
+
+        # Soft-delete the WikidataEntity
+        politician.wikidata_entity.soft_delete()
+        db_session.commit()
+
+        # Request politicians again
+        response = client.get("/politicians/", headers=mock_auth)
+        assert response.status_code == 200
+        data = response.json()
+
+        # Should return empty because the WikidataEntity has been soft-deleted
+        assert len(data) == 0

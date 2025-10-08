@@ -784,6 +784,39 @@ class TestPoliticianQueryWithUnevaluated:
 
         assert len(result) == 0
 
+    def test_query_excludes_soft_deleted_wikidata_entity(
+        self, db_session, sample_politician, sample_archived_page
+    ):
+        """Test that query excludes politicians with soft-deleted WikidataEntity."""
+
+        # Add unevaluated property
+        prop = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="1980-01-01",
+            value_precision=11,
+            archived_page_id=sample_archived_page.id,
+        )
+        db_session.add(prop)
+        db_session.commit()
+
+        # Verify politician appears before soft-delete
+        query = Politician.query_with_unevaluated_properties()
+        result = db_session.execute(query).scalars().all()
+        assert len(result) == 1
+        assert result[0] == sample_politician.id
+
+        # Soft-delete the WikidataEntity
+        sample_politician.wikidata_entity.soft_delete()
+        db_session.commit()
+
+        # Query again
+        query = Politician.query_with_unevaluated_properties()
+        result = db_session.execute(query).scalars().all()
+
+        # Should return empty because WikidataEntity has been soft-deleted
+        assert len(result) == 0
+
 
 class TestPoliticianQueryForEnrichment:
     """Test cases for Politician.query_for_enrichment method."""
@@ -1234,3 +1267,25 @@ class TestPoliticianQueryForEnrichment:
         query = Politician.query_for_enrichment(languages=["Q33298"])
         result = db_session.execute(query).scalars().all()
         assert len(result) == 0, "Bengali (5th) should NOT match - outside top 3"
+
+    def test_query_excludes_soft_deleted_wikidata_entity(
+        self, db_session, sample_politician, sample_wikipedia_link
+    ):
+        """Test that query excludes politicians with soft-deleted WikidataEntity."""
+
+        # Verify politician appears before soft-delete
+        query = Politician.query_for_enrichment()
+        result = db_session.execute(query).scalars().all()
+        assert len(result) == 1
+        assert result[0] == sample_politician.id
+
+        # Soft-delete the WikidataEntity
+        sample_politician.wikidata_entity.soft_delete()
+        db_session.commit()
+
+        # Query again
+        query = Politician.query_for_enrichment()
+        result = db_session.execute(query).scalars().all()
+
+        # Should return empty because WikidataEntity has been soft-deleted
+        assert len(result) == 0

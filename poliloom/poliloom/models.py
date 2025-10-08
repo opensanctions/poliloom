@@ -565,10 +565,18 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         from sqlalchemy import select, and_, or_
 
         # Find politician IDs that have unevaluated properties
+        # Join with WikidataEntity to filter out soft-deleted entities
         politician_ids_query = (
             select(cls.id.distinct())
-            .join(Property)
-            .where(and_(Property.statement_id.is_(None), Property.deleted_at.is_(None)))
+            .join(Property, cls.id == Property.politician_id)
+            .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
+            .where(
+                and_(
+                    Property.statement_id.is_(None),
+                    Property.deleted_at.is_(None),
+                    WikidataEntity.deleted_at.is_(None),
+                )
+            )
         )
 
         # Apply language filtering via archived pages (performance optimization)
@@ -628,9 +636,16 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         Returns:
             SQLAlchemy select statement for politician IDs
         """
-        # Base query: politicians with Wikipedia links
-        politician_ids_query = select(cls.id.distinct()).where(
-            exists(select(1).where(WikipediaLink.politician_id == cls.id))
+        # Base query: politicians with Wikipedia links and non-soft-deleted WikidataEntity
+        politician_ids_query = (
+            select(cls.id.distinct())
+            .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
+            .where(
+                and_(
+                    exists(select(1).where(WikipediaLink.politician_id == cls.id)),
+                    WikidataEntity.deleted_at.is_(None),
+                )
+            )
         )
 
         # Apply language filtering using citizenship-based matching with top-3 popularity limit
