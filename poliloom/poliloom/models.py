@@ -22,6 +22,8 @@ from sqlalchemy import (
     exists,
     case,
     literal,
+    ARRAY,
+    Text,
 )
 from sqlalchemy.orm import Session, relationship, declarative_base, declared_attr
 from sqlalchemy.engine import Row
@@ -1080,7 +1082,6 @@ class Country(
     _upsert_update_columns = ["iso_code"]
 
     iso_code = Column(String, index=True)  # ISO 3166-1 alpha-2 code
-    embedding = Column(Vector(384), nullable=True)
 
 
 class Language(
@@ -1109,8 +1110,6 @@ class Location(
     """Location entity for geographic locations."""
 
     __tablename__ = "locations"
-
-    embedding = Column(Vector(384), nullable=True)
 
 
 class Position(
@@ -1154,10 +1153,18 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     """Wikidata entity for hierarchy storage."""
 
     __tablename__ = "wikidata_entities"
-    __table_args__ = (Index("idx_wikidata_entities_updated_at", "updated_at"),)
+    __table_args__ = (
+        Index("idx_wikidata_entities_updated_at", "updated_at"),
+        Index(
+            "idx_wikidata_entities_labels_gin",
+            "labels",
+            postgresql_using="gin",
+            postgresql_ops={"labels": "gin_trgm_ops"},
+        ),
+    )
 
     # UpsertMixin configuration
-    _upsert_update_columns = ["name", "description"]
+    _upsert_update_columns = ["name", "description", "labels"]
 
     wikidata_id = Column(String, primary_key=True)  # Wikidata QID as primary key
     name = Column(
@@ -1166,6 +1173,7 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     description = Column(
         String, nullable=True
     )  # Entity description from Wikidata descriptions (can be None)
+    labels = Column(ARRAY(Text), nullable=True)  # All labels and aliases from Wikidata
 
     # Relationships
     parent_relations = relationship(

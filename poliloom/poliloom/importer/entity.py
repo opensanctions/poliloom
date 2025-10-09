@@ -95,6 +95,7 @@ def _insert_entities_batch(collection: EntityCollection, engine) -> None:
                 "wikidata_id": entity["wikidata_id"],
                 "name": entity["name"],
                 "description": entity["description"],
+                "labels": entity.get("labels"),
             }
             for entity in collection.entities
         ]
@@ -102,10 +103,11 @@ def _insert_entities_batch(collection: EntityCollection, engine) -> None:
         WikidataEntity.upsert_batch(session, entity_data)
 
         # Insert entities referencing the WikidataEntity records
-        # Remove 'name' and 'description' keys since they're now stored in WikidataEntity
+        # Remove 'name', 'description', and 'labels' keys since they're now stored in WikidataEntity
         for entity in collection.entities:
             entity.pop("name", None)
             entity.pop("description", None)
+            entity.pop("labels", None)
 
         collection.model_class.upsert_batch(session, collection.entities)
 
@@ -183,10 +185,14 @@ def _process_supporting_entities_chunk(
                 continue  # Skip entities without names - needed for embeddings in enrichment
 
             entity_description = entity.get_entity_description()
+            entity_labels = (
+                entity.get_all_labels()
+            )  # Get all unique labels across languages
             entity_data = {
                 "wikidata_id": entity_id,
                 "name": entity_name,
                 "description": entity_description,
+                "labels": entity_labels if entity_labels else None,
             }
 
             # Check entity type and add type-specific fields
@@ -248,7 +254,7 @@ def _process_supporting_entities_chunk(
                             language_data["iso3_code"] = iso3_code
                             collection.add_entity(language_data)
                     else:
-                        # Standard processing for positions and locations
+                        # Standard processing for all other entity types
                         collection.add_entity(entity_data.copy())
 
                         # Extract relations for this entity

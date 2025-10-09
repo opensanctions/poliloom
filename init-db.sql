@@ -3,3 +3,6 @@
 
 -- Enable pgvector extension for vector similarity search
 CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Enable trigram extension for fuzzy string matching
+CREATE EXTENSION IF NOT EXISTS pg_trgm;

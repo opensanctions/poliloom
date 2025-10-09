@@ -63,6 +63,18 @@ class WikidataEntityProcessor:
 
         return None
 
+    def get_all_labels(self) -> List[str]:
+        """Extract all unique label values across all languages.
+
+        Returns:
+            List of unique label strings
+        """
+        unique_labels = set()
+        for label_data in self._labels.values():
+            if "value" in label_data:
+                unique_labels.add(label_data["value"])
+        return list(unique_labels)
+
     @property
     def sitelinks(self) -> Dict[str, Any]:
         """Get the sitelinks for this entity.
