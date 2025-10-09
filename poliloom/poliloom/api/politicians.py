@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, and_, or_, func, text
+from sqlalchemy import select, and_, or_, func
 
 from ..database import get_engine
 from ..models import (
@@ -128,10 +128,14 @@ async def get_politicians(
                 selectinload(Politician.wikipedia_links),
             )
 
+        # Deterministic ordering is great if we have low candidate pool of
+        # enriched politicians, however, it does not allow us to skip
+        # politicians, as we will always be served the same one.
+
         # Set random seed based on user_id for consistent random ordering per user
         # Using modulo to keep seed value within PostgreSQL's valid range (0.0 to 1.0)
-        seed_value = (current_user.user_id % 1000000) / 1000000.0
-        db.execute(text(f"SELECT setseed({seed_value})"))
+        # seed_value = (current_user.user_id % 1000000) / 1000000.0
+        # db.execute(text(f"SELECT setseed({seed_value})"))
 
         # Apply random ordering, offset, and limit
         query = query.order_by(func.random()).offset(offset).limit(limit)

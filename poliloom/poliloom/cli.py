@@ -1,6 +1,5 @@
 """Main CLI interface for PoliLoom."""
 
-import asyncio
 import click
 import logging
 from datetime import datetime, timezone
@@ -290,9 +289,7 @@ def enrich_wikipedia(
         if countries_list:
             click.echo(f"   Filtering by countries: {', '.join(countries_list)}")
 
-        enriched_count = asyncio.run(
-            enrich_until_target(target, languages_list, countries_list)
-        )
+        enriched_count = enrich_until_target(target, languages_list, countries_list)
 
         if enriched_count == 0:
             click.echo("✅ Target already met - no enrichment needed")

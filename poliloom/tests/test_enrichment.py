@@ -153,10 +153,10 @@ class TestEnrichment:
 
         mock_openai_client.responses.parse = mock_parse
 
-        # Mock embedding generation (batch)
+        # Mock embedding generation (now happens in find_similar)
         with patch(
-            "poliloom.enrichment.generate_embeddings_batch",
-            return_value=[[0.1] * 384],  # Return list of embeddings
+            "poliloom.embeddings.generate_embedding",
+            return_value=[0.1] * 384,  # Return single embedding
         ):
             positions = await extract_two_stage_generic(
                 mock_openai_client,
@@ -203,9 +203,13 @@ class TestEnrichment:
         self, mock_openai_client, db_session, sample_politician
     ):
         """Test successful birthplace extraction and mapping."""
-        # Create location in database
-        location = Location.create_with_entity(db_session, "Q28513", "Test Location")
-        location.embedding = [0.2] * 384
+        # Create location in database with labels for fuzzy search
+        Location.create_with_entity(
+            db_session,
+            "Q28513",
+            "Springfield, Illinois",
+            labels=["Springfield, Illinois", "Springfield"],
+        )
         db_session.commit()
 
         # Mock Stage 1: Free-form extraction
@@ -243,18 +247,14 @@ class TestEnrichment:
 
         mock_openai_client.responses.parse = mock_parse
 
-        # Mock embedding generation (batch)
-        with patch(
-            "poliloom.enrichment.generate_embeddings_batch",
-            return_value=[[0.2] * 384],  # Return list of embeddings
-        ):
-            birthplaces = await extract_two_stage_generic(
-                mock_openai_client,
-                db_session,
-                "test content",
-                sample_politician,
-                BIRTHPLACES_CONFIG,
-            )
+        # No embedding mock needed - locations use pg_trgm fuzzy search
+        birthplaces = await extract_two_stage_generic(
+            mock_openai_client,
+            db_session,
+            "test content",
+            sample_politician,
+            BIRTHPLACES_CONFIG,
+        )
 
         assert birthplaces is not None
         assert len(birthplaces) == 1

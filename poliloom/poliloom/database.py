@@ -122,9 +122,8 @@ def create_timestamp_triggers(engine: Engine):
             BEGIN
                 IF OLD.name IS DISTINCT FROM NEW.name THEN
                     -- Reset embedding for positions if the entity exists
+                    -- (locations and countries use fuzzy text search, no embeddings)
                     UPDATE positions SET embedding = NULL WHERE wikidata_id = NEW.wikidata_id;
-                    -- Reset embedding for locations if the entity exists
-                    UPDATE locations SET embedding = NULL WHERE wikidata_id = NEW.wikidata_id;
                 END IF;
                 RETURN NEW;
             END;
@@ -253,9 +252,3 @@ def create_import_tracking_triggers(engine: Engine):
         )
 
         conn.commit()
-
-
-def setup_test_database(engine: Engine):
-    """Setup all required triggers for test database."""
-    create_timestamp_triggers(engine)
-    create_import_tracking_triggers(engine)

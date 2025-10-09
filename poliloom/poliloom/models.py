@@ -25,7 +25,13 @@ from sqlalchemy import (
     ARRAY,
     Text,
 )
-from sqlalchemy.orm import Session, relationship, declarative_base, declared_attr
+from sqlalchemy.orm import (
+    Session,
+    relationship,
+    declarative_base,
+    declared_attr,
+    selectinload,
+)
 from sqlalchemy.engine import Row
 from sqlalchemy.dialects.postgresql import UUID, JSONB, insert
 from sqlalchemy import event
@@ -225,19 +231,33 @@ class EntityCreationMixin:
     """Mixin for entities that can be created with their associated WikidataEntity."""
 
     @classmethod
-    def create_with_entity(cls, session, wikidata_id: str, name: str):
+    def create_with_entity(
+        cls,
+        session,
+        wikidata_id: str,
+        name: str,
+        labels: List[str] = None,
+        description: str = None,
+    ):
         """Create an entity with its associated WikidataEntity.
 
         Args:
             session: Database session
             wikidata_id: Wikidata ID for the entity
             name: Name of the entity
+            labels: Optional list of labels/aliases for the entity
+            description: Optional description for the entity
 
         Returns:
             The created entity instance (other properties can be set after creation)
         """
         # Create WikidataEntity first
-        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, name=name)
+        wikidata_entity = WikidataEntity(
+            wikidata_id=wikidata_id,
+            name=name,
+            labels=labels,
+            description=description,
+        )
         session.add(wikidata_entity)
 
         # Create the entity instance
@@ -520,10 +540,19 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         return xml_bytes.decode("utf-8")
 
     @classmethod
-    def create_with_entity(cls, session, wikidata_id: str, name: str):
+    def create_with_entity(
+        cls,
+        session,
+        wikidata_id: str,
+        name: str,
+        labels: List[str] = None,
+        description: str = None,
+    ):
         """Create a Politician with its associated WikidataEntity."""
         # Call parent mixin method
-        politician = super().create_with_entity(session, wikidata_id, name)
+        politician = super().create_with_entity(
+            session, wikidata_id, name, labels, description
+        )
         # Set the name directly on the politician (since it doesn't inherit from WikidataEntityMixin)
         politician.name = name
         return politician
@@ -564,8 +593,6 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         Returns:
             SQLAlchemy select statement for politician IDs
         """
-        from sqlalchemy import select, and_, or_
-
         # Find politician IDs that have unevaluated properties
         # Join with WikidataEntity to filter out soft-deleted entities
         politician_ids_query = (
@@ -1083,6 +1110,41 @@ class Country(
 
     iso_code = Column(String, index=True)  # ISO 3166-1 alpha-2 code
 
+    # Mapping configuration for two-stage extraction
+    MAPPING_ENTITY_NAME = "country"
+
+    @classmethod
+    def find_similar(
+        cls, session: Session, query_text: str, limit: int = 10
+    ) -> List["Country"]:
+        """Find similar countries using pg_trgm fuzzy text search.
+
+        Args:
+            session: Database session
+            query_text: Text to search for (will use fuzzy string matching)
+            limit: Maximum number of results to return
+
+        Returns:
+            List of Country entities ordered by similarity
+        """
+        return (
+            session.query(cls)
+            .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
+            .options(
+                selectinload(cls.wikidata_entity)
+                .selectinload(WikidataEntity.parent_relations)
+                .selectinload(WikidataRelation.parent_entity)
+            )
+            .filter(WikidataEntity.labels.isnot(None))
+            .order_by(
+                func.similarity(
+                    func.array_to_string(WikidataEntity.labels, " "), query_text
+                ).desc()
+            )
+            .limit(limit)
+            .all()
+        )
+
 
 class Language(
     Base,
@@ -1111,6 +1173,41 @@ class Location(
 
     __tablename__ = "locations"
 
+    # Mapping configuration for two-stage extraction
+    MAPPING_ENTITY_NAME = "location"
+
+    @classmethod
+    def find_similar(
+        cls, session: Session, query_text: str, limit: int = 100
+    ) -> List["Location"]:
+        """Find similar locations using pg_trgm fuzzy text search.
+
+        Args:
+            session: Database session
+            query_text: Text to search for (will use fuzzy string matching)
+            limit: Maximum number of results to return
+
+        Returns:
+            List of Location entities ordered by similarity
+        """
+        return (
+            session.query(cls)
+            .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
+            .options(
+                selectinload(cls.wikidata_entity)
+                .selectinload(WikidataEntity.parent_relations)
+                .selectinload(WikidataRelation.parent_entity)
+            )
+            .filter(WikidataEntity.labels.isnot(None))
+            .order_by(
+                func.similarity(
+                    func.array_to_string(WikidataEntity.labels, " "), query_text
+                ).desc()
+            )
+            .limit(limit)
+            .all()
+        )
+
 
 class Position(
     Base, TimestampMixin, UpsertMixin, WikidataEntityMixin, EntityCreationMixin
@@ -1120,6 +1217,36 @@ class Position(
     __tablename__ = "positions"
 
     embedding = Column(Vector(384), nullable=True)
+
+    # Mapping configuration for two-stage extraction
+    MAPPING_ENTITY_NAME = "position"
+
+    @classmethod
+    def find_similar(
+        cls, session: Session, query_embedding: List[float], limit: int = 100
+    ) -> List["Position"]:
+        """Find similar positions using vector similarity search.
+
+        Args:
+            session: Database session
+            query_embedding: Pre-generated embedding vector to search for
+            limit: Maximum number of results to return
+
+        Returns:
+            List of Position entities ordered by similarity
+        """
+        return (
+            session.query(cls)
+            .options(
+                selectinload(cls.wikidata_entity)
+                .selectinload(WikidataEntity.parent_relations)
+                .selectinload(WikidataRelation.parent_entity)
+            )
+            .filter(cls.embedding.isnot(None))
+            .order_by(cls.embedding.cosine_distance(query_embedding))
+            .limit(limit)
+            .all()
+        )
 
 
 class WikidataDump(Base, TimestampMixin):
@@ -1159,7 +1286,6 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             "idx_wikidata_entities_labels_gin",
             "labels",
             postgresql_using="gin",
-            postgresql_ops={"labels": "gin_trgm_ops"},
         ),
     )
 

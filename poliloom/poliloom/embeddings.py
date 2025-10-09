@@ -14,6 +14,9 @@ from poliloom.models import Position
 
 logger = logging.getLogger(__name__)
 
+# Global cache for the embedding model
+_embedding_model = None
+
 
 def get_embedding_model():
     """Get or create the cached SentenceTransformer model."""

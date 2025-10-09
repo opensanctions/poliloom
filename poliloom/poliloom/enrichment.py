@@ -109,6 +109,9 @@ class FreeFormPosition(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     proof: str
+    embedding: Optional[List[float]] = (
+        None  # Populated after extraction for similarity search
+    )
 
     @field_validator("start_date", "end_date")
     @classmethod
@@ -174,7 +177,6 @@ class TwoStageExtractionConfig(ExtractionConfig):
     """Configuration for two-stage extraction (free-form -> mapping)."""
 
     entity_class: Type[Union[Position, Location, Country]] = None
-    mapping_entity_name: str = ""  # "position", "location", or "country"
     mapping_system_prompt: str = ""  # System prompt for mapping stage
     final_model: Type[BaseModel] = None
 
@@ -233,7 +235,6 @@ async def _map_single_item(
     openai_client: AsyncOpenAI,
     db: Session,
     free_item: Any,
-    query_embedding: List[float],
     politician: Politician,
     config: TwoStageExtractionConfig,
 ) -> Optional[Any]:
@@ -242,34 +243,26 @@ async def _map_single_item(
     Args:
         openai_client: Async OpenAI client
         db: Database session
-        free_item: Free-form extracted item
-        query_embedding: Pre-computed embedding for the free-form item
+        free_item: Free-form extracted item (may have .embedding attribute for Positions)
         politician: Politician being enriched
         config: Extraction configuration
     """
     try:
-        # Find similar entities using pre-computed embedding
-
-        similar_entities = (
-            db.query(config.entity_class)
-            .options(
-                selectinload(getattr(config.entity_class, "wikidata_entity"))
-                .selectinload(WikidataEntity.parent_relations)
-                .selectinload(WikidataRelation.parent_entity)
+        # Find similar entities using model's search strategy
+        if config.entity_class.MAPPING_ENTITY_NAME == "position":
+            # Use pre-generated embedding from free_item for position similarity search
+            similar_entities = config.entity_class.find_similar(
+                session=db, query_embedding=free_item.embedding, limit=100
             )
-            .filter(getattr(config.entity_class, "embedding").isnot(None))
-            .order_by(
-                getattr(config.entity_class, "embedding").cosine_distance(
-                    query_embedding
-                )
+        else:
+            # Use text-based fuzzy search for locations and countries
+            similar_entities = config.entity_class.find_similar(
+                session=db, query_text=free_item.name, limit=100
             )
-            .limit(100)
-            .all()
-        )
 
         if not similar_entities:
             logger.debug(
-                f"No similar {config.mapping_entity_name}s found for '{free_item.name}'"
+                f"No similar {config.entity_class.MAPPING_ENTITY_NAME}s found for '{free_item.name}'"
             )
             return None
 
@@ -289,7 +282,7 @@ async def _map_single_item(
             free_item.proof,
             candidate_entities,
             politician,
-            config.mapping_entity_name,
+            config.entity_class.MAPPING_ENTITY_NAME,
             config.mapping_system_prompt,
         )
 
@@ -302,14 +295,14 @@ async def _map_single_item(
             return None
 
         # Create result based on entity type
-        if config.mapping_entity_name == "position":
+        if config.entity_class.MAPPING_ENTITY_NAME == "position":
             result = ExtractedPosition(
                 wikidata_id=entity.wikidata_id,
                 start_date=getattr(free_item, "start_date", None),
                 end_date=getattr(free_item, "end_date", None),
                 proof=free_item.proof,
             )
-        elif config.mapping_entity_name == "location":
+        elif config.entity_class.MAPPING_ENTITY_NAME == "location":
             result = ExtractedBirthplace(
                 wikidata_id=entity.wikidata_id,
                 proof=free_item.proof,
@@ -324,7 +317,9 @@ async def _map_single_item(
         return result
 
     except Exception as e:
-        logger.error(f"Error mapping single {config.mapping_entity_name}: {e}")
+        logger.error(
+            f"Error mapping single {config.entity_class.MAPPING_ENTITY_NAME}: {e}"
+        )
         return None
 
 
@@ -344,28 +339,32 @@ async def extract_two_stage_generic(
 
         if not free_form_results:
             logger.info(
-                f"No {config.mapping_entity_name}s extracted for {politician.name}"
+                f"No {config.entity_class.MAPPING_ENTITY_NAME}s extracted for {politician.name}"
             )
             return []
 
         logger.info(
-            f"Stage 1: Extracted {len(free_form_results)} free-form {config.mapping_entity_name}s for {politician.name}"
+            f"Stage 1: Extracted {len(free_form_results)} free-form {config.entity_class.MAPPING_ENTITY_NAME}s for {politician.name}"
         )
 
-        # Generate all embeddings in one batch
-        names = [free_item.name for free_item in free_form_results]
-        embeddings = generate_embeddings_batch(names)
-
-        logger.debug(
-            f"Generated {len(embeddings)} embeddings in batch for {config.mapping_entity_name}s"
-        )
+        # Generate embeddings in batch if we're working with positions
+        if config.entity_class.MAPPING_ENTITY_NAME == "position":
+            texts = [free_item.name for free_item in free_form_results]
+            embeddings = generate_embeddings_batch(texts)
+            # Store embeddings on the free_item objects
+            for free_item, embedding in zip(free_form_results, embeddings):
+                free_item.embedding = embedding
 
         # Stage 2: Map to Wikidata entities in parallel
         mapping_tasks = [
             _map_single_item(
-                openai_client, db, free_item, embedding, politician, config
+                openai_client,
+                db,
+                free_item,
+                politician,
+                config,
             )
-            for free_item, embedding in zip(free_form_results, embeddings)
+            for free_item in free_form_results
         ]
 
         mapping_results = await asyncio.gather(*mapping_tasks)
@@ -374,12 +373,14 @@ async def extract_two_stage_generic(
         mapped_results = [result for result in mapping_results if result is not None]
 
         logger.info(
-            f"Stage 2: Mapped {len(mapped_results)} of {len(free_form_results)} {config.mapping_entity_name}s for {politician.name}"
+            f"Stage 2: Mapped {len(mapped_results)} of {len(free_form_results)} {config.entity_class.MAPPING_ENTITY_NAME}s for {politician.name}"
         )
         return mapped_results
 
     except Exception as e:
-        logger.error(f"Error extracting {config.mapping_entity_name}s: {e}")
+        logger.error(
+            f"Error extracting {config.entity_class.MAPPING_ENTITY_NAME}s: {e}"
+        )
         return None
 
 
@@ -527,7 +528,6 @@ POSITIONS_CONFIG = TwoStageExtractionConfig(
     analysis_focus_template=prompts.POSITIONS_ANALYSIS_FOCUS_TEMPLATE,
     result_field_name="positions",
     entity_class=Position,
-    mapping_entity_name="position",
     mapping_system_prompt=prompts.POSITION_MAPPING_SYSTEM_PROMPT,
     final_model=ExtractedPosition,
 )
@@ -540,7 +540,6 @@ BIRTHPLACES_CONFIG = TwoStageExtractionConfig(
     analysis_focus_template=prompts.BIRTHPLACES_ANALYSIS_FOCUS_TEMPLATE,
     result_field_name="birthplaces",
     entity_class=Location,
-    mapping_entity_name="location",
     mapping_system_prompt=prompts.LOCATION_MAPPING_SYSTEM_PROMPT,
     final_model=ExtractedBirthplace,
 )
@@ -553,7 +552,6 @@ CITIZENSHIPS_CONFIG = TwoStageExtractionConfig(
     analysis_focus_template=prompts.CITIZENSHIPS_ANALYSIS_FOCUS_TEMPLATE,
     result_field_name="citizenships",
     entity_class=Country,
-    mapping_entity_name="country",
     mapping_system_prompt=prompts.COUNTRY_MAPPING_SYSTEM_PROMPT,
     final_model=ExtractedCitizenship,
 )
@@ -859,6 +857,8 @@ async def enrich_politician_from_wikipedia(
             # Always update enriched_at timestamp regardless of success/failure
             politician.enriched_at = datetime.now(timezone.utc)
             db.commit()
+            # Close the OpenAI client to prevent event loop cleanup errors
+            await openai_client.close()
 
         return True
 

@@ -16,8 +16,9 @@ from poliloom.models import (
     Position,
     WikipediaLink,
 )
-from poliloom.database import get_engine, setup_test_database
+from poliloom.database import get_engine
 from sqlalchemy.orm import Session
+from poliloom.database import create_timestamp_triggers, create_import_tracking_triggers
 
 
 @pytest.fixture
@@ -51,13 +52,15 @@ def load_json_fixture(filename):
 @pytest.fixture(autouse=True)
 def setup_test_database_fixture():
     """Setup test database for each test using SQLAlchemy directly."""
+
     engine = get_engine()
 
     # Create all tables using SQLAlchemy
     Base.metadata.create_all(engine)
 
-    # Setup all required triggers (timestamp + import tracking)
-    setup_test_database(engine)
+    # Setup all required triggers AFTER creating tables
+    create_timestamp_triggers(engine)
+    create_import_tracking_triggers(engine)
 
     yield
 
@@ -129,10 +132,13 @@ def sample_position(db_session):
 
 @pytest.fixture
 def sample_location(db_session):
-    """Return a created and committed location entity."""
-    location = Location.create_with_entity(db_session, "Q28513", "Test Location")
-    # Set the embedding for tests
-    location.embedding = [0.2] * 384
+    """Return a created and committed location entity with labels for fuzzy search."""
+    location = Location.create_with_entity(
+        db_session,
+        "Q28513",
+        "Test Location",
+        labels=["Test Location", "Test Loc"],
+    )
     db_session.commit()
     db_session.refresh(location)
     return location
