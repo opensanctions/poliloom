@@ -25,10 +25,13 @@ from ..enrichment import enrich_until_target
 
 router = APIRouter()
 
-# Thread pool for background enrichment tasks
+# Thread pool for background enrichment tasks (single worker)
 _enrichment_executor = ThreadPoolExecutor(
-    max_workers=2, thread_name_prefix="enrichment"
+    max_workers=1, thread_name_prefix="enrichment"
 )
+
+# Track the current enrichment task future
+_enrichment_future = None
 
 
 @router.get("", response_model=List[PoliticianResponse])
@@ -154,15 +157,19 @@ async def get_politicians(
         # Trigger background enrichment if below threshold
         min_unevaluated = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
         if total_count < min_unevaluated:
-            # Run enrichment in separate thread to avoid blocking API workers
-            loop = asyncio.get_running_loop()
-            loop.run_in_executor(
-                _enrichment_executor,
-                enrich_until_target,
-                min_unevaluated,
-                languages,
-                countries,
-            )
+            global _enrichment_future
+
+            # Only start a new enrichment job if none is currently running
+            if _enrichment_future is None or _enrichment_future.done():
+                # Run enrichment in separate thread to avoid blocking API workers
+                loop = asyncio.get_running_loop()
+                _enrichment_future = loop.run_in_executor(
+                    _enrichment_executor,
+                    enrich_until_target,
+                    min_unevaluated,
+                    languages,
+                    countries,
+                )
 
         if not politicians:
             return []
