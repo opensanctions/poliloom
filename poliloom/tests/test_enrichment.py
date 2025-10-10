@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import Mock, patch
-from pydantic import BaseModel
 
 from poliloom.enrichment import (
     enrich_politician_from_wikipedia,
@@ -16,6 +15,10 @@ from poliloom.enrichment import (
     DATES_CONFIG,
     POSITIONS_CONFIG,
     BIRTHPLACES_CONFIG,
+    FreeFormPosition,
+    FreeFormPositionResult,
+    FreeFormBirthplace,
+    FreeFormBirthplaceResult,
 )
 from poliloom.models import (
     Location,
@@ -114,16 +117,7 @@ class TestEnrichment:
         position.embedding = [0.1] * 384
         db_session.commit()
 
-        # Mock Stage 1: Free-form extraction
-        class FreeFormPosition(BaseModel):
-            name: str
-            start_date: str = None
-            end_date: str = None
-            proof: str
-
-        class FreeFormPositionResult(BaseModel):
-            positions: list
-
+        # Mock Stage 1: Free-form extraction (using actual model from enrichment)
         mock_parsed1 = FreeFormPositionResult(
             positions=[
                 FreeFormPosition(
@@ -153,10 +147,10 @@ class TestEnrichment:
 
         mock_openai_client.responses.parse = mock_parse
 
-        # Mock embedding generation (now happens in find_similar)
+        # Mock embedding generation (batch function)
         with patch(
-            "poliloom.embeddings.generate_embedding",
-            return_value=[0.1] * 384,  # Return single embedding
+            "poliloom.embeddings.generate_embeddings_batch",
+            return_value=[[0.1] * 384],  # Return list of embeddings
         ):
             positions = await extract_two_stage_generic(
                 mock_openai_client,
@@ -212,18 +206,11 @@ class TestEnrichment:
         )
         db_session.commit()
 
-        # Mock Stage 1: Free-form extraction
-        class FreeFormBirthplace(BaseModel):
-            name: str  # Updated to match actual model
-            proof: str
-
-        class FreeFormBirthplaceResult(BaseModel):
-            birthplaces: list
-
+        # Mock Stage 1: Free-form extraction (using actual model from enrichment)
         mock_parsed1 = FreeFormBirthplaceResult(
             birthplaces=[
                 FreeFormBirthplace(
-                    name="Springfield, Illinois",  # Updated field name
+                    name="Springfield, Illinois",
                     proof="born in Springfield, Illinois",
                 )
             ]
