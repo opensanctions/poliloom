@@ -757,6 +757,38 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
 
         return politician_ids_query
 
+    @classmethod
+    def find_similar(
+        cls, session: Session, query_text: str, limit: int = 10
+    ) -> List["Politician"]:
+        """Find similar politicians using pg_trgm fuzzy text search.
+
+        Args:
+            session: Database session
+            query_text: Text to search for (will use fuzzy string matching)
+            limit: Maximum number of results to return
+
+        Returns:
+            List of Politician entities ordered by similarity
+        """
+        return (
+            session.query(cls)
+            .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
+            .filter(
+                and_(
+                    WikidataEntity.labels.isnot(None),
+                    WikidataEntity.deleted_at.is_(None),
+                )
+            )
+            .order_by(
+                func.similarity(
+                    func.array_to_string(WikidataEntity.labels, " "), query_text
+                ).desc()
+            )
+            .limit(limit)
+            .all()
+        )
+
     # Relationships
     wikidata_entity = relationship("WikidataEntity", back_populates="politician")
     properties = relationship(

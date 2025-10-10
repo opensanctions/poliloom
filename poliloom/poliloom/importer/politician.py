@@ -126,6 +126,7 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
             {
                 "wikidata_id": p["wikidata_id"],
                 "name": p["name"],
+                "labels": p.get("labels"),
             }
             for p in politicians
         ]
@@ -226,10 +227,16 @@ def _process_politicians_chunk(
                     except ValueError:
                         pass
 
+                # Extract all labels for search functionality
+                entity_labels = (
+                    entity.get_all_labels()
+                )  # Get all unique labels across languages
+
                 politician_data = {
                     "wikidata_id": wikidata_id,
                     "wikidata_id_numeric": wikidata_id_numeric,
                     "name": entity.get_entity_name() or wikidata_id,
+                    "labels": entity_labels if entity_labels else None,
                     "properties": [],
                     "wikipedia_links": [],
                 }
