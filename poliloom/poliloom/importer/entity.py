@@ -89,21 +89,38 @@ def _insert_entities_batch(collection: EntityCollection, engine) -> None:
         return
 
     with Session(engine) as session:
-        # Insert WikidataEntity records first
+        # Insert WikidataEntity records first (without labels)
         entity_data = [
             {
                 "wikidata_id": entity["wikidata_id"],
                 "name": entity["name"],
                 "description": entity["description"],
-                "labels": entity.get("labels"),
             }
             for entity in collection.entities
         ]
 
         WikidataEntity.upsert_batch(session, entity_data)
 
+        # Insert labels into separate table
+        from ..models import WikidataEntityLabel
+
+        label_data = []
+        for entity in collection.entities:
+            labels = entity.get("labels")
+            if labels:
+                for label in labels:
+                    label_data.append(
+                        {
+                            "entity_id": entity["wikidata_id"],
+                            "label": label,
+                        }
+                    )
+
+        if label_data:
+            WikidataEntityLabel.upsert_batch(session, label_data)
+
         # Insert entities referencing the WikidataEntity records
-        # Remove 'name', 'description', and 'labels' keys since they're now stored in WikidataEntity
+        # Remove 'name', 'description', and 'labels' keys since they're now stored separately
         for entity in collection.entities:
             entity.pop("name", None)
             entity.pop("description", None)

@@ -1,7 +1,7 @@
 """update_embedding_reset_trigger_positions_only
 
 Revision ID: 3111e43b8ec0
-Revises: f59dee05bf16
+Revises: d76707579b83
 Create Date: 2025-10-09 11:38:04.827354
 
 """
@@ -13,7 +13,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "3111e43b8ec0"
-down_revision: Union[str, None] = "f59dee05bf16"
+down_revision: Union[str, None] = "d76707579b83"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

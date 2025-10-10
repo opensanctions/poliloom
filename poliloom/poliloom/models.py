@@ -227,6 +227,56 @@ class WikidataEntityMixin:
         return ", ".join(description_parts) if description_parts else ""
 
 
+class LabelSearchMixin:
+    """Mixin for finding entities using fuzzy label search."""
+
+    @classmethod
+    def find_similar(
+        cls, session: Session, query_text: str, limit: int = 10
+    ) -> List["LabelSearchMixin"]:
+        """Find similar entities using pg_trgm fuzzy text search on labels.
+
+        Args:
+            session: Database session
+            query_text: Text to search for (will use fuzzy string matching)
+            limit: Maximum number of results to return
+
+        Returns:
+            List of entities ordered by similarity
+        """
+        # CTE: Find max similarity for each entity
+        max_similarity = (
+            select(
+                WikidataEntityLabel.entity_id,
+                func.max(func.similarity(WikidataEntityLabel.label, query_text)).label(
+                    "max_sim"
+                ),
+            )
+            .group_by(WikidataEntityLabel.entity_id)
+            .cte("max_similarity")
+        )
+
+        # Main query: Join with entity table and filter by soft-delete
+        query = (
+            session.query(cls)
+            .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
+            .join(max_similarity, cls.wikidata_id == max_similarity.c.entity_id)
+            .filter(WikidataEntity.deleted_at.is_(None))
+            .order_by(max_similarity.c.max_sim.desc())
+            .limit(limit)
+        )
+
+        # Add eager loading if the model has wikidata_entity relationship
+        if hasattr(cls, "wikidata_entity"):
+            query = query.options(
+                selectinload(cls.wikidata_entity)
+                .selectinload(WikidataEntity.parent_relations)
+                .selectinload(WikidataRelation.parent_entity)
+            )
+
+        return query.all()
+
+
 class EntityCreationMixin:
     """Mixin for entities that can be created with their associated WikidataEntity."""
 
@@ -251,14 +301,22 @@ class EntityCreationMixin:
         Returns:
             The created entity instance (other properties can be set after creation)
         """
-        # Create WikidataEntity first
+        # Create WikidataEntity first (without labels - they're in separate table now)
         wikidata_entity = WikidataEntity(
             wikidata_id=wikidata_id,
             name=name,
-            labels=labels,
             description=description,
         )
         session.add(wikidata_entity)
+
+        # Create WikidataEntityLabel records if labels provided
+        if labels:
+            for label in labels:
+                label_record = WikidataEntityLabel(
+                    entity_id=wikidata_id,
+                    label=label,
+                )
+                session.add(label_record)
 
         # Create the entity instance
         entity = cls(wikidata_id=wikidata_id)
@@ -319,7 +377,7 @@ class Preference(Base, TimestampMixin):
     entity = relationship("WikidataEntity")
 
 
-class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
+class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin, LabelSearchMixin):
     """Politician entity."""
 
     __tablename__ = "politicians"
@@ -757,38 +815,6 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
 
         return politician_ids_query
 
-    @classmethod
-    def find_similar(
-        cls, session: Session, query_text: str, limit: int = 10
-    ) -> List["Politician"]:
-        """Find similar politicians using pg_trgm fuzzy text search.
-
-        Args:
-            session: Database session
-            query_text: Text to search for (will use fuzzy string matching)
-            limit: Maximum number of results to return
-
-        Returns:
-            List of Politician entities ordered by similarity
-        """
-        return (
-            session.query(cls)
-            .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
-            .filter(
-                and_(
-                    WikidataEntity.labels.isnot(None),
-                    WikidataEntity.deleted_at.is_(None),
-                )
-            )
-            .order_by(
-                func.similarity(
-                    func.array_to_string(WikidataEntity.labels, " "), query_text
-                ).desc()
-            )
-            .limit(limit)
-            .all()
-        )
-
     # Relationships
     wikidata_entity = relationship("WikidataEntity", back_populates="politician")
     properties = relationship(
@@ -1131,7 +1157,12 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
 
 
 class Country(
-    Base, TimestampMixin, UpsertMixin, WikidataEntityMixin, EntityCreationMixin
+    Base,
+    TimestampMixin,
+    UpsertMixin,
+    WikidataEntityMixin,
+    EntityCreationMixin,
+    LabelSearchMixin,
 ):
     """Country entity for storing country information."""
 
@@ -1144,38 +1175,6 @@ class Country(
 
     # Mapping configuration for two-stage extraction
     MAPPING_ENTITY_NAME = "country"
-
-    @classmethod
-    def find_similar(
-        cls, session: Session, query_text: str, limit: int = 10
-    ) -> List["Country"]:
-        """Find similar countries using pg_trgm fuzzy text search.
-
-        Args:
-            session: Database session
-            query_text: Text to search for (will use fuzzy string matching)
-            limit: Maximum number of results to return
-
-        Returns:
-            List of Country entities ordered by similarity
-        """
-        return (
-            session.query(cls)
-            .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
-            .options(
-                selectinload(cls.wikidata_entity)
-                .selectinload(WikidataEntity.parent_relations)
-                .selectinload(WikidataRelation.parent_entity)
-            )
-            .filter(WikidataEntity.labels.isnot(None))
-            .order_by(
-                func.similarity(
-                    func.array_to_string(WikidataEntity.labels, " "), query_text
-                ).desc()
-            )
-            .limit(limit)
-            .all()
-        )
 
 
 class Language(
@@ -1199,7 +1198,12 @@ class Language(
 
 
 class Location(
-    Base, TimestampMixin, UpsertMixin, WikidataEntityMixin, EntityCreationMixin
+    Base,
+    TimestampMixin,
+    UpsertMixin,
+    WikidataEntityMixin,
+    EntityCreationMixin,
+    LabelSearchMixin,
 ):
     """Location entity for geographic locations."""
 
@@ -1207,38 +1211,6 @@ class Location(
 
     # Mapping configuration for two-stage extraction
     MAPPING_ENTITY_NAME = "location"
-
-    @classmethod
-    def find_similar(
-        cls, session: Session, query_text: str, limit: int = 100
-    ) -> List["Location"]:
-        """Find similar locations using pg_trgm fuzzy text search.
-
-        Args:
-            session: Database session
-            query_text: Text to search for (will use fuzzy string matching)
-            limit: Maximum number of results to return
-
-        Returns:
-            List of Location entities ordered by similarity
-        """
-        return (
-            session.query(cls)
-            .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
-            .options(
-                selectinload(cls.wikidata_entity)
-                .selectinload(WikidataEntity.parent_relations)
-                .selectinload(WikidataRelation.parent_entity)
-            )
-            .filter(WikidataEntity.labels.isnot(None))
-            .order_by(
-                func.similarity(
-                    func.array_to_string(WikidataEntity.labels, " "), query_text
-                ).desc()
-            )
-            .limit(limit)
-            .all()
-        )
 
 
 class Position(
@@ -1308,21 +1280,50 @@ class WikidataDump(Base, TimestampMixin):
     )  # When politicians import completed
 
 
+class WikidataEntityLabel(Base, TimestampMixin, UpsertMixin):
+    """Normalized label storage for wikidata entities."""
+
+    __tablename__ = "wikidata_entity_labels"
+    __table_args__ = (
+        Index(
+            "uq_wikidata_entity_labels_entity_label",
+            "entity_id",
+            "label",
+            unique=True,
+        ),
+        Index(
+            "idx_wikidata_entity_labels_label_gin",
+            "label",
+            postgresql_using="gin",
+            postgresql_ops={"label": "gin_trgm_ops"},
+        ),
+        Index("idx_wikidata_entity_labels_entity_id", "entity_id"),
+    )
+
+    # UpsertMixin configuration
+    _upsert_conflict_columns = ["entity_id", "label"]
+    _upsert_update_columns = []  # No updates needed - labels are immutable
+
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    entity_id = Column(
+        String, ForeignKey("wikidata_entities.wikidata_id"), nullable=False
+    )
+    label = Column(Text, nullable=False)
+
+    # Relationships
+    entity = relationship("WikidataEntity", back_populates="labels_collection")
+
+
 class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     """Wikidata entity for hierarchy storage."""
 
     __tablename__ = "wikidata_entities"
-    __table_args__ = (
-        Index("idx_wikidata_entities_updated_at", "updated_at"),
-        Index(
-            "idx_wikidata_entities_labels_gin",
-            "labels",
-            postgresql_using="gin",
-        ),
-    )
+    __table_args__ = (Index("idx_wikidata_entities_updated_at", "updated_at"),)
 
     # UpsertMixin configuration
-    _upsert_update_columns = ["name", "description", "labels"]
+    _upsert_update_columns = ["name", "description"]
 
     wikidata_id = Column(String, primary_key=True)  # Wikidata QID as primary key
     name = Column(
@@ -1331,9 +1332,13 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     description = Column(
         String, nullable=True
     )  # Entity description from Wikidata descriptions (can be None)
-    labels = Column(ARRAY(Text), nullable=True)  # All labels and aliases from Wikidata
 
     # Relationships
+    labels_collection = relationship(
+        "WikidataEntityLabel",
+        back_populates="entity",
+        cascade="all, delete-orphan",
+    )
     parent_relations = relationship(
         "WikidataRelation",
         foreign_keys="WikidataRelation.child_entity_id",

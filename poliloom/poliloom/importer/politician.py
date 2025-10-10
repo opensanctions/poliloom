@@ -121,16 +121,33 @@ def _insert_politicians_batch(politicians: list[dict], engine) -> None:
         return
 
     with Session(engine) as session:
-        # First, ensure WikidataEntity records exist for all politicians
+        # First, ensure WikidataEntity records exist for all politicians (without labels)
         wikidata_data = [
             {
                 "wikidata_id": p["wikidata_id"],
                 "name": p["name"],
-                "labels": p.get("labels"),
             }
             for p in politicians
         ]
         WikidataEntity.upsert_batch(session, wikidata_data)
+
+        # Insert labels into separate table
+        from ..models import WikidataEntityLabel
+
+        label_data = []
+        for p in politicians:
+            labels = p.get("labels")
+            if labels:
+                for label in labels:
+                    label_data.append(
+                        {
+                            "entity_id": p["wikidata_id"],
+                            "label": label,
+                        }
+                    )
+
+        if label_data:
+            WikidataEntityLabel.upsert_batch(session, label_data)
 
         # Use UpsertMixin for politicians with RETURNING to get IDs directly
         politician_data = [
