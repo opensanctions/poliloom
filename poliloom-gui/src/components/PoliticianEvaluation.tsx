@@ -12,6 +12,7 @@ import {
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting'
 import { highlightTextInScope } from '@/lib/textHighlighter'
 import { useArchivedPageCache } from '@/contexts/ArchivedPageContext'
+import { Button } from './Button'
 import { PropertiesEvaluation } from './PropertiesEvaluation'
 
 interface PoliticianEvaluationProps {
@@ -177,13 +178,13 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
         {/* Fixed button at bottom */}
         <div className="p-6 border-t border-gray-200">
           <div className="flex justify-end">
-            <button
+            <Button
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-3"
             >
               {isSubmitting ? 'Submitting...' : 'Submit Evaluations & Next'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

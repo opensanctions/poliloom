@@ -1,3 +1,5 @@
+import { Button } from './Button'
+
 interface EvaluationActionsProps {
   statementId: string
   isWikidataStatement: boolean
@@ -14,33 +16,28 @@ export function EvaluationActions({
   return (
     <div className="flex gap-2">
       {!isWikidataStatement ? (
-        <button
+        <Button
+          size="sm"
+          variant="success"
+          active={isConfirmed === true}
           onClick={() => onAction(statementId, 'confirm')}
-          className={`px-2 py-1 text-sm font-medium rounded transition-colors cursor-pointer ${
-            isConfirmed === true
-              ? 'bg-green-600 text-white'
-              : 'bg-green-100 text-green-700 hover:bg-green-200'
-          }`}
         >
           ✓ Confirm
-        </button>
+        </Button>
       ) : (
         <span className="px-2 py-1 text-sm font-medium text-gray-500 bg-gray-100 rounded">
           Current in Wikidata
         </span>
       )}
-      <button
+      <Button
+        size="sm"
+        variant={!isWikidataStatement ? 'danger' : 'secondary'}
+        active={isConfirmed === false}
         onClick={() => onAction(statementId, 'discard')}
-        className={`px-2 py-1 text-sm font-medium rounded transition-colors cursor-pointer ${
-          isConfirmed === false
-            ? 'bg-red-600 text-white'
-            : !isWikidataStatement
-              ? 'bg-red-100 text-red-700 hover:bg-red-200'
-              : 'text-gray-500 bg-gray-100 hover:bg-gray-300'
-        }`}
+        className={!isWikidataStatement ? '' : 'text-gray-500 bg-gray-100 hover:bg-gray-300'}
       >
         × Discard
-      </button>
+      </Button>
     </div>
   )
 }

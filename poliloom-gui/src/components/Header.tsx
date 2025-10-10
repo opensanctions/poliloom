@@ -3,6 +3,7 @@
 import { useSession, signOut } from 'next-auth/react'
 import Link from 'next/link'
 import { handleSignIn } from '@/lib/actions'
+import { Button } from './Button'
 
 export function Header() {
   const { data: session, status } = useSession()
@@ -25,29 +26,35 @@ export function Header() {
                 <div className="text-sm text-gray-700">
                   Welcome, {session.user.name || session.user.email}
                 </div>
-                <Link
+                <Button
                   href="/preferences"
-                  className="text-sm text-gray-600 hover:text-gray-800 transition-colors font-medium"
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-600 hover:text-gray-800"
                 >
                   Preferences
-                </Link>
-                <button
+                </Button>
+                <Button
                   onClick={() => signOut()}
-                  className="text-sm text-gray-500 hover:text-gray-700 font-medium"
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-500 hover:text-gray-700"
                 >
                   Sign out
-                </button>
+                </Button>
               </>
             )}
 
             {status === 'unauthenticated' && (
               <form action={handleSignIn}>
-                <button
+                <Button
                   type="submit"
-                  className="text-sm text-indigo-600 hover:text-indigo-500 font-medium"
+                  variant="ghost"
+                  size="sm"
+                  className="text-indigo-600 hover:text-indigo-500"
                 >
                   Sign in
-                </button>
+                </Button>
               </form>
             )}
           </div>

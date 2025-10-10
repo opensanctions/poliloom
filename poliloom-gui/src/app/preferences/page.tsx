@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Header'
+import { Button } from '@/components/Button'
 import { MultiSelect, MultiSelectOption } from '@/components/MultiSelect'
 import { usePreferencesContext } from '@/contexts/PreferencesContext'
 import { LanguageResponse, CountryResponse, PreferenceType, WikidataEntity } from '@/types'
@@ -133,12 +134,7 @@ export default function PreferencesPage() {
             </div>
 
             <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
-              <button
-                onClick={() => router.push('/')}
-                className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700"
-              >
-                Start Evaluating
-              </button>
+              <Button onClick={() => router.push('/')}>Start Evaluating</Button>
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { ArchivedPageResponse } from '@/types'
+import { Button } from './Button'
 
 interface StatementSourceProps {
   proofLine: string | null
@@ -21,16 +22,9 @@ export function StatementSource({
     <div className="space-y-1" onMouseEnter={onHover}>
       {archivedPage && !isWikidataStatement && (
         <div className="flex items-center gap-2">
-          <button
-            onClick={onShowArchived}
-            className={`text-sm font-medium px-2 py-1 rounded transition-colors cursor-pointer ${
-              isActive
-                ? 'bg-blue-700 text-white hover:bg-blue-800'
-                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-            }`}
-          >
+          <Button size="sm" variant="info" active={isActive} onClick={onShowArchived}>
             • {isActive ? 'Viewing Source' : 'View Source'}
-          </button>
+          </Button>
           <span className="text-sm text-gray-500">{archivedPage.url}</span>
         </div>
       )}

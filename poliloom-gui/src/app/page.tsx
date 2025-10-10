@@ -2,6 +2,7 @@
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { Header } from '@/components/Header'
+import { Button } from '@/components/Button'
 import { PoliticianEvaluation } from '@/components/PoliticianEvaluation'
 import { handleSignIn } from '@/lib/actions'
 import { usePoliticians } from '@/contexts/PoliticiansContext'
@@ -39,12 +40,9 @@ export default function Home() {
                   Please sign in with your MediaWiki account to start evaluating data.
                 </p>
                 <form action={handleSignIn}>
-                  <button
-                    type="submit"
-                    className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
-                  >
+                  <Button type="submit" className="px-6 py-3 text-base">
                     Sign in with MediaWiki
-                  </button>
+                  </Button>
                 </form>
               </div>
             )}

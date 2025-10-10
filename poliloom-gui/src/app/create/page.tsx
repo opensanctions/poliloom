@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Header } from '@/components/Header'
+import { Button } from '@/components/Button'
 import { EntitySelector, EntityItem } from '@/components/EntitySelector'
 import { Input } from '@/components/Input'
 import { Property, PropertyType } from '@/types'
@@ -257,19 +258,16 @@ export default function CreatePage() {
 
               {/* Footer Actions */}
               <div className="px-6 py-4 border-t border-gray-200 flex justify-between">
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
                   onClick={() => window.history.back()}
-                  className="px-4 py-2 text-gray-700 font-medium rounded-md hover:bg-gray-100"
                 >
                   Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+                </Button>
+                <Button type="submit" className="px-6 py-3">
                   Create Politician
-                </button>
+                </Button>
               </div>
             </form>
           </div>
