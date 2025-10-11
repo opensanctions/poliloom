@@ -179,6 +179,7 @@ class TwoStageExtractionConfig(ExtractionConfig):
     entity_class: Type[Union[Position, Location, Country]] = None
     mapping_system_prompt: str = ""  # System prompt for mapping stage
     final_model: Type[BaseModel] = None
+    search_limit: int = 100  # Number of candidates to retrieve for mapping
 
 
 async def extract_properties_generic(
@@ -275,8 +276,8 @@ async def _map_single_item(
                 base_query, search_text=free_item.name
             )
 
-        # Execute query with limit
-        similar_entities = search_query.limit(100).all()
+        # Execute query with configured limit
+        similar_entities = search_query.limit(config.search_limit).all()
 
         if not similar_entities:
             logger.debug(
@@ -548,6 +549,7 @@ POSITIONS_CONFIG = TwoStageExtractionConfig(
     entity_class=Position,
     mapping_system_prompt=prompts.POSITION_MAPPING_SYSTEM_PROMPT,
     final_model=ExtractedPosition,
+    search_limit=100,
 )
 
 BIRTHPLACES_CONFIG = TwoStageExtractionConfig(
@@ -560,6 +562,7 @@ BIRTHPLACES_CONFIG = TwoStageExtractionConfig(
     entity_class=Location,
     mapping_system_prompt=prompts.LOCATION_MAPPING_SYSTEM_PROMPT,
     final_model=ExtractedBirthplace,
+    search_limit=100,
 )
 
 CITIZENSHIPS_CONFIG = TwoStageExtractionConfig(
@@ -572,6 +575,7 @@ CITIZENSHIPS_CONFIG = TwoStageExtractionConfig(
     entity_class=Country,
     mapping_system_prompt=prompts.COUNTRY_MAPPING_SYSTEM_PROMPT,
     final_model=ExtractedCitizenship,
+    search_limit=10,
 )
 
 
