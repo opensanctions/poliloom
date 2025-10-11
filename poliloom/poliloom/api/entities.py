@@ -24,7 +24,6 @@ def create_entity_endpoint(
     response_schema: Type[BaseModel],
     response_mapper: Callable,
     entity_name: str,
-    include_relations: bool = False,
 ):
     """
     Factory function to create a generic entity endpoint with search, limit, and offset support.
@@ -34,7 +33,6 @@ def create_entity_endpoint(
         response_schema: The Pydantic response schema
         response_mapper: Function to map model instance to response schema
         entity_name: Name of the entity (plural) for documentation
-        include_relations: Whether to preload parent_relations for descriptions
     """
 
     async def endpoint(
@@ -69,15 +67,12 @@ def create_entity_endpoint(
                 .where(WikidataEntity.deleted_at.is_(None))
             )
 
-            # Add eager loading for wikidata_entity
-            if include_relations:
-                query = query.options(
-                    selectinload(model_class.wikidata_entity).selectinload(
-                        WikidataEntity.parent_relations
-                    )
+            # Add eager loading for wikidata_entity with parent_relations
+            query = query.options(
+                selectinload(model_class.wikidata_entity).selectinload(
+                    WikidataEntity.parent_relations
                 )
-            else:
-                query = query.options(selectinload(model_class.wikidata_entity))
+            )
 
             # Apply search filter if provided
             if search:
@@ -102,11 +97,11 @@ get_languages = router.get("/languages", response_model=List[LanguageResponse])(
         response_mapper=lambda lang: LanguageResponse(
             wikidata_id=lang.wikidata_id,
             name=lang.name,
+            description=lang.description,
             iso1_code=lang.iso1_code,
             iso3_code=lang.iso3_code,
         ),
         entity_name="languages",
-        include_relations=False,
     )
 )
 
@@ -117,10 +112,10 @@ get_countries = router.get("/countries", response_model=List[CountryResponse])(
         response_mapper=lambda country: CountryResponse(
             wikidata_id=country.wikidata_id,
             name=country.name,
+            description=country.description,
             iso_code=country.iso_code,
         ),
         entity_name="countries",
-        include_relations=False,
     )
 )
 
@@ -134,7 +129,6 @@ get_positions = router.get("/positions", response_model=List[PositionResponse])(
             description=position.description,
         ),
         entity_name="positions",
-        include_relations=True,
     )
 )
 
@@ -148,6 +142,5 @@ get_locations = router.get("/locations", response_model=List[LocationResponse])(
             description=location.description,
         ),
         entity_name="locations",
-        include_relations=True,
     )
 )

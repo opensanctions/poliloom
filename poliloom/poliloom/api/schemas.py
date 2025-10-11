@@ -120,6 +120,7 @@ class LanguageResponse(BaseModel):
 
     wikidata_id: str
     name: str
+    description: str
     iso1_code: Optional[str] = None
     iso3_code: Optional[str] = None
 
@@ -131,6 +132,7 @@ class CountryResponse(BaseModel):
 
     wikidata_id: str
     name: str
+    description: str
     iso_code: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
