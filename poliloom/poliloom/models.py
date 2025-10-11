@@ -226,14 +226,10 @@ class WikidataEntityMixin:
 
         return ", ".join(description_parts) if description_parts else ""
 
-
-class LabelSearchMixin:
-    """Mixin for finding entities using fuzzy label search."""
-
     @classmethod
     def find_similar(
         cls, session: Session, query_text: str, limit: int = 10
-    ) -> List["LabelSearchMixin"]:
+    ) -> List["WikidataEntityMixin"]:
         """Find similar entities using pg_trgm fuzzy text search on labels.
 
         Args:
@@ -377,7 +373,7 @@ class Preference(Base, TimestampMixin):
     entity = relationship("WikidataEntity")
 
 
-class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin, LabelSearchMixin):
+class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
     """Politician entity."""
 
     __tablename__ = "politicians"
@@ -1211,7 +1207,6 @@ class Country(
     UpsertMixin,
     WikidataEntityMixin,
     EntityCreationMixin,
-    LabelSearchMixin,
 ):
     """Country entity for storing country information."""
 
@@ -1252,7 +1247,6 @@ class Location(
     UpsertMixin,
     WikidataEntityMixin,
     EntityCreationMixin,
-    LabelSearchMixin,
 ):
     """Location entity for geographic locations."""
 

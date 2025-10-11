@@ -295,7 +295,7 @@ class TestGetPoliticiansEndpoint:
         self, client, mock_auth, politician_with_only_wikidata
     ):
         """Test that politicians with only Wikidata data are excluded."""
-        response = client.get("/politicians/", headers=mock_auth)
+        response = client.get("/politicians/?has_unevaluated=true", headers=mock_auth)
 
         assert response.status_code == 200
         data = response.json()
@@ -669,14 +669,14 @@ class TestGetPoliticiansEndpoint:
         db_session.commit()
 
         # Test filtering by English language QID
-        response = client.get("/politicians/?languages=Q1860", headers=mock_auth)
+        response = client.get("/politicians/?has_unevaluated=true&languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
         assert data[0]["name"] == "English Politician"
 
         # Test filtering by German language QID
-        response = client.get("/politicians/?languages=Q188", headers=mock_auth)
+        response = client.get("/politicians/?has_unevaluated=true&languages=Q188", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
@@ -684,7 +684,7 @@ class TestGetPoliticiansEndpoint:
 
         # Test filtering by multiple languages
         response = client.get(
-            "/politicians/?languages=Q1860&languages=Q188", headers=mock_auth
+            "/politicians/?has_unevaluated=true&languages=Q1860&languages=Q188", headers=mock_auth
         )
         assert response.status_code == 200
         data = response.json()
@@ -693,7 +693,7 @@ class TestGetPoliticiansEndpoint:
         assert politician_names == {"English Politician", "German Politician"}
 
         # Test filtering by non-existent language
-        response = client.get("/politicians/?languages=Q999999", headers=mock_auth)
+        response = client.get("/politicians/?has_unevaluated=true&languages=Q999999", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 0
@@ -916,7 +916,7 @@ class TestGetPoliticiansEndpoint:
 
         # Test combined filtering: English language AND American citizenship
         response = client.get(
-            "/politicians/?languages=Q1860&countries=Q30", headers=mock_auth
+            "/politicians/?has_unevaluated=true&languages=Q1860&countries=Q30", headers=mock_auth
         )
         assert response.status_code == 200
         data = response.json()
@@ -925,7 +925,7 @@ class TestGetPoliticiansEndpoint:
 
         # Test combined filtering: English language AND German citizenship
         response = client.get(
-            "/politicians/?languages=Q1860&countries=Q183", headers=mock_auth
+            "/politicians/?has_unevaluated=true&languages=Q1860&countries=Q183", headers=mock_auth
         )
         assert response.status_code == 200
         data = response.json()
@@ -934,7 +934,7 @@ class TestGetPoliticiansEndpoint:
 
         # Test that individual filters work correctly
         # English language only - should return both English speaking politicians
-        response = client.get("/politicians/?languages=Q1860", headers=mock_auth)
+        response = client.get("/politicians/?has_unevaluated=true&languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
@@ -1153,7 +1153,7 @@ class TestGetPoliticiansEndpoint:
         db_session.commit()
 
         # Request politicians
-        response = client.get("/politicians/", headers=mock_auth)
+        response = client.get("/politicians/?has_unevaluated=true", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
 

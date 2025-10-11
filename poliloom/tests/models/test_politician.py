@@ -574,36 +574,6 @@ class TestPolitician:
         )
         assert "en" in iso_codes, "English link should also be included"
 
-    def test_politician_find_similar(self, db_session):
-        """Test politician similarity search functionality using pg_trgm."""
-        # Create test politicians with labels for fuzzy text search
-        politician_data = [
-            ("Q6279", "Joe Biden", ["Joe Biden", "Joseph Biden", "Joseph Robinette Biden Jr."]),
-            ("Q22686", "Donald Trump", ["Donald Trump", "Donald J. Trump", "The Donald"]),
-            ("Q1124", "Barack Obama", ["Barack Obama", "Barack Hussein Obama II"]),
-        ]
-
-        politicians = []
-        for wikidata_id, name, labels in politician_data:
-            politician = Politician.create_with_entity(
-                db_session, wikidata_id, name, labels=labels
-            )
-            politicians.append(politician)
-
-        db_session.commit()
-
-        # Test similarity search using new find_similar method (pg_trgm fuzzy search)
-        similar = Politician.find_similar(
-            session=db_session, query_text="Joseph Biden", limit=2
-        )
-
-        assert len(similar) <= 2
-        if len(similar) > 0:
-            assert isinstance(similar[0], Politician)
-            assert similar[0].name is not None
-            # The most similar should be Joe Biden since we searched for "Joseph Biden"
-            assert "Biden" in similar[0].name
-
 
 class TestPoliticianQueryBase:
     """Test cases for Politician.query_base method."""
