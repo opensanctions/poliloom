@@ -9,7 +9,9 @@ export interface EntityItem {
   name: string
   wikidataId: string
   startDate?: string
+  startDatePrecision?: number
   endDate?: string
+  endDatePrecision?: number
 }
 
 interface SearchResult {
@@ -121,6 +123,17 @@ export function EntitySelector({
     onItemsChange(updatedItems)
   }
 
+  const updatePrecision = (
+    itemId: string,
+    field: 'startDatePrecision' | 'endDatePrecision',
+    value: number,
+  ) => {
+    const updatedItems = items.map((item) =>
+      item.id === itemId ? { ...item, [field]: value } : item,
+    )
+    onItemsChange(updatedItems)
+  }
+
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-medium text-gray-900">{label}</h2>
@@ -199,20 +212,48 @@ export function EntitySelector({
                   <label className="block text-sm text-gray-600 mb-1">
                     {qualifierLabels.start}
                   </label>
-                  <Input
-                    type="date"
-                    value={item.startDate || ''}
-                    onChange={(e) => updateDate(item.id, 'startDate', e.target.value)}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      type="date"
+                      value={item.startDate || ''}
+                      onChange={(e) => updateDate(item.id, 'startDate', e.target.value)}
+                      className="flex-1"
+                    />
+                    <select
+                      value={item.startDatePrecision ?? 11}
+                      onChange={(e) =>
+                        updatePrecision(item.id, 'startDatePrecision', Number(e.target.value))
+                      }
+                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900"
+                    >
+                      <option value={11}>Day</option>
+                      <option value={10}>Month</option>
+                      <option value={9}>Year</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">{qualifierLabels.end}</label>
-                  <Input
-                    type="date"
-                    value={item.endDate || ''}
-                    onChange={(e) => updateDate(item.id, 'endDate', e.target.value)}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      type="date"
+                      value={item.endDate || ''}
+                      onChange={(e) => updateDate(item.id, 'endDate', e.target.value)}
+                      className="flex-1"
+                    />
+                    <select
+                      value={item.endDatePrecision ?? 11}
+                      onChange={(e) =>
+                        updatePrecision(item.id, 'endDatePrecision', Number(e.target.value))
+                      }
+                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900"
+                    >
+                      <option value={11}>Day</option>
+                      <option value={10}>Month</option>
+                      <option value={9}>Year</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             )}

@@ -62,7 +62,7 @@ export default function CreatePage() {
               datavalue: {
                 value: {
                   time: `+${year}-${month}-${day}T00:00:00Z`,
-                  precision: 11,
+                  precision: position.startDatePrecision ?? 11,
                 },
               },
             },
@@ -77,7 +77,7 @@ export default function CreatePage() {
               datavalue: {
                 value: {
                   time: `+${year}-${month}-${day}T00:00:00Z`,
-                  precision: 11,
+                  precision: position.endDatePrecision ?? 11,
                 },
               },
             },
