@@ -602,26 +602,26 @@ class TestPoliticianQueryBase:
         assert len(result) == 0
 
 
-class TestPoliticianFilterByLabelSearch:
-    """Test cases for Politician.filter_by_label_search method."""
+class TestPoliticianSearchByLabel:
+    """Test cases for Politician.search_by_label method."""
 
-    def test_filter_by_label_search_finds_matching_politicians(
+    def test_search_by_label_finds_matching_politicians(
         self, db_session, sample_politician
     ):
         """Test that label search filter finds politicians with matching labels."""
         query = Politician.query_base()
-        query = Politician.filter_by_label_search(query, "John")
+        query = Politician.search_by_label(query, "John")
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 1
         assert result[0].id == sample_politician.id
 
-    def test_filter_by_label_search_excludes_non_matching(
+    def test_search_by_label_excludes_non_matching(
         self, db_session, sample_politician
     ):
         """Test that label search filter excludes non-matching politicians."""
         query = Politician.query_base()
-        query = Politician.filter_by_label_search(query, "Barack Obama")
+        query = Politician.search_by_label(query, "Barack Obama")
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 0

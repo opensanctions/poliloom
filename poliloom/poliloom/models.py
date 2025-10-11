@@ -641,7 +641,7 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         )
 
     @classmethod
-    def filter_by_label_search(cls, query, search_text: str):
+    def search_by_label(cls, query, search_text: str):
         """
         Apply label search filter to a politician query using fuzzy text matching.
 
