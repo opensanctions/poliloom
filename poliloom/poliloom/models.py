@@ -262,13 +262,11 @@ class WikidataEntityMixin:
             .limit(limit)
         )
 
-        # Add eager loading if the model has wikidata_entity relationship
-        if hasattr(cls, "wikidata_entity"):
-            query = query.options(
-                selectinload(cls.wikidata_entity)
-                .selectinload(WikidataEntity.parent_relations)
-                .selectinload(WikidataRelation.parent_entity)
-            )
+        query = query.options(
+            selectinload(cls.wikidata_entity)
+            .selectinload(WikidataEntity.parent_relations)
+            .selectinload(WikidataRelation.parent_entity)
+        )
 
         return query.all()
 
@@ -631,13 +629,13 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
     @classmethod
     def query_base(cls):
         """
-        Build base query for politician IDs, filtering out soft-deleted entities.
+        Build base query for politicians, filtering out soft-deleted entities.
 
         Returns:
-            SQLAlchemy select statement for politician IDs
+            SQLAlchemy select statement for Politician entities
         """
         return (
-            select(cls.id.distinct())
+            select(cls)
             .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
             .where(WikidataEntity.deleted_at.is_(None))
         )
@@ -645,14 +643,17 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
     @classmethod
     def filter_by_label_search(cls, query, search_text: str):
         """
-        Apply label search filter to a politician ID query.
+        Apply label search filter to a politician query using fuzzy text matching.
+
+        Adds a CTE for max similarity calculation, joins it to the query,
+        and orders results by similarity score (highest first).
 
         Args:
-            query: Existing select statement for politician IDs
+            query: Existing select statement for Politician entities
             search_text: Text to search for using fuzzy matching
 
         Returns:
-            Modified select statement with label search filter applied
+            Modified query with CTE joined and ordered by similarity
         """
         # CTE: Find max similarity for each politician entity
         # Only include entities with similarity above threshold (0.3 is pg_trgm default)
@@ -664,39 +665,42 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
                 ),
             )
             .group_by(WikidataEntityLabel.entity_id)
-            .having(func.max(func.similarity(WikidataEntityLabel.label, search_text)) > 0.3)
+            .having(
+                func.max(func.similarity(WikidataEntityLabel.label, search_text)) > 0.3
+            )
             .cte("max_similarity")
         )
 
-        # Subquery: politician IDs that match the search
-        search_politician_ids = (
-            select(cls.id)
-            .join(max_similarity, cls.wikidata_id == max_similarity.c.entity_id)
+        # Join the CTE to filter politicians by search match and order by similarity
+        query = (
+            query.join(max_similarity, cls.wikidata_id == max_similarity.c.entity_id)
+            .order_by(max_similarity.c.max_sim.desc())
         )
 
-        return query.where(cls.id.in_(search_politician_ids))
+        return query
 
     @classmethod
     def filter_by_unevaluated_properties(cls, query, languages: List[str] = None):
         """
-        Apply unevaluated properties filter to a politician ID query.
+        Apply unevaluated properties filter to a politician query.
 
         Filters for politicians with properties that have no statement_id (unevaluated).
         Optionally filters by language via archived pages.
 
         Args:
-            query: Existing select statement for politician IDs
+            query: Existing select statement for Politician entities
             languages: Optional list of language QIDs to filter by
 
         Returns:
             Modified select statement with unevaluated filter applied
         """
-        # Subquery for politicians with unevaluated properties
-        unevaluated_query = (
-            select(cls.id.distinct())
-            .join(Property, cls.id == Property.politician_id)
+        # Build existence subquery for unevaluated properties
+        unevaluated_exists = exists(
+            select(1)
+            .select_from(Property)
             .where(
                 and_(
+                    Property.politician_id == cls.id,
                     Property.statement_id.is_(None),
                     Property.deleted_at.is_(None),
                 )
@@ -705,10 +709,10 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
 
         # Apply language filtering via archived pages if specified
         if languages:
-            unevaluated_query = (
-                unevaluated_query.join(
-                    ArchivedPage, Property.archived_page_id == ArchivedPage.id
-                )
+            unevaluated_exists = exists(
+                select(1)
+                .select_from(Property)
+                .join(ArchivedPage, Property.archived_page_id == ArchivedPage.id)
                 .join(
                     Language,
                     or_(
@@ -722,30 +726,40 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
                         ),
                     ),
                 )
-                .where(Language.wikidata_id.in_(languages))
+                .where(
+                    and_(
+                        Property.politician_id == cls.id,
+                        Property.statement_id.is_(None),
+                        Property.deleted_at.is_(None),
+                        Language.wikidata_id.in_(languages),
+                    )
+                )
             )
 
-        return query.where(cls.id.in_(unevaluated_query))
+        return query.where(unevaluated_exists)
 
     @classmethod
     def filter_by_countries(cls, query, countries: List[str]):
         """
-        Apply country citizenship filter to a politician ID query.
+        Apply country citizenship filter to a politician query.
 
         Args:
-            query: Existing select statement for politician IDs
+            query: Existing select statement for Politician entities
             countries: List of country QIDs to filter by
 
         Returns:
             Modified select statement with country filter applied
         """
-        citizenship_subquery = select(Property.politician_id).where(
-            and_(
-                Property.type == PropertyType.CITIZENSHIP,
-                Property.entity_id.in_(countries),
+        citizenship_exists = exists(
+            select(1).where(
+                and_(
+                    Property.politician_id == cls.id,
+                    Property.type == PropertyType.CITIZENSHIP,
+                    Property.entity_id.in_(countries),
+                )
             )
         )
-        return query.where(cls.id.in_(citizenship_subquery))
+        return query.where(citizenship_exists)
 
     @classmethod
     def query_for_enrichment(

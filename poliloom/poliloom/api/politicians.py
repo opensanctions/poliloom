@@ -70,18 +70,16 @@ async def get_politicians(
     unevaluated properties falls below MIN_UNEVALUATED_POLITICIANS (default: 10).
     """
     with Session(get_engine()) as db:
-        # Build composable politician ID query
-        politician_ids_query = Politician.query_base()
+        # Build composable politician query
+        query = Politician.query_base()
 
         # Apply filters
         if search:
-            politician_ids_query = Politician.filter_by_label_search(
-                politician_ids_query, search
-            )
+            query = Politician.filter_by_label_search(query, search)
 
         if has_unevaluated is True:
-            politician_ids_query = Politician.filter_by_unevaluated_properties(
-                politician_ids_query, languages=languages
+            query = Politician.filter_by_unevaluated_properties(
+                query, languages=languages
             )
         elif has_unevaluated is False:
             # Explicitly filter for politicians WITH evaluated properties
@@ -90,15 +88,7 @@ async def get_politicians(
             pass
 
         if countries:
-            politician_ids_query = Politician.filter_by_countries(
-                politician_ids_query, countries
-            )
-
-        # Now build the main query to fetch politicians with their data
-        # Add window function to get total count without separate query
-        query = select(Politician, func.count().over().label("total_count")).where(
-            Politician.id.in_(politician_ids_query)
-        )
+            query = Politician.filter_by_countries(query, countries)
 
         # Load related data with selectinload
         if languages:
@@ -149,36 +139,23 @@ async def get_politicians(
                 selectinload(Politician.wikipedia_links),
             )
 
-        # Deterministic ordering is great if we have low candidate pool of
-        # enriched politicians, however, it does not allow us to skip
-        # politicians, as we will always be served the same one.
+        # Apply random ordering if not searching (search already orders by similarity)
+        if not search:
+            query = query.order_by(func.random())
 
-        # Set random seed based on user_id for consistent random ordering per user
-        # Using modulo to keep seed value within PostgreSQL's valid range (0.0 to 1.0)
-        # seed_value = (current_user.user_id % 1000000) / 1000000.0
-        # db.execute(text(f"SELECT setseed({seed_value})"))
-
-        # Apply random ordering, offset, and limit
-        query = query.order_by(func.random()).offset(offset).limit(limit)
+        # Apply offset and limit
+        query = query.offset(offset).limit(limit)
 
         # Execute query
-        rows = db.execute(query).all()
+        politicians = db.execute(query).scalars().all()
 
-        # Extract politicians and total count
-        if rows:
-            politicians = [row[0] for row in rows]
-            total_count = rows[0][1]
-        else:
-            politicians = []
-            total_count = 0
-
-        # Trigger background enrichment if below threshold (only when filtering for unevaluated)
-        min_unevaluated = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
-        if has_unevaluated is True and total_count < min_unevaluated:
+        # Trigger background enrichment when filtering for unevaluated
+        if has_unevaluated is True:
             global _enrichment_future
 
             # Only start a new enrichment job if none is currently running
             if _enrichment_future is None or _enrichment_future.done():
+                min_unevaluated = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
                 # Run enrichment in separate thread to avoid blocking API workers
                 loop = asyncio.get_running_loop()
                 _enrichment_future = loop.run_in_executor(

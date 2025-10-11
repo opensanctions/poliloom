@@ -586,7 +586,7 @@ class TestPoliticianQueryBase:
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 1
-        assert result[0] == sample_politician.id
+        assert result[0].id == sample_politician.id
 
     def test_query_base_excludes_soft_deleted_politicians(
         self, db_session, sample_politician
@@ -614,7 +614,7 @@ class TestPoliticianFilterByLabelSearch:
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 1
-        assert result[0] == sample_politician.id
+        assert result[0].id == sample_politician.id
 
     def test_filter_by_label_search_excludes_non_matching(
         self, db_session, sample_politician
@@ -652,7 +652,7 @@ class TestPoliticianFilterByUnevaluated:
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 1
-        assert result[0] == sample_politician.id
+        assert result[0].id == sample_politician.id
 
     def test_filter_excludes_politicians_with_only_evaluated_properties(
         self, db_session, sample_politician, sample_archived_page
@@ -743,7 +743,7 @@ class TestPoliticianFilterByUnevaluated:
 
         # Should find politician because they have English property
         assert len(result) == 1
-        assert result[0] == sample_politician.id
+        assert result[0].id == sample_politician.id
 
 
 class TestPoliticianFilterByCountries:
@@ -770,7 +770,7 @@ class TestPoliticianFilterByCountries:
 
         # Should find politician with US citizenship
         assert len(result) == 1
-        assert result[0] == sample_politician.id
+        assert result[0].id == sample_politician.id
 
     def test_filter_by_countries_excludes_non_matching(
         self, db_session, sample_politician
