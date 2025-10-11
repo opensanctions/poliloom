@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { Spinner } from './Spinner'
 
 export interface MultiSelectOption {
   value: string
@@ -178,9 +179,7 @@ export function MultiSelect({
           </div>
 
           <div className="flex items-center">
-            {loading && (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600 mr-2"></div>
-            )}
+            {loading && <Spinner />}
             <button
               type="button"
               onClick={() => {

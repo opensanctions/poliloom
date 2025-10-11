@@ -178,11 +178,7 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
         {/* Fixed button at bottom */}
         <div className="p-6 border-t border-gray-200">
           <div className="flex justify-end">
-            <Button
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="px-6 py-3"
-            >
+            <Button onClick={handleSubmit} disabled={isSubmitting} className="px-6 py-3">
               {isSubmitting ? 'Submitting...' : 'Submit Evaluations & Next'}
             </Button>
           </div>

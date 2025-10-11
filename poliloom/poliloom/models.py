@@ -228,8 +228,8 @@ class WikidataEntityMixin:
     def search_by_label(cls, query, search_text: str):
         """Apply label search filter to an entity query using fuzzy text matching.
 
-        Adds a CTE for max similarity calculation, joins it to the query,
-        and orders results by similarity score (highest first).
+        Uses pg_trgm GIN index with % operator for filtering and <-> distance operator
+        for ordering. This is much faster than similarity() function which cannot use indexes.
 
         Args:
             query: Existing select statement for entities
@@ -238,26 +238,28 @@ class WikidataEntityMixin:
         Returns:
             Modified query with CTE joined and ordered by similarity
         """
-        # CTE: Find max similarity for each entity
-        # Only include entities with similarity above threshold (0.3 is pg_trgm default)
-        max_similarity = (
+        # CTE: Find minimum distance (maximum similarity) for each entity
+        # Use % operator (can use GIN index) and <-> distance operator (can use index for ordering)
+        min_distance = (
             select(
                 WikidataEntityLabel.entity_id,
-                func.max(func.similarity(WikidataEntityLabel.label, search_text)).label(
-                    "max_sim"
+                func.min(WikidataEntityLabel.label.op("<->")(search_text)).label(
+                    "min_dist"
                 ),
             )
+            # Join to entity type table first to filter labels by type
+            .join(cls, WikidataEntityLabel.entity_id == cls.wikidata_id)
+            # Use %% operator to filter - %% is escaped for pg8000 (becomes % in SQL)
+            # This CAN use the GIN index for fast filtering
+            .where(WikidataEntityLabel.label.op("%%")(search_text))
             .group_by(WikidataEntityLabel.entity_id)
-            .having(
-                func.max(func.similarity(WikidataEntityLabel.label, search_text)) > 0.3
-            )
-            .cte("max_similarity")
+            .cte("min_distance")
         )
 
-        # Join the CTE to filter entities by search match and order by similarity
+        # Join the CTE to filter entities by search match and order by distance (ascending = most similar first)
         query = query.join(
-            max_similarity, cls.wikidata_id == max_similarity.c.entity_id
-        ).order_by(max_similarity.c.max_sim.desc())
+            min_distance, cls.wikidata_id == min_distance.c.entity_id
+        ).order_by(min_distance.c.min_dist.asc())
 
         return query
 
@@ -1567,6 +1569,7 @@ class WikidataRelation(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         String,
         ForeignKey("wikidata_entities.wikidata_id"),
         nullable=False,
+        index=True,
     )
     relation_type = Column(
         SQLEnum(RelationType), nullable=False, default=RelationType.SUBCLASS_OF

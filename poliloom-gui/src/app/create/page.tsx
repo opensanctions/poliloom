@@ -15,17 +15,9 @@ export default function CreatePage() {
   const [deathDate, setDeathDate] = useState('')
   const [deathDatePrecision, setDeathDatePrecision] = useState<number>(11)
 
-  const [positions, setPositions] = useState<EntityItem[]>([
-    { id: crypto.randomUUID(), name: '', wikidataId: '' },
-  ])
-
-  const [birthplaces, setBirthplaces] = useState<EntityItem[]>([
-    { id: crypto.randomUUID(), name: '', wikidataId: '' },
-  ])
-
-  const [citizenships, setCitizenships] = useState<EntityItem[]>([
-    { id: crypto.randomUUID(), name: '', wikidataId: '' },
-  ])
+  const [positions, setPositions] = useState<EntityItem[]>([])
+  const [birthplaces, setBirthplaces] = useState<EntityItem[]>([])
+  const [citizenships, setCitizenships] = useState<EntityItem[]>([])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -239,6 +231,7 @@ export default function CreatePage() {
                   onItemsChange={setPositions}
                   showQualifiers={true}
                   qualifierLabels={{ start: 'Start Date', end: 'End Date' }}
+                  searchEndpoint="/api/positions"
                 />
 
                 {/* Birthplaces */}
@@ -246,6 +239,7 @@ export default function CreatePage() {
                   label="Birthplaces"
                   items={birthplaces}
                   onItemsChange={setBirthplaces}
+                  searchEndpoint="/api/locations"
                 />
 
                 {/* Citizenships */}
@@ -253,16 +247,13 @@ export default function CreatePage() {
                   label="Citizenships"
                   items={citizenships}
                   onItemsChange={setCitizenships}
+                  searchEndpoint="/api/countries"
                 />
               </div>
 
               {/* Footer Actions */}
               <div className="px-6 py-4 border-t border-gray-200 flex justify-between">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => window.history.back()}
-                >
+                <Button type="button" variant="secondary" onClick={() => window.history.back()}>
                   Cancel
                 </Button>
                 <Button type="submit" className="px-6 py-3">

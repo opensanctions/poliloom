@@ -10,6 +10,7 @@ interface BaseButtonProps {
   variant?: ButtonVariant
   active?: boolean
   fullWidth?: boolean
+  disabled?: boolean
   children: React.ReactNode
 }
 
