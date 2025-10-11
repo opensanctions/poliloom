@@ -1,378 +1,47 @@
-"""Database models for the PoliLoom project."""
+"""Politician domain models: Politician, Property, WikipediaLink, ArchivedPage."""
 
 import hashlib
 from datetime import datetime, timezone
-from enum import Enum
-from typing import List, Set
+from typing import List
+
+from dicttoxml import dicttoxml
 from sqlalchemy import (
+    CheckConstraint,
     Column,
-    String,
     DateTime,
     ForeignKey,
-    Integer,
-    Boolean,
     Index,
-    CheckConstraint,
-    text,
-    func,
-    Enum as SQLEnum,
-    select,
+    Integer,
+    String,
     and_,
-    or_,
-    exists,
     case,
+    exists,
+    func,
     literal,
-    Text,
+    or_,
+    select,
+    text,
+    Enum as SQLEnum,
 )
-from sqlalchemy.orm import (
-    Session,
-    relationship,
-    declarative_base,
-    declared_attr,
-)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.engine import Row
-from sqlalchemy.dialects.postgresql import UUID, JSONB, insert
-from sqlalchemy import event
-from collections import defaultdict
 from sqlalchemy.ext.hybrid import hybrid_property
-from pgvector.sqlalchemy import Vector
-from dicttoxml import dicttoxml
-from .wikidata_date import WikidataDate
-
-Base = declarative_base()
-
-
-class PropertyType(str, Enum):
-    """Enumeration of allowed property types for politician properties."""
-
-    BIRTH_DATE = "P569"
-    DEATH_DATE = "P570"
-    BIRTHPLACE = "P19"
-    POSITION = "P39"
-    CITIZENSHIP = "P27"
-
-
-class PreferenceType(str, Enum):
-    """Enumeration of user preference types."""
-
-    LANGUAGE = "language"
-    COUNTRY = "country"
-
-
-class RelationType(str, Enum):
-    """Enumeration of Wikidata relation types."""
-
-    SUBCLASS_OF = "P279"  # Subclass of relation
-    INSTANCE_OF = "P31"  # Instance of relation
-    PART_OF = "P361"  # Part of relation
-    LOCATED_IN = "P131"  # Located in administrative territorial entity
-    COUNTRY = "P17"  # Country relation
-    APPLIES_TO_JURISDICTION = "P1001"  # Applies to jurisdiction relation
-    OFFICIAL_LANGUAGE = "P37"  # Official language relation
-
-
-class TimestampMixin:
-    """Mixin for adding timestamp fields."""
-
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(
-        DateTime,
-        server_default=func.now(),
-        nullable=False,
-    )
-
-
-class SoftDeleteMixin:
-    """Mixin for adding soft delete functionality."""
-
-    deleted_at = Column(DateTime, nullable=True, index=True)
-
-    def soft_delete(self):
-        """Mark the entity as deleted by setting the deleted_at timestamp."""
-        self.deleted_at = datetime.now(timezone.utc)
-
-
-class UpsertMixin:
-    """Mixin for adding batch upsert functionality."""
-
-    # Override this in subclasses to specify which columns to update on conflict
-    _upsert_update_columns = []
-    # Override this in subclasses to specify the conflict columns (defaults to primary key)
-    _upsert_conflict_columns = None
-    # Override this in subclasses to specify the index WHERE clause for partial indexes
-    _upsert_index_where = None
-
-    @classmethod
-    def upsert_batch(cls, session: Session, data: List[dict], returning_columns=None):
-        """
-        Upsert a batch of records.
-
-        Args:
-            session: Database session
-            data: List of dicts with column data
-            returning_columns: Optional list of columns to return from the upsert
-
-        Returns:
-            List of inserted/updated records if returning_columns specified, None otherwise
-        """
-        if not data:
-            return [] if returning_columns else None
-
-        stmt = insert(cls).values(data)
-
-        # Use specified conflict columns or default to primary key
-        conflict_columns = cls._upsert_conflict_columns
-        if conflict_columns is None:
-            conflict_columns = [col.name for col in cls.__table__.primary_key.columns]
-
-        # Build conflict handling kwargs
-        conflict_kwargs = {"index_elements": conflict_columns}
-        if cls._upsert_index_where is not None:
-            conflict_kwargs["index_where"] = cls._upsert_index_where
-
-        # Update specified columns on conflict
-        if cls._upsert_update_columns:
-            update_dict = {
-                col: getattr(stmt.excluded, col) for col in cls._upsert_update_columns
-            }
-            stmt = stmt.on_conflict_do_update(set_=update_dict, **conflict_kwargs)
-        else:
-            stmt = stmt.on_conflict_do_nothing(**conflict_kwargs)
-
-        # Add RETURNING clause if requested
-        if returning_columns:
-            stmt = stmt.returning(*returning_columns)
-            result = session.execute(stmt)
-            return result.fetchall()
-        else:
-            session.execute(stmt)
-            return None
-
-
-class WikidataEntityMixin:
-    """Mixin for entities that have a wikidata_id and wikidata_entity relationship."""
-
-    @declared_attr
-    def wikidata_id(cls):
-        return Column(
-            String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
-        )
-
-    @declared_attr
-    def wikidata_entity(cls):
-        return relationship("WikidataEntity", lazy="joined")
-
-    @property
-    def name(self) -> str:
-        """Get the name from the associated WikidataEntity."""
-        return self.wikidata_entity.name
-
-    @property
-    def description(self) -> str:
-        """Build rich description from WikidataRelations dynamically.
-
-        Returns:
-            Rich description string built from relations
-        """
-
-        if not hasattr(self, "wikidata_entity") or not self.wikidata_entity:
-            return ""
-
-        # Use preloaded relations instead of querying database
-        relations = self.wikidata_entity.parent_relations
-
-        # Group relations by type using defaultdict
-        relations_by_type = defaultdict(list)
-        for relation in relations:
-            if relation.parent_entity and relation.parent_entity.name:
-                relations_by_type[relation.relation_type].append(
-                    relation.parent_entity.name
-                )
-
-        description_parts = []
-
-        # Add Wikidata description if available
-        if self.wikidata_entity.description:
-            description_parts.append(self.wikidata_entity.description)
-
-        # Build description based on available relations
-        if relations_by_type[RelationType.INSTANCE_OF]:
-            instances = relations_by_type[RelationType.INSTANCE_OF]
-            description_parts.append(", ".join(instances))
-
-        if relations_by_type[RelationType.SUBCLASS_OF]:
-            subclasses = relations_by_type[RelationType.SUBCLASS_OF]
-            description_parts.append(f"subclass of {', '.join(subclasses)}")
-
-        if relations_by_type[RelationType.PART_OF]:
-            parts = relations_by_type[RelationType.PART_OF]
-            description_parts.append(f"part of {', '.join(parts)}")
-
-        if relations_by_type[RelationType.APPLIES_TO_JURISDICTION]:
-            jurisdictions = relations_by_type[RelationType.APPLIES_TO_JURISDICTION]
-            description_parts.append(
-                f"applies to jurisdiction {', '.join(jurisdictions)}"
-            )
-
-        if relations_by_type[RelationType.LOCATED_IN]:
-            locations = relations_by_type[RelationType.LOCATED_IN]
-            description_parts.append(f"located in {', '.join(locations)}")
-
-        if relations_by_type[RelationType.COUNTRY]:
-            countries = relations_by_type[RelationType.COUNTRY]
-            description_parts.append(f"country {', '.join(countries)}")
-
-        return ", ".join(description_parts) if description_parts else ""
-
-    @classmethod
-    def search_by_label(cls, query, search_text: str, session: Session = None):
-        """Apply label search filter to an entity query using fuzzy text matching.
-
-        Uses pg_trgm GIN index with % operator for filtering and <-> distance operator
-        for ordering. Dynamically adjusts similarity threshold based on search length.
-
-        Args:
-            query: Existing select statement for entities
-            search_text: Text to search for using fuzzy matching
-            session: Database session for setting similarity threshold
-
-        Returns:
-            Modified query with CTE joined and ordered by similarity
-        """
-        # Set pg_trgm similarity threshold based on search length
-        # Shorter terms need stricter thresholds to avoid scanning too many labels
-        if session:
-            search_len = len(search_text)
-            if search_len <= 3:
-                threshold = 0.7
-            elif search_len <= 5:
-                threshold = 0.5
-            else:
-                threshold = 0.3
-            session.execute(text(f"SELECT set_limit({threshold})"))
-
-        # CTE: Find minimum distance (maximum similarity) for each entity
-        # Filters labels first, then joins to entities afterward for better performance
-        min_distance = (
-            select(
-                WikidataEntityLabel.entity_id,
-                func.min(WikidataEntityLabel.label.op("<->")(search_text)).label(
-                    "min_dist"
-                ),
-            )
-            # Use %% operator to filter - %% is escaped for pg8000 (becomes % in SQL)
-            # This uses the GIN index for fast filtering
-            .where(WikidataEntityLabel.label.op("%%")(search_text))
-            .group_by(WikidataEntityLabel.entity_id)
-            .cte("min_distance")
-        )
-
-        # Join the CTE to filter entities by search match and order by distance (ascending = most similar first)
-        query = query.join(
-            min_distance, cls.wikidata_id == min_distance.c.entity_id
-        ).order_by(min_distance.c.min_dist.asc())
-
-        return query
-
-
-class EntityCreationMixin:
-    """Mixin for entities that can be created with their associated WikidataEntity."""
-
-    @classmethod
-    def create_with_entity(
-        cls,
-        session,
-        wikidata_id: str,
-        name: str,
-        labels: List[str] = None,
-        description: str = None,
-    ):
-        """Create an entity with its associated WikidataEntity.
-
-        Args:
-            session: Database session
-            wikidata_id: Wikidata ID for the entity
-            name: Name of the entity
-            labels: Optional list of labels/aliases for the entity
-            description: Optional description for the entity
-
-        Returns:
-            The created entity instance (other properties can be set after creation)
-        """
-        # Create WikidataEntity first (without labels - they're in separate table now)
-        wikidata_entity = WikidataEntity(
-            wikidata_id=wikidata_id,
-            name=name,
-            description=description,
-        )
-        session.add(wikidata_entity)
-
-        # Create WikidataEntityLabel records if labels provided
-        if labels:
-            for label in labels:
-                label_record = WikidataEntityLabel(
-                    entity_id=wikidata_id,
-                    label=label,
-                )
-                session.add(label_record)
-
-        # Create the entity instance
-        entity = cls(wikidata_id=wikidata_id)
-        session.add(entity)
-
-        return entity
-
-
-class LanguageCodeMixin:
-    """Mixin for adding language code fields."""
-
-    iso1_code = Column(String, index=True)  # ISO 639-1 language code (2 characters)
-    iso3_code = Column(String, index=True)  # ISO 639-3 language code (3 characters)
-
-
-class Evaluation(Base, TimestampMixin):
-    """Evaluation entity for tracking user evaluations of extracted properties."""
-
-    __tablename__ = "evaluations"
-
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
-    user_id = Column(String, nullable=False)
-    is_confirmed = Column(Boolean, nullable=False)
-    property_id = Column(
-        UUID(as_uuid=True), ForeignKey("properties.id"), nullable=False
-    )
-
-    # Relationships
-    property = relationship("Property", back_populates="evaluations")
-
-
-class Preference(Base, TimestampMixin):
-    """User preference entity for storing user language and country preferences."""
-
-    __tablename__ = "preferences"
-    __table_args__ = (
-        Index(
-            "uq_preferences_user_type_entity",
-            "user_id",
-            "preference_type",
-            "entity_id",
-            unique=True,
-        ),
-    )
-
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
-    user_id = Column(String, nullable=False, index=True)
-    preference_type = Column(SQLEnum(PreferenceType), nullable=False, index=True)
-    entity_id = Column(
-        String, ForeignKey("wikidata_entities.wikidata_id"), nullable=False
-    )
-
-    # Relationships
-    entity = relationship("WikidataEntity")
+from sqlalchemy.orm import Session, relationship
+from sqlalchemy import event
+
+from ..wikidata_date import WikidataDate
+from .base import (
+    Base,
+    EntityCreationMixin,
+    LanguageCodeMixin,
+    PropertyType,
+    SoftDeleteMixin,
+    TimestampMixin,
+    UpsertMixin,
+    WikidataEntityMixin,
+)
+from .entities import Language
+from .wikidata import WikidataEntity
 
 
 class Politician(
@@ -425,6 +94,7 @@ class Politician(
         Returns:
             List of Row objects containing (url, iso1_code, iso3_code), limited to top 3 by popularity
         """
+        from .wikidata import WikidataRelation
 
         # CTE 1: politician_citizenships - get all citizenship country IDs
         politician_citizenships = (
@@ -608,12 +278,30 @@ class Politician(
         description: str = None,
     ):
         """Create a Politician with its associated WikidataEntity."""
-        # Call parent mixin method
-        politician = super().create_with_entity(
-            session, wikidata_id, name, labels, description
+        # Use EntityCreationMixin pattern but override for Politician
+        from .wikidata import WikidataEntity, WikidataEntityLabel
+
+        # Create WikidataEntity first
+        wikidata_entity = WikidataEntity(
+            wikidata_id=wikidata_id,
+            name=name,
+            description=description,
         )
-        # Set the name directly on the politician (since it doesn't inherit from WikidataEntityMixin)
-        politician.name = name
+        session.add(wikidata_entity)
+
+        # Create WikidataEntityLabel records if labels provided
+        if labels:
+            for label in labels:
+                label_record = WikidataEntityLabel(
+                    entity_id=wikidata_id,
+                    label=label,
+                )
+                session.add(label_record)
+
+        # Create the politician instance
+        politician = cls(wikidata_id=wikidata_id, name=name)
+        session.add(politician)
+
         return politician
 
     @staticmethod
@@ -750,6 +438,8 @@ class Politician(
         Returns:
             SQLAlchemy select statement for politician IDs
         """
+        from .wikidata import WikidataRelation
+
         # Base query: politicians with Wikipedia links and non-soft-deleted WikidataEntity
         politician_ids_query = (
             select(cls.id.distinct())
@@ -1181,420 +871,3 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
                     return False
 
         return True  # New timeframe or more precise data
-
-
-class Country(
-    Base,
-    TimestampMixin,
-    UpsertMixin,
-    WikidataEntityMixin,
-    EntityCreationMixin,
-):
-    """Country entity for storing country information."""
-
-    __tablename__ = "countries"
-
-    # UpsertMixin configuration
-    _upsert_update_columns = ["iso_code"]
-
-    iso_code = Column(String, index=True)  # ISO 3166-1 alpha-2 code
-
-    # Mapping configuration for two-stage extraction
-    MAPPING_ENTITY_NAME = "country"
-
-
-class Language(
-    Base,
-    TimestampMixin,
-    LanguageCodeMixin,
-    UpsertMixin,
-    WikidataEntityMixin,
-    EntityCreationMixin,
-):
-    """Language entity for storing language information."""
-
-    __tablename__ = "languages"
-    __table_args__ = (
-        Index("idx_languages_iso1_code", "iso1_code"),
-        Index("idx_languages_iso3_code", "iso3_code"),
-    )
-
-    # UpsertMixin configuration
-    _upsert_update_columns = ["iso1_code", "iso3_code"]
-
-
-class Location(
-    Base,
-    TimestampMixin,
-    UpsertMixin,
-    WikidataEntityMixin,
-    EntityCreationMixin,
-):
-    """Location entity for geographic locations."""
-
-    __tablename__ = "locations"
-
-    # Mapping configuration for two-stage extraction
-    MAPPING_ENTITY_NAME = "location"
-
-
-class Position(
-    Base, TimestampMixin, UpsertMixin, WikidataEntityMixin, EntityCreationMixin
-):
-    """Position entity for political positions."""
-
-    __tablename__ = "positions"
-
-    embedding = Column(Vector(384), nullable=True)
-
-    # Mapping configuration for two-stage extraction
-    MAPPING_ENTITY_NAME = "position"
-
-    @classmethod
-    def search_by_embedding(cls, query, query_embedding: List[float]):
-        """Apply embedding similarity filter to a position query using vector search.
-
-        Filters positions with embeddings and orders by cosine similarity.
-
-        Args:
-            query: Existing select statement for Position entities
-            query_embedding: Pre-generated embedding vector to search for
-
-        Returns:
-            Modified query filtered and ordered by embedding similarity
-        """
-        query = query.filter(cls.embedding.isnot(None)).order_by(
-            cls.embedding.cosine_distance(query_embedding)
-        )
-
-        return query
-
-
-class WikidataDump(Base, TimestampMixin):
-    """WikidataDump entity for tracking dump download and processing stages."""
-
-    __tablename__ = "wikidata_dumps"
-
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
-    url = Column(String, nullable=False)  # Full URL to the dump file
-    last_modified = Column(
-        DateTime, nullable=False
-    )  # From HEAD request Last-Modified header
-
-    # Processing timestamps
-    downloaded_at = Column(DateTime, nullable=True)  # When download completed
-    extracted_at = Column(DateTime, nullable=True)  # When extraction completed
-    imported_hierarchy_at = Column(
-        DateTime, nullable=True
-    )  # When hierarchy import completed
-    imported_entities_at = Column(
-        DateTime, nullable=True
-    )  # When entities import completed
-    imported_politicians_at = Column(
-        DateTime, nullable=True
-    )  # When politicians import completed
-
-
-class WikidataEntityLabel(Base, TimestampMixin, UpsertMixin):
-    """Normalized label storage for wikidata entities."""
-
-    __tablename__ = "wikidata_entity_labels"
-    __table_args__ = (
-        Index(
-            "uq_wikidata_entity_labels_entity_label",
-            "entity_id",
-            "label",
-            unique=True,
-        ),
-        Index(
-            "idx_wikidata_entity_labels_label_gin",
-            "label",
-            postgresql_using="gin",
-            postgresql_ops={"label": "gin_trgm_ops"},
-        ),
-        Index("idx_wikidata_entity_labels_entity_id", "entity_id"),
-    )
-
-    # UpsertMixin configuration
-    _upsert_conflict_columns = ["entity_id", "label"]
-    _upsert_update_columns = []  # No updates needed - labels are immutable
-
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
-    entity_id = Column(
-        String, ForeignKey("wikidata_entities.wikidata_id"), nullable=False
-    )
-    label = Column(Text, nullable=False)
-
-    # Relationships
-    entity = relationship("WikidataEntity", back_populates="labels_collection")
-
-
-class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
-    """Wikidata entity for hierarchy storage."""
-
-    __tablename__ = "wikidata_entities"
-    __table_args__ = (Index("idx_wikidata_entities_updated_at", "updated_at"),)
-
-    # UpsertMixin configuration
-    _upsert_update_columns = ["name", "description"]
-
-    wikidata_id = Column(String, primary_key=True)  # Wikidata QID as primary key
-    name = Column(
-        String, nullable=True
-    )  # Entity name from Wikidata labels (can be None)
-    description = Column(
-        String, nullable=True
-    )  # Entity description from Wikidata descriptions (can be None)
-
-    # Relationships
-    labels_collection = relationship(
-        "WikidataEntityLabel",
-        back_populates="entity",
-        cascade="all, delete-orphan",
-    )
-    parent_relations = relationship(
-        "WikidataRelation",
-        foreign_keys="WikidataRelation.child_entity_id",
-        back_populates="child_entity",
-        cascade="all, delete-orphan",
-    )
-    child_relations = relationship(
-        "WikidataRelation",
-        foreign_keys="WikidataRelation.parent_entity_id",
-        back_populates="parent_entity",
-        cascade="all, delete-orphan",
-    )
-    politician = relationship("Politician", back_populates="wikidata_entity")
-    location = relationship("Location", back_populates="wikidata_entity")
-    position = relationship("Position", back_populates="wikidata_entity")
-    country = relationship("Country", back_populates="wikidata_entity")
-    language = relationship("Language", back_populates="wikidata_entity")
-
-    @classmethod
-    def query_hierarchy_descendants(
-        cls,
-        session: Session,
-        root_ids: List[str],
-        ignore_ids: List[str] = None,
-        relation_type: RelationType = RelationType.SUBCLASS_OF,
-    ) -> Set[str]:
-        """
-        Query all descendants of multiple root entities from database using recursive SQL.
-        Only returns classes that have names and excludes ignored IDs and their descendants.
-
-        Args:
-            session: Database session
-            root_ids: List of root entity QIDs
-            ignore_ids: List of entity QIDs to exclude along with their descendants
-            relation_type: Type of relation to follow (defaults to SUBCLASS_OF)
-
-        Returns:
-            Set of all descendant QIDs (including the roots) that have names
-        """
-        if not root_ids:
-            return set()
-
-        ignore_ids = ignore_ids or []
-
-        # Use recursive CTEs - one for descendants, one for ignored descendants
-        sql = text(
-            """
-            WITH RECURSIVE descendants AS (
-                -- Base case: start with all root entities
-                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
-                FROM wikidata_entities 
-                WHERE wikidata_id = ANY(:root_ids)
-                UNION
-                -- Recursive case: find all children
-                SELECT sr.child_entity_id AS wikidata_id
-                FROM wikidata_relations sr
-                JOIN descendants d ON sr.parent_entity_id = d.wikidata_id
-                WHERE sr.relation_type = :relation_type
-            ),
-            ignored_descendants AS (
-                -- Base case: start with ignored IDs
-                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
-                FROM wikidata_entities 
-                WHERE wikidata_id = ANY(:ignore_ids)
-                UNION
-                -- Recursive case: find all children of ignored IDs
-                SELECT sr.child_entity_id AS wikidata_id
-                FROM wikidata_relations sr
-                JOIN ignored_descendants id ON sr.parent_entity_id = id.wikidata_id
-                WHERE sr.relation_type = :relation_type
-            )
-            SELECT DISTINCT d.wikidata_id 
-            FROM descendants d
-            JOIN wikidata_entities wc ON d.wikidata_id = wc.wikidata_id
-            WHERE wc.name IS NOT NULL
-            AND d.wikidata_id NOT IN (SELECT wikidata_id FROM ignored_descendants)
-        """
-        )
-
-        result = session.execute(
-            sql,
-            {
-                "root_ids": root_ids,
-                "ignore_ids": ignore_ids,
-                "relation_type": relation_type.name,
-            },
-        )
-        return {row[0] for row in result.fetchall()}
-
-
-class CurrentImportEntity(Base):
-    """Temporary tracking table for entities seen during current import."""
-
-    __tablename__ = "current_import_entities"
-
-    entity_id = Column(
-        String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
-    )
-
-    @classmethod
-    def cleanup_missing(
-        cls, session: Session, previous_dump_timestamp: datetime
-    ) -> dict:
-        """
-        Soft-delete entities using two-dump validation strategy.
-        Only deletes entities missing from current dump AND older than previous dump.
-        This prevents race conditions from incorrectly deleting recently added entities.
-
-        Args:
-            session: Database session
-            previous_dump_timestamp: Last modified timestamp of the previous dump.
-
-        Returns:
-            dict: Count of entities that were soft-deleted
-        """
-        # Only delete if: NOT in current dump AND older than previous dump
-        # Convert timezone-aware timestamp to naive for database comparison
-        previous_dump_naive = previous_dump_timestamp.replace(tzinfo=None)
-        deleted_result = session.execute(
-            text(
-                """
-            UPDATE wikidata_entities
-            SET deleted_at = NOW()
-            WHERE wikidata_id NOT IN (SELECT entity_id FROM current_import_entities)
-            AND updated_at <= :previous_dump_timestamp
-            AND deleted_at IS NULL
-        """
-            ),
-            {"previous_dump_timestamp": previous_dump_naive},
-        )
-
-        return {
-            "entities_marked_deleted": deleted_result.rowcount,
-        }
-
-    @classmethod
-    def clear_tracking_table(cls, session: Session) -> None:
-        """Clear the entity tracking table."""
-        session.execute(text("TRUNCATE current_import_entities"))
-
-
-class CurrentImportStatement(Base):
-    """Temporary tracking table for statements seen during current import."""
-
-    __tablename__ = "current_import_statements"
-
-    statement_id = Column(String, primary_key=True)
-
-    @classmethod
-    def cleanup_missing(
-        cls, session: Session, previous_dump_timestamp: datetime
-    ) -> dict:
-        """
-        Soft-delete statements using two-dump validation strategy.
-        Only deletes statements missing from current dump AND older than previous dump.
-        This prevents race conditions from incorrectly deleting recently added statements.
-
-        Args:
-            session: Database session
-            previous_dump_timestamp: Last modified timestamp of the previous dump.
-
-        Returns:
-            dict: Counts of statements that were soft-deleted
-        """
-        # Only delete properties if: NOT in current dump AND older than previous dump
-        # Convert timezone-aware timestamp to naive for database comparison
-        previous_dump_naive = previous_dump_timestamp.replace(tzinfo=None)
-        properties_deleted_result = session.execute(
-            text(
-                """
-            UPDATE properties
-            SET deleted_at = NOW()
-            WHERE statement_id IS NOT NULL
-            AND statement_id NOT IN (SELECT statement_id FROM current_import_statements)
-            AND updated_at <= :previous_dump_timestamp
-            AND deleted_at IS NULL
-        """
-            ),
-            {"previous_dump_timestamp": previous_dump_naive},
-        )
-
-        # Only delete relations if: NOT in current dump AND older than previous dump
-        relations_deleted_result = session.execute(
-            text(
-                """
-            UPDATE wikidata_relations
-            SET deleted_at = NOW()
-            WHERE statement_id NOT IN (SELECT statement_id FROM current_import_statements)
-            AND updated_at <= :previous_dump_timestamp
-            AND deleted_at IS NULL
-        """
-            ),
-            {"previous_dump_timestamp": previous_dump_naive},
-        )
-
-        return {
-            "properties_marked_deleted": properties_deleted_result.rowcount,
-            "relations_marked_deleted": relations_deleted_result.rowcount,
-        }
-
-    @classmethod
-    def clear_tracking_table(cls, session: Session) -> None:
-        """Clear the statement tracking table."""
-        session.execute(text("TRUNCATE current_import_statements"))
-
-
-class WikidataRelation(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
-    """Wikidata relationship between entities."""
-
-    __tablename__ = "wikidata_relations"
-    __table_args__ = (Index("idx_wikidata_relations_updated_at", "updated_at"),)
-
-    # UpsertMixin configuration
-    _upsert_update_columns = ["parent_entity_id", "child_entity_id", "relation_type"]
-
-    parent_entity_id = Column(
-        String,
-        ForeignKey("wikidata_entities.wikidata_id"),
-        nullable=False,
-    )
-    child_entity_id = Column(
-        String,
-        ForeignKey("wikidata_entities.wikidata_id"),
-        nullable=False,
-        index=True,
-    )
-    relation_type = Column(
-        SQLEnum(RelationType), nullable=False, default=RelationType.SUBCLASS_OF
-    )
-    statement_id = Column(String, primary_key=True)
-
-    # Relationships
-    parent_entity = relationship(
-        "WikidataEntity",
-        foreign_keys=[parent_entity_id],
-        back_populates="child_relations",
-    )
-    child_entity = relationship(
-        "WikidataEntity",
-        foreign_keys=[child_entity_id],
-        back_populates="parent_relations",
-    )
