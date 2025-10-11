@@ -248,17 +248,35 @@ async def _map_single_item(
         config: Extraction configuration
     """
     try:
-        # Find similar entities using model's search strategy
+        # Build base query for the entity type
+        base_query = (
+            db.query(config.entity_class)
+            .join(
+                WikidataEntity,
+                config.entity_class.wikidata_id == WikidataEntity.wikidata_id,
+            )
+            .filter(WikidataEntity.deleted_at.is_(None))
+            .options(
+                selectinload(config.entity_class.wikidata_entity)
+                .selectinload(WikidataEntity.parent_relations)
+                .selectinload(WikidataRelation.parent_entity)
+            )
+        )
+
+        # Apply appropriate search strategy
         if config.entity_class.MAPPING_ENTITY_NAME == "position":
             # Use pre-generated embedding from free_item for position similarity search
-            similar_entities = config.entity_class.find_similar(
-                session=db, query_embedding=free_item.embedding, limit=100
+            search_query = config.entity_class.search_by_embedding(
+                base_query, query_embedding=free_item.embedding
             )
         else:
             # Use text-based fuzzy search for locations and countries
-            similar_entities = config.entity_class.find_similar(
-                session=db, query_text=free_item.name, limit=100
+            search_query = config.entity_class.search_by_label(
+                base_query, search_text=free_item.name
             )
+
+        # Execute query with limit
+        similar_entities = search_query.limit(100).all()
 
         if not similar_entities:
             logger.debug(

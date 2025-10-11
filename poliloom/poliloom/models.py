@@ -22,7 +22,6 @@ from sqlalchemy import (
     exists,
     case,
     literal,
-    ARRAY,
     Text,
 )
 from sqlalchemy.orm import (
@@ -30,7 +29,6 @@ from sqlalchemy.orm import (
     relationship,
     declarative_base,
     declared_attr,
-    selectinload,
 )
 from sqlalchemy.engine import Row
 from sqlalchemy.dialects.postgresql import UUID, JSONB, insert
@@ -227,48 +225,41 @@ class WikidataEntityMixin:
         return ", ".join(description_parts) if description_parts else ""
 
     @classmethod
-    def find_similar(
-        cls, session: Session, query_text: str, limit: int = 10
-    ) -> List["WikidataEntityMixin"]:
-        """Find similar entities using pg_trgm fuzzy text search on labels.
+    def search_by_label(cls, query, search_text: str):
+        """Apply label search filter to an entity query using fuzzy text matching.
+
+        Adds a CTE for max similarity calculation, joins it to the query,
+        and orders results by similarity score (highest first).
 
         Args:
-            session: Database session
-            query_text: Text to search for (will use fuzzy string matching)
-            limit: Maximum number of results to return
+            query: Existing select statement for entities
+            search_text: Text to search for using fuzzy matching
 
         Returns:
-            List of entities ordered by similarity
+            Modified query with CTE joined and ordered by similarity
         """
         # CTE: Find max similarity for each entity
+        # Only include entities with similarity above threshold (0.3 is pg_trgm default)
         max_similarity = (
             select(
                 WikidataEntityLabel.entity_id,
-                func.max(func.similarity(WikidataEntityLabel.label, query_text)).label(
+                func.max(func.similarity(WikidataEntityLabel.label, search_text)).label(
                     "max_sim"
                 ),
             )
             .group_by(WikidataEntityLabel.entity_id)
+            .having(
+                func.max(func.similarity(WikidataEntityLabel.label, search_text)) > 0.3
+            )
             .cte("max_similarity")
         )
 
-        # Main query: Join with entity table and filter by soft-delete
-        query = (
-            session.query(cls)
-            .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
-            .join(max_similarity, cls.wikidata_id == max_similarity.c.entity_id)
-            .filter(WikidataEntity.deleted_at.is_(None))
-            .order_by(max_similarity.c.max_sim.desc())
-            .limit(limit)
-        )
+        # Join the CTE to filter entities by search match and order by similarity
+        query = query.join(
+            max_similarity, cls.wikidata_id == max_similarity.c.entity_id
+        ).order_by(max_similarity.c.max_sim.desc())
 
-        query = query.options(
-            selectinload(cls.wikidata_entity)
-            .selectinload(WikidataEntity.parent_relations)
-            .selectinload(WikidataRelation.parent_entity)
-        )
-
-        return query.all()
+        return query
 
 
 class EntityCreationMixin:
@@ -371,7 +362,9 @@ class Preference(Base, TimestampMixin):
     entity = relationship("WikidataEntity")
 
 
-class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
+class Politician(
+    Base, TimestampMixin, UpsertMixin, WikidataEntityMixin, EntityCreationMixin
+):
     """Politician entity."""
 
     __tablename__ = "politicians"
@@ -384,6 +377,7 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
     name = Column(String, nullable=False)
+    # Override wikidata_id from WikidataEntityMixin to not be primary key
     wikidata_id = Column(
         String, ForeignKey("wikidata_entities.wikidata_id"), unique=True, index=True
     )
@@ -639,45 +633,6 @@ class Politician(Base, TimestampMixin, UpsertMixin, EntityCreationMixin):
             .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
             .where(WikidataEntity.deleted_at.is_(None))
         )
-
-    @classmethod
-    def search_by_label(cls, query, search_text: str):
-        """
-        Apply label search filter to a politician query using fuzzy text matching.
-
-        Adds a CTE for max similarity calculation, joins it to the query,
-        and orders results by similarity score (highest first).
-
-        Args:
-            query: Existing select statement for Politician entities
-            search_text: Text to search for using fuzzy matching
-
-        Returns:
-            Modified query with CTE joined and ordered by similarity
-        """
-        # CTE: Find max similarity for each politician entity
-        # Only include entities with similarity above threshold (0.3 is pg_trgm default)
-        max_similarity = (
-            select(
-                WikidataEntityLabel.entity_id,
-                func.max(func.similarity(WikidataEntityLabel.label, search_text)).label(
-                    "max_sim"
-                ),
-            )
-            .group_by(WikidataEntityLabel.entity_id)
-            .having(
-                func.max(func.similarity(WikidataEntityLabel.label, search_text)) > 0.3
-            )
-            .cte("max_similarity")
-        )
-
-        # Join the CTE to filter politicians by search match and order by similarity
-        query = (
-            query.join(max_similarity, cls.wikidata_id == max_similarity.c.entity_id)
-            .order_by(max_similarity.c.max_sim.desc())
-        )
-
-        return query
 
     @classmethod
     def filter_by_unevaluated_properties(cls, query, languages: List[str] = None):
@@ -1283,31 +1238,23 @@ class Position(
     MAPPING_ENTITY_NAME = "position"
 
     @classmethod
-    def find_similar(
-        cls, session: Session, query_embedding: List[float], limit: int = 100
-    ) -> List["Position"]:
-        """Find similar positions using vector similarity search.
+    def search_by_embedding(cls, query, query_embedding: List[float]):
+        """Apply embedding similarity filter to a position query using vector search.
+
+        Filters positions with embeddings and orders by cosine similarity.
 
         Args:
-            session: Database session
+            query: Existing select statement for Position entities
             query_embedding: Pre-generated embedding vector to search for
-            limit: Maximum number of results to return
 
         Returns:
-            List of Position entities ordered by similarity
+            Modified query filtered and ordered by embedding similarity
         """
-        return (
-            session.query(cls)
-            .options(
-                selectinload(cls.wikidata_entity)
-                .selectinload(WikidataEntity.parent_relations)
-                .selectinload(WikidataRelation.parent_entity)
-            )
-            .filter(cls.embedding.isnot(None))
-            .order_by(cls.embedding.cosine_distance(query_embedding))
-            .limit(limit)
-            .all()
+        query = query.filter(cls.embedding.isnot(None)).order_by(
+            cls.embedding.cosine_distance(query_embedding)
         )
+
+        return query
 
 
 class WikidataDump(Base, TimestampMixin):
