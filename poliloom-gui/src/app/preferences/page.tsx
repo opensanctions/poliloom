@@ -33,7 +33,7 @@ export default function PreferencesPage() {
   // Fetch available languages
   useEffect(() => {
     const fetchLanguages = async () => {
-      const response = await fetch('/api/languages')
+      const response = await fetch('/api/languages?limit=1000')
       if (!response.ok) {
         throw new Error(`Failed to fetch languages: ${response.statusText}`)
       }
@@ -48,7 +48,7 @@ export default function PreferencesPage() {
   // Fetch available countries
   useEffect(() => {
     const fetchCountries = async () => {
-      const response = await fetch('/api/countries')
+      const response = await fetch('/api/countries?limit=1000')
       if (!response.ok) {
         throw new Error(`Failed to fetch countries: ${response.statusText}`)
       }

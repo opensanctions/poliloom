@@ -27,7 +27,7 @@ const detectBrowserLanguage = async (): Promise<WikidataEntity[]> => {
     const iso639Codes = browserLanguages.map((lang) => lang.split('-')[0].toLowerCase())
 
     // Fetch available languages from API
-    const response = await fetch('/api/languages')
+    const response = await fetch('/api/languages?limit=1000')
     if (!response.ok) {
       console.warn('Failed to fetch languages for browser detection')
       return []

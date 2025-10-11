@@ -35,7 +35,7 @@ def create_entity_endpoint(
     async def endpoint(
         limit: int = Query(
             default=100,
-            le=100,
+            le=1000,
             description=f"Maximum number of {entity_name} to return",
         ),
         offset: int = Query(
