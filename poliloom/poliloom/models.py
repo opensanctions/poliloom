@@ -225,21 +225,34 @@ class WikidataEntityMixin:
         return ", ".join(description_parts) if description_parts else ""
 
     @classmethod
-    def search_by_label(cls, query, search_text: str):
+    def search_by_label(cls, query, search_text: str, session: Session = None):
         """Apply label search filter to an entity query using fuzzy text matching.
 
         Uses pg_trgm GIN index with % operator for filtering and <-> distance operator
-        for ordering. This is much faster than similarity() function which cannot use indexes.
+        for ordering. Dynamically adjusts similarity threshold based on search length.
 
         Args:
             query: Existing select statement for entities
             search_text: Text to search for using fuzzy matching
+            session: Database session for setting similarity threshold
 
         Returns:
             Modified query with CTE joined and ordered by similarity
         """
+        # Set pg_trgm similarity threshold based on search length
+        # Shorter terms need stricter thresholds to avoid scanning too many labels
+        if session:
+            search_len = len(search_text)
+            if search_len <= 3:
+                threshold = 0.7
+            elif search_len <= 5:
+                threshold = 0.5
+            else:
+                threshold = 0.3
+            session.execute(text(f"SELECT set_limit({threshold})"))
+
         # CTE: Find minimum distance (maximum similarity) for each entity
-        # Use % operator (can use GIN index) and <-> distance operator (can use index for ordering)
+        # Filters labels first, then joins to entities afterward for better performance
         min_distance = (
             select(
                 WikidataEntityLabel.entity_id,
@@ -247,10 +260,8 @@ class WikidataEntityMixin:
                     "min_dist"
                 ),
             )
-            # Join to entity type table first to filter labels by type
-            .join(cls, WikidataEntityLabel.entity_id == cls.wikidata_id)
             # Use %% operator to filter - %% is escaped for pg8000 (becomes % in SQL)
-            # This CAN use the GIN index for fast filtering
+            # This uses the GIN index for fast filtering
             .where(WikidataEntityLabel.label.op("%%")(search_text))
             .group_by(WikidataEntityLabel.entity_id)
             .cte("min_distance")

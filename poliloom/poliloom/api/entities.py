@@ -4,7 +4,6 @@ from typing import List, Optional, Type, Callable
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select
-from pydantic import BaseModel
 
 from ..database import get_engine
 from ..models import Language, Country, Position, Location, WikidataEntity
@@ -21,7 +20,6 @@ router = APIRouter()
 
 def create_entity_endpoint(
     model_class: Type,
-    response_schema: Type[BaseModel],
     response_mapper: Callable,
     entity_name: str,
 ):
@@ -30,7 +28,6 @@ def create_entity_endpoint(
 
     Args:
         model_class: The SQLAlchemy model class (e.g., Country, Position)
-        response_schema: The Pydantic response schema
         response_mapper: Function to map model instance to response schema
         entity_name: Name of the entity (plural) for documentation
     """
@@ -76,7 +73,7 @@ def create_entity_endpoint(
 
             # Apply search filter if provided
             if search:
-                query = model_class.search_by_label(query, search)
+                query = model_class.search_by_label(query, search, session=db)
 
             # Apply offset and limit
             query = query.offset(offset).limit(limit)
@@ -93,7 +90,6 @@ def create_entity_endpoint(
 get_languages = router.get("/languages", response_model=List[LanguageResponse])(
     create_entity_endpoint(
         model_class=Language,
-        response_schema=LanguageResponse,
         response_mapper=lambda lang: LanguageResponse(
             wikidata_id=lang.wikidata_id,
             name=lang.name,
@@ -108,7 +104,6 @@ get_languages = router.get("/languages", response_model=List[LanguageResponse])(
 get_countries = router.get("/countries", response_model=List[CountryResponse])(
     create_entity_endpoint(
         model_class=Country,
-        response_schema=CountryResponse,
         response_mapper=lambda country: CountryResponse(
             wikidata_id=country.wikidata_id,
             name=country.name,
@@ -122,7 +117,6 @@ get_countries = router.get("/countries", response_model=List[CountryResponse])(
 get_positions = router.get("/positions", response_model=List[PositionResponse])(
     create_entity_endpoint(
         model_class=Position,
-        response_schema=PositionResponse,
         response_mapper=lambda position: PositionResponse(
             wikidata_id=position.wikidata_id,
             name=position.name,
@@ -135,7 +129,6 @@ get_positions = router.get("/positions", response_model=List[PositionResponse])(
 get_locations = router.get("/locations", response_model=List[LocationResponse])(
     create_entity_endpoint(
         model_class=Location,
-        response_schema=LocationResponse,
         response_mapper=lambda location: LocationResponse(
             wikidata_id=location.wikidata_id,
             name=location.name,

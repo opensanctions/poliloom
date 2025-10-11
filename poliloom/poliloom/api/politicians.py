@@ -14,8 +14,6 @@ from ..models import (
     Property,
     ArchivedPage,
     Language,
-    WikidataEntity,
-    WikidataEntityLabel,
 )
 from .schemas import (
     PoliticianResponse,
@@ -75,7 +73,7 @@ async def get_politicians(
 
         # Apply filters
         if search:
-            query = Politician.search_by_label(query, search)
+            query = Politician.search_by_label(query, search, session=db)
 
         if has_unevaluated is True:
             query = Politician.filter_by_unevaluated_properties(
