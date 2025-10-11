@@ -605,13 +605,65 @@ class TestPolitician:
             assert "Biden" in similar[0].name
 
 
-class TestPoliticianQueryWithUnevaluated:
-    """Test cases for Politician.query_with_unevaluated_properties method."""
+class TestPoliticianQueryBase:
+    """Test cases for Politician.query_base method."""
 
-    def test_query_returns_politicians_with_unevaluated_properties(
+    def test_query_base_returns_non_deleted_politicians(
+        self, db_session, sample_politician
+    ):
+        """Test that query_base returns non-soft-deleted politicians."""
+        query = Politician.query_base()
+        result = db_session.execute(query).scalars().all()
+
+        assert len(result) == 1
+        assert result[0] == sample_politician.id
+
+    def test_query_base_excludes_soft_deleted_politicians(
+        self, db_session, sample_politician
+    ):
+        """Test that query_base excludes soft-deleted politicians."""
+        # Soft-delete the WikidataEntity
+        sample_politician.wikidata_entity.soft_delete()
+        db_session.commit()
+
+        query = Politician.query_base()
+        result = db_session.execute(query).scalars().all()
+
+        assert len(result) == 0
+
+
+class TestPoliticianFilterByLabelSearch:
+    """Test cases for Politician.filter_by_label_search method."""
+
+    def test_filter_by_label_search_finds_matching_politicians(
+        self, db_session, sample_politician
+    ):
+        """Test that label search filter finds politicians with matching labels."""
+        query = Politician.query_base()
+        query = Politician.filter_by_label_search(query, "John")
+        result = db_session.execute(query).scalars().all()
+
+        assert len(result) == 1
+        assert result[0] == sample_politician.id
+
+    def test_filter_by_label_search_excludes_non_matching(
+        self, db_session, sample_politician
+    ):
+        """Test that label search filter excludes non-matching politicians."""
+        query = Politician.query_base()
+        query = Politician.filter_by_label_search(query, "Barack Obama")
+        result = db_session.execute(query).scalars().all()
+
+        assert len(result) == 0
+
+
+class TestPoliticianFilterByUnevaluated:
+    """Test cases for Politician.filter_by_unevaluated_properties method."""
+
+    def test_filter_returns_politicians_with_unevaluated_properties(
         self, db_session, sample_politician, sample_archived_page
     ):
-        """Test that query finds politicians with unevaluated properties."""
+        """Test that filter finds politicians with unevaluated properties."""
         # Add an unevaluated property
         prop = Property(
             politician_id=sample_politician.id,
@@ -624,17 +676,18 @@ class TestPoliticianQueryWithUnevaluated:
         db_session.add(prop)
         db_session.commit()
 
-        # Execute query
-        query = Politician.query_with_unevaluated_properties()
+        # Execute query with filter
+        query = Politician.query_base()
+        query = Politician.filter_by_unevaluated_properties(query)
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 1
         assert result[0] == sample_politician.id
 
-    def test_query_excludes_politicians_with_only_evaluated_properties(
+    def test_filter_excludes_politicians_with_only_evaluated_properties(
         self, db_session, sample_politician, sample_archived_page
     ):
-        """Test that query excludes politicians with statement_id (pushed to Wikidata)."""
+        """Test that filter excludes politicians with statement_id (pushed to Wikidata)."""
         # Add property with statement_id (evaluated and pushed)
         prop = Property(
             politician_id=sample_politician.id,
@@ -647,16 +700,17 @@ class TestPoliticianQueryWithUnevaluated:
         db_session.add(prop)
         db_session.commit()
 
-        # Execute query
-        query = Politician.query_with_unevaluated_properties()
+        # Execute query with filter
+        query = Politician.query_base()
+        query = Politician.filter_by_unevaluated_properties(query)
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 0
 
-    def test_query_excludes_soft_deleted_properties(
+    def test_filter_excludes_soft_deleted_properties(
         self, db_session, sample_politician, sample_archived_page
     ):
-        """Test that query excludes soft-deleted properties."""
+        """Test that filter excludes soft-deleted properties."""
         from datetime import datetime, timezone
 
         # Add soft-deleted unevaluated property
@@ -671,13 +725,14 @@ class TestPoliticianQueryWithUnevaluated:
         db_session.add(prop)
         db_session.commit()
 
-        # Execute query
-        query = Politician.query_with_unevaluated_properties()
+        # Execute query with filter
+        query = Politician.query_base()
+        query = Politician.filter_by_unevaluated_properties(query)
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 0
 
-    def test_query_with_language_filter(
+    def test_filter_with_language_parameter(
         self, db_session, sample_politician, sample_language
     ):
         """Test language filtering based on archived page iso codes."""
@@ -712,17 +767,22 @@ class TestPoliticianQueryWithUnevaluated:
         db_session.commit()
 
         # Query with English language filter
-        query = Politician.query_with_unevaluated_properties(languages=["Q1860"])
+        query = Politician.query_base()
+        query = Politician.filter_by_unevaluated_properties(query, languages=["Q1860"])
         result = db_session.execute(query).scalars().all()
 
         # Should find politician because they have English property
         assert len(result) == 1
         assert result[0] == sample_politician.id
 
-    def test_query_with_country_filter(
+
+class TestPoliticianFilterByCountries:
+    """Test cases for Politician.filter_by_countries method."""
+
+    def test_filter_by_countries_finds_matching_politicians(
         self, db_session, sample_politician, sample_country, sample_archived_page
     ):
-        """Test country filtering based on citizenship properties."""
+        """Test that country filter finds politicians with matching citizenship."""
         # Add citizenship property
         citizenship_prop = Property(
             politician_id=sample_politician.id,
@@ -730,121 +790,27 @@ class TestPoliticianQueryWithUnevaluated:
             entity_id=sample_country.wikidata_id,
             archived_page_id=sample_archived_page.id,
         )
-        # Add another unevaluated property so politician appears in results
-        birth_prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-            archived_page_id=sample_archived_page.id,
-        )
-        db_session.add_all([citizenship_prop, birth_prop])
+        db_session.add(citizenship_prop)
         db_session.commit()
 
         # Query with country filter
-        query = Politician.query_with_unevaluated_properties(countries=["Q30"])
+        query = Politician.query_base()
+        query = Politician.filter_by_countries(query, ["Q30"])
         result = db_session.execute(query).scalars().all()
 
         # Should find politician with US citizenship
         assert len(result) == 1
         assert result[0] == sample_politician.id
 
-    def test_query_with_combined_filters(
-        self,
-        db_session,
-        sample_politician,
-        sample_country,
-        sample_language,
+    def test_filter_by_countries_excludes_non_matching(
+        self, db_session, sample_politician
     ):
-        """Test combined language and country filtering."""
-        from poliloom.models import ArchivedPage
-
-        # Create English archived page
-        en_page = ArchivedPage(
-            url="https://en.example.com/test", content_hash="en123", iso1_code="en"
-        )
-        db_session.add(en_page)
-        db_session.flush()
-
-        # Add citizenship and English-language property
-        citizenship_prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_country.wikidata_id,
-            archived_page_id=en_page.id,
-        )
-        birth_prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-            archived_page_id=en_page.id,
-        )
-        db_session.add_all([citizenship_prop, birth_prop])
-        db_session.commit()
-
-        # Query with both filters
-        query = Politician.query_with_unevaluated_properties(
-            languages=["Q1860"], countries=["Q30"]
-        )
-        result = db_session.execute(query).scalars().all()
-
-        # Should find politician matching both filters
-        assert len(result) == 1
-        assert result[0] == sample_politician.id
-
-    def test_query_excludes_politician_not_matching_country_filter(
-        self, db_session, sample_politician, sample_archived_page
-    ):
-        """Test that politicians without matching citizenship are excluded."""
-        # Add unevaluated property without citizenship
-        prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-            archived_page_id=sample_archived_page.id,
-        )
-        db_session.add(prop)
-        db_session.commit()
-
+        """Test that country filter excludes politicians without matching citizenship."""
         # Query with country filter (no citizenship property exists)
-        query = Politician.query_with_unevaluated_properties(countries=["Q30"])
+        query = Politician.query_base()
+        query = Politician.filter_by_countries(query, ["Q30"])
         result = db_session.execute(query).scalars().all()
 
-        assert len(result) == 0
-
-    def test_query_excludes_soft_deleted_wikidata_entity(
-        self, db_session, sample_politician, sample_archived_page
-    ):
-        """Test that query excludes politicians with soft-deleted WikidataEntity."""
-
-        # Add unevaluated property
-        prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-            archived_page_id=sample_archived_page.id,
-        )
-        db_session.add(prop)
-        db_session.commit()
-
-        # Verify politician appears before soft-delete
-        query = Politician.query_with_unevaluated_properties()
-        result = db_session.execute(query).scalars().all()
-        assert len(result) == 1
-        assert result[0] == sample_politician.id
-
-        # Soft-delete the WikidataEntity
-        sample_politician.wikidata_entity.soft_delete()
-        db_session.commit()
-
-        # Query again
-        query = Politician.query_with_unevaluated_properties()
-        result = db_session.execute(query).scalars().all()
-
-        # Should return empty because WikidataEntity has been soft-deleted
         assert len(result) == 0
 
 

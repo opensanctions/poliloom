@@ -113,6 +113,7 @@ def sample_politician(db_session, sample_politician_data):
         db_session,
         sample_politician_data["wikidata_id"],
         sample_politician_data["name"],
+        labels=["Test Politician", "John Doe", "Test Person"],
     )
     db_session.commit()
     db_session.refresh(politician)

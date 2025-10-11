@@ -573,10 +573,17 @@ def count_politicians_with_unevaluated(
     Returns:
         Number of politicians with unevaluated properties matching filters
     """
-    # Use the shared query logic from Politician model
-    politician_ids_query = Politician.query_with_unevaluated_properties(
-        languages=languages, countries=countries
+    # Build composable query using filter methods
+    politician_ids_query = Politician.query_base()
+
+    politician_ids_query = Politician.filter_by_unevaluated_properties(
+        politician_ids_query, languages=languages
     )
+
+    if countries:
+        politician_ids_query = Politician.filter_by_countries(
+            politician_ids_query, countries
+        )
 
     # Count the results
     count_query = select(func.count()).select_from(politician_ids_query.subquery())

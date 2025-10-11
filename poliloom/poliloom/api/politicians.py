@@ -14,6 +14,8 @@ from ..models import (
     Property,
     ArchivedPage,
     Language,
+    WikidataEntity,
+    WikidataEntityLabel,
 )
 from .schemas import (
     PoliticianResponse,
@@ -40,6 +42,14 @@ async def get_politicians(
         default=2, le=100, description="Maximum number of politicians to return"
     ),
     offset: int = Query(default=0, ge=0, description="Number of politicians to skip"),
+    search: Optional[str] = Query(
+        default=None,
+        description="Search politicians by name/label using fuzzy matching",
+    ),
+    has_unevaluated: Optional[bool] = Query(
+        default=None,
+        description="Filter to only politicians with unevaluated properties. If not specified, returns all politicians.",
+    ),
     languages: Optional[List[str]] = Query(
         default=None,
         description="Filter by language QIDs - politicians with properties from archived pages with matching iso1_code or iso3_code",
@@ -58,23 +68,31 @@ async def get_politicians(
 
     Automatically triggers background enrichment if the number of politicians with
     unevaluated properties falls below MIN_UNEVALUATED_POLITICIANS (default: 10).
-
-    Filters:
-    - languages: List of language QIDs. Returns only properties from archived pages
-      with matching iso1_code or iso3_code. Politicians are included only if they have
-      at least one property matching the language filter.
-    - countries: List of country QIDs. Filters for politicians that have citizenship
-      for these countries.
-
-    Environment variables:
-        MIN_UNEVALUATED_POLITICIANS: Minimum number of politicians with unevaluated
-                                     properties before triggering enrichment (default: 10)
     """
     with Session(get_engine()) as db:
-        # Use the shared query logic from Politician model
-        politician_ids_query = Politician.query_with_unevaluated_properties(
-            languages=languages, countries=countries
-        )
+        # Build composable politician ID query
+        politician_ids_query = Politician.query_base()
+
+        # Apply filters
+        if search:
+            politician_ids_query = Politician.filter_by_label_search(
+                politician_ids_query, search
+            )
+
+        if has_unevaluated is True:
+            politician_ids_query = Politician.filter_by_unevaluated_properties(
+                politician_ids_query, languages=languages
+            )
+        elif has_unevaluated is False:
+            # Explicitly filter for politicians WITH evaluated properties
+            # (inverse of unevaluated filter) - currently not implemented
+            # For now, has_unevaluated=false returns all politicians
+            pass
+
+        if countries:
+            politician_ids_query = Politician.filter_by_countries(
+                politician_ids_query, countries
+            )
 
         # Now build the main query to fetch politicians with their data
         # Add window function to get total count without separate query
@@ -154,9 +172,9 @@ async def get_politicians(
             politicians = []
             total_count = 0
 
-        # Trigger background enrichment if below threshold
+        # Trigger background enrichment if below threshold (only when filtering for unevaluated)
         min_unevaluated = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
-        if total_count < min_unevaluated:
+        if has_unevaluated is True and total_count < min_unevaluated:
             global _enrichment_future
 
             # Only start a new enrichment job if none is currently running
