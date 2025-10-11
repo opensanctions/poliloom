@@ -134,3 +134,23 @@ class CountryResponse(BaseModel):
     iso_code: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PositionResponse(BaseModel):
+    """Schema for position response."""
+
+    wikidata_id: str
+    name: str
+    description: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LocationResponse(BaseModel):
+    """Schema for location response."""
+
+    wikidata_id: str
+    name: str
+    description: str
+
+    model_config = ConfigDict(from_attributes=True)
