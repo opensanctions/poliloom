@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { signIn } from 'next-auth/react'
+import { signOut } from 'next-auth/react'
 
 export function FetchInterceptor() {
   useEffect(() => {
@@ -12,11 +12,11 @@ export function FetchInterceptor() {
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const response = await originalFetch(input, init)
 
-      // Check for 401 responses and redirect to login
+      // Check for 401 responses and sign out to clear invalid session
       if (response.status === 401) {
-        // Redirect to MediaWiki login
-        signIn('wikimedia')
-        throw new Error('Authentication required - redirecting to login')
+        // Sign out to clear the invalid session
+        // This will show the logged-out home page where users can manually sign in again
+        await signOut({ redirect: false })
       }
 
       return response
