@@ -19,6 +19,8 @@ from .schemas import (
     PoliticianResponse,
     PropertyResponse,
     ArchivedPageResponse,
+    PoliticianCreateRequest,
+    PoliticianCreateResponse,
 )
 from .auth import get_current_user, User
 from ..enrichment import enrich_until_target
@@ -211,3 +213,138 @@ async def get_politicians(
             )
 
     return result
+
+
+@router.post("", response_model=PoliticianCreateResponse, status_code=201)
+async def create_politician(
+    request: PoliticianCreateRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Create multiple politicians with associated properties in batch.
+
+    This endpoint creates new politician entries without wikidata_id initially.
+    The wikidata_id will be assigned later when the politicians are created in Wikidata.
+
+    Args:
+        request: Request containing politicians array with politician data
+        current_user: Authenticated user (required)
+
+    Returns:
+        PoliticianCreateResponse with success status and full politician data
+    """
+    from ..models import PropertyType
+    from .schemas import PoliticianResponse, PropertyResponse
+
+    with Session(get_engine()) as db:
+        created_politician_ids = []
+        errors = []
+
+        for politician_data in request.politicians:
+            try:
+                # Create politician directly (without wikidata_id)
+                politician = Politician(
+                    name=politician_data.name,
+                    wikidata_id=None,  # Will be assigned later when created in Wikidata
+                )
+                db.add(politician)
+                db.flush()  # Flush to get the politician ID
+
+                # Create properties
+                for prop_data in politician_data.properties:
+                    # Validate property type
+                    try:
+                        prop_type = PropertyType(prop_data.type)
+                    except ValueError:
+                        errors.append(
+                            f"Politician '{politician_data.name}': Invalid property type {prop_data.type}"
+                        )
+                        continue
+
+                    # Create property
+                    new_property = Property(
+                        politician_id=politician.id,
+                        type=prop_type,
+                        value=prop_data.value,
+                        value_precision=prop_data.value_precision,
+                        entity_id=prop_data.entity_id,
+                        qualifiers_json=prop_data.qualifiers_json,
+                        references_json=prop_data.references_json,
+                    )
+
+                    db.add(new_property)
+
+                created_politician_ids.append(politician.id)
+
+            except Exception as e:
+                errors.append(
+                    f"Error creating politician '{politician_data.name}': {str(e)}"
+                )
+                continue
+
+        try:
+            # Commit all changes
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            return PoliticianCreateResponse(
+                success=False,
+                message=f"Database error: {str(e)}",
+                politicians=[],
+                errors=errors,
+            )
+
+        # Reload politicians with properties to return full data
+        politicians = (
+            db.query(Politician).filter(Politician.id.in_(created_politician_ids)).all()
+        )
+
+        # Build response with full politician data
+        result = []
+        for politician in politicians:
+            properties = (
+                db.query(Property)
+                .filter(Property.politician_id == politician.id)
+                .filter(Property.deleted_at.is_(None))
+                .all()
+            )
+
+            property_responses = []
+            for prop in properties:
+                # Add entity name if applicable
+                entity_name = None
+                if prop.entity and prop.entity_id:
+                    entity_name = prop.entity.name
+
+                property_responses.append(
+                    PropertyResponse(
+                        id=prop.id,
+                        type=prop.type,
+                        value=prop.value,
+                        value_precision=prop.value_precision,
+                        entity_id=prop.entity_id,
+                        entity_name=entity_name,
+                        proof_line=prop.proof_line,
+                        statement_id=prop.statement_id,
+                        qualifiers=prop.qualifiers_json,
+                        references=prop.references_json,
+                        archived_page=None,  # New properties don't have archived pages
+                    )
+                )
+
+            result.append(
+                PoliticianResponse(
+                    id=politician.id,
+                    name=politician.name,
+                    wikidata_id=politician.wikidata_id,
+                    properties=property_responses,
+                )
+            )
+
+        return PoliticianCreateResponse(
+            success=True,
+            message=f"Successfully created {len(result)} politician(s)"
+            + (f" ({len(errors)} errors)" if errors else ""),
+            politicians=result,
+            errors=errors,
+        )

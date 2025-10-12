@@ -97,7 +97,20 @@ class TestEvaluationsEndpoint:
         }
         response = client.post("/evaluations/", json=new_format, headers=mock_auth)
         assert response.status_code == 200
-        assert response.json()["evaluation_count"] == 2
+        data = response.json()
+        assert len(data["evaluations"]) == 2
+
+        # Verify evaluation objects are returned
+        eval_ids = {e["id"] for e in data["evaluations"]}
+        assert len(eval_ids) == 2  # Two unique evaluation IDs
+
+        # Verify each evaluation has required fields
+        for evaluation in data["evaluations"]:
+            assert "id" in evaluation
+            assert "user_id" in evaluation
+            assert "is_confirmed" in evaluation
+            assert "property_id" in evaluation
+            assert "created_at" in evaluation
 
     def test_evaluate_nonexistent_property(self, client, mock_auth):
         """Test evaluation with nonexistent property ID."""
@@ -110,7 +123,7 @@ class TestEvaluationsEndpoint:
         response = client.post("/evaluations/", json=evaluation_data, headers=mock_auth)
         assert response.status_code == 200  # Should succeed but with errors
         result = response.json()
-        assert result["evaluation_count"] == 0
+        assert len(result["evaluations"]) == 0
         assert len(result["errors"]) > 0
         assert f"Property {fake_uuid} not found" in result["errors"]
 
@@ -133,7 +146,7 @@ class TestEvaluationsEndpoint:
         response = client.post("/evaluations/", json=evaluation_data, headers=mock_auth)
         assert response.status_code == 200
         result = response.json()
-        assert result["evaluation_count"] == 2  # Only valid properties evaluated
+        assert len(result["evaluations"]) == 2  # Only valid properties evaluated
         assert len(result["errors"]) == 1
         assert f"Property {fake_uuid} not found" in result["errors"][0]
 
@@ -153,7 +166,7 @@ class TestEvaluationsEndpoint:
         response = client.post("/evaluations/", json=evaluation_data, headers=mock_auth)
         assert response.status_code == 200
         result = response.json()
-        assert result["evaluation_count"] == 0
+        assert len(result["evaluations"]) == 0
         assert result["success"] is True
 
     @patch("poliloom.api.evaluations.push_evaluation")
@@ -170,7 +183,7 @@ class TestEvaluationsEndpoint:
         response = client.post("/evaluations/", json=evaluation_data, headers=mock_auth)
         assert response.status_code == 200
         result = response.json()
-        assert result["evaluation_count"] == 1
+        assert len(result["evaluations"]) == 1
 
         # Verify push_evaluation was called
         mock_push_evaluation.assert_called_once()
@@ -189,6 +202,6 @@ class TestEvaluationsEndpoint:
         response = client.post("/evaluations/", json=evaluation_data, headers=mock_auth)
         assert response.status_code == 200  # Should still succeed locally
         result = response.json()
-        assert result["evaluation_count"] == 1
+        assert len(result["evaluations"]) == 1
         assert len(result["errors"]) > 0
         assert any("Wikidata API error" in error for error in result["errors"])

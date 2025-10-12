@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_engine
 from ..models import Property, Evaluation
-from .schemas import EvaluationRequest, EvaluationResponse
+from .schemas import EvaluationRequest, EvaluationResponse, EvaluationObjectResponse
 from .auth import get_current_user, User
 from ..wikidata_statement import push_evaluation
 
@@ -27,7 +27,6 @@ async def evaluate_extracted_data(
     For confirmed evaluations, attempts to push statements to Wikidata.
     """
     with Session(get_engine()) as db:
-        evaluation_count = 0
         errors = []
         all_evaluations = []
 
@@ -45,7 +44,6 @@ async def evaluate_extracted_data(
                     property_id=eval_item.id,
                 )
                 db.add(evaluation)
-                evaluation_count += 1
 
                 # Track all evaluations for Wikidata operations
                 all_evaluations.append(evaluation)
@@ -88,10 +86,22 @@ async def evaluate_extracted_data(
         if wikidata_errors:
             errors.extend(wikidata_errors)
 
+        # Build response with full evaluation data
+        evaluation_responses = [
+            EvaluationObjectResponse(
+                id=evaluation.id,
+                user_id=evaluation.user_id,
+                is_confirmed=evaluation.is_confirmed,
+                property_id=evaluation.property_id,
+                created_at=evaluation.created_at,
+            )
+            for evaluation in all_evaluations
+        ]
+
         return EvaluationResponse(
             success=True,
-            message=f"Successfully processed {evaluation_count} evaluations"
+            message=f"Successfully processed {len(evaluation_responses)} evaluations"
             + (f" ({len(wikidata_errors)} Wikidata errors)" if wikidata_errors else ""),
-            evaluation_count=evaluation_count,
+            evaluations=evaluation_responses,
             errors=errors,
         )
