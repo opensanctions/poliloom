@@ -94,6 +94,12 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
   }
 
   const handleSubmit = async () => {
+    // If no evaluations, just skip to the next politician
+    if (evaluations.size === 0) {
+      onNext()
+      return
+    }
+
     setIsSubmitting(true)
     try {
       const evaluationItems: EvaluationItem[] = Array.from(evaluations.entries()).map(
@@ -179,7 +185,11 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
         <div className="p-6 border-t border-gray-200">
           <div className="flex justify-end">
             <Button onClick={handleSubmit} disabled={isSubmitting} className="px-6 py-3">
-              {isSubmitting ? 'Submitting...' : 'Submit Evaluations & Next'}
+              {isSubmitting
+                ? 'Submitting...'
+                : evaluations.size === 0
+                  ? 'Skip for now'
+                  : 'Submit Evaluations & Next'}
             </Button>
           </div>
         </div>
