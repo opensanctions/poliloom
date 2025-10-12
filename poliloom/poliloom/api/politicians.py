@@ -4,7 +4,8 @@ import asyncio
 import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query
+from uuid import UUID
+from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, and_, or_, func
 
@@ -12,6 +13,7 @@ from ..database import get_engine
 from ..models import (
     Politician,
     Property,
+    PropertyType,
     ArchivedPage,
     Language,
 )
@@ -219,7 +221,7 @@ async def get_politicians(
 
 @router.post("", response_model=PoliticianCreateResponse, status_code=201)
 async def create_politician(
-    request: PoliticianCreateRequest,
+    request: PoliticianCreateRequest = Depends(),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -228,16 +230,8 @@ async def create_politician(
     This endpoint creates new politician entries without wikidata_id initially.
     The wikidata_id will be assigned later when the politicians are created in Wikidata.
 
-    Args:
-        request: Request containing politicians array with politician data
-        current_user: Authenticated user (required)
-
-    Returns:
-        PoliticianCreateResponse with success status and full politician data
+    Returns PoliticianCreateResponse with success status and full politician data.
     """
-    from ..models import PropertyType
-    from .schemas import PoliticianResponse, PropertyResponse
-
     with Session(get_engine()) as db:
         created_politician_ids = []
         errors = []
@@ -356,8 +350,10 @@ async def create_politician(
     "/{politician_id}/properties", response_model=PropertyAddResponse, status_code=201
 )
 async def add_properties(
-    politician_id: str,
-    request: PropertyAddRequest,
+    politician_id: str = Path(
+        ..., description="UUID of the politician to add properties to"
+    ),
+    request: PropertyAddRequest = Depends(),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -367,18 +363,8 @@ async def add_properties(
     in the database. The properties will be created without statement_id initially
     and can be evaluated later.
 
-    Args:
-        politician_id: UUID of the politician to add properties to
-        request: Request containing properties array with property data
-        current_user: Authenticated user (required)
-
-    Returns:
-        PropertyAddResponse with success status and full property data
+    Returns PropertyAddResponse with success status and full property data.
     """
-    from uuid import UUID
-    from ..models import PropertyType
-    from .schemas import PropertyResponse
-
     with Session(get_engine()) as db:
         # Validate politician exists
         try:
