@@ -21,6 +21,8 @@ from .schemas import (
     ArchivedPageResponse,
     PoliticianCreateRequest,
     PoliticianCreateResponse,
+    PropertyAddRequest,
+    PropertyAddResponse,
 )
 from .auth import get_current_user, User
 from ..enrichment import enrich_until_target
@@ -346,5 +348,137 @@ async def create_politician(
             message=f"Successfully created {len(result)} politician(s)"
             + (f" ({len(errors)} errors)" if errors else ""),
             politicians=result,
+            errors=errors,
+        )
+
+
+@router.post(
+    "/{politician_id}/properties", response_model=PropertyAddResponse, status_code=201
+)
+async def add_properties(
+    politician_id: str,
+    request: PropertyAddRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Add multiple properties to an existing politician.
+
+    This endpoint allows adding new properties to a politician that already exists
+    in the database. The properties will be created without statement_id initially
+    and can be evaluated later.
+
+    Args:
+        politician_id: UUID of the politician to add properties to
+        request: Request containing properties array with property data
+        current_user: Authenticated user (required)
+
+    Returns:
+        PropertyAddResponse with success status and full property data
+    """
+    from uuid import UUID
+    from ..models import PropertyType
+    from .schemas import PropertyResponse
+
+    with Session(get_engine()) as db:
+        # Validate politician exists
+        try:
+            politician_uuid = UUID(politician_id)
+        except ValueError:
+            return PropertyAddResponse(
+                success=False,
+                message=f"Invalid politician ID format: {politician_id}",
+                properties=[],
+                errors=[],
+            )
+
+        politician = db.get(Politician, politician_uuid)
+        if not politician:
+            return PropertyAddResponse(
+                success=False,
+                message=f"Politician not found: {politician_id}",
+                properties=[],
+                errors=[],
+            )
+
+        created_property_ids = []
+        errors = []
+
+        for prop_data in request.properties:
+            try:
+                # Validate property type
+                try:
+                    prop_type = PropertyType(prop_data.type)
+                except ValueError:
+                    errors.append(f"Invalid property type {prop_data.type}")
+                    continue
+
+                # Create property
+                new_property = Property(
+                    politician_id=politician_uuid,
+                    type=prop_type,
+                    value=prop_data.value,
+                    value_precision=prop_data.value_precision,
+                    entity_id=prop_data.entity_id,
+                    qualifiers_json=prop_data.qualifiers_json,
+                    references_json=prop_data.references_json,
+                )
+
+                db.add(new_property)
+                db.flush()  # Flush to get the property ID
+                created_property_ids.append(new_property.id)
+
+            except Exception as e:
+                errors.append(f"Error creating property: {str(e)}")
+                continue
+
+        try:
+            # Commit all changes
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            return PropertyAddResponse(
+                success=False,
+                message=f"Database error: {str(e)}",
+                properties=[],
+                errors=errors,
+            )
+
+        # Reload properties with related data to return full data
+        properties = (
+            db.query(Property)
+            .filter(Property.id.in_(created_property_ids))
+            .filter(Property.deleted_at.is_(None))
+            .all()
+        )
+
+        # Build response with full property data
+        property_responses = []
+        for prop in properties:
+            # Add entity name if applicable
+            entity_name = None
+            if prop.entity and prop.entity_id:
+                entity_name = prop.entity.name
+
+            property_responses.append(
+                PropertyResponse(
+                    id=prop.id,
+                    type=prop.type,
+                    value=prop.value,
+                    value_precision=prop.value_precision,
+                    entity_id=prop.entity_id,
+                    entity_name=entity_name,
+                    proof_line=prop.proof_line,
+                    statement_id=prop.statement_id,
+                    qualifiers=prop.qualifiers_json,
+                    references=prop.references_json,
+                    archived_page=None,  # New properties don't have archived pages
+                )
+            )
+
+        return PropertyAddResponse(
+            success=True,
+            message=f"Successfully added {len(property_responses)} property/properties"
+            + (f" ({len(errors)} errors)" if errors else ""),
+            properties=property_responses,
             errors=errors,
         )

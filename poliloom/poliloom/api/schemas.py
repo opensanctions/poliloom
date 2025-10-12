@@ -364,3 +364,58 @@ class PoliticianCreateResponse(UUIDBaseModel):
             }
         }
     )
+
+
+class PropertyAddRequest(BaseModel):
+    """Schema for adding properties to an existing politician."""
+
+    properties: List[PropertyCreateRequest]
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "properties": [
+                    {
+                        "type": "P569",
+                        "value": "+1962-00-00T00:00:00Z",
+                        "value_precision": 9,
+                    },
+                    {"type": "P19", "entity_id": "Q60"},
+                ]
+            }
+        }
+    )
+
+
+class PropertyAddResponse(UUIDBaseModel):
+    """Schema for property addition response."""
+
+    success: bool
+    message: str
+    properties: List[PropertyResponse] = []
+    errors: List[str] = []
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "success": True,
+                "message": "Successfully added 2 properties",
+                "properties": [
+                    {
+                        "id": "87654321-4321-4321-4321-210987654321",
+                        "type": "P569",
+                        "value": "+1962-00-00T00:00:00Z",
+                        "value_precision": 9,
+                        "entity_id": None,
+                        "entity_name": None,
+                        "proof_line": None,
+                        "statement_id": None,
+                        "qualifiers": None,
+                        "references": None,
+                        "archived_page": None,
+                    }
+                ],
+                "errors": [],
+            }
+        }
+    )
