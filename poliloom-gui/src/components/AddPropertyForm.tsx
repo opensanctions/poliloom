@@ -55,7 +55,6 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
   }
 
   const resetForm = () => {
-    setSourceUrl('')
     setPropertyType('')
     setDateValue('')
     setDatePrecision(11)
