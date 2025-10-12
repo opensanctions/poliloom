@@ -2,11 +2,21 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
-import { PreferenceResponse, PreferenceType, LanguageResponse, WikidataEntity } from '@/types'
+import {
+  PreferenceResponse,
+  PreferenceType,
+  LanguageResponse,
+  CountryResponse,
+  WikidataEntity,
+} from '@/types'
 
 interface PreferencesContextType {
   preferences: PreferenceResponse[]
+  languages: LanguageResponse[]
+  countries: CountryResponse[]
   loading: boolean
+  loadingLanguages: boolean
+  loadingCountries: boolean
   error: string | null
   initialized: boolean
   updatePreferences: (type: PreferenceType, items: WikidataEntity[]) => Promise<void>
@@ -18,22 +28,13 @@ const PreferencesContext = createContext<PreferencesContextType | undefined>(und
 const STORAGE_KEY = 'poliloom_preferences'
 
 // Helper function to detect browser language and match with available languages
-const detectBrowserLanguage = async (): Promise<WikidataEntity[]> => {
+const detectBrowserLanguage = (availableLanguages: LanguageResponse[]): WikidataEntity[] => {
   try {
     // Get browser language codes (e.g., 'en-US', 'es', 'de-DE')
     const browserLanguages = navigator.languages || [navigator.language]
 
     // Extract ISO 639-1 language codes (e.g., 'en' from 'en-US')
     const iso639Codes = browserLanguages.map((lang) => lang.split('-')[0].toLowerCase())
-
-    // Fetch available languages from API
-    const response = await fetch('/api/languages?limit=1000')
-    if (!response.ok) {
-      console.warn('Failed to fetch languages for browser detection')
-      return []
-    }
-
-    const availableLanguages: LanguageResponse[] = await response.json()
 
     // Find matching languages by ISO 639-1 or ISO 639-3 codes
     const matchedLanguages: WikidataEntity[] = []
@@ -63,7 +64,11 @@ const detectBrowserLanguage = async (): Promise<WikidataEntity[]> => {
 export function PreferencesProvider({ children }: { children: React.ReactNode }) {
   const { status } = useSession()
   const [preferences, setPreferences] = useState<PreferenceResponse[]>([])
+  const [languages, setLanguages] = useState<LanguageResponse[]>([])
+  const [countries, setCountries] = useState<CountryResponse[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingLanguages, setLoadingLanguages] = useState(true)
+  const [loadingCountries, setLoadingCountries] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [initialized, setInitialized] = useState(false)
 
@@ -78,6 +83,46 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         val.preference_type === sortedB[i].preference_type,
     )
   }
+
+  // Fetch available languages
+  useEffect(() => {
+    const fetchLanguages = async () => {
+      try {
+        const response = await fetch('/api/languages?limit=1000')
+        if (!response.ok) {
+          throw new Error(`Failed to fetch languages: ${response.statusText}`)
+        }
+        const data: LanguageResponse[] = await response.json()
+        setLanguages(data)
+      } catch (error) {
+        console.warn('Failed to fetch languages:', error)
+      } finally {
+        setLoadingLanguages(false)
+      }
+    }
+
+    fetchLanguages()
+  }, [])
+
+  // Fetch available countries
+  useEffect(() => {
+    const fetchCountries = async () => {
+      try {
+        const response = await fetch('/api/countries?limit=1000')
+        if (!response.ok) {
+          throw new Error(`Failed to fetch countries: ${response.statusText}`)
+        }
+        const data: CountryResponse[] = await response.json()
+        setCountries(data)
+      } catch (error) {
+        console.warn('Failed to fetch countries:', error)
+      } finally {
+        setLoadingCountries(false)
+      }
+    }
+
+    fetchCountries()
+  }, [])
 
   // Load preferences from localStorage on mount
   useEffect(() => {
@@ -161,8 +206,8 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         (p) => p.preference_type === PreferenceType.LANGUAGE,
       )
 
-      if (hasNoStoredPreferences && hasNoLanguagePreferences) {
-        const detectedLanguages = await detectBrowserLanguage()
+      if (hasNoStoredPreferences && hasNoLanguagePreferences && languages.length > 0) {
+        const detectedLanguages = detectBrowserLanguage(languages)
         if (detectedLanguages.length > 0) {
           await updatePreferences(PreferenceType.LANGUAGE, detectedLanguages)
           return
@@ -180,7 +225,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     } finally {
       setLoading(false)
     }
-  }, [status, updatePreferences])
+  }, [status, updatePreferences, languages])
 
   // Fetch preferences when authenticated
   useEffect(() => {
@@ -191,7 +236,11 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
 
   const value: PreferencesContextType = {
     preferences,
+    languages,
+    countries,
     loading,
+    loadingLanguages,
+    loadingCountries,
     error,
     initialized,
     updatePreferences,

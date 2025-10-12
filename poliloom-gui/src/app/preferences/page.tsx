@@ -1,18 +1,21 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Header'
 import { Button } from '@/components/Button'
 import { MultiSelect, MultiSelectOption } from '@/components/MultiSelect'
 import { usePreferencesContext } from '@/contexts/PreferencesContext'
-import { LanguageResponse, CountryResponse, PreferenceType, WikidataEntity } from '@/types'
+import { PreferenceType, WikidataEntity } from '@/types'
 
 export default function PreferencesPage() {
   const router = useRouter()
   const {
     preferences,
+    languages,
+    countries,
     loading: updating,
+    loadingLanguages,
+    loadingCountries,
     error: preferencesError,
     updatePreferences,
   } = usePreferencesContext()
@@ -24,41 +27,6 @@ export default function PreferencesPage() {
   const countryPreferences = preferences
     .filter((p) => p.preference_type === PreferenceType.COUNTRY)
     .map((p) => p.wikidata_id)
-
-  const [languages, setLanguages] = useState<LanguageResponse[]>([])
-  const [loadingLanguages, setLoadingLanguages] = useState(true)
-  const [countries, setCountries] = useState<CountryResponse[]>([])
-  const [loadingCountries, setLoadingCountries] = useState(true)
-
-  // Fetch available languages
-  useEffect(() => {
-    const fetchLanguages = async () => {
-      const response = await fetch('/api/languages?limit=1000')
-      if (!response.ok) {
-        throw new Error(`Failed to fetch languages: ${response.statusText}`)
-      }
-      const data: LanguageResponse[] = await response.json()
-      setLanguages(data)
-      setLoadingLanguages(false)
-    }
-
-    fetchLanguages()
-  }, [])
-
-  // Fetch available countries
-  useEffect(() => {
-    const fetchCountries = async () => {
-      const response = await fetch('/api/countries?limit=1000')
-      if (!response.ok) {
-        throw new Error(`Failed to fetch countries: ${response.statusText}`)
-      }
-      const data: CountryResponse[] = await response.json()
-      setCountries(data)
-      setLoadingCountries(false)
-    }
-
-    fetchCountries()
-  }, [])
 
   // Convert languages to MultiSelect options
   const languageOptions: MultiSelectOption[] = languages.map((lang) => ({
