@@ -164,6 +164,24 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
     return `+${year}-${month}-${day}T00:00:00Z`
   }
 
+  const buildTimeQualifier = (htmlDate: string, precision: number) => {
+    return {
+      datatype: 'time',
+      snaktype: 'value',
+      datavalue: {
+        type: 'time',
+        value: {
+          time: htmlDateToWikidata(htmlDate),
+          after: 0,
+          before: 0,
+          timezone: 0,
+          precision: precision,
+          calendarmodel: 'http://www.wikidata.org/entity/Q1985727',
+        },
+      },
+    }
+  }
+
   const resetForm = () => {
     setSourceUrl('')
     setPropertyType('')
@@ -234,29 +252,11 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
         const qualifiers: Property['qualifiers'] = {}
 
         if (startDate) {
-          qualifiers.P580 = [
-            {
-              datavalue: {
-                value: {
-                  time: htmlDateToWikidata(startDate),
-                  precision: startDatePrecision,
-                },
-              },
-            },
-          ]
+          qualifiers.P580 = [buildTimeQualifier(startDate, startDatePrecision)]
         }
 
         if (endDate) {
-          qualifiers.P582 = [
-            {
-              datavalue: {
-                value: {
-                  time: htmlDateToWikidata(endDate),
-                  precision: endDatePrecision,
-                },
-              },
-            },
-          ]
+          qualifiers.P582 = [buildTimeQualifier(endDate, endDatePrecision)]
         }
 
         if (Object.keys(qualifiers).length > 0) {

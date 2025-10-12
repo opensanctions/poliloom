@@ -70,13 +70,7 @@ export function PropertyDisplay({
           onAction={onAction}
         />
       </div>
-      {!!property.statement_id ? (
-        <WikidataMetadata
-          qualifiers={property.qualifiers}
-          references={property.references}
-          isDiscarding={evaluations.get(property.id) === false}
-        />
-      ) : (
+      {!property.statement_id && (
         <StatementSource
           proofLine={property.proof_line || null}
           archivedPage={property.archived_page || null}
@@ -86,6 +80,11 @@ export function PropertyDisplay({
           onHover={() => onHover(property)}
         />
       )}
+      <WikidataMetadata
+        qualifiers={property.qualifiers}
+        references={property.references}
+        isDiscarding={evaluations.get(property.id) === false}
+      />
     </div>
   )
 }
