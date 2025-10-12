@@ -5,7 +5,8 @@ import { Header } from '@/components/Header'
 import { Button } from '@/components/Button'
 import { Input } from '@/components/Input'
 import { Property, PropertyType, Politician } from '@/types'
-import { PropertiesForm } from '@/components/PropertiesForm'
+import { PropertiesEvaluation } from '@/components/PropertiesEvaluation'
+import { AddPropertyForm } from '@/components/AddPropertyForm'
 
 export default function CreatePage() {
   const [selectedPoliticianId, setSelectedPoliticianId] = useState<string | null>(null)
@@ -76,9 +77,7 @@ export default function CreatePage() {
     setProperties([])
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-
+  const handleSubmit = () => {
     // TODO: Implement API integration
     console.log({
       politician_id: selectedPoliticianId,
@@ -101,7 +100,7 @@ export default function CreatePage() {
               </p>
             </div>
 
-            <form onSubmit={handleSubmit}>
+            <div>
               <div className="px-6 py-6 space-y-8">
                 {/* Politician Search */}
                 <div className="space-y-6">
@@ -199,7 +198,30 @@ export default function CreatePage() {
                 </div>
 
                 {/* Properties */}
-                <PropertiesForm properties={properties} onPropertiesChange={setProperties} />
+                <div className="space-y-6">
+                  <h2 className="text-lg font-medium text-gray-900">Properties</h2>
+
+                  {/* Add Property Form */}
+                  <AddPropertyForm
+                    onAddProperty={(property) => {
+                      setProperties([...properties, property])
+                    }}
+                  />
+
+                  {/* Display existing properties */}
+                  {properties.length > 0 && (
+                    <div className="mt-6">
+                      <PropertiesEvaluation
+                        properties={properties}
+                        evaluations={new Map()}
+                        onAction={() => {}}
+                        onShowArchived={() => {}}
+                        onHover={() => {}}
+                        activeArchivedPageId={null}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Footer Actions */}
@@ -207,11 +229,11 @@ export default function CreatePage() {
                 <Button type="button" variant="secondary" onClick={() => window.history.back()}>
                   Cancel
                 </Button>
-                <Button type="submit" className="px-6 py-3">
+                <Button type="button" onClick={handleSubmit} className="px-6 py-3">
                   {selectedPoliticianId ? 'Update Politician' : 'Create Politician'}
                 </Button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       </main>
