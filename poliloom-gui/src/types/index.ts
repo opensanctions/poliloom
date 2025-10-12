@@ -13,6 +13,24 @@ export enum PropertyType {
   P27 = 'P27', // Citizenship
 }
 
+// Qualifier types for Wikidata date values
+export interface WikidataDateValue {
+  time: string
+  precision: number
+}
+
+export interface WikidataQualifierValue {
+  datavalue?: {
+    value?: WikidataDateValue
+  }
+}
+
+export interface PropertyQualifiers {
+  P580?: WikidataQualifierValue[] // Start date
+  P582?: WikidataQualifierValue[] // End date
+  [key: string]: WikidataQualifierValue[] | undefined
+}
+
 export interface Property {
   id: string
   type: PropertyType
@@ -22,7 +40,7 @@ export interface Property {
   entity_name?: string
   proof_line?: string
   statement_id?: string | null
-  qualifiers?: Record<string, unknown>
+  qualifiers?: PropertyQualifiers
   references?: Array<Record<string, unknown>>
   archived_page?: ArchivedPageResponse
 }

@@ -1,125 +1,87 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Header } from '@/components/Header'
 import { Button } from '@/components/Button'
-import { EntitySelector, EntityItem } from '@/components/EntitySelector'
 import { Input } from '@/components/Input'
-import { Property, PropertyType } from '@/types'
+import { Property, PropertyType, Politician } from '@/types'
+import { PropertiesForm } from '@/components/PropertiesForm'
 
 export default function CreatePage() {
+  const [selectedPoliticianId, setSelectedPoliticianId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [wikidataId, setWikidataId] = useState('')
-  const [birthDate, setBirthDate] = useState('')
-  const [birthDatePrecision, setBirthDatePrecision] = useState<number>(11)
-  const [deathDate, setDeathDate] = useState('')
-  const [deathDatePrecision, setDeathDatePrecision] = useState<number>(11)
+  const [properties, setProperties] = useState<Property[]>([])
 
-  const [positions, setPositions] = useState<EntityItem[]>([])
-  const [birthplaces, setBirthplaces] = useState<EntityItem[]>([])
-  const [citizenships, setCitizenships] = useState<EntityItem[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<Politician[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+
+  // Debounced search effect
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    if (!searchQuery.trim()) {
+      setSearchResults([])
+      setShowDropdown(false)
+      setIsSearching(false)
+      return
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      setIsSearching(true)
+      try {
+        const response = await fetch(
+          `/api/politicians?search=${encodeURIComponent(searchQuery)}&limit=10`,
+        )
+        if (response.ok) {
+          const results = await response.json()
+          setSearchResults(results)
+          setShowDropdown(results.length > 0)
+        }
+      } catch (error) {
+        console.error('Search failed:', error)
+      } finally {
+        setIsSearching(false)
+      }
+    }, 300)
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [searchQuery])
+
+  const handleSelectPolitician = (politician: Politician) => {
+    setShowDropdown(false)
+    setSearchQuery('')
+    setSearchResults([])
+
+    // Use the politician data directly from search results
+    setSelectedPoliticianId(politician.id)
+    setName(politician.name)
+    setWikidataId(politician.wikidata_id || '')
+    setProperties(politician.properties)
+  }
+
+  const handleClearPolitician = () => {
+    setSelectedPoliticianId(null)
+    setName('')
+    setWikidataId('')
+    setProperties([])
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Convert form data to flat array of properties
-    const properties: Property[] = []
-
-    // Add birth date if provided
-    if (birthDate) {
-      const [year, month, day] = birthDate.split('-')
-      const wikidataDate = `+${year}-${month}-${day}T00:00:00Z`
-      properties.push({
-        id: crypto.randomUUID(),
-        type: PropertyType.P569,
-        value: wikidataDate,
-        value_precision: birthDatePrecision,
-      })
-    }
-
-    // Add death date if provided
-    if (deathDate) {
-      const [year, month, day] = deathDate.split('-')
-      const wikidataDate = `+${year}-${month}-${day}T00:00:00Z`
-      properties.push({
-        id: crypto.randomUUID(),
-        type: PropertyType.P570,
-        value: wikidataDate,
-        value_precision: deathDatePrecision,
-      })
-    }
-
-    // Add positions with qualifiers
-    positions.forEach((position) => {
-      if (position.wikidataId && position.name) {
-        const qualifiers: Record<string, unknown> = {}
-
-        // Add start date qualifier (P580) if provided
-        if (position.startDate) {
-          const [year, month, day] = position.startDate.split('-')
-          qualifiers.P580 = [
-            {
-              datavalue: {
-                value: {
-                  time: `+${year}-${month}-${day}T00:00:00Z`,
-                  precision: position.startDatePrecision ?? 11,
-                },
-              },
-            },
-          ]
-        }
-
-        // Add end date qualifier (P582) if provided
-        if (position.endDate) {
-          const [year, month, day] = position.endDate.split('-')
-          qualifiers.P582 = [
-            {
-              datavalue: {
-                value: {
-                  time: `+${year}-${month}-${day}T00:00:00Z`,
-                  precision: position.endDatePrecision ?? 11,
-                },
-              },
-            },
-          ]
-        }
-
-        properties.push({
-          id: crypto.randomUUID(),
-          type: PropertyType.P39,
-          entity_id: position.wikidataId,
-          entity_name: position.name,
-          qualifiers,
-        })
-      }
-    })
-
-    // Add birthplaces
-    birthplaces.forEach((birthplace) => {
-      if (birthplace.wikidataId && birthplace.name) {
-        properties.push({
-          id: crypto.randomUUID(),
-          type: PropertyType.P19,
-          entity_id: birthplace.wikidataId,
-          entity_name: birthplace.name,
-        })
-      }
-    })
-
-    // Add citizenships
-    citizenships.forEach((citizenship) => {
-      if (citizenship.wikidataId && citizenship.name) {
-        properties.push({
-          id: crypto.randomUUID(),
-          type: PropertyType.P27,
-          entity_id: citizenship.wikidataId,
-          entity_name: citizenship.name,
-        })
-      }
-    })
-
     // TODO: Implement API integration
     console.log({
+      politician_id: selectedPoliticianId,
       name,
       wikidata_id: wikidataId || null,
       properties,
@@ -133,14 +95,85 @@ export default function CreatePage() {
         <div className="max-w-4xl mx-auto">
           <div className="bg-white shadow rounded-lg">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h1 className="text-xl font-semibold text-gray-900">Create New Politician</h1>
+              <h1 className="text-xl font-semibold text-gray-900">Add Politician Data</h1>
               <p className="mt-1 text-sm text-gray-600">
-                Add a new politician with their properties and positions.
+                Search for an existing politician to edit, or create a new one from scratch.
               </p>
             </div>
 
             <form onSubmit={handleSubmit}>
               <div className="px-6 py-6 space-y-8">
+                {/* Politician Search */}
+                <div className="space-y-6">
+                  <h2 className="text-lg font-medium text-gray-900">Select Politician</h2>
+                  <p className="text-sm text-gray-600">
+                    Optional: Search for an existing politician to load their data, or leave empty
+                    to create a new one.
+                  </p>
+
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search for politicians..."
+                      disabled={selectedPoliticianId !== null}
+                    />
+                    {isSearching && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="animate-spin h-4 w-4 border-2 border-indigo-600 border-t-transparent rounded-full" />
+                      </div>
+                    )}
+
+                    {/* Dropdown */}
+                    {showDropdown && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                        {searchResults.length > 0 ? (
+                          <ul>
+                            {searchResults.map((result) => (
+                              <li key={result.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectPolitician(result)}
+                                  className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none"
+                                >
+                                  <div className="font-medium text-gray-900">{result.name}</div>
+                                  <div className="text-sm text-gray-500">
+                                    {result.wikidata_id && `(${result.wikidata_id})`}
+                                  </div>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="px-4 py-3 text-sm text-gray-500">No results found</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedPoliticianId && (
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-md flex justify-between items-center">
+                      <div>
+                        <p className="text-sm font-medium text-blue-900">
+                          Editing: {name} {wikidataId && `(${wikidataId})`}
+                        </p>
+                        <p className="text-xs text-blue-700 mt-1">
+                          You are editing an existing politician&apos;s data
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleClearPolitician}
+                        className="text-sm"
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Basic Information */}
                 <div className="space-y-6">
                   <h2 className="text-lg font-medium text-gray-900">Basic Information</h2>
@@ -165,90 +198,8 @@ export default function CreatePage() {
                   />
                 </div>
 
-                {/* Dates */}
-                <div className="space-y-6">
-                  <h2 className="text-lg font-medium text-gray-900">Dates</h2>
-
-                  <div>
-                    <label
-                      htmlFor="birthDate"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      Birth Date
-                    </label>
-                    <div className="flex gap-3">
-                      <Input
-                        type="date"
-                        id="birthDate"
-                        value={birthDate}
-                        onChange={(e) => setBirthDate(e.target.value)}
-                        className="flex-1"
-                      />
-                      <select
-                        value={birthDatePrecision}
-                        onChange={(e) => setBirthDatePrecision(Number(e.target.value))}
-                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900"
-                      >
-                        <option value={11}>Day</option>
-                        <option value={10}>Month</option>
-                        <option value={9}>Year</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="deathDate"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      Death Date
-                    </label>
-                    <div className="flex gap-3">
-                      <Input
-                        type="date"
-                        id="deathDate"
-                        value={deathDate}
-                        onChange={(e) => setDeathDate(e.target.value)}
-                        className="flex-1"
-                      />
-                      <select
-                        value={deathDatePrecision}
-                        onChange={(e) => setDeathDatePrecision(Number(e.target.value))}
-                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900"
-                      >
-                        <option value={11}>Day</option>
-                        <option value={10}>Month</option>
-                        <option value={9}>Year</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Political Positions */}
-                <EntitySelector
-                  label="Political Positions"
-                  items={positions}
-                  onItemsChange={setPositions}
-                  showQualifiers={true}
-                  qualifierLabels={{ start: 'Start Date', end: 'End Date' }}
-                  searchEndpoint="/api/positions"
-                />
-
-                {/* Birthplaces */}
-                <EntitySelector
-                  label="Birthplaces"
-                  items={birthplaces}
-                  onItemsChange={setBirthplaces}
-                  searchEndpoint="/api/locations"
-                />
-
-                {/* Citizenships */}
-                <EntitySelector
-                  label="Citizenships"
-                  items={citizenships}
-                  onItemsChange={setCitizenships}
-                  searchEndpoint="/api/countries"
-                />
+                {/* Properties */}
+                <PropertiesForm properties={properties} onPropertiesChange={setProperties} />
               </div>
 
               {/* Footer Actions */}
@@ -257,7 +208,7 @@ export default function CreatePage() {
                   Cancel
                 </Button>
                 <Button type="submit" className="px-6 py-3">
-                  Create Politician
+                  {selectedPoliticianId ? 'Update Politician' : 'Create Politician'}
                 </Button>
               </div>
             </form>
