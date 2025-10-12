@@ -638,6 +638,12 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             postgresql_where=Column("statement_id").isnot(None),
         ),
         Index("idx_properties_updated_at", "updated_at"),
+        Index(
+            "idx_properties_unevaluated",
+            "politician_id",
+            "archived_page_id",
+            postgresql_where=text("statement_id IS NULL AND deleted_at IS NULL"),
+        ),
         CheckConstraint(
             "(type IN ('BIRTH_DATE', 'DEATH_DATE') AND value IS NOT NULL AND value_precision IS NOT NULL AND entity_id IS NULL) "
             "OR (type IN ('BIRTHPLACE', 'POSITION', 'CITIZENSHIP') AND entity_id IS NOT NULL AND value IS NULL)",

@@ -43,6 +43,7 @@ export function PoliticiansProvider({ children }: { children: React.ReactNode })
       const params = new URLSearchParams({
         limit: limit.toString(),
         offset: offset.toString(),
+        has_unevaluated: 'true',
       })
       languagePreferences.forEach((qid) => params.append('languages', qid))
       countryPreferences.forEach((qid) => params.append('countries', qid))
