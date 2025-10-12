@@ -20,6 +20,8 @@ interface EntitySelectorProps<T extends SearchResult> {
   selectedEntity: { name: string; id: string } | null
   onClear: () => void
   disabled?: boolean
+  allowCreate?: boolean
+  onCreateNew?: (name: string) => void
 }
 
 export function EntitySelector<T extends SearchResult>({
@@ -30,6 +32,8 @@ export function EntitySelector<T extends SearchResult>({
   selectedEntity,
   onClear,
   disabled = false,
+  allowCreate = false,
+  onCreateNew,
 }: EntitySelectorProps<T>) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<T[]>([])
@@ -72,7 +76,8 @@ export function EntitySelector<T extends SearchResult>({
         if (response.ok) {
           const results = await response.json()
           setSearchResults(results)
-          setShowDropdown(results.length > 0)
+          // Show dropdown if we have results OR if we allow creating new entries
+          setShowDropdown(results.length > 0 || allowCreate)
         }
       } catch (error) {
         console.error('Search failed:', error)
@@ -147,30 +152,66 @@ export function EntitySelector<T extends SearchResult>({
         {showDropdown && (
           <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
             {searchResults.length > 0 ? (
-              <ul>
-                {searchResults.map((result) => {
-                  const resultId = result.wikidata_id || result.id || ''
-                  return (
-                    <li key={resultId}>
-                      <button
-                        type="button"
-                        onClick={() => handleSelect(result)}
-                        className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none"
-                      >
-                        <div className="font-medium text-gray-900">{result.name}</div>
-                        {(result.description || resultId) && (
-                          <div className="text-sm text-gray-500">
-                            {result.description && `${result.description} `}
-                            {resultId && `(${resultId})`}
-                          </div>
-                        )}
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
+              <div>
+                <ul>
+                  {searchResults.map((result) => {
+                    const resultId = result.wikidata_id || result.id || ''
+                    return (
+                      <li key={resultId}>
+                        <button
+                          type="button"
+                          onClick={() => handleSelect(result)}
+                          className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none"
+                        >
+                          <div className="font-medium text-gray-900">{result.name}</div>
+                          {(result.description || resultId) && (
+                            <div className="text-sm text-gray-500">
+                              {result.description && `${result.description} `}
+                              {resultId && `(${resultId})`}
+                            </div>
+                          )}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+                {allowCreate && onCreateNew && searchQuery.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onCreateNew(searchQuery.trim())
+                      setShowDropdown(false)
+                      setSearchQuery('')
+                    }}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none border-t border-gray-200"
+                  >
+                    <div className="font-medium text-blue-600">
+                      Create new: &quot;{searchQuery.trim()}&quot;
+                    </div>
+                    <div className="text-sm text-gray-500">Add as a new politician</div>
+                  </button>
+                )}
+              </div>
             ) : (
-              <div className="px-4 py-3 text-sm text-gray-500">No results found</div>
+              <div>
+                <div className="px-4 py-3 text-sm text-gray-500">No results found</div>
+                {allowCreate && onCreateNew && searchQuery.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onCreateNew(searchQuery.trim())
+                      setShowDropdown(false)
+                      setSearchQuery('')
+                    }}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none border-t border-gray-200"
+                  >
+                    <div className="font-medium text-blue-600">
+                      Create new: &quot;{searchQuery.trim()}&quot;
+                    </div>
+                    <div className="text-sm text-gray-500">Add as a new politician</div>
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}

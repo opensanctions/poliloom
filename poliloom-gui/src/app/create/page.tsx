@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { Header } from '@/components/Header'
 import { Button } from '@/components/Button'
-import { Input } from '@/components/Input'
 import { Property, Politician } from '@/types'
 import { PropertiesEvaluation } from '@/components/PropertiesEvaluation'
 import { AddPropertyForm } from '@/components/AddPropertyForm'
@@ -15,7 +14,6 @@ export default function CreatePage() {
     name: string
     wikidata_id: string
   } | null>(null)
-  const [name, setName] = useState('')
   const [properties, setProperties] = useState<Property[]>([])
 
   const handleSelectPolitician = (politician: Politician) => {
@@ -25,13 +23,21 @@ export default function CreatePage() {
       name: politician.name,
       wikidata_id: politician.wikidata_id || '',
     })
-    setName(politician.name)
     setProperties(politician.properties)
+  }
+
+  const handleCreateNew = (name: string) => {
+    // Create a new politician with the entered name
+    setSelectedPolitician({
+      id: '',
+      name: name,
+      wikidata_id: '',
+    })
+    setProperties([])
   }
 
   const handleClearPolitician = () => {
     setSelectedPolitician(null)
-    setName('')
     setProperties([])
   }
 
@@ -54,83 +60,72 @@ export default function CreatePage() {
 
             <div>
               <div className="px-6 py-6 space-y-8">
-                {/* Politician Search */}
+                {/* Politician Search/Create */}
                 <div className="space-y-6">
-                  <h2 className="text-lg font-medium text-gray-900">Select Politician</h2>
+                  <h2 className="text-lg font-medium text-gray-900">Select or Create Politician</h2>
                   <p className="text-sm text-gray-600">
-                    Optional: Search for an existing politician to load their data, or leave empty
-                    to create a new one.
+                    Search for an existing politician to load their data. If not found, you can
+                    create a new one.
                   </p>
 
                   <EntitySelector<Politician>
                     searchEndpoint="/api/politicians"
-                    placeholder="Search for politicians..."
+                    placeholder="Search for politicians or enter a new name..."
                     selectedEntity={
                       selectedPolitician
                         ? {
                             name: selectedPolitician.name,
-                            id: selectedPolitician.wikidata_id || selectedPolitician.id,
+                            id: selectedPolitician.wikidata_id || 'new',
                           }
                         : null
                     }
                     onSelect={handleSelectPolitician}
                     onClear={handleClearPolitician}
-                    disabled={!!name && !selectedPolitician}
+                    allowCreate={true}
+                    onCreateNew={handleCreateNew}
                   />
                 </div>
 
-                {/* Basic Information */}
-                <div className="space-y-6">
-                  <h2 className="text-lg font-medium text-gray-900">Basic Information</h2>
+                {/* Properties - only show when a politician is selected */}
+                {selectedPolitician && (
+                  <div className="space-y-6">
+                    <h2 className="text-lg font-medium text-gray-900">Properties</h2>
 
-                  <Input
-                    type="text"
-                    id="name"
-                    label="Name"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g., Jane Doe"
-                    disabled={!!selectedPolitician}
-                  />
-                </div>
+                    {/* Add Property Form */}
+                    <AddPropertyForm
+                      onAddProperty={(property) => {
+                        setProperties([...properties, property])
+                      }}
+                    />
 
-                {/* Properties */}
-                <div className="space-y-6">
-                  <h2 className="text-lg font-medium text-gray-900">Properties</h2>
-
-                  {/* Add Property Form */}
-                  <AddPropertyForm
-                    onAddProperty={(property) => {
-                      setProperties([...properties, property])
-                    }}
-                  />
-
-                  {/* Display existing properties */}
-                  {properties.length > 0 && (
-                    <div className="mt-6">
-                      <PropertiesEvaluation
-                        properties={properties}
-                        evaluations={new Map()}
-                        onAction={() => {}}
-                        onShowArchived={() => {}}
-                        onHover={() => {}}
-                        activeArchivedPageId={null}
-                      />
-                    </div>
-                  )}
-                </div>
+                    {/* Display existing properties */}
+                    {properties.length > 0 && (
+                      <div className="mt-6">
+                        <PropertiesEvaluation
+                          properties={properties}
+                          evaluations={new Map()}
+                          onAction={() => {}}
+                          onShowArchived={() => {}}
+                          onHover={() => {}}
+                          activeArchivedPageId={null}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Footer Actions */}
-              <div className="px-6 py-4 border-t border-gray-200 flex justify-between">
-                <Button type="button" variant="secondary" onClick={() => window.history.back()}>
-                  Cancel
-                </Button>
-                <Button type="button" onClick={handleSubmit} className="px-6 py-3">
-                  {selectedPolitician ? 'Update Politician' : 'Create Politician'}
-                </Button>
-              </div>
+              {selectedPolitician && (
+                <div className="px-6 py-4 border-t border-gray-200 flex justify-between">
+                  <Button type="button" variant="secondary" onClick={() => window.history.back()}>
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={handleSubmit} className="px-6 py-3">
+                    {selectedPolitician.id ? 'Update Politician' : 'Create Politician'}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
