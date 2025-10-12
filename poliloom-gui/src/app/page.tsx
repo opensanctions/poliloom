@@ -10,7 +10,7 @@ import Link from 'next/link'
 
 export default function Home() {
   const { session, status, isAuthenticated } = useAuthSession()
-  const { currentPolitician, loading, refetch } = usePoliticians()
+  const { currentPolitician, loading, refetch, loadPoliticians } = usePoliticians()
 
   return (
     <>
@@ -63,9 +63,12 @@ export default function Home() {
                       preferences
                     </Link>
                     , or{' '}
-                    <Link href="/" className="text-gray-700 hover:text-gray-900 underline">
+                    <button
+                      onClick={loadPoliticians}
+                      className="text-gray-700 hover:text-gray-900 underline cursor-pointer bg-transparent border-0 p-0 font-inherit"
+                    >
                       reload
-                    </Link>
+                    </button>
                     .
                   </p>
                 </div>
