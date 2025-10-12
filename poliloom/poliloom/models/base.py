@@ -12,7 +12,6 @@ from sqlalchemy import (
     String,
     func,
     select,
-    text,
 )
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, declarative_base, declared_attr, relationship
@@ -203,34 +202,21 @@ class WikidataEntityMixin:
         return ", ".join(description_parts) if description_parts else ""
 
     @classmethod
-    def search_by_label(cls, query, search_text: str, session: Session = None):
+    def search_by_label(cls, query, search_text: str):
         """Apply label search filter to an entity query using fuzzy text matching.
 
         Uses pg_trgm GIN index with % operator for filtering and <-> distance operator
-        for ordering. Dynamically adjusts similarity threshold based on search length.
+        for ordering. Similarity threshold should be set at the database level.
 
         Args:
             query: Existing select statement for entities
             search_text: Text to search for using fuzzy matching
-            session: Database session for setting similarity threshold
 
         Returns:
             Modified query with CTE joined and ordered by similarity
         """
         # Import here to avoid circular dependency
         from .wikidata import WikidataEntityLabel
-
-        # Set pg_trgm similarity threshold based on search length
-        # Shorter terms need stricter thresholds to avoid scanning too many labels
-        if session:
-            search_len = len(search_text)
-            if search_len <= 3:
-                threshold = 0.7
-            elif search_len <= 5:
-                threshold = 0.5
-            else:
-                threshold = 0.3
-            session.execute(text(f"SELECT set_limit({threshold})"))
 
         # CTE: Find minimum distance (maximum similarity) for each entity
         # Filters labels first, then joins to entities afterward for better performance

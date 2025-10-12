@@ -273,7 +273,7 @@ async def _map_single_item(
         else:
             # Use text-based fuzzy search for locations and countries
             search_query = config.entity_class.search_by_label(
-                base_query, search_text=free_item.name, session=db
+                base_query, search_text=free_item.name
             )
 
         # Execute query with configured limit

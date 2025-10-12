@@ -73,7 +73,7 @@ def create_entity_endpoint(
 
             # Apply search filter if provided
             if search:
-                query = model_class.search_by_label(query, search, session=db)
+                query = model_class.search_by_label(query, search)
 
             # Apply offset and limit
             query = query.offset(offset).limit(limit)

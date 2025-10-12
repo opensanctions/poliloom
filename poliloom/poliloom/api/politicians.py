@@ -79,7 +79,7 @@ async def get_politicians(
 
         # Apply filters
         if search:
-            query = Politician.search_by_label(query, search, session=db)
+            query = Politician.search_by_label(query, search)
 
         if has_unevaluated is True:
             query = Politician.filter_by_unevaluated_properties(
