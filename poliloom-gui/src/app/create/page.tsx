@@ -1,77 +1,38 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { Header } from '@/components/Header'
 import { Button } from '@/components/Button'
 import { Input } from '@/components/Input'
-import { Property, PropertyType, Politician } from '@/types'
+import { Property, Politician } from '@/types'
 import { PropertiesEvaluation } from '@/components/PropertiesEvaluation'
 import { AddPropertyForm } from '@/components/AddPropertyForm'
+import { EntitySelector } from '@/components/EntitySelector'
 
 export default function CreatePage() {
-  const [selectedPoliticianId, setSelectedPoliticianId] = useState<string | null>(null)
+  const [selectedPolitician, setSelectedPolitician] = useState<{
+    id: string
+    name: string
+    wikidata_id: string
+  } | null>(null)
   const [name, setName] = useState('')
   const [wikidataId, setWikidataId] = useState('')
   const [properties, setProperties] = useState<Property[]>([])
 
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<Politician[]>([])
-  const [isSearching, setIsSearching] = useState(false)
-  const [showDropdown, setShowDropdown] = useState(false)
-  const searchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
-
-  // Debounced search effect
-  useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current)
-    }
-
-    if (!searchQuery.trim()) {
-      setSearchResults([])
-      setShowDropdown(false)
-      setIsSearching(false)
-      return
-    }
-
-    searchTimeoutRef.current = setTimeout(async () => {
-      setIsSearching(true)
-      try {
-        const response = await fetch(
-          `/api/politicians?search=${encodeURIComponent(searchQuery)}&limit=10`,
-        )
-        if (response.ok) {
-          const results = await response.json()
-          setSearchResults(results)
-          setShowDropdown(results.length > 0)
-        }
-      } catch (error) {
-        console.error('Search failed:', error)
-      } finally {
-        setIsSearching(false)
-      }
-    }, 300)
-
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
-    }
-  }, [searchQuery])
-
   const handleSelectPolitician = (politician: Politician) => {
-    setShowDropdown(false)
-    setSearchQuery('')
-    setSearchResults([])
-
     // Use the politician data directly from search results
-    setSelectedPoliticianId(politician.id)
+    setSelectedPolitician({
+      id: politician.id,
+      name: politician.name,
+      wikidata_id: politician.wikidata_id || '',
+    })
     setName(politician.name)
     setWikidataId(politician.wikidata_id || '')
     setProperties(politician.properties)
   }
 
   const handleClearPolitician = () => {
-    setSelectedPoliticianId(null)
+    setSelectedPolitician(null)
     setName('')
     setWikidataId('')
     setProperties([])
@@ -80,7 +41,7 @@ export default function CreatePage() {
   const handleSubmit = () => {
     // TODO: Implement API integration
     console.log({
-      politician_id: selectedPoliticianId,
+      politician_id: selectedPolitician?.id || null,
       name,
       wikidata_id: wikidataId || null,
       properties,
@@ -110,67 +71,20 @@ export default function CreatePage() {
                     to create a new one.
                   </p>
 
-                  <div className="relative">
-                    <Input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search for politicians..."
-                      disabled={selectedPoliticianId !== null}
-                    />
-                    {isSearching && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <div className="animate-spin h-4 w-4 border-2 border-indigo-600 border-t-transparent rounded-full" />
-                      </div>
-                    )}
-
-                    {/* Dropdown */}
-                    {showDropdown && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                        {searchResults.length > 0 ? (
-                          <ul>
-                            {searchResults.map((result) => (
-                              <li key={result.id}>
-                                <button
-                                  type="button"
-                                  onClick={() => handleSelectPolitician(result)}
-                                  className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none"
-                                >
-                                  <div className="font-medium text-gray-900">{result.name}</div>
-                                  <div className="text-sm text-gray-500">
-                                    {result.wikidata_id && `(${result.wikidata_id})`}
-                                  </div>
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <div className="px-4 py-3 text-sm text-gray-500">No results found</div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {selectedPoliticianId && (
-                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-md flex justify-between items-center">
-                      <div>
-                        <p className="text-sm font-medium text-blue-900">
-                          Editing: {name} {wikidataId && `(${wikidataId})`}
-                        </p>
-                        <p className="text-xs text-blue-700 mt-1">
-                          You are editing an existing politician&apos;s data
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={handleClearPolitician}
-                        className="text-sm"
-                      >
-                        Clear
-                      </Button>
-                    </div>
-                  )}
+                  <EntitySelector<Politician>
+                    searchEndpoint="/api/politicians"
+                    placeholder="Search for politicians..."
+                    selectedEntity={
+                      selectedPolitician
+                        ? {
+                            name: selectedPolitician.name,
+                            id: selectedPolitician.wikidata_id || selectedPolitician.id,
+                          }
+                        : null
+                    }
+                    onSelect={handleSelectPolitician}
+                    onClear={handleClearPolitician}
+                  />
                 </div>
 
                 {/* Basic Information */}
@@ -230,7 +144,7 @@ export default function CreatePage() {
                   Cancel
                 </Button>
                 <Button type="button" onClick={handleSubmit} className="px-6 py-3">
-                  {selectedPoliticianId ? 'Update Politician' : 'Create Politician'}
+                  {selectedPolitician ? 'Update Politician' : 'Create Politician'}
                 </Button>
               </div>
             </div>

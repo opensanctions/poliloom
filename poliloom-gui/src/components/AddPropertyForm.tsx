@@ -1,140 +1,13 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { Property, PropertyType } from '@/types'
 import { Input } from './Input'
 import { Button } from './Button'
-import { Spinner } from './Spinner'
+import { EntitySelector, SearchResult } from './EntitySelector'
 
 interface AddPropertyFormProps {
   onAddProperty: (property: Property) => void
-}
-
-interface SearchResult {
-  wikidata_id: string
-  name: string
-  description: string
-}
-
-interface EntitySearchProps {
-  searchEndpoint: string
-  onSelect: (result: SearchResult) => void
-  placeholder: string
-  value: string
-  onChange: (value: string) => void
-}
-
-function EntitySearch({
-  searchEndpoint,
-  onSelect,
-  placeholder,
-  value,
-  onChange,
-}: EntitySearchProps) {
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-  const [isSearching, setIsSearching] = useState(false)
-  const [showDropdown, setShowDropdown] = useState(false)
-  const searchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowDropdown(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  // Debounced search
-  useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current)
-    }
-
-    if (!value.trim()) {
-      setSearchResults([])
-      setShowDropdown(false)
-      setIsSearching(false)
-      return
-    }
-
-    searchTimeoutRef.current = setTimeout(async () => {
-      setIsSearching(true)
-      try {
-        const response = await fetch(
-          `${searchEndpoint}?search=${encodeURIComponent(value)}&limit=10`,
-        )
-        if (response.ok) {
-          const results = await response.json()
-          setSearchResults(results)
-          setShowDropdown(results.length > 0)
-        }
-      } catch (error) {
-        console.error('Search failed:', error)
-      } finally {
-        setIsSearching(false)
-      }
-    }, 300)
-
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
-    }
-  }, [value, searchEndpoint])
-
-  const handleSelect = (result: SearchResult) => {
-    onSelect(result)
-    setShowDropdown(false)
-    setSearchResults([])
-  }
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <div className="relative">
-        <Input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-        />
-        {isSearching && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <Spinner />
-          </div>
-        )}
-      </div>
-
-      {showDropdown && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-          {searchResults.length > 0 ? (
-            <ul>
-              {searchResults.map((result) => (
-                <li key={result.wikidata_id}>
-                  <button
-                    type="button"
-                    onClick={() => handleSelect(result)}
-                    className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none"
-                  >
-                    <div className="font-medium text-gray-900">{result.name}</div>
-                    <div className="text-sm text-gray-500">
-                      {result.description} ({result.wikidata_id})
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="px-4 py-3 text-sm text-gray-500">No results found</div>
-          )}
-        </div>
-      )}
-    </div>
-  )
 }
 
 export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
@@ -146,7 +19,6 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
   const [datePrecision, setDatePrecision] = useState(11)
 
   // Entity-based properties (P39, P19, P27)
-  const [entitySearch, setEntitySearch] = useState('')
   const [selectedEntity, setSelectedEntity] = useState<{
     wikidata_id: string
     name: string
@@ -187,7 +59,6 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
     setPropertyType('')
     setDateValue('')
     setDatePrecision(11)
-    setEntitySearch('')
     setSelectedEntity(null)
     setStartDate('')
     setStartDatePrecision(11)
@@ -352,7 +223,6 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
             setPropertyType(e.target.value as PropertyType)
             // Reset form fields when type changes
             setDateValue('')
-            setEntitySearch('')
             setSelectedEntity(null)
             setStartDate('')
             setEndDate('')
@@ -397,50 +267,36 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
         </div>
       )}
 
-      {/* Entity search for entity-based properties */}
+      {/* Entity selector for entity-based properties */}
       {(propertyType === PropertyType.P39 ||
         propertyType === PropertyType.P19 ||
         propertyType === PropertyType.P27) && (
-        <div>
-          <label htmlFor="entitySearch" className="block text-sm font-medium text-gray-700 mb-1">
-            {propertyType === PropertyType.P39 && 'Position'}
-            {propertyType === PropertyType.P19 && 'Birthplace'}
-            {propertyType === PropertyType.P27 && 'Country'}
-          </label>
-          {selectedEntity ? (
-            <div className="p-3 bg-white border border-gray-300 rounded-md flex justify-between items-center">
-              <div>
-                <div className="font-medium text-gray-900">{selectedEntity.name}</div>
-                <div className="text-sm text-gray-500">{selectedEntity.wikidata_id}</div>
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  setSelectedEntity(null)
-                  setEntitySearch('')
-                }}
-                className="text-sm"
-              >
-                Clear
-              </Button>
-            </div>
-          ) : (
-            <EntitySearch
-              searchEndpoint={getEntitySearchEndpoint()}
-              placeholder={getEntitySearchPlaceholder()}
-              value={entitySearch}
-              onChange={setEntitySearch}
-              onSelect={(result) => {
-                setSelectedEntity({
-                  wikidata_id: result.wikidata_id,
-                  name: result.name,
-                })
-                setEntitySearch('')
-              }}
-            />
-          )}
-        </div>
+        <EntitySelector
+          searchEndpoint={getEntitySearchEndpoint()}
+          placeholder={getEntitySearchPlaceholder()}
+          label={
+            propertyType === PropertyType.P39
+              ? 'Position'
+              : propertyType === PropertyType.P19
+                ? 'Birthplace'
+                : 'Country'
+          }
+          selectedEntity={
+            selectedEntity
+              ? {
+                  name: selectedEntity.name,
+                  id: selectedEntity.wikidata_id,
+                }
+              : null
+          }
+          onSelect={(result) => {
+            setSelectedEntity({
+              wikidata_id: result.wikidata_id!,
+              name: result.name,
+            })
+          }}
+          onClear={() => setSelectedEntity(null)}
+        />
       )}
 
       {/* Date qualifiers for positions */}
