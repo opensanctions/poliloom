@@ -16,7 +16,6 @@ export default function CreatePage() {
     wikidata_id: string
   } | null>(null)
   const [name, setName] = useState('')
-  const [wikidataId, setWikidataId] = useState('')
   const [properties, setProperties] = useState<Property[]>([])
 
   const handleSelectPolitician = (politician: Politician) => {
@@ -27,25 +26,17 @@ export default function CreatePage() {
       wikidata_id: politician.wikidata_id || '',
     })
     setName(politician.name)
-    setWikidataId(politician.wikidata_id || '')
     setProperties(politician.properties)
   }
 
   const handleClearPolitician = () => {
     setSelectedPolitician(null)
     setName('')
-    setWikidataId('')
     setProperties([])
   }
 
   const handleSubmit = () => {
     // TODO: Implement API integration
-    console.log({
-      politician_id: selectedPolitician?.id || null,
-      name,
-      wikidata_id: wikidataId || null,
-      properties,
-    })
   }
 
   return (
@@ -84,6 +75,7 @@ export default function CreatePage() {
                     }
                     onSelect={handleSelectPolitician}
                     onClear={handleClearPolitician}
+                    disabled={!!name && !selectedPolitician}
                   />
                 </div>
 
@@ -99,15 +91,7 @@ export default function CreatePage() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g., Jane Doe"
-                  />
-
-                  <Input
-                    type="text"
-                    id="wikidataId"
-                    label="Wikidata ID"
-                    value={wikidataId}
-                    onChange={(e) => setWikidataId(e.target.value)}
-                    placeholder="e.g., Q12345"
+                    disabled={!!selectedPolitician}
                   />
                 </div>
 
