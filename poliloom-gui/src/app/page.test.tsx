@@ -49,15 +49,56 @@ vi.mock('next-auth/react', () => ({
 describe('Home Page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+
+    // Mock fetch for PreferencesProvider API calls
+    vi.mocked(fetch).mockImplementation((url) => {
+      const urlStr = url.toString()
+
+      if (urlStr.includes('/api/languages')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => [],
+        } as Response)
+      }
+
+      if (urlStr.includes('/api/countries')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => [],
+        } as Response)
+      }
+
+      if (urlStr.includes('/api/preferences')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => [],
+        } as Response)
+      }
+
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => [],
+      } as Response)
+    })
   })
 
-  it('renders main title and description', () => {
+  it('renders main title and description', async () => {
     mockUseSession.mockReturnValue({
       data: null,
       status: 'loading',
     })
 
-    render(<Home />)
+    await act(async () => {
+      render(<Home />)
+    })
 
     expect(screen.getByText('PoliLoom Data Evaluation')).toBeInTheDocument()
     expect(
@@ -65,24 +106,28 @@ describe('Home Page', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows loading state initially', () => {
+  it('shows loading state initially', async () => {
     mockUseSession.mockReturnValue({
       data: null,
       status: 'loading',
     })
 
-    render(<Home />)
+    await act(async () => {
+      render(<Home />)
+    })
 
     expect(screen.getByText('Loading authentication status...')).toBeInTheDocument()
   })
 
-  it('shows sign in button when user is unauthenticated', () => {
+  it('shows sign in button when user is unauthenticated', async () => {
     mockUseSession.mockReturnValue({
       data: null,
       status: 'unauthenticated',
     })
 
-    render(<Home />)
+    await act(async () => {
+      render(<Home />)
+    })
 
     expect(
       screen.getByText('Please sign in with your MediaWiki account to start evaluating data.'),
@@ -96,18 +141,9 @@ describe('Home Page', () => {
       status: 'authenticated',
     })
 
-    // Mock all fetch calls
+    // Override the default mock to return politician data
     vi.mocked(fetch).mockImplementation((url) => {
       const urlStr = url.toString()
-
-      if (urlStr.includes('/api/preferences')) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          statusText: 'OK',
-          json: async () => [],
-        } as Response)
-      }
 
       if (urlStr.includes('/api/politicians')) {
         return Promise.resolve({
@@ -115,6 +151,20 @@ describe('Home Page', () => {
           status: 200,
           statusText: 'OK',
           json: async () => [mockPolitician],
+        } as Response)
+      }
+
+      // Use default mock for other endpoints
+      if (
+        urlStr.includes('/api/languages') ||
+        urlStr.includes('/api/countries') ||
+        urlStr.includes('/api/preferences')
+      ) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => [],
         } as Response)
       }
 

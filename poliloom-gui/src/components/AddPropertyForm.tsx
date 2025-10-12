@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Property, PropertyType } from '@/types'
 import { Input } from './Input'
 import { Button } from './Button'
-import { EntitySelector, SearchResult } from './EntitySelector'
+import { EntitySelector } from './EntitySelector'
 
 interface AddPropertyFormProps {
   onAddProperty: (property: Property) => void

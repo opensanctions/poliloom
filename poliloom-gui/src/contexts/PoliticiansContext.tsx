@@ -86,11 +86,14 @@ export function PoliticiansProvider({ children }: { children: React.ReactNode })
   }, [isAuthenticated, initialized, fetchPoliticians])
 
   // Fetch politicians when current is null
+  // Note: loading is intentionally excluded from dependencies as it's a guard condition
+  // to prevent fetching while already loading. Including it would cause unnecessary re-runs.
   useEffect(() => {
     if (!isAuthenticated || !initialized || loading) return
     if (currentPolitician !== null) return
 
     loadPoliticians()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, initialized, currentPolitician, loadPoliticians])
 
   const refetch = useCallback(async () => {

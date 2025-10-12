@@ -83,7 +83,7 @@ export function PropertyDisplay({
       <WikidataMetadata
         qualifiers={property.qualifiers}
         references={property.references}
-        isDiscarding={evaluations.get(property.id) === false}
+        isDiscarding={!!property.statement_id && evaluations.get(property.id) === false}
       />
     </div>
   )

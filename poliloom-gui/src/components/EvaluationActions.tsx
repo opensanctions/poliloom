@@ -31,10 +31,14 @@ export function EvaluationActions({
       )}
       <Button
         size="sm"
-        variant={!isWikidataStatement ? 'danger' : 'secondary'}
+        variant={isWikidataStatement && isConfirmed !== false ? 'secondary' : 'danger'}
         active={isConfirmed === false}
         onClick={() => onAction(statementId, 'discard')}
-        className={!isWikidataStatement ? '' : 'text-gray-500 bg-gray-100 hover:bg-gray-300'}
+        className={
+          isWikidataStatement && isConfirmed !== false
+            ? '!text-gray-500 !bg-gray-100 hover:!bg-gray-300'
+            : ''
+        }
       >
         × Discard
       </Button>

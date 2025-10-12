@@ -15,6 +15,7 @@ export default function CreatePage() {
     wikidata_id: string
   } | null>(null)
   const [properties, setProperties] = useState<Property[]>([])
+  const [evaluations, setEvaluations] = useState<Map<string, boolean>>(new Map())
 
   const handleSelectPolitician = (politician: Politician) => {
     // Use the politician data directly from search results
@@ -24,6 +25,9 @@ export default function CreatePage() {
       wikidata_id: politician.wikidata_id || '',
     })
     setProperties(politician.properties)
+
+    // Initialize evaluations for existing properties (default to no evaluation)
+    setEvaluations(new Map())
   }
 
   const handleCreateNew = (name: string) => {
@@ -34,15 +38,37 @@ export default function CreatePage() {
       wikidata_id: '',
     })
     setProperties([])
+    setEvaluations(new Map())
   }
 
   const handleClearPolitician = () => {
     setSelectedPolitician(null)
     setProperties([])
+    setEvaluations(new Map())
+  }
+
+  const handleEvaluate = (propertyId: string, action: 'confirm' | 'discard') => {
+    setEvaluations((prev) => {
+      const newMap = new Map(prev)
+      const currentValue = newMap.get(propertyId)
+      const targetValue = action === 'confirm'
+
+      if (currentValue === targetValue) {
+        // Toggle off - remove from map
+        newMap.delete(propertyId)
+      } else {
+        // Set new value
+        newMap.set(propertyId, targetValue)
+      }
+      return newMap
+    })
   }
 
   const handleSubmit = () => {
     // TODO: Implement API integration
+    // Will need to submit both properties and evaluations
+    console.log('Properties:', properties)
+    console.log('Evaluations:', Array.from(evaluations.entries()))
   }
 
   return (
@@ -95,6 +121,12 @@ export default function CreatePage() {
                     <AddPropertyForm
                       onAddProperty={(property) => {
                         setProperties([...properties, property])
+                        // Auto-confirm newly added properties since user is manually adding them
+                        setEvaluations((prev) => {
+                          const newMap = new Map(prev)
+                          newMap.set(property.id, true)
+                          return newMap
+                        })
                       }}
                     />
 
@@ -103,8 +135,8 @@ export default function CreatePage() {
                       <div className="mt-6">
                         <PropertiesEvaluation
                           properties={properties}
-                          evaluations={new Map()}
-                          onAction={() => {}}
+                          evaluations={evaluations}
+                          onAction={handleEvaluate}
                           onShowArchived={() => {}}
                           onHover={() => {}}
                           activeArchivedPageId={null}

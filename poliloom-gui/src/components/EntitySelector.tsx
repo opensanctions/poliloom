@@ -91,7 +91,7 @@ export function EntitySelector<T extends SearchResult>({
         clearTimeout(searchTimeoutRef.current)
       }
     }
-  }, [searchQuery, searchEndpoint])
+  }, [searchQuery, searchEndpoint, allowCreate])
 
   const handleSelect = (result: T) => {
     onSelect(result)

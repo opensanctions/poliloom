@@ -61,6 +61,8 @@ export function WikidataMetadata({
   const hasReferences = references && references.length > 0
 
   // Auto-open the panel when discarding
+  // Note: openSection is intentionally excluded from dependencies to avoid re-triggering
+  // the effect when users manually toggle the panel (which would reopen it immediately)
   useLayoutEffect(() => {
     if (isDiscarding && (hasQualifiers || hasReferences)) {
       // Only open a panel if none is currently open
@@ -73,7 +75,8 @@ export function WikidataMetadata({
       setOpenSection(null)
       setWasAutoOpened(false)
     }
-  }, [isDiscarding, hasQualifiers, hasReferences, wasAutoOpened, openSection])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDiscarding, hasQualifiers, hasReferences, wasAutoOpened])
 
   if (!hasQualifiers && !hasReferences) {
     return <div className="text-sm text-gray-700 mt-2">No metadata</div>
