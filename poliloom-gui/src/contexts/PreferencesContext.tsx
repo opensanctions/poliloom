@@ -190,6 +190,10 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   const fetchPreferences = useCallback(async () => {
     if (status !== 'authenticated') return
 
+    // Wait for languages to be loaded before fetching preferences
+    // This is necessary for browser language detection to work properly
+    if (loadingLanguages) return
+
     setLoading(true)
     setError(null)
 
@@ -206,7 +210,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         (p) => p.preference_type === PreferenceType.LANGUAGE,
       )
 
-      if (hasNoStoredPreferences && hasNoLanguagePreferences && languages.length > 0) {
+      if (hasNoStoredPreferences && hasNoLanguagePreferences) {
         const detectedLanguages = detectBrowserLanguage(languages)
         if (detectedLanguages.length > 0) {
           await updatePreferences(PreferenceType.LANGUAGE, detectedLanguages)
@@ -225,7 +229,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     } finally {
       setLoading(false)
     }
-  }, [status, updatePreferences, languages])
+  }, [status, updatePreferences, languages, loadingLanguages])
 
   // Fetch preferences when authenticated
   useEffect(() => {

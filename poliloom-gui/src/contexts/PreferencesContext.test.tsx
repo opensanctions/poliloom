@@ -66,24 +66,29 @@ describe('PreferencesContext', () => {
 
     // Mock API responses
     fetchMock
-      // First call: fetch preferences (empty)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [],
-      })
-      // Second call: fetch available languages for detection
+      // First call: fetch available languages (on mount)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [
           { wikidata_id: 'Q1860', name: 'English', iso1_code: 'en', iso3_code: 'eng' },
         ],
       })
-      // Third call: update preferences with detected language
+      // Second call: fetch available countries (on mount)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      })
+      // Third call: fetch preferences (empty)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      })
+      // Fourth call: update preferences with detected language
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({}),
       })
-      // Fourth call: refetch preferences after update
+      // Fifth call: refetch preferences after update
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [
@@ -98,11 +103,15 @@ describe('PreferencesContext', () => {
     )
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/preferences')
+      expect(fetchMock).toHaveBeenCalledWith('/api/languages?limit=1000')
     })
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/languages')
+      expect(fetchMock).toHaveBeenCalledWith('/api/countries?limit=1000')
+    })
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/preferences')
     })
 
     await waitFor(() => {
@@ -133,10 +142,24 @@ describe('PreferencesContext', () => {
     })
 
     // Mock API responses
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [],
-    })
+    fetchMock
+      // First call: fetch available languages (on mount)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { wikidata_id: 'Q1860', name: 'English', iso1_code: 'en', iso3_code: 'eng' },
+        ],
+      })
+      // Second call: fetch available countries (on mount)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      })
+      // Third call: fetch preferences (empty from server, but we have localStorage)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      })
 
     render(
       <PreferencesProvider>
@@ -148,12 +171,7 @@ describe('PreferencesContext', () => {
       expect(fetchMock).toHaveBeenCalledWith('/api/preferences')
     })
 
-    // Should NOT call /api/languages (browser detection should not run)
-    await waitFor(() => {
-      expect(fetchMock).not.toHaveBeenCalledWith('/api/languages')
-    })
-
-    // Should NOT call preferences update
+    // Should NOT call preferences update (browser detection should not run because localStorage has preferences)
     expect(fetchMock).not.toHaveBeenCalledWith('/api/preferences/language', expect.anything())
   })
 
@@ -165,13 +183,27 @@ describe('PreferencesContext', () => {
       update: vi.fn(),
     })
 
-    // Mock API responses with existing server preferences
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [
-        { wikidata_id: 'Q150', name: 'French', preference_type: PreferenceType.LANGUAGE },
-      ],
-    })
+    // Mock API responses
+    fetchMock
+      // First call: fetch available languages (on mount)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { wikidata_id: 'Q1860', name: 'English', iso1_code: 'en', iso3_code: 'eng' },
+        ],
+      })
+      // Second call: fetch available countries (on mount)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      })
+      // Third call: fetch preferences (with existing server preferences)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { wikidata_id: 'Q150', name: 'French', preference_type: PreferenceType.LANGUAGE },
+        ],
+      })
 
     render(
       <PreferencesProvider>
@@ -183,12 +215,7 @@ describe('PreferencesContext', () => {
       expect(fetchMock).toHaveBeenCalledWith('/api/preferences')
     })
 
-    // Should NOT call /api/languages (browser detection should not run)
-    await waitFor(() => {
-      expect(fetchMock).not.toHaveBeenCalledWith('/api/languages')
-    })
-
-    // Should NOT call preferences update
+    // Should NOT call preferences update (browser detection should not run because server has preferences)
     expect(fetchMock).not.toHaveBeenCalledWith('/api/preferences/language', expect.anything())
   })
 
@@ -205,13 +232,27 @@ describe('PreferencesContext', () => {
       update: vi.fn(),
     })
 
-    // Mock API responses with existing server preferences
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [
-        { wikidata_id: 'Q150', name: 'French', preference_type: PreferenceType.LANGUAGE },
-      ],
-    })
+    // Mock API responses
+    fetchMock
+      // First call: fetch available languages (on mount)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { wikidata_id: 'Q1860', name: 'English', iso1_code: 'en', iso3_code: 'eng' },
+        ],
+      })
+      // Second call: fetch available countries (on mount)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      })
+      // Third call: fetch preferences (with existing server preferences)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { wikidata_id: 'Q150', name: 'French', preference_type: PreferenceType.LANGUAGE },
+        ],
+      })
 
     render(
       <PreferencesProvider>
@@ -223,12 +264,7 @@ describe('PreferencesContext', () => {
       expect(fetchMock).toHaveBeenCalledWith('/api/preferences')
     })
 
-    // Should NOT call /api/languages (browser detection should not run)
-    await waitFor(() => {
-      expect(fetchMock).not.toHaveBeenCalledWith('/api/languages')
-    })
-
-    // Should NOT call preferences update
+    // Should NOT call preferences update (browser detection should not run because both localStorage and server have preferences)
     expect(fetchMock).not.toHaveBeenCalledWith('/api/preferences/language', expect.anything())
   })
 })
