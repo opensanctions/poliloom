@@ -1,20 +1,12 @@
 """Base classes, mixins, and enums for PoliLoom models."""
 
-from collections import defaultdict
 from datetime import datetime, timezone
 from enum import Enum
 from typing import List
 
-from sqlalchemy import (
-    Column,
-    DateTime,
-    ForeignKey,
-    String,
-    func,
-    select,
-)
+from sqlalchemy import Column, DateTime, String, func
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import Session, declarative_base, declared_attr, relationship
+from sqlalchemy.orm import Session, declarative_base
 
 Base = declarative_base()
 
@@ -124,122 +116,6 @@ class UpsertMixin:
         else:
             session.execute(stmt)
             return None
-
-
-class WikidataEntityMixin:
-    """Mixin for entities that have a wikidata_id and wikidata_entity relationship."""
-
-    @declared_attr
-    def wikidata_id(cls):
-        return Column(
-            String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
-        )
-
-    @declared_attr
-    def wikidata_entity(cls):
-        return relationship("WikidataEntity", lazy="joined")
-
-    @property
-    def name(self) -> str:
-        """Get the name from the associated WikidataEntity."""
-        return self.wikidata_entity.name
-
-    @property
-    def description(self) -> str:
-        """Build rich description from WikidataRelations dynamically.
-
-        Returns:
-            Rich description string built from relations
-        """
-
-        if not hasattr(self, "wikidata_entity") or not self.wikidata_entity:
-            return ""
-
-        # Use preloaded relations instead of querying database
-        relations = self.wikidata_entity.parent_relations
-
-        # Group relations by type using defaultdict
-        relations_by_type = defaultdict(list)
-        for relation in relations:
-            if relation.parent_entity and relation.parent_entity.name:
-                relations_by_type[relation.relation_type].append(
-                    relation.parent_entity.name
-                )
-
-        description_parts = []
-
-        # Add Wikidata description if available
-        if self.wikidata_entity.description:
-            description_parts.append(self.wikidata_entity.description)
-
-        # Build description based on available relations
-        if relations_by_type[RelationType.INSTANCE_OF]:
-            instances = relations_by_type[RelationType.INSTANCE_OF]
-            description_parts.append(", ".join(instances))
-
-        if relations_by_type[RelationType.SUBCLASS_OF]:
-            subclasses = relations_by_type[RelationType.SUBCLASS_OF]
-            description_parts.append(f"subclass of {', '.join(subclasses)}")
-
-        if relations_by_type[RelationType.PART_OF]:
-            parts = relations_by_type[RelationType.PART_OF]
-            description_parts.append(f"part of {', '.join(parts)}")
-
-        if relations_by_type[RelationType.APPLIES_TO_JURISDICTION]:
-            jurisdictions = relations_by_type[RelationType.APPLIES_TO_JURISDICTION]
-            description_parts.append(
-                f"applies to jurisdiction {', '.join(jurisdictions)}"
-            )
-
-        if relations_by_type[RelationType.LOCATED_IN]:
-            locations = relations_by_type[RelationType.LOCATED_IN]
-            description_parts.append(f"located in {', '.join(locations)}")
-
-        if relations_by_type[RelationType.COUNTRY]:
-            countries = relations_by_type[RelationType.COUNTRY]
-            description_parts.append(f"country {', '.join(countries)}")
-
-        return ", ".join(description_parts) if description_parts else ""
-
-    @classmethod
-    def search_by_label(cls, query, search_text: str):
-        """Apply label search filter to an entity query using fuzzy text matching.
-
-        Uses pg_trgm GIN index with % operator for filtering and <-> distance operator
-        for ordering. Similarity threshold should be set at the database level.
-
-        Args:
-            query: Existing select statement for entities
-            search_text: Text to search for using fuzzy matching
-
-        Returns:
-            Modified query with CTE joined and ordered by similarity
-        """
-        # Import here to avoid circular dependency
-        from .wikidata import WikidataEntityLabel
-
-        # CTE: Find minimum distance (maximum similarity) for each entity
-        # Filters labels first, then joins to entities afterward for better performance
-        min_distance = (
-            select(
-                WikidataEntityLabel.entity_id,
-                func.min(WikidataEntityLabel.label.op("<->")(search_text)).label(
-                    "min_dist"
-                ),
-            )
-            # Use %% operator to filter - %% is escaped for pg8000 (becomes % in SQL)
-            # This uses the GIN index for fast filtering
-            .where(WikidataEntityLabel.label.op("%%")(search_text))
-            .group_by(WikidataEntityLabel.entity_id)
-            .cte("min_distance")
-        )
-
-        # Join the CTE to filter entities by search match and order by distance (ascending = most similar first)
-        query = query.join(
-            min_distance, cls.wikidata_id == min_distance.c.entity_id
-        ).order_by(min_distance.c.min_dist.asc())
-
-        return query
 
 
 class EntityCreationMixin:

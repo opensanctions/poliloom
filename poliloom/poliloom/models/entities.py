@@ -11,8 +11,8 @@ from .base import (
     LanguageCodeMixin,
     TimestampMixin,
     UpsertMixin,
-    WikidataEntityMixin,
 )
+from .wikidata import WikidataEntityMixin
 
 
 class Country(

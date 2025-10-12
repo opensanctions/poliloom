@@ -38,10 +38,9 @@ from .base import (
     SoftDeleteMixin,
     TimestampMixin,
     UpsertMixin,
-    WikidataEntityMixin,
 )
 from .entities import Language
-from .wikidata import WikidataEntity
+from .wikidata import WikidataEntity, WikidataEntityMixin
 
 
 class Politician(

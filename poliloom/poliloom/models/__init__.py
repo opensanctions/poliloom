@@ -11,7 +11,6 @@ from .base import (
     SoftDeleteMixin,
     TimestampMixin,
     UpsertMixin,
-    WikidataEntityMixin,
 )
 
 # Wikidata infrastructure
@@ -20,6 +19,7 @@ from .wikidata import (
     CurrentImportStatement,
     WikidataEntity,
     WikidataEntityLabel,
+    WikidataEntityMixin,
     WikidataDump,
     WikidataRelation,
 )
