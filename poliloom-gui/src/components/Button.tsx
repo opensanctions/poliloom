@@ -1,30 +1,17 @@
 import { ButtonHTMLAttributes, forwardRef } from 'react'
-import Link from 'next/link'
 
 type ButtonSize = 'sm' | 'md'
 
 type ButtonVariant = 'primary' | 'secondary' | 'success' | 'danger' | 'info' | 'ghost'
 
-interface BaseButtonProps {
+type ButtonProps = {
   size?: ButtonSize
   variant?: ButtonVariant
   active?: boolean
   fullWidth?: boolean
   disabled?: boolean
   children: React.ReactNode
-}
-
-type ButtonAsButton = BaseButtonProps &
-  Omit<ButtonHTMLAttributes<HTMLButtonElement>, keyof BaseButtonProps> & {
-    href?: never
-  }
-
-type ButtonAsLink = BaseButtonProps &
-  Omit<React.ComponentPropsWithoutRef<typeof Link>, keyof BaseButtonProps> & {
-    href: string
-  }
-
-type ButtonProps = ButtonAsButton | ButtonAsLink
+} & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'size'>
 
 const sizeClasses: Record<ButtonSize, string> = {
   sm: 'px-2 py-1 text-sm',
@@ -58,7 +45,7 @@ const variantClasses: Record<ButtonVariant, { base: string; active: string }> = 
   },
 }
 
-export const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonProps>(
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
     {
       size = 'md',
@@ -80,26 +67,8 @@ export const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonPr
     const widthClass = fullWidth ? 'w-full' : ''
     const combinedClasses = `${baseClasses} ${disabledClasses} ${widthClass} ${className}`.trim()
 
-    if ('href' in props && props.href) {
-      return (
-        <Link
-          ref={ref as React.Ref<HTMLAnchorElement>}
-          {...(props as React.ComponentPropsWithoutRef<typeof Link>)}
-          className={combinedClasses}
-          aria-disabled={disabled}
-        >
-          {children}
-        </Link>
-      )
-    }
-
     return (
-      <button
-        ref={ref as React.Ref<HTMLButtonElement>}
-        {...(props as ButtonHTMLAttributes<HTMLButtonElement>)}
-        disabled={disabled}
-        className={combinedClasses}
-      >
+      <button ref={ref} {...props} disabled={disabled} className={combinedClasses}>
         {children}
       </button>
     )

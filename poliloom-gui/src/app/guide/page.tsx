@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Header'
-import { Button } from '@/components/Button'
+import { Anchor } from '@/components/Anchor'
 import { EvaluationItem } from '@/components/EvaluationItem'
 import { PropertyDisplay } from '@/components/PropertyDisplay'
 import { Property, PropertyType } from '@/types'
@@ -86,7 +85,6 @@ const stateExplanations: Record<DemoState, { title: string; description: string 
 }
 
 export default function GuidePage() {
-  const router = useRouter()
   const [currentState, setCurrentState] = useState<DemoState>('none')
   const [evaluations, setEvaluations] = useState<Map<string, boolean>>(new Map())
   const [wikidataEvaluations, setWikidataEvaluations] = useState<Map<string, boolean>>(
@@ -377,7 +375,12 @@ export default function GuidePage() {
             </div>
 
             <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
-              <Button onClick={() => router.push('/')}>Start Evaluating</Button>
+              <Anchor
+                href="/"
+                className="bg-indigo-600 text-white font-medium hover:bg-indigo-700 px-4 py-2 rounded-md transition-colors"
+              >
+                Start Evaluating
+              </Anchor>
             </div>
           </div>
         </div>

@@ -4,7 +4,7 @@ import { useAuthSession } from '@/hooks/useAuthSession'
 import { Header } from '@/components/Header'
 import { Button } from '@/components/Button'
 import { PoliticianEvaluation } from '@/components/PoliticianEvaluation'
-import { handleSignIn } from '@/lib/actions'
+import { signIn } from 'next-auth/react'
 import { usePoliticians } from '@/contexts/PoliticiansContext'
 import Link from 'next/link'
 
@@ -39,11 +39,9 @@ export default function Home() {
                 <p className="text-gray-600">
                   Please sign in with your MediaWiki account to start evaluating data.
                 </p>
-                <form action={handleSignIn}>
-                  <Button type="submit" className="px-6 py-3 text-base">
-                    Sign in with MediaWiki
-                  </Button>
-                </form>
+                <Button onClick={() => signIn('wikimedia')} className="px-6 py-3 text-base">
+                  Sign in with MediaWiki
+                </Button>
               </div>
             )}
 

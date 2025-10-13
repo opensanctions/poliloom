@@ -1,9 +1,8 @@
 'use client'
 
-import { useSession, signOut } from 'next-auth/react'
-import Link from 'next/link'
-import { handleSignIn } from '@/lib/actions'
+import { useSession, signOut, signIn } from 'next-auth/react'
 import { Button } from './Button'
+import { Anchor } from './Anchor'
 
 export function Header() {
   const { data: session, status } = useSession()
@@ -13,9 +12,9 @@ export function Header() {
       <div className="w-full pl-6 pr-4 sm:pr-6 lg:pr-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <Link href="/" className="text-xl font-bold text-gray-900">
+            <Anchor href="/" className="text-xl font-bold text-gray-900">
               PoliLoom
-            </Link>
+            </Anchor>
           </div>
 
           <div className="flex items-center space-x-4">
@@ -26,22 +25,9 @@ export function Header() {
                 <div className="text-sm text-gray-700">
                   Welcome, {session.user.name || session.user.email}
                 </div>
-                <Button
-                  href="/preferences"
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-600 hover:text-gray-800"
-                >
-                  Preferences
-                </Button>
-                <Button
-                  href="/guide"
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-600 hover:text-gray-800"
-                >
-                  Guide
-                </Button>
+                <Anchor href="/preferences">Preferences</Anchor>
+                <Anchor href="/guide">Guide</Anchor>
+                <Anchor href="https://www.opensanctions.org/impressum/">Impressum</Anchor>
                 <Button
                   onClick={() => signOut({ callbackUrl: '/' })}
                   variant="ghost"
@@ -54,16 +40,18 @@ export function Header() {
             )}
 
             {status === 'unauthenticated' && (
-              <form action={handleSignIn}>
+              <>
+                <Anchor href="/guide">Guide</Anchor>
+                <Anchor href="https://www.opensanctions.org/impressum/">Impressum</Anchor>
                 <Button
-                  type="submit"
+                  onClick={() => signIn('wikimedia')}
                   variant="ghost"
                   size="sm"
-                  className="text-indigo-600 hover:text-indigo-500"
+                  className="text-gray-600 hover:text-gray-800"
                 >
                   Sign in
                 </Button>
-              </form>
+              </>
             )}
           </div>
         </div>

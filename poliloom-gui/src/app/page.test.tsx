@@ -29,10 +29,6 @@ Object.defineProperty(navigator, 'language', {
   writable: true,
 })
 
-vi.mock('@/lib/actions', () => ({
-  handleSignIn: vi.fn(),
-}))
-
 vi.mock('@/components/Header', () => ({
   Header: () => <div>Header</div>,
 }))
@@ -42,8 +38,10 @@ vi.mock('@/components/PoliticianEvaluation', () => ({
 }))
 
 const mockUseSession = vi.fn()
+const mockSignIn = vi.fn()
 vi.mock('next-auth/react', () => ({
   useSession: () => mockUseSession(),
+  signIn: (...args: unknown[]) => mockSignIn(...args),
 }))
 
 describe('Home Page', () => {

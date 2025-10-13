@@ -1,14 +1,12 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Header'
-import { Button } from '@/components/Button'
+import { Anchor } from '@/components/Anchor'
 import { MultiSelect, MultiSelectOption } from '@/components/MultiSelect'
 import { usePreferencesContext } from '@/contexts/PreferencesContext'
 import { PreferenceType, WikidataEntity } from '@/types'
 
 export default function PreferencesPage() {
-  const router = useRouter()
   const {
     preferences,
     languages,
@@ -102,7 +100,12 @@ export default function PreferencesPage() {
             </div>
 
             <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
-              <Button onClick={() => router.push('/')}>Start Evaluating</Button>
+              <Anchor
+                href="/"
+                className="bg-indigo-600 text-white font-medium hover:bg-indigo-700 px-4 py-2 rounded-md transition-colors"
+              >
+                Start Evaluating
+              </Anchor>
             </div>
           </div>
         </div>
