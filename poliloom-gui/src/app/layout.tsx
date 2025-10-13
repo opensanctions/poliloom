@@ -1,21 +1,10 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { SessionProvider } from '@/components/SessionProvider'
 import { ArchivedPageProvider } from '@/contexts/ArchivedPageContext'
 import { PreferencesProvider } from '@/contexts/PreferencesContext'
 import { PoliticiansProvider } from '@/contexts/PoliticiansContext'
 import { FetchInterceptor } from '@/components/FetchInterceptor'
-
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-})
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-})
 
 export const metadata: Metadata = {
   title: 'PoliLoom - Data Confirmation',
@@ -29,9 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased grid grid-rows-[auto_1fr] h-screen`}
-      >
+      <body className="font-sans antialiased grid grid-rows-[auto_1fr] h-screen">
         <SessionProvider>
           <FetchInterceptor />
           <PreferencesProvider>

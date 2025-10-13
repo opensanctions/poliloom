@@ -12,7 +12,12 @@ export function Header() {
       <div className="w-full pl-6 pr-4 sm:pr-6 lg:pr-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <Anchor href="/" className="text-xl font-bold text-gray-900">
+            <Anchor href="/" className="flex items-center gap-2 text-xl font-bold text-gray-900">
+              <img
+                src="https://assets.opensanctions.org/images/ep/logo-icon-color.svg"
+                alt="European Parliament"
+                className="h-8 w-8"
+              />
               PoliLoom
             </Anchor>
           </div>

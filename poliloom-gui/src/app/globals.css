@@ -1,15 +1,34 @@
 @import 'tailwindcss';
 
+@font-face {
+  font-family: 'Mona Sans';
+  src: url('https://assets.opensanctions.org/fonts/Mona-Sans.woff2') format('woff2');
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'MonaspaceArgon';
+  src: url('https://assets.opensanctions.org/fonts/MonaspaceArgon.var.woff2') format('woff2');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --font-mona-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-monaspace:
+    'MonaspaceArgon', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-mona-sans);
+  --font-mono: var(--font-monaspace);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,7 +41,6 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
 
 /* CSS Custom Highlight API styles for text highlighting */
