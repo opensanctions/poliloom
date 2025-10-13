@@ -329,6 +329,7 @@ describe('PoliticianEvaluation', () => {
         properties: [
           // Citizenship first (should appear as "Citizenships" section)
           {
+            key: 'prop-citizenship',
             id: 'prop-citizenship',
             type: PropertyType.P27,
             entity_id: 'Q142',
@@ -338,6 +339,7 @@ describe('PoliticianEvaluation', () => {
           },
           // Birthplace second (should appear as "Birthplaces" section)
           {
+            key: 'birth-1',
             id: 'birth-1',
             type: PropertyType.P19,
             entity_id: 'Q123456',
@@ -347,6 +349,7 @@ describe('PoliticianEvaluation', () => {
           },
           // Position third (should appear as "Political Positions" section)
           {
+            key: 'pos-1',
             id: 'pos-1',
             type: PropertyType.P39,
             entity_id: 'Q555777',
@@ -360,6 +363,7 @@ describe('PoliticianEvaluation', () => {
           },
           // Birth date last (should appear as "Properties" section)
           {
+            key: 'prop-birth',
             id: 'prop-birth',
             type: PropertyType.P569,
             value: '+1970-01-01T00:00:00Z',
@@ -419,6 +423,7 @@ describe('PoliticianEvaluation', () => {
         properties: [
           ...mockPolitician.properties.filter((p) => p.type !== PropertyType.P39),
           {
+            key: 'pos-1',
             id: 'pos-1',
             type: PropertyType.P39,
             entity_id: 'Q555777',
@@ -430,6 +435,7 @@ describe('PoliticianEvaluation', () => {
             },
           },
           {
+            key: 'pos-2',
             id: 'pos-2',
             type: PropertyType.P39,
             entity_id: 'Q555777',

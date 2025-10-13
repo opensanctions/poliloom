@@ -9,6 +9,7 @@ import { Property, PropertyType } from '@/types'
 
 // Sample property for demonstration
 const sampleProperty: Property = {
+  key: 'demo-property',
   id: 'demo-property',
   type: PropertyType.P569,
   value: '+1990-05-15T00:00:00Z',
@@ -18,6 +19,7 @@ const sampleProperty: Property = {
 
 // Sample property that's already in Wikidata (for discard demo)
 const wikidataProperty: Property = {
+  key: 'demo-wikidata-property',
   id: 'demo-wikidata-property',
   type: PropertyType.P39,
   entity_id: 'Q486839',
@@ -288,7 +290,7 @@ export default function GuidePage() {
               <div>
                 <h2 className="text-lg font-medium text-gray-900 mb-4">Discarding Existing Data</h2>
                 <EvaluationItem
-                  title={<span className="font-bold">Position (Current in Wikidata)</span>}
+                  title={<span className="font-bold">{wikidataProperty.entity_name}</span>}
                 >
                   <PropertyDisplay
                     property={wikidataProperty}

@@ -94,7 +94,7 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
       if (!dateValue) return
 
       property = {
-        id: crypto.randomUUID(),
+        key: crypto.randomUUID(),
         type: propertyType,
         value: htmlDateToWikidata(dateValue),
         value_precision: datePrecision,
@@ -110,7 +110,7 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
       if (!selectedEntity) return
 
       property = {
-        id: crypto.randomUUID(),
+        key: crypto.randomUUID(),
         type: propertyType,
         entity_id: selectedEntity.wikidata_id,
         entity_name: selectedEntity.name,

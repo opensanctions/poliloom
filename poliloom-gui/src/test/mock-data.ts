@@ -13,6 +13,7 @@ export const mockPolitician: Politician = {
   wikidata_id: 'Q987654',
   properties: [
     {
+      key: 'prop-1',
       id: 'prop-1',
       type: PropertyType.P569,
       value: '+1970-01-01T00:00:00Z',
@@ -22,6 +23,7 @@ export const mockPolitician: Politician = {
       archived_page: mockArchivedPage,
     },
     {
+      key: 'pos-1',
       id: 'pos-1',
       type: PropertyType.P39,
       entity_id: 'Q555777',
@@ -35,6 +37,7 @@ export const mockPolitician: Politician = {
       archived_page: mockArchivedPage,
     },
     {
+      key: 'birth-1',
       id: 'birth-1',
       type: PropertyType.P19,
       entity_id: 'Q123456',
@@ -60,6 +63,7 @@ export const mockPoliticianWithConflicts: Politician = {
   properties: [
     // Birth date (conflicted - has extracted data)
     {
+      key: 'prop-conflicted',
       id: 'prop-conflicted',
       type: PropertyType.P569,
       value: '+1970-01-02T00:00:00Z',
@@ -70,6 +74,7 @@ export const mockPoliticianWithConflicts: Politician = {
     },
     // Citizenship (extracted-only)
     {
+      key: 'prop-extracted',
       id: 'prop-extracted',
       type: PropertyType.P27,
       entity_id: 'Q142',
@@ -80,6 +85,7 @@ export const mockPoliticianWithConflicts: Politician = {
     },
     // Position (conflicted)
     {
+      key: 'pos-conflicted',
       id: 'pos-conflicted',
       type: PropertyType.P39,
       entity_id: 'Q555777',
@@ -94,6 +100,7 @@ export const mockPoliticianWithConflicts: Politician = {
     },
     // Position (extracted-only)
     {
+      key: 'pos-extracted',
       id: 'pos-extracted',
       type: PropertyType.P39,
       entity_id: 'Q777888',
@@ -107,6 +114,7 @@ export const mockPoliticianWithConflicts: Politician = {
     },
     // Birthplace (conflicted)
     {
+      key: 'birth-conflicted',
       id: 'birth-conflicted',
       type: PropertyType.P19,
       entity_id: 'Q123456',
@@ -117,6 +125,7 @@ export const mockPoliticianWithConflicts: Politician = {
     },
     // Birthplace (extracted-only)
     {
+      key: 'birth-extracted',
       id: 'birth-extracted',
       type: PropertyType.P19,
       entity_id: 'Q999000',
@@ -134,6 +143,7 @@ export const mockPoliticianExtractedOnly: Politician = {
   wikidata_id: 'Q333444',
   properties: [
     {
+      key: 'prop-extracted-only-1',
       id: 'prop-extracted-only-1',
       type: PropertyType.P569,
       value: '+1980-05-15T00:00:00Z',
@@ -143,6 +153,7 @@ export const mockPoliticianExtractedOnly: Politician = {
       archived_page: mockArchivedPage,
     },
     {
+      key: 'prop-extracted-only-2',
       id: 'prop-extracted-only-2',
       type: PropertyType.P27,
       entity_id: 'Q183',
@@ -152,6 +163,7 @@ export const mockPoliticianExtractedOnly: Politician = {
       archived_page: mockArchivedPage,
     },
     {
+      key: 'pos-extracted-only-1',
       id: 'pos-extracted-only-1',
       type: PropertyType.P39,
       entity_id: 'Q111222',
@@ -165,6 +177,7 @@ export const mockPoliticianExtractedOnly: Politician = {
       archived_page: mockArchivedPage,
     },
     {
+      key: 'birth-extracted-only-1',
       id: 'birth-extracted-only-1',
       type: PropertyType.P19,
       entity_id: 'Q64',
@@ -190,6 +203,7 @@ export const mockPoliticianWithEdgeCases: Politician = {
   properties: [
     // Wikidata statement (should show as read-only)
     {
+      key: 'prop-wikidata-1',
       id: 'prop-wikidata-1',
       type: PropertyType.P569,
       value: '+1980-01-01T00:00:00Z',
@@ -200,6 +214,7 @@ export const mockPoliticianWithEdgeCases: Politician = {
     },
     // Regular extracted statement
     {
+      key: 'prop-extracted-1',
       id: 'prop-extracted-1',
       type: PropertyType.P569,
       value: '+1980-01-02T00:00:00Z',
@@ -210,6 +225,7 @@ export const mockPoliticianWithEdgeCases: Politician = {
     },
     // Wikidata position statement
     {
+      key: 'pos-wikidata-1',
       id: 'pos-wikidata-1',
       type: PropertyType.P39,
       entity_id: 'Q123456',
@@ -224,6 +240,7 @@ export const mockPoliticianWithEdgeCases: Politician = {
     },
     // Wikidata birthplace statement
     {
+      key: 'birth-wikidata-1',
       id: 'birth-wikidata-1',
       type: PropertyType.P19,
       entity_id: 'Q987654',

@@ -56,7 +56,16 @@ export function PoliticiansProvider({ children }: { children: React.ReactNode })
         throw new Error(`Failed to fetch politicians: ${response.statusText}`)
       }
 
-      return response.json()
+      const politicians: Politician[] = await response.json()
+
+      // Ensure all properties have key field set (key = id for backend properties)
+      return politicians.map((politician) => ({
+        ...politician,
+        properties: politician.properties.map((prop) => ({
+          ...prop,
+          key: prop.id || prop.key,
+        })),
+      }))
     },
     [session?.accessToken, languagePreferences, countryPreferences],
   )

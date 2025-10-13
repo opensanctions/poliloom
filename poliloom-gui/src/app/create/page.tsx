@@ -24,7 +24,12 @@ export default function CreatePage() {
       name: politician.name,
       wikidata_id: politician.wikidata_id || '',
     })
-    setProperties(politician.properties)
+    // Ensure backend properties have both key and id set (key = id)
+    const propertiesWithKeys = politician.properties.map((prop) => ({
+      ...prop,
+      key: prop.id || prop.key,
+    }))
+    setProperties(propertiesWithKeys)
 
     // Initialize evaluations for existing properties (default to no evaluation)
     setEvaluations(new Map())
@@ -64,11 +69,139 @@ export default function CreatePage() {
     })
   }
 
-  const handleSubmit = () => {
-    // TODO: Implement API integration
-    // Will need to submit both properties and evaluations
-    console.log('Properties:', properties)
-    console.log('Evaluations:', Array.from(evaluations.entries()))
+  const handleSubmit = async () => {
+    if (!selectedPolitician) return
+
+    // Filter properties for submission
+    const manualProps = properties.filter((p) => !p.id && evaluations.get(p.key) === true)
+    const extractedPropsToEvaluate = properties.filter((p) => p.id && evaluations.has(p.key))
+
+    // Validate that there's something to submit
+    if (manualProps.length === 0 && extractedPropsToEvaluate.length === 0) {
+      alert('Please add at least one property or evaluate existing properties')
+      return
+    }
+
+    const [submittingMessage, successMessage] = selectedPolitician.id
+      ? ['Updating...', `Successfully updated ${selectedPolitician.name}`]
+      : ['Creating...', `Successfully created ${selectedPolitician.name}`]
+
+    // Show submitting state
+    const submitButton = document.querySelector('button[type="button"]:last-of-type')
+    if (submitButton) {
+      submitButton.textContent = submittingMessage
+      ;(submitButton as HTMLButtonElement).disabled = true
+    }
+
+    try {
+      const errors: string[] = []
+
+      // For NEW politicians: create with manually added properties
+      if (!selectedPolitician.id) {
+        const propertyPayload = manualProps.map((p) => ({
+          type: p.type,
+          value: p.value,
+          value_precision: p.value_precision,
+          entity_id: p.entity_id,
+          qualifiers_json: p.qualifiers,
+          references_json: p.references,
+        }))
+
+        const response = await fetch('/api/politicians', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify([
+            {
+              name: selectedPolitician.name,
+              properties: propertyPayload,
+            },
+          ]),
+        })
+
+        if (!response.ok) {
+          throw new Error(`Failed to create politician: ${response.statusText}`)
+        }
+
+        const result = await response.json()
+        if (!result.success) {
+          errors.push(...(result.errors || ['Failed to create politician']))
+        }
+      }
+      // For EXISTING politicians: add properties and/or submit evaluations
+      else {
+        const requests: Promise<Response>[] = []
+
+        // Add manually added properties
+        if (manualProps.length > 0) {
+          const propertyPayload = manualProps.map((p) => ({
+            type: p.type,
+            value: p.value,
+            value_precision: p.value_precision,
+            entity_id: p.entity_id,
+            qualifiers_json: p.qualifiers,
+            references_json: p.references,
+          }))
+
+          requests.push(
+            fetch(`/api/politicians/${selectedPolitician.id}/properties`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(propertyPayload),
+            }),
+          )
+        }
+
+        // Submit evaluations for extracted properties
+        if (extractedPropsToEvaluate.length > 0) {
+          const evaluationPayload = extractedPropsToEvaluate.map((p) => ({
+            id: p.id!,
+            is_confirmed: evaluations.get(p.key)!,
+          }))
+
+          requests.push(
+            fetch('/api/evaluations', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ evaluations: evaluationPayload }),
+            }),
+          )
+        }
+
+        // Execute requests in parallel
+        const responses = await Promise.all(requests)
+
+        // Check all responses
+        for (const response of responses) {
+          if (!response.ok) {
+            throw new Error(`Failed to submit: ${response.statusText}`)
+          }
+          const result = await response.json()
+          if (!result.success) {
+            errors.push(...(result.errors || ['Operation failed']))
+          }
+        }
+      }
+
+      // Handle errors or success
+      if (errors.length > 0) {
+        alert(`Errors occurred:\n${errors.join('\n')}`)
+      } else {
+        alert(successMessage)
+        // Clear form state
+        setSelectedPolitician(null)
+        setProperties([])
+        setEvaluations(new Map())
+      }
+    } catch (error) {
+      console.error('Error submitting:', error)
+      alert(`Error submitting: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      // Restore button state
+      if (submitButton) {
+        submitButton.textContent = selectedPolitician.id ? 'Update Politician' : 'Create Politician'
+        ;(submitButton as HTMLButtonElement).disabled = false
+      }
+    }
   }
 
   return (
@@ -118,7 +251,7 @@ export default function CreatePage() {
                         // Auto-confirm newly added properties since user is manually adding them
                         setEvaluations((prev) => {
                           const newMap = new Map(prev)
-                          newMap.set(property.id, true)
+                          newMap.set(property.key, true)
                           return newMap
                         })
                       }}

@@ -66,9 +66,9 @@ export function PropertyDisplay({
       <div className="flex justify-between items-start gap-4">
         {renderPropertyContent()}
         <EvaluationActions
-          statementId={property.id}
+          statementId={property.key}
           isWikidataStatement={!!property.statement_id}
-          isConfirmed={evaluations.get(property.id) ?? null}
+          isConfirmed={evaluations.get(property.key) ?? null}
           onAction={onAction}
         />
       </div>
@@ -85,7 +85,7 @@ export function PropertyDisplay({
       <WikidataMetadata
         qualifiers={property.qualifiers}
         references={property.references}
-        isDiscarding={!!property.statement_id && evaluations.get(property.id) === false}
+        isDiscarding={!!property.statement_id && evaluations.get(property.key) === false}
         shouldAutoOpen={shouldAutoOpen}
       />
     </div>

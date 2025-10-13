@@ -8,6 +8,7 @@ const mockOnShowArchived = vi.fn()
 const mockOnHover = vi.fn()
 
 const baseProperty = {
+  key: 'test-1',
   id: 'test-1',
   type: PropertyType.P569,
   statement_id: null,

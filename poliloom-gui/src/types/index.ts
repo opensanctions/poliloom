@@ -32,7 +32,8 @@ export interface PropertyQualifiers {
 }
 
 export interface Property {
-  id: string
+  key: string // Used for React keys and Map lookups
+  id?: string // Optional: Present for backend properties, absent for manually added properties
   type: PropertyType
   value?: string
   value_precision?: number

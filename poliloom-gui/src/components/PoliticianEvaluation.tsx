@@ -188,7 +188,7 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
               {isSubmitting
                 ? 'Submitting...'
                 : evaluations.size === 0
-                  ? 'Skip for now'
+                  ? 'Skip Politician'
                   : 'Submit Evaluations & Next'}
             </Button>
           </div>

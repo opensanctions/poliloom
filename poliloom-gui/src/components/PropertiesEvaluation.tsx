@@ -153,7 +153,7 @@ export function PropertiesEvaluation({
                 }}
               >
                 {item.properties.map((property) => (
-                  <div key={property.id}>
+                  <div key={property.key}>
                     <hr className="border-gray-200 my-3" />
                     <PropertyDisplay
                       property={property}
