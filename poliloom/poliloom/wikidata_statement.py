@@ -110,64 +110,6 @@ async def deprecate_statement(
             )
 
 
-async def delete_statement(
-    entity_id: str,
-    statement_id: str,
-    jwt_token: str,
-) -> None:
-    """
-    Delete a Wikidata statement.
-
-    Args:
-        entity_id: Wikidata entity ID (e.g., 'Q42')
-        statement_id: Statement ID to delete
-        jwt_token: MediaWiki OAuth 2.0 JWT token
-
-    Raises:
-        ValueError: If JWT token is missing
-        httpx.RequestError: For network errors
-        Exception: For other API errors
-    """
-    if not jwt_token:
-        raise ValueError("JWT token is required for Wikidata API calls")
-
-    logger.info(f"Deleting statement {statement_id} from entity {entity_id}")
-
-    url = f"{WIKIDATA_API_ROOT}/entities/items/{entity_id}/statements/{statement_id}"
-
-    headers = {
-        "Authorization": f"Bearer {jwt_token}",
-        "User-Agent": USER_AGENT,
-    }
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.delete(url, headers=headers)
-
-        # Debug logging for request details
-        if logger.isEnabledFor(logging.DEBUG):
-            request = response.request
-            logger.debug(f"Request URL: {request.url}")
-            logger.debug(f"Request Headers: {dict(request.headers)}")
-            logger.debug(f"Response Status Code: {response.status_code}")
-
-        if response.status_code == 200:
-            logger.info(
-                f"Successfully deleted statement {statement_id} from entity {entity_id}"
-            )
-            return
-        elif response.status_code == 404:
-            # Statement or entity not found - already deleted, which is the desired state
-            logger.info(
-                f"Statement {statement_id} or entity {entity_id} not found - already deleted"
-            )
-            return
-        else:
-            # Other errors - raise exception
-            raise Exception(
-                f"Failed to delete statement {statement_id} from entity {entity_id}: HTTP {response.status_code} - {response.text}"
-            )
-
-
 async def create_statement(
     entity_id: str,
     property_id: str,

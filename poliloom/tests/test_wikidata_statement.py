@@ -8,7 +8,6 @@ from poliloom.models import Property, PropertyType, Politician, Evaluation
 from poliloom.wikidata_statement import (
     _convert_qualifiers_to_rest_api,
     deprecate_statement,
-    delete_statement,
     create_statement,
     push_evaluation,
 )
@@ -488,90 +487,6 @@ class TestDeprecateStatement:
 
             with pytest.raises(httpx.RequestError):
                 await deprecate_statement("Q42", "Q42$statement-id", "test_jwt_token")
-
-
-class TestDeleteStatement:
-    """Test delete_statement function with mocked HTTP calls."""
-
-    @pytest.mark.asyncio
-    async def test_successful_deletion_200(self):
-        """Test successful statement deletion (200 response)."""
-        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
-            mock_response = Mock()
-            mock_response.status_code = 200
-            mock_client.return_value.__aenter__.return_value.delete.return_value = (
-                mock_response
-            )
-
-            await delete_statement("Q42", "Q42$statement-id", "test_jwt_token")
-
-            # Verify the correct URL was called
-            mock_client.return_value.__aenter__.return_value.delete.assert_called_once()
-            call_args = (
-                mock_client.return_value.__aenter__.return_value.delete.call_args
-            )
-            assert "Q42/statements/Q42$statement-id" in call_args[0][0]
-
-    @pytest.mark.asyncio
-    async def test_already_deleted_404(self):
-        """Test deletion when statement already deleted (404 response)."""
-        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
-            mock_response = Mock()
-            mock_response.status_code = 404
-            mock_client.return_value.__aenter__.return_value.delete.return_value = (
-                mock_response
-            )
-
-            # Should not raise exception for 404 (already deleted)
-            await delete_statement("Q42", "Q42$statement-id", "test_jwt_token")
-
-    @pytest.mark.asyncio
-    async def test_authentication_error_401(self):
-        """Test authentication error (401 response)."""
-        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
-            mock_response = Mock()
-            mock_response.status_code = 401
-            mock_response.text = "Unauthorized"
-            mock_client.return_value.__aenter__.return_value.delete.return_value = (
-                mock_response
-            )
-
-            with pytest.raises(Exception, match="Failed to delete statement.*HTTP 401"):
-                await delete_statement("Q42", "Q42$statement-id", "test_jwt_token")
-
-    @pytest.mark.asyncio
-    async def test_server_error_500(self):
-        """Test server error (500 response)."""
-        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
-            mock_response = Mock()
-            mock_response.status_code = 500
-            mock_response.text = "Internal Server Error"
-            mock_client.return_value.__aenter__.return_value.delete.return_value = (
-                mock_response
-            )
-
-            with pytest.raises(Exception, match="Failed to delete statement.*HTTP 500"):
-                await delete_statement("Q42", "Q42$statement-id", "test_jwt_token")
-
-    @pytest.mark.asyncio
-    async def test_missing_jwt_token(self):
-        """Test missing JWT token raises ValueError."""
-        with pytest.raises(ValueError, match="JWT token is required"):
-            await delete_statement("Q42", "Q42$statement-id", "")
-
-        with pytest.raises(ValueError, match="JWT token is required"):
-            await delete_statement("Q42", "Q42$statement-id", None)
-
-    @pytest.mark.asyncio
-    async def test_network_error(self):
-        """Test network error handling."""
-        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.delete.side_effect = (
-                httpx.RequestError("Network error")
-            )
-
-            with pytest.raises(httpx.RequestError):
-                await delete_statement("Q42", "Q42$statement-id", "test_jwt_token")
 
 
 class TestCreateStatement:
