@@ -5,6 +5,7 @@ import pytest
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import AsyncMock, Mock as SyncMock, patch
 
 from poliloom.models import (
     ArchivedPage,
@@ -192,3 +193,67 @@ def sample_wikipedia_link(db_session, sample_politician):
     db_session.commit()
     db_session.refresh(wikipedia_link)
     return wikipedia_link
+
+
+# API Test Fixtures
+
+
+@pytest.fixture
+def client():
+    """Create a FastAPI test client."""
+    from fastapi.testclient import TestClient
+    from poliloom.api import app
+
+    return TestClient(app)
+
+
+@pytest.fixture
+def mock_auth():
+    """Mock authentication for API tests.
+
+    Returns authorization headers dict and mocks the OAuth handler
+    to return a user with a JWT token.
+    """
+    from poliloom.api.auth import User
+
+    with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
+        mock_user = User(user_id=12345, jwt_token="mock_jwt_token_for_testing")
+        mock_oauth_handler = SyncMock()
+        mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=mock_user)
+        mock_get_oauth_handler.return_value = mock_oauth_handler
+        yield {"Authorization": "Bearer valid_jwt_token"}
+
+
+@pytest.fixture(autouse=True)
+def mock_wikidata_api():
+    """Mock Wikidata API calls for entity and statement creation.
+
+    This fixture automatically mocks all Wikidata API interactions
+    to avoid real API calls during testing. Applied to all tests automatically.
+    """
+    import uuid
+
+    async def mock_create_entity_fn(label, *args, **kwargs):
+        # Hash the label to get a deterministic but unique QID
+        label_hash = hashlib.md5(label.encode()).hexdigest()
+        qid_number = int(label_hash[:8], 16) % 100000000  # Keep it reasonably sized
+        return f"Q{qid_number}"
+
+    async def mock_create_statement_fn(entity_id, *args, **kwargs):
+        # Generate random UUID for statement ID
+        statement_uuid = str(uuid.uuid4())
+        return f"{entity_id}${statement_uuid}"
+
+    with (
+        patch(
+            "poliloom.api.politicians.create_entity", side_effect=mock_create_entity_fn
+        ) as mock_create_entity,
+        patch(
+            "poliloom.api.politicians.create_statement",
+            side_effect=mock_create_statement_fn,
+        ) as mock_create_statement,
+    ):
+        yield {
+            "create_entity": mock_create_entity,
+            "create_statement": mock_create_statement,
+        }

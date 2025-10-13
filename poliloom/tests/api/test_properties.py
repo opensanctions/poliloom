@@ -1,32 +1,9 @@
 """Tests for the POST /politicians/:id/properties endpoint."""
 
-import pytest
-from unittest.mock import AsyncMock, Mock as SyncMock, patch
-from fastapi.testclient import TestClient
-
-from poliloom.api import app
-from poliloom.api.auth import User
 from poliloom.models import (
     Property,
     PropertyType,
 )
-
-
-@pytest.fixture
-def client():
-    """Create a test client."""
-    return TestClient(app)
-
-
-@pytest.fixture
-def mock_auth():
-    """Mock authentication for tests."""
-    with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
-        mock_user = User(user_id=12345)
-        mock_oauth_handler = SyncMock()
-        mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=mock_user)
-        mock_get_oauth_handler.return_value = mock_oauth_handler
-        yield {"Authorization": "Bearer valid_jwt_token"}
 
 
 class TestAddPropertiesEndpoint:

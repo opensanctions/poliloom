@@ -49,6 +49,121 @@ def _convert_qualifiers_to_rest_api(
     return rest_qualifiers
 
 
+def prepare_property_for_statement(
+    prop: Any,
+) -> tuple[Dict[str, Any], Optional[List[Dict[str, Any]]]]:
+    """
+    Convert a Property object into REST API format for statement creation.
+
+    Args:
+        prop: Property object with type, value, entity_id, qualifiers_json, etc.
+
+    Returns:
+        Tuple of (value_dict, qualifiers_list) ready for create_statement
+
+    Raises:
+        ValueError: If property type is invalid or date format is wrong
+    """
+
+    # Build statement value based on property type
+    if prop.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
+        # Convert stored date to proper Wikidata format
+        wikidata_date = WikidataDate.from_wikidata_time(
+            prop.value, prop.value_precision
+        )
+        if not wikidata_date:
+            raise ValueError(f"Invalid date for property {prop.id}: {prop.value}")
+        value = {
+            "type": "value",
+            "content": wikidata_date.to_wikidata_value(),
+        }
+    elif prop.type in [
+        PropertyType.BIRTHPLACE,
+        PropertyType.POSITION,
+        PropertyType.CITIZENSHIP,
+    ]:
+        value = {
+            "type": "value",
+            "content": prop.entity_id,
+        }
+    else:
+        raise ValueError(f"Unknown property type: {prop.type}")
+
+    # Convert qualifiers from Action API format to REST API format
+    qualifiers = None
+    if prop.qualifiers_json:
+        qualifiers = _convert_qualifiers_to_rest_api(prop.qualifiers_json)
+
+    return value, qualifiers
+
+
+async def create_entity(
+    label: str,
+    description: Optional[str] = None,
+    jwt_token: str = None,
+) -> str:
+    """
+    Create a new Wikidata entity (item).
+
+    Args:
+        label: Entity label (name)
+        description: Optional entity description
+        jwt_token: MediaWiki OAuth 2.0 JWT token
+
+    Returns:
+        The new entity's QID (e.g., "Q123456")
+
+    Raises:
+        ValueError: If JWT token is missing
+        httpx.RequestError: For network errors
+        Exception: For other API errors
+    """
+    if not jwt_token:
+        raise ValueError("JWT token is required for Wikidata API calls")
+
+    logger.info(f"Creating new Wikidata entity with label: {label}")
+
+    url = f"{WIKIDATA_API_ROOT}/entities/items"
+
+    # Build item data structure
+    item_data = {"item": {"labels": {"en": {"language": "en", "value": label}}}}
+
+    # Add description if provided
+    if description:
+        item_data["item"]["descriptions"] = {
+            "en": {"language": "en", "value": description}
+        }
+
+    headers = {
+        "Authorization": f"Bearer {jwt_token}",
+        "Content-Type": "application/json",
+        "User-Agent": USER_AGENT,
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(url, json=item_data, headers=headers)
+
+        # Debug logging for request details
+        if logger.isEnabledFor(logging.DEBUG):
+            request = response.request
+            logger.debug(f"Request URL: {request.url}")
+            logger.debug(f"Request Headers: {dict(request.headers)}")
+            logger.debug(f"Request Body: {request.content.decode('utf-8')}")
+            logger.debug(f"Response Status Code: {response.status_code}")
+
+        if response.status_code == 201:
+            result = response.json()
+            entity_id = result.get("id")
+            if not entity_id:
+                raise Exception("No entity ID returned from Wikidata API")
+            logger.info(f"Successfully created entity {entity_id} with label: {label}")
+            return entity_id
+        else:
+            error_msg = f"Failed to create entity with label '{label}': HTTP {response.status_code} - {response.text}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
+
+
 async def deprecate_statement(
     entity_id: str,
     statement_id: str,
@@ -273,39 +388,10 @@ async def push_evaluation(
                 f"Processing evaluation {evaluation.id}: politician {politician_wikidata_id}"
             )
 
-            # Build statement value directly from Property fields
-            if evaluation.property.type in [
-                PropertyType.BIRTH_DATE,
-                PropertyType.DEATH_DATE,
-            ]:
-                # Convert stored date to proper Wikidata format
-                wikidata_date = WikidataDate.from_wikidata_time(
-                    evaluation.property.value, evaluation.property.value_precision
-                )
-                if not wikidata_date:
-                    raise ValueError(
-                        f"Invalid date for property {evaluation.property.id}: {evaluation.property.value}"
-                    )
-                wikidata_value = {
-                    "type": "value",
-                    "content": wikidata_date.to_wikidata_value(),
-                }
-            elif evaluation.property.type in [
-                PropertyType.BIRTHPLACE,
-                PropertyType.POSITION,
-                PropertyType.CITIZENSHIP,
-            ]:
-                wikidata_value = {
-                    "type": "value",
-                    "content": evaluation.property.entity_id,
-                }
-
-            # Convert qualifiers from Action API format to REST API format
-            qualifiers = None
-            if evaluation.property.qualifiers_json:
-                qualifiers = _convert_qualifiers_to_rest_api(
-                    evaluation.property.qualifiers_json
-                )
+            # Prepare property for statement creation
+            wikidata_value, qualifiers = prepare_property_for_statement(
+                evaluation.property
+            )
 
             # Create statement using property type as Wikidata property ID
             statement_id = await create_statement(

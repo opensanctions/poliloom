@@ -1,12 +1,8 @@
 """Tests for the get_politicians endpoint focusing on behavior, not implementation."""
 
 import pytest
-from unittest.mock import AsyncMock, Mock as SyncMock, patch
-from fastapi.testclient import TestClient
 from typing import List, Dict, Any
 
-from poliloom.api import app
-from poliloom.api.auth import User
 from poliloom.models import (
     Politician,
     Property,
@@ -50,23 +46,6 @@ def extract_properties_by_type(
                 result[prop_type].append(prop)
 
     return result
-
-
-@pytest.fixture
-def client():
-    """Create a test client."""
-    return TestClient(app)
-
-
-@pytest.fixture
-def mock_auth():
-    """Mock authentication for tests."""
-    with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
-        mock_user = User(user_id=12345)
-        mock_oauth_handler = SyncMock()
-        mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=mock_user)
-        mock_get_oauth_handler.return_value = mock_oauth_handler
-        yield {"Authorization": "Bearer valid_jwt_token"}
 
 
 @pytest.fixture
@@ -1239,17 +1218,19 @@ class TestCreatePoliticianEndpoint:
         politician = data["politicians"][0]
         assert politician["id"] is not None
         assert politician["name"] == "New Politician"
-        assert politician["wikidata_id"] is None  # No wikidata_id initially
+        assert politician["wikidata_id"] is not None  # Wikidata entity was created
+        assert politician["wikidata_id"].startswith("Q")
         assert politician["properties"] == []
 
-        # Verify politician was created in database
+        # Verify politician was created in database with wikidata_id
         db_politician = (
             db_session.query(Politician)
             .filter(Politician.name == "New Politician")
             .first()
         )
         assert db_politician is not None
-        assert db_politician.wikidata_id is None
+        assert db_politician.wikidata_id is not None
+        assert db_politician.wikidata_id.startswith("Q")
 
     def test_create_politician_with_properties(self, client, mock_auth, db_session):
         """Test creating a politician with properties."""
@@ -1284,7 +1265,8 @@ class TestCreatePoliticianEndpoint:
 
         politician = data["politicians"][0]
         assert politician["id"] is not None
-        assert politician["wikidata_id"] is None
+        assert politician["wikidata_id"] is not None  # Wikidata entity was created
+        assert politician["wikidata_id"].startswith("Q")
         assert len(politician["properties"]) == 2
 
         # Verify property data is returned

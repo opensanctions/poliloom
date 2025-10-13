@@ -1,6 +1,7 @@
 """Politicians API endpoints."""
 
 import asyncio
+import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
@@ -16,6 +17,7 @@ from ..models import (
     PropertyType,
     ArchivedPage,
     Language,
+    WikidataEntity,
 )
 from .schemas import (
     PoliticianResponse,
@@ -28,6 +30,13 @@ from .schemas import (
 )
 from .auth import get_current_user, User
 from ..enrichment import enrich_until_target
+from ..wikidata_statement import (
+    create_entity,
+    create_statement,
+    prepare_property_for_statement,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -221,7 +230,7 @@ async def get_politicians(
 
 @router.post("", response_model=PoliticianCreateResponse, status_code=201)
 async def create_politician(
-    request: PoliticianCreateRequest = Depends(),
+    request: PoliticianCreateRequest,
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -295,6 +304,109 @@ async def create_politician(
             db.query(Politician).filter(Politician.id.in_(created_politician_ids)).all()
         )
 
+        # Create entities and statements in Wikidata
+        # Get JWT token from current_user
+        jwt_token = current_user.jwt_token
+
+        for politician in politicians:
+            try:
+                # Create entity in Wikidata
+                logger.info(
+                    f"Creating Wikidata entity for politician: {politician.name}"
+                )
+                entity_id = await create_entity(
+                    label=politician.name,
+                    description=None,
+                    jwt_token=jwt_token,
+                )
+
+                # Create WikidataEntity in database
+                wikidata_entity = WikidataEntity(
+                    wikidata_id=entity_id,
+                    name=politician.name,
+                    description=None,
+                )
+                db.add(wikidata_entity)
+                db.flush()
+
+                # Update politician with wikidata_id
+                politician.wikidata_id = entity_id
+
+                # Create P31 (instance of) → Q5 (human) statement
+                logger.info(f"Creating P31→Q5 statement for {entity_id}")
+                await create_statement(
+                    entity_id=entity_id,
+                    property_id="P31",
+                    value={"type": "value", "content": "Q5"},
+                    jwt_token=jwt_token,
+                )
+
+                # Create P106 (occupation) → Q82955 (politician) statement
+                logger.info(f"Creating P106→Q82955 statement for {entity_id}")
+                await create_statement(
+                    entity_id=entity_id,
+                    property_id="P106",
+                    value={"type": "value", "content": "Q82955"},
+                    jwt_token=jwt_token,
+                )
+
+                # Create statements for all properties
+                properties = (
+                    db.query(Property)
+                    .filter(Property.politician_id == politician.id)
+                    .filter(Property.deleted_at.is_(None))
+                    .all()
+                )
+
+                for prop in properties:
+                    try:
+                        # Prepare property for statement creation
+                        value, qualifiers = prepare_property_for_statement(prop)
+
+                        # Create statement
+                        logger.info(
+                            f"Creating statement for {entity_id} with property {prop.type.value}"
+                        )
+                        statement_id = await create_statement(
+                            entity_id=entity_id,
+                            property_id=prop.type.value,
+                            value=value,
+                            qualifiers=qualifiers,
+                            references=prop.references_json,
+                            jwt_token=jwt_token,
+                        )
+
+                        # Update property with statement_id
+                        prop.statement_id = statement_id
+
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to create statement for property {prop.id}: {e}"
+                        )
+                        errors.append(
+                            f"Politician '{politician.name}': Failed to create statement for {prop.type.value} - {str(e)}"
+                        )
+                        continue
+
+                # Commit updates for this politician
+                db.commit()
+                logger.info(
+                    f"Successfully created Wikidata entity {entity_id} for politician {politician.name}"
+                )
+
+            except Exception as e:
+                logger.error(
+                    f"Failed to create Wikidata entity for {politician.name}: {e}"
+                )
+                errors.append(
+                    f"Politician '{politician.name}': Wikidata creation failed - {str(e)}"
+                )
+                # Rollback changes for this politician
+                db.rollback()
+                # Reload politician state after rollback
+                db.refresh(politician)
+                continue
+
         # Build response with full politician data
         result = []
         for politician in politicians:
@@ -350,10 +462,10 @@ async def create_politician(
     "/{politician_id}/properties", response_model=PropertyAddResponse, status_code=201
 )
 async def add_properties(
+    request: PropertyAddRequest,
     politician_id: str = Path(
         ..., description="UUID of the politician to add properties to"
     ),
-    request: PropertyAddRequest = Depends(),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -436,6 +548,56 @@ async def add_properties(
             .filter(Property.deleted_at.is_(None))
             .all()
         )
+
+        # Create statements in Wikidata if politician has wikidata_id
+        if politician.wikidata_id:
+            # Get JWT token from current_user
+            jwt_token = current_user.jwt_token
+
+            for prop in properties:
+                try:
+                    # Prepare property for statement creation
+                    value, qualifiers = prepare_property_for_statement(prop)
+
+                    # Create statement
+                    logger.info(
+                        f"Creating statement for {politician.wikidata_id} with property {prop.type.value}"
+                    )
+                    statement_id = await create_statement(
+                        entity_id=politician.wikidata_id,
+                        property_id=prop.type.value,
+                        value=value,
+                        qualifiers=qualifiers,
+                        references=prop.references_json,
+                        jwt_token=jwt_token,
+                    )
+
+                    # Update property with statement_id
+                    prop.statement_id = statement_id
+
+                except Exception as e:
+                    logger.error(
+                        f"Failed to create statement for property {prop.id}: {e}"
+                    )
+                    errors.append(
+                        f"Failed to create statement for {prop.type.value} - {str(e)}"
+                    )
+                    continue
+
+            # Commit statement_id updates
+            try:
+                db.commit()
+                logger.info(
+                    f"Successfully created {len(properties)} statement(s) for politician {politician.wikidata_id}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to commit statement IDs: {e}")
+                errors.append(f"Failed to save statement IDs - {str(e)}")
+                db.rollback()
+        else:
+            logger.warning(
+                f"Politician {politician.id} has no wikidata_id - statements will be pushed when entity is created"
+            )
 
         # Build response with full property data
         property_responses = []
