@@ -216,7 +216,7 @@ export default function GuidePage() {
               <div>
                 <h2 className="text-lg font-medium text-gray-900 mb-4">Try It: Three Actions</h2>
 
-                <EvaluationItem title={<span className="font-bold">Birth Date</span>}>
+                <EvaluationItem title="Birth Date">
                   <PropertyDisplay
                     property={sampleProperty}
                     evaluations={evaluations}
@@ -289,9 +289,7 @@ export default function GuidePage() {
               {/* Discarding existing Wikidata items */}
               <div>
                 <h2 className="text-lg font-medium text-gray-900 mb-4">Discarding Existing Data</h2>
-                <EvaluationItem
-                  title={<span className="font-bold">{wikidataProperty.entity_name}</span>}
-                >
+                <EvaluationItem title={wikidataProperty.entity_name}>
                   <PropertyDisplay
                     property={wikidataProperty}
                     evaluations={wikidataEvaluations}

@@ -28,9 +28,9 @@ export function PropertiesEvaluation({
   const getPropertyTitle = (property: Property): ReactNode => {
     switch (property.type) {
       case PropertyType.P569:
-        return <span className="font-bold">Birth Date</span>
+        return 'Birth Date'
       case PropertyType.P570:
-        return <span className="font-bold">Death Date</span>
+        return 'Death Date'
       case PropertyType.P39:
       case PropertyType.P19:
       case PropertyType.P27:
@@ -153,17 +153,15 @@ export function PropertiesEvaluation({
                 }}
               >
                 {item.properties.map((property) => (
-                  <div key={property.key}>
-                    <hr className="border-gray-200 my-3" />
-                    <PropertyDisplay
-                      property={property}
-                      evaluations={evaluations}
-                      onAction={onAction}
-                      onShowArchived={onShowArchived}
-                      onHover={onHover}
-                      activeArchivedPageId={activeArchivedPageId}
-                    />
-                  </div>
+                  <PropertyDisplay
+                    key={property.key}
+                    property={property}
+                    evaluations={evaluations}
+                    onAction={onAction}
+                    onShowArchived={onShowArchived}
+                    onHover={onHover}
+                    activeArchivedPageId={activeArchivedPageId}
+                  />
                 ))}
               </EvaluationItem>
             ))}

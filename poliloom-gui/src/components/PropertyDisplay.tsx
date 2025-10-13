@@ -62,32 +62,35 @@ export function PropertyDisplay({
   }
 
   return (
-    <div className="space-y-2" onMouseEnter={() => onHover(property)}>
-      <div className="flex justify-between items-start gap-4">
-        {renderPropertyContent()}
-        <EvaluationActions
-          statementId={property.key}
-          isWikidataStatement={!!property.statement_id}
-          isConfirmed={evaluations.get(property.key) ?? null}
-          onAction={onAction}
+    <>
+      <hr className="border-gray-200 my-3" />
+      <div className="space-y-2" onMouseEnter={() => onHover(property)}>
+        <div className="flex justify-between items-start gap-4">
+          {renderPropertyContent()}
+          <EvaluationActions
+            statementId={property.key}
+            isWikidataStatement={!!property.statement_id}
+            isConfirmed={evaluations.get(property.key) ?? null}
+            onAction={onAction}
+          />
+        </div>
+        {!property.statement_id && (
+          <StatementSource
+            proofLine={property.proof_line || null}
+            archivedPage={property.archived_page || null}
+            isWikidataStatement={!!property.statement_id}
+            isActive={activeArchivedPageId === property.archived_page?.id}
+            onShowArchived={() => onShowArchived(property)}
+            onHover={() => onHover(property)}
+          />
+        )}
+        <WikidataMetadata
+          qualifiers={property.qualifiers}
+          references={property.references}
+          isDiscarding={!!property.statement_id && evaluations.get(property.key) === false}
+          shouldAutoOpen={shouldAutoOpen}
         />
       </div>
-      {!property.statement_id && (
-        <StatementSource
-          proofLine={property.proof_line || null}
-          archivedPage={property.archived_page || null}
-          isWikidataStatement={!!property.statement_id}
-          isActive={activeArchivedPageId === property.archived_page?.id}
-          onShowArchived={() => onShowArchived(property)}
-          onHover={() => onHover(property)}
-        />
-      )}
-      <WikidataMetadata
-        qualifiers={property.qualifiers}
-        references={property.references}
-        isDiscarding={!!property.statement_id && evaluations.get(property.key) === false}
-        shouldAutoOpen={shouldAutoOpen}
-      />
-    </div>
+    </>
   )
 }
