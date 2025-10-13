@@ -35,6 +35,14 @@ export function Header() {
                   Preferences
                 </Button>
                 <Button
+                  href="/guide"
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-600 hover:text-gray-800"
+                >
+                  Guide
+                </Button>
+                <Button
                   onClick={() => signOut({ callbackUrl: '/' })}
                   variant="ghost"
                   size="sm"
