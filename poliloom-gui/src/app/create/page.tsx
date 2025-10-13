@@ -88,12 +88,6 @@ export default function CreatePage() {
               <div className="px-6 py-6 space-y-8">
                 {/* Politician Search/Create */}
                 <div className="space-y-6">
-                  <h2 className="text-lg font-medium text-gray-900">Select or Create Politician</h2>
-                  <p className="text-sm text-gray-600">
-                    Search for an existing politician to load their data. If not found, you can
-                    create a new one.
-                  </p>
-
                   <EntitySelector<Politician>
                     searchEndpoint="/api/politicians"
                     placeholder="Search for politicians or enter a new name..."
