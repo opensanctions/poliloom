@@ -4,6 +4,7 @@ interface WikidataMetadataProps {
   qualifiers?: Record<string, unknown>
   references?: Array<Record<string, unknown>>
   isDiscarding?: boolean
+  shouldAutoOpen?: boolean
 }
 
 function MetadataSectionButton({
@@ -53,6 +54,7 @@ export function WikidataMetadata({
   qualifiers,
   references,
   isDiscarding = false,
+  shouldAutoOpen = true,
 }: WikidataMetadataProps) {
   const [openSection, setOpenSection] = useState<'qualifiers' | 'references' | null>(null)
   const [wasAutoOpened, setWasAutoOpened] = useState(false)
@@ -64,7 +66,7 @@ export function WikidataMetadata({
   // Note: openSection is intentionally excluded from dependencies to avoid re-triggering
   // the effect when users manually toggle the panel (which would reopen it immediately)
   useLayoutEffect(() => {
-    if (isDiscarding && (hasQualifiers || hasReferences)) {
+    if (shouldAutoOpen && isDiscarding && (hasQualifiers || hasReferences)) {
       // Only open a panel if none is currently open
       if (openSection === null) {
         setWasAutoOpened(true)
@@ -76,7 +78,7 @@ export function WikidataMetadata({
       setWasAutoOpened(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDiscarding, hasQualifiers, hasReferences, wasAutoOpened])
+  }, [shouldAutoOpen, isDiscarding, hasQualifiers, hasReferences, wasAutoOpened])
 
   if (!hasQualifiers && !hasReferences) {
     return <div className="text-sm text-gray-700 mt-2">No metadata</div>

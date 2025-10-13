@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Header'
+import { Button } from '@/components/Button'
 import { EvaluationItem } from '@/components/EvaluationItem'
 import { PropertyDisplay } from '@/components/PropertyDisplay'
 import { Property, PropertyType } from '@/types'
@@ -13,6 +15,55 @@ const sampleProperty: Property = {
   value: '+1990-05-15T00:00:00Z',
   value_precision: 11,
   proof_line: 'Born on May 15, 1990 in Stockholm, Sweden.',
+}
+
+// Sample property that's already in Wikidata (for discard demo)
+const wikidataProperty: Property = {
+  id: 'demo-wikidata-property',
+  type: PropertyType.P39,
+  entity_id: 'Q486839',
+  entity_name: 'Member of Parliament',
+  proof_line: 'Served as MP from 2015 to 2019.',
+  statement_id: 'Q12345$ABC-123',
+  qualifiers: {
+    P580: [
+      {
+        datavalue: {
+          value: {
+            time: '+2015-01-01T00:00:00Z',
+            precision: 11,
+          },
+        },
+      },
+    ],
+    P582: [
+      {
+        datavalue: {
+          value: {
+            time: '+2019-12-31T00:00:00Z',
+            precision: 11,
+          },
+        },
+      },
+    ],
+  },
+  references: [
+    {
+      P854: [
+        { snaktype: 'value', property: 'P854', datavalue: { value: 'https://example.gov/bio' } },
+      ],
+      P1476: [{ snaktype: 'value', property: 'P1476', datavalue: { value: 'Biography Page' } }],
+    },
+    {
+      P248: [
+        {
+          snaktype: 'value',
+          property: 'P248',
+          datavalue: { value: { 'entity-type': 'item', id: 'Q52' } },
+        },
+      ],
+    },
+  ],
 }
 
 type DemoState = 'none' | 'accept' | 'discard'
@@ -35,8 +86,12 @@ const stateExplanations: Record<DemoState, { title: string; description: string 
 }
 
 export default function GuidePage() {
+  const router = useRouter()
   const [currentState, setCurrentState] = useState<DemoState>('none')
   const [evaluations, setEvaluations] = useState<Map<string, boolean>>(new Map())
+  const [wikidataEvaluations, setWikidataEvaluations] = useState<Map<string, boolean>>(
+    new Map([['demo-wikidata-property', false]]),
+  )
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const stateIndexRef = useRef(0)
 
@@ -109,6 +164,23 @@ export default function GuidePage() {
     // No-op for demo
   }
 
+  const handleWikidataAction = (propertyId: string, action: 'confirm' | 'discard') => {
+    setWikidataEvaluations((prev) => {
+      const newMap = new Map(prev)
+      const currentValue = newMap.get(propertyId)
+      const targetValue = action === 'confirm'
+
+      if (currentValue === targetValue) {
+        // Toggle off - remove from map
+        newMap.delete(propertyId)
+      } else {
+        // Set new value
+        newMap.set(propertyId, targetValue)
+      }
+      return newMap
+    })
+  }
+
   return (
     <>
       <Header />
@@ -117,21 +189,33 @@ export default function GuidePage() {
           <div className="bg-white shadow rounded-lg">
             <div className="px-6 py-4 border-b border-gray-200">
               <h1 className="text-xl font-semibold text-gray-900">How It Works</h1>
+              <p className="mt-1 text-sm text-gray-600">
+                Learn how to review and evaluate politician data for Wikidata.
+              </p>
             </div>
 
             <div className="px-6 py-6 space-y-8">
               {/* Introduction */}
-              <div className="prose max-w-none">
-                <p className="text-lg text-gray-700 leading-relaxed">
+              <div className="prose max-w-none space-y-3">
+                <p className="text-sm text-gray-600 leading-relaxed">
                   PoliLoom extracts politician data from government portals and Wikipedia. Your job
-                  is simple: review each piece of information and decide whether it&apos;s accurate
-                  enough to add to Wikidata.
+                  is simple: <strong>review new data</strong> and decide whether it&apos;s accurate
+                  enough to add to Wikidata. You&apos;ll see extracted information like birth dates,
+                  positions, and birthplaces that need your confirmation before being added.
+                </p>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  Sometimes you&apos;ll notice that{' '}
+                  <strong>existing data on Wikidata conflicts with the new data</strong>. If the new
+                  data is better sourced or more accurate, you have the option to discard the
+                  existing statement. This removes it from Wikidata along with its metadata,
+                  allowing the improved version to be added instead.
                 </p>
               </div>
 
               {/* Interactive Demo */}
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Try It: Three Actions</h2>
+                <h2 className="text-lg font-medium text-gray-900 mb-4">Try It: Three Actions</h2>
+
                 <EvaluationItem title={<span className="font-bold">Birth Date</span>}>
                   <PropertyDisplay
                     property={sampleProperty}
@@ -189,7 +273,111 @@ export default function GuidePage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Comfort paragraph after demo */}
+                <div className="mt-4 prose max-w-none">
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    <strong>Not sure?</strong> That&apos;s completely fine:{' '}
+                    <strong>just skip it!</strong> You&apos;re never required to make a decision on
+                    any item. If something feels uncertain, leave it for another reviewer or take a
+                    moment to check the politician&apos;s Wikidata page yourself. Every contribution
+                    helps, even if you only evaluate the items you&apos;re confident about.
+                  </p>
+                </div>
               </div>
+
+              {/* Discarding existing Wikidata items */}
+              <div>
+                <h2 className="text-lg font-medium text-gray-900 mb-4">Discarding Existing Data</h2>
+                <EvaluationItem
+                  title={<span className="font-bold">Position (Current in Wikidata)</span>}
+                >
+                  <PropertyDisplay
+                    property={wikidataProperty}
+                    evaluations={wikidataEvaluations}
+                    onAction={handleWikidataAction}
+                    onShowArchived={handleShowArchived}
+                    onHover={handleHover}
+                    activeArchivedPageId={null}
+                    shouldAutoOpen={false}
+                  />
+                </EvaluationItem>
+
+                {/* Metadata info box */}
+                <div
+                  className={`mt-4 p-4 rounded-lg ${
+                    wikidataEvaluations.get('demo-wikidata-property') === false
+                      ? 'bg-red-50 border border-red-200'
+                      : 'bg-blue-50 border border-blue-200'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`flex-shrink-0 w-2 h-2 rounded-full mt-2 ${
+                        wikidataEvaluations.get('demo-wikidata-property') === false
+                          ? 'bg-red-500'
+                          : 'bg-blue-500'
+                      }`}
+                    />
+                    <div>
+                      {wikidataEvaluations.get('demo-wikidata-property') === false ? (
+                        <>
+                          <h3 className="font-semibold text-red-900">
+                            Statement Marked for Deletion
+                          </h3>
+                          <p className="text-sm mt-1 text-red-800">
+                            This statement and its metadata will be removed from Wikidata if you
+                            proceed.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <h3 className="font-semibold text-blue-900">
+                            Existing Wikidata Statement
+                          </h3>
+                          <p className="text-sm mt-1 text-blue-800">
+                            This statement is currently on Wikidata with metadata attached.
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Comfort paragraph after discard demo */}
+                <div className="mt-4 prose max-w-none">
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    When discarding existing Wikidata statements,{' '}
+                    <strong>pay attention to the metadata that&apos;s attached</strong>: dates,
+                    references, and qualifiers. These discards often replace one version with
+                    another, so{' '}
+                    <strong>compare what&apos;s being removed with what will be inserted</strong>.
+                    If the existing metadata looks valuable or you&apos;re unsure about the
+                    replacement, skip it and let someone else take a closer look.
+                  </p>
+                </div>
+              </div>
+
+              {/* Final confidence boost */}
+              <div>
+                <h2 className="text-lg font-medium text-gray-900 mb-4">You&apos;re Ready!</h2>
+                <div className="prose max-w-none">
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    That&apos;s all there is to it! Review what you&apos;re confident about, skip
+                    what you&apos;re not, and check Wikidata whenever you need more context.
+                    You&apos;ve got this:{' '}
+                    <strong>
+                      every evaluation you make helps improve the quality of data available to
+                      everyone
+                    </strong>
+                    .
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+              <Button onClick={() => router.push('/')}>Start Evaluating</Button>
             </div>
           </div>
         </div>

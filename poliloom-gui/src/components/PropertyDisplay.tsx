@@ -12,6 +12,7 @@ interface PropertyDisplayProps {
   onShowArchived: (property: Property) => void
   onHover: (property: Property) => void
   activeArchivedPageId: string | null
+  shouldAutoOpen?: boolean
 }
 
 export function PropertyDisplay({
@@ -21,6 +22,7 @@ export function PropertyDisplay({
   onShowArchived,
   onHover,
   activeArchivedPageId,
+  shouldAutoOpen,
 }: PropertyDisplayProps) {
   const renderPropertyContent = () => {
     switch (property.type) {
@@ -84,6 +86,7 @@ export function PropertyDisplay({
         qualifiers={property.qualifiers}
         references={property.references}
         isDiscarding={!!property.statement_id && evaluations.get(property.id) === false}
+        shouldAutoOpen={shouldAutoOpen}
       />
     </div>
   )
