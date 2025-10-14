@@ -40,13 +40,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Thread pool for background enrichment tasks (single worker)
+# Thread pool for background enrichment tasks (4 concurrent workers)
 _enrichment_executor = ThreadPoolExecutor(
-    max_workers=1, thread_name_prefix="enrichment"
+    max_workers=4, thread_name_prefix="enrichment"
 )
-
-# Track the current enrichment task future
-_enrichment_future = None
 
 
 @router.get("", response_model=List[PoliticianResponse])
@@ -164,20 +161,16 @@ async def get_politicians(
 
         # Trigger background enrichment when filtering for unevaluated
         if has_unevaluated is True:
-            global _enrichment_future
-
-            # Only start a new enrichment job if none is currently running
-            if _enrichment_future is None or _enrichment_future.done():
-                min_unevaluated = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
-                # Run enrichment in separate thread to avoid blocking API workers
-                loop = asyncio.get_running_loop()
-                _enrichment_future = loop.run_in_executor(
-                    _enrichment_executor,
-                    enrich_until_target,
-                    min_unevaluated,
-                    languages,
-                    countries,
-                )
+            min_unevaluated = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
+            # Always queue enrichment job - executor handles concurrent workers and queue
+            loop = asyncio.get_running_loop()
+            loop.run_in_executor(
+                _enrichment_executor,
+                enrich_until_target,
+                min_unevaluated,
+                languages,
+                countries,
+            )
 
         if not politicians:
             return []
