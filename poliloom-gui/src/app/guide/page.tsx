@@ -50,19 +50,21 @@ const wikidataProperty: Property = {
   },
   references: [
     {
-      P854: [
-        { snaktype: 'value', property: 'P854', datavalue: { value: 'https://example.gov/bio' } },
-      ],
-      P1476: [{ snaktype: 'value', property: 'P1476', datavalue: { value: 'Biography Page' } }],
-    },
-    {
-      P248: [
-        {
-          snaktype: 'value',
-          property: 'P248',
-          datavalue: { value: { 'entity-type': 'item', id: 'Q52' } },
-        },
-      ],
+      hash: 'abc123def456',
+      snaks: {
+        P854: [
+          {
+            datatype: 'url',
+            property: 'P854',
+            snaktype: 'value',
+            datavalue: {
+              type: 'string',
+              value: 'https://example.gov/bio',
+            },
+          },
+        ],
+      },
+      'snaks-order': ['P854'],
     },
   ],
 }
