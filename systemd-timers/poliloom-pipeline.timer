@@ -1,9 +1,8 @@
 [Unit]
 Description=Run PoliLoom pipeline daily at 3 AM
-Requires=poliloom-pipeline.service
 
 [Timer]
-OnCalendar=daily
+OnCalendar=*-*-* 03:00:00
 Persistent=true
 RandomizedDelaySec=3600
 

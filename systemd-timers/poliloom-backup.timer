@@ -1,9 +1,8 @@
 [Unit]
 Description=Run PostgreSQL backup daily at 2 AM
-Requires=poliloom-backup.service
 
 [Timer]
-OnCalendar=daily
+OnCalendar=*-*-* 02:00:00
 Persistent=true
 RandomizedDelaySec=1800
 
