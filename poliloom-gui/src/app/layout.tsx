@@ -7,8 +7,9 @@ import { PoliticiansProvider } from '@/contexts/PoliticiansContext'
 import { FetchInterceptor } from '@/components/FetchInterceptor'
 
 export const metadata: Metadata = {
-  title: 'PoliLoom - Data Confirmation',
-  description: 'Confirm politician data extracted from Wikipedia',
+  title: 'PoliLoom - Verify Political Data',
+  description:
+    'Join the community validating political information for Wikidata. Review and confirm politician data extracted from Wikipedia and government sources to help build accurate, open political knowledge.',
 }
 
 export default function RootLayout({
