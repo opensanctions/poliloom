@@ -288,7 +288,9 @@ class WikidataEntityLabel(Base, TimestampMixin, UpsertMixin):
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
     entity_id = Column(
-        String, ForeignKey("wikidata_entities.wikidata_id"), nullable=False
+        String,
+        ForeignKey("wikidata_entities.wikidata_id", ondelete="CASCADE"),
+        nullable=False,
     )
     label = Column(Text, nullable=False)
 
@@ -307,12 +309,12 @@ class WikidataRelation(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
 
     parent_entity_id = Column(
         String,
-        ForeignKey("wikidata_entities.wikidata_id"),
+        ForeignKey("wikidata_entities.wikidata_id", ondelete="CASCADE"),
         nullable=False,
     )
     child_entity_id = Column(
         String,
-        ForeignKey("wikidata_entities.wikidata_id"),
+        ForeignKey("wikidata_entities.wikidata_id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
