@@ -676,7 +676,7 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         Integer
     )  # Wikidata precision integer for date properties (9=year, 10=month, 11=day)
     entity_id = Column(
-        String, ForeignKey("wikidata_entities.wikidata_id"), nullable=True
+        String, ForeignKey("wikidata_entities.wikidata_id"), nullable=True, index=True
     )  # For entity relationships (birthplace, position, citizenship)
     archived_page_id = Column(
         UUID(as_uuid=True), ForeignKey("archived_pages.id"), nullable=True

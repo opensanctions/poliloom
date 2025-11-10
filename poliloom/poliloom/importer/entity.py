@@ -333,11 +333,22 @@ def import_entities(
             # Why are these here?
             "Q120560",  # minor basilica
             "Q2977",  # cathedral
+            # Religious positions (not political positions)
+            "Q63187345",  # religious occupation
+            "Q29982545",  # function in the Evangelical Church of Czech Brethren
         ]
         position_classes = WikidataEntity.query_hierarchy_descendants(
             session, position_root_ids, ignore_ids
         )
-        location_root_ids = ["Q27096213"]  # geographic entity
+        # Location leaf classes with >5k politicians that make sense for birthplace matching
+        # Focuses on classes where extracted text strings would meaningfully match
+        location_root_ids = [
+            "Q486972",  # human settlement (cities, towns, villages)
+            "Q82794",  # region (states, provinces)
+            "Q1306755",  # administrative centre (capitals)
+            "Q3257686",  # locality
+            "Q48907157",  # section of populated place (boroughs, districts)
+        ]
         location_classes = WikidataEntity.query_hierarchy_descendants(
             session, location_root_ids
         )

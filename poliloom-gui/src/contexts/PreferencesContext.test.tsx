@@ -21,7 +21,7 @@ function TestComponent() {
 
 describe('PreferencesContext', () => {
   let localStorageMock: Record<string, string>
-  let fetchMock: ReturnType<typeof vi.fn>
+  let fetchMock: ReturnType<typeof vi.fn<typeof fetch>>
 
   beforeEach(() => {
     // Mock localStorage
@@ -48,8 +48,8 @@ describe('PreferencesContext', () => {
     })
 
     // Mock fetch
-    fetchMock = vi.fn()
-    global.fetch = fetchMock
+    fetchMock = vi.fn<typeof fetch>()
+    global.fetch = fetchMock as typeof fetch
   })
 
   afterEach(() => {
@@ -72,29 +72,29 @@ describe('PreferencesContext', () => {
         json: async () => [
           { wikidata_id: 'Q1860', name: 'English', iso1_code: 'en', iso3_code: 'eng' },
         ],
-      })
+      } as Response)
       // Second call: fetch available countries (on mount)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [],
-      })
+      } as Response)
       // Third call: fetch preferences (empty)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [],
-      })
+      } as Response)
       // Fourth call: update preferences with detected language
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({}),
-      })
+      } as Response)
       // Fifth call: refetch preferences after update
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [
           { wikidata_id: 'Q1860', name: 'English', preference_type: PreferenceType.LANGUAGE },
         ],
-      })
+      } as Response)
 
     render(
       <PreferencesProvider>
@@ -149,17 +149,17 @@ describe('PreferencesContext', () => {
         json: async () => [
           { wikidata_id: 'Q1860', name: 'English', iso1_code: 'en', iso3_code: 'eng' },
         ],
-      })
+      } as Response)
       // Second call: fetch available countries (on mount)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [],
-      })
+      } as Response)
       // Third call: fetch preferences (empty from server, but we have localStorage)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [],
-      })
+      } as Response)
 
     render(
       <PreferencesProvider>
@@ -191,19 +191,19 @@ describe('PreferencesContext', () => {
         json: async () => [
           { wikidata_id: 'Q1860', name: 'English', iso1_code: 'en', iso3_code: 'eng' },
         ],
-      })
+      } as Response)
       // Second call: fetch available countries (on mount)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [],
-      })
+      } as Response)
       // Third call: fetch preferences (with existing server preferences)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [
           { wikidata_id: 'Q150', name: 'French', preference_type: PreferenceType.LANGUAGE },
         ],
-      })
+      } as Response)
 
     render(
       <PreferencesProvider>
@@ -240,19 +240,19 @@ describe('PreferencesContext', () => {
         json: async () => [
           { wikidata_id: 'Q1860', name: 'English', iso1_code: 'en', iso3_code: 'eng' },
         ],
-      })
+      } as Response)
       // Second call: fetch available countries (on mount)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [],
-      })
+      } as Response)
       // Third call: fetch preferences (with existing server preferences)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [
           { wikidata_id: 'Q150', name: 'French', preference_type: PreferenceType.LANGUAGE },
         ],
-      })
+      } as Response)
 
     render(
       <PreferencesProvider>

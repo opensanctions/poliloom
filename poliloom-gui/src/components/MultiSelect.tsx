@@ -67,11 +67,6 @@ export function MultiSelect({
     })
     .sort((a, b) => a.label.localeCompare(b.label))
 
-  // Reset focused index when filtered options change
-  useEffect(() => {
-    setFocusedIndex(-1)
-  }, [filteredOptions.length, searchTerm])
-
   const selectedOptions = options.filter((option) => selected.includes(option.value))
 
   const toggleOption = (value: string) => {
@@ -165,7 +160,10 @@ export function MultiSelect({
               ref={inputRef}
               type="text"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value)
+                setFocusedIndex(-1)
+              }}
               onKeyDown={handleKeyDown}
               onFocus={() => {
                 setIsOpen(true)

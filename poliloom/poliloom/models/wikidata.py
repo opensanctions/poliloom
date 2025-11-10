@@ -311,6 +311,7 @@ class WikidataRelation(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         String,
         ForeignKey("wikidata_entities.wikidata_id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     child_entity_id = Column(
         String,
