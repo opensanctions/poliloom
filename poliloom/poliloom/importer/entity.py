@@ -336,6 +336,8 @@ def import_entities(
             # Religious positions (not political positions)
             "Q63187345",  # religious occupation
             "Q29982545",  # function in the Evangelical Church of Czech Brethren
+            # General occupations (too broad, includes all professions)
+            "Q12737077",  # occupation
         ]
         position_classes = WikidataEntity.query_hierarchy_descendants(
             session, position_root_ids, ignore_ids
