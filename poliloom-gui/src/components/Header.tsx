@@ -23,8 +23,6 @@ export function Header() {
           </div>
 
           <div className="flex items-center space-x-4">
-            {status === 'loading' && <div className="text-sm text-gray-500">Loading...</div>}
-
             {status === 'authenticated' && session?.user && (
               <>
                 <div className="text-sm text-gray-700">
