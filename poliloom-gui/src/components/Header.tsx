@@ -46,7 +46,7 @@ export function Header() {
                 <Anchor href="/guide">Guide</Anchor>
                 <Anchor href="https://www.opensanctions.org/impressum/">Impressum</Anchor>
                 <Button
-                  onClick={() => signIn('wikimedia')}
+                  onClick={() => signIn('wikimedia', { callbackUrl: '/' })}
                   variant="ghost"
                   size="sm"
                   className="text-gray-600 hover:text-gray-800"
