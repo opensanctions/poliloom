@@ -1,20 +1,18 @@
 'use client'
 
-import { useAuthSession } from '@/hooks/useAuthSession'
 import { Header } from '@/components/Header'
 import { PoliticianEvaluation } from '@/components/PoliticianEvaluation'
 import { usePoliticians } from '@/contexts/PoliticiansContext'
 import Link from 'next/link'
 
 export default function EvaluatePage() {
-  const { session } = useAuthSession()
   const { currentPolitician, loading, refetch, loadPoliticians } = usePoliticians()
 
   return (
     <>
       <Header />
 
-      {currentPolitician && session?.accessToken ? (
+      {currentPolitician ? (
         <PoliticianEvaluation
           key={currentPolitician.id}
           politician={currentPolitician}

@@ -4,24 +4,22 @@ import { useAuthSession } from '@/hooks/useAuthSession'
 import { Header } from '@/components/Header'
 import { Button } from '@/components/Button'
 import { signIn } from 'next-auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 
 export default function LoginPage() {
   const { status, isAuthenticated } = useAuthSession()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get('callbackUrl') || '/evaluate'
 
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      router.push(callbackUrl)
+      router.push('/')
     }
-  }, [isAuthenticated, router, callbackUrl])
+  }, [isAuthenticated, router])
 
   const handleSignIn = () => {
-    signIn('wikimedia', { callbackUrl })
+    signIn('wikimedia', { callbackUrl: '/' })
   }
 
   return (
