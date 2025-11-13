@@ -30,7 +30,6 @@ export function Header() {
                 <div className="text-sm text-gray-700">
                   Welcome, {session.user.name || session.user.email}
                 </div>
-                <Anchor href="/preferences">Preferences</Anchor>
                 <Anchor href="/guide">Guide</Anchor>
                 <Anchor href="https://www.opensanctions.org/impressum/">Impressum</Anchor>
                 <Button

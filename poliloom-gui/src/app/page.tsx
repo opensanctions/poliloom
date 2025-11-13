@@ -1,79 +1,115 @@
 'use client'
 
-import { useAuthSession } from '@/hooks/useAuthSession'
 import { Header } from '@/components/Header'
-import { Button } from '@/components/Button'
-import { PoliticianEvaluation } from '@/components/PoliticianEvaluation'
-import { signIn } from 'next-auth/react'
-import { usePoliticians } from '@/contexts/PoliticiansContext'
-import Link from 'next/link'
+import { Anchor } from '@/components/Anchor'
+import { MultiSelect, MultiSelectOption } from '@/components/MultiSelect'
+import { usePreferencesContext } from '@/contexts/PreferencesContext'
+import { PreferenceType, WikidataEntity } from '@/types'
 
 export default function Home() {
-  const { session, status, isAuthenticated } = useAuthSession()
-  const { currentPolitician, loading, refetch, loadPoliticians } = usePoliticians()
+  const {
+    preferences,
+    languages,
+    countries,
+    loading: updating,
+    loadingLanguages,
+    loadingCountries,
+    error: preferencesError,
+    updatePreferences,
+  } = usePreferencesContext()
+
+  const languagePreferences = preferences
+    .filter((p) => p.preference_type === PreferenceType.LANGUAGE)
+    .map((p) => p.wikidata_id)
+
+  const countryPreferences = preferences
+    .filter((p) => p.preference_type === PreferenceType.COUNTRY)
+    .map((p) => p.wikidata_id)
+
+  // Convert languages to MultiSelect options
+  const languageOptions: MultiSelectOption[] = languages.map((lang) => ({
+    value: lang.wikidata_id,
+    label: lang.name,
+  }))
+
+  // Convert countries to MultiSelect options
+  const countryOptions: MultiSelectOption[] = countries.map((country) => ({
+    value: country.wikidata_id,
+    label: country.name,
+  }))
+
+  // Generic handler for preference changes
+  const createPreferenceHandler =
+    (type: PreferenceType, allItems: WikidataEntity[]) => (qids: string[]) => {
+      const items = allItems.filter((item) => qids.includes(item.wikidata_id))
+      updatePreferences(type, items)
+    }
+
+  const handleLanguageChange = createPreferenceHandler(PreferenceType.LANGUAGE, languages)
+  const handleCountryChange = createPreferenceHandler(PreferenceType.COUNTRY, countries)
 
   return (
     <>
       <Header />
+      <main className="bg-gray-50 grid place-items-center py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
+        <div className="max-w-2xl w-full">
+          <div className="bg-white shadow rounded-lg">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h1 className="text-xl font-semibold text-gray-900">Filter Preferences</h1>
+              <p className="mt-1 text-sm text-gray-600">
+                Choose which languages and countries to filter politicians by.
+              </p>
+            </div>
 
-      {currentPolitician && session?.accessToken ? (
-        <PoliticianEvaluation
-          key={currentPolitician.id}
-          politician={currentPolitician}
-          onNext={refetch}
-        />
-      ) : (
-        <main className="bg-gray-50 grid place-items-center py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
-          <div className="text-center max-w-2xl">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">PoliLoom Data Evaluation</h1>
-            <p className="text-lg text-gray-600 mb-8">
-              Help evaluate politician data extracted from Wikipedia and other sources
-            </p>
-
-            {status === 'loading' && (
-              <div className="text-gray-500">Loading authentication status...</div>
-            )}
-
-            {status === 'unauthenticated' && (
-              <div className="space-y-4">
-                <p className="text-gray-600">
-                  Please sign in with your MediaWiki account to start evaluating data.
-                </p>
-                <Button onClick={() => signIn('wikimedia')} className="px-6 py-3 text-base">
-                  Sign in with MediaWiki
-                </Button>
-              </div>
-            )}
-
-            {isAuthenticated &&
-              !currentPolitician &&
-              (loading ? (
-                <div className="text-gray-500">Loading politician data...</div>
-              ) : (
-                <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
-                  <p className="text-gray-600">
-                    Currently no politicians available, we&apos;re enriching more. You can wait a
-                    minute, change your filter{' '}
-                    <Link
-                      href="/preferences"
-                      className="text-gray-700 hover:text-gray-900 underline"
-                    >
-                      preferences
-                    </Link>
-                    , or{' '}
-                    <button
-                      onClick={loadPoliticians}
-                      className="text-gray-700 hover:text-gray-900 underline cursor-pointer bg-transparent border-0 p-0 font-inherit"
-                    >
-                      reload
-                    </button>
-                    .
-                  </p>
+            <div className="px-6 py-6 space-y-8">
+              {preferencesError && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                  <p className="text-red-800 text-sm">{preferencesError}</p>
                 </div>
-              ))}
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">Languages</label>
+                <p className="text-sm text-gray-500 mb-4">
+                  Filter politicians based on the languages of their source documents.
+                </p>
+                <MultiSelect
+                  options={languageOptions}
+                  selected={languagePreferences}
+                  onChange={handleLanguageChange}
+                  placeholder="No filter - showing all"
+                  loading={loadingLanguages}
+                  disabled={updating}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">Countries</label>
+                <p className="text-sm text-gray-500 mb-4">
+                  Filter politicians based on their citizenship.
+                </p>
+                <MultiSelect
+                  options={countryOptions}
+                  selected={countryPreferences}
+                  onChange={handleCountryChange}
+                  placeholder="No filter - showing all"
+                  loading={loadingCountries}
+                  disabled={updating}
+                />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+              <Anchor
+                href="/evaluate"
+                className="bg-indigo-600 text-white font-medium hover:bg-indigo-700 px-4 py-2 rounded-md transition-colors"
+              >
+                Start Evaluating
+              </Anchor>
+            </div>
           </div>
-        </main>
-      )}
+        </div>
+      </main>
     </>
   )
 }

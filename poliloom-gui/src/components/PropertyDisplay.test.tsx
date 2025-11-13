@@ -121,7 +121,10 @@ describe('PropertyDisplay', () => {
       />,
     )
 
-    fireEvent.mouseEnter(container.firstChild as Element)
+    // The component returns a fragment with <hr> as first child and <div> as second child
+    // We need to target the div that has the onMouseEnter handler
+    const divWithHover = container.querySelector('.space-y-2')
+    fireEvent.mouseEnter(divWithHover as Element)
 
     expect(mockOnHover).toHaveBeenCalledWith(property)
   })

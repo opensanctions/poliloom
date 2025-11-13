@@ -378,7 +378,7 @@ export default function GuidePage() {
 
             <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
               <Anchor
-                href="/"
+                href="/evaluate"
                 className="bg-indigo-600 text-white font-medium hover:bg-indigo-700 px-4 py-2 rounded-md transition-colors"
               >
                 Start Evaluating
