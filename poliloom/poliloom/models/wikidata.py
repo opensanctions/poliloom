@@ -156,6 +156,58 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     # UpsertMixin configuration
     _upsert_update_columns = ["name", "description"]
 
+    # Hierarchy configuration - single source of truth for entity hierarchies
+    # Used by import_entities() and clean-entities CLI command
+    HIERARCHY_CONFIG = {
+        "position": {
+            "roots": [
+                "Q4164871",  # position
+                "Q29645880",  # ambassador of a country
+                "Q29645886",  # ambassador to a country
+                "Q707492",  # military chief of staff
+            ],
+            "ignore": [
+                "Q114962596",  # historical position
+                "Q193622",  # order
+                "Q60754876",  # grade of an order
+                "Q618779",  # award
+                "Q4240305",  # cross
+                "Q120560",  # minor basilica
+                "Q2977",  # cathedral
+                "Q63187345",  # religious occupation
+                "Q29982545",  # function in the Evangelical Church of Czech Brethren
+                "Q12737077",  # occupation
+            ],
+        },
+        "location": {
+            "roots": [
+                "Q486972",  # human settlement
+                "Q82794",  # region
+                "Q1306755",  # administrative centre
+                "Q3257686",  # locality
+                "Q48907157",  # section of populated place
+            ],
+            "ignore": [],
+        },
+        "country": {
+            "roots": [
+                "Q6256",  # country
+                "Q3624078",  # sovereign state
+                "Q20181813",  # disputed territory
+                "Q1520223",  # constituent country
+                "Q1489259",  # dependent territory
+                "Q1048835",  # political territorial entity
+            ],
+            "ignore": [],
+        },
+        "language": {
+            "roots": [
+                "Q17376908",  # languoid
+            ],
+            "ignore": [],
+        },
+    }
+
     wikidata_id = Column(String, primary_key=True)  # Wikidata QID as primary key
     name = Column(
         String, nullable=True

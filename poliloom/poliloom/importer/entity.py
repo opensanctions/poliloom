@@ -315,62 +315,30 @@ def import_entities(
         dump_file_path: Path to the Wikidata JSON dump file
         batch_size: Number of entities to process in each database batch
     """
+    # Load hierarchy configuration from WikidataEntity model
+    config = WikidataEntity.HIERARCHY_CONFIG
+
     # Load only position and location descendants from database (optimized)
     with Session(get_engine()) as session:
-        # Use position basics approach with ignore IDs
-        position_root_ids = [
-            "Q4164871",  # position
-            "Q29645880",  # ambassador of a country
-            "Q29645886",  # ambassador to a country
-            "Q707492",  # military chief of staff
-        ]
-        ignore_ids = [
-            "Q114962596",  # historical position
-            "Q193622",  # order
-            "Q60754876",  # grade of an order
-            "Q618779",  # award
-            "Q4240305",  # cross
-            # Why are these here?
-            "Q120560",  # minor basilica
-            "Q2977",  # cathedral
-            # Religious positions (not political positions)
-            "Q63187345",  # religious occupation
-            "Q29982545",  # function in the Evangelical Church of Czech Brethren
-            # General occupations (too broad, includes all professions)
-            "Q12737077",  # occupation
-        ]
         position_classes = WikidataEntity.query_hierarchy_descendants(
-            session, position_root_ids, ignore_ids
+            session,
+            config["position"]["roots"],
+            config["position"]["ignore"],
         )
-        # Location leaf classes with >5k politicians that make sense for birthplace matching
-        # Focuses on classes where extracted text strings would meaningfully match
-        location_root_ids = [
-            "Q486972",  # human settlement (cities, towns, villages)
-            "Q82794",  # region (states, provinces)
-            "Q1306755",  # administrative centre (capitals)
-            "Q3257686",  # locality
-            "Q48907157",  # section of populated place (boroughs, districts)
-        ]
         location_classes = WikidataEntity.query_hierarchy_descendants(
-            session, location_root_ids
+            session,
+            config["location"]["roots"],
+            config["location"]["ignore"],
         )
-
-        country_root_ids = [
-            "Q6256",  # country
-            "Q3624078",  # sovereign state
-            "Q20181813",  # disputed territory
-            "Q1520223",  # constituent country
-            "Q1489259",  # dependent territory
-            "Q1048835",  # political territorial entity
-        ]
         country_classes = WikidataEntity.query_hierarchy_descendants(
-            session, country_root_ids
+            session,
+            config["country"]["roots"],
+            config["country"]["ignore"],
         )
-
-        # Language root IDs (languoid)
-        language_root_ids = ["Q17376908"]  # languoid
         language_classes = WikidataEntity.query_hierarchy_descendants(
-            session, language_root_ids
+            session,
+            config["language"]["roots"],
+            config["language"]["ignore"],
         )
 
         logger.info(
