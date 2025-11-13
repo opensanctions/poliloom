@@ -1,0 +1,57 @@
+'use client'
+
+import { useAuthSession } from '@/hooks/useAuthSession'
+import { Header } from '@/components/Header'
+import { Button } from '@/components/Button'
+import { signIn } from 'next-auth/react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect } from 'react'
+
+export default function LoginPage() {
+  const { status, isAuthenticated } = useAuthSession()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const callbackUrl = searchParams.get('callbackUrl') || '/evaluate'
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push(callbackUrl)
+    }
+  }, [isAuthenticated, router, callbackUrl])
+
+  const handleSignIn = () => {
+    signIn('wikimedia', { callbackUrl })
+  }
+
+  return (
+    <>
+      <Header />
+      <main className="bg-gray-50 grid place-items-center py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
+        <div className="text-center max-w-2xl">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">PoliLoom Data Evaluation</h1>
+          <p className="text-lg text-gray-600 mb-8">
+            Help evaluate politician data extracted from Wikipedia and other sources
+          </p>
+
+          {status === 'loading' && (
+            <div className="text-gray-500">Loading authentication status...</div>
+          )}
+
+          {status === 'unauthenticated' && (
+            <div className="space-y-4">
+              <p className="text-gray-600">
+                Please sign in with your MediaWiki account to start evaluating data.
+              </p>
+              <Button onClick={handleSignIn} className="px-6 py-3 text-base">
+                Sign in with MediaWiki
+              </Button>
+            </div>
+          )}
+
+          {isAuthenticated && <div className="text-gray-500">Redirecting...</div>}
+        </div>
+      </main>
+    </>
+  )
+}
