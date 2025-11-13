@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { Spinner } from './Spinner'
 
 export interface MultiSelectOption {
@@ -12,40 +12,25 @@ interface MultiSelectProps {
   options: MultiSelectOption[]
   selected: string[]
   onChange: (selected: string[]) => void
-  placeholder?: string
+  title: string
+  description: string
+  icon?: string
   loading?: boolean
   disabled?: boolean
-  className?: string
 }
 
 export function MultiSelect({
   options,
   selected,
   onChange,
-  placeholder = 'Select options...',
+  title,
+  description,
+  icon,
   loading = false,
   disabled = false,
-  className = '',
 }: MultiSelectProps) {
-  const [isOpen, setIsOpen] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [focusedIndex, setFocusedIndex] = useState(-1)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-        setSearchTerm('')
-        setFocusedIndex(-1)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
 
   // Normalize text for searching (removes diacritics)
   const normalizeText = (text: string) =>
@@ -54,22 +39,23 @@ export function MultiSelect({
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
 
-  // Filter and sort options based on search term
+  // Filter and sort options
   const filteredOptions = options
     .filter((option) => {
+      if (!searchTerm) return true
       const label = option.label.toLowerCase()
       const search = searchTerm.toLowerCase()
       const normalizedLabel = normalizeText(option.label)
       const normalizedSearch = normalizeText(searchTerm)
-
-      // Match either the original text or normalized text
       return label.includes(search) || normalizedLabel.includes(normalizedSearch)
     })
     .sort((a, b) => a.label.localeCompare(b.label))
 
-  const selectedOptions = options.filter((option) => selected.includes(option.value))
+  // Show top 8 popular options when collapsed
+  const displayOptions = isExpanded ? filteredOptions : filteredOptions.slice(0, 8)
 
   const toggleOption = (value: string) => {
+    if (disabled) return
     if (selected.includes(value)) {
       onChange(selected.filter((v) => v !== value))
     } else {
@@ -77,157 +63,120 @@ export function MultiSelect({
     }
   }
 
-  const removeOption = (value: string) => {
-    onChange(selected.filter((v) => v !== value))
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!isOpen) {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault()
-        setIsOpen(true)
-        setFocusedIndex(0)
-      }
-      return
-    }
-
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault()
-        setFocusedIndex((prev) => (prev < filteredOptions.length - 1 ? prev + 1 : 0))
-        break
-      case 'ArrowUp':
-        e.preventDefault()
-        setFocusedIndex((prev) => (prev > 0 ? prev - 1 : filteredOptions.length - 1))
-        break
-      case 'Enter':
-      case ' ':
-        e.preventDefault()
-        if (focusedIndex >= 0 && focusedIndex < filteredOptions.length) {
-          toggleOption(filteredOptions[focusedIndex].value)
-          setSearchTerm('')
-        }
-        break
-      case 'Tab':
-        setIsOpen(false)
-        setSearchTerm('')
-        setFocusedIndex(-1)
-        break
-    }
-  }
-
-  const handleBlur = (e: React.FocusEvent) => {
-    // Check if the new focus target is within our dropdown
-    if (dropdownRef.current && !dropdownRef.current.contains(e.relatedTarget as Node)) {
-      setIsOpen(false)
-      setSearchTerm('')
-      setFocusedIndex(-1)
+  const clearAll = () => {
+    if (!disabled) {
+      onChange([])
     }
   }
 
   return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
-      {/* Input field with selected items */}
-      <div
-        className={`min-h-[42px] px-3 py-2 border border-gray-300 rounded-md bg-white focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 ${
-          disabled ? 'bg-gray-50' : ''
-        }`}
-      >
-        <div className="flex flex-wrap gap-1 items-center">
-          {selectedOptions.map((option) => (
-            <span
-              key={option.value}
-              className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700"
-            >
-              {option.label}
-              {!disabled && (
-                <button
-                  type="button"
-                  className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-blue-200 focus:outline-none focus:bg-blue-200 text-blue-600 font-bold text-xs leading-none"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    removeOption(option.value)
-                  }}
-                >
-                  ×
-                </button>
-              )}
-            </span>
-          ))}
-
-          <div className="flex-1 min-w-[120px] relative">
-            <input
-              ref={inputRef}
-              type="text"
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value)
-                setFocusedIndex(-1)
-              }}
-              onKeyDown={handleKeyDown}
-              onFocus={() => {
-                setIsOpen(true)
-                setFocusedIndex(-1)
-              }}
-              onBlur={handleBlur}
-              className="w-full border-none outline-none text-sm bg-transparent text-gray-900 placeholder-gray-400"
-              placeholder={selectedOptions.length === 0 ? placeholder : 'Search...'}
-              disabled={disabled || loading}
-            />
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden transition-all hover:shadow-md">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            {icon && <span className="text-2xl">{icon}</span>}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+              <p className="text-sm text-gray-600 mt-0.5">{description}</p>
+            </div>
           </div>
-
-          <div className="flex items-center">
-            {loading && <Spinner />}
-            <button
-              type="button"
-              onClick={() => {
-                setIsOpen(!isOpen)
-                setFocusedIndex(-1)
-              }}
-              disabled={disabled || loading}
-              className="text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed"
-            >
-              <span
-                className={`transition-transform text-sm ${isOpen ? 'transform rotate-180' : ''}`}
-              >
-                ▼
-              </span>
-            </button>
-          </div>
+          {loading && (
+            <div className="ml-4">
+              <Spinner />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Dropdown */}
-      {isOpen && !disabled && !loading && (
-        <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-          {filteredOptions.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-gray-500">
-              {searchTerm ? 'No matching options' : 'No options available'}
-            </div>
-          ) : (
-            filteredOptions.map((option, index) => {
+      {/* Content */}
+      <div className="px-6 py-5">
+        {/* Selected count and clear */}
+        {selected.length > 0 && (
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+            <span className="text-sm font-medium text-indigo-700">{selected.length} selected</span>
+            <button
+              onClick={clearAll}
+              disabled={disabled}
+              className="text-sm text-gray-600 hover:text-gray-900 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
+
+        {/* Search */}
+        {isExpanded && (
+          <div className="mb-4">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search..."
+              disabled={disabled || loading}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed text-sm"
+            />
+          </div>
+        )}
+
+        {/* Options as chips */}
+        {displayOptions.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {displayOptions.map((option) => {
               const isSelected = selected.includes(option.value)
-              const isFocused = index === focusedIndex
               return (
-                <div
+                <button
                   key={option.value}
-                  className={`px-3 py-2 cursor-pointer text-sm hover:bg-gray-50 ${
-                    isSelected ? 'bg-indigo-50 text-indigo-700' : 'text-gray-900'
-                  } ${isFocused ? 'ring-2 ring-indigo-500 ring-inset bg-indigo-50' : ''}`}
-                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => toggleOption(option.value)}
-                  onMouseEnter={() => setFocusedIndex(index)}
+                  disabled={disabled || loading}
+                  className={`
+                    px-4 py-2 rounded-lg text-sm font-medium transition-all
+                    border-2 disabled:cursor-not-allowed
+                    ${
+                      isSelected
+                        ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700 hover:border-indigo-700 shadow-sm'
+                        : 'bg-white border-gray-200 text-gray-700 hover:border-indigo-300 hover:bg-indigo-50'
+                    }
+                    ${disabled ? 'opacity-50' : ''}
+                  `}
                 >
-                  <div className="flex items-center justify-between">
-                    <span>{option.label}</span>
-                    {isSelected && <span className="text-indigo-600">✓</span>}
-                  </div>
-                </div>
+                  {option.label}
+                </button>
               )
-            })
-          )}
-        </div>
-      )}
+            })}
+          </div>
+        ) : (
+          <div className="text-sm text-gray-500 text-center py-4">
+            {searchTerm ? 'No matching options' : 'No options available'}
+          </div>
+        )}
+
+        {/* Expand/collapse button */}
+        {filteredOptions.length > 8 && (
+          <div className="mt-4 text-center">
+            <button
+              onClick={() => {
+                setIsExpanded(!isExpanded)
+                if (isExpanded) setSearchTerm('')
+              }}
+              disabled={disabled || loading}
+              className="text-sm font-medium text-indigo-600 hover:text-indigo-800 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1"
+            >
+              {isExpanded ? (
+                <>
+                  Show less
+                  <span className="text-xs">▲</span>
+                </>
+              ) : (
+                <>
+                  Show all {filteredOptions.length} options
+                  <span className="text-xs">▼</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

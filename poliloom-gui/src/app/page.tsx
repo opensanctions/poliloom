@@ -26,13 +26,12 @@ export default function Home() {
     .filter((p) => p.preference_type === PreferenceType.COUNTRY)
     .map((p) => p.wikidata_id)
 
-  // Convert languages to MultiSelect options
+  // Convert to MultiSelectOption format
   const languageOptions: MultiSelectOption[] = languages.map((lang) => ({
     value: lang.wikidata_id,
     label: lang.name,
   }))
 
-  // Convert countries to MultiSelect options
   const countryOptions: MultiSelectOption[] = countries.map((country) => ({
     value: country.wikidata_id,
     label: country.name,
@@ -51,77 +50,88 @@ export default function Home() {
   return (
     <>
       <Header />
-      <main className="bg-gray-50 grid place-items-center py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
-        <div className="max-w-2xl w-full">
-          <div className="bg-white shadow rounded-lg">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h1 className="text-xl font-semibold text-gray-900">Start Reviewing Politicians</h1>
-              <p className="mt-1 text-sm text-gray-600">
-                PoliLoom extracts politician data from government sources and Wikipedia. Help us
-                verify this data before it&apos;s added to Wikidata by reviewing birth dates,
-                positions, and other information.
+      <main className="bg-gray-50 min-h-0 overflow-y-auto">
+        {/* Hero Section */}
+        <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-800 text-white">
+          <div className="max-w-6xl mx-auto px-8 py-12">
+            <div className="max-w-3xl">
+              <h1 className="text-4xl font-bold mb-4">Welcome to PoliLoom</h1>
+              <p className="text-lg text-indigo-100 leading-relaxed">
+                Help improve Wikidata by verifying politician information extracted from government
+                sources and Wikipedia. Review birth dates, positions, and other details to ensure
+                accuracy before they&apos;re added to the knowledge base.
               </p>
-              <p className="mt-2 text-sm text-gray-600">
+              <p className="mt-4 text-indigo-200">
                 New to PoliLoom?{' '}
-                <Anchor href="/guide" className="text-indigo-600 hover:text-indigo-800">
+                <Anchor
+                  href="/guide"
+                  className="text-white font-semibold underline hover:text-indigo-100"
+                >
                   Check out the guide
                 </Anchor>{' '}
                 to learn how reviewing works.
               </p>
             </div>
+          </div>
+        </div>
 
-            <div className="px-6 py-6 space-y-8">
-              {preferencesError && (
-                <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                  <p className="text-red-800 text-sm">{preferencesError}</p>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">Languages</label>
-                <p className="text-sm text-gray-500 mb-4">
-                  Review politicians whose source documents are in these languages. Leave empty to
-                  review all languages.
-                </p>
-                <MultiSelect
-                  options={languageOptions}
-                  selected={languagePreferences}
-                  onChange={handleLanguageChange}
-                  placeholder="All languages"
-                  loading={loadingLanguages}
-                  disabled={updating}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">Countries</label>
-                <p className="text-sm text-gray-500 mb-4">
-                  Review politicians from these countries. Leave empty to review all countries.
-                </p>
-                <MultiSelect
-                  options={countryOptions}
-                  selected={countryPreferences}
-                  onChange={handleCountryChange}
-                  placeholder="All countries"
-                  loading={loadingCountries}
-                  disabled={updating}
-                />
-              </div>
+        {/* Filters Section */}
+        <div className="max-w-6xl mx-auto px-8 py-12">
+          {preferencesError && (
+            <div className="bg-red-50 border-l-4 border-red-400 rounded-md p-4 mb-8">
+              <p className="text-red-800 font-medium">{preferencesError}</p>
             </div>
+          )}
 
-            <div className="px-6 py-4 border-t border-gray-200">
-              <p className="text-sm text-gray-600 mb-4">
-                Your selection will determine which politicians you&apos;ll review. You can change
-                these criteria anytime.
-              </p>
-              <div className="flex justify-end">
-                <Anchor
-                  href="/evaluate"
-                  className="bg-indigo-600 text-white font-medium hover:bg-indigo-700 px-4 py-2 rounded-md transition-colors"
-                >
-                  Begin Review Session
-                </Anchor>
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Customize Your Review Session</h2>
+            <p className="text-gray-600">
+              Select the languages and countries you&apos;re interested in reviewing. Leave filters
+              empty to review all available politicians.
+            </p>
+          </div>
+
+          <div className="space-y-6">
+            <MultiSelect
+              title="Languages"
+              description="Review politicians whose source documents are in these languages"
+              icon="🌐"
+              options={languageOptions}
+              selected={languagePreferences}
+              onChange={handleLanguageChange}
+              loading={loadingLanguages}
+              disabled={updating}
+            />
+
+            <MultiSelect
+              title="Countries"
+              description="Review politicians from these countries"
+              icon="🌍"
+              options={countryOptions}
+              selected={countryPreferences}
+              onChange={handleCountryChange}
+              loading={loadingCountries}
+              disabled={updating}
+            />
+          </div>
+
+          {/* CTA Section */}
+          <div className="mt-12 bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to start?</h3>
+                <p className="text-gray-600">
+                  {languagePreferences.length > 0 || countryPreferences.length > 0
+                    ? 'Your filters are set. Begin reviewing politicians that match your criteria.'
+                    : "No filters selected. You'll review politicians from all languages and countries."}
+                </p>
               </div>
+              <Anchor
+                href="/evaluate"
+                className="bg-indigo-600 text-white font-semibold hover:bg-indigo-700 px-8 py-4 rounded-lg transition-colors shadow-sm hover:shadow-md whitespace-nowrap ml-6"
+              >
+                Begin Review Session
+              </Anchor>
             </div>
           </div>
         </div>
