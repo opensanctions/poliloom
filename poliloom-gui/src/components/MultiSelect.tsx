@@ -92,18 +92,24 @@ export function MultiSelect({
       {/* Content */}
       <div className="px-6 py-5">
         {/* Selected count and clear */}
-        {selected.length > 0 && (
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
-            <span className="text-sm font-medium text-indigo-700">{selected.length} selected</span>
-            <button
-              onClick={clearAll}
-              disabled={disabled}
-              className="text-sm text-gray-600 hover:text-gray-900 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
-            >
-              Clear all
-            </button>
-          </div>
-        )}
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+          {selected.length > 0 ? (
+            <>
+              <span className="text-sm font-medium text-indigo-700">
+                {selected.length} selected
+              </span>
+              <button
+                onClick={clearAll}
+                disabled={disabled}
+                className="text-sm text-gray-600 hover:text-gray-900 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+              >
+                Clear all
+              </button>
+            </>
+          ) : (
+            <span className="text-sm text-gray-500 italic">No filters selected - showing all</span>
+          )}
+        </div>
 
         {/* Search */}
         {isExpanded && (
@@ -114,7 +120,7 @@ export function MultiSelect({
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search..."
               disabled={disabled || loading}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed text-sm"
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed text-sm text-gray-900 placeholder-gray-400"
             />
           </div>
         )}
