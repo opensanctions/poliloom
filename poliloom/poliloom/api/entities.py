@@ -128,7 +128,7 @@ async def get_languages(current_user=Depends(get_current_user)):
                 WikidataEntity,
                 Language.wikidata_id == WikidataEntity.wikidata_id,
             )
-            .outerjoin(
+            .join(
                 sources_count_subquery,
                 or_(
                     Language.iso1_code == sources_count_subquery.c.iso_code,
@@ -136,7 +136,7 @@ async def get_languages(current_user=Depends(get_current_user)):
                 ),
             )
             .where(WikidataEntity.deleted_at.is_(None))
-            .order_by(func.coalesce(sources_count_subquery.c.link_count, 0).desc())
+            .order_by(sources_count_subquery.c.link_count.desc())
         )
 
         results = db.execute(query).all()
@@ -186,14 +186,12 @@ async def get_countries(current_user=Depends(get_current_user)):
                 WikidataEntity,
                 Country.wikidata_id == WikidataEntity.wikidata_id,
             )
-            .outerjoin(
+            .join(
                 citizenship_count_subquery,
                 Country.wikidata_id == citizenship_count_subquery.c.entity_id,
             )
             .where(WikidataEntity.deleted_at.is_(None))
-            .order_by(
-                func.coalesce(citizenship_count_subquery.c.citizenship_count, 0).desc()
-            )
+            .order_by(citizenship_count_subquery.c.citizenship_count.desc())
         )
 
         results = db.execute(query).all()
