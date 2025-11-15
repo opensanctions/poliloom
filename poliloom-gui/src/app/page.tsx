@@ -1,6 +1,7 @@
 'use client'
 
 import { Header } from '@/components/Header'
+import { Hero } from '@/components/Hero'
 import { Anchor } from '@/components/Anchor'
 import { MultiSelect, MultiSelectOption } from '@/components/MultiSelect'
 import { usePreferencesContext } from '@/contexts/PreferencesContext'
@@ -53,29 +54,27 @@ export default function Home() {
     <>
       <Header />
       <main className="bg-gray-50 min-h-0 overflow-y-auto">
-        {/* Hero Section */}
-        <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-800 text-white">
-          <div className="max-w-6xl mx-auto px-8 py-12">
-            <div className="max-w-3xl">
-              <h1 className="text-4xl font-bold mb-4">Welcome to PoliLoom</h1>
-              <p className="text-lg text-indigo-100 leading-relaxed">
-                Help improve Wikidata by verifying politician information extracted from government
-                sources and Wikipedia. Review birth dates, positions, and other details to ensure
-                accuracy before they&apos;re added to the knowledge base.
-              </p>
-              <p className="mt-4 text-indigo-200">
-                New to PoliLoom?{' '}
-                <Anchor
-                  href="/guide"
-                  className="text-white font-semibold underline hover:text-indigo-100"
-                >
-                  Check out the guide
-                </Anchor>{' '}
-                to learn how reviewing works.
-              </p>
-            </div>
-          </div>
-        </div>
+        <Hero
+          title="Welcome to PoliLoom"
+          description={
+            <>
+              Help improve Wikidata by verifying politician information extracted from government
+              sources and Wikipedia. Review birth dates, positions, and other details to ensure
+              accuracy before they&apos;re added to the knowledge base.
+            </>
+          }
+        >
+          <p className="mt-4 text-indigo-200">
+            New to PoliLoom?{' '}
+            <Anchor
+              href="/guide"
+              className="text-white font-semibold underline hover:text-indigo-100"
+            >
+              Check out the guide
+            </Anchor>{' '}
+            to learn how reviewing works.
+          </p>
+        </Hero>
 
         {/* Filters Section */}
         <div className="max-w-6xl mx-auto px-8 py-12">
