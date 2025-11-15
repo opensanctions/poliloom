@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, waitFor, act } from '@testing-library/react'
+import { screen, act } from '@testing-library/react'
 import { render } from '@/test/test-utils'
 import EvaluatePage from './page'
 import { mockPolitician } from '@/test/mock-data'
@@ -37,11 +37,10 @@ vi.mock('@/components/PoliticianEvaluation', () => ({
   PoliticianEvaluation: () => <div>PoliticianEvaluation Component</div>,
 }))
 
-const mockUseSession = vi.fn()
-const mockSignIn = vi.fn()
-vi.mock('next-auth/react', () => ({
-  useSession: () => mockUseSession(),
-  signIn: (...args: unknown[]) => mockSignIn(...args),
+const mockUsePoliticians = vi.fn()
+vi.mock('@/contexts/PoliticiansContext', () => ({
+  usePoliticians: () => mockUsePoliticians(),
+  PoliticiansProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
 describe('Evaluate Page', () => {
@@ -88,39 +87,31 @@ describe('Evaluate Page', () => {
     })
   })
 
-  it('renders main title and description', async () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: 'loading',
+  it('shows loading state when loading politicians', async () => {
+    mockUsePoliticians.mockReturnValue({
+      currentPolitician: null,
+      nextPolitician: null,
+      loading: true,
+      refetch: vi.fn(),
+      loadPoliticians: vi.fn(),
     })
 
     await act(async () => {
       render(<EvaluatePage />)
     })
 
-    expect(screen.getByText('PoliLoom Data Evaluation')).toBeInTheDocument()
-    expect(
-      screen.getByText('Help evaluate politician data extracted from Wikipedia and other sources'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('Loading politician data...')).toBeInTheDocument()
+    expect(screen.getByText('Header')).toBeInTheDocument()
   })
 
-  it('shows loading state initially', async () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: 'loading',
-    })
-
-    await act(async () => {
-      render(<EvaluatePage />)
-    })
-
-    expect(screen.getByText('Loading authentication status...')).toBeInTheDocument()
-  })
-
-  it('shows sign in button when user is unauthenticated', async () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: 'unauthenticated',
+  it('shows no politicians message when not loading and no politician available', async () => {
+    const mockLoadPoliticians = vi.fn()
+    mockUsePoliticians.mockReturnValue({
+      currentPolitician: null,
+      nextPolitician: null,
+      loading: false,
+      refetch: vi.fn(),
+      loadPoliticians: mockLoadPoliticians,
     })
 
     await act(async () => {
@@ -128,61 +119,27 @@ describe('Evaluate Page', () => {
     })
 
     expect(
-      screen.getByText('Please sign in with your MediaWiki account to start evaluating data.'),
+      screen.getByText(/Currently no politicians available, we're enriching more/),
     ).toBeInTheDocument()
-    expect(screen.getByText('Sign in with MediaWiki')).toBeInTheDocument()
+    expect(screen.getByText('preferences')).toBeInTheDocument()
+    expect(screen.getByText('reload')).toBeInTheDocument()
   })
 
-  it('shows PoliticianEvaluation component when authenticated with data', async () => {
-    mockUseSession.mockReturnValue({
-      data: { accessToken: 'test-token' },
-      status: 'authenticated',
-    })
-
-    // Override the default mock to return politician data
-    vi.mocked(fetch).mockImplementation((url) => {
-      const urlStr = url.toString()
-
-      if (urlStr.includes('/api/politicians')) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          statusText: 'OK',
-          json: async () => [mockPolitician],
-        } as Response)
-      }
-
-      // Use default mock for other endpoints
-      if (
-        urlStr.includes('/api/languages') ||
-        urlStr.includes('/api/countries') ||
-        urlStr.includes('/api/preferences')
-      ) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          statusText: 'OK',
-          json: async () => [],
-        } as Response)
-      }
-
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        statusText: 'OK',
-        json: async () => [],
-      } as Response)
+  it('shows PoliticianEvaluation component when politician data is available', async () => {
+    const mockRefetch = vi.fn()
+    mockUsePoliticians.mockReturnValue({
+      currentPolitician: mockPolitician,
+      nextPolitician: null,
+      loading: false,
+      refetch: mockRefetch,
+      loadPoliticians: vi.fn(),
     })
 
     await act(async () => {
       render(<EvaluatePage />)
     })
 
-    // Wait for the async operations to complete
-    await waitFor(() => {
-      expect(screen.getByText('PoliticianEvaluation Component')).toBeInTheDocument()
-    })
-
+    expect(screen.getByText('PoliticianEvaluation Component')).toBeInTheDocument()
     expect(screen.getByText('Header')).toBeInTheDocument()
   })
 })

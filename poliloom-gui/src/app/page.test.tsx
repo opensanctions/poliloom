@@ -100,17 +100,19 @@ describe('Home Page (Preferences)', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Filter Preferences')).toBeInTheDocument()
+      expect(screen.getByText('Customize Your Review Session')).toBeInTheDocument()
     })
 
     expect(
-      screen.getByText('Choose which languages and countries to filter politicians by.'),
+      screen.getByText(
+        "Select the languages and countries you're interested in reviewing. Leave filters empty to review all available politicians.",
+      ),
     ).toBeInTheDocument()
-    expect(screen.getByText('Languages')).toBeInTheDocument()
-    expect(screen.getByText('Countries')).toBeInTheDocument()
+    expect(screen.getByText('What languages can you read?')).toBeInTheDocument()
+    expect(screen.getByText('Which countries are you interested in?')).toBeInTheDocument()
   })
 
-  it('shows Start Evaluating button', async () => {
+  it('shows Begin Review Session button', async () => {
     mockUseSession.mockReturnValue({
       data: null,
       status: 'loading',
@@ -121,7 +123,7 @@ describe('Home Page (Preferences)', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Start Evaluating')).toBeInTheDocument()
+      expect(screen.getByText('Begin Review Session')).toBeInTheDocument()
     })
   })
 
