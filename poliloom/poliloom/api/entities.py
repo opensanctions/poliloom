@@ -3,10 +3,19 @@
 from typing import List, Optional, Type, Callable
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select
+from sqlalchemy import select, func, or_
 
 from ..database import get_engine
-from ..models import Language, Country, Position, Location, WikidataEntity
+from ..models import (
+    Language,
+    Country,
+    Position,
+    Location,
+    WikidataEntity,
+    WikipediaLink,
+    Property,
+)
+from ..models.base import PropertyType
 from .schemas import (
     LanguageResponse,
     CountryResponse,
@@ -86,33 +95,120 @@ def create_entity_endpoint(
     return endpoint
 
 
-# Register endpoints using the factory
-get_languages = router.get("/languages", response_model=List[LanguageResponse])(
-    create_entity_endpoint(
-        model_class=Language,
-        response_mapper=lambda lang: LanguageResponse(
-            wikidata_id=lang.wikidata_id,
-            name=lang.name,
-            description=lang.description,
-            iso1_code=lang.iso1_code,
-            iso3_code=lang.iso3_code,
-        ),
-        entity_name="languages",
-    )
-)
+# Simple endpoints for reference data (languages and countries)
+@router.get("/languages", response_model=List[LanguageResponse])
+async def get_languages(current_user=Depends(get_current_user)):
+    """
+    Retrieve all languages with source counts.
 
-get_countries = router.get("/countries", response_model=List[CountryResponse])(
-    create_entity_endpoint(
-        model_class=Country,
-        response_mapper=lambda country: CountryResponse(
-            wikidata_id=country.wikidata_id,
-            name=country.name,
-            description=country.description,
-            iso_code=country.iso_code,
-        ),
-        entity_name="countries",
-    )
-)
+    Returns a list of all languages with their metadata and the count of
+    sources (currently Wikipedia links) using each language's ISO code.
+    """
+    with Session(get_engine()) as db:
+        # Subquery to count sources per language ISO code
+        # Currently only Wikipedia links, but may include other source types in the future
+        sources_count_subquery = (
+            select(
+                WikipediaLink.iso_code,
+                func.count(WikipediaLink.id).label("link_count"),
+            )
+            .group_by(WikipediaLink.iso_code)
+            .subquery()
+        )
+
+        # Query languages with their source counts
+        query = (
+            select(
+                Language,
+                func.coalesce(sources_count_subquery.c.link_count, 0).label(
+                    "sources_count"
+                ),
+            )
+            .join(
+                WikidataEntity,
+                Language.wikidata_id == WikidataEntity.wikidata_id,
+            )
+            .outerjoin(
+                sources_count_subquery,
+                or_(
+                    Language.iso1_code == sources_count_subquery.c.iso_code,
+                    Language.iso3_code == sources_count_subquery.c.iso_code,
+                ),
+            )
+            .where(WikidataEntity.deleted_at.is_(None))
+            .order_by(func.coalesce(sources_count_subquery.c.link_count, 0).desc())
+        )
+
+        results = db.execute(query).all()
+
+        return [
+            LanguageResponse(
+                wikidata_id=lang.wikidata_id,
+                name=lang.name,
+                description=lang.description,
+                iso1_code=lang.iso1_code,
+                iso3_code=lang.iso3_code,
+                sources_count=count,
+            )
+            for lang, count in results
+        ]
+
+
+@router.get("/countries", response_model=List[CountryResponse])
+async def get_countries(current_user=Depends(get_current_user)):
+    """
+    Retrieve all countries with citizenship counts.
+
+    Returns a list of all countries with their metadata and the count of
+    politicians who have citizenship in each country.
+    """
+    with Session(get_engine()) as db:
+        # Subquery to count citizenship properties per country
+        citizenship_count_subquery = (
+            select(
+                Property.entity_id,
+                func.count(Property.id).label("citizenship_count"),
+            )
+            .where(Property.type == PropertyType.CITIZENSHIP)
+            .group_by(Property.entity_id)
+            .subquery()
+        )
+
+        # Query countries with their citizenship counts
+        query = (
+            select(
+                Country,
+                func.coalesce(citizenship_count_subquery.c.citizenship_count, 0).label(
+                    "citizenships_count"
+                ),
+            )
+            .join(
+                WikidataEntity,
+                Country.wikidata_id == WikidataEntity.wikidata_id,
+            )
+            .outerjoin(
+                citizenship_count_subquery,
+                Country.wikidata_id == citizenship_count_subquery.c.entity_id,
+            )
+            .where(WikidataEntity.deleted_at.is_(None))
+            .order_by(
+                func.coalesce(citizenship_count_subquery.c.citizenship_count, 0).desc()
+            )
+        )
+
+        results = db.execute(query).all()
+
+        return [
+            CountryResponse(
+                wikidata_id=country.wikidata_id,
+                name=country.name,
+                description=country.description,
+                iso_code=country.iso_code,
+                citizenships_count=count,
+            )
+            for country, count in results
+        ]
+
 
 get_positions = router.get("/positions", response_model=List[PositionResponse])(
     create_entity_endpoint(

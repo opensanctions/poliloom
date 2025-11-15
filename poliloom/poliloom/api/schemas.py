@@ -153,6 +153,7 @@ class LanguageResponse(BaseModel):
     description: str
     iso1_code: Optional[str] = None
     iso3_code: Optional[str] = None
+    sources_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -164,6 +165,7 @@ class CountryResponse(BaseModel):
     name: str
     description: str
     iso_code: Optional[str] = None
+    citizenships_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
