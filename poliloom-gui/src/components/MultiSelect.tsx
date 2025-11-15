@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Spinner } from './Spinner'
+import { ContainerBox } from './ContainerBox'
 
 export interface MultiSelectOption {
   value: string
@@ -82,90 +82,70 @@ export function MultiSelect({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden transition-all hover:shadow-md">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            {icon && <span className="text-2xl">{icon}</span>}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-              <p className="text-sm text-gray-600 mt-0.5">{description}</p>
-            </div>
+    <ContainerBox title={title} description={description} icon={icon} loading={loading}>
+      {/* Selected items as chips */}
+      {selected.length > 0 && (
+        <div className="mb-4 pb-4 border-b border-gray-100">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+              Selected
+            </span>
+            <button
+              onClick={clearAll}
+              disabled={disabled}
+              className="text-xs text-gray-600 hover:text-gray-900 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              Clear all
+            </button>
           </div>
-          {loading && (
-            <div className="ml-4">
-              <Spinner />
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="px-6 py-5">
-        {/* Selected items as chips */}
-        {selected.length > 0 && (
-          <div className="mb-4 pb-4 border-b border-gray-100">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                Selected
-              </span>
-              <button
-                onClick={clearAll}
-                disabled={disabled}
-                className="text-xs text-gray-600 hover:text-gray-900 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
-              >
-                Clear all
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {selected.map((value) => {
-                const option = options.find((opt) => opt.value === value)
-                if (!option) return null
-                return (
-                  <button
-                    key={value}
-                    onClick={() => toggleOption(value)}
-                    disabled={disabled || loading}
-                    className="px-4 py-2 rounded-lg text-sm font-medium transition-all border-2 disabled:cursor-not-allowed inline-flex items-center gap-2 bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700 hover:border-indigo-700 shadow-sm"
-                  >
-                    <span>{option.label}</span>
-                    {option.count !== undefined && option.count > 0 && (
-                      <span className="text-xs font-semibold text-indigo-200">
-                        {option.count.toLocaleString()}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Search - always visible */}
-        <div className="mb-4">
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Start typing to search..."
-            disabled={disabled || loading}
-            className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed text-sm text-gray-900 placeholder-gray-400 transition-all"
-            autoComplete="off"
-          />
-        </div>
-
-        {/* Options as chips */}
-        {displayOptions.length > 0 ? (
           <div className="flex flex-wrap gap-2">
-            {displayOptions.map((option) => {
-              const isSelected = selected.includes(option.value)
+            {selected.map((value) => {
+              const option = options.find((opt) => opt.value === value)
+              if (!option) return null
               return (
                 <button
-                  key={option.value}
-                  onClick={() => toggleOption(option.value)}
+                  key={value}
+                  onClick={() => toggleOption(value)}
                   disabled={disabled || loading}
-                  className={`
+                  className="px-4 py-2 rounded-lg text-sm font-medium transition-all border-2 disabled:cursor-not-allowed inline-flex items-center gap-2 bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700 hover:border-indigo-700 shadow-sm"
+                >
+                  <span>{option.label}</span>
+                  {option.count !== undefined && option.count > 0 && (
+                    <span className="text-xs font-semibold text-indigo-200">
+                      {option.count.toLocaleString()}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Search - always visible */}
+      <div className="mb-4">
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Start typing to search..."
+          disabled={disabled || loading}
+          className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed text-sm text-gray-900 placeholder-gray-400 transition-all"
+          autoComplete="off"
+        />
+      </div>
+
+      {/* Options as chips */}
+      {displayOptions.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {displayOptions.map((option) => {
+            const isSelected = selected.includes(option.value)
+            return (
+              <button
+                key={option.value}
+                onClick={() => toggleOption(option.value)}
+                disabled={disabled || loading}
+                className={`
                     px-4 py-2 rounded-lg text-sm font-medium transition-all
                     border-2 disabled:cursor-not-allowed inline-flex items-center gap-2
                     ${
@@ -175,25 +155,24 @@ export function MultiSelect({
                     }
                     ${disabled ? 'opacity-50' : ''}
                   `}
-                >
-                  <span>{option.label}</span>
-                  {option.count !== undefined && option.count > 0 && (
-                    <span
-                      className={`text-xs font-semibold ${isSelected ? 'text-indigo-200' : 'text-gray-500'}`}
-                    >
-                      {option.count.toLocaleString()}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        ) : (
-          <div className="text-sm text-gray-500 text-center py-4">
-            {searchTerm ? 'No matching options found' : 'Start typing to search'}
-          </div>
-        )}
-      </div>
-    </div>
+              >
+                <span>{option.label}</span>
+                {option.count !== undefined && option.count > 0 && (
+                  <span
+                    className={`text-xs font-semibold ${isSelected ? 'text-indigo-200' : 'text-gray-500'}`}
+                  >
+                    {option.count.toLocaleString()}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="text-sm text-gray-500 text-center py-4">
+          {searchTerm ? 'No matching options found' : 'Start typing to search'}
+        </div>
+      )}
+    </ContainerBox>
   )
 }

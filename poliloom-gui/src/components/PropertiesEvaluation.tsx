@@ -1,4 +1,4 @@
-import { ReactNode } from 'react'
+import { ReactNode, Fragment } from 'react'
 import { Property, PropertyType } from '@/types'
 import { EvaluationItem } from './EvaluationItem'
 import { PropertyDisplay } from './PropertyDisplay'
@@ -152,16 +152,18 @@ export function PropertiesEvaluation({
                   }
                 }}
               >
-                {item.properties.map((property) => (
-                  <PropertyDisplay
-                    key={property.key}
-                    property={property}
-                    evaluations={evaluations}
-                    onAction={onAction}
-                    onShowArchived={onShowArchived}
-                    onHover={onHover}
-                    activeArchivedPageId={activeArchivedPageId}
-                  />
+                {item.properties.map((property, index) => (
+                  <Fragment key={property.key}>
+                    {index > 0 && <hr className="border-gray-100 my-3" />}
+                    <PropertyDisplay
+                      property={property}
+                      evaluations={evaluations}
+                      onAction={onAction}
+                      onShowArchived={onShowArchived}
+                      onHover={onHover}
+                      activeArchivedPageId={activeArchivedPageId}
+                    />
+                  </Fragment>
                 ))}
               </EvaluationItem>
             ))}
