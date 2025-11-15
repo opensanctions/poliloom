@@ -206,11 +206,9 @@ export default function GuidePage() {
                   </EvaluationItem>
                   <div className="mt-3 prose max-w-none">
                     <p className="text-gray-600 leading-relaxed">
-                      <strong className="text-gray-900">Extracted Information:</strong> New data
-                      that PoliLoom has discovered from government portals, Wikipedia, or other
-                      sources, but{' '}
-                      <strong className="text-gray-900">not yet added to Wikidata</strong>. These
-                      items are waiting for your review before they can be submitted.
+                      <strong className="text-gray-900">Extracted Information:</strong> New proposed
+                      statements <strong className="text-gray-900">not yet in Wikidata</strong>.
+                      These items are waiting for your review before they can be submitted.
                     </p>
                   </div>
                 </div>
@@ -226,9 +224,9 @@ export default function GuidePage() {
                   <div className="mt-3 prose max-w-none">
                     <p className="text-gray-600 leading-relaxed">
                       <strong className="text-gray-900">Current in Wikidata:</strong> Data that{' '}
-                      <strong className="text-gray-900">already exists on Wikidata</strong>.
-                      You&apos;ll see the existing statement with all its metadata (dates,
-                      references, and qualifiers) that would be removed if you choose to discard it.
+                      <strong className="text-gray-900">already exists in Wikidata</strong>.
+                      You&apos;ll see the existing statement with its metadata (references and
+                      qualifiers).
                     </p>
                   </div>
                 </div>
@@ -242,8 +240,7 @@ export default function GuidePage() {
                     accepting extracted data adds something new, while discarding Wikidata data
                     removes something that&apos;s already there
                   </strong>
-                  . Pay special attention when you see the archive icon—you&apos;re being asked to
-                  evaluate whether the replacement is an improvement.
+                  .
                 </p>
               </div>
             </div>
@@ -317,13 +314,23 @@ export default function GuidePage() {
               </div>
             </div>
 
-            {/* Discarding existing Wikidata items */}
+            {/* Replacing existing Wikidata statements */}
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Discarding Existing Data</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                Replacing Existing Statements
+              </h2>
               <p className="text-gray-600 mb-6">
-                Sometimes you&apos;ll see statements that already exist on Wikidata (indicated by
-                the archive icon). Try discarding the statement below to see what information will
-                be removed.
+                Sometimes you might want to replace existing Wikidata data with more accurate
+                information. To do this,{' '}
+                <strong className="text-gray-900">
+                  you discard the old statement and accept the new one
+                </strong>
+                . Before discarding existing statements,{' '}
+                <strong className="text-gray-900">
+                  check their metadata by clicking on &quot;references&quot; and
+                  &quot;qualifiers&quot;
+                </strong>{' '}
+                to see exactly what would be removed.
               </p>
               <EvaluationItem title={wikidataProperty.entity_name} hasNewData={false}>
                 <PropertyDisplay
@@ -336,17 +343,12 @@ export default function GuidePage() {
               {/* Explanation paragraph */}
               <div className="mt-4 prose max-w-none">
                 <p className="text-gray-600 leading-relaxed">
-                  When discarding existing Wikidata statements,{' '}
-                  <strong className="text-gray-900">
-                    pay attention to the metadata that&apos;s attached
-                  </strong>
-                  : dates, references, and qualifiers. These discards often replace one version with
-                  another, so{' '}
-                  <strong className="text-gray-900">
-                    compare what&apos;s being removed with what will be inserted
-                  </strong>
-                  . If the existing metadata looks valuable or you&apos;re unsure about the
-                  replacement, skip it and let someone else take a closer look.
+                  If there&apos;s no metadata attached, it&apos;s perfectly fine to discard and
+                  replace with more correct data. However, if the existing statement has metadata,
+                  consider editing it directly on Wikidata instead , as PoliLoom currently
+                  doesn&apos;t support editing metadata.{' '}
+                  <strong className="text-gray-900">When in doubt, skip it</strong> and let someone
+                  else take a closer look.
                 </p>
               </div>
             </div>
