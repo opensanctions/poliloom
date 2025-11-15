@@ -26,15 +26,17 @@ export default function Home() {
     .filter((p) => p.preference_type === PreferenceType.COUNTRY)
     .map((p) => p.wikidata_id)
 
-  // Convert to MultiSelectOption format
+  // Convert to MultiSelectOption format with counts
   const languageOptions: MultiSelectOption[] = languages.map((lang) => ({
     value: lang.wikidata_id,
     label: lang.name,
+    count: lang.sources_count,
   }))
 
   const countryOptions: MultiSelectOption[] = countries.map((country) => ({
     value: country.wikidata_id,
     label: country.name,
+    count: country.citizenships_count,
   }))
 
   // Generic handler for preference changes
@@ -93,8 +95,8 @@ export default function Home() {
 
           <div className="space-y-6">
             <MultiSelect
-              title="Languages"
-              description="Review politicians whose source documents are in these languages"
+              title="What languages can you read?"
+              description="We'll show you politicians with source documents in these languages"
               icon="🌐"
               options={languageOptions}
               selected={languagePreferences}
@@ -104,8 +106,8 @@ export default function Home() {
             />
 
             <MultiSelect
-              title="Countries"
-              description="Review politicians from these countries"
+              title="Which countries are you interested in?"
+              description="We'll show you politicians with citizenship from these countries"
               icon="🌍"
               options={countryOptions}
               selected={countryPreferences}

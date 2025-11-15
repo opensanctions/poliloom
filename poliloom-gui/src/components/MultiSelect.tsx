@@ -6,6 +6,7 @@ import { Spinner } from './Spinner'
 export interface MultiSelectOption {
   value: string
   label: string
+  count?: number
 }
 
 interface MultiSelectProps {
@@ -29,7 +30,6 @@ export function MultiSelect({
   loading = false,
   disabled = false,
 }: MultiSelectProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
   // Normalize text for searching (removes diacritics)
@@ -39,20 +39,32 @@ export function MultiSelect({
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
 
-  // Filter and sort options
-  const filteredOptions = options
-    .filter((option) => {
-      if (!searchTerm) return true
-      const label = option.label.toLowerCase()
-      const search = searchTerm.toLowerCase()
-      const normalizedLabel = normalizeText(option.label)
-      const normalizedSearch = normalizeText(searchTerm)
-      return label.includes(search) || normalizedLabel.includes(normalizedSearch)
-    })
-    .sort((a, b) => a.label.localeCompare(b.label))
+  // Filter options based on search term
+  const filteredOptions = options.filter((option) => {
+    if (!searchTerm) return false // Only show results when searching
+    const label = option.label.toLowerCase()
+    const search = searchTerm.toLowerCase()
+    const normalizedLabel = normalizeText(option.label)
+    const normalizedSearch = normalizeText(searchTerm)
+    return label.includes(search) || normalizedLabel.includes(normalizedSearch)
+  })
 
-  // Show top 8 popular options when collapsed
-  const displayOptions = isExpanded ? filteredOptions : filteredOptions.slice(0, 8)
+  // Sort filtered results by count (highest first), then alphabetically
+  const sortedFilteredOptions = filteredOptions.sort((a, b) => {
+    if (a.count !== undefined && b.count !== undefined && a.count !== b.count) {
+      return b.count - a.count
+    }
+    return a.label.localeCompare(b.label)
+  })
+
+  // Get top suggestions by count when not searching
+  const topSuggestions = options
+    .filter((opt) => opt.count && opt.count > 0)
+    .sort((a, b) => (b.count || 0) - (a.count || 0))
+    .slice(0, 6)
+
+  // Show suggestions or search results
+  const displayOptions = searchTerm ? sortedFilteredOptions : topSuggestions
 
   const toggleOption = (value: string) => {
     if (disabled) return
@@ -91,39 +103,57 @@ export function MultiSelect({
 
       {/* Content */}
       <div className="px-6 py-5">
-        {/* Selected count and clear */}
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
-          {selected.length > 0 ? (
-            <>
-              <span className="text-sm font-medium text-indigo-700">
-                {selected.length} selected
+        {/* Selected items as chips */}
+        {selected.length > 0 && (
+          <div className="mb-4 pb-4 border-b border-gray-100">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                Selected
               </span>
               <button
                 onClick={clearAll}
                 disabled={disabled}
-                className="text-sm text-gray-600 hover:text-gray-900 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+                className="text-xs text-gray-600 hover:text-gray-900 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
               >
                 Clear all
               </button>
-            </>
-          ) : (
-            <span className="text-sm text-gray-500 italic">No filters selected - showing all</span>
-          )}
-        </div>
-
-        {/* Search */}
-        {isExpanded && (
-          <div className="mb-4">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search..."
-              disabled={disabled || loading}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed text-sm text-gray-900 placeholder-gray-400"
-            />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {selected.map((value) => {
+                const option = options.find((opt) => opt.value === value)
+                if (!option) return null
+                return (
+                  <button
+                    key={value}
+                    onClick={() => toggleOption(value)}
+                    disabled={disabled || loading}
+                    className="px-4 py-2 rounded-lg text-sm font-medium transition-all border-2 disabled:cursor-not-allowed inline-flex items-center gap-2 bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700 hover:border-indigo-700 shadow-sm"
+                  >
+                    <span>{option.label}</span>
+                    {option.count !== undefined && option.count > 0 && (
+                      <span className="text-xs font-semibold text-indigo-200">
+                        {option.count.toLocaleString()}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
+
+        {/* Search - always visible */}
+        <div className="mb-4">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Start typing to search..."
+            disabled={disabled || loading}
+            className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed text-sm text-gray-900 placeholder-gray-400 transition-all"
+            autoComplete="off"
+          />
+        </div>
 
         {/* Options as chips */}
         {displayOptions.length > 0 ? (
@@ -137,7 +167,7 @@ export function MultiSelect({
                   disabled={disabled || loading}
                   className={`
                     px-4 py-2 rounded-lg text-sm font-medium transition-all
-                    border-2 disabled:cursor-not-allowed
+                    border-2 disabled:cursor-not-allowed inline-flex items-center gap-2
                     ${
                       isSelected
                         ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700 hover:border-indigo-700 shadow-sm'
@@ -146,40 +176,21 @@ export function MultiSelect({
                     ${disabled ? 'opacity-50' : ''}
                   `}
                 >
-                  {option.label}
+                  <span>{option.label}</span>
+                  {option.count !== undefined && option.count > 0 && (
+                    <span
+                      className={`text-xs font-semibold ${isSelected ? 'text-indigo-200' : 'text-gray-500'}`}
+                    >
+                      {option.count.toLocaleString()}
+                    </span>
+                  )}
                 </button>
               )
             })}
           </div>
         ) : (
           <div className="text-sm text-gray-500 text-center py-4">
-            {searchTerm ? 'No matching options' : 'No options available'}
-          </div>
-        )}
-
-        {/* Expand/collapse button */}
-        {filteredOptions.length > 8 && (
-          <div className="mt-4 text-center">
-            <button
-              onClick={() => {
-                setIsExpanded(!isExpanded)
-                if (isExpanded) setSearchTerm('')
-              }}
-              disabled={disabled || loading}
-              className="text-sm font-medium text-indigo-600 hover:text-indigo-800 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1"
-            >
-              {isExpanded ? (
-                <>
-                  Show less
-                  <span className="text-xs">▲</span>
-                </>
-              ) : (
-                <>
-                  Show all {filteredOptions.length} options
-                  <span className="text-xs">▼</span>
-                </>
-              )}
-            </button>
+            {searchTerm ? 'No matching options found' : 'Start typing to search'}
           </div>
         )}
       </div>
