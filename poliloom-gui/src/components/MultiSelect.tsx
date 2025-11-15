@@ -57,14 +57,23 @@ export function MultiSelect({
     return a.label.localeCompare(b.label)
   })
 
+  // Get selected options
+  const selectedOptions = options.filter((opt) => selected.includes(opt.value))
+
+  // Calculate how many popular items we need to reach 6 total
+  const targetTotal = 6
+  const remainingSlots = Math.max(0, targetTotal - selectedOptions.length)
+
   // Get top suggestions by count when not searching
   const topSuggestions = options
-    .filter((opt) => opt.count && opt.count > 0)
+    .filter((opt) => opt.count && opt.count > 0 && !selected.includes(opt.value))
     .sort((a, b) => (b.count || 0) - (a.count || 0))
-    .slice(0, 6)
+    .slice(0, remainingSlots)
 
-  // Show suggestions or search results
-  const displayOptions = searchTerm ? sortedFilteredOptions : topSuggestions
+  // Show suggestions or search results, always including selected items
+  const displayOptions = searchTerm
+    ? sortedFilteredOptions
+    : [...selectedOptions, ...topSuggestions]
 
   const toggleOption = (value: string) => {
     if (disabled) return
@@ -73,56 +82,12 @@ export function MultiSelect({
     } else {
       onChange([...selected, value])
     }
-  }
-
-  const clearAll = () => {
-    if (!disabled) {
-      onChange([])
-    }
+    setSearchTerm('')
   }
 
   return (
     <ContainerBox title={title} description={description} icon={icon} loading={loading}>
-      {/* Selected items as chips */}
-      {selected.length > 0 && (
-        <div className="mb-4 pb-4 border-b border-gray-100">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-              Selected
-            </span>
-            <button
-              onClick={clearAll}
-              disabled={disabled}
-              className="text-xs text-gray-600 hover:text-gray-900 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
-            >
-              Clear all
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {selected.map((value) => {
-              const option = options.find((opt) => opt.value === value)
-              if (!option) return null
-              return (
-                <button
-                  key={value}
-                  onClick={() => toggleOption(value)}
-                  disabled={disabled || loading}
-                  className="px-4 py-2 rounded-lg text-sm font-medium transition-all border-2 disabled:cursor-not-allowed inline-flex items-center gap-2 bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700 hover:border-indigo-700 shadow-sm"
-                >
-                  <span>{option.label}</span>
-                  {option.count !== undefined && option.count > 0 && (
-                    <span className="text-xs font-semibold text-indigo-200">
-                      {option.count.toLocaleString()}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Search - always visible */}
+      {/* Search */}
       <div className="mb-4">
         <input
           type="text"
@@ -144,6 +109,10 @@ export function MultiSelect({
               <button
                 key={option.value}
                 onClick={() => toggleOption(option.value)}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
                 disabled={disabled || loading}
                 className={`
                     px-4 py-2 rounded-lg text-sm font-medium transition-all
