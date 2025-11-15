@@ -173,10 +173,11 @@ export default function GuidePage() {
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Role</h2>
               <div className="prose max-w-none space-y-3">
                 <p className="text-gray-600 leading-relaxed">
-                  PoliLoom extracts politician data from government portals and Wikipedia. Your job
-                  is simple: <strong className="text-gray-900">review new data</strong> and decide
-                  whether it&apos;s accurate enough to add to Wikidata. You&apos;ll see extracted
-                  information like birth dates, positions, and birthplaces that need your
+                  PoliLoom extracts statements on politicians from government portals and Wikipedia.
+                  Your job is simple:{' '}
+                  <strong className="text-gray-900">review these proposed edits</strong> and decide
+                  whether they&apos;re accurate enough to add to Wikidata. You&apos;ll see extracted
+                  statements like birth dates, positions, and birthplaces that need your
                   confirmation before being added.
                 </p>
                 <p className="text-gray-600 leading-relaxed">
@@ -255,19 +256,6 @@ export default function GuidePage() {
               </p>
 
               <div className="space-y-8">
-                {/* Skip example */}
-                <div>
-                  <EvaluationItem title="Birth Date" hasNewData={true}>
-                    <PropertyDisplay property={samplePropertySkip} evaluations={skipEvaluations} />
-                  </EvaluationItem>
-                  <div className="mt-3 prose max-w-none">
-                    <p className="text-gray-600 leading-relaxed">
-                      <strong className="text-gray-900">Skip:</strong> Leave this item unreviewed.
-                      It will remain in the queue for later evaluation by you or another reviewer.
-                    </p>
-                  </div>
-                </div>
-
                 {/* Accept example */}
                 <div>
                   <EvaluationItem title="Birth Date" hasNewData={true}>
@@ -299,6 +287,19 @@ export default function GuidePage() {
                     </p>
                   </div>
                 </div>
+
+                {/* Skip example */}
+                <div>
+                  <EvaluationItem title="Birth Date" hasNewData={true}>
+                    <PropertyDisplay property={samplePropertySkip} evaluations={skipEvaluations} />
+                  </EvaluationItem>
+                  <div className="mt-3 prose max-w-none">
+                    <p className="text-gray-600 leading-relaxed">
+                      <strong className="text-gray-900">Skip:</strong> Leave this item unreviewed.
+                      It will remain in the queue for later evaluation by you or another reviewer.
+                    </p>
+                  </div>
+                </div>
               </div>
 
               {/* Comfort paragraph after demo */}
@@ -323,14 +324,12 @@ export default function GuidePage() {
                 Sometimes you might want to replace existing Wikidata data with more accurate
                 information. To do this,{' '}
                 <strong className="text-gray-900">
-                  you discard the old statement and accept the new one
+                  you can discard the old statement and accept the new one
                 </strong>
-                . Before discarding existing statements,{' '}
+                . However,{' '}
                 <strong className="text-gray-900">
-                  check their metadata by clicking on &quot;references&quot; and
-                  &quot;qualifiers&quot;
-                </strong>{' '}
-                to see exactly what would be removed.
+                  make sure to keep metadata that won&apos;t be replaced.
+                </strong>
               </p>
               <EvaluationItem title={wikidataProperty.entity_name} hasNewData={false}>
                 <PropertyDisplay

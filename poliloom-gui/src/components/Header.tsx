@@ -1,6 +1,7 @@
 'use client'
 
 import { useSession, signOut, signIn } from 'next-auth/react'
+import Image from 'next/image'
 import { Button } from './Button'
 import { Anchor } from './Anchor'
 
@@ -13,9 +14,11 @@ export function Header() {
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
             <Anchor href="/" className="flex items-center gap-2 text-xl font-bold text-gray-900">
-              <img
+              <Image
                 src="https://assets.opensanctions.org/images/ep/logo-icon-color.svg"
                 alt="European Parliament"
+                width={128}
+                height={128}
                 className="h-8 w-8"
               />
               PoliLoom
