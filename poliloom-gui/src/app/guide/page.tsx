@@ -8,6 +8,45 @@ import { EvaluationItem } from '@/components/EvaluationItem'
 import { PropertyDisplay } from '@/components/PropertyDisplay'
 import { Property, PropertyType } from '@/types'
 
+// Sample properties for data types demonstration
+const extractedProperty: Property = {
+  key: 'demo-extracted',
+  id: 'demo-extracted',
+  type: PropertyType.P569,
+  value: '+1990-05-15T00:00:00Z',
+  value_precision: 11,
+  proof_line: 'Born on May 15, 1990 in Stockholm, Sweden.',
+}
+
+const wikidataExistingProperty: Property = {
+  key: 'demo-wikidata-existing',
+  id: 'demo-wikidata-existing',
+  type: PropertyType.P569,
+  value: '+1990-05-14T00:00:00Z',
+  value_precision: 11,
+  proof_line: 'Date of birth: May 14, 1990.',
+  statement_id: 'Q12345$XYZ-789',
+  references: [
+    {
+      hash: 'xyz789abc123',
+      snaks: {
+        P854: [
+          {
+            datatype: 'url',
+            property: 'P854',
+            snaktype: 'value',
+            datavalue: {
+              type: 'string',
+              value: 'https://example.gov/old-bio',
+            },
+          },
+        ],
+      },
+      'snaks-order': ['P854'],
+    },
+  ],
+}
+
 // Sample properties for three-state demonstration
 const samplePropertySkip: Property = {
   key: 'demo-property-skip',
@@ -148,6 +187,63 @@ export default function GuidePage() {
               </div>
             </div>
 
+            {/* Understanding the Data */}
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Understanding the Data</h2>
+              <p className="text-gray-600 mb-6">
+                As you review politicians, you&apos;ll encounter two types of information:
+              </p>
+
+              <div className="space-y-8">
+                {/* Extracted Information example */}
+                <div>
+                  <EvaluationItem title="Birth Date">
+                    <PropertyDisplay property={extractedProperty} evaluations={skipEvaluations} />
+                  </EvaluationItem>
+                  <div className="mt-3 prose max-w-none">
+                    <p className="text-gray-600 leading-relaxed">
+                      <strong className="text-gray-900">Extracted Information:</strong> New data
+                      that PoliLoom has discovered from government portals, Wikipedia, or other
+                      sources, but{' '}
+                      <strong className="text-gray-900">not yet added to Wikidata</strong>. These
+                      items are waiting for your review before they can be submitted.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Current in Wikidata example */}
+                <div>
+                  <EvaluationItem title="Birth Date">
+                    <PropertyDisplay
+                      property={wikidataExistingProperty}
+                      evaluations={skipEvaluations}
+                    />
+                  </EvaluationItem>
+                  <div className="mt-3 prose max-w-none">
+                    <p className="text-gray-600 leading-relaxed">
+                      <strong className="text-gray-900">Current in Wikidata:</strong> Data that{' '}
+                      <strong className="text-gray-900">already exists on Wikidata</strong>.
+                      You&apos;ll see the existing statement with all its metadata (dates,
+                      references, and qualifiers) that would be removed if you choose to discard it.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary paragraph */}
+              <div className="mt-6 prose max-w-none">
+                <p className="text-gray-600 leading-relaxed">
+                  This distinction is important because{' '}
+                  <strong className="text-gray-900">
+                    accepting extracted data adds something new, while discarding Wikidata data
+                    removes something that&apos;s already there
+                  </strong>
+                  . Pay special attention when you see the archive icon—you&apos;re being asked to
+                  evaluate whether the replacement is an improvement.
+                </p>
+              </div>
+            </div>
+
             {/* Interactive Demo */}
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
@@ -272,10 +368,10 @@ export default function GuidePage() {
             {/* CTA */}
             <div className="mt-12 flex justify-end">
               <Anchor
-                href="/evaluate"
+                href="/"
                 className="bg-indigo-600 text-white font-semibold hover:bg-indigo-700 px-8 py-4 rounded-lg transition-colors shadow-sm hover:shadow-md"
               >
-                Start Evaluating
+                Let&apos;s Get Started
               </Anchor>
             </div>
           </div>
