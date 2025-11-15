@@ -143,9 +143,9 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
   }
 
   return (
-    <div className="grid grid-cols-[48rem_1fr] bg-gray-100 min-h-0">
+    <div className="grid grid-cols-[48rem_1fr] bg-gray-50 min-h-0">
       {/* Left panel - Evaluation interface */}
-      <div className="bg-white shadow-lg grid grid-rows-[1fr_auto] min-h-0">
+      <div className="shadow-lg grid grid-rows-[1fr_auto] min-h-0">
         {/* Scrollable content area */}
         <div ref={leftPanelRef} className="overflow-y-auto min-h-0 p-6">
           <div className="mb-6">
@@ -196,52 +196,27 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
       </div>
 
       {/* Right panel - Archived page viewer */}
-      <div className="bg-gray-50 border-l border-gray-200 grid grid-rows-[auto_1fr] min-h-0">
-        <div className="p-4 border-b border-gray-200 bg-white">
-          <h3 className="text-lg font-semibold text-gray-900">
-            {selectedArchivedPage ? 'Archived Page' : 'Select an item to view source'}
-          </h3>
-          {selectedArchivedPage && (
-            <div className="mt-2">
-              <p className="text-sm text-gray-600">
-                Source:{' '}
-                <a
-                  href={selectedArchivedPage.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
-                >
-                  {selectedArchivedPage.url}
-                </a>
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Fetched: {new Date(selectedArchivedPage.fetch_timestamp).toLocaleDateString()}
-              </p>
+      <div className="bg-gray-50 border-l border-gray-200 overflow-hidden min-h-0">
+        {selectedArchivedPage ? (
+          <iframe
+            ref={iframeRef}
+            src={`/api/archived-pages/${selectedArchivedPage.id}/html`}
+            className="w-full h-full border-0"
+            title="Archived Page"
+            sandbox="allow-scripts allow-same-origin"
+            onLoad={() => {
+              archivedPageCache.markPageAsLoaded(selectedArchivedPage.id)
+              handleIframeLoad()
+            }}
+          />
+        ) : (
+          <div className="flex items-center justify-center h-full text-gray-500">
+            <div className="text-center">
+              <p className="text-lg mb-2">📄</p>
+              <p>Click &ldquo;View Source&rdquo; on any item to see the archived page</p>
             </div>
-          )}
-        </div>
-        <div className="overflow-hidden min-h-0">
-          {selectedArchivedPage ? (
-            <iframe
-              ref={iframeRef}
-              src={`/api/archived-pages/${selectedArchivedPage.id}/html`}
-              className="w-full h-full border-0"
-              title="Archived Page"
-              sandbox="allow-scripts allow-same-origin"
-              onLoad={() => {
-                archivedPageCache.markPageAsLoaded(selectedArchivedPage.id)
-                handleIframeLoad()
-              }}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full text-gray-500">
-              <div className="text-center">
-                <p className="text-lg mb-2">📄</p>
-                <p>Click &ldquo;View Source&rdquo; on any item to see the archived page</p>
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )

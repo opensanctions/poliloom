@@ -23,9 +23,16 @@ export function StatementSource({
       {archivedPage && !isWikidataStatement && (
         <div className="flex items-center gap-2">
           <Button size="sm" variant="info" active={isActive} onClick={onShowArchived}>
-            • {isActive ? 'Viewing Source' : 'View Source'}
+            • {isActive ? 'Viewing Archive' : 'View Archive'}
           </Button>
-          <span className="text-sm text-gray-500">{archivedPage.url}</span>
+          <a
+            href={archivedPage.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-blue-600 hover:underline"
+          >
+            {archivedPage.url}
+          </a>
         </div>
       )}
       {proofLine && (

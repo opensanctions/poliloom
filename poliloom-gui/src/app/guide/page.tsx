@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { Header } from '@/components/Header'
 import { Hero } from '@/components/Hero'
 import { Anchor } from '@/components/Anchor'
@@ -16,6 +15,12 @@ const extractedProperty: Property = {
   value: '+1990-05-15T00:00:00Z',
   value_precision: 11,
   proof_line: 'Born on May 15, 1990 in Stockholm, Sweden.',
+  archived_page: {
+    id: 'demo-archive-1',
+    url: 'https://example.gov/politicians/bio',
+    content_hash: 'abc123',
+    fetch_timestamp: '2024-01-15T10:00:00Z',
+  },
 }
 
 const wikidataExistingProperty: Property = {
@@ -55,6 +60,12 @@ const samplePropertySkip: Property = {
   value: '+1990-05-15T00:00:00Z',
   value_precision: 11,
   proof_line: 'Born on May 15, 1990 in Stockholm, Sweden.',
+  archived_page: {
+    id: 'demo-archive-2',
+    url: 'https://example.gov/politicians/profile',
+    content_hash: 'def456',
+    fetch_timestamp: '2024-01-20T14:30:00Z',
+  },
 }
 
 const samplePropertyAccept: Property = {
@@ -64,6 +75,12 @@ const samplePropertyAccept: Property = {
   value: '+1985-03-22T00:00:00Z',
   value_precision: 11,
   proof_line: 'Date of birth: March 22, 1985.',
+  archived_page: {
+    id: 'demo-archive-3',
+    url: 'https://parliament.example.com/members/details',
+    content_hash: 'ghi789',
+    fetch_timestamp: '2024-02-01T09:15:00Z',
+  },
 }
 
 const samplePropertyDiscard: Property = {
@@ -73,6 +90,12 @@ const samplePropertyDiscard: Property = {
   value: '+1992-01-01T00:00:00Z',
   value_precision: 9,
   proof_line: 'Born in 1992.',
+  archived_page: {
+    id: 'demo-archive-4',
+    url: 'https://en.wikipedia.org/wiki/Example_Politician',
+    content_hash: 'jkl012',
+    fetch_timestamp: '2024-02-10T16:45:00Z',
+  },
 }
 
 // Sample property that's already in Wikidata (for discard demo)
@@ -128,30 +151,11 @@ const wikidataProperty: Property = {
 }
 
 export default function GuidePage() {
-  // Three separate evaluation maps locked to their demo states
+  // All evaluation maps locked to their demo states
   const skipEvaluations = new Map<string, boolean>()
   const acceptEvaluations = new Map<string, boolean>([['demo-property-accept', true]])
   const discardEvaluations = new Map<string, boolean>([['demo-property-discard', false]])
-  const [wikidataEvaluations, setWikidataEvaluations] = useState<Map<string, boolean>>(
-    new Map([['demo-wikidata-property', false]]),
-  )
-
-  const handleWikidataAction = (propertyId: string, action: 'confirm' | 'discard') => {
-    setWikidataEvaluations((prev) => {
-      const newMap = new Map(prev)
-      const currentValue = newMap.get(propertyId)
-      const targetValue = action === 'confirm'
-
-      if (currentValue === targetValue) {
-        // Toggle off - remove from map
-        newMap.delete(propertyId)
-      } else {
-        // Set new value
-        newMap.set(propertyId, targetValue)
-      }
-      return newMap
-    })
-  }
+  const wikidataEvaluations = new Map<string, boolean>([['demo-wikidata-property', false]])
 
   return (
     <>
@@ -325,7 +329,6 @@ export default function GuidePage() {
                 <PropertyDisplay
                   property={wikidataProperty}
                   evaluations={wikidataEvaluations}
-                  onAction={handleWikidataAction}
                   shouldAutoOpen={false}
                 />
               </EvaluationItem>
