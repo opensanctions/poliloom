@@ -31,8 +31,8 @@ const samplePropertyDiscard: Property = {
   key: 'demo-property-discard',
   id: 'demo-property-discard',
   type: PropertyType.P569,
-  value: '+1992-13-45T00:00:00Z',
-  value_precision: 11,
+  value: '+1992-01-01T00:00:00Z',
+  value_precision: 9,
   proof_line: 'Born in 1992.',
 }
 
@@ -88,23 +88,6 @@ const wikidataProperty: Property = {
   ],
 }
 
-const stateExplanations = {
-  skip: {
-    title: 'Skip',
-    description: 'Leave this item unreviewed. It will remain in the queue for later evaluation.',
-  },
-  accept: {
-    title: 'Accept',
-    description:
-      'Confirm this data is accurate. Accepted items will be submitted to Wikidata with proper references.',
-  },
-  discard: {
-    title: 'Discard',
-    description:
-      'Mark this data as incorrect or unreliable. Discarded items will not be added to Wikidata.',
-  },
-}
-
 export default function GuidePage() {
   // Three separate evaluation maps locked to their demo states
   const skipEvaluations = new Map<string, boolean>()
@@ -148,42 +131,43 @@ export default function GuidePage() {
               <div className="prose max-w-none space-y-3">
                 <p className="text-gray-600 leading-relaxed">
                   PoliLoom extracts politician data from government portals and Wikipedia. Your job
-                  is simple: <strong>review new data</strong> and decide whether it&apos;s accurate
-                  enough to add to Wikidata. You&apos;ll see extracted information like birth dates,
-                  positions, and birthplaces that need your confirmation before being added.
+                  is simple: <strong className="text-gray-900">review new data</strong> and decide
+                  whether it&apos;s accurate enough to add to Wikidata. You&apos;ll see extracted
+                  information like birth dates, positions, and birthplaces that need your
+                  confirmation before being added.
                 </p>
                 <p className="text-gray-600 leading-relaxed">
                   Sometimes you&apos;ll notice that{' '}
-                  <strong>existing data on Wikidata conflicts with the new data</strong>. If the new
-                  data is better sourced or more accurate, you have the option to discard the
-                  existing statement. This removes it from Wikidata along with its metadata,
-                  allowing the improved version to be added instead.
+                  <strong className="text-gray-900">
+                    existing data on Wikidata conflicts with the new data
+                  </strong>
+                  . If the new data is better sourced or more accurate, you have the option to
+                  discard the existing statement. This removes it from Wikidata along with its
+                  metadata, allowing the improved version to be added instead.
                 </p>
               </div>
             </div>
 
             {/* Interactive Demo */}
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Try It: Three Actions</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                Evaluation Actions Explained
+              </h2>
+              <p className="text-gray-600 mb-6">
+                For each proposed property statement, you have three options:
+              </p>
 
-              <div className="space-y-6">
+              <div className="space-y-8">
                 {/* Skip example */}
                 <div>
                   <EvaluationItem title="Birth Date">
                     <PropertyDisplay property={samplePropertySkip} evaluations={skipEvaluations} />
                   </EvaluationItem>
-                  <div className="mt-2 p-4 rounded-lg bg-blue-50 border border-blue-200">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-2 h-2 rounded-full mt-2 bg-blue-500" />
-                      <div>
-                        <h3 className="font-semibold text-blue-900">
-                          {stateExplanations.skip.title}
-                        </h3>
-                        <p className="text-sm mt-1 text-blue-800">
-                          {stateExplanations.skip.description}
-                        </p>
-                      </div>
-                    </div>
+                  <div className="mt-3 prose max-w-none">
+                    <p className="text-gray-600 leading-relaxed">
+                      <strong className="text-gray-900">Skip:</strong> Leave this item unreviewed.
+                      It will remain in the queue for later evaluation by you or another reviewer.
+                    </p>
                   </div>
                 </div>
 
@@ -195,18 +179,11 @@ export default function GuidePage() {
                       evaluations={acceptEvaluations}
                     />
                   </EvaluationItem>
-                  <div className="mt-2 p-4 rounded-lg bg-green-50 border border-green-200">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-2 h-2 rounded-full mt-2 bg-green-500" />
-                      <div>
-                        <h3 className="font-semibold text-green-900">
-                          {stateExplanations.accept.title}
-                        </h3>
-                        <p className="text-sm mt-1 text-green-800">
-                          {stateExplanations.accept.description}
-                        </p>
-                      </div>
-                    </div>
+                  <div className="mt-3 prose max-w-none">
+                    <p className="text-gray-600 leading-relaxed">
+                      <strong className="text-gray-900">Accept:</strong> Confirm this data is
+                      accurate. Accepted items will be submitted to Wikidata with proper references.
+                    </p>
                   </div>
                 </div>
 
@@ -218,18 +195,11 @@ export default function GuidePage() {
                       evaluations={discardEvaluations}
                     />
                   </EvaluationItem>
-                  <div className="mt-2 p-4 rounded-lg bg-red-50 border border-red-200">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-2 h-2 rounded-full mt-2 bg-red-500" />
-                      <div>
-                        <h3 className="font-semibold text-red-900">
-                          {stateExplanations.discard.title}
-                        </h3>
-                        <p className="text-sm mt-1 text-red-800">
-                          {stateExplanations.discard.description}
-                        </p>
-                      </div>
-                    </div>
+                  <div className="mt-3 prose max-w-none">
+                    <p className="text-gray-600 leading-relaxed">
+                      <strong className="text-gray-900">Discard:</strong> Mark this data as
+                      incorrect or unreliable. Discarded items will not be added to Wikidata.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -237,11 +207,12 @@ export default function GuidePage() {
               {/* Comfort paragraph after demo */}
               <div className="mt-6 prose max-w-none">
                 <p className="text-gray-600 leading-relaxed">
-                  <strong>Not sure?</strong> That&apos;s completely fine:{' '}
-                  <strong>just skip it!</strong> You&apos;re never required to make a decision on
-                  any item. If something feels uncertain, leave it for another reviewer or take a
-                  moment to check the politician&apos;s Wikidata page yourself. Every contribution
-                  helps, even if you only evaluate the items you&apos;re confident about.
+                  <strong className="text-gray-900">Not sure?</strong> That&apos;s completely fine:{' '}
+                  <strong className="text-gray-900">just skip it!</strong> You&apos;re never
+                  required to make a decision on any item. If something feels uncertain, leave it
+                  for another reviewer or take a moment to check the politician&apos;s Wikidata page
+                  yourself. Every contribution helps, even if you only evaluate the items
+                  you&apos;re confident about.
                 </p>
               </div>
             </div>
@@ -249,6 +220,11 @@ export default function GuidePage() {
             {/* Discarding existing Wikidata items */}
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Discarding Existing Data</h2>
+              <p className="text-gray-600 mb-6">
+                Sometimes you&apos;ll see statements that already exist on Wikidata (indicated by
+                the archive icon). Try discarding the statement below to see what information will
+                be removed.
+              </p>
               <EvaluationItem title={wikidataProperty.entity_name}>
                 <PropertyDisplay
                   property={wikidataProperty}
@@ -258,53 +234,19 @@ export default function GuidePage() {
                 />
               </EvaluationItem>
 
-              {/* Metadata info box */}
-              <div
-                className={`mt-4 p-4 rounded-lg ${
-                  wikidataEvaluations.get('demo-wikidata-property') === false
-                    ? 'bg-red-50 border border-red-200'
-                    : 'bg-blue-50 border border-blue-200'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className={`flex-shrink-0 w-2 h-2 rounded-full mt-2 ${
-                      wikidataEvaluations.get('demo-wikidata-property') === false
-                        ? 'bg-red-500'
-                        : 'bg-blue-500'
-                    }`}
-                  />
-                  <div>
-                    {wikidataEvaluations.get('demo-wikidata-property') === false ? (
-                      <>
-                        <h3 className="font-semibold text-red-900">
-                          Statement Marked for Deletion
-                        </h3>
-                        <p className="text-sm mt-1 text-red-800">
-                          This statement and its metadata will be removed from Wikidata if you
-                          proceed.
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <h3 className="font-semibold text-blue-900">Existing Wikidata Statement</h3>
-                        <p className="text-sm mt-1 text-blue-800">
-                          This statement is currently on Wikidata with metadata attached.
-                        </p>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Comfort paragraph after discard demo */}
+              {/* Explanation paragraph */}
               <div className="mt-4 prose max-w-none">
                 <p className="text-gray-600 leading-relaxed">
                   When discarding existing Wikidata statements,{' '}
-                  <strong>pay attention to the metadata that&apos;s attached</strong>: dates,
-                  references, and qualifiers. These discards often replace one version with another,
-                  so <strong>compare what&apos;s being removed with what will be inserted</strong>.
-                  If the existing metadata looks valuable or you&apos;re unsure about the
+                  <strong className="text-gray-900">
+                    pay attention to the metadata that&apos;s attached
+                  </strong>
+                  : dates, references, and qualifiers. These discards often replace one version with
+                  another, so{' '}
+                  <strong className="text-gray-900">
+                    compare what&apos;s being removed with what will be inserted
+                  </strong>
+                  . If the existing metadata looks valuable or you&apos;re unsure about the
                   replacement, skip it and let someone else take a closer look.
                 </p>
               </div>
@@ -318,7 +260,7 @@ export default function GuidePage() {
                   That&apos;s all there is to it! Review what you&apos;re confident about, skip what
                   you&apos;re not, and check Wikidata whenever you need more context. You&apos;ve
                   got this:{' '}
-                  <strong>
+                  <strong className="text-gray-900">
                     every evaluation you make helps improve the quality of data available to
                     everyone
                   </strong>
