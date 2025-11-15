@@ -14,7 +14,7 @@ export function EvaluationActions({
   onAction,
 }: EvaluationActionsProps) {
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 items-center">
       {!isWikidataStatement ? (
         <Button
           size="sm"

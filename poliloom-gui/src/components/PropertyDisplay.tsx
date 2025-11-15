@@ -99,7 +99,9 @@ export function PropertyDisplay({
 
   return (
     <div className="space-y-2" onMouseEnter={() => onHover?.(property)}>
-      {hasContent && <div className="flex items-start gap-4">{renderPropertyContent()}</div>}
+      {hasContent && (
+        <div className="flex items-start gap-4 mb-3 font-medium">{renderPropertyContent()}</div>
+      )}
       {!property.statement_id && (
         <StatementSource
           proofLine={property.proof_line || null}
