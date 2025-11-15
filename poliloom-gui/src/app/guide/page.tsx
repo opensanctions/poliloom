@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { Header } from '@/components/Header'
 import { Hero } from '@/components/Hero'
 import { Anchor } from '@/components/Anchor'
@@ -8,14 +8,32 @@ import { EvaluationItem } from '@/components/EvaluationItem'
 import { PropertyDisplay } from '@/components/PropertyDisplay'
 import { Property, PropertyType } from '@/types'
 
-// Sample property for demonstration
-const sampleProperty: Property = {
-  key: 'demo-property',
-  id: 'demo-property',
+// Sample properties for three-state demonstration
+const samplePropertySkip: Property = {
+  key: 'demo-property-skip',
+  id: 'demo-property-skip',
   type: PropertyType.P569,
   value: '+1990-05-15T00:00:00Z',
   value_precision: 11,
   proof_line: 'Born on May 15, 1990 in Stockholm, Sweden.',
+}
+
+const samplePropertyAccept: Property = {
+  key: 'demo-property-accept',
+  id: 'demo-property-accept',
+  type: PropertyType.P569,
+  value: '+1985-03-22T00:00:00Z',
+  value_precision: 11,
+  proof_line: 'Date of birth: March 22, 1985.',
+}
+
+const samplePropertyDiscard: Property = {
+  key: 'demo-property-discard',
+  id: 'demo-property-discard',
+  type: PropertyType.P569,
+  value: '+1992-13-45T00:00:00Z',
+  value_precision: 11,
+  proof_line: 'Born in 1992.',
 }
 
 // Sample property that's already in Wikidata (for discard demo)
@@ -70,10 +88,8 @@ const wikidataProperty: Property = {
   ],
 }
 
-type DemoState = 'none' | 'accept' | 'discard'
-
-const stateExplanations: Record<DemoState, { title: string; description: string }> = {
-  none: {
+const stateExplanations = {
+  skip: {
     title: 'Skip',
     description: 'Leave this item unreviewed. It will remain in the queue for later evaluation.',
   },
@@ -90,82 +106,13 @@ const stateExplanations: Record<DemoState, { title: string; description: string 
 }
 
 export default function GuidePage() {
-  const [currentState, setCurrentState] = useState<DemoState>('none')
-  const [evaluations, setEvaluations] = useState<Map<string, boolean>>(new Map())
+  // Three separate evaluation maps locked to their demo states
+  const skipEvaluations = new Map<string, boolean>()
+  const acceptEvaluations = new Map<string, boolean>([['demo-property-accept', true]])
+  const discardEvaluations = new Map<string, boolean>([['demo-property-discard', false]])
   const [wikidataEvaluations, setWikidataEvaluations] = useState<Map<string, boolean>>(
     new Map([['demo-wikidata-property', false]]),
   )
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const stateIndexRef = useRef(0)
-
-  const scheduleNextCycle = (delay: number) => {
-    const states: DemoState[] = ['accept', 'discard', 'none']
-
-    timeoutRef.current = setTimeout(() => {
-      stateIndexRef.current = (stateIndexRef.current + 1) % states.length
-      const newState = states[stateIndexRef.current]
-      setCurrentState(newState)
-
-      // Update evaluations map based on state
-      const newEvaluations = new Map<string, boolean>()
-      if (newState === 'accept') {
-        newEvaluations.set('demo-property', true)
-      } else if (newState === 'discard') {
-        newEvaluations.set('demo-property', false)
-      }
-      setEvaluations(newEvaluations)
-
-      // Schedule next cycle with default 2 second delay
-      scheduleNextCycle(2000)
-    }, delay)
-  }
-
-  // Start cycling on mount
-  useEffect(() => {
-    scheduleNextCycle(2000)
-
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
-    }
-  }, [])
-
-  const handleAction = (propertyId: string, action: 'confirm' | 'discard') => {
-    // Clear current timeout
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-      timeoutRef.current = null
-    }
-
-    setEvaluations((prev) => {
-      const newMap = new Map(prev)
-      const currentValue = newMap.get(propertyId)
-      const targetValue = action === 'confirm'
-
-      if (currentValue === targetValue) {
-        // Toggle off - remove from map
-        newMap.delete(propertyId)
-        setCurrentState('none')
-      } else {
-        // Set new value
-        newMap.set(propertyId, targetValue)
-        setCurrentState(targetValue ? 'accept' : 'discard')
-      }
-      return newMap
-    })
-
-    // Resume cycling after 4 seconds
-    scheduleNextCycle(4000)
-  }
-
-  const handleShowArchived = () => {
-    // No-op for demo
-  }
-
-  const handleHover = () => {
-    // No-op for demo
-  }
 
   const handleWikidataAction = (propertyId: string, action: 'confirm' | 'discard') => {
     setWikidataEvaluations((prev) => {
@@ -219,66 +166,76 @@ export default function GuidePage() {
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Try It: Three Actions</h2>
 
-              <EvaluationItem title="Birth Date">
-                <PropertyDisplay
-                  property={sampleProperty}
-                  evaluations={evaluations}
-                  onAction={handleAction}
-                  onShowArchived={handleShowArchived}
-                  onHover={handleHover}
-                  activeArchivedPageId={null}
-                />
-              </EvaluationItem>
+              <div className="space-y-6">
+                {/* Skip example */}
+                <div>
+                  <EvaluationItem title="Birth Date">
+                    <PropertyDisplay property={samplePropertySkip} evaluations={skipEvaluations} />
+                  </EvaluationItem>
+                  <div className="mt-2 p-4 rounded-lg bg-blue-50 border border-blue-200">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-2 h-2 rounded-full mt-2 bg-blue-500" />
+                      <div>
+                        <h3 className="font-semibold text-blue-900">
+                          {stateExplanations.skip.title}
+                        </h3>
+                        <p className="text-sm mt-1 text-blue-800">
+                          {stateExplanations.skip.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-              {/* State Explanation */}
-              <div
-                className={`mt-4 p-4 rounded-lg ${
-                  currentState === 'accept'
-                    ? 'bg-green-50 border border-green-200'
-                    : currentState === 'discard'
-                      ? 'bg-red-50 border border-red-200'
-                      : 'bg-blue-50 border border-blue-200'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className={`flex-shrink-0 w-2 h-2 rounded-full mt-2 ${
-                      currentState === 'accept'
-                        ? 'bg-green-500'
-                        : currentState === 'discard'
-                          ? 'bg-red-500'
-                          : 'bg-blue-500'
-                    }`}
-                  />
-                  <div>
-                    <h3
-                      className={`font-semibold ${
-                        currentState === 'accept'
-                          ? 'text-green-900'
-                          : currentState === 'discard'
-                            ? 'text-red-900'
-                            : 'text-blue-900'
-                      }`}
-                    >
-                      {stateExplanations[currentState].title}
-                    </h3>
-                    <p
-                      className={`text-sm mt-1 ${
-                        currentState === 'accept'
-                          ? 'text-green-800'
-                          : currentState === 'discard'
-                            ? 'text-red-800'
-                            : 'text-blue-800'
-                      }`}
-                    >
-                      {stateExplanations[currentState].description}
-                    </p>
+                {/* Accept example */}
+                <div>
+                  <EvaluationItem title="Birth Date">
+                    <PropertyDisplay
+                      property={samplePropertyAccept}
+                      evaluations={acceptEvaluations}
+                    />
+                  </EvaluationItem>
+                  <div className="mt-2 p-4 rounded-lg bg-green-50 border border-green-200">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-2 h-2 rounded-full mt-2 bg-green-500" />
+                      <div>
+                        <h3 className="font-semibold text-green-900">
+                          {stateExplanations.accept.title}
+                        </h3>
+                        <p className="text-sm mt-1 text-green-800">
+                          {stateExplanations.accept.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Discard example */}
+                <div>
+                  <EvaluationItem title="Birth Date">
+                    <PropertyDisplay
+                      property={samplePropertyDiscard}
+                      evaluations={discardEvaluations}
+                    />
+                  </EvaluationItem>
+                  <div className="mt-2 p-4 rounded-lg bg-red-50 border border-red-200">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-2 h-2 rounded-full mt-2 bg-red-500" />
+                      <div>
+                        <h3 className="font-semibold text-red-900">
+                          {stateExplanations.discard.title}
+                        </h3>
+                        <p className="text-sm mt-1 text-red-800">
+                          {stateExplanations.discard.description}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Comfort paragraph after demo */}
-              <div className="mt-4 prose max-w-none">
+              <div className="mt-6 prose max-w-none">
                 <p className="text-gray-600 leading-relaxed">
                   <strong>Not sure?</strong> That&apos;s completely fine:{' '}
                   <strong>just skip it!</strong> You&apos;re never required to make a decision on
@@ -297,9 +254,6 @@ export default function GuidePage() {
                   property={wikidataProperty}
                   evaluations={wikidataEvaluations}
                   onAction={handleWikidataAction}
-                  onShowArchived={handleShowArchived}
-                  onHover={handleHover}
-                  activeArchivedPageId={null}
                   shouldAutoOpen={false}
                 />
               </EvaluationItem>

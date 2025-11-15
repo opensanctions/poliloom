@@ -4,7 +4,7 @@ interface EvaluationActionsProps {
   statementId: string
   isWikidataStatement: boolean
   isConfirmed: boolean | null
-  onAction: (id: string, action: 'confirm' | 'discard') => void
+  onAction?: (id: string, action: 'confirm' | 'discard') => void
 }
 
 export function EvaluationActions({
@@ -20,7 +20,7 @@ export function EvaluationActions({
           size="sm"
           variant="success"
           active={isConfirmed === true}
-          onClick={() => onAction(statementId, 'confirm')}
+          onClick={() => onAction?.(statementId, 'confirm')}
         >
           ✓ Confirm
         </Button>
@@ -33,7 +33,7 @@ export function EvaluationActions({
         size="sm"
         variant={isWikidataStatement && isConfirmed !== false ? 'secondary' : 'danger'}
         active={isConfirmed === false}
-        onClick={() => onAction(statementId, 'discard')}
+        onClick={() => onAction?.(statementId, 'discard')}
         className={
           isWikidataStatement && isConfirmed !== false
             ? '!text-gray-500 !bg-gray-100 hover:!bg-gray-300'

@@ -8,10 +8,10 @@ import { WikidataMetadata } from './WikidataMetadata'
 interface PropertyDisplayProps {
   property: Property
   evaluations: Map<string, boolean>
-  onAction: (propertyId: string, action: 'confirm' | 'discard') => void
-  onShowArchived: (property: Property) => void
-  onHover: (property: Property) => void
-  activeArchivedPageId: string | null
+  onAction?: (propertyId: string, action: 'confirm' | 'discard') => void
+  onShowArchived?: (property: Property) => void
+  onHover?: (property: Property) => void
+  activeArchivedPageId?: string | null
   shouldAutoOpen?: boolean
 }
 
@@ -62,7 +62,7 @@ export function PropertyDisplay({
   }
 
   return (
-    <div className="space-y-2" onMouseEnter={() => onHover(property)}>
+    <div className="space-y-2" onMouseEnter={() => onHover?.(property)}>
       <div className="flex justify-between items-start gap-4">
         {renderPropertyContent()}
         <EvaluationActions
@@ -78,8 +78,8 @@ export function PropertyDisplay({
           archivedPage={property.archived_page || null}
           isWikidataStatement={!!property.statement_id}
           isActive={activeArchivedPageId === property.archived_page?.id}
-          onShowArchived={() => onShowArchived(property)}
-          onHover={() => onHover(property)}
+          onShowArchived={() => onShowArchived?.(property)}
+          onHover={() => onHover?.(property)}
         />
       )}
       <WikidataMetadata
