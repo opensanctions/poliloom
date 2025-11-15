@@ -180,14 +180,12 @@ export default function GuidePage() {
                   statements like birth dates, positions, and birthplaces that need your
                   confirmation before being added.
                 </p>
+
                 <p className="text-gray-600 leading-relaxed">
-                  Sometimes you&apos;ll notice that{' '}
-                  <strong className="text-gray-900">
-                    existing data on Wikidata conflicts with the new data
-                  </strong>
-                  . If the new data is better sourced or more accurate, you have the option to
-                  discard the existing statement. This removes it from Wikidata along with its
-                  metadata, allowing the improved version to be added instead.
+                  Each statement includes a{' '}
+                  <strong className="text-gray-900">&quot;view archive&quot; button</strong> that
+                  shows you the original source page with the relevant text highlighted. Use this to
+                  verify the information before confirming or discarding.
                 </p>
               </div>
             </div>
