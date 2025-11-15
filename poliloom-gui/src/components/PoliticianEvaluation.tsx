@@ -143,7 +143,7 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
   }
 
   return (
-    <div className="grid grid-cols-[48rem_1fr] bg-gray-50 min-h-0">
+    <div className="grid grid-cols-[46rem_1fr] bg-gray-50 min-h-0">
       {/* Left panel - Evaluation interface */}
       <div className="shadow-lg grid grid-rows-[1fr_auto] min-h-0">
         {/* Scrollable content area */}

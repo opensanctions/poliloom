@@ -62,7 +62,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const sizeClass = sizeClasses[size]
     const variantClass = active ? variantClasses[variant].active : variantClasses[variant].base
 
-    const baseClasses = `inline-flex items-center justify-center rounded-md transition-colors cursor-pointer ${sizeClass} ${variantClass}`
+    const baseClasses = `inline-flex items-center justify-center rounded-md transition-colors cursor-pointer whitespace-nowrap ${sizeClass} ${variantClass}`
     const disabledClasses = disabled ? 'opacity-50 cursor-not-allowed' : ''
     const widthClass = fullWidth ? 'w-full' : ''
     const combinedClasses = `${baseClasses} ${disabledClasses} ${widthClass} ${className}`.trim()

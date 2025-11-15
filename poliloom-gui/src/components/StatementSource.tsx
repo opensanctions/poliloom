@@ -22,14 +22,21 @@ export function StatementSource({
     <div className="space-y-1" onMouseEnter={onHover}>
       {archivedPage && !isWikidataStatement && (
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="info" active={isActive} onClick={onShowArchived}>
+          <Button
+            size="sm"
+            variant="info"
+            active={isActive}
+            onClick={onShowArchived}
+            className="flex-shrink-0"
+          >
             • {isActive ? 'Viewing Archive' : 'View Archive'}
           </Button>
           <a
             href={archivedPage.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-blue-600 hover:underline"
+            className="text-sm text-blue-600 hover:underline truncate min-w-0"
+            title={archivedPage.url}
           >
             {archivedPage.url}
           </a>
