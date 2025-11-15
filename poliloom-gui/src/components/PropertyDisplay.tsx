@@ -1,9 +1,10 @@
+import { useState, useLayoutEffect } from 'react'
 import { Property, PropertyType } from '@/types'
 import { parseWikidataDate } from '@/lib/wikidata/dateParser'
 import { parsePositionQualifiers, formatPositionDates } from '@/lib/wikidata/qualifierParser'
 import { EvaluationActions } from './EvaluationActions'
 import { StatementSource } from './StatementSource'
-import { WikidataMetadata } from './WikidataMetadata'
+import { WikidataMetadataButtons, WikidataMetadataPanel } from './WikidataMetadata'
 
 interface PropertyDisplayProps {
   property: Property
@@ -24,6 +25,36 @@ export function PropertyDisplay({
   activeArchivedPageId,
   shouldAutoOpen,
 }: PropertyDisplayProps) {
+  const [openSection, setOpenSection] = useState<'qualifiers' | 'references' | null>(null)
+  const [wasAutoOpened, setWasAutoOpened] = useState(false)
+
+  const isDiscarding = !!property.statement_id && evaluations.get(property.key) === false
+  const hasQualifiers = property.qualifiers && Object.keys(property.qualifiers).length > 0
+  const hasReferences = property.references && property.references.length > 0
+
+  // Auto-open panel when discarding
+  useLayoutEffect(() => {
+    if (shouldAutoOpen && isDiscarding && (hasQualifiers || hasReferences)) {
+      if (openSection === null) {
+        setWasAutoOpened(true)
+        setOpenSection(hasQualifiers ? 'qualifiers' : 'references')
+      }
+    } else if (!isDiscarding && wasAutoOpened) {
+      setOpenSection(null)
+      setWasAutoOpened(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldAutoOpen, isDiscarding, hasQualifiers, hasReferences, wasAutoOpened])
+
+  const handleToggle = (section: 'qualifiers' | 'references') => {
+    const newOpenSection = openSection === section ? null : section
+    setOpenSection(newOpenSection)
+
+    if (newOpenSection !== null) {
+      setWasAutoOpened(false)
+    }
+  }
+
   const renderPropertyContent = () => {
     switch (property.type) {
       case PropertyType.P569:
@@ -61,17 +92,14 @@ export function PropertyDisplay({
     }
   }
 
+  const hasContent =
+    property.type === PropertyType.P569 ||
+    property.type === PropertyType.P570 ||
+    property.type === PropertyType.P39
+
   return (
     <div className="space-y-2" onMouseEnter={() => onHover?.(property)}>
-      <div className="flex justify-between items-start gap-4">
-        {renderPropertyContent()}
-        <EvaluationActions
-          statementId={property.key}
-          isWikidataStatement={!!property.statement_id}
-          isConfirmed={evaluations.get(property.key) ?? null}
-          onAction={onAction}
-        />
-      </div>
+      {hasContent && <div className="flex items-start gap-4">{renderPropertyContent()}</div>}
       {!property.statement_id && (
         <StatementSource
           proofLine={property.proof_line || null}
@@ -82,11 +110,26 @@ export function PropertyDisplay({
           onHover={() => onHover?.(property)}
         />
       )}
-      <WikidataMetadata
+      <div className="flex justify-between items-center gap-4">
+        <WikidataMetadataButtons
+          qualifiers={property.qualifiers}
+          references={property.references}
+          isDiscarding={isDiscarding}
+          openSection={openSection}
+          onToggle={handleToggle}
+        />
+        <EvaluationActions
+          statementId={property.key}
+          isWikidataStatement={!!property.statement_id}
+          isConfirmed={evaluations.get(property.key) ?? null}
+          onAction={onAction}
+        />
+      </div>
+      <WikidataMetadataPanel
         qualifiers={property.qualifiers}
         references={property.references}
-        isDiscarding={!!property.statement_id && evaluations.get(property.key) === false}
-        shouldAutoOpen={shouldAutoOpen}
+        isDiscarding={isDiscarding}
+        openSection={openSection}
       />
     </div>
   )

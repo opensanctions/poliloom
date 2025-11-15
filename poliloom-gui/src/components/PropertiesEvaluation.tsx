@@ -167,6 +167,7 @@ export function PropertiesEvaluation({
                         onShowArchived={onShowArchived}
                         onHover={onHover}
                         activeArchivedPageId={activeArchivedPageId}
+                        shouldAutoOpen={true}
                       />
                     </Fragment>
                   ))}

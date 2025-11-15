@@ -1,12 +1,3 @@
-import { useState, useLayoutEffect } from 'react'
-
-interface WikidataMetadataProps {
-  qualifiers?: Record<string, unknown>
-  references?: Array<Record<string, unknown>>
-  isDiscarding?: boolean
-  shouldAutoOpen?: boolean
-}
-
 function MetadataSectionButton({
   title,
   sectionKey,
@@ -29,100 +20,82 @@ function MetadataSectionButton({
   )
 }
 
-function MetadataSectionPanel({
-  data,
-  isDiscarding,
+export function WikidataMetadataButtons({
+  qualifiers,
+  references,
+  isDiscarding = false,
+  openSection,
+  onToggle,
 }: {
-  data: Record<string, unknown> | Array<Record<string, unknown>>
-  isDiscarding: boolean
+  qualifiers?: Record<string, unknown>
+  references?: Array<Record<string, unknown>>
+  isDiscarding?: boolean
+  openSection: 'qualifiers' | 'references' | null
+  onToggle: (section: 'qualifiers' | 'references') => void
 }) {
+  const hasQualifiers = qualifiers && Object.keys(qualifiers).length > 0
+  const hasReferences = references && references.length > 0
+
+  if (!hasQualifiers && !hasReferences) {
+    return <div className="text-sm text-gray-700">No metadata</div>
+  }
+
   return (
-    <div className="mt-2">
-      <div className={`relative p-2 rounded ${isDiscarding ? 'bg-red-900' : 'bg-gray-700'}`}>
-        {isDiscarding && (
-          <div className="absolute top-2 right-2 text-white text-xs">Metadata will be lost ⚠</div>
-        )}
-        <pre className="text-white text-xs overflow-x-auto">
-          <code>{JSON.stringify(data, null, 2)}</code>
-        </pre>
-      </div>
+    <div className="flex gap-4 text-sm items-center">
+      {hasQualifiers && (
+        <MetadataSectionButton
+          title="Qualifiers"
+          sectionKey="qualifiers"
+          isOpen={openSection === 'qualifiers'}
+          onToggle={onToggle}
+        />
+      )}
+      {hasReferences && (
+        <MetadataSectionButton
+          title="References"
+          sectionKey="references"
+          isOpen={openSection === 'references'}
+          onToggle={onToggle}
+        />
+      )}
+      {isDiscarding && openSection === null && (hasQualifiers || hasReferences) && (
+        <span className="text-red-600 text-xs font-medium">⚠ Metadata will be lost</span>
+      )}
     </div>
   )
 }
 
-export function WikidataMetadata({
+export function WikidataMetadataPanel({
   qualifiers,
   references,
   isDiscarding = false,
-  shouldAutoOpen = true,
-}: WikidataMetadataProps) {
-  const [openSection, setOpenSection] = useState<'qualifiers' | 'references' | null>(null)
-  const [wasAutoOpened, setWasAutoOpened] = useState(false)
-
+  openSection,
+}: {
+  qualifiers?: Record<string, unknown>
+  references?: Array<Record<string, unknown>>
+  isDiscarding?: boolean
+  openSection: 'qualifiers' | 'references' | null
+}) {
   const hasQualifiers = qualifiers && Object.keys(qualifiers).length > 0
   const hasReferences = references && references.length > 0
 
-  // Auto-open the panel when discarding
-  // Note: openSection is intentionally excluded from dependencies to avoid re-triggering
-  // the effect when users manually toggle the panel (which would reopen it immediately)
-  useLayoutEffect(() => {
-    if (shouldAutoOpen && isDiscarding && (hasQualifiers || hasReferences)) {
-      // Only open a panel if none is currently open
-      if (openSection === null) {
-        setWasAutoOpened(true)
-        setOpenSection(hasQualifiers ? 'qualifiers' : 'references')
-      }
-    } else if (!isDiscarding && wasAutoOpened) {
-      // Close panel if it was auto-opened
-      setOpenSection(null)
-      setWasAutoOpened(false)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldAutoOpen, isDiscarding, hasQualifiers, hasReferences, wasAutoOpened])
+  if (openSection === null) return null
 
-  if (!hasQualifiers && !hasReferences) {
-    return <div className="text-sm text-gray-700 mt-2">No metadata</div>
-  }
-
-  const handleToggle = (section: 'qualifiers' | 'references') => {
-    const newOpenSection = openSection === section ? null : section
-    setOpenSection(newOpenSection)
-
-    // Only reset auto-open tracking if we're opening a new section
-    if (newOpenSection !== null) {
-      setWasAutoOpened(false)
-    }
-  }
+  const renderPanel = (data: Record<string, unknown> | Array<Record<string, unknown>>) => (
+    <div className={`relative p-2 rounded ${isDiscarding ? 'bg-red-900' : 'bg-gray-700'}`}>
+      {isDiscarding && (
+        <div className="absolute top-2 right-2 text-white text-xs">Metadata will be lost ⚠</div>
+      )}
+      <pre className="text-white text-xs overflow-x-auto">
+        <code>{JSON.stringify(data, null, 2)}</code>
+      </pre>
+    </div>
+  )
 
   return (
-    <div className="mt-2">
-      <div className="flex gap-4 text-sm items-center">
-        {hasQualifiers && (
-          <MetadataSectionButton
-            title="Qualifiers"
-            sectionKey="qualifiers"
-            isOpen={openSection === 'qualifiers'}
-            onToggle={handleToggle}
-          />
-        )}
-        {hasReferences && (
-          <MetadataSectionButton
-            title="References"
-            sectionKey="references"
-            isOpen={openSection === 'references'}
-            onToggle={handleToggle}
-          />
-        )}
-        {isDiscarding && openSection === null && (hasQualifiers || hasReferences) && (
-          <span className="text-red-600 text-xs font-medium">⚠ Metadata will be lost</span>
-        )}
-      </div>
-      {openSection === 'qualifiers' && hasQualifiers && (
-        <MetadataSectionPanel data={qualifiers!} isDiscarding={isDiscarding} />
-      )}
-      {openSection === 'references' && hasReferences && (
-        <MetadataSectionPanel data={references!} isDiscarding={isDiscarding} />
-      )}
-    </div>
+    <>
+      {openSection === 'qualifiers' && hasQualifiers && renderPanel(qualifiers!)}
+      {openSection === 'references' && hasReferences && renderPanel(references!)}
+    </>
   )
 }
