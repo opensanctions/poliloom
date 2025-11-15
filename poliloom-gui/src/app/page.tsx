@@ -87,23 +87,12 @@ export default function Home() {
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Customize Your Review Session</h2>
             <p className="text-gray-600">
-              Select the languages and countries you&apos;re interested in reviewing. Leave filters
+              Select the countries and languages you&apos;re interested in reviewing. Leave filters
               empty to review all available politicians.
             </p>
           </div>
 
           <div className="space-y-6">
-            <MultiSelect
-              title="What languages can you read?"
-              description="We'll show you politicians with source documents in these languages"
-              icon="🌐"
-              options={languageOptions}
-              selected={languagePreferences}
-              onChange={handleLanguageChange}
-              loading={loadingLanguages}
-              disabled={updating}
-            />
-
             <MultiSelect
               title="Which countries are you interested in?"
               description="We'll show you politicians with citizenship from these countries"
@@ -112,6 +101,17 @@ export default function Home() {
               selected={countryPreferences}
               onChange={handleCountryChange}
               loading={loadingCountries}
+              disabled={updating}
+            />
+
+            <MultiSelect
+              title="What languages can you read?"
+              description="We'll show you politicians with source documents in these languages"
+              icon="🌐"
+              options={languageOptions}
+              selected={languagePreferences}
+              onChange={handleLanguageChange}
+              loading={loadingLanguages}
               disabled={updating}
             />
           </div>
