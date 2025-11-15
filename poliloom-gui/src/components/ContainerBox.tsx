@@ -8,6 +8,7 @@ interface ContainerBoxProps {
   loading?: boolean
   children: ReactNode
   onHover?: () => void
+  hasNewData?: boolean
 }
 
 export function ContainerBox({
@@ -17,10 +18,15 @@ export function ContainerBox({
   loading = false,
   children,
   onHover,
+  hasNewData = false,
 }: ContainerBoxProps) {
   return (
     <div
-      className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden transition-all hover:shadow-md"
+      className={`bg-white rounded-lg shadow-sm border overflow-hidden transition-all hover:shadow-md ${
+        hasNewData
+          ? 'border-l-4 border-l-indigo-600 border-t border-r border-b border-gray-200'
+          : 'border border-gray-200'
+      }`}
       onMouseEnter={onHover}
     >
       {/* Header */}

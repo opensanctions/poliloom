@@ -139,34 +139,40 @@ export function PropertiesEvaluation({
         <div key={section.title} className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">{section.title}</h2>
           <div className="space-y-4">
-            {section.items.map((item) => (
-              <EvaluationItem
-                key={item.key}
-                title={item.title}
-                onHover={() => {
-                  const firstWithArchive = item.properties.find(
-                    (p) => p.archived_page && !p.statement_id,
-                  )
-                  if (firstWithArchive) {
-                    onHover(firstWithArchive)
-                  }
-                }}
-              >
-                {item.properties.map((property, index) => (
-                  <Fragment key={property.key}>
-                    {index > 0 && <hr className="border-gray-100 my-3" />}
-                    <PropertyDisplay
-                      property={property}
-                      evaluations={evaluations}
-                      onAction={onAction}
-                      onShowArchived={onShowArchived}
-                      onHover={onHover}
-                      activeArchivedPageId={activeArchivedPageId}
-                    />
-                  </Fragment>
-                ))}
-              </EvaluationItem>
-            ))}
+            {section.items.map((item) => {
+              // Check if this item contains any new data (properties without statement_id)
+              const hasNewData = item.properties.some((p) => !p.statement_id)
+
+              return (
+                <EvaluationItem
+                  key={item.key}
+                  title={item.title}
+                  hasNewData={hasNewData}
+                  onHover={() => {
+                    const firstWithArchive = item.properties.find(
+                      (p) => p.archived_page && !p.statement_id,
+                    )
+                    if (firstWithArchive) {
+                      onHover(firstWithArchive)
+                    }
+                  }}
+                >
+                  {item.properties.map((property, index) => (
+                    <Fragment key={property.key}>
+                      {index > 0 && <hr className="border-gray-100 my-3" />}
+                      <PropertyDisplay
+                        property={property}
+                        evaluations={evaluations}
+                        onAction={onAction}
+                        onShowArchived={onShowArchived}
+                        onHover={onHover}
+                        activeArchivedPageId={activeArchivedPageId}
+                      />
+                    </Fragment>
+                  ))}
+                </EvaluationItem>
+              )
+            })}
           </div>
         </div>
       ))}

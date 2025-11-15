@@ -197,7 +197,7 @@ export default function GuidePage() {
               <div className="space-y-8">
                 {/* Extracted Information example */}
                 <div>
-                  <EvaluationItem title="Birth Date">
+                  <EvaluationItem title="Birth Date" hasNewData={true}>
                     <PropertyDisplay property={extractedProperty} evaluations={skipEvaluations} />
                   </EvaluationItem>
                   <div className="mt-3 prose max-w-none">
@@ -213,7 +213,7 @@ export default function GuidePage() {
 
                 {/* Current in Wikidata example */}
                 <div>
-                  <EvaluationItem title="Birth Date">
+                  <EvaluationItem title="Birth Date" hasNewData={false}>
                     <PropertyDisplay
                       property={wikidataExistingProperty}
                       evaluations={skipEvaluations}
@@ -256,7 +256,7 @@ export default function GuidePage() {
               <div className="space-y-8">
                 {/* Skip example */}
                 <div>
-                  <EvaluationItem title="Birth Date">
+                  <EvaluationItem title="Birth Date" hasNewData={true}>
                     <PropertyDisplay property={samplePropertySkip} evaluations={skipEvaluations} />
                   </EvaluationItem>
                   <div className="mt-3 prose max-w-none">
@@ -269,7 +269,7 @@ export default function GuidePage() {
 
                 {/* Accept example */}
                 <div>
-                  <EvaluationItem title="Birth Date">
+                  <EvaluationItem title="Birth Date" hasNewData={true}>
                     <PropertyDisplay
                       property={samplePropertyAccept}
                       evaluations={acceptEvaluations}
@@ -285,7 +285,7 @@ export default function GuidePage() {
 
                 {/* Discard example */}
                 <div>
-                  <EvaluationItem title="Birth Date">
+                  <EvaluationItem title="Birth Date" hasNewData={true}>
                     <PropertyDisplay
                       property={samplePropertyDiscard}
                       evaluations={discardEvaluations}
@@ -321,7 +321,7 @@ export default function GuidePage() {
                 the archive icon). Try discarding the statement below to see what information will
                 be removed.
               </p>
-              <EvaluationItem title={wikidataProperty.entity_name}>
+              <EvaluationItem title={wikidataProperty.entity_name} hasNewData={false}>
                 <PropertyDisplay
                   property={wikidataProperty}
                   evaluations={wikidataEvaluations}
