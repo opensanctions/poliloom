@@ -25,7 +25,7 @@ from .wikidata import (
 )
 
 # Supporting entities
-from .entities import Country, Language, Location, Position
+from .entities import Country, Language, Location, Position, WikipediaProject
 
 # User interaction
 from .user import Evaluation, Preference
@@ -57,6 +57,7 @@ __all__ = [
     "Language",
     "Location",
     "Position",
+    "WikipediaProject",
     # User
     "Evaluation",
     "Preference",

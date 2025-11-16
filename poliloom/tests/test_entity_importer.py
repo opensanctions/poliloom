@@ -12,6 +12,7 @@ from poliloom.models import (
     Location,
     Country,
     Language,
+    WikipediaProject,
 )
 from poliloom.importer.entity import (
     import_entities,
@@ -36,16 +37,21 @@ class TestWikidataEntityImporter:
                 "wikidata_id": "Q4164871",
                 "name": "office",
             },  # Office (subclass of position)
-            # Location hierarchy: Q27096213 (geographic entity) -> Q515 (city)
+            # Location hierarchy: Use actual location root from HIERARCHY_CONFIG
             {
-                "wikidata_id": "Q27096213",
-                "name": "geographic entity",
-            },  # Root location class
+                "wikidata_id": "Q486972",
+                "name": "human settlement",
+            },  # Root location class (from actual config)
             {"wikidata_id": "Q515", "name": "city"},  # City (subclass of location)
             # Country classes referenced by test entities
             {"wikidata_id": "Q6256", "name": "country"},  # Country
             {"wikidata_id": "Q5", "name": "human"},  # Human
             {"wikidata_id": "Q82955", "name": "politician"},  # Politician
+            # Wikipedia project class
+            {
+                "wikidata_id": "Q10876391",
+                "name": "Wikipedia language edition",
+            },  # Wikipedia language edition
         ]
 
         hierarchy_relations = [
@@ -55,7 +61,7 @@ class TestWikidataEntityImporter:
                 "statement_id": "Q4164871$test-statement-1",
             },
             {
-                "parent_entity_id": "Q27096213",
+                "parent_entity_id": "Q486972",
                 "child_entity_id": "Q515",
                 "statement_id": "Q515$test-statement-1",
             },
@@ -208,6 +214,39 @@ class TestWikidataEntityImporter:
                     ]
                 },
             },
+            # Wikipedia project entity - should be extracted
+            {
+                "id": "Q328",
+                "type": "item",
+                "labels": {"en": {"language": "en", "value": "English Wikipedia"}},
+                "claims": {
+                    "P31": [
+                        {  # instance of
+                            "mainsnak": {
+                                "snaktype": "value",
+                                "property": "P31",
+                                "datavalue": {
+                                    "value": {"id": "Q10876391"},
+                                    "type": "wikibase-entityid",
+                                },  # Wikipedia language edition
+                            },
+                            "type": "statement",
+                            "rank": "normal",
+                        }
+                    ],
+                    "P424": [
+                        {  # Wikimedia language code
+                            "mainsnak": {
+                                "snaktype": "value",
+                                "property": "P424",
+                                "datavalue": {"value": "en", "type": "string"},
+                            },
+                            "type": "statement",
+                            "rank": "normal",
+                        }
+                    ],
+                },
+            },
         ]
 
         # Create temporary dump file
@@ -223,6 +262,7 @@ class TestWikidataEntityImporter:
             db_session.query(Position).delete()
             db_session.query(Location).delete()
             db_session.query(Country).delete()
+            db_session.query(WikipediaProject).delete()
             db_session.commit()
 
             # Test extraction
@@ -237,10 +277,12 @@ class TestWikidataEntityImporter:
             positions = db_session.query(Position).all()
             locations = db_session.query(Location).all()
             countries = db_session.query(Country).all()
+            wikipedia_projects = db_session.query(WikipediaProject).all()
 
             assert len(positions) == 1
             assert len(locations) == 1
             assert len(countries) == 1
+            assert len(wikipedia_projects) == 1
 
             # Verify specific entity data
             position = positions[0]
@@ -255,6 +297,11 @@ class TestWikidataEntityImporter:
             assert country.wikidata_id == "Q345678"
             assert country.name == "Test Country"
             assert country.iso_code == "TC"
+
+            wikipedia_project = wikipedia_projects[0]
+            assert wikipedia_project.wikidata_id == "Q328"
+            assert wikipedia_project.name == "English Wikipedia"
+            assert wikipedia_project.language_code == "en"
 
         finally:
             os.unlink(temp_file_path)
@@ -605,3 +652,117 @@ class TestWikidataEntityImporter:
         # Verify no languages were inserted
         inserted_languages = db_session.query(Language).all()
         assert len(inserted_languages) == 0
+
+    def test_insert_wikipedia_projects_batch(self, db_session):
+        """Test inserting a batch of Wikipedia projects."""
+        # Create a language for linking
+        lang = Language.create_with_entity(db_session, "Q1860", "English")
+        lang.iso1_code = "en"
+        lang.iso3_code = "eng"
+        db_session.commit()
+
+        wikipedia_projects = [
+            {
+                "wikidata_id": "Q328",
+                "name": "English Wikipedia",
+                "description": "English edition of Wikipedia",
+                "language_code": "en",
+                "language_id": "Q1860",
+            },
+            {
+                "wikidata_id": "Q200183",
+                "name": "Simple English Wikipedia",
+                "description": "Simple English edition of Wikipedia",
+                "language_code": "simple",
+                "language_id": None,
+            },
+        ]
+
+        collection = EntityCollection(
+            model_class=WikipediaProject, shared_classes=frozenset()
+        )
+        for project in wikipedia_projects:
+            collection.add_entity(project)
+
+        _insert_entities_batch(collection, get_engine())
+
+        # Verify Wikipedia projects were inserted
+        inserted_projects = db_session.query(WikipediaProject).all()
+        assert len(inserted_projects) == 2
+        wikidata_ids = {project.wikidata_id for project in inserted_projects}
+        assert wikidata_ids == {"Q328", "Q200183"}
+
+        # Verify specific project data
+        project1 = (
+            db_session.query(WikipediaProject)
+            .filter(WikipediaProject.wikidata_id == "Q328")
+            .first()
+        )
+        assert project1.name == "English Wikipedia"
+        assert project1.language_code == "en"
+        assert project1.language_id == "Q1860"
+
+        project2 = (
+            db_session.query(WikipediaProject)
+            .filter(WikipediaProject.wikidata_id == "Q200183")
+            .first()
+        )
+        assert project2.name == "Simple English Wikipedia"
+        assert project2.language_code == "simple"
+        assert project2.language_id is None
+
+    def test_insert_wikipedia_projects_batch_with_duplicates_handling(self, db_session):
+        """Test that Wikipedia projects batch uses ON CONFLICT DO UPDATE."""
+        wikipedia_projects = [
+            {
+                "wikidata_id": "Q328",
+                "name": "English Wikipedia",
+                "description": "English edition of Wikipedia",
+                "language_code": "en",
+                "language_id": None,
+            },
+        ]
+
+        # Insert first time
+        collection = EntityCollection(
+            model_class=WikipediaProject, shared_classes=frozenset()
+        )
+        for project in wikipedia_projects:
+            collection.add_entity(project)
+        _insert_entities_batch(collection, get_engine())
+
+        # Insert again with updated language_code - should update
+        updated_projects = [
+            {
+                "wikidata_id": "Q328",
+                "name": "English Wikipedia",
+                "description": "English edition of Wikipedia updated",
+                "language_code": "en-updated",
+                "language_id": None,
+            },
+        ]
+        collection = EntityCollection(
+            model_class=WikipediaProject, shared_classes=frozenset()
+        )
+        for project in updated_projects:
+            collection.add_entity(project)
+        _insert_entities_batch(collection, get_engine())
+
+        # Should still have only one project but with updated language_code
+        final_projects = db_session.query(WikipediaProject).all()
+        assert len(final_projects) == 1
+        assert final_projects[0].wikidata_id == "Q328"
+        assert final_projects[0].language_code == "en-updated"
+
+    def test_insert_wikipedia_projects_batch_empty(self, db_session):
+        """Test inserting empty batch of Wikipedia projects."""
+        collection = EntityCollection(
+            model_class=WikipediaProject, shared_classes=frozenset()
+        )
+
+        # Should handle empty batch gracefully without errors
+        _insert_entities_batch(collection, get_engine())
+
+        # Verify no Wikipedia projects were inserted
+        inserted_projects = db_session.query(WikipediaProject).all()
+        assert len(inserted_projects) == 0

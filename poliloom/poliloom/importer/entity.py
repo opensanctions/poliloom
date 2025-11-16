@@ -14,6 +14,7 @@ from ..models import (
     Location,
     Country,
     Language,
+    WikipediaProject,
     WikidataEntity,
     WikidataRelation,
 )
@@ -63,6 +64,7 @@ shared_position_classes: frozenset[str] | None = None
 shared_location_classes: frozenset[str] | None = None
 shared_country_classes: frozenset[str] | None = None
 shared_language_classes: frozenset[str] | None = None
+shared_wikipedia_project_classes: frozenset[str] | None = None
 
 
 def init_entity_worker(
@@ -70,17 +72,20 @@ def init_entity_worker(
     loc_classes: frozenset[str],
     country_classes: frozenset[str],
     language_classes: frozenset[str],
+    wikipedia_project_classes: frozenset[str],
 ) -> None:
     """Initializer runs in each worker process once at startup."""
     global \
         shared_position_classes, \
         shared_location_classes, \
         shared_country_classes, \
-        shared_language_classes
+        shared_language_classes, \
+        shared_wikipedia_project_classes
     shared_position_classes = pos_classes
     shared_location_classes = loc_classes
     shared_country_classes = country_classes
     shared_language_classes = language_classes
+    shared_wikipedia_project_classes = wikipedia_project_classes
 
 
 def _insert_entities_batch(collection: EntityCollection, engine) -> None:
@@ -156,7 +161,8 @@ def _process_supporting_entities_chunk(
         shared_position_classes, \
         shared_location_classes, \
         shared_country_classes, \
-        shared_language_classes
+        shared_language_classes, \
+        shared_wikipedia_project_classes
 
     # Create a fresh engine for this worker process
     engine = create_engine(pool_size=2, max_overflow=3)
@@ -178,6 +184,10 @@ def _process_supporting_entities_chunk(
         EntityCollection(
             model_class=Language,
             shared_classes=shared_language_classes,
+        ),
+        EntityCollection(
+            model_class=WikipediaProject,
+            shared_classes=shared_wikipedia_project_classes,
         ),
     ]
     entity_count = 0
@@ -270,6 +280,36 @@ def _process_supporting_entities_chunk(
                             language_data["iso1_code"] = iso1_code
                             language_data["iso3_code"] = iso3_code
                             collection.add_entity(language_data)
+                    # Handle special case for Wikipedia projects requiring language code
+                    elif collection.model_class is WikipediaProject:
+                        # Extract P424 (Wikimedia language code)
+                        language_code = None
+                        p424_claims = entity.get_truthy_claims("P424")
+                        for claim in p424_claims:
+                            try:
+                                language_code = claim["mainsnak"]["datavalue"]["value"]
+                                break
+                            except (KeyError, TypeError):
+                                continue
+
+                        # Optional: Extract P407 (language of work) link to Language entity
+                        language_id = None
+                        p407_claims = entity.get_truthy_claims("P407")
+                        for claim in p407_claims:
+                            try:
+                                language_id = claim["mainsnak"]["datavalue"]["value"][
+                                    "id"
+                                ]
+                                break
+                            except (KeyError, TypeError):
+                                continue
+
+                        # Only import projects that have language code (required field)
+                        if language_code:
+                            project_data = entity_data.copy()
+                            project_data["language_code"] = language_code
+                            project_data["language_id"] = language_id
+                            collection.add_entity(project_data)
                     else:
                         # Standard processing for all other entity types
                         collection.add_entity(entity_data.copy())
@@ -342,7 +382,8 @@ def import_entities(
         )
 
         logger.info(
-            f"Filtering for {len(position_classes)} position types, {len(location_classes)} location types, {len(country_classes)} country types, and {len(language_classes)} language types"
+            f"Filtering for {len(position_classes)} position types, {len(location_classes)} location types, "
+            f"{len(country_classes)} country types, and {len(language_classes)} language types"
         )
 
     # Build frozensets once in parent, BEFORE starting Pool
@@ -350,11 +391,14 @@ def import_entities(
     location_classes = frozenset(location_classes)
     country_classes = frozenset(country_classes)
     language_classes = frozenset(language_classes)
+    # Wikipedia projects have a flat structure - just use the root ID
+    wikipedia_project_classes = frozenset(config["wikipedia_project"]["roots"])
 
     logger.info(f"Prepared {len(position_classes)} position classes")
     logger.info(f"Prepared {len(location_classes)} location classes")
     logger.info(f"Prepared {len(country_classes)} country classes")
     logger.info(f"Prepared {len(language_classes)} language classes")
+    logger.info(f"Prepared {len(wikipedia_project_classes)} wikipedia project classes")
 
     num_workers = mp.cpu_count()
     logger.info(f"Using parallel processing with {num_workers} workers")
@@ -375,6 +419,7 @@ def import_entities(
                 location_classes,
                 country_classes,
                 language_classes,
+                wikipedia_project_classes,
             ),
         )
 
@@ -409,6 +454,7 @@ def import_entities(
         "location": 0,
         "country": 0,
         "language": 0,
+        "wikipediaproject": 0,
     }
     total_entities = 0
 
@@ -419,5 +465,7 @@ def import_entities(
 
     logger.info(f"Extraction complete. Total processed: {total_entities}")
     logger.info(
-        f"Extracted: {total_counts['position']} positions, {total_counts['location']} locations, {total_counts['country']} countries, {total_counts['language']} languages"
+        f"Extracted: {total_counts['position']} positions, {total_counts['location']} locations, "
+        f"{total_counts['country']} countries, {total_counts['language']} languages, "
+        f"{total_counts['wikipediaproject']} wikipedia projects"
     )

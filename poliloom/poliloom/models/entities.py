@@ -2,7 +2,8 @@
 
 from typing import List
 
-from sqlalchemy import Column, Index, String
+from sqlalchemy import Column, ForeignKey, Index, String
+from sqlalchemy.orm import relationship
 from pgvector.sqlalchemy import Vector
 
 from .base import (
@@ -53,6 +54,38 @@ class Language(
 
     # UpsertMixin configuration
     _upsert_update_columns = ["iso1_code", "iso3_code"]
+
+
+class WikipediaProject(
+    Base,
+    TimestampMixin,
+    UpsertMixin,
+    WikidataEntityMixin,
+    EntityCreationMixin,
+):
+    """Wikipedia project entity for storing Wikipedia language editions."""
+
+    __tablename__ = "wikipedia_projects"
+    __table_args__ = (
+        Index("idx_wikipedia_projects_language_code", "language_code", unique=True),
+    )
+
+    # UpsertMixin configuration
+    _upsert_update_columns = ["language_code"]
+
+    language_code = Column(
+        String, nullable=False, index=True
+    )  # P424: Wikimedia language code
+
+    # Optional: link to Language entity via P407
+    language_id = Column(
+        String,
+        ForeignKey("languages.wikidata_id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # Relationships
+    language = relationship("Language", foreign_keys=[language_id])
 
 
 class Location(

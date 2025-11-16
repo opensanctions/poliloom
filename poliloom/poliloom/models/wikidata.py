@@ -206,6 +206,12 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             ],
             "ignore": [],
         },
+        "wikipedia_project": {
+            "roots": [
+                "Q10876391"
+            ],  # Wikipedia language edition (no subclasses - flat structure)
+            "ignore": [],
+        },
     }
 
     wikidata_id = Column(String, primary_key=True)  # Wikidata QID as primary key
