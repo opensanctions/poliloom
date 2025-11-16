@@ -1,6 +1,14 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  startTransition,
+} from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Politician,
@@ -181,8 +189,10 @@ export function EvaluationProvider({ children }: { children: React.ReactNode }) 
         if (newCount >= sessionGoal) {
           // Session complete - navigate to completion page
           router.push('/evaluate/complete')
-          // Advance to next politician so it's ready when they start another round
-          await advanceToNextPolitician()
+          // Advance to next politician as low-priority transition to avoid flash before navigation
+          startTransition(() => {
+            advanceToNextPolitician()
+          })
         } else {
           // Normal flow: move to next politician
           await advanceToNextPolitician()
