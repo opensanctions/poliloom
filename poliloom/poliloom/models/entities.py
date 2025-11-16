@@ -2,8 +2,7 @@
 
 from typing import List
 
-from sqlalchemy import Column, ForeignKey, Index, String
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Index, String
 from pgvector.sqlalchemy import Vector
 
 from .base import (
@@ -76,16 +75,7 @@ class WikipediaProject(
     language_code = Column(
         String, nullable=False, index=True
     )  # P424: Wikimedia language code
-
-    # Optional: link to Language entity via P407
-    language_id = Column(
-        String,
-        ForeignKey("languages.wikidata_id", ondelete="SET NULL"),
-        nullable=True,
-    )
-
-    # Relationships
-    language = relationship("Language", foreign_keys=[language_id])
+    # Language relationship via P407 stored in wikidata_relations table
 
 
 class Location(

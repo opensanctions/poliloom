@@ -292,24 +292,15 @@ def _process_supporting_entities_chunk(
                             except (KeyError, TypeError):
                                 continue
 
-                        # Optional: Extract P407 (language of work) link to Language entity
-                        language_id = None
-                        p407_claims = entity.get_truthy_claims("P407")
-                        for claim in p407_claims:
-                            try:
-                                language_id = claim["mainsnak"]["datavalue"]["value"][
-                                    "id"
-                                ]
-                                break
-                            except (KeyError, TypeError):
-                                continue
-
                         # Only import projects that have language code (required field)
                         if language_code:
                             project_data = entity_data.copy()
                             project_data["language_code"] = language_code
-                            project_data["language_id"] = language_id
                             collection.add_entity(project_data)
+
+                            # Extract relations for this entity (including P407 language relation)
+                            entity_relations = entity.extract_all_relations()
+                            collection.add_relations(entity_relations)
                     else:
                         # Standard processing for all other entity types
                         collection.add_entity(entity_data.copy())
