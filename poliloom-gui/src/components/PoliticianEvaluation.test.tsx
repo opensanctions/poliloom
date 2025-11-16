@@ -55,6 +55,9 @@ vi.mock('@/contexts/ArchivedPageContext', () => ({
 const mockSubmitEvaluation = vi.fn()
 const mockSkipPolitician = vi.fn()
 
+// Mock console.error to suppress expected error output
+vi.spyOn(console, 'error').mockImplementation(() => {})
+
 vi.mock('@/contexts/EvaluationContext', () => ({
   useEvaluation: () => ({
     completedCount: 0,
@@ -76,11 +79,8 @@ describe('PoliticianEvaluation', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     // Clear highlights before each test
     CSS.highlights.clear()
-    mockSubmitEvaluation.mockResolvedValue(undefined)
-    mockSkipPolitician.mockResolvedValue(undefined)
   })
 
   it('renders politician name and wikidata id', () => {
