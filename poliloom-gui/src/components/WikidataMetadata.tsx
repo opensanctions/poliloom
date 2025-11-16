@@ -2,16 +2,22 @@ function MetadataSectionButton({
   title,
   sectionKey,
   isOpen,
+  isDiscarding,
   onToggle,
 }: {
   title: string
   sectionKey: 'qualifiers' | 'references'
   isOpen: boolean
+  isDiscarding: boolean
   onToggle: (section: 'qualifiers' | 'references') => void
 }) {
+  const textColor = isDiscarding
+    ? 'text-red-600 hover:text-red-700'
+    : 'text-gray-700 hover:text-gray-900'
+
   return (
     <button
-      className="font-medium cursor-pointer flex items-center gap-1 text-gray-700 hover:text-gray-900"
+      className={`font-medium cursor-pointer flex items-center gap-1 ${textColor}`}
       onClick={() => onToggle(sectionKey)}
     >
       <span className={`transition-transform ${isOpen ? '' : '-rotate-90'}`}>▼</span>
@@ -47,6 +53,7 @@ export function WikidataMetadataButtons({
           title="Qualifiers"
           sectionKey="qualifiers"
           isOpen={openSection === 'qualifiers'}
+          isDiscarding={isDiscarding}
           onToggle={onToggle}
         />
       )}
@@ -55,6 +62,7 @@ export function WikidataMetadataButtons({
           title="References"
           sectionKey="references"
           isOpen={openSection === 'references'}
+          isDiscarding={isDiscarding}
           onToggle={onToggle}
         />
       )}
