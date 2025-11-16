@@ -22,7 +22,9 @@ from poliloom.models import (
 class TestEntityTracking:
     """Test entity tracking triggers."""
 
-    def test_entity_tracking_on_insert(self, db_session: Session):
+    def test_entity_tracking_on_insert(
+        self, db_session: Session, with_import_tracking_triggers
+    ):
         """Test that inserting WikidataEntity records are tracked."""
         # Clear tracking table first
 
@@ -38,7 +40,9 @@ class TestEntityTracking:
         assert tracked is not None
         assert tracked.entity_id == "Q12345"
 
-    def test_entity_tracking_on_update(self, db_session: Session):
+    def test_entity_tracking_on_update(
+        self, db_session: Session, with_import_tracking_triggers
+    ):
         """Test that updating WikidataEntity records are tracked."""
         # Clear tracking table first
 
@@ -60,7 +64,9 @@ class TestEntityTracking:
         assert tracked is not None
         assert tracked.entity_id == "Q67890"
 
-    def test_multiple_entities_tracked(self, db_session: Session):
+    def test_multiple_entities_tracked(
+        self, db_session: Session, with_import_tracking_triggers
+    ):
         """Test that multiple entities are tracked correctly."""
         # Clear tracking table first
 
@@ -81,7 +87,9 @@ class TestEntityTracking:
         tracked_ids = {t.entity_id for t in db_session.query(CurrentImportEntity).all()}
         assert tracked_ids == {"Q111", "Q222", "Q333"}
 
-    def test_duplicate_entity_tracking_ignored(self, db_session: Session):
+    def test_duplicate_entity_tracking_ignored(
+        self, db_session: Session, with_import_tracking_triggers
+    ):
         """Test that duplicate entity tracking is handled gracefully."""
         # Clear tracking table first
 
@@ -106,7 +114,9 @@ class TestEntityTracking:
 class TestStatementTracking:
     """Test statement tracking triggers."""
 
-    def test_property_tracking_on_insert(self, db_session: Session):
+    def test_property_tracking_on_insert(
+        self, db_session: Session, with_import_tracking_triggers
+    ):
         """Test that Property statements are tracked."""
         # Clear tracking table first
 
@@ -161,7 +171,9 @@ class TestStatementTracking:
         tracked_count = db_session.query(CurrentImportStatement).count()
         assert tracked_count == 0
 
-    def test_relation_tracking_on_insert(self, db_session: Session):
+    def test_relation_tracking_on_insert(
+        self, db_session: Session, with_import_tracking_triggers
+    ):
         """Test that WikidataRelation statements are tracked."""
         # Clear tracking table first
 
@@ -191,7 +203,9 @@ class TestStatementTracking:
         assert tracked is not None
         assert tracked.statement_id == "Q222$87654-dcba-4321-0987-987654321fed"
 
-    def test_statement_tracking_on_update(self, db_session: Session):
+    def test_statement_tracking_on_update(
+        self, db_session: Session, with_import_tracking_triggers
+    ):
         """Test that updating statements are tracked."""
         # Clear tracking table first
 
@@ -226,7 +240,9 @@ class TestStatementTracking:
         )
         assert tracked is not None
 
-    def test_multiple_statements_tracked(self, db_session: Session):
+    def test_multiple_statements_tracked(
+        self, db_session: Session, with_import_tracking_triggers
+    ):
         """Test that multiple statements are tracked correctly."""
         # Clear tracking table first
 
@@ -282,7 +298,9 @@ class TestStatementTracking:
 class TestCleanupFunctionality:
     """Test cleanup procedures for soft-deleting missing entities."""
 
-    def test_cleanup_missing_entities_two_dump_validation(self, db_session: Session):
+    def test_cleanup_missing_entities_two_dump_validation(
+        self, db_session: Session, with_import_tracking_triggers
+    ):
         """Test that entities are only deleted when missing from two consecutive dumps."""
         from datetime import timedelta
 
@@ -479,7 +497,9 @@ class TestCleanupFunctionality:
         )
         assert prop_fresh.deleted_at is None
 
-    def test_clear_tracking_tables(self, db_session: Session):
+    def test_clear_tracking_tables(
+        self, db_session: Session, with_import_tracking_triggers
+    ):
         """Test that individual tracking tables are cleared properly."""
         # Create entities and statements (triggers will automatically track them)
         entity = WikidataEntity(wikidata_id="Q123", name="Test Entity")
@@ -540,7 +560,9 @@ class TestCleanupFunctionality:
 class TestIntegrationWorkflow:
     """Test full import workflow integration."""
 
-    def test_full_import_cleanup_workflow(self, db_session: Session):
+    def test_full_import_cleanup_workflow(
+        self, db_session: Session, with_import_tracking_triggers
+    ):
         """Test complete workflow: clear -> import -> cleanup -> clear."""
         # Step 1: Clear tracking tables (start of import)
         CurrentImportEntity.clear_tracking_table(db_session)
@@ -830,7 +852,7 @@ class TestIntegrationWorkflow:
         assert results["properties_marked_deleted"] == 0  # Should not affect count
 
     def test_statement_in_current_dump_not_deleted_two_dump_validation(
-        self, db_session
+        self, db_session, with_import_tracking_triggers
     ):
         """Test that statements in current dump are preserved with two-dump validation."""
         from datetime import timedelta

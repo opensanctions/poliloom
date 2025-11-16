@@ -28,7 +28,9 @@ class TestTimestampBehavior:
         time_diff = abs((politician.created_at - politician.updated_at).total_seconds())
         assert time_diff < 0.001  # Less than 1 millisecond difference
 
-    def test_updated_at_changes_on_update(self, db_session, sample_politician):
+    def test_updated_at_changes_on_update(
+        self, db_session, sample_politician, with_timestamp_triggers
+    ):
         """Test that updated_at changes when entity is updated."""
         # Use fixture politician
         politician = sample_politician

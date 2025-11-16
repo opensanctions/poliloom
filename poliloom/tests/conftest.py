@@ -59,14 +59,32 @@ def setup_test_database_fixture():
     # Create all tables using SQLAlchemy
     Base.metadata.create_all(engine)
 
-    # Setup all required triggers AFTER creating tables
-    create_timestamp_triggers(engine)
-    create_import_tracking_triggers(engine)
-
     yield
 
     # Clean up after test - drop all tables
     Base.metadata.drop_all(engine)
+
+
+@pytest.fixture
+def with_timestamp_triggers():
+    """Enable timestamp triggers for tests that need them.
+
+    Use this fixture in tests that verify updated_at behavior.
+    """
+    engine = get_engine()
+    create_timestamp_triggers(engine)
+    yield
+
+
+@pytest.fixture
+def with_import_tracking_triggers():
+    """Enable import tracking triggers for tests that need them.
+
+    Use this fixture in tests that verify import tracking functionality.
+    """
+    engine = get_engine()
+    create_import_tracking_triggers(engine)
+    yield
 
 
 @pytest.fixture
