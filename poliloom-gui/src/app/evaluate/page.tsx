@@ -2,22 +2,18 @@
 
 import { Header } from '@/components/Header'
 import { PoliticianEvaluation } from '@/components/PoliticianEvaluation'
-import { usePoliticians } from '@/contexts/PoliticiansContext'
+import { useEvaluation } from '@/contexts/EvaluationContext'
 import Link from 'next/link'
 
 export default function EvaluatePage() {
-  const { currentPolitician, loading, refetch, loadPoliticians } = usePoliticians()
+  const { currentPolitician, loading, loadPoliticians } = useEvaluation()
 
   return (
     <>
       <Header />
 
       {currentPolitician ? (
-        <PoliticianEvaluation
-          key={currentPolitician.id}
-          politician={currentPolitician}
-          onNext={refetch}
-        />
+        <PoliticianEvaluation key={currentPolitician.id} politician={currentPolitician} />
       ) : (
         <main className="bg-gray-50 grid place-items-center py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
           <div className="text-center max-w-2xl">

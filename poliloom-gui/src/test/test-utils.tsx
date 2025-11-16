@@ -2,7 +2,7 @@ import React, { ReactElement } from 'react'
 import { render, RenderOptions } from '@testing-library/react'
 import { ArchivedPageProvider } from '@/contexts/ArchivedPageContext'
 import { PreferencesProvider } from '@/contexts/PreferencesContext'
-import { PoliticiansProvider } from '@/contexts/PoliticiansContext'
+import { EvaluationProvider } from '@/contexts/EvaluationContext'
 
 // Mock SessionProvider for testing
 const MockSessionProvider = ({ children }: { children: React.ReactNode }) => <>{children}</>
@@ -11,9 +11,9 @@ const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
   return (
     <MockSessionProvider>
       <PreferencesProvider>
-        <PoliticiansProvider>
+        <EvaluationProvider>
           <ArchivedPageProvider>{children}</ArchivedPageProvider>
-        </PoliticiansProvider>
+        </EvaluationProvider>
       </PreferencesProvider>
     </MockSessionProvider>
   )

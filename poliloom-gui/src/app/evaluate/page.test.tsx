@@ -37,10 +37,10 @@ vi.mock('@/components/PoliticianEvaluation', () => ({
   PoliticianEvaluation: () => <div>PoliticianEvaluation Component</div>,
 }))
 
-const mockUsePoliticians = vi.fn()
-vi.mock('@/contexts/PoliticiansContext', () => ({
-  usePoliticians: () => mockUsePoliticians(),
-  PoliticiansProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+const mockUseEvaluation = vi.fn()
+vi.mock('@/contexts/EvaluationContext', () => ({
+  useEvaluation: () => mockUseEvaluation(),
+  EvaluationProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
 describe('Evaluate Page', () => {
@@ -88,11 +88,16 @@ describe('Evaluate Page', () => {
   })
 
   it('shows loading state when loading politicians', async () => {
-    mockUsePoliticians.mockReturnValue({
+    mockUseEvaluation.mockReturnValue({
       currentPolitician: null,
       nextPolitician: null,
       loading: true,
-      refetch: vi.fn(),
+      completedCount: 0,
+      sessionGoal: 1,
+      isSessionComplete: false,
+      submitEvaluation: vi.fn(),
+      skipPolitician: vi.fn(),
+      resetSession: vi.fn(),
       loadPoliticians: vi.fn(),
     })
 
@@ -106,11 +111,16 @@ describe('Evaluate Page', () => {
 
   it('shows no politicians message when not loading and no politician available', async () => {
     const mockLoadPoliticians = vi.fn()
-    mockUsePoliticians.mockReturnValue({
+    mockUseEvaluation.mockReturnValue({
       currentPolitician: null,
       nextPolitician: null,
       loading: false,
-      refetch: vi.fn(),
+      completedCount: 0,
+      sessionGoal: 1,
+      isSessionComplete: false,
+      submitEvaluation: vi.fn(),
+      skipPolitician: vi.fn(),
+      resetSession: vi.fn(),
       loadPoliticians: mockLoadPoliticians,
     })
 
@@ -126,12 +136,16 @@ describe('Evaluate Page', () => {
   })
 
   it('shows PoliticianEvaluation component when politician data is available', async () => {
-    const mockRefetch = vi.fn()
-    mockUsePoliticians.mockReturnValue({
+    mockUseEvaluation.mockReturnValue({
       currentPolitician: mockPolitician,
       nextPolitician: null,
       loading: false,
-      refetch: mockRefetch,
+      completedCount: 0,
+      sessionGoal: 1,
+      isSessionComplete: false,
+      submitEvaluation: vi.fn(),
+      skipPolitician: vi.fn(),
+      resetSession: vi.fn(),
       loadPoliticians: vi.fn(),
     })
 

@@ -52,16 +52,35 @@ vi.mock('@/contexts/ArchivedPageContext', () => ({
   }),
 }))
 
+const mockSubmitEvaluation = vi.fn()
+const mockSkipPolitician = vi.fn()
+
+vi.mock('@/contexts/EvaluationContext', () => ({
+  useEvaluation: () => ({
+    completedCount: 0,
+    sessionGoal: 1,
+    isSessionComplete: false,
+    submitEvaluation: mockSubmitEvaluation,
+    skipPolitician: mockSkipPolitician,
+    resetSession: vi.fn(),
+    loadPoliticians: vi.fn(),
+    currentPolitician: null,
+    nextPolitician: null,
+    loading: false,
+  }),
+}))
+
 describe('PoliticianEvaluation', () => {
   const defaultProps = {
     politician: mockPolitician,
-    onNext: vi.fn(),
   }
 
   beforeEach(() => {
     vi.clearAllMocks()
     // Clear highlights before each test
     CSS.highlights.clear()
+    mockSubmitEvaluation.mockResolvedValue(undefined)
+    mockSkipPolitician.mockResolvedValue(undefined)
   })
 
   it('renders politician name and wikidata id', () => {
@@ -123,18 +142,8 @@ describe('PoliticianEvaluation', () => {
     // This tests the behavior as implemented rather than ideal UX
   })
 
-  it('submits evaluations successfully, clears state, and calls onNext', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: async () => ({
-        success: true,
-        message: 'Success',
-        evaluation_count: 1,
-        errors: [],
-      }),
-    } as Response)
+  it('submits evaluations successfully, clears state, and calls submitEvaluation', async () => {
+    mockSubmitEvaluation.mockResolvedValueOnce(undefined)
 
     render(<PoliticianEvaluation {...defaultProps} />)
 
@@ -156,22 +165,10 @@ describe('PoliticianEvaluation', () => {
     fireEvent.click(submitButton)
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith('/api/evaluations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          evaluations: [
-            { id: 'prop-1', is_confirmed: false }, // discarded
-            ...(confirmButtons[1] ? [{ id: 'pos-1', is_confirmed: true }] : []), // confirmed if exists
-          ],
-        }),
-      })
-    })
-
-    await waitFor(() => {
-      expect(defaultProps.onNext).toHaveBeenCalled()
+      expect(mockSubmitEvaluation).toHaveBeenCalledWith([
+        { id: 'prop-1', is_confirmed: false }, // discarded
+        ...(confirmButtons[1] ? [{ id: 'pos-1', is_confirmed: true }] : []), // confirmed if exists
+      ])
     })
 
     // Verify evaluation state is cleared after successful submission
@@ -190,24 +187,8 @@ describe('PoliticianEvaluation', () => {
   })
 
   it('preserves evaluation state when submission fails', async () => {
-    // Mock a failed API response
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      statusText: 'Internal Server Error',
-      json: async () => ({
-        success: false,
-        message: 'Server error',
-        evaluation_count: 0,
-        errors: ['Database connection failed'],
-      }),
-    } as Response)
-
-    // Mock console.error to suppress expected error output
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-
-    // Mock window.alert to prevent actual alert dialogs during testing
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+    // Mock submitEvaluation to throw an error (simulating context handling the error)
+    mockSubmitEvaluation.mockRejectedValueOnce(new Error('Submission failed'))
 
     render(<PoliticianEvaluation {...defaultProps} />)
 
@@ -229,15 +210,7 @@ describe('PoliticianEvaluation', () => {
 
     // Wait for the failed submission to complete
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalled()
-    })
-
-    // Verify that onNext was NOT called on error
-    expect(defaultProps.onNext).not.toHaveBeenCalled()
-
-    // Verify alert was shown for the error
-    await waitFor(() => {
-      expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('Error submitting evaluations'))
+      expect(mockSubmitEvaluation).toHaveBeenCalled()
     })
 
     // Most importantly: verify evaluation state is PRESERVED after failed submission
@@ -246,23 +219,11 @@ describe('PoliticianEvaluation', () => {
     if (discardButtons[1]) {
       expect(discardButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-red-600')) // Should remain selected
     }
-
-    // Verify error was logged
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Error submitting evaluations:', expect.any(Error))
-
-    consoleErrorSpy.mockRestore()
-    alertSpy.mockRestore()
   })
 
   it('preserves evaluation state when network request fails', async () => {
-    // Mock a network error (fetch rejection)
-    vi.mocked(fetch).mockRejectedValueOnce(new Error('Network connection failed'))
-
-    // Mock console.error to suppress expected error output
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-
-    // Mock window.alert to prevent actual alert dialogs during testing
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+    // Mock submitEvaluation to reject (simulating network failure)
+    mockSubmitEvaluation.mockRejectedValueOnce(new Error('Network connection failed'))
 
     render(<PoliticianEvaluation {...defaultProps} />)
 
@@ -279,26 +240,12 @@ describe('PoliticianEvaluation', () => {
 
     // Wait for the failed submission to complete
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalled()
-    })
-
-    // Verify that onNext was NOT called on error
-    expect(defaultProps.onNext).not.toHaveBeenCalled()
-
-    // Verify alert was shown for the error
-    await waitFor(() => {
-      expect(alertSpy).toHaveBeenCalledWith('Error submitting evaluations. Please try again.')
+      expect(mockSubmitEvaluation).toHaveBeenCalled()
     })
 
     // Most importantly: verify evaluation state is PRESERVED after network failure
     // Button should still show its selected state
     expect(confirmButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')) // Should remain selected
-
-    // Verify error was logged
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Error submitting evaluations:', expect.any(Error))
-
-    consoleErrorSpy.mockRestore()
-    alertSpy.mockRestore()
   })
 
   it('does not render sections when politician has no unconfirmed data', () => {
@@ -561,17 +508,7 @@ describe('PoliticianEvaluation', () => {
 
     describe('evaluation submission with mixed data', () => {
       it('submits evaluations and progresses to next politician', async () => {
-        vi.mocked(fetch).mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          statusText: 'OK',
-          json: async () => ({
-            success: true,
-            message: 'Success',
-            evaluation_count: 1,
-            errors: [],
-          }),
-        } as Response)
+        mockSubmitEvaluation.mockResolvedValueOnce(undefined)
 
         render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianWithConflicts} />)
 
@@ -585,13 +522,9 @@ describe('PoliticianEvaluation', () => {
         const submitButton = screen.getByText('Submit Evaluations & Next')
         fireEvent.click(submitButton)
 
-        // Should call API and progress to next
+        // Should call submitEvaluation and progress to next
         await waitFor(() => {
-          expect(fetch).toHaveBeenCalledWith('/api/evaluations', expect.any(Object))
-        })
-
-        await waitFor(() => {
-          expect(defaultProps.onNext).toHaveBeenCalled()
+          expect(mockSubmitEvaluation).toHaveBeenCalled()
         })
       })
     })

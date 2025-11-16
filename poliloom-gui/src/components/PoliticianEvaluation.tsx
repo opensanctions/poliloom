@@ -1,26 +1,20 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import {
-  Politician,
-  Property,
-  EvaluationRequest,
-  EvaluationItem,
-  ArchivedPageResponse,
-  EvaluationResponse,
-} from '@/types'
+import { Politician, Property, EvaluationItem, ArchivedPageResponse } from '@/types'
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting'
 import { highlightTextInScope } from '@/lib/textHighlighter'
 import { useArchivedPageCache } from '@/contexts/ArchivedPageContext'
+import { useEvaluation } from '@/contexts/EvaluationContext'
 import { Button } from './Button'
 import { PropertiesEvaluation } from './PropertiesEvaluation'
 
 interface PoliticianEvaluationProps {
   politician: Politician
-  onNext: () => void
 }
 
-export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluationProps) {
+export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) {
+  const { completedCount, sessionGoal, submitEvaluation, skipPolitician } = useEvaluation()
   const [evaluations, setEvaluations] = useState<Map<string, boolean>>(new Map())
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedArchivedPage, setSelectedArchivedPage] = useState<ArchivedPageResponse | null>(
@@ -94,49 +88,30 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
   }
 
   const handleSubmit = async () => {
-    // If no evaluations, just skip to the next politician
+    // If no evaluations, just skip to the next politician (doesn't count toward session)
     if (evaluations.size === 0) {
-      onNext()
+      skipPolitician()
       return
     }
 
     setIsSubmitting(true)
+
+    const evaluationItems: EvaluationItem[] = Array.from(evaluations.entries()).map(
+      ([id, isConfirmed]) => ({
+        id,
+        is_confirmed: isConfirmed,
+      }),
+    )
+
     try {
-      const evaluationItems: EvaluationItem[] = Array.from(evaluations.entries()).map(
-        ([id, isConfirmed]) => ({
-          id,
-          is_confirmed: isConfirmed,
-        }),
-      )
+      // Submit evaluation - context handles all errors, incrementing, advancing, and navigation
+      await submitEvaluation(evaluationItems)
 
-      const evaluationData: EvaluationRequest = {
-        evaluations: evaluationItems,
-      }
-
-      const response = await fetch('/api/evaluations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(evaluationData),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to submit evaluations: ${response.statusText}`)
-      }
-
-      const result: EvaluationResponse = await response.json()
-      if (result.success) {
-        // Clear evaluations state after successful submission
-        setEvaluations(new Map())
-        onNext()
-      } else {
-        console.error('Evaluation errors:', result.errors)
-        alert(`Error submitting evaluations: ${result.message}`)
-      }
+      // Clear evaluations state only after successful submission
+      setEvaluations(new Map())
     } catch (error) {
-      console.error('Error submitting evaluations:', error)
-      alert('Error submitting evaluations. Please try again.')
+      // Error already handled by context - just preserve evaluation state
+      console.error('Submission failed:', error)
     } finally {
       setIsSubmitting(false)
     }
@@ -183,7 +158,14 @@ export function PoliticianEvaluation({ politician, onNext }: PoliticianEvaluatio
 
         {/* Fixed button at bottom */}
         <div className="p-6 border-t border-gray-200">
-          <div className="flex justify-end">
+          <div className="flex justify-between items-center">
+            <div className="text-base text-gray-900">
+              Progress:{' '}
+              <strong>
+                {completedCount} / {sessionGoal}
+              </strong>{' '}
+              politicians evaluated
+            </div>
             <Button onClick={handleSubmit} disabled={isSubmitting} className="px-6 py-3">
               {isSubmitting
                 ? 'Submitting...'

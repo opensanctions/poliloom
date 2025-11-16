@@ -32,6 +32,19 @@ vi.mock('@/components/Header', () => ({
   Header: () => <div>Header</div>,
 }))
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+  }),
+  usePathname: () => '/',
+  useSearchParams: () => new URLSearchParams(),
+}))
+
 const mockUseSession = vi.fn()
 const mockSignIn = vi.fn()
 vi.mock('next-auth/react', () => ({
@@ -105,7 +118,7 @@ describe('Home Page (Preferences)', () => {
 
     expect(
       screen.getByText(
-        "Select the languages and countries you're interested in reviewing. Leave filters empty to review all available politicians.",
+        "Select the countries and languages you're interested in reviewing. Leave filters empty to review all available politicians.",
       ),
     ).toBeInTheDocument()
     expect(screen.getByText('What languages can you read?')).toBeInTheDocument()

@@ -4,7 +4,7 @@ import { auth } from '@/auth'
 import { SessionProvider } from '@/components/SessionProvider'
 import { ArchivedPageProvider } from '@/contexts/ArchivedPageContext'
 import { PreferencesProvider } from '@/contexts/PreferencesContext'
-import { PoliticiansProvider } from '@/contexts/PoliticiansContext'
+import { EvaluationProvider } from '@/contexts/EvaluationContext'
 import { FetchInterceptor } from '@/components/FetchInterceptor'
 
 export const metadata: Metadata = {
@@ -26,9 +26,9 @@ export default async function RootLayout({
         <SessionProvider session={session}>
           <FetchInterceptor />
           <PreferencesProvider>
-            <PoliticiansProvider>
+            <EvaluationProvider>
               <ArchivedPageProvider>{children}</ArchivedPageProvider>
-            </PoliticiansProvider>
+            </EvaluationProvider>
           </PreferencesProvider>
         </SessionProvider>
       </body>
