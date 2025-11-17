@@ -1829,6 +1829,109 @@ class TestPropertyShouldStore:
 
         assert new_property.should_store(db_session) is False
 
+    def test_should_store_ignores_soft_deleted_dates(
+        self, db_session, sample_politician
+    ):
+        """Test that soft-deleted date properties don't block new extractions."""
+        from datetime import datetime, timezone
+
+        politician = sample_politician
+
+        # Create a property that has been soft-deleted
+        deleted_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1990-01-01T00:00:00Z",
+            value_precision=11,
+            deleted_at=datetime.now(timezone.utc),
+        )
+        db_session.add(deleted_property)
+        db_session.commit()
+
+        # Try to store the same date again - should be allowed since previous is deleted
+        new_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1990-01-01T00:00:00Z",
+            value_precision=11,
+        )
+
+        assert new_property.should_store(db_session) is True
+
+    def test_should_store_ignores_soft_deleted_citizenship(
+        self, db_session, sample_politician, sample_country
+    ):
+        """Test that soft-deleted citizenship properties don't block new extractions."""
+        from datetime import datetime, timezone
+
+        politician = sample_politician
+        country = sample_country
+
+        # Create a citizenship that has been soft-deleted
+        deleted_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=country.wikidata_id,
+            deleted_at=datetime.now(timezone.utc),
+        )
+        db_session.add(deleted_property)
+        db_session.commit()
+
+        # Try to store the same citizenship again - should be allowed since previous is deleted
+        new_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=country.wikidata_id,
+        )
+
+        assert new_property.should_store(db_session) is True
+
+    def test_should_store_ignores_soft_deleted_positions(
+        self, db_session, sample_politician, sample_position
+    ):
+        """Test that soft-deleted position properties don't block new extractions."""
+        from datetime import datetime, timezone
+
+        politician = sample_politician
+        position = sample_position
+
+        # Create a position that has been soft-deleted
+        deleted_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            qualifiers_json={
+                "P580": [
+                    {
+                        "datavalue": {
+                            "value": {"time": "+2020-01-01T00:00:00Z", "precision": 11}
+                        }
+                    }
+                ]
+            },
+            deleted_at=datetime.now(timezone.utc),
+        )
+        db_session.add(deleted_property)
+        db_session.commit()
+
+        # Try to store the same position again - should be allowed since previous is deleted
+        new_property = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            qualifiers_json={
+                "P580": [
+                    {
+                        "datavalue": {
+                            "value": {"time": "+2020-01-01T00:00:00Z", "precision": 11}
+                        }
+                    }
+                ]
+            },
+        )
+
+        assert new_property.should_store(db_session) is True
+
 
 """Tests for the WikipediaLink model."""
 

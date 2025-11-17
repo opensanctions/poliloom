@@ -280,27 +280,13 @@ def _process_supporting_entities_chunk(
                             language_data["iso1_code"] = iso1_code
                             language_data["iso3_code"] = iso3_code
                             collection.add_entity(language_data)
-                    # Handle special case for Wikipedia projects requiring language code
+                    # Standard processing for Wikipedia projects
                     elif collection.model_class is WikipediaProject:
-                        # Extract P424 (Wikimedia language code)
-                        language_code = None
-                        p424_claims = entity.get_truthy_claims("P424")
-                        for claim in p424_claims:
-                            try:
-                                language_code = claim["mainsnak"]["datavalue"]["value"]
-                                break
-                            except (KeyError, TypeError):
-                                continue
+                        collection.add_entity(entity_data.copy())
 
-                        # Only import projects that have language code (required field)
-                        if language_code:
-                            project_data = entity_data.copy()
-                            project_data["language_code"] = language_code
-                            collection.add_entity(project_data)
-
-                            # Extract relations for this entity (including P407 language relation)
-                            entity_relations = entity.extract_all_relations()
-                            collection.add_relations(entity_relations)
+                        # Extract relations for this entity
+                        entity_relations = entity.extract_all_relations()
+                        collection.add_relations(entity_relations)
                     else:
                         # Standard processing for all other entity types
                         collection.add_entity(entity_data.copy())

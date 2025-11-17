@@ -62,20 +62,16 @@ class WikipediaProject(
     WikidataEntityMixin,
     EntityCreationMixin,
 ):
-    """Wikipedia project entity for storing Wikipedia language editions."""
+    """Wikipedia project entity for storing Wikipedia language editions.
+
+    Note: Currently not actively used in import process.
+    Will be redesigned to use sitelinks instead of P424 language codes.
+    """
 
     __tablename__ = "wikipedia_projects"
-    __table_args__ = (
-        Index("idx_wikipedia_projects_language_code", "language_code", unique=True),
-    )
 
     # UpsertMixin configuration
-    _upsert_update_columns = ["language_code"]
-
-    language_code = Column(
-        String, nullable=False, index=True
-    )  # P424: Wikimedia language code
-    # Language relationship via P407 stored in wikidata_relations table
+    _upsert_update_columns = []
 
 
 class Location(
