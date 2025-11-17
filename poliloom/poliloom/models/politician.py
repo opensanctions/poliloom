@@ -1,7 +1,7 @@
 """Politician domain models: Politician, Property, WikipediaLink, ArchivedPage."""
 
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List
 
 from dicttoxml import dicttoxml
@@ -439,7 +439,11 @@ class Politician(
         """
         from .wikidata import WikidataRelation
 
+        # Calculate 6-month cooldown threshold
+        six_months_ago = datetime.now(timezone.utc) - timedelta(days=180)
+
         # Base query: politicians with Wikipedia links and non-soft-deleted WikidataEntity
+        # Exclude politicians enriched within the last 6 months to prevent rapid re-enrichment
         politician_ids_query = (
             select(cls.id.distinct())
             .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
@@ -447,6 +451,11 @@ class Politician(
                 and_(
                     exists(select(1).where(WikipediaLink.politician_id == cls.id)),
                     WikidataEntity.deleted_at.is_(None),
+                    or_(
+                        cls.enriched_at.is_(None),  # Never enriched
+                        cls.enriched_at
+                        < six_months_ago,  # Or enriched more than 6 months ago
+                    ),
                 )
             )
         )

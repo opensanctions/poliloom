@@ -62,11 +62,7 @@ class WikipediaProject(
     WikidataEntityMixin,
     EntityCreationMixin,
 ):
-    """Wikipedia project entity for storing Wikipedia language editions.
-
-    Note: Currently not actively used in import process.
-    Will be redesigned to use sitelinks instead of P424 language codes.
-    """
+    """Wikipedia project entity for storing Wikipedia language editions."""
 
     __tablename__ = "wikipedia_projects"
 

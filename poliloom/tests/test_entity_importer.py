@@ -301,7 +301,6 @@ class TestWikidataEntityImporter:
             wikipedia_project = wikipedia_projects[0]
             assert wikipedia_project.wikidata_id == "Q328"
             assert wikipedia_project.name == "English Wikipedia"
-            assert wikipedia_project.language_code == "en"
 
         finally:
             os.unlink(temp_file_path)
@@ -666,15 +665,11 @@ class TestWikidataEntityImporter:
                 "wikidata_id": "Q328",
                 "name": "English Wikipedia",
                 "description": "English edition of Wikipedia",
-                "language_code": "en",
-                "language_id": "Q1860",
             },
             {
                 "wikidata_id": "Q200183",
                 "name": "Simple English Wikipedia",
                 "description": "Simple English edition of Wikipedia",
-                "language_code": "simple",
-                "language_id": None,
             },
         ]
 
@@ -699,8 +694,6 @@ class TestWikidataEntityImporter:
             .first()
         )
         assert project1.name == "English Wikipedia"
-        assert project1.language_code == "en"
-        assert project1.language_id == "Q1860"
 
         project2 = (
             db_session.query(WikipediaProject)
@@ -708,18 +701,14 @@ class TestWikidataEntityImporter:
             .first()
         )
         assert project2.name == "Simple English Wikipedia"
-        assert project2.language_code == "simple"
-        assert project2.language_id is None
 
     def test_insert_wikipedia_projects_batch_with_duplicates_handling(self, db_session):
-        """Test that Wikipedia projects batch uses ON CONFLICT DO UPDATE."""
+        """Test that Wikipedia projects batch uses ON CONFLICT DO NOTHING."""
         wikipedia_projects = [
             {
                 "wikidata_id": "Q328",
                 "name": "English Wikipedia",
                 "description": "English edition of Wikipedia",
-                "language_code": "en",
-                "language_id": None,
             },
         ]
 
@@ -731,14 +720,12 @@ class TestWikidataEntityImporter:
             collection.add_entity(project)
         _insert_entities_batch(collection, get_engine())
 
-        # Insert again with updated language_code - should update
+        # Insert again with same wikidata_id - should skip (do nothing)
         updated_projects = [
             {
                 "wikidata_id": "Q328",
-                "name": "English Wikipedia",
+                "name": "English Wikipedia Updated",
                 "description": "English edition of Wikipedia updated",
-                "language_code": "en-updated",
-                "language_id": None,
             },
         ]
         collection = EntityCollection(
@@ -748,11 +735,12 @@ class TestWikidataEntityImporter:
             collection.add_entity(project)
         _insert_entities_batch(collection, get_engine())
 
-        # Should still have only one project but with updated language_code
+        # Should still have only one project, but WikidataEntity name/description are updated
         final_projects = db_session.query(WikipediaProject).all()
         assert len(final_projects) == 1
         assert final_projects[0].wikidata_id == "Q328"
-        assert final_projects[0].language_code == "en-updated"
+        # Name is updated because WikidataEntity has update columns for name/description
+        assert final_projects[0].name == "English Wikipedia Updated"
 
     def test_insert_wikipedia_projects_batch_empty(self, db_session):
         """Test inserting empty batch of Wikipedia projects."""
