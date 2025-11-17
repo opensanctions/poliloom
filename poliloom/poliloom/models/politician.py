@@ -758,7 +758,6 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
                     politician_id=self.politician_id,
                     type=self.type,
                 )
-                .filter(Property.deleted_at.is_(None))
                 .all()
             )
 
@@ -793,7 +792,6 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
                     type=self.type,
                     entity_id=self.entity_id,
                 )
-                .filter(Property.deleted_at.is_(None))
                 .first()
             )
             return existing is None
@@ -806,7 +804,6 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
                 type=PropertyType.POSITION,
                 entity_id=self.entity_id,
             )
-            .filter(Property.deleted_at.is_(None))
             .all()
         )
 
