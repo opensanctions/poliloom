@@ -314,10 +314,10 @@ async def push_evaluation(
     db: Session,
 ) -> bool:
     """
-    Push an evaluation to Wikidata - either create a new statement or delete an existing one.
+    Push an evaluation to Wikidata - either create a new statement or deprecate an existing one.
 
     For confirmed evaluations of extracted data: creates new statements
-    For negative evaluations of existing statements: deletes statements
+    For negative evaluations of existing statements: deprecates statements on Wikidata, soft deletes from database
 
     Args:
         evaluation: Evaluation
@@ -367,15 +367,15 @@ async def push_evaluation(
                 return False
 
         elif not evaluation.is_confirmed and not is_existing_statement:
-            # Negative evaluation of extracted data - delete from database only
+            # Negative evaluation of extracted data - soft delete from database only
             logger.info(
-                f"Processing negative evaluation {evaluation.id} - removing extracted data"
+                f"Processing negative evaluation {evaluation.id} - soft deleting extracted data"
             )
 
             evaluation.property.deleted_at = datetime.now(timezone.utc)
             db.commit()
             logger.info(
-                f"Successfully removed property extracted data for politician {politician_wikidata_id}"
+                f"Successfully soft deleted property extracted data for politician {politician_wikidata_id}"
             )
 
         elif evaluation.is_confirmed and not is_existing_statement:

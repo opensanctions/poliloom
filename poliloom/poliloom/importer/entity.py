@@ -300,8 +300,8 @@ def _process_supporting_entities_chunk(
                             except (KeyError, TypeError):
                                 pass
 
-                        # Only import Wikipedia projects that have an official website
-                        if official_website:
+                        # Only import Wikipedia projects that have a wikipedia.org URL
+                        if official_website and "wikipedia.org" in official_website:
                             wikipedia_project_data = entity_data.copy()
                             wikipedia_project_data["official_website"] = (
                                 official_website

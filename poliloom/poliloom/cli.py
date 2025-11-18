@@ -653,7 +653,9 @@ def clean_entities(dry_run):
     if dry_run:
         click.echo("🔍 DRY RUN MODE - No changes will be made")
     else:
-        click.echo("⚠️  This will permanently delete data outside the current hierarchy")
+        click.echo(
+            "⚠️  This will soft-delete properties and hard-delete entity records outside the current hierarchy"
+        )
         if not click.confirm("Do you want to continue?"):
             click.echo("Aborted.")
             return
@@ -761,10 +763,10 @@ def clean_entities(dry_run):
             if positions_to_remove or locations_to_remove:
                 click.echo("\n⏳ Cleaning orphaned wikidata_entities...")
                 if dry_run:
-                    click.echo("  • [DRY RUN] Would delete orphaned entities")
+                    click.echo("  • [DRY RUN] Would hard-delete orphaned entities")
                 else:
                     orphans_deleted = _cleanup_orphaned_entities(session)
-                    click.echo(f"  • Deleted {orphans_deleted} orphaned entities")
+                    click.echo(f"  • Hard-deleted {orphans_deleted} orphaned entities")
 
             if not dry_run:
                 session.commit()
@@ -867,7 +869,7 @@ def _identify_locations_to_remove(session: Session, root_ids: list[str]) -> set[
 
 
 def _cleanup_orphaned_entities(session: Session) -> int:
-    """Delete wikidata_entities that are only referenced by removed entities."""
+    """Hard-delete wikidata_entities that are only referenced by removed entities."""
     from sqlalchemy import text
 
     # Build temp table of entities to keep

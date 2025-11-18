@@ -771,7 +771,14 @@ class TestWikidataEntityImporter:
         assert len(inserted_projects) == 0
 
     def test_wikipedia_project_filtering(self, db_session):
-        """Test that Wikipedia projects are filtered correctly based on P856 and umbrella entities."""
+        """Test that Wikipedia projects are filtered correctly.
+
+        Filtering criteria:
+        - Must have P856 (official website)
+        - P856 must contain 'wikipedia.org'
+        - Must not be umbrella entity (P31 = Q210588)
+        - When multiple P856 values exist, use preferred rank
+        """
         # Set up hierarchy
         hierarchy_data = [
             {"wikidata_id": "Q10876391", "name": "Wikipedia language edition"},
@@ -929,6 +936,42 @@ class TestWikidataEntityImporter:
                                 "datavalue": {
                                     "value": {"id": "Q10876391"},
                                     "type": "wikibase-entityid",
+                                },
+                            },
+                            "type": "statement",
+                            "rank": "normal",
+                        }
+                    ],
+                },
+            },
+            # Wikipedia project with non-wikipedia.org URL - should NOT be imported
+            {
+                "id": "Q654321",
+                "type": "item",
+                "labels": {"en": {"language": "en", "value": "Non-Wikipedia Project"}},
+                "claims": {
+                    "P31": [
+                        {
+                            "mainsnak": {
+                                "snaktype": "value",
+                                "property": "P31",
+                                "datavalue": {
+                                    "value": {"id": "Q10876391"},
+                                    "type": "wikibase-entityid",
+                                },
+                            },
+                            "type": "statement",
+                            "rank": "normal",
+                        }
+                    ],
+                    "P856": [
+                        {
+                            "mainsnak": {
+                                "snaktype": "value",
+                                "property": "P856",
+                                "datavalue": {
+                                    "value": "https://example.com/",
+                                    "type": "string",
                                 },
                             },
                             "type": "statement",
