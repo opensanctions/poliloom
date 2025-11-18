@@ -67,7 +67,9 @@ class WikipediaProject(
     __tablename__ = "wikipedia_projects"
 
     # UpsertMixin configuration
-    _upsert_update_columns = []
+    _upsert_update_columns = ["official_website"]
+
+    official_website = Column(String, nullable=True)  # P856 official website URL
 
 
 class Location(

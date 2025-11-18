@@ -245,6 +245,20 @@ class TestWikidataEntityImporter:
                             "rank": "normal",
                         }
                     ],
+                    "P856": [
+                        {  # official website
+                            "mainsnak": {
+                                "snaktype": "value",
+                                "property": "P856",
+                                "datavalue": {
+                                    "value": "https://en.wikipedia.org/",
+                                    "type": "string",
+                                },
+                            },
+                            "type": "statement",
+                            "rank": "normal",
+                        }
+                    ],
                 },
             },
         ]
@@ -301,6 +315,7 @@ class TestWikidataEntityImporter:
             wikipedia_project = wikipedia_projects[0]
             assert wikipedia_project.wikidata_id == "Q328"
             assert wikipedia_project.name == "English Wikipedia"
+            assert wikipedia_project.official_website == "https://en.wikipedia.org/"
 
         finally:
             os.unlink(temp_file_path)
@@ -754,3 +769,219 @@ class TestWikidataEntityImporter:
         # Verify no Wikipedia projects were inserted
         inserted_projects = db_session.query(WikipediaProject).all()
         assert len(inserted_projects) == 0
+
+    def test_wikipedia_project_filtering(self, db_session):
+        """Test that Wikipedia projects are filtered correctly based on P856 and umbrella entities."""
+        # Set up hierarchy
+        hierarchy_data = [
+            {"wikidata_id": "Q10876391", "name": "Wikipedia language edition"},
+            {"wikidata_id": "Q210588", "name": "umbrella term"},
+        ]
+        stmt = insert(WikidataEntity).values(hierarchy_data)
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+        db_session.commit()
+
+        test_entities = [
+            # Valid Wikipedia project with P856 - should be imported
+            {
+                "id": "Q877583",
+                "type": "item",
+                "labels": {"en": {"language": "en", "value": "Belarusian Wikipedia"}},
+                "claims": {
+                    "P31": [
+                        {
+                            "mainsnak": {
+                                "snaktype": "value",
+                                "property": "P31",
+                                "datavalue": {
+                                    "value": {"id": "Q10876391"},
+                                    "type": "wikibase-entityid",
+                                },
+                            },
+                            "type": "statement",
+                            "rank": "normal",
+                        }
+                    ],
+                    "P856": [
+                        {
+                            "mainsnak": {
+                                "snaktype": "value",
+                                "property": "P856",
+                                "datavalue": {
+                                    "value": "https://be.wikipedia.org/",
+                                    "type": "string",
+                                },
+                            },
+                            "type": "statement",
+                            "rank": "normal",
+                        }
+                    ],
+                },
+            },
+            # Wikipedia project with multiple P856 but one preferred - should be imported with preferred URL
+            # Based on actual Q8937989 data from Wikidata
+            {
+                "id": "Q8937989",
+                "type": "item",
+                "labels": {
+                    "en": {
+                        "language": "en",
+                        "value": "Belarusian Wikipedia (Taraškievica)",
+                    }
+                },
+                "claims": {
+                    "P31": [
+                        {
+                            "mainsnak": {
+                                "snaktype": "value",
+                                "property": "P31",
+                                "datavalue": {
+                                    "value": {"id": "Q10876391"},
+                                    "type": "wikibase-entityid",
+                                },
+                            },
+                            "type": "statement",
+                            "rank": "normal",
+                        }
+                    ],
+                    "P856": [
+                        {
+                            "mainsnak": {
+                                "snaktype": "value",
+                                "property": "P856",
+                                "datavalue": {
+                                    "value": "https://be-tarask.wikipedia.org/",
+                                    "type": "string",
+                                },
+                                "datatype": "url",
+                            },
+                            "type": "statement",
+                            "id": "Q8937989$EFBA9BBD-DF52-4301-98FE-D8C7819DC4FD",
+                            "rank": "preferred",
+                        },
+                        {
+                            "mainsnak": {
+                                "snaktype": "value",
+                                "property": "P856",
+                                "datavalue": {
+                                    "value": "https://be-x-old.wikipedia.org/",
+                                    "type": "string",
+                                },
+                                "datatype": "url",
+                            },
+                            "type": "statement",
+                            "id": "Q8937989$ace62c47-477a-ab53-88f9-23fd6d33b15e",
+                            "rank": "normal",
+                        },
+                    ],
+                },
+            },
+            # Umbrella entity (P31 = Q210588) - should NOT be imported
+            {
+                "id": "Q122311452",
+                "type": "item",
+                "labels": {
+                    "en": {"language": "en", "value": "Belarusian Wikipedia (umbrella)"}
+                },
+                "claims": {
+                    "P31": [
+                        {
+                            "mainsnak": {
+                                "snaktype": "value",
+                                "property": "P31",
+                                "datavalue": {
+                                    "value": {"id": "Q210588"},
+                                    "type": "wikibase-entityid",
+                                },
+                            },
+                            "type": "statement",
+                            "rank": "normal",
+                        }
+                    ],
+                    "P856": [
+                        {
+                            "mainsnak": {
+                                "snaktype": "value",
+                                "property": "P856",
+                                "datavalue": {
+                                    "value": "https://be.wikipedia.org/",
+                                    "type": "string",
+                                },
+                            },
+                            "type": "statement",
+                            "rank": "normal",
+                        }
+                    ],
+                },
+            },
+            # Wikipedia project without P856 - should NOT be imported
+            {
+                "id": "Q123456",
+                "type": "item",
+                "labels": {"en": {"language": "en", "value": "Test Wikipedia No URL"}},
+                "claims": {
+                    "P31": [
+                        {
+                            "mainsnak": {
+                                "snaktype": "value",
+                                "property": "P31",
+                                "datavalue": {
+                                    "value": {"id": "Q10876391"},
+                                    "type": "wikibase-entityid",
+                                },
+                            },
+                            "type": "statement",
+                            "rank": "normal",
+                        }
+                    ],
+                },
+            },
+        ]
+
+        # Create temporary dump file
+        with tempfile.NamedTemporaryFile(
+            mode="w", delete=False, suffix=".json"
+        ) as temp_file:
+            for entity in test_entities:
+                temp_file.write(json.dumps(entity) + "\n")
+            temp_file_path = temp_file.name
+
+        try:
+            # Clear existing data
+            db_session.query(WikipediaProject).delete()
+            db_session.commit()
+
+            # Test extraction
+            with patch("poliloom.dump_reader.calculate_file_chunks") as mock_chunks:
+                file_size = os.path.getsize(temp_file_path)
+                mock_chunks.return_value = [(0, file_size)]
+                import_entities(temp_file_path, batch_size=10)
+
+            # Verify only valid Wikipedia projects were imported
+            wikipedia_projects = db_session.query(WikipediaProject).all()
+            assert len(wikipedia_projects) == 2  # Only Q877583 and Q8937989
+
+            # Verify specific project data
+            qids = {p.wikidata_id for p in wikipedia_projects}
+            assert qids == {"Q877583", "Q8937989"}
+
+            # Verify official website URLs
+            be_wiki = (
+                db_session.query(WikipediaProject)
+                .filter(WikipediaProject.wikidata_id == "Q877583")
+                .first()
+            )
+            assert be_wiki.official_website == "https://be.wikipedia.org/"
+
+            be_tarask_wiki = (
+                db_session.query(WikipediaProject)
+                .filter(WikipediaProject.wikidata_id == "Q8937989")
+                .first()
+            )
+            # Should use preferred rank URL (https://be-tarask.wikipedia.org/)
+            # and NOT the normal rank URL (https://be-x-old.wikipedia.org/)
+            assert be_tarask_wiki.official_website == "https://be-tarask.wikipedia.org/"
+
+        finally:
+            os.unlink(temp_file_path)

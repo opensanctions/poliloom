@@ -151,12 +151,13 @@ class TestWikipediaProject:
         project = WikipediaProject.create_with_entity(
             db_session, "Q328", "English Wikipedia"
         )
+        project.official_website = "https://en.wikipedia.org/"
         db_session.commit()
         db_session.refresh(project)
 
         assert_model_fields(
             project,
-            {"wikidata_id": "Q328"},
+            {"wikidata_id": "Q328", "official_website": "https://en.wikipedia.org/"},
         )
         assert project.name == "English Wikipedia"
 
@@ -166,13 +167,31 @@ class TestWikipediaProject:
         project1 = WikipediaProject.create_with_entity(
             db_session, "Q328", "English Wikipedia"
         )
+        project1.official_website = "https://en.wikipedia.org/"
         db_session.commit()
 
         # Create second project with different QID
         project2 = WikipediaProject.create_with_entity(
             db_session, "Q200183", "Simple English Wikipedia"
         )
+        project2.official_website = "https://simple.wikipedia.org/"
         db_session.commit()
 
         assert project1.wikidata_id == "Q328"
+        assert project1.official_website == "https://en.wikipedia.org/"
         assert project2.wikidata_id == "Q200183"
+        assert project2.official_website == "https://simple.wikipedia.org/"
+
+    def test_wikipedia_project_optional_website(self, db_session):
+        """Test that official_website is optional."""
+        project = WikipediaProject.create_with_entity(
+            db_session, "Q123456", "Test Wikipedia"
+        )
+        db_session.commit()
+        db_session.refresh(project)
+
+        assert_model_fields(
+            project,
+            {"wikidata_id": "Q123456", "official_website": None},
+        )
+        assert project.name == "Test Wikipedia"

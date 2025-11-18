@@ -282,11 +282,35 @@ def _process_supporting_entities_chunk(
                             collection.add_entity(language_data)
                     # Standard processing for Wikipedia projects
                     elif collection.model_class is WikipediaProject:
-                        collection.add_entity(entity_data.copy())
+                        # Filter out umbrella entities (Q210588)
+                        if "Q210588" in instance_ids:
+                            continue
 
-                        # Extract relations for this entity
-                        entity_relations = entity.extract_all_relations()
-                        collection.add_relations(entity_relations)
+                        # Extract P856 (official website) using truthy filtering
+                        # This automatically handles preferred rank selection when multiple P856 exist
+                        official_website = None
+                        p856_claims = entity.get_truthy_claims("P856")
+
+                        # Get the first P856 value (truthy filtering already selected preferred if exists)
+                        if p856_claims:
+                            try:
+                                official_website = p856_claims[0]["mainsnak"][
+                                    "datavalue"
+                                ]["value"]
+                            except (KeyError, TypeError):
+                                pass
+
+                        # Only import Wikipedia projects that have an official website
+                        if official_website:
+                            wikipedia_project_data = entity_data.copy()
+                            wikipedia_project_data["official_website"] = (
+                                official_website
+                            )
+                            collection.add_entity(wikipedia_project_data)
+
+                            # Extract relations for this entity
+                            entity_relations = entity.extract_all_relations()
+                            collection.add_relations(entity_relations)
                     else:
                         # Standard processing for all other entity types
                         collection.add_entity(entity_data.copy())
