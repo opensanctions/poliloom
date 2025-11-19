@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, Mock as SyncMock, patch
 
 from poliloom.api import app
 from poliloom.api.auth import User
-from tests.conftest import load_json_fixture
 
 
 @pytest.fixture
@@ -18,10 +17,8 @@ def client():
 @pytest.fixture
 def mock_user():
     """Create a mock authenticated user."""
-    auth_data = load_json_fixture("auth_test_data.json")
-    test_user = auth_data["test_user"]
     return User(
-        user_id=test_user["sub"],
+        user_id="mw:CentralAuth::12345",
     )
 
 

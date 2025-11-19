@@ -48,7 +48,7 @@ class Language(
     __tablename__ = "languages"
 
     # UpsertMixin configuration
-    _upsert_update_columns = ["iso1_code", "iso3_code", "wikimedia_code"]
+    _upsert_update_columns = ["iso_639_1", "iso_639_2", "iso_639_3", "wikimedia_code"]
 
 
 class WikipediaProject(

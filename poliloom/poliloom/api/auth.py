@@ -40,7 +40,26 @@ class MediaWikiOAuth:
             )
 
             # Extract user information from JWT payload
-            user_id = int(decoded.get("sub", 0))
+            # MediaWiki now uses format: "mw:CentralAuth::78463494"
+            sub_field = decoded.get("sub")
+            if not sub_field:
+                raise ValueError("Missing sub field in JWT payload")
+
+            if "::" not in sub_field:
+                raise ValueError(
+                    f"Invalid sub field format. Expected 'mw:CentralAuth::ID', got: {sub_field}"
+                )
+
+            # Extract the numeric ID after the last "::"
+            parts = sub_field.split("::")
+            if len(parts) < 2:
+                raise ValueError(f"Invalid sub field format: {sub_field}")
+
+            try:
+                user_id = int(parts[-1])
+            except ValueError:
+                raise ValueError(f"Invalid user ID in sub field: {sub_field}")
+
             return User(
                 user_id=user_id,
                 jwt_token=jwt_token,  # Store the raw JWT token

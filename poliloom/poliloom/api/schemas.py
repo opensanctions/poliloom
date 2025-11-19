@@ -151,8 +151,9 @@ class LanguageResponse(BaseModel):
     wikidata_id: str
     name: str
     description: str
-    iso1_code: Optional[str] = None
-    iso3_code: Optional[str] = None
+    iso_639_1: Optional[str] = None
+    iso_639_2: Optional[str] = None
+    iso_639_3: Optional[str] = None
     sources_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)

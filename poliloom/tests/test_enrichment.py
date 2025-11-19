@@ -520,7 +520,7 @@ class TestCountPoliticiansWithUnevaluated:
 
         # Create English archived page
         en_page = ArchivedPage(
-            url="https://en.example.com/test", content_hash="en123", iso1_code="en"
+            url="https://en.example.com/test", content_hash="en123", iso_639_1="en"
         )
         db_session.add(en_page)
         db_session.flush()
@@ -682,7 +682,7 @@ class TestEnrichUntilTarget:
                 en_page = ArchivedPage(
                     url="https://en.example.com/test",
                     content_hash="en123",
-                    iso1_code="en",
+                    iso_639_1="en",
                 )
                 db_session.add(en_page)
                 db_session.flush()

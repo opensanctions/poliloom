@@ -91,7 +91,7 @@ class Politician(
             db: Database session
 
         Returns:
-            List of Row objects containing (url, iso1_code, iso3_code), limited to top 3 by popularity
+            List of Row objects containing (url, iso_639_1, iso_639_2, iso_639_3), limited to top 3 by popularity
         """
         from .wikidata import WikidataRelation
 
@@ -137,8 +137,9 @@ class Politician(
         links_with_citizenship_flag = (
             select(
                 WikipediaLink.url,
-                Language.iso1_code,
-                Language.iso3_code,
+                Language.iso_639_1,
+                Language.iso_639_2,
+                Language.iso_639_3,
                 language_popularity.c.global_count.label("language_popularity"),
                 case(
                     (
@@ -152,8 +153,9 @@ class Politician(
             .join(
                 Language,
                 or_(
-                    WikipediaLink.iso_code == Language.iso1_code,
-                    WikipediaLink.iso_code == Language.iso3_code,
+                    WikipediaLink.iso_code == Language.iso_639_1,
+                    WikipediaLink.iso_code == Language.iso_639_2,
+                    WikipediaLink.iso_code == Language.iso_639_3,
                 ),
             )
             .join(
@@ -169,8 +171,9 @@ class Politician(
         query = (
             select(
                 links_with_citizenship_flag.c.url,
-                links_with_citizenship_flag.c.iso1_code,
-                links_with_citizenship_flag.c.iso3_code,
+                links_with_citizenship_flag.c.iso_639_1,
+                links_with_citizenship_flag.c.iso_639_2,
+                links_with_citizenship_flag.c.iso_639_3,
             )
             .select_from(links_with_citizenship_flag)
             .order_by(
@@ -372,12 +375,16 @@ class Politician(
                     Language,
                     or_(
                         and_(
-                            ArchivedPage.iso1_code.isnot(None),
-                            ArchivedPage.iso1_code == Language.iso1_code,
+                            ArchivedPage.iso_639_1.isnot(None),
+                            ArchivedPage.iso_639_1 == Language.iso_639_1,
                         ),
                         and_(
-                            ArchivedPage.iso3_code.isnot(None),
-                            ArchivedPage.iso3_code == Language.iso3_code,
+                            ArchivedPage.iso_639_2.isnot(None),
+                            ArchivedPage.iso_639_2 == Language.iso_639_2,
+                        ),
+                        and_(
+                            ArchivedPage.iso_639_3.isnot(None),
+                            ArchivedPage.iso_639_3 == Language.iso_639_3,
                         ),
                     ),
                 )
@@ -485,8 +492,9 @@ class Politician(
                 .join(
                     Language,
                     or_(
-                        WikipediaLink.iso_code == Language.iso1_code,
-                        WikipediaLink.iso_code == Language.iso3_code,
+                        WikipediaLink.iso_code == Language.iso_639_1,
+                        WikipediaLink.iso_code == Language.iso_639_2,
+                        WikipediaLink.iso_code == Language.iso_639_3,
                     ),
                 )
                 .join(

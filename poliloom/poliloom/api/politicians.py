@@ -62,7 +62,7 @@ async def get_politicians(
     ),
     languages: Optional[List[str]] = Query(
         default=None,
-        description="Filter by language QIDs - politicians with properties from archived pages with matching iso1_code or iso3_code",
+        description="Filter by language QIDs - politicians with properties from archived pages with matching iso_639_1, iso_639_2, or iso_639_3",
     ),
     countries: Optional[List[str]] = Query(
         default=None,
@@ -115,15 +115,22 @@ async def get_politicians(
                                     None
                                 ),  # Include Wikidata properties
                                 Property.archived_page.has(
-                                    ArchivedPage.iso1_code.in_(
-                                        select(Language.iso1_code).where(
+                                    ArchivedPage.iso_639_1.in_(
+                                        select(Language.iso_639_1).where(
                                             Language.wikidata_id.in_(languages)
                                         )
                                     )
                                 )
                                 | Property.archived_page.has(
-                                    ArchivedPage.iso3_code.in_(
-                                        select(Language.iso3_code).where(
+                                    ArchivedPage.iso_639_2.in_(
+                                        select(Language.iso_639_2).where(
+                                            Language.wikidata_id.in_(languages)
+                                        )
+                                    )
+                                )
+                                | Property.archived_page.has(
+                                    ArchivedPage.iso_639_3.in_(
+                                        select(Language.iso_639_3).where(
                                             Language.wikidata_id.in_(languages)
                                         )
                                     )

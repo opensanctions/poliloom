@@ -471,13 +471,21 @@ Select the best matching QID or None if no good match exists."""
 
 
 async def fetch_and_archive_page(
-    url: str, db: Session, iso1_code: str = None, iso3_code: str = None
+    url: str,
+    db: Session,
+    iso_639_1: str = None,
+    iso_639_2: str = None,
+    iso_639_3: str = None,
 ) -> ArchivedPage:
     """Fetch web page content and archive it."""
     # Create and insert ArchivedPage first
     now = datetime.now(timezone.utc)
     archived_page = ArchivedPage(
-        url=url, fetch_timestamp=now, iso1_code=iso1_code, iso3_code=iso3_code
+        url=url,
+        fetch_timestamp=now,
+        iso_639_1=iso_639_1,
+        iso_639_2=iso_639_2,
+        iso_639_3=iso_639_3,
     )
     db.add(archived_page)
     db.flush()
@@ -666,8 +674,9 @@ async def _fetch_and_extract_from_page(
     db: Session,
     politician: Politician,
     url: str,
-    iso1_code: str,
-    iso3_code: str,
+    iso_639_1: str,
+    iso_639_2: str,
+    iso_639_3: str,
 ) -> tuple[bool, int, int, int, int]:
     """
     Fetch a web page, archive it, and extract politician data from it.
@@ -677,8 +686,9 @@ async def _fetch_and_extract_from_page(
         db: Database session
         politician: Politician to enrich
         url: Web page URL
-        iso1_code: ISO 639-1 language code
-        iso3_code: ISO 639-3 language code
+        iso_639_1: ISO 639-1 language code
+        iso_639_2: ISO 639-2 language code
+        iso_639_3: ISO 639-3 language code
 
     Returns:
         Tuple of (success, date_count, position_count, birthplace_count, citizenship_count)
@@ -687,7 +697,9 @@ async def _fetch_and_extract_from_page(
         logger.info(f"Processing source: {url}")
 
         # Fetch and archive the page
-        archived_page = await fetch_and_archive_page(url, db, iso1_code, iso3_code)
+        archived_page = await fetch_and_archive_page(
+            url, db, iso_639_1, iso_639_2, iso_639_3
+        )
 
         # Read content from archived page
         html_content = archive.read_archived_content(archived_page.path_root, "html")
@@ -833,15 +845,15 @@ async def enrich_politician_from_wikipedia(
 
             logger.info(
                 f"Processing {len(priority_links)} Wikipedia sources for {politician.name}: "
-                f"{[f'{iso1_code} ({url})' for url, iso1_code, _ in priority_links]}"
+                f"{[f'{iso_639_1 or iso_639_2 or iso_639_3} ({url})' for url, iso_639_1, iso_639_2, iso_639_3 in priority_links]}"
             )
 
             # Process all pages concurrently
             page_tasks = [
                 _fetch_and_extract_from_page(
-                    openai_client, db, politician, url, iso1_code, iso3_code
+                    openai_client, db, politician, url, iso_639_1, iso_639_2, iso_639_3
                 )
-                for url, iso1_code, iso3_code in priority_links
+                for url, iso_639_1, iso_639_2, iso_639_3 in priority_links
             ]
 
             page_results = await asyncio.gather(*page_tasks)

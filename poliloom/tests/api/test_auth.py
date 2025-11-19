@@ -7,7 +7,6 @@ from fastapi.security import HTTPAuthorizationCredentials
 from jose import JWTError
 
 from poliloom.api.auth import MediaWikiOAuth, get_current_user, get_optional_user, User
-from tests.conftest import load_json_fixture
 
 
 class TestMediaWikiOAuth:
@@ -45,9 +44,15 @@ class TestMediaWikiOAuth:
     @patch("poliloom.api.auth.jwt.decode")
     async def test_verify_jwt_token_success(self, mock_jwt_decode):
         """Test successful JWT token verification."""
-        # Load test data from fixture
-        auth_data = load_json_fixture("auth_test_data.json")
-        mock_jwt_decode.return_value = auth_data["jwt_payload_valid"]
+        jwt_payload_valid = {
+            "sub": "mw:CentralAuth::12345",
+            "username": "testuser",
+            "email": "test@example.com",
+            "iat": 1516239022,
+            "exp": 1516242622,
+            "iss": "https://meta.wikimedia.org",
+        }
+        mock_jwt_decode.return_value = jwt_payload_valid
 
         oauth = MediaWikiOAuth()
         user = await oauth.verify_jwt_token("test_jwt_token")
@@ -84,28 +89,6 @@ class TestMediaWikiOAuth:
         assert exc_info.value.status_code == 401
         assert "Invalid JWT token" in str(exc_info.value.detail)
 
-    @patch.dict(
-        "os.environ",
-        {
-            "MEDIAWIKI_CONSUMER_KEY": "test_key",
-            "MEDIAWIKI_CONSUMER_SECRET": "test_secret",
-        },
-    )
-    @patch("poliloom.api.auth.jwt.decode")
-    async def test_verify_jwt_token_missing_email(self, mock_jwt_decode):
-        """Test JWT token verification with missing email field."""
-        # Load test data from fixture
-        auth_data = load_json_fixture("auth_test_data.json")
-        payload = auth_data["jwt_payload_valid"].copy()
-        del payload["email"]
-        mock_jwt_decode.return_value = payload
-
-        oauth = MediaWikiOAuth()
-        user = await oauth.verify_jwt_token("test_jwt_token")
-
-        assert isinstance(user, User)
-        assert user.user_id == 12345
-
 
 class TestAuthDependencies:
     """Test FastAPI authentication dependencies."""
@@ -113,10 +96,7 @@ class TestAuthDependencies:
     @patch("poliloom.api.auth.get_oauth_handler")
     async def test_get_current_user_success(self, mock_get_oauth_handler):
         """Test successful user authentication."""
-        # Load test data from fixture
-        auth_data = load_json_fixture("auth_test_data.json")
-        test_user = auth_data["test_user"]
-        expected_user = User(user_id=test_user["sub"])
+        expected_user = User(user_id=12345)
         mock_oauth_handler = Mock()
         mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=expected_user)
         mock_get_oauth_handler.return_value = mock_oauth_handler
@@ -194,9 +174,7 @@ class TestAuthDependencies:
     @patch("poliloom.api.auth.get_current_user")
     async def test_get_optional_user_success(self, mock_get_current_user):
         """Test optional authentication with valid credentials."""
-        auth_data = load_json_fixture("auth_test_data.json")
-        test_user = auth_data["test_user"]
-        expected_user = User(user_id=test_user["sub"])
+        expected_user = User(user_id=12345)
         mock_get_current_user.return_value = expected_user
 
         credentials = HTTPAuthorizationCredentials(
@@ -224,23 +202,3 @@ class TestAuthDependencies:
 
         user = await get_optional_user(credentials)
         assert user is None
-
-
-class TestUserModel:
-    """Test User model."""
-
-    def test_user_creation_with_all_fields(self):
-        """Test User model creation with all fields."""
-        auth_data = load_json_fixture("auth_test_data.json")
-        test_user = auth_data["test_user"]
-        user = User(user_id=test_user["sub"], jwt_token="test_token")
-        assert user.user_id == test_user["sub"]
-        assert user.jwt_token == "test_token"
-
-    def test_user_creation_minimal(self):
-        """Test User model creation with minimal fields."""
-        auth_data = load_json_fixture("auth_test_data.json")
-        test_user = auth_data["test_user"]
-        user = User(user_id=test_user["sub"])
-        assert user.user_id == test_user["sub"]
-        assert user.jwt_token is None

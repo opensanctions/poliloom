@@ -131,8 +131,9 @@ async def get_languages(current_user=Depends(get_current_user)):
             .join(
                 sources_count_subquery,
                 or_(
-                    Language.iso1_code == sources_count_subquery.c.iso_code,
-                    Language.iso3_code == sources_count_subquery.c.iso_code,
+                    Language.iso_639_1 == sources_count_subquery.c.iso_code,
+                    Language.iso_639_2 == sources_count_subquery.c.iso_code,
+                    Language.iso_639_3 == sources_count_subquery.c.iso_code,
                 ),
             )
             .where(WikidataEntity.deleted_at.is_(None))
@@ -146,8 +147,9 @@ async def get_languages(current_user=Depends(get_current_user)):
                 wikidata_id=lang.wikidata_id,
                 name=lang.name,
                 description=lang.description,
-                iso1_code=lang.iso1_code,
-                iso3_code=lang.iso3_code,
+                iso_639_1=lang.iso_639_1,
+                iso_639_2=lang.iso_639_2,
+                iso_639_3=lang.iso_639_3,
                 sources_count=count,
             )
             for lang, count in results

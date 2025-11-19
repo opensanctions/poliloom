@@ -64,8 +64,8 @@ def multiple_preferences(db_session, sample_country, sample_language):
     country2 = Country.create_with_entity(db_session, "Q183", "Germany")
     country2.iso_code = "DE"
     language2 = Language.create_with_entity(db_session, "Q1321", "Spanish")
-    language2.iso1_code = "es"
-    language2.iso3_code = "spa"
+    language2.iso_639_1 = "es"
+    language2.iso_639_2 = "spa"
 
     db_session.commit()
 

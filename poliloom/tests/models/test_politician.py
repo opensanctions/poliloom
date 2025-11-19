@@ -206,18 +206,18 @@ class TestPolitician:
         """Test get_priority_wikipedia_links when only English link available."""
         # Create English language entry
         english_lang = Language.create_with_entity(db_session, "Q1860", "English")
-        english_lang.iso1_code = "en"
-        english_lang.iso3_code = "eng"
+        english_lang.iso_639_1 = "en"
+        english_lang.iso_639_2 = "eng"
         db_session.commit()
 
         # sample_wikipedia_link fixture creates an English link
         result = sample_politician.get_priority_wikipedia_links(db_session)
 
         assert len(result) == 1
-        url, iso1_code, iso3_code = result[0]
+        url, iso_639_1, iso_639_2, iso_639_3 = result[0]
         assert "en.wikipedia.org" in url
-        assert iso1_code == "en"
-        assert iso3_code == "eng"
+        assert iso_639_1 == "en"
+        assert iso_639_2 == "eng"
 
     def test_get_priority_wikipedia_links_citizenship_priority(
         self, db_session, sample_politician, sample_country, sample_language
@@ -227,8 +227,8 @@ class TestPolitician:
         german_country = Country.create_with_entity(db_session, "Q183", "Germany")
         german_country.iso_code = "DE"
         german_language = Language.create_with_entity(db_session, "Q188", "German")
-        german_language.iso1_code = "de"
-        german_language.iso3_code = "deu"
+        german_language.iso_639_1 = "de"
+        german_language.iso_639_2 = "deu"
         db_session.commit()
 
         # Create official language relation: German is official language of Germany
@@ -286,10 +286,10 @@ class TestPolitician:
         # Should get both German (from citizenship) and English, but German should be prioritized
         assert len(result) >= 1
         # German should be first due to citizenship priority
-        url, iso1_code, iso3_code = result[0]
+        url, iso_639_1, iso_639_2, iso_639_3 = result[0]
         assert "de.wikipedia.org" in url
-        assert iso1_code == "de"
-        assert iso3_code == "deu"
+        assert iso_639_1 == "de"
+        assert iso_639_2 == "deu"
 
     def test_get_priority_wikipedia_links_no_citizenship(
         self, db_session, sample_politician
@@ -316,8 +316,8 @@ class TestPolitician:
 
         for wid, name, iso1, iso3 in languages:
             lang = Language.create_with_entity(db_session, wid, name)
-            lang.iso1_code = iso1
-            lang.iso3_code = iso3
+            lang.iso_639_1 = iso1
+            lang.iso_639_2 = iso3
 
         # Create many links for each language to simulate different popularity
         # Make French most popular (100), German second (50), Spanish third (30), English least (25)
@@ -358,7 +358,7 @@ class TestPolitician:
         assert len(result) == 3, f"Expected exactly 3 results, got {len(result)}"
 
         # Get the ISO codes of returned languages
-        returned_iso_codes = {iso1_code for _, iso1_code, _ in result}
+        returned_iso_codes = {iso_639_1 for _, iso_639_1, _, _ in result}
 
         # Should contain the 3 most popular languages: fr (100), de (50), es (30)
         # Should NOT contain en (25) as it's the 4th most popular
@@ -379,11 +379,11 @@ class TestPolitician:
 
         # Create languages
         english = Language.create_with_entity(db_session, "Q1860", "English")
-        english.iso1_code = "en"
-        english.iso3_code = "eng"
+        english.iso_639_1 = "en"
+        english.iso_639_2 = "eng"
         german = Language.create_with_entity(db_session, "Q188", "German")
-        german.iso1_code = "de"
-        german.iso3_code = "deu"
+        german.iso_639_1 = "de"
+        german.iso_639_2 = "deu"
         db_session.commit()
 
         # Create official language relations
@@ -445,7 +445,7 @@ class TestPolitician:
         assert len(result) >= 1
 
         # Both citizenship languages should be represented (they get priority boost)
-        iso_codes = {iso1_code for _, iso1_code, _ in result}
+        iso_codes = {iso_639_1 for _, iso_639_1, _, _ in result}
         assert (
             "en" in iso_codes or "de" in iso_codes
         )  # At least one citizenship language
@@ -460,13 +460,13 @@ class TestPolitician:
 
         # Spanish as official language of Argentina
         spanish = Language.create_with_entity(db_session, "Q1321", "Spanish")
-        spanish.iso1_code = "es"
-        spanish.iso3_code = "spa"
+        spanish.iso_639_1 = "es"
+        spanish.iso_639_2 = "spa"
 
         # English language (not official in Argentina)
         english = Language.create_with_entity(db_session, "Q1860", "English")
-        english.iso1_code = "en"
-        english.iso3_code = "eng"
+        english.iso_639_1 = "en"
+        english.iso_639_2 = "eng"
         db_session.commit()
 
         # Create official language relation: Spanish is official language of Argentina
@@ -500,10 +500,10 @@ class TestPolitician:
         # Should return the English link even though it's not an official language
         # When no links match official languages, should fall back to all available links
         assert len(result) == 1, f"Expected 1 result but got {len(result)}: {result}"
-        url, iso1_code, iso3_code = result[0]
+        url, iso_639_1, iso_639_2, iso_639_3 = result[0]
         assert "en.wikipedia.org" in url
-        assert iso1_code == "en"
-        assert iso3_code == "eng"
+        assert iso_639_1 == "en"
+        assert iso_639_2 == "eng"
 
     def test_get_priority_wikipedia_links_returns_all_three_with_citizenship_match(
         self, db_session, sample_politician
@@ -515,12 +515,12 @@ class TestPolitician:
 
         # Create languages: Icelandic and English (arz will be missing to simulate the real issue)
         icelandic = Language.create_with_entity(db_session, "Q294", "Icelandic")
-        icelandic.iso1_code = "is"
-        icelandic.iso3_code = "isl"
+        icelandic.iso_639_1 = "is"
+        icelandic.iso_639_2 = "isl"
 
         english = Language.create_with_entity(db_session, "Q1860", "English")
-        english.iso1_code = "en"
-        english.iso3_code = "eng"
+        english.iso_639_1 = "en"
+        english.iso_639_2 = "eng"
         db_session.commit()
 
         # Create official language relation: Icelandic is official language of Iceland
@@ -568,7 +568,7 @@ class TestPolitician:
         # But importantly, should return BOTH en and is, not just is
         assert len(result) == 2, f"Expected 2 results but got {len(result)}: {result}"
 
-        iso_codes = {iso1_code for _, iso1_code, _ in result}
+        iso_codes = {iso_639_1 for _, iso_639_1, _, _ in result}
         assert "is" in iso_codes, (
             "Icelandic link should be included (citizenship match)"
         )
@@ -708,10 +708,10 @@ class TestPoliticianFilterByUnevaluated:
         from poliloom.models import ArchivedPage
 
         en_page = ArchivedPage(
-            url="https://en.example.com/test", content_hash="en123", iso1_code="en"
+            url="https://en.example.com/test", content_hash="en123", iso_639_1="en"
         )
         de_page = ArchivedPage(
-            url="https://de.example.com/test", content_hash="de123", iso1_code="de"
+            url="https://de.example.com/test", content_hash="de123", iso_639_1="de"
         )
         db_session.add_all([en_page, de_page])
         db_session.flush()
@@ -814,8 +814,8 @@ class TestPoliticianQueryForEnrichment:
         germany = Country.create_with_entity(db_session, "Q183", "Germany")
         germany.iso_code = "DE"
         german = Language.create_with_entity(db_session, "Q188", "German")
-        german.iso1_code = "de"
-        german.iso3_code = "deu"
+        german.iso_639_1 = "de"
+        german.iso_639_2 = "deu"
         db_session.commit()
 
         # Create official language relation: German is official in Germany
@@ -861,15 +861,15 @@ class TestPoliticianQueryForEnrichment:
         germany = Country.create_with_entity(db_session, "Q183", "Germany")
         germany.iso_code = "DE"
         german = Language.create_with_entity(db_session, "Q188", "German")
-        german.iso1_code = "de"
-        german.iso3_code = "deu"
+        german.iso_639_1 = "de"
+        german.iso_639_2 = "deu"
 
         # Create France and French language
         france = Country.create_with_entity(db_session, "Q142", "France")
         france.iso_code = "FR"
         french = Language.create_with_entity(db_session, "Q150", "French")
-        french.iso1_code = "fr"
-        french.iso3_code = "fra"
+        french.iso_639_1 = "fr"
+        french.iso_639_2 = "fra"
         db_session.commit()
 
         # Create official language relation: French is official in France
@@ -949,8 +949,8 @@ class TestPoliticianQueryForEnrichment:
         germany = Country.create_with_entity(db_session, "Q183", "Germany")
         germany.iso_code = "DE"
         german = Language.create_with_entity(db_session, "Q188", "German")
-        german.iso1_code = "de"
-        german.iso3_code = "deu"
+        german.iso_639_1 = "de"
+        german.iso_639_2 = "deu"
         db_session.commit()
 
         # Create official language relation
@@ -1023,11 +1023,11 @@ class TestPoliticianQueryForEnrichment:
 
         # Create languages
         german = Language.create_with_entity(db_session, "Q188", "German")
-        german.iso1_code = "de"
-        german.iso3_code = "deu"
+        german.iso_639_1 = "de"
+        german.iso_639_2 = "deu"
         french = Language.create_with_entity(db_session, "Q150", "French")
-        french.iso1_code = "fr"
-        french.iso3_code = "fra"
+        french.iso_639_1 = "fr"
+        french.iso_639_2 = "fra"
         db_session.commit()
 
         # Create official language relations
@@ -1096,8 +1096,8 @@ class TestPoliticianQueryForEnrichment:
         germany = Country.create_with_entity(db_session, "Q183", "Germany")
         germany.iso_code = "DE"
         german = Language.create_with_entity(db_session, "Q188", "German")
-        german.iso1_code = "de"
-        german.iso3_code = "deu"
+        german.iso_639_1 = "de"
+        german.iso_639_2 = "deu"
         db_session.commit()
 
         # Create official language relation
@@ -1119,8 +1119,8 @@ class TestPoliticianQueryForEnrichment:
 
         # Create only English Wikipedia link (not German)
         english = Language.create_with_entity(db_session, "Q1860", "English")
-        english.iso1_code = "en"
-        english.iso3_code = "eng"
+        english.iso_639_1 = "en"
+        english.iso_639_2 = "eng"
         link = WikipediaLink(
             politician_id=sample_politician.id,
             url="https://en.wikipedia.org/wiki/Test_Politician",
@@ -1157,8 +1157,8 @@ class TestPoliticianQueryForEnrichment:
         base_qid = 60000
         for qid, name, iso1, iso3, popularity in languages_data:
             lang = Language.create_with_entity(db_session, qid, name)
-            lang.iso1_code = iso1
-            lang.iso3_code = iso3
+            lang.iso_639_1 = iso1
+            lang.iso_639_2 = iso3
             languages.append((lang, iso1, popularity))
 
             # Create official language relation

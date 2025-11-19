@@ -587,18 +587,18 @@ class TestGetPoliticiansEndpoint:
         """Test filtering politicians by language QIDs based on archived page iso codes."""
         # Use the sample_language fixture (English) and create additional languages
         german_lang = Language.create_with_entity(db_session, "Q188", "German")
-        german_lang.iso1_code = "de"
-        german_lang.iso3_code = "deu"
+        german_lang.iso_639_1 = "de"
+        german_lang.iso_639_2 = "deu"
         french_lang = Language.create_with_entity(db_session, "Q150", "French")
-        french_lang.iso1_code = "fr"
-        french_lang.iso3_code = "fra"
+        french_lang.iso_639_1 = "fr"
+        french_lang.iso_639_2 = "fra"
 
         # Create archived pages with different language codes
         english_page = ArchivedPage(
-            url="https://en.example.com/test", content_hash="en123", iso1_code="en"
+            url="https://en.example.com/test", content_hash="en123", iso_639_1="en"
         )
         german_page = ArchivedPage(
-            url="https://de.example.com/test", content_hash="de123", iso3_code="deu"
+            url="https://de.example.com/test", content_hash="de123", iso_639_2="deu"
         )
 
         db_session.add_all([english_page, german_page])
@@ -826,7 +826,7 @@ class TestGetPoliticiansEndpoint:
 
         # Create archived pages
         english_page = ArchivedPage(
-            url="https://en.example.com/test", content_hash="en123", iso1_code="en"
+            url="https://en.example.com/test", content_hash="en123", iso_639_1="en"
         )
         db_session.add(english_page)
         db_session.flush()
@@ -940,15 +940,15 @@ class TestGetPoliticiansEndpoint:
         """Test that when filtering by language, only properties from that language's archived pages are returned."""
         # Create languages
         german_lang = Language.create_with_entity(db_session, "Q188", "German")
-        german_lang.iso1_code = "de"
-        german_lang.iso3_code = "deu"
+        german_lang.iso_639_1 = "de"
+        german_lang.iso_639_2 = "deu"
 
         # Create archived pages with different language codes
         english_page = ArchivedPage(
-            url="https://en.wikipedia.org/test", content_hash="en123", iso1_code="en"
+            url="https://en.wikipedia.org/test", content_hash="en123", iso_639_1="en"
         )
         german_page = ArchivedPage(
-            url="https://de.wikipedia.org/test", content_hash="de123", iso1_code="de"
+            url="https://de.wikipedia.org/test", content_hash="de123", iso_639_1="de"
         )
         no_lang_page = ArchivedPage(
             url="https://example.com/test",

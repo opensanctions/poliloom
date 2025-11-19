@@ -589,15 +589,15 @@ class TestWikidataEntityImporter:
                 "wikidata_id": "Q1",
                 "name": "English",
                 "description": "English language",
-                "iso1_code": "en",
-                "iso3_code": "eng",
+                "iso_639_1": "en",
+                "iso_639_2": "eng",
             },
             {
                 "wikidata_id": "Q2",
                 "name": "Spanish",
                 "description": "Spanish language",
-                "iso1_code": "es",
-                "iso3_code": "spa",
+                "iso_639_1": "es",
+                "iso_639_2": "spa",
             },
         ]
 
@@ -611,10 +611,10 @@ class TestWikidataEntityImporter:
         assert len(inserted_languages) == 2
         wikidata_ids = {lang.wikidata_id for lang in inserted_languages}
         assert wikidata_ids == {"Q1", "Q2"}
-        iso1_codes = {lang.iso1_code for lang in inserted_languages}
-        iso3_codes = {lang.iso3_code for lang in inserted_languages}
-        assert iso1_codes == {"en", "es"}
-        assert iso3_codes == {"eng", "spa"}
+        iso_639_1s = {lang.iso_639_1 for lang in inserted_languages}
+        iso_639_2s = {lang.iso_639_2 for lang in inserted_languages}
+        assert iso_639_1s == {"en", "es"}
+        assert iso_639_2s == {"eng", "spa"}
 
     def test_insert_languages_batch_with_duplicates_handling(self, db_session):
         """Test that languages batch uses ON CONFLICT DO UPDATE."""
@@ -623,8 +623,8 @@ class TestWikidataEntityImporter:
                 "wikidata_id": "Q1",
                 "name": "English",
                 "description": "English language",
-                "iso1_code": "en",
-                "iso3_code": "eng",
+                "iso_639_1": "en",
+                "iso_639_2": "eng",
             },
         ]
 
@@ -640,8 +640,8 @@ class TestWikidataEntityImporter:
                 "wikidata_id": "Q1",
                 "name": "English Language",
                 "description": "English language updated",
-                "iso1_code": "en",
-                "iso3_code": "eng",
+                "iso_639_1": "en",
+                "iso_639_2": "eng",
             },
         ]
         collection = EntityCollection(model_class=Language, shared_classes=frozenset())
@@ -654,7 +654,7 @@ class TestWikidataEntityImporter:
         assert len(final_languages) == 1
         assert final_languages[0].wikidata_id == "Q1"
         assert final_languages[0].name == "English Language"
-        assert final_languages[0].iso1_code == "en"
+        assert final_languages[0].iso_639_1 == "en"
 
     def test_insert_languages_batch_empty(self, db_session):
         """Test inserting empty batch of languages."""
@@ -671,8 +671,8 @@ class TestWikidataEntityImporter:
         """Test inserting a batch of Wikipedia projects."""
         # Create a language for linking
         lang = Language.create_with_entity(db_session, "Q1860", "English")
-        lang.iso1_code = "en"
-        lang.iso3_code = "eng"
+        lang.iso_639_1 = "en"
+        lang.iso_639_2 = "eng"
         db_session.commit()
 
         wikipedia_projects = [

@@ -178,8 +178,8 @@ def sample_country(db_session):
 def sample_language(db_session):
     """Return a created and committed language entity."""
     language = Language.create_with_entity(db_session, "Q1860", "English")
-    language.iso1_code = "en"
-    language.iso3_code = "eng"
+    language.iso_639_1 = "en"
+    language.iso_639_2 = "eng"
     db_session.commit()
     db_session.refresh(language)
     return language
