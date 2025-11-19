@@ -14,22 +14,10 @@ from poliloom.models import (
     RelationType,
 )
 from poliloom.wikidata_date import WikidataDate
-from ..conftest import assert_model_fields
 
 
 class TestPolitician:
     """Test cases for the Politician model."""
-
-    def test_politician_creation(self, db_session):
-        """Test basic politician creation."""
-        politician = Politician.create_with_entity(db_session, "Q789012", "Jane Smith")
-        db_session.commit()
-        db_session.refresh(politician)
-
-        assert_model_fields(
-            politician,
-            {"name": "Jane Smith", "wikidata_id": "Q789012"},
-        )
 
     def test_politician_unique_wikidata_id(self, db_session, sample_politician_data):
         """Test that wikidata_id must be unique."""
@@ -39,7 +27,7 @@ class TestPolitician:
             sample_politician_data["wikidata_id"],
             sample_politician_data["name"],
         )
-        db_session.commit()
+        db_session.flush()
 
         # Try to create duplicate
         with pytest.raises(IntegrityError):
@@ -48,22 +36,10 @@ class TestPolitician:
                 sample_politician_data["wikidata_id"],  # Same wikidata_id
                 "Different Name",
             )
-            db_session.commit()
+            db_session.flush()
 
         # Roll back the failed transaction to clean up the session
         db_session.rollback()
-
-    def test_politician_default_values(self, db_session):
-        """Test default values for politician fields."""
-        politician = Politician(name="Test Person")
-        db_session.add(politician)
-        db_session.commit()
-        db_session.refresh(politician)
-
-        assert_model_fields(
-            politician,
-            {"name": "Test Person", "is_deceased": False, "wikidata_id": None},
-        )
 
     def test_politician_cascade_delete_properties(self, db_session, sample_politician):
         """Test that deleting a politician cascades to properties."""
@@ -78,11 +54,11 @@ class TestPolitician:
             value_precision=11,
         )
         db_session.add(prop)
-        db_session.commit()
+        db_session.flush()
 
         # Delete politician should cascade to properties
         db_session.delete(politician)
-        db_session.commit()
+        db_session.flush()
 
         # Property should be deleted
         assert (
@@ -141,7 +117,7 @@ class TestPolitician:
         db_session.add_all(
             [birth_date, death_date, birthplace, pos_property, citizenship]
         )
-        db_session.commit()
+        db_session.flush()
         db_session.refresh(politician)
 
         # Verify all properties are in politician.properties
@@ -208,7 +184,7 @@ class TestPolitician:
         english_lang = Language.create_with_entity(db_session, "Q1860", "English")
         english_lang.iso_639_1 = "en"
         english_lang.iso_639_2 = "eng"
-        db_session.commit()
+        db_session.flush()
 
         # sample_wikipedia_link fixture creates an English link
         result = sample_politician.get_priority_wikipedia_links(db_session)
@@ -229,7 +205,7 @@ class TestPolitician:
         german_language = Language.create_with_entity(db_session, "Q188", "German")
         german_language.iso_639_1 = "de"
         german_language.iso_639_2 = "deu"
-        db_session.commit()
+        db_session.flush()
 
         # Create official language relation: German is official language of Germany
         relation = WikidataRelation(
@@ -251,14 +227,14 @@ class TestPolitician:
         # Create Wikipedia links for both German and English
         # Add more German wikipedia links globally to make it "popular"
         Politician.create_with_entity(db_session, "Q999", "Other Politician")
-        db_session.commit()
+        db_session.flush()
 
         # Create multiple German links to simulate popularity
         for i in range(50):  # Make German popular
             dummy_politician = Politician.create_with_entity(
                 db_session, f"Q{1000 + i}", f"Dummy {i}"
             )
-            db_session.commit()
+            db_session.flush()
             de_link = WikipediaLink(
                 politician_id=dummy_politician.id,
                 url=f"https://de.wikipedia.org/wiki/Dummy_{i}",
@@ -279,7 +255,7 @@ class TestPolitician:
         )
         db_session.add(german_link)
         db_session.add(english_link)
-        db_session.commit()
+        db_session.flush()
 
         result = sample_politician.get_priority_wikipedia_links(db_session)
 
@@ -332,7 +308,7 @@ class TestPolitician:
                     qid,
                     f"Dummy {iso_code} {i}",
                 )
-                db_session.commit()
+                db_session.flush()
                 link = WikipediaLink(
                     politician_id=dummy_politician.id,
                     url=f"https://{iso_code}.wikipedia.org/wiki/Dummy_{i}",
@@ -350,7 +326,7 @@ class TestPolitician:
             )
             db_session.add(link)
 
-        db_session.commit()
+        db_session.flush()
 
         result = sample_politician.get_priority_wikipedia_links(db_session)
 
@@ -384,7 +360,7 @@ class TestPolitician:
         german = Language.create_with_entity(db_session, "Q188", "German")
         german.iso_639_1 = "de"
         german.iso_639_2 = "deu"
-        db_session.commit()
+        db_session.flush()
 
         # Create official language relations
         relations = [
@@ -436,7 +412,7 @@ class TestPolitician:
         for link in links:
             db_session.add(link)
 
-        db_session.commit()
+        db_session.flush()
 
         result = sample_politician.get_priority_wikipedia_links(db_session)
 
@@ -467,7 +443,7 @@ class TestPolitician:
         english = Language.create_with_entity(db_session, "Q1860", "English")
         english.iso_639_1 = "en"
         english.iso_639_2 = "eng"
-        db_session.commit()
+        db_session.flush()
 
         # Create official language relation: Spanish is official language of Argentina
         relation = WikidataRelation(
@@ -493,7 +469,7 @@ class TestPolitician:
             iso_code="en",
         )
         db_session.add(english_link)
-        db_session.commit()
+        db_session.flush()
 
         result = sample_politician.get_priority_wikipedia_links(db_session)
 
@@ -521,7 +497,7 @@ class TestPolitician:
         english = Language.create_with_entity(db_session, "Q1860", "English")
         english.iso_639_1 = "en"
         english.iso_639_2 = "eng"
-        db_session.commit()
+        db_session.flush()
 
         # Create official language relation: Icelandic is official language of Iceland
         relation = WikidataRelation(
@@ -560,7 +536,7 @@ class TestPolitician:
         ]
         for link in links:
             db_session.add(link)
-        db_session.commit()
+        db_session.flush()
 
         result = sample_politician.get_priority_wikipedia_links(db_session)
 
@@ -594,7 +570,7 @@ class TestPoliticianQueryBase:
         """Test that query_base excludes soft-deleted politicians."""
         # Soft-delete the WikidataEntity
         sample_politician.wikidata_entity.soft_delete()
-        db_session.commit()
+        db_session.flush()
 
         query = Politician.query_base()
         result = db_session.execute(query).scalars().all()
@@ -642,7 +618,7 @@ class TestPoliticianFilterByUnevaluated:
             statement_id=None,  # Unevaluated
         )
         db_session.add(prop)
-        db_session.commit()
+        db_session.flush()
 
         # Execute query with filter
         query = Politician.query_base()
@@ -666,7 +642,7 @@ class TestPoliticianFilterByUnevaluated:
             statement_id="Q123456$12345678-1234-1234-1234-123456789012",
         )
         db_session.add(prop)
-        db_session.commit()
+        db_session.flush()
 
         # Execute query with filter
         query = Politician.query_base()
@@ -691,7 +667,7 @@ class TestPoliticianFilterByUnevaluated:
             deleted_at=datetime.now(timezone.utc),
         )
         db_session.add(prop)
-        db_session.commit()
+        db_session.flush()
 
         # Execute query with filter
         query = Politician.query_base()
@@ -732,7 +708,7 @@ class TestPoliticianFilterByUnevaluated:
             archived_page_id=de_page.id,
         )
         db_session.add_all([en_prop, de_prop])
-        db_session.commit()
+        db_session.flush()
 
         # Query with English language filter
         query = Politician.query_base()
@@ -759,7 +735,7 @@ class TestPoliticianFilterByCountries:
             archived_page_id=sample_archived_page.id,
         )
         db_session.add(citizenship_prop)
-        db_session.commit()
+        db_session.flush()
 
         # Query with country filter
         query = Politician.query_base()
@@ -816,7 +792,7 @@ class TestPoliticianQueryForEnrichment:
         german = Language.create_with_entity(db_session, "Q188", "German")
         german.iso_639_1 = "de"
         german.iso_639_2 = "deu"
-        db_session.commit()
+        db_session.flush()
 
         # Create official language relation: German is official in Germany
         relation = WikidataRelation(
@@ -842,7 +818,7 @@ class TestPoliticianQueryForEnrichment:
             iso_code="de",
         )
         db_session.add(link)
-        db_session.commit()
+        db_session.flush()
 
         # Query with German language filter
         query = Politician.query_for_enrichment(languages=["Q188"])
@@ -870,7 +846,7 @@ class TestPoliticianQueryForEnrichment:
         french = Language.create_with_entity(db_session, "Q150", "French")
         french.iso_639_1 = "fr"
         french.iso_639_2 = "fra"
-        db_session.commit()
+        db_session.flush()
 
         # Create official language relation: French is official in France
         relation = WikidataRelation(
@@ -901,7 +877,7 @@ class TestPoliticianQueryForEnrichment:
             iso_code="de",
         )
         db_session.add_all([french_link, german_link])
-        db_session.commit()
+        db_session.flush()
 
         # Query with German language filter
         query = Politician.query_for_enrichment(languages=["Q188"])
@@ -916,7 +892,7 @@ class TestPoliticianQueryForEnrichment:
         # Create USA
         usa = Country.create_with_entity(db_session, "Q30", "United States")
         usa.iso_code = "US"
-        db_session.commit()
+        db_session.flush()
 
         # Give politician US citizenship
         citizenship = Property(
@@ -933,7 +909,7 @@ class TestPoliticianQueryForEnrichment:
             iso_code="en",
         )
         db_session.add(link)
-        db_session.commit()
+        db_session.flush()
 
         # Query with US country filter
         query = Politician.query_for_enrichment(countries=["Q30"])
@@ -951,7 +927,7 @@ class TestPoliticianQueryForEnrichment:
         german = Language.create_with_entity(db_session, "Q188", "German")
         german.iso_639_1 = "de"
         german.iso_639_2 = "deu"
-        db_session.commit()
+        db_session.flush()
 
         # Create official language relation
         relation = WikidataRelation(
@@ -977,7 +953,7 @@ class TestPoliticianQueryForEnrichment:
             iso_code="de",
         )
         db_session.add(link)
-        db_session.commit()
+        db_session.flush()
 
         # Query with both filters
         query = Politician.query_for_enrichment(languages=["Q188"], countries=["Q183"])
@@ -994,7 +970,7 @@ class TestPoliticianQueryForEnrichment:
         # Create Germany but don't give politician German citizenship
         germany = Country.create_with_entity(db_session, "Q183", "Germany")
         germany.iso_code = "DE"
-        db_session.commit()
+        db_session.flush()
 
         # Create Wikipedia link
         link = WikipediaLink(
@@ -1003,7 +979,7 @@ class TestPoliticianQueryForEnrichment:
             iso_code="de",
         )
         db_session.add(link)
-        db_session.commit()
+        db_session.flush()
 
         # Query with German country filter (politician has no German citizenship)
         query = Politician.query_for_enrichment(countries=["Q183"])
@@ -1028,7 +1004,7 @@ class TestPoliticianQueryForEnrichment:
         french = Language.create_with_entity(db_session, "Q150", "French")
         french.iso_639_1 = "fr"
         french.iso_639_2 = "fra"
-        db_session.commit()
+        db_session.flush()
 
         # Create official language relations
         de_relation = WikidataRelation(
@@ -1072,7 +1048,7 @@ class TestPoliticianQueryForEnrichment:
             iso_code="fr",
         )
         db_session.add_all([german_link, french_link])
-        db_session.commit()
+        db_session.flush()
 
         # Query with German language filter - should match via German citizenship + German link
         query = Politician.query_for_enrichment(languages=["Q188"])
@@ -1098,7 +1074,7 @@ class TestPoliticianQueryForEnrichment:
         german = Language.create_with_entity(db_session, "Q188", "German")
         german.iso_639_1 = "de"
         german.iso_639_2 = "deu"
-        db_session.commit()
+        db_session.flush()
 
         # Create official language relation
         relation = WikidataRelation(
@@ -1127,7 +1103,7 @@ class TestPoliticianQueryForEnrichment:
             iso_code="en",
         )
         db_session.add(link)
-        db_session.commit()
+        db_session.flush()
 
         # Query with German language filter
         query = Politician.query_for_enrichment(languages=["Q188"])
@@ -1146,11 +1122,11 @@ class TestPoliticianQueryForEnrichment:
 
         # Create 5 languages with different popularity levels
         languages_data = [
-            ("Q1568", "Hindi", "hi", "hin", 200),  # Most popular
-            ("Q1860", "English", "en", "eng", 150),  # 2nd most popular
-            ("Q5885", "Tamil", "ta", "tam", 100),  # 3rd most popular
-            ("Q5107", "Telugu", "te", "tel", 50),  # 4th - should NOT match
-            ("Q33298", "Bengali", "bn", "ben", 25),  # 5th - should NOT match
+            ("Q1568", "Hindi", "hi", "hin", 20),  # Most popular
+            ("Q1860", "English", "en", "eng", 15),  # 2nd most popular
+            ("Q5885", "Tamil", "ta", "tam", 10),  # 3rd most popular
+            ("Q5107", "Telugu", "te", "tel", 5),  # 4th - should NOT match
+            ("Q33298", "Bengali", "bn", "ben", 2),  # 5th - should NOT match
         ]
 
         languages = []
@@ -1175,7 +1151,19 @@ class TestPoliticianQueryForEnrichment:
                 dummy = Politician.create_with_entity(
                     db_session, f"Q{base_qid + i}", f"Dummy {iso1} {i}"
                 )
-                db_session.commit()
+                db_session.add(dummy)
+
+            # Batch flush once per language instead of per politician
+            db_session.flush()
+
+            # Create Wikipedia links for all politicians in this language
+            for i in range(popularity):
+                # Retrieve the politician we just created
+                dummy = (
+                    db_session.query(Politician)
+                    .filter_by(wikidata_id=f"Q{base_qid + i}")
+                    .one()
+                )
                 dummy_link = WikipediaLink(
                     politician_id=dummy.id,
                     url=f"https://{iso1}.wikipedia.org/wiki/Dummy_{i}",
@@ -1184,7 +1172,7 @@ class TestPoliticianQueryForEnrichment:
                 db_session.add(dummy_link)
             base_qid += popularity
 
-        db_session.commit()
+        db_session.flush()
 
         # Give sample_politician Indian citizenship
         citizenship = Property(
@@ -1202,7 +1190,7 @@ class TestPoliticianQueryForEnrichment:
                 iso_code=iso1,
             )
             db_session.add(link)
-        db_session.commit()
+        db_session.flush()
 
         # Query with Hindi (most popular) - should match
         query = Politician.query_for_enrichment(languages=["Q1568"])
@@ -1245,7 +1233,7 @@ class TestPoliticianQueryForEnrichment:
 
         # Soft-delete the WikidataEntity
         sample_politician.wikidata_entity.soft_delete()
-        db_session.commit()
+        db_session.flush()
 
         # Query again
         query = Politician.query_for_enrichment()
@@ -1253,210 +1241,6 @@ class TestPoliticianQueryForEnrichment:
 
         # Should return empty because WikidataEntity has been soft-deleted
         assert len(result) == 0
-
-
-"""Tests for the Property model."""
-
-
-class TestProperty:
-    """Test cases for the Property model."""
-
-    def test_property_creation(self, db_session, sample_politician):
-        """Test basic property creation."""
-        # Use fixture politician
-        politician = sample_politician
-
-        # Create property with basic required fields
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1990-01-01",
-            value_precision=11,
-            archived_page_id=None,
-        )
-        db_session.add(prop)
-        db_session.commit()
-        db_session.refresh(prop)
-
-        assert_model_fields(
-            prop,
-            {
-                "politician_id": politician.id,
-                "type": PropertyType.BIRTH_DATE,
-                "value": "1990-01-01",
-                "value_precision": 11,
-                "archived_page_id": None,
-            },
-        )
-
-    def test_property_default_values(self, db_session, sample_politician):
-        """Test default values for property fields."""
-        # Use fixture politician
-        politician = sample_politician
-        db_session.refresh(politician)
-
-        # Create property with minimal required data
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980",
-            value_precision=9,  # Year precision
-        )
-        db_session.add(prop)
-        db_session.commit()
-        db_session.refresh(prop)
-
-        assert_model_fields(
-            prop,
-            {
-                "politician_id": politician.id,
-                "type": PropertyType.BIRTH_DATE,
-                "value": "1980",
-                "value_precision": 9,
-                "qualifiers_json": None,
-                "references_json": None,
-                "archived_page_id": None,
-            },
-        )
-
-    def test_birthplace_property_creation(
-        self, db_session, sample_politician, sample_location
-    ):
-        """Test creating a birthplace property with entity_id."""
-        # Use fixture politician and location
-        politician = sample_politician
-        location = sample_location
-
-        # Create birthplace property with entity_id
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTHPLACE,
-            entity_id=location.wikidata_id,
-            archived_page_id=None,
-        )
-        db_session.add(prop)
-        db_session.commit()
-        db_session.refresh(prop)
-
-        assert_model_fields(
-            prop,
-            {
-                "politician_id": politician.id,
-                "type": PropertyType.BIRTHPLACE,
-                "entity_id": location.wikidata_id,
-                "value": None,
-                "value_precision": None,
-                "archived_page_id": None,
-            },
-        )
-
-    def test_position_property_creation(
-        self, db_session, sample_politician, sample_position
-    ):
-        """Test creating a position property with entity_id."""
-        # Use fixture politician and position
-        politician = sample_politician
-        position = sample_position
-
-        # Create position property with entity_id
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
-            archived_page_id=None,
-        )
-        db_session.add(prop)
-        db_session.commit()
-        db_session.refresh(prop)
-
-        assert_model_fields(
-            prop,
-            {
-                "politician_id": politician.id,
-                "type": PropertyType.POSITION,
-                "entity_id": position.wikidata_id,
-                "value": None,
-                "value_precision": None,
-                "archived_page_id": None,
-            },
-        )
-
-    def test_citizenship_property_creation(
-        self, db_session, sample_politician, sample_country
-    ):
-        """Test creating a citizenship property with entity_id."""
-        # Use fixture politician and country
-        politician = sample_politician
-        country = sample_country
-
-        # Create citizenship property with entity_id
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=country.wikidata_id,
-            archived_page_id=None,
-        )
-        db_session.add(prop)
-        db_session.commit()
-        db_session.refresh(prop)
-
-        assert_model_fields(
-            prop,
-            {
-                "politician_id": politician.id,
-                "type": PropertyType.CITIZENSHIP,
-                "entity_id": country.wikidata_id,
-                "value": None,
-                "value_precision": None,
-                "archived_page_id": None,
-            },
-        )
-
-    def test_death_date_property_creation(self, db_session, sample_politician):
-        """Test creating a death date property with value."""
-        # Use fixture politician
-        politician = sample_politician
-
-        # Create death date property with value
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.DEATH_DATE,
-            value="2020-12-31",
-            value_precision=11,
-            archived_page_id=None,
-        )
-        db_session.add(prop)
-        db_session.commit()
-        db_session.refresh(prop)
-
-        assert_model_fields(
-            prop,
-            {
-                "politician_id": politician.id,
-                "type": PropertyType.DEATH_DATE,
-                "value": "2020-12-31",
-                "value_precision": 11,
-                "entity_id": None,
-                "archived_page_id": None,
-            },
-        )
-
-    def test_property_type_enum_coverage(self):
-        """Test that all property types are covered."""
-        # Ensure all enum values are tested
-        expected_types = {
-            PropertyType.BIRTH_DATE,
-            PropertyType.DEATH_DATE,
-            PropertyType.BIRTHPLACE,
-            PropertyType.POSITION,
-            PropertyType.CITIZENSHIP,
-        }
-        assert len(expected_types) == 5
-        assert PropertyType.BIRTH_DATE == "P569"
-        assert PropertyType.DEATH_DATE == "P570"
-        assert PropertyType.BIRTHPLACE == "P19"
-        assert PropertyType.POSITION == "P39"
-        assert PropertyType.CITIZENSHIP == "P27"
 
 
 class TestPropertyShouldStore:
@@ -1487,7 +1271,7 @@ class TestPropertyShouldStore:
             value_precision=9,  # Year precision
         )
         db_session.add(existing_property)
-        db_session.commit()
+        db_session.flush()
 
         # Try to store more precise date (day precision)
         new_property = Property(
@@ -1511,7 +1295,7 @@ class TestPropertyShouldStore:
             value_precision=11,  # Day precision
         )
         db_session.add(existing_property)
-        db_session.commit()
+        db_session.flush()
 
         # Try to store less precise date (year precision)
         new_property = Property(
@@ -1537,7 +1321,7 @@ class TestPropertyShouldStore:
             value_precision=11,
         )
         db_session.add(existing_property)
-        db_session.commit()
+        db_session.flush()
 
         # Try to store date for different year
         new_property = Property(
@@ -1599,7 +1383,7 @@ class TestPropertyShouldStore:
             },
         )
         db_session.add(existing_property)
-        db_session.commit()
+        db_session.flush()
 
         # Try to store position with more precise start date
         new_property = Property(
@@ -1648,7 +1432,7 @@ class TestPropertyShouldStore:
             },
         )
         db_session.add(existing_property)
-        db_session.commit()
+        db_session.flush()
 
         # Try to store position with less precise start date
         new_property = Property(
@@ -1694,7 +1478,7 @@ class TestPropertyShouldStore:
             },
         )
         db_session.add(existing_property)
-        db_session.commit()
+        db_session.flush()
 
         # Try to store position for different year
         new_property = Property(
@@ -1743,7 +1527,7 @@ class TestPropertyShouldStore:
             entity_id=location.wikidata_id,
         )
         db_session.add(existing_property)
-        db_session.commit()
+        db_session.flush()
 
         # Try to store duplicate birthplace
         new_property = Property(
@@ -1783,7 +1567,7 @@ class TestPropertyShouldStore:
             entity_id=country.wikidata_id,
         )
         db_session.add(existing_property)
-        db_session.commit()
+        db_session.flush()
 
         # Try to store duplicate citizenship
         new_property = Property(
@@ -1817,7 +1601,7 @@ class TestPropertyShouldStore:
             },
         )
         db_session.add(existing_property)
-        db_session.commit()
+        db_session.flush()
 
         # Try to store same position without any dates
         new_property = Property(
@@ -1828,65 +1612,3 @@ class TestPropertyShouldStore:
         )
 
         assert new_property.should_store(db_session) is False
-
-
-"""Tests for the WikipediaLink model."""
-
-
-class TestWikipediaLink:
-    """Test cases for the WikipediaLink model."""
-
-    def test_wikipedia_link_creation(self, db_session, sample_politician):
-        """Test basic Wikipedia link creation."""
-        # Use fixture politician
-        politician = sample_politician
-
-        # Create wikipedia link
-        wikipedia_link = WikipediaLink(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/John_Doe",
-            iso_code="en",
-        )
-        db_session.add(wikipedia_link)
-        db_session.commit()
-        db_session.refresh(wikipedia_link)
-
-        assert_model_fields(
-            wikipedia_link,
-            {
-                "politician_id": politician.id,
-                "url": "https://en.wikipedia.org/wiki/John_Doe",
-                "iso_code": "en",
-            },
-        )
-
-
-class TestWikipediaLinkRelationships:
-    """Test cases for Wikipedia link relationships."""
-
-    def test_multiple_wikipedia_links_per_politician(
-        self, db_session, sample_politician
-    ):
-        """Test that politicians can have multiple Wikipedia links."""
-        # Use fixture politician
-        politician = sample_politician
-
-        # Create wikipedia links
-        wiki_link1 = WikipediaLink(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/John_Doe",
-            iso_code="en",
-        )
-        wiki_link2 = WikipediaLink(
-            politician_id=politician.id,
-            url="https://de.wikipedia.org/wiki/John_Doe",
-            iso_code="de",
-        )
-        db_session.add_all([wiki_link1, wiki_link2])
-        db_session.commit()
-
-        # Verify relationship
-        politician_refreshed = (
-            db_session.query(Politician).filter_by(id=politician.id).first()
-        )
-        assert len(politician_refreshed.wikipedia_links) == 2

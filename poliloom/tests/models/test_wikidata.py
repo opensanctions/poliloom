@@ -44,7 +44,7 @@ class TestWikidataEntity:
         stmt = insert(WikidataRelation).values(test_relations)
         stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
         db_session.execute(stmt)
-        db_session.commit()
+        db_session.flush()
 
         # Test querying descendants
         descendants = WikidataEntity.query_hierarchy_descendants(db_session, ["Q1"])
@@ -60,7 +60,7 @@ class TestWikidataEntity:
         stmt = insert(WikidataEntity).values(test_classes)
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
-        db_session.commit()
+        db_session.flush()
 
         # Test querying descendants
         descendants = WikidataEntity.query_hierarchy_descendants(db_session, ["Q1"])
@@ -109,7 +109,7 @@ class TestWikidataEntity:
         stmt = insert(WikidataRelation).values(test_relations)
         stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
         db_session.execute(stmt)
-        db_session.commit()
+        db_session.flush()
 
         # Test querying descendants of Q2 (should include Q2, Q4, Q5)
         descendants = WikidataEntity.query_hierarchy_descendants(db_session, ["Q2"])
@@ -150,7 +150,7 @@ class TestWikidataEntity:
         stmt = insert(WikidataRelation).values(test_relations)
         stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
         db_session.execute(stmt)
-        db_session.commit()
+        db_session.flush()
 
         # Test querying with SUBCLASS_OF relation type (default)
         descendants_subclass = WikidataEntity.query_hierarchy_descendants(

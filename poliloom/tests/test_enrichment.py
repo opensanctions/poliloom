@@ -115,7 +115,7 @@ class TestEnrichment:
         # Create position in database
         position = Position.create_with_entity(db_session, "Q30185", "Test Position")
         position.embedding = [0.1] * 384
-        db_session.commit()
+        db_session.flush()
 
         # Mock Stage 1: Free-form extraction (using actual model from enrichment)
         mock_parsed1 = FreeFormPositionResult(
@@ -147,18 +147,13 @@ class TestEnrichment:
 
         mock_openai_client.responses.parse = mock_parse
 
-        # Mock embedding generation (batch function)
-        with patch(
-            "poliloom.embeddings.generate_embeddings_batch",
-            return_value=[[0.1] * 384],  # Return list of embeddings
-        ):
-            positions = await extract_two_stage_generic(
-                mock_openai_client,
-                db_session,
-                "test content",
-                sample_politician,
-                POSITIONS_CONFIG,
-            )
+        positions = await extract_two_stage_generic(
+            mock_openai_client,
+            db_session,
+            "test content",
+            sample_politician,
+            POSITIONS_CONFIG,
+        )
 
         assert positions is not None
         assert len(positions) == 1
@@ -204,7 +199,7 @@ class TestEnrichment:
             "Springfield, Illinois",
             labels=["Springfield, Illinois", "Springfield"],
         )
-        db_session.commit()
+        db_session.flush()
 
         # Mock Stage 1: Free-form extraction (using actual model from enrichment)
         mock_parsed1 = FreeFormBirthplaceResult(
@@ -256,9 +251,6 @@ class TestEnrichment:
         sample_wikipedia_link,
     ):
         """Test storing extracted properties."""
-        # Use fixture entities
-        db_session.commit()
-
         # Add citizenship as Property (Wikipedia link already created by fixture)
         citizenship = Property(
             politician_id=sample_politician.id,
@@ -266,7 +258,7 @@ class TestEnrichment:
             entity_id=sample_country.wikidata_id,
         )
         db_session.add(citizenship)
-        db_session.commit()
+        db_session.flush()
 
         properties = [
             ExtractedProperty(
@@ -309,22 +301,14 @@ class TestEnrichment:
         sample_wikipedia_link,
     ):
         """Test storing extracted positions."""
-        # Use fixture entities (position needs embedding for this test)
-        # Embedding set by sample_position fixture
-        db_session.commit()
-
-        db_session.add(sample_archived_page)
-        db_session.commit()
-
-        # Add citizenship as Property and Wikipedia link
+        # Add citizenship as Property (Wikipedia link created by sample_wikipedia_link fixture)
         citizenship = Property(
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
             entity_id=sample_country.wikidata_id,
         )
-        # Wikipedia link created by sample_wikipedia_link fixture
         db_session.add(citizenship)
-        db_session.commit()
+        db_session.flush()
 
         positions = [
             ExtractedPosition(
@@ -371,20 +355,14 @@ class TestEnrichment:
         sample_politician,
     ):
         """Test storing extracted birthplaces."""
-        # Use fixture entities
-
-        db_session.add(sample_archived_page)
-        db_session.commit()
-
-        # Add citizenship as Property and Wikipedia link
+        # Add citizenship as Property
         citizenship = Property(
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
             entity_id=sample_country.wikidata_id,
         )
-        # Wikipedia link created by sample_wikipedia_link fixture
         db_session.add(citizenship)
-        db_session.commit()
+        db_session.flush()
 
         birthplaces = [
             ExtractedBirthplace(wikidata_id="Q28513", proof="born in Springfield")
@@ -423,8 +401,6 @@ class TestEnrichment:
         sample_politician,
     ):
         """Test error handling in store_extracted_data."""
-        # Use fixture entities
-        db_session.commit()
 
         properties = [
             ExtractedProperty(
@@ -485,7 +461,7 @@ class TestCountPoliticiansWithUnevaluated:
             archived_page_id=sample_archived_page.id,
         )
         db_session.add(prop)
-        db_session.commit()
+        db_session.flush()
 
         count = count_politicians_with_unevaluated(db_session)
         assert count == 1
@@ -506,7 +482,7 @@ class TestCountPoliticiansWithUnevaluated:
             statement_id="Q123456$12345678-1234-1234-1234-123456789012",
         )
         db_session.add(prop)
-        db_session.commit()
+        db_session.flush()
 
         count = count_politicians_with_unevaluated(db_session)
         assert count == 0
@@ -534,7 +510,7 @@ class TestCountPoliticiansWithUnevaluated:
             archived_page_id=en_page.id,
         )
         db_session.add(prop)
-        db_session.commit()
+        db_session.flush()
 
         # Count with English filter
         count = count_politicians_with_unevaluated(db_session, languages=["Q1860"])
@@ -565,7 +541,7 @@ class TestCountPoliticiansWithUnevaluated:
             archived_page_id=sample_archived_page.id,
         )
         db_session.add_all([citizenship_prop, birth_prop])
-        db_session.commit()
+        db_session.flush()
 
         # Count with USA filter
         count = count_politicians_with_unevaluated(db_session, countries=["Q30"])
@@ -594,7 +570,7 @@ class TestEnrichUntilTarget:
             archived_page_id=sample_archived_page.id,
         )
         db_session.add(prop)
-        db_session.commit()
+        db_session.flush()
 
         # Target is 1, already met
         enriched_count = enrich_until_target(target_politicians=1)
@@ -623,7 +599,7 @@ class TestEnrichUntilTarget:
                     archived_page_id=sample_archived_page.id,
                 )
                 db_session.add(prop)
-                db_session.commit()
+                db_session.flush()
                 return True  # politician_found
 
             mock_enrich.side_effect = mock_enrich_func
@@ -670,7 +646,7 @@ class TestEnrichUntilTarget:
             entity_id=sample_country.wikidata_id,
         )
         db_session.add(citizenship_prop)
-        db_session.commit()
+        db_session.flush()
 
         # Mock enrichment
         with patch(
@@ -696,7 +672,7 @@ class TestEnrichUntilTarget:
                     archived_page_id=en_page.id,
                 )
                 db_session.add(prop)
-                db_session.commit()
+                db_session.flush()
                 return True
 
             mock_enrich.side_effect = mock_enrich_func

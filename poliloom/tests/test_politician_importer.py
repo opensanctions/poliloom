@@ -217,7 +217,7 @@ class TestWikidataPoliticianImporter:
         """Test importing position from Wikidata claim."""
         # Create position first
         Position.create_with_entity(db_session, "Q30185", "Mayor")
-        db_session.commit()
+        db_session.flush()
 
         politicians = [
             {
@@ -274,7 +274,7 @@ class TestWikidataPoliticianImporter:
         """Test importing birthplace from Wikidata claim."""
         # Create location first
         Location.create_with_entity(db_session, "Q60", "New York City")
-        db_session.commit()
+        db_session.flush()
 
         politicians = [
             {
@@ -315,7 +315,7 @@ class TestWikidataPoliticianImporter:
         # Create country first
         country = Country.create_with_entity(db_session, "Q30", "United States")
         country.iso_code = "US"
-        db_session.commit()
+        db_session.flush()
 
         politicians = [
             {
@@ -358,7 +358,7 @@ class TestWikidataPoliticianImporter:
         Location.create_with_entity(db_session, "Q60", "New York City")
         country = Country.create_with_entity(db_session, "Q30", "United States")
         country.iso_code = "US"
-        db_session.commit()
+        db_session.flush()
 
         politicians = [
             {

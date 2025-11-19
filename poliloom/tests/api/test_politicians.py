@@ -133,7 +133,7 @@ def politician_with_unevaluated_data(
             wikidata_birthplace,
         ]
     )
-    db_session.commit()
+    db_session.flush()
 
     return politician
 
@@ -177,7 +177,7 @@ def politician_with_evaluated_data(db_session):
         property_id=extracted_property.id,
     )
     db_session.add(evaluation)
-    db_session.commit()
+    db_session.flush()
 
     return politician
 
@@ -218,7 +218,7 @@ def politician_with_only_wikidata(db_session):
     )
 
     db_session.add_all([wikidata_property, wikidata_position])
-    db_session.commit()
+    db_session.flush()
 
     return politician
 
@@ -393,7 +393,7 @@ class TestGetPoliticiansEndpoint:
             db_session.add(prop)
             politicians.append(politician)
 
-        db_session.commit()
+        db_session.flush()
 
         # Test limit parameter
         response = client.get("/politicians/?limit=3", headers=mock_auth)
@@ -456,7 +456,7 @@ class TestGetPoliticiansEndpoint:
         )
 
         db_session.add_all([evaluation, unevaluated_pos])
-        db_session.commit()
+        db_session.flush()
 
         # Should appear in results because has unevaluated position
         response = client.get("/politicians/", headers=mock_auth)
@@ -504,7 +504,7 @@ class TestGetPoliticiansEndpoint:
             archived_page_id=archived_page.id,
         )
         db_session.add(birthplace)
-        db_session.commit()
+        db_session.flush()
 
         response = client.get("/politicians/", headers=mock_auth)
         assert response.status_code == 200
@@ -645,7 +645,7 @@ class TestGetPoliticiansEndpoint:
         )
 
         db_session.add_all([english_prop, german_prop, no_lang_prop])
-        db_session.commit()
+        db_session.flush()
 
         # Test filtering by English language QID
         response = client.get(
@@ -773,7 +773,7 @@ class TestGetPoliticiansEndpoint:
                 birth_date_prop,
             ]
         )
-        db_session.commit()
+        db_session.flush()
 
         # Test filtering by USA citizenship
         response = client.get("/politicians/?countries=Q30&limit=10", headers=mock_auth)
@@ -898,7 +898,7 @@ class TestGetPoliticiansEndpoint:
                 american_non_eng_citizenship,
             ]
         )
-        db_session.commit()
+        db_session.flush()
 
         # Test combined filtering: English language AND American citizenship
         response = client.get(
@@ -1004,7 +1004,7 @@ class TestGetPoliticiansEndpoint:
         )
 
         db_session.add_all([english_birth, german_birth, no_lang_birth, wikidata_death])
-        db_session.commit()
+        db_session.flush()
 
         # Test filtering by English - should only return English property
         response = client.get("/politicians/?languages=Q1860", headers=mock_auth)
@@ -1076,7 +1076,7 @@ class TestGetPoliticiansEndpoint:
         )
 
         db_session.add_all([normal_property, deleted_property])
-        db_session.commit()
+        db_session.flush()
 
         # Request politicians
         response = client.get("/politicians/", headers=mock_auth)
@@ -1140,7 +1140,7 @@ class TestGetPoliticiansEndpoint:
         )
 
         db_session.add_all([deleted_birth, deleted_position])
-        db_session.commit()
+        db_session.flush()
 
         # Request politicians
         response = client.get("/politicians/?has_unevaluated=true", headers=mock_auth)
@@ -1172,7 +1172,7 @@ class TestGetPoliticiansEndpoint:
             proof_line="Born on July 20, 1985",
         )
         db_session.add(property)
-        db_session.commit()
+        db_session.flush()
 
         # Verify politician appears before soft-delete
         response = client.get("/politicians/", headers=mock_auth)
@@ -1183,7 +1183,7 @@ class TestGetPoliticiansEndpoint:
 
         # Soft-delete the WikidataEntity
         politician.wikidata_entity.soft_delete()
-        db_session.commit()
+        db_session.flush()
 
         # Request politicians again
         response = client.get("/politicians/", headers=mock_auth)

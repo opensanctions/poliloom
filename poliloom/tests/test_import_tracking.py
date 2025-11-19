@@ -22,16 +22,14 @@ from poliloom.models import (
 class TestEntityTracking:
     """Test entity tracking triggers."""
 
-    def test_entity_tracking_on_insert(
-        self, db_session: Session, with_import_tracking_triggers
-    ):
+    def test_entity_tracking_on_insert(self, db_session: Session):
         """Test that inserting WikidataEntity records are tracked."""
         # Clear tracking table first
 
         # Insert a new entity
         entity = WikidataEntity(wikidata_id="Q12345", name="Test Entity")
         db_session.add(entity)
-        db_session.commit()
+        db_session.flush()
 
         # Check that entity was tracked
         tracked = (
@@ -40,22 +38,20 @@ class TestEntityTracking:
         assert tracked is not None
         assert tracked.entity_id == "Q12345"
 
-    def test_entity_tracking_on_update(
-        self, db_session: Session, with_import_tracking_triggers
-    ):
+    def test_entity_tracking_on_update(self, db_session: Session):
         """Test that updating WikidataEntity records are tracked."""
         # Clear tracking table first
 
         # Insert entity first (this will be tracked but we'll clear it)
         entity = WikidataEntity(wikidata_id="Q67890", name="Original Name")
         db_session.add(entity)
-        db_session.commit()
+        db_session.flush()
 
         # Clear tracking to test update separately
 
         # Update the entity
         entity.name = "Updated Name"
-        db_session.commit()
+        db_session.flush()
 
         # Check that update was tracked
         tracked = (
@@ -64,9 +60,7 @@ class TestEntityTracking:
         assert tracked is not None
         assert tracked.entity_id == "Q67890"
 
-    def test_multiple_entities_tracked(
-        self, db_session: Session, with_import_tracking_triggers
-    ):
+    def test_multiple_entities_tracked(self, db_session: Session):
         """Test that multiple entities are tracked correctly."""
         # Clear tracking table first
 
@@ -78,7 +72,7 @@ class TestEntityTracking:
         ]
         for entity in entities:
             db_session.add(entity)
-        db_session.commit()
+        db_session.flush()
 
         # Check all are tracked
         tracked_count = db_session.query(CurrentImportEntity).count()
@@ -87,22 +81,20 @@ class TestEntityTracking:
         tracked_ids = {t.entity_id for t in db_session.query(CurrentImportEntity).all()}
         assert tracked_ids == {"Q111", "Q222", "Q333"}
 
-    def test_duplicate_entity_tracking_ignored(
-        self, db_session: Session, with_import_tracking_triggers
-    ):
+    def test_duplicate_entity_tracking_ignored(self, db_session: Session):
         """Test that duplicate entity tracking is handled gracefully."""
         # Clear tracking table first
 
         # Insert same entity multiple times
         entity = WikidataEntity(wikidata_id="Q555", name="Duplicate Entity")
         db_session.add(entity)
-        db_session.commit()
+        db_session.flush()
 
         # Update it multiple times
         entity.name = "Updated Once"
-        db_session.commit()
+        db_session.flush()
         entity.name = "Updated Twice"
-        db_session.commit()
+        db_session.flush()
 
         # Should only have one tracking record
         tracked_count = (
@@ -114,9 +106,7 @@ class TestEntityTracking:
 class TestStatementTracking:
     """Test statement tracking triggers."""
 
-    def test_property_tracking_on_insert(
-        self, db_session: Session, with_import_tracking_triggers
-    ):
+    def test_property_tracking_on_insert(self, db_session: Session):
         """Test that Property statements are tracked."""
         # Clear tracking table first
 
@@ -124,7 +114,7 @@ class TestStatementTracking:
         politician = Politician.create_with_entity(
             db_session, "Q999", "Test Politician"
         )
-        db_session.commit()
+        db_session.flush()
 
         # Insert a property with statement_id
         prop = Property(
@@ -135,7 +125,7 @@ class TestStatementTracking:
             statement_id="Q999$12345-abcd-4567-8901-123456789abc",
         )
         db_session.add(prop)
-        db_session.commit()
+        db_session.flush()
 
         # Check that statement was tracked
         tracked = (
@@ -154,7 +144,7 @@ class TestStatementTracking:
         politician = Politician.create_with_entity(
             db_session, "Q888", "Test Politician"
         )
-        db_session.commit()
+        db_session.flush()
 
         # Insert a property without statement_id
         prop = Property(
@@ -165,15 +155,13 @@ class TestStatementTracking:
             statement_id=None,
         )
         db_session.add(prop)
-        db_session.commit()
+        db_session.flush()
 
         # Check that no statement was tracked
         tracked_count = db_session.query(CurrentImportStatement).count()
         assert tracked_count == 0
 
-    def test_relation_tracking_on_insert(
-        self, db_session: Session, with_import_tracking_triggers
-    ):
+    def test_relation_tracking_on_insert(self, db_session: Session):
         """Test that WikidataRelation statements are tracked."""
         # Clear tracking table first
 
@@ -182,7 +170,7 @@ class TestStatementTracking:
         child = WikidataEntity(wikidata_id="Q222", name="Child Entity")
         db_session.add(parent)
         db_session.add(child)
-        db_session.commit()
+        db_session.flush()
 
         # Insert a relation with statement_id
         relation = WikidataRelation(
@@ -192,7 +180,7 @@ class TestStatementTracking:
             statement_id="Q222$87654-dcba-4321-0987-987654321fed",
         )
         db_session.add(relation)
-        db_session.commit()
+        db_session.flush()
 
         # Check that statement was tracked
         tracked = (
@@ -203,9 +191,7 @@ class TestStatementTracking:
         assert tracked is not None
         assert tracked.statement_id == "Q222$87654-dcba-4321-0987-987654321fed"
 
-    def test_statement_tracking_on_update(
-        self, db_session: Session, with_import_tracking_triggers
-    ):
+    def test_statement_tracking_on_update(self, db_session: Session):
         """Test that updating statements are tracked."""
         # Clear tracking table first
 
@@ -214,7 +200,7 @@ class TestStatementTracking:
         child = WikidataEntity(wikidata_id="Q444", name="Child Entity")
         db_session.add(parent)
         db_session.add(child)
-        db_session.commit()
+        db_session.flush()
 
         # Insert relation first
         relation = WikidataRelation(
@@ -224,13 +210,13 @@ class TestStatementTracking:
             statement_id="Q444$update-test-statement-id",
         )
         db_session.add(relation)
-        db_session.commit()
+        db_session.flush()
 
         # Clear tracking to test update separately
 
         # Update the relation
         relation.relation_type = RelationType.INSTANCE_OF
-        db_session.commit()
+        db_session.flush()
 
         # Check that update was tracked
         tracked = (
@@ -240,9 +226,7 @@ class TestStatementTracking:
         )
         assert tracked is not None
 
-    def test_multiple_statements_tracked(
-        self, db_session: Session, with_import_tracking_triggers
-    ):
+    def test_multiple_statements_tracked(self, db_session: Session):
         """Test that multiple statements are tracked correctly."""
         # Clear tracking table first
 
@@ -251,7 +235,7 @@ class TestStatementTracking:
             db_session, "Q777", "Test Politician"
         )
         position = Position.create_with_entity(db_session, "Q888", "Test Position")
-        db_session.commit()
+        db_session.flush()
 
         # Create multiple statements
         prop1 = Property(
@@ -279,7 +263,7 @@ class TestStatementTracking:
         db_session.add(prop1)
         db_session.add(prop2)
         db_session.add(relation)
-        db_session.commit()
+        db_session.flush()
 
         # Check all are tracked
         tracked_count = db_session.query(CurrentImportStatement).count()
@@ -298,9 +282,7 @@ class TestStatementTracking:
 class TestCleanupFunctionality:
     """Test cleanup procedures for soft-deleting missing entities."""
 
-    def test_cleanup_missing_entities_two_dump_validation(
-        self, db_session: Session, with_import_tracking_triggers
-    ):
+    def test_cleanup_missing_entities_two_dump_validation(self, db_session: Session):
         """Test that entities are only deleted when missing from two consecutive dumps."""
         from datetime import timedelta
 
@@ -320,7 +302,7 @@ class TestCleanupFunctionality:
         )
         db_session.add(first_dump)
         db_session.add(second_dump)
-        db_session.commit()
+        db_session.flush()
 
         # Create some entities that predate both dumps
         # Use raw SQL to insert entities with specific timestamps to avoid SQLAlchemy automatic updates
@@ -338,11 +320,11 @@ class TestCleanupFunctionality:
             """),
             {"old_timestamp": old_timestamp_naive},
         )
-        db_session.commit()
+        db_session.flush()
 
         # Clear tracking table (simulating fresh import)
         CurrentImportEntity.clear_tracking_table(db_session)
-        db_session.commit()
+        db_session.flush()
 
         # Simulate that only entity1 was seen during current import
         # Use upsert to trigger the tracking mechanism
@@ -350,14 +332,14 @@ class TestCleanupFunctionality:
             {"wikidata_id": "Q100", "name": "Keep Entity", "description": "Updated"}
         ]
         WikidataEntity.upsert_batch(db_session, entity1_data)
-        db_session.commit()
+        db_session.flush()
 
         # Note: entity1's timestamp will be updated by the upsert, which is realistic -
         # entities seen in the current dump would have recent timestamps
 
         # Run cleanup with first dump timestamp (entities older than this will be deleted)
         result = CurrentImportEntity.cleanup_missing(db_session, first_dump_timestamp)
-        db_session.commit()
+        db_session.flush()
 
         # Check results - only entities older than first dump should be deleted
         assert result["entities_marked_deleted"] == 2  # entity2 and entity3
@@ -392,18 +374,18 @@ class TestCleanupFunctionality:
         entity2 = WikidataEntity(wikidata_id="Q200", name="Entity 2")
         db_session.add(entity1)
         db_session.add(entity2)
-        db_session.commit()
+        db_session.flush()
 
         # Clear tracking table
         CurrentImportEntity.clear_tracking_table(db_session)
-        db_session.commit()
+        db_session.flush()
 
         # Don't track any entities (simulating none seen in import)
 
         # Run cleanup with very old cutoff (all entities are newer than this)
         very_old_timestamp = datetime.now(timezone.utc) - timedelta(days=365)
         result = CurrentImportEntity.cleanup_missing(db_session, very_old_timestamp)
-        db_session.commit()
+        db_session.flush()
 
         # Should delete nothing since entities are newer than cutoff
         assert result["entities_marked_deleted"] == 0
@@ -439,14 +421,14 @@ class TestCleanupFunctionality:
         )
         db_session.add(first_dump)
         db_session.add(second_dump)
-        db_session.commit()
+        db_session.flush()
 
         # Just test that the method works with previous dump timestamp
         # (detailed statement testing is complex due to enum handling in raw SQL)
         result = CurrentImportStatement.cleanup_missing(
             db_session, first_dump_timestamp
         )
-        db_session.commit()
+        db_session.flush()
 
         # Should return the expected structure
         assert "properties_marked_deleted" in result
@@ -464,7 +446,7 @@ class TestCleanupFunctionality:
         politician = Politician.create_with_entity(
             db_session, "Q600", "Test Politician"
         )
-        db_session.commit()
+        db_session.flush()
 
         prop = Property(
             politician_id=politician.id,
@@ -474,18 +456,18 @@ class TestCleanupFunctionality:
             statement_id="Q600$test-prop",
         )
         db_session.add(prop)
-        db_session.commit()
+        db_session.flush()
 
         # Clear tracking table
         CurrentImportStatement.clear_tracking_table(db_session)
-        db_session.commit()
+        db_session.flush()
 
         # Don't track any statements (simulating none seen in import)
 
         # Run cleanup with very old cutoff (all statements are newer than this)
         very_old_timestamp = datetime.now(timezone.utc) - timedelta(days=365)
         result = CurrentImportStatement.cleanup_missing(db_session, very_old_timestamp)
-        db_session.commit()
+        db_session.flush()
 
         # Should delete nothing since statements are newer than cutoff
         assert result["properties_marked_deleted"] == 0
@@ -497,20 +479,18 @@ class TestCleanupFunctionality:
         )
         assert prop_fresh.deleted_at is None
 
-    def test_clear_tracking_tables(
-        self, db_session: Session, with_import_tracking_triggers
-    ):
+    def test_clear_tracking_tables(self, db_session: Session):
         """Test that individual tracking tables are cleared properly."""
         # Create entities and statements (triggers will automatically track them)
         entity = WikidataEntity(wikidata_id="Q123", name="Test Entity")
         db_session.add(entity)
-        db_session.commit()
+        db_session.flush()
 
         # Create politician and property with statement_id (triggers will track)
         politician = Politician.create_with_entity(
             db_session, "Q456", "Test Politician"
         )
-        db_session.commit()
+        db_session.flush()
 
         prop = Property(
             politician_id=politician.id,
@@ -520,7 +500,7 @@ class TestCleanupFunctionality:
             statement_id="Q456$test-statement",
         )
         db_session.add(prop)
-        db_session.commit()
+        db_session.flush()
 
         # Verify triggers populated tracking tables
         assert (
@@ -531,7 +511,7 @@ class TestCleanupFunctionality:
         # Clear tables
         CurrentImportEntity.clear_tracking_table(db_session)
         CurrentImportStatement.clear_tracking_table(db_session)
-        db_session.commit()
+        db_session.flush()
 
         # Verify tables are empty
         assert db_session.query(CurrentImportEntity).count() == 0
@@ -542,16 +522,16 @@ class TestCleanupFunctionality:
         # Create entity and immediately soft-delete it
         entity = WikidataEntity(wikidata_id="Q999", name="Already Deleted")
         db_session.add(entity)
-        db_session.commit()
+        db_session.flush()
 
         entity.soft_delete()
-        db_session.commit()
+        db_session.flush()
 
         # Don't track it (simulating it wasn't in import)
         # Run cleanup with a future timestamp (should not delete already deleted entities)
         cutoff_timestamp = datetime.now(timezone.utc)
         result = CurrentImportEntity.cleanup_missing(db_session, cutoff_timestamp)
-        db_session.commit()
+        db_session.flush()
 
         # Should report 0 deletions since entity was already soft-deleted
         assert result["entities_marked_deleted"] == 0
@@ -560,14 +540,12 @@ class TestCleanupFunctionality:
 class TestIntegrationWorkflow:
     """Test full import workflow integration."""
 
-    def test_full_import_cleanup_workflow(
-        self, db_session: Session, with_import_tracking_triggers
-    ):
+    def test_full_import_cleanup_workflow(self, db_session: Session):
         """Test complete workflow: clear -> import -> cleanup -> clear."""
         # Step 1: Clear tracking tables (start of import)
         CurrentImportEntity.clear_tracking_table(db_session)
         CurrentImportStatement.clear_tracking_table(db_session)
-        db_session.commit()
+        db_session.flush()
 
         # Step 2: Create some existing data (previous import)
         old_entity = WikidataEntity(wikidata_id="Q_old", name="Old Entity")
@@ -577,13 +555,13 @@ class TestIntegrationWorkflow:
         db_session.add(old_entity)
         db_session.add(new_entity)
         db_session.add(keep_entity)
-        db_session.commit()
+        db_session.flush()
 
         # Create politician for properties
         politician = Politician.create_with_entity(
             db_session, "Q_pol", "Test Politician"
         )
-        db_session.commit()
+        db_session.flush()
 
         old_prop = Property(
             politician_id=politician.id,
@@ -602,38 +580,38 @@ class TestIntegrationWorkflow:
 
         db_session.add(old_prop)
         db_session.add(keep_prop)
-        db_session.commit()
+        db_session.flush()
 
         # Step 3: Clear tracking (fresh import start)
         CurrentImportEntity.clear_tracking_table(db_session)
         CurrentImportStatement.clear_tracking_table(db_session)
-        db_session.commit()
+        db_session.flush()
 
         # Step 4: Simulate import - only some entities/statements are "seen"
         # This happens automatically via triggers when we insert/update
 
         # Update keep_entity (simulates it being processed in import)
         keep_entity.description = "Updated during import"
-        db_session.commit()
+        db_session.flush()
 
         # Update politician entity so it gets tracked (simulates it being processed)
         politician.wikidata_entity.description = "Updated politician during import"
-        db_session.commit()
+        db_session.flush()
 
         # Update keep_prop (simulates it being processed in import)
         keep_prop.value = "2020-12-31"
-        db_session.commit()
+        db_session.flush()
 
         # Add new entity during import
         import_entity = WikidataEntity(wikidata_id="Q_import", name="Import Entity")
         db_session.add(import_entity)
-        db_session.commit()
+        db_session.flush()
 
         # Add new position for the property
         import_position = Position.create_with_entity(
             db_session, "Q_import_position", "New Position"
         )
-        db_session.commit()
+        db_session.flush()
 
         # Add new prop during import
         import_prop = Property(
@@ -643,7 +621,7 @@ class TestIntegrationWorkflow:
             statement_id="Q_pol$import_prop",
         )
         db_session.add(import_prop)
-        db_session.commit()
+        db_session.flush()
 
         # Create dump records for two-dump validation
         from datetime import timedelta
@@ -663,7 +641,7 @@ class TestIntegrationWorkflow:
         )
         db_session.add(first_dump)
         db_session.add(current_dump)
-        db_session.commit()
+        db_session.flush()
 
         # Manually update timestamps to be before first dump for old items
         old_timestamp = datetime.now(timezone.utc) - timedelta(hours=3)
@@ -679,7 +657,7 @@ class TestIntegrationWorkflow:
             ),
             {"old_timestamp": old_timestamp},
         )
-        db_session.commit()
+        db_session.flush()
 
         # Step 5: Cleanup missing entities and statements using two-dump validation
         entity_results = CurrentImportEntity.cleanup_missing(
@@ -688,7 +666,7 @@ class TestIntegrationWorkflow:
         statement_results = CurrentImportStatement.cleanup_missing(
             db_session, first_dump_timestamp
         )
-        db_session.commit()
+        db_session.flush()
 
         # Step 6: Verify results structure (actual deletion depends on timestamps being correct)
         # The key thing is that the two-dump validation is working and returns the expected structure
@@ -739,7 +717,7 @@ class TestIntegrationWorkflow:
         # Step 7: Clear tracking tables (end of import)
         CurrentImportEntity.clear_tracking_table(db_session)
         CurrentImportStatement.clear_tracking_table(db_session)
-        db_session.commit()
+        db_session.flush()
 
         # Verify tracking tables are empty
         assert db_session.query(CurrentImportEntity).count() == 0
@@ -756,7 +734,7 @@ class TestIntegrationWorkflow:
         politician = Politician.create_with_entity(
             db_session, "Q_politician", "Test Politician"
         )
-        db_session.commit()
+        db_session.flush()
 
         # Step 3: Enrich after dump - create property without statement_id (extracted from web)
         enriched_prop = Property(
@@ -767,14 +745,14 @@ class TestIntegrationWorkflow:
             statement_id=None,  # No statement_id yet - extracted from web
         )
         db_session.add(enriched_prop)
-        db_session.commit()
+        db_session.flush()
 
         # Verify property was created after dump timestamp
         assert enriched_prop.updated_at > dump_timestamp
 
         # Step 4: Positive evaluation - assign statement_id (uploaded to Wikidata)
         enriched_prop.statement_id = "Q_politician$positive_eval"
-        db_session.commit()
+        db_session.flush()
 
         # Property is still after dump timestamp
         assert enriched_prop.updated_at > dump_timestamp
@@ -782,7 +760,7 @@ class TestIntegrationWorkflow:
         # Step 5: Run cleanup (property not in dump tracking)
         # Property should be protected due to updated_at > dump_timestamp
         results = CurrentImportStatement.cleanup_missing(db_session, dump_timestamp)
-        db_session.commit()
+        db_session.flush()
 
         # Step 6: Verify property was NOT soft-deleted
         fresh_prop = (
@@ -807,12 +785,12 @@ class TestIntegrationWorkflow:
         politician = Politician.create_with_entity(
             db_session, "Q_politician2", "Test Politician 2"
         )
-        db_session.commit()
+        db_session.flush()
 
         # Step 3: Enrich after dump - create property without statement_id
         # First create the location entity
         location = Location.create_with_entity(db_session, "Q123456", "Test Location")
-        db_session.commit()
+        db_session.flush()
 
         enriched_prop = Property(
             politician_id=politician.id,
@@ -821,14 +799,14 @@ class TestIntegrationWorkflow:
             statement_id=None,  # Extracted from web
         )
         db_session.add(enriched_prop)
-        db_session.commit()
+        db_session.flush()
 
         # Verify property was created after dump timestamp
         assert enriched_prop.updated_at > dump_timestamp
 
         # Step 4: Negative evaluation - soft-delete the property (rejected by evaluator)
         enriched_prop.deleted_at = datetime.now()
-        db_session.commit()
+        db_session.flush()
 
         # Property is still after dump timestamp
         assert enriched_prop.updated_at > dump_timestamp
@@ -837,7 +815,7 @@ class TestIntegrationWorkflow:
         # Step 5: Run cleanup (property not in dump tracking)
         # Property should be protected due to updated_at > dump_timestamp
         results = CurrentImportStatement.cleanup_missing(db_session, dump_timestamp)
-        db_session.commit()
+        db_session.flush()
 
         # Step 6: Verify property remains soft-deleted
         fresh_prop = (
@@ -873,13 +851,13 @@ class TestIntegrationWorkflow:
         )
         db_session.add(first_dump)
         db_session.add(current_dump)
-        db_session.commit()
+        db_session.flush()
 
         # Create a politician
         politician = Politician.create_with_entity(
             db_session, "Q_politician_in_dump", "Politician with Statement in Dump"
         )
-        db_session.commit()
+        db_session.flush()
 
         # Create a property that exists in current dump (tracked)
         dump_property = Property(
@@ -890,7 +868,7 @@ class TestIntegrationWorkflow:
             statement_id="Q_politician_in_dump$in_dump_stmt",
         )
         db_session.add(dump_property)
-        db_session.commit()
+        db_session.flush()
 
         # Statement is automatically tracked by database trigger
 
@@ -898,7 +876,7 @@ class TestIntegrationWorkflow:
         results = CurrentImportStatement.cleanup_missing(
             db_session, current_dump_timestamp
         )
-        db_session.commit()
+        db_session.flush()
 
         # Verify property was NOT soft-deleted (it's in the current import)
         fresh_prop = (

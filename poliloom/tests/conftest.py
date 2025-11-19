@@ -43,6 +43,30 @@ def generate_embedding():
     return mock_embedding
 
 
+@pytest.fixture(autouse=True)
+def mock_embeddings_batch():
+    """Mock generate_embeddings_batch to avoid loading transformer models in tests.
+
+    Applied automatically to all tests.
+    """
+
+    def mock_batch(texts):
+        """Generate deterministic embeddings for a batch of texts."""
+        embeddings = []
+        for text in texts:
+            text_hash = hashlib.md5(text.encode()).digest()
+            dummy_embedding = []
+            for i in range(384):
+                byte_val = text_hash[i % len(text_hash)]
+                val = (byte_val / 127.5) - 1.0
+                dummy_embedding.append(val)
+            embeddings.append(dummy_embedding)
+        return embeddings
+
+    with patch("poliloom.embeddings.generate_embeddings_batch", side_effect=mock_batch):
+        yield
+
+
 def load_json_fixture(filename):
     """Load a JSON fixture file."""
     fixtures_dir = Path(__file__).parent / "fixtures"
@@ -50,41 +74,22 @@ def load_json_fixture(filename):
         return orjson.loads(f.read())
 
 
-@pytest.fixture(autouse=True)
-def setup_test_database_fixture():
-    """Setup test database for each test using SQLAlchemy directly."""
-
+@pytest.fixture(scope="session")
+def setup_test_database():
+    """Setup test database once for the entire test session."""
     engine = get_engine()
 
-    # Create all tables using SQLAlchemy
+    # Create all tables once at the start of the test session
     Base.metadata.create_all(engine)
 
-    yield
-
-    # Clean up after test - drop all tables
-    Base.metadata.drop_all(engine)
-
-
-@pytest.fixture
-def with_timestamp_triggers():
-    """Enable timestamp triggers for tests that need them.
-
-    Use this fixture in tests that verify updated_at behavior.
-    """
-    engine = get_engine()
+    # Create triggers once for all tests
     create_timestamp_triggers(engine)
-    yield
-
-
-@pytest.fixture
-def with_import_tracking_triggers():
-    """Enable import tracking triggers for tests that need them.
-
-    Use this fixture in tests that verify import tracking functionality.
-    """
-    engine = get_engine()
     create_import_tracking_triggers(engine)
-    yield
+
+    yield engine
+
+    # Clean up after all tests complete - drop all tables
+    Base.metadata.drop_all(engine)
 
 
 @pytest.fixture
@@ -100,10 +105,27 @@ def assert_model_fields(model, expected_fields):
 
 
 @pytest.fixture
-def db_session():
-    """Provide a database session for tests."""
-    with Session(get_engine()) as session:
-        yield session
+def db_session(setup_test_database):
+    """Provide a database session for tests with transaction rollback.
+
+    Each test runs in a transaction that is rolled back after the test completes.
+    This ensures test isolation without needing to recreate the database schema.
+    """
+    engine = setup_test_database
+
+    # Create a connection and begin a transaction
+    connection = engine.connect()
+    transaction = connection.begin()
+
+    # Create a session bound to the connection
+    session = Session(bind=connection)
+
+    yield session
+
+    # Rollback the transaction to clean up any changes made during the test
+    session.close()
+    transaction.rollback()
+    connection.close()
 
 
 @pytest.fixture
@@ -127,89 +149,82 @@ def similarity_searcher(db_session, generate_embedding):
 # Entity fixtures - created and committed to database
 @pytest.fixture
 def sample_politician(db_session, sample_politician_data):
-    """Return a created and committed politician entity."""
+    """Return a created politician entity."""
     politician = Politician.create_with_entity(
         db_session,
         sample_politician_data["wikidata_id"],
         sample_politician_data["name"],
         labels=["Test Politician", "John Doe", "Test Person"],
     )
-    db_session.commit()
-    db_session.refresh(politician)
+    db_session.flush()
     return politician
 
 
 @pytest.fixture
 def sample_position(db_session):
-    """Return a created and committed position entity with embedding."""
+    """Return a created position entity with embedding."""
     position = Position.create_with_entity(db_session, "Q30185", "Test Position")
     # Set embedding for tests that require it
     position.embedding = [0.1] * 384
-    db_session.commit()
-    db_session.refresh(position)
+    db_session.flush()
     return position
 
 
 @pytest.fixture
 def sample_location(db_session):
-    """Return a created and committed location entity with labels for fuzzy search."""
+    """Return a created location entity with labels for fuzzy search."""
     location = Location.create_with_entity(
         db_session,
         "Q28513",
         "Test Location",
         labels=["Test Location", "Test Loc"],
     )
-    db_session.commit()
-    db_session.refresh(location)
+    db_session.flush()
     return location
 
 
 @pytest.fixture
 def sample_country(db_session):
-    """Return a created and committed country entity."""
+    """Return a created country entity."""
     country = Country.create_with_entity(db_session, "Q30", "United States")
     country.iso_code = "US"
-    db_session.commit()
-    db_session.refresh(country)
+    db_session.flush()
     return country
 
 
 @pytest.fixture
 def sample_language(db_session):
-    """Return a created and committed language entity."""
+    """Return a created language entity."""
     language = Language.create_with_entity(db_session, "Q1860", "English")
     language.iso_639_1 = "en"
     language.iso_639_2 = "eng"
-    db_session.commit()
-    db_session.refresh(language)
+    db_session.flush()
     return language
 
 
 @pytest.fixture
 def sample_archived_page(db_session):
-    """Return a created and committed archived page entity."""
+    """Return a created archived page entity."""
     archived_page = ArchivedPage(
         url="https://en.wikipedia.org/wiki/Test_Page",
         content_hash="test123",
         fetch_timestamp=datetime.now(timezone.utc),
     )
     db_session.add(archived_page)
-    db_session.commit()
-    db_session.refresh(archived_page)
+    db_session.flush()
     return archived_page
 
 
 @pytest.fixture
 def sample_wikipedia_link(db_session, sample_politician):
-    """Return a created and committed Wikipedia link entity."""
+    """Return a created Wikipedia link entity."""
     wikipedia_link = WikipediaLink(
         politician_id=sample_politician.id,
         url="https://en.wikipedia.org/wiki/Test_Politician",
         iso_code="en",
     )
     db_session.add(wikipedia_link)
-    db_session.commit()
-    db_session.refresh(wikipedia_link)
+    db_session.flush()
     return wikipedia_link
 
 

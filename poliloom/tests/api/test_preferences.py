@@ -40,7 +40,7 @@ def sample_country_preference(db_session, sample_country):
         entity_id=sample_country.wikidata_id,
     )
     db_session.add(preference)
-    db_session.commit()
+    db_session.flush()
     return preference
 
 
@@ -53,7 +53,7 @@ def sample_language_preference(db_session, sample_language):
         entity_id=sample_language.wikidata_id,
     )
     db_session.add(preference)
-    db_session.commit()
+    db_session.flush()
     return preference
 
 
@@ -67,7 +67,7 @@ def multiple_preferences(db_session, sample_country, sample_language):
     language2.iso_639_1 = "es"
     language2.iso_639_2 = "spa"
 
-    db_session.commit()
+    db_session.flush()
 
     preferences = [
         Preference(
@@ -93,7 +93,7 @@ def multiple_preferences(db_session, sample_country, sample_language):
     ]
 
     db_session.add_all(preferences)
-    db_session.commit()
+    db_session.flush()
     return preferences
 
 
@@ -199,7 +199,7 @@ class TestPreferencesEndpoint:
             entity_id="Q99999999",  # Points to orphaned entity
         )
         db_session.add(preference)
-        db_session.commit()
+        db_session.flush()
 
         response = client.get("/preferences", headers=mock_auth)
         assert response.status_code == 200

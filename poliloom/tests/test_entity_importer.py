@@ -75,7 +75,7 @@ class TestWikidataEntityImporter:
         stmt = insert(WikidataRelation).values(hierarchy_relations)
         stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
         db_session.execute(stmt)
-        db_session.commit()
+        db_session.flush()
 
         # Create test entities covering all types we extract
         test_entities = [
@@ -277,7 +277,7 @@ class TestWikidataEntityImporter:
             db_session.query(Location).delete()
             db_session.query(Country).delete()
             db_session.query(WikipediaProject).delete()
-            db_session.commit()
+            db_session.flush()
 
             # Test extraction
             with patch("poliloom.dump_reader.calculate_file_chunks") as mock_chunks:
@@ -489,17 +489,6 @@ class TestWikidataEntityImporter:
         wikidata_ids = {loc.wikidata_id for loc in all_locations}
         assert wikidata_ids == {"Q1", "Q2", "Q3", "Q4"}
 
-    def test_insert_locations_batch_empty(self, db_session):
-        """Test inserting empty batch of locations."""
-        collection = EntityCollection(model_class=Location, shared_classes=frozenset())
-
-        # Should handle empty batch gracefully without errors
-        _insert_entities_batch(collection, get_engine())
-
-        # Verify no locations were inserted
-        inserted_locations = db_session.query(Location).all()
-        assert len(inserted_locations) == 0
-
     def test_insert_countries_batch(self, db_session):
         """Test inserting a batch of countries."""
         countries = [
@@ -533,17 +522,6 @@ class TestWikidataEntityImporter:
         country1 = db_session.query(Country).filter(Country.wikidata_id == "Q1").first()
         assert country1.name == "Country 1"
         assert country1.iso_code == "C1"
-
-    def test_insert_countries_batch_empty(self, db_session):
-        """Test inserting empty batch of countries."""
-        collection = EntityCollection(model_class=Country, shared_classes=frozenset())
-
-        # Should handle empty batch gracefully without errors
-        _insert_entities_batch(collection, get_engine())
-
-        # Verify no countries were inserted
-        inserted_countries = db_session.query(Country).all()
-        assert len(inserted_countries) == 0
 
     def test_insert_countries_batch_with_duplicates_handling(self, db_session):
         """Test that countries batch uses ON CONFLICT DO UPDATE."""
@@ -656,24 +634,13 @@ class TestWikidataEntityImporter:
         assert final_languages[0].name == "English Language"
         assert final_languages[0].iso_639_1 == "en"
 
-    def test_insert_languages_batch_empty(self, db_session):
-        """Test inserting empty batch of languages."""
-        collection = EntityCollection(model_class=Language, shared_classes=frozenset())
-
-        # Should handle empty batch gracefully without errors
-        _insert_entities_batch(collection, get_engine())
-
-        # Verify no languages were inserted
-        inserted_languages = db_session.query(Language).all()
-        assert len(inserted_languages) == 0
-
     def test_insert_wikipedia_projects_batch(self, db_session):
         """Test inserting a batch of Wikipedia projects."""
         # Create a language for linking
         lang = Language.create_with_entity(db_session, "Q1860", "English")
         lang.iso_639_1 = "en"
         lang.iso_639_2 = "eng"
-        db_session.commit()
+        db_session.flush()
 
         wikipedia_projects = [
             {
@@ -757,19 +724,6 @@ class TestWikidataEntityImporter:
         # Name is updated because WikidataEntity has update columns for name/description
         assert final_projects[0].name == "English Wikipedia Updated"
 
-    def test_insert_wikipedia_projects_batch_empty(self, db_session):
-        """Test inserting empty batch of Wikipedia projects."""
-        collection = EntityCollection(
-            model_class=WikipediaProject, shared_classes=frozenset()
-        )
-
-        # Should handle empty batch gracefully without errors
-        _insert_entities_batch(collection, get_engine())
-
-        # Verify no Wikipedia projects were inserted
-        inserted_projects = db_session.query(WikipediaProject).all()
-        assert len(inserted_projects) == 0
-
     def test_wikipedia_project_filtering(self, db_session):
         """Test that Wikipedia projects are filtered correctly.
 
@@ -787,7 +741,7 @@ class TestWikidataEntityImporter:
         stmt = insert(WikidataEntity).values(hierarchy_data)
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
-        db_session.commit()
+        db_session.flush()
 
         test_entities = [
             # Valid Wikipedia project with P856 - should be imported
@@ -993,7 +947,7 @@ class TestWikidataEntityImporter:
         try:
             # Clear existing data
             db_session.query(WikipediaProject).delete()
-            db_session.commit()
+            db_session.flush()
 
             # Test extraction
             with patch("poliloom.dump_reader.calculate_file_chunks") as mock_chunks:

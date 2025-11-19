@@ -43,7 +43,7 @@ def politician_with_unevaluated_data(db_session, sample_politician, sample_posit
     )
 
     db_session.add_all([extracted_property, extracted_position])
-    db_session.commit()
+    db_session.flush()
 
     return politician, [extracted_property, extracted_position]
 

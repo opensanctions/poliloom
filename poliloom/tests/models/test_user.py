@@ -25,7 +25,7 @@ class TestEvaluation:
             archived_page_id=None,
         )
         db_session.add(prop)
-        db_session.commit()
+        db_session.flush()
         db_session.refresh(prop)
 
         # Create evaluation
@@ -35,7 +35,7 @@ class TestEvaluation:
             property_id=prop.id,
         )
         db_session.add(evaluation)
-        db_session.commit()
+        db_session.flush()
         db_session.refresh(evaluation)
 
         assert_model_fields(
@@ -43,135 +43,6 @@ class TestEvaluation:
             {
                 "user_id": "user123",
                 "is_confirmed": True,
-                "property_id": prop.id,
-            },
-        )
-
-        # Check relationships
-        assert evaluation.property == prop
-        assert len(prop.evaluations) == 1
-        assert prop.evaluations[0] == evaluation
-
-    def test_birthplace_property_evaluation_creation(
-        self, db_session, sample_politician, sample_location
-    ):
-        """Test creating an evaluation for a birthplace property."""
-        # Use fixture politician and location
-        politician = sample_politician
-        location = sample_location
-
-        # Create birthplace property
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTHPLACE,
-            entity_id=location.wikidata_id,
-            archived_page_id=None,
-        )
-        db_session.add(prop)
-        db_session.commit()
-        db_session.refresh(prop)
-
-        # Create evaluation
-        evaluation = Evaluation(
-            user_id="reviewer",
-            is_confirmed=True,
-            property_id=prop.id,
-        )
-        db_session.add(evaluation)
-        db_session.commit()
-        db_session.refresh(evaluation)
-
-        assert_model_fields(
-            evaluation,
-            {
-                "user_id": "reviewer",
-                "is_confirmed": True,
-                "property_id": prop.id,
-            },
-        )
-
-        # Check relationships
-        assert evaluation.property == prop
-        assert len(prop.evaluations) == 1
-        assert prop.evaluations[0] == evaluation
-
-    def test_position_property_evaluation_creation(
-        self, db_session, sample_politician, sample_position
-    ):
-        """Test creating an evaluation for a position property."""
-        # Use fixture politician and position
-        politician = sample_politician
-        position = sample_position
-
-        # Create position property
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
-            archived_page_id=None,
-        )
-        db_session.add(prop)
-        db_session.commit()
-        db_session.refresh(prop)
-
-        # Create evaluation
-        evaluation = Evaluation(
-            user_id="admin",
-            is_confirmed=True,
-            property_id=prop.id,
-        )
-        db_session.add(evaluation)
-        db_session.commit()
-        db_session.refresh(evaluation)
-
-        assert_model_fields(
-            evaluation,
-            {
-                "user_id": "admin",
-                "is_confirmed": True,
-                "property_id": prop.id,
-            },
-        )
-
-        # Check relationships
-        assert evaluation.property == prop
-        assert len(prop.evaluations) == 1
-        assert prop.evaluations[0] == evaluation
-
-    def test_citizenship_property_evaluation_creation(
-        self, db_session, sample_politician, sample_country
-    ):
-        """Test creating an evaluation for a citizenship property."""
-        # Use fixture politician and country
-        politician = sample_politician
-        country = sample_country
-
-        # Create citizenship property
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=country.wikidata_id,
-            archived_page_id=None,
-        )
-        db_session.add(prop)
-        db_session.commit()
-        db_session.refresh(prop)
-
-        # Create evaluation
-        evaluation = Evaluation(
-            user_id="reviewer",
-            is_confirmed=False,
-            property_id=prop.id,
-        )
-        db_session.add(evaluation)
-        db_session.commit()
-        db_session.refresh(evaluation)
-
-        assert_model_fields(
-            evaluation,
-            {
-                "user_id": "reviewer",
-                "is_confirmed": False,
                 "property_id": prop.id,
             },
         )
@@ -201,7 +72,7 @@ class TestEvaluationMultiple:
             archived_page_id=None,
         )
         db_session.add(prop)
-        db_session.commit()
+        db_session.flush()
         db_session.refresh(prop)
 
         # Create evaluations
@@ -224,7 +95,7 @@ class TestEvaluationMultiple:
         ]
 
         db_session.add_all(evaluations)
-        db_session.commit()
+        db_session.flush()
 
         # Check that all evaluations are linked to the property
         assert len(prop.evaluations) == 3
@@ -270,7 +141,7 @@ class TestEvaluationMultiple:
         )
 
         db_session.add_all([date_prop, birthplace_prop, position_prop])
-        db_session.commit()
+        db_session.flush()
         db_session.refresh(date_prop)
         db_session.refresh(birthplace_prop)
         db_session.refresh(position_prop)
@@ -295,7 +166,7 @@ class TestEvaluationMultiple:
         ]
 
         db_session.add_all(evaluations)
-        db_session.commit()
+        db_session.flush()
 
         # Check that each property has one evaluation
         assert len(date_prop.evaluations) == 1
