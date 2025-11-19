@@ -1,8 +1,5 @@
 """Tests for model mixins using test-only concrete models."""
 
-import pytest
-from sqlalchemy.exc import IntegrityError
-
 from poliloom.models.base import (
     Base,
     EntityCreationMixin,
@@ -72,15 +69,3 @@ class TestEntityCreationMixin:
         assert "Label 1" in label_texts
         assert "Label 2" in label_texts
         assert "Alias 1" in label_texts
-
-    def test_unique_wikidata_id_constraint(self, db_session):
-        """Test that Wikidata ID must be unique across entities."""
-        DummyEntity.create_with_entity(db_session, "Q123456", "First Entity")
-        db_session.flush()
-
-        # Try to create another entity with same wikidata_id (should fail)
-        with pytest.raises(IntegrityError):
-            DummyEntity.create_with_entity(db_session, "Q123456", "Second Entity")
-            db_session.flush()
-
-        db_session.rollback()

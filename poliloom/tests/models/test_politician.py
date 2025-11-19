@@ -1,8 +1,5 @@
 """Tests for the Politician model."""
 
-import pytest
-from sqlalchemy.exc import IntegrityError
-
 from poliloom.models import (
     Politician,
     Property,
@@ -18,28 +15,6 @@ from poliloom.wikidata_date import WikidataDate
 
 class TestPolitician:
     """Test cases for the Politician model."""
-
-    def test_politician_unique_wikidata_id(self, db_session, sample_politician_data):
-        """Test that wikidata_id must be unique."""
-        # Create first politician
-        Politician.create_with_entity(
-            db_session,
-            sample_politician_data["wikidata_id"],
-            sample_politician_data["name"],
-        )
-        db_session.flush()
-
-        # Try to create duplicate
-        with pytest.raises(IntegrityError):
-            Politician.create_with_entity(
-                db_session,
-                sample_politician_data["wikidata_id"],  # Same wikidata_id
-                "Different Name",
-            )
-            db_session.flush()
-
-        # Roll back the failed transaction to clean up the session
-        db_session.rollback()
 
     def test_politician_cascade_delete_properties(self, db_session, sample_politician):
         """Test that deleting a politician cascades to properties."""

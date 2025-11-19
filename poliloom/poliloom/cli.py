@@ -315,14 +315,65 @@ def enrich_wikipedia(
     help="Number of texts to encode at once (CPU or GPU)",
 )
 def embed_entities(batch_size, encode_batch_size):
-    """Generate embeddings for all positions and locations missing embeddings, efficiently and cleanly."""
-    from poliloom.embeddings import generate_all_embeddings
+    """Generate embeddings for all positions missing embeddings."""
+    import torch
+    from poliloom.embeddings import get_embedding_model
+    from poliloom.models import Position
+
+    logger = logging.getLogger(__name__)
 
     try:
-        generate_all_embeddings(
-            batch_size=batch_size, encode_batch_size=encode_batch_size
-        )
-        click.echo("✅ Embedding generation completed successfully")
+        # Use GPU if available
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info(f"Using device for encoding: {device}")
+
+        model = get_embedding_model()
+
+        with Session(get_engine()) as session:
+            # Get total count
+            total_count = (
+                session.query(Position).filter(Position.embedding.is_(None)).count()
+            )
+
+            if total_count == 0:
+                click.echo("✅ All positions already have embeddings")
+                return
+
+            logger.info(f"Found {total_count} positions without embeddings")
+            processed = 0
+
+            # Process positions in batches
+            while True:
+                # Query full ORM objects to use the name property
+                batch = (
+                    session.query(Position)
+                    .filter(Position.embedding.is_(None))
+                    .limit(batch_size)
+                    .all()
+                )
+
+                if not batch:
+                    break
+
+                # Use the name property from ORM objects
+                names = [position.name for position in batch]
+
+                # Generate embeddings
+                embeddings = model.encode(
+                    names, convert_to_tensor=False, batch_size=encode_batch_size
+                )
+
+                # Update embeddings on the ORM objects
+                for position, embedding in zip(batch, embeddings):
+                    position.embedding = embedding
+
+                session.commit()
+
+                processed += len(batch)
+                logger.info(f"Processed {processed}/{total_count} positions")
+
+            click.echo(f"✅ Generated embeddings for {processed} positions")
+
     except Exception as e:
         click.echo(f"❌ Error generating embeddings: {e}")
         raise SystemExit(1)

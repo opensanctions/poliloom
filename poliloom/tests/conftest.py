@@ -63,7 +63,11 @@ def mock_embeddings_batch():
             embeddings.append(dummy_embedding)
         return embeddings
 
-    with patch("poliloom.embeddings.generate_embeddings_batch", side_effect=mock_batch):
+    # Patch both the source module and where it's imported
+    with (
+        patch("poliloom.embeddings.generate_embeddings_batch", side_effect=mock_batch),
+        patch("poliloom.enrichment.generate_embeddings_batch", side_effect=mock_batch),
+    ):
         yield
 
 
@@ -123,27 +127,10 @@ def db_session(setup_test_database):
     yield session
 
     # Rollback the transaction to clean up any changes made during the test
+    # Note: Always rollback to catch tests that trigger database-level errors
     session.close()
     transaction.rollback()
     connection.close()
-
-
-@pytest.fixture
-def similarity_searcher(db_session, generate_embedding):
-    """Fixture for performing similarity search on models with embeddings."""
-
-    def _similarity_search(model_class, query_text, limit=5):
-        """Perform similarity search on model with embeddings."""
-        query_embedding = generate_embedding(query_text)
-        query = db_session.query(model_class).filter(model_class.embedding.isnot(None))
-
-        return (
-            query.order_by(model_class.embedding.cosine_distance(query_embedding))
-            .limit(limit)
-            .all()
-        )
-
-    return _similarity_search
 
 
 # Entity fixtures - created and committed to database
