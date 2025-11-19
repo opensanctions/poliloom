@@ -251,7 +251,7 @@ def _process_supporting_entities_chunk(
                             country_data = entity_data.copy()
                             country_data["iso_code"] = iso_code
                             collection.add_entity(country_data)
-                    # Handle special case for languages requiring ISO codes
+                    # Handle special case for languages requiring ISO codes or wikimedia code
                     elif collection.model_class is Language:
                         # Extract ISO 639-1 code for languages (P218)
                         iso1_code = None
@@ -273,12 +273,23 @@ def _process_supporting_entities_chunk(
                             except (KeyError, TypeError):
                                 continue
 
-                        # Import languages that have either ISO code (or both)
-                        if iso1_code or iso3_code:
-                            # Create separate copy for languages with ISO codes
+                        # Extract Wikimedia language code (P424)
+                        wikimedia_code = None
+                        wikimedia_claims = entity.get_truthy_claims("P424")
+                        for claim in wikimedia_claims:
+                            try:
+                                wikimedia_code = claim["mainsnak"]["datavalue"]["value"]
+                                break
+                            except (KeyError, TypeError):
+                                continue
+
+                        # Import languages that have either ISO code or wikimedia code
+                        if iso1_code or iso3_code or wikimedia_code:
+                            # Create separate copy for languages with codes
                             language_data = entity_data.copy()
                             language_data["iso1_code"] = iso1_code
                             language_data["iso3_code"] = iso3_code
+                            language_data["wikimedia_code"] = wikimedia_code
                             collection.add_entity(language_data)
                     # Standard processing for Wikipedia projects
                     elif collection.model_class is WikipediaProject:

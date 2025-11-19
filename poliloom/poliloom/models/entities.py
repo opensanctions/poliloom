@@ -2,7 +2,7 @@
 
 from typing import List
 
-from sqlalchemy import Column, Index, String
+from sqlalchemy import Column, String
 from pgvector.sqlalchemy import Vector
 
 from .base import (
@@ -46,13 +46,9 @@ class Language(
     """Language entity for storing language information."""
 
     __tablename__ = "languages"
-    __table_args__ = (
-        Index("idx_languages_iso1_code", "iso1_code"),
-        Index("idx_languages_iso3_code", "iso3_code"),
-    )
 
     # UpsertMixin configuration
-    _upsert_update_columns = ["iso1_code", "iso3_code"]
+    _upsert_update_columns = ["iso1_code", "iso3_code", "wikimedia_code"]
 
 
 class WikipediaProject(

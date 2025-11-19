@@ -175,3 +175,4 @@ class LanguageCodeMixin:
 
     iso1_code = Column(String, index=True)  # ISO 639-1 language code (2 characters)
     iso3_code = Column(String, index=True)  # ISO 639-3 language code (3 characters)
+    wikimedia_code = Column(String, index=True)  # P424 Wikimedia language code
