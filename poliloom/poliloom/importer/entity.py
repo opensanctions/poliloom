@@ -254,21 +254,31 @@ def _process_supporting_entities_chunk(
                     # Handle special case for languages requiring ISO codes or wikimedia code
                     elif collection.model_class is Language:
                         # Extract ISO 639-1 code for languages (P218)
-                        iso1_code = None
-                        iso1_claims = entity.get_truthy_claims("P218")
-                        for claim in iso1_claims:
+                        iso_639_1 = None
+                        iso_639_1_claims = entity.get_truthy_claims("P218")
+                        for claim in iso_639_1_claims:
                             try:
-                                iso1_code = claim["mainsnak"]["datavalue"]["value"]
+                                iso_639_1 = claim["mainsnak"]["datavalue"]["value"]
                                 break
                             except (KeyError, TypeError):
                                 continue
 
-                        # Extract ISO 639-3 code for languages (P219)
-                        iso3_code = None
-                        iso3_claims = entity.get_truthy_claims("P219")
-                        for claim in iso3_claims:
+                        # Extract ISO 639-2 code for languages (P219)
+                        iso_639_2 = None
+                        iso_639_2_claims = entity.get_truthy_claims("P219")
+                        for claim in iso_639_2_claims:
                             try:
-                                iso3_code = claim["mainsnak"]["datavalue"]["value"]
+                                iso_639_2 = claim["mainsnak"]["datavalue"]["value"]
+                                break
+                            except (KeyError, TypeError):
+                                continue
+
+                        # Extract ISO 639-3 code for languages (P220)
+                        iso_639_3 = None
+                        iso_639_3_claims = entity.get_truthy_claims("P220")
+                        for claim in iso_639_3_claims:
+                            try:
+                                iso_639_3 = claim["mainsnak"]["datavalue"]["value"]
                                 break
                             except (KeyError, TypeError):
                                 continue
@@ -284,11 +294,12 @@ def _process_supporting_entities_chunk(
                                 continue
 
                         # Import languages that have either ISO code or wikimedia code
-                        if iso1_code or iso3_code or wikimedia_code:
+                        if iso_639_1 or iso_639_2 or iso_639_3 or wikimedia_code:
                             # Create separate copy for languages with codes
                             language_data = entity_data.copy()
-                            language_data["iso1_code"] = iso1_code
-                            language_data["iso3_code"] = iso3_code
+                            language_data["iso_639_1"] = iso_639_1
+                            language_data["iso_639_2"] = iso_639_2
+                            language_data["iso_639_3"] = iso_639_3
                             language_data["wikimedia_code"] = wikimedia_code
                             collection.add_entity(language_data)
                     # Standard processing for Wikipedia projects

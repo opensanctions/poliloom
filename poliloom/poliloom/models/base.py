@@ -173,6 +173,13 @@ class EntityCreationMixin:
 class LanguageCodeMixin:
     """Mixin for adding language code fields."""
 
-    iso1_code = Column(String, index=True)  # ISO 639-1 language code (2 characters)
-    iso3_code = Column(String, index=True)  # ISO 639-3 language code (3 characters)
-    wikimedia_code = Column(String, index=True)  # P424 Wikimedia language code
+    iso_639_1 = Column(
+        String, index=True
+    )  # P218: ISO 639-1 language code (2 characters)
+    iso_639_2 = Column(
+        String, index=True
+    )  # P219: ISO 639-2 language code (3 characters)
+    iso_639_3 = Column(
+        String, index=True
+    )  # P220: ISO 639-3 language code (3 characters)
+    wikimedia_code = Column(String, index=True)  # P424: Wikimedia language code
