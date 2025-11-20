@@ -1,6 +1,6 @@
 """Supporting entity models: Country, Language, Location, Position."""
 
-from typing import List
+from typing import List, Optional, Dict, Any
 
 from sqlalchemy import Column, String
 from pgvector.sqlalchemy import Vector
@@ -34,6 +34,32 @@ class Country(
     # Mapping configuration for two-stage extraction
     MAPPING_ENTITY_NAME = "country"
 
+    @classmethod
+    def should_import(
+        cls, entity, instance_ids: set, subclass_ids: set
+    ) -> Optional[Dict[str, Any]]:
+        """Determine if this country entity should be imported.
+
+        Args:
+            entity: WikidataEntityProcessor instance
+            instance_ids: Set of P31 (instance of) QIDs
+            subclass_ids: Set of P279 (subclass of) QIDs
+
+        Returns:
+            Dict with additional fields to add, or None if should not import
+        """
+        # Extract ISO 3166-1 alpha-2 code for countries (P297)
+        iso_claims = entity.get_truthy_claims("P297")
+        for claim in iso_claims:
+            try:
+                iso_code = claim["mainsnak"]["datavalue"]["value"]
+                return {"iso_code": iso_code}
+            except (KeyError, TypeError):
+                continue
+
+        # Only import countries that have an ISO code
+        return None
+
 
 class Language(
     Base,
@@ -49,6 +75,71 @@ class Language(
 
     # UpsertMixin configuration
     _upsert_update_columns = ["iso_639_1", "iso_639_2", "iso_639_3", "wikimedia_code"]
+
+    @classmethod
+    def should_import(
+        cls, entity, instance_ids: set, subclass_ids: set
+    ) -> Optional[Dict[str, Any]]:
+        """Determine if this language entity should be imported.
+
+        Args:
+            entity: WikidataEntityProcessor instance
+            instance_ids: Set of P31 (instance of) QIDs
+            subclass_ids: Set of P279 (subclass of) QIDs
+
+        Returns:
+            Dict with additional fields to add, or None if should not import
+        """
+        # Extract ISO 639-1 code (P218)
+        iso_639_1 = None
+        iso_639_1_claims = entity.get_truthy_claims("P218")
+        for claim in iso_639_1_claims:
+            try:
+                iso_639_1 = claim["mainsnak"]["datavalue"]["value"]
+                break
+            except (KeyError, TypeError):
+                continue
+
+        # Extract ISO 639-2 code (P219)
+        iso_639_2 = None
+        iso_639_2_claims = entity.get_truthy_claims("P219")
+        for claim in iso_639_2_claims:
+            try:
+                iso_639_2 = claim["mainsnak"]["datavalue"]["value"]
+                break
+            except (KeyError, TypeError):
+                continue
+
+        # Extract ISO 639-3 code (P220)
+        iso_639_3 = None
+        iso_639_3_claims = entity.get_truthy_claims("P220")
+        for claim in iso_639_3_claims:
+            try:
+                iso_639_3 = claim["mainsnak"]["datavalue"]["value"]
+                break
+            except (KeyError, TypeError):
+                continue
+
+        # Extract Wikimedia language code (P424)
+        wikimedia_code = None
+        wikimedia_claims = entity.get_truthy_claims("P424")
+        for claim in wikimedia_claims:
+            try:
+                wikimedia_code = claim["mainsnak"]["datavalue"]["value"]
+                break
+            except (KeyError, TypeError):
+                continue
+
+        # Import languages that have either ISO code or wikimedia code
+        if iso_639_1 or iso_639_2 or iso_639_3 or wikimedia_code:
+            return {
+                "iso_639_1": iso_639_1,
+                "iso_639_2": iso_639_2,
+                "iso_639_3": iso_639_3,
+                "wikimedia_code": wikimedia_code,
+            }
+
+        return None
 
 
 class WikipediaProject(
@@ -67,6 +158,48 @@ class WikipediaProject(
 
     official_website = Column(String, nullable=True)  # P856 official website URL
 
+    @classmethod
+    def should_import(
+        cls, entity, instance_ids: set, subclass_ids: set
+    ) -> Optional[Dict[str, Any]]:
+        """Determine if this Wikipedia project entity should be imported.
+
+        Filtering criteria:
+        - Must have P856 (official website)
+        - P856 must contain 'wikipedia.org'
+        - Must not be umbrella entity (P31 = Q210588)
+        - When multiple P856 values exist, use preferred rank
+
+        Args:
+            entity: WikidataEntityProcessor instance
+            instance_ids: Set of P31 (instance of) QIDs
+            subclass_ids: Set of P279 (subclass of) QIDs
+
+        Returns:
+            Dict with additional fields to add, or None if should not import
+        """
+        # Filter out umbrella entities (Q210588)
+        if "Q210588" in instance_ids:
+            return None
+
+        # Extract P856 (official website) using truthy filtering
+        # This automatically handles preferred rank selection when multiple P856 exist
+        official_website = None
+        p856_claims = entity.get_truthy_claims("P856")
+
+        # Get the first P856 value (truthy filtering already selected preferred if exists)
+        if p856_claims:
+            try:
+                official_website = p856_claims[0]["mainsnak"]["datavalue"]["value"]
+            except (KeyError, TypeError):
+                pass
+
+        # Only import Wikipedia projects that have a wikipedia.org URL
+        if official_website and "wikipedia.org" in official_website:
+            return {"official_website": official_website}
+
+        return None
+
 
 class Location(
     Base,
@@ -82,6 +215,23 @@ class Location(
     # Mapping configuration for two-stage extraction
     MAPPING_ENTITY_NAME = "location"
 
+    @classmethod
+    def should_import(
+        cls, entity, instance_ids: set, subclass_ids: set
+    ) -> Optional[Dict[str, Any]]:
+        """Determine if this location entity should be imported.
+
+        Args:
+            entity: WikidataEntityProcessor instance
+            instance_ids: Set of P31 (instance of) QIDs
+            subclass_ids: Set of P279 (subclass of) QIDs
+
+        Returns:
+            Empty dict (no additional fields), or None if should not import
+        """
+        # Locations have no special filtering - import all that match hierarchy
+        return {}
+
 
 class Position(
     Base, TimestampMixin, UpsertMixin, WikidataEntityMixin, EntityCreationMixin
@@ -94,6 +244,23 @@ class Position(
 
     # Mapping configuration for two-stage extraction
     MAPPING_ENTITY_NAME = "position"
+
+    @classmethod
+    def should_import(
+        cls, entity, instance_ids: set, subclass_ids: set
+    ) -> Optional[Dict[str, Any]]:
+        """Determine if this position entity should be imported.
+
+        Args:
+            entity: WikidataEntityProcessor instance
+            instance_ids: Set of P31 (instance of) QIDs
+            subclass_ids: Set of P279 (subclass of) QIDs
+
+        Returns:
+            Empty dict (no additional fields), or None if should not import
+        """
+        # Positions have no special filtering - import all that match hierarchy
+        return {}
 
     @classmethod
     def search_by_embedding(cls, query, query_embedding: List[float]):

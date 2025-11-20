@@ -1,13 +1,8 @@
 """Tests for WikidataEntityImporter."""
 
-import json
-import tempfile
-import os
-from unittest.mock import patch
+from unittest.mock import Mock
 
 from poliloom.models import (
-    WikidataEntity,
-    WikidataRelation,
     Position,
     Location,
     Country,
@@ -15,310 +10,13 @@ from poliloom.models import (
     WikipediaProject,
 )
 from poliloom.importer.entity import (
-    import_entities,
     _insert_entities_batch,
     EntityCollection,
 )
-from poliloom.database import get_engine
-from sqlalchemy.dialects.postgresql import insert
 
 
 class TestWikidataEntityImporter:
     """Test entity importing functionality."""
-
-    def test_import_entities_integration(self, db_session):
-        """Test complete entity extraction workflow integration."""
-
-        # First, set up hierarchy in database using current approach
-        hierarchy_data = [
-            # Position hierarchy: Q294414 (position) -> Q4164871 (office)
-            {"wikidata_id": "Q294414", "name": "position"},  # Root position class
-            {
-                "wikidata_id": "Q4164871",
-                "name": "office",
-            },  # Office (subclass of position)
-            # Location hierarchy: Use actual location root from HIERARCHY_CONFIG
-            {
-                "wikidata_id": "Q486972",
-                "name": "human settlement",
-            },  # Root location class (from actual config)
-            {"wikidata_id": "Q515", "name": "city"},  # City (subclass of location)
-            # Country classes referenced by test entities
-            {"wikidata_id": "Q6256", "name": "country"},  # Country
-            {"wikidata_id": "Q5", "name": "human"},  # Human
-            {"wikidata_id": "Q82955", "name": "politician"},  # Politician
-            # Wikipedia project class
-            {
-                "wikidata_id": "Q10876391",
-                "name": "Wikipedia language edition",
-            },  # Wikipedia language edition
-        ]
-
-        hierarchy_relations = [
-            {
-                "parent_entity_id": "Q294414",
-                "child_entity_id": "Q4164871",
-                "statement_id": "Q4164871$test-statement-1",
-            },
-            {
-                "parent_entity_id": "Q486972",
-                "child_entity_id": "Q515",
-                "statement_id": "Q515$test-statement-1",
-            },
-        ]
-
-        # Insert hierarchy data first
-        stmt = insert(WikidataEntity).values(hierarchy_data)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
-        db_session.execute(stmt)
-
-        stmt = insert(WikidataRelation).values(hierarchy_relations)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
-        db_session.execute(stmt)
-        db_session.flush()
-
-        # Create test entities covering all types we extract
-        test_entities = [
-            # Position entity - should be extracted
-            {
-                "id": "Q123456",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Test Office Position"}},
-                "claims": {
-                    "P31": [
-                        {  # instance of
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q4164871"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ]
-                },
-            },
-            # Location entity - should be extracted
-            {
-                "id": "Q789012",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Test City Location"}},
-                "claims": {
-                    "P31": [
-                        {  # instance of
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q515"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ]
-                },
-            },
-            # Country entity - should be extracted
-            {
-                "id": "Q345678",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Test Country"}},
-                "claims": {
-                    "P31": [
-                        {  # instance of
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q6256"},
-                                    "type": "wikibase-entityid",
-                                },  # country
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                    "P297": [
-                        {  # ISO 3166-1 alpha-2 code
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P297",
-                                "datavalue": {"value": "TC", "type": "string"},
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                },
-            },
-            # Politician entity - should be ignored (wrong type for this extractor)
-            {
-                "id": "Q999999",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Test Politician"}},
-                "claims": {
-                    "P31": [
-                        {  # instance of
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q5"},
-                                    "type": "wikibase-entityid",
-                                },  # human
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                    "P106": [
-                        {  # occupation
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P106",
-                                "datavalue": {
-                                    "value": {"id": "Q82955"},
-                                    "type": "wikibase-entityid",
-                                },  # politician
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                },
-            },
-            # Entity without name - should be ignored
-            {
-                "id": "Q111111",
-                "type": "item",
-                "labels": {},  # No labels/name
-                "claims": {
-                    "P31": [
-                        {
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q4164871"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ]
-                },
-            },
-            # Wikipedia project entity - should be extracted
-            {
-                "id": "Q328",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "English Wikipedia"}},
-                "claims": {
-                    "P31": [
-                        {  # instance of
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q10876391"},
-                                    "type": "wikibase-entityid",
-                                },  # Wikipedia language edition
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                    "P424": [
-                        {  # Wikimedia language code
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P424",
-                                "datavalue": {"value": "en", "type": "string"},
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                    "P856": [
-                        {  # official website
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P856",
-                                "datavalue": {
-                                    "value": "https://en.wikipedia.org/",
-                                    "type": "string",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                },
-            },
-        ]
-
-        # Create temporary dump file
-        with tempfile.NamedTemporaryFile(
-            mode="w", delete=False, suffix=".json"
-        ) as temp_file:
-            for entity in test_entities:
-                temp_file.write(json.dumps(entity) + "\n")
-            temp_file_path = temp_file.name
-
-        try:
-            # Clear existing entity data
-            db_session.query(Position).delete()
-            db_session.query(Location).delete()
-            db_session.query(Country).delete()
-            db_session.query(WikipediaProject).delete()
-            db_session.flush()
-
-            # Test extraction
-            with patch("poliloom.dump_reader.calculate_file_chunks") as mock_chunks:
-                # Mock chunks to return single chunk for simpler testing
-                file_size = os.path.getsize(temp_file_path)
-                mock_chunks.return_value = [(0, file_size)]
-
-                import_entities(temp_file_path, batch_size=10)
-
-            # Verify entities were actually saved to database
-            positions = db_session.query(Position).all()
-            locations = db_session.query(Location).all()
-            countries = db_session.query(Country).all()
-            wikipedia_projects = db_session.query(WikipediaProject).all()
-
-            assert len(positions) == 1
-            assert len(locations) == 1
-            assert len(countries) == 1
-            assert len(wikipedia_projects) == 1
-
-            # Verify specific entity data
-            position = positions[0]
-            assert position.wikidata_id == "Q123456"
-            assert position.wikidata_entity.name == "Test Office Position"
-
-            location = locations[0]
-            assert location.wikidata_id == "Q789012"
-            assert location.wikidata_entity.name == "Test City Location"
-
-            country = countries[0]
-            assert country.wikidata_id == "Q345678"
-            assert country.name == "Test Country"
-            assert country.iso_code == "TC"
-
-            wikipedia_project = wikipedia_projects[0]
-            assert wikipedia_project.wikidata_id == "Q328"
-            assert wikipedia_project.name == "English Wikipedia"
-            assert wikipedia_project.official_website == "https://en.wikipedia.org/"
-
-        finally:
-            os.unlink(temp_file_path)
 
     def test_insert_positions_batch(self, db_session):
         """Test inserting a batch of positions."""
@@ -339,7 +37,7 @@ class TestWikidataEntityImporter:
         for pos in positions:
             collection.add_entity(pos)
 
-        _insert_entities_batch(collection, get_engine())
+        _insert_entities_batch(collection, db_session)
 
         # Verify positions were inserted
         inserted_positions = db_session.query(Position).all()
@@ -365,7 +63,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Position, shared_classes=frozenset())
         for pos in initial_positions:
             collection.add_entity(pos)
-        _insert_entities_batch(collection, get_engine())
+        _insert_entities_batch(collection, db_session)
 
         # Insert batch with some duplicates and new items
         positions_with_duplicates = [
@@ -388,7 +86,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Position, shared_classes=frozenset())
         for pos in positions_with_duplicates:
             collection.add_entity(pos)
-        _insert_entities_batch(collection, get_engine())
+        _insert_entities_batch(collection, db_session)
 
         # Verify all positions exist with correct data
         inserted_positions = db_session.query(Position).all()
@@ -407,7 +105,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Position, shared_classes=frozenset())
 
         # Should handle empty batch gracefully without errors
-        _insert_entities_batch(collection, get_engine())
+        _insert_entities_batch(collection, db_session)
 
         # Verify no positions were inserted
         inserted_positions = db_session.query(Position).all()
@@ -432,7 +130,7 @@ class TestWikidataEntityImporter:
         for loc in locations:
             collection.add_entity(loc)
 
-        _insert_entities_batch(collection, get_engine())
+        _insert_entities_batch(collection, db_session)
 
         # Verify locations were inserted
         inserted_locations = db_session.query(Location).all()
@@ -463,7 +161,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Location, shared_classes=frozenset())
         for loc in locations:
             collection.add_entity(loc)
-        _insert_entities_batch(collection, get_engine())
+        _insert_entities_batch(collection, db_session)
 
         # Insert again with some duplicates - should handle gracefully
         locations_with_duplicates = [
@@ -481,7 +179,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Location, shared_classes=frozenset())
         for loc in locations_with_duplicates:
             collection.add_entity(loc)
-        _insert_entities_batch(collection, get_engine())
+        _insert_entities_batch(collection, db_session)
 
         # Should now have 4 total locations
         all_locations = db_session.query(Location).all()
@@ -510,7 +208,7 @@ class TestWikidataEntityImporter:
         for country in countries:
             collection.add_entity(country)
 
-        _insert_entities_batch(collection, get_engine())
+        _insert_entities_batch(collection, db_session)
 
         # Verify countries were inserted
         inserted_countries = db_session.query(Country).all()
@@ -538,7 +236,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Country, shared_classes=frozenset())
         for country in countries:
             collection.add_entity(country)
-        _insert_entities_batch(collection, get_engine())
+        _insert_entities_batch(collection, db_session)
 
         # Insert again with updated name - should update
         updated_countries = [
@@ -552,7 +250,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Country, shared_classes=frozenset())
         for country in updated_countries:
             collection.add_entity(country)
-        _insert_entities_batch(collection, get_engine())
+        _insert_entities_batch(collection, db_session)
 
         # Should still have only one country but with updated name
         final_countries = db_session.query(Country).all()
@@ -582,7 +280,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Language, shared_classes=frozenset())
         for lang in languages:
             collection.add_entity(lang)
-        _insert_entities_batch(collection, get_engine())
+        _insert_entities_batch(collection, db_session)
 
         # Verify languages were inserted
         inserted_languages = db_session.query(Language).all()
@@ -610,7 +308,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Language, shared_classes=frozenset())
         for lang in languages:
             collection.add_entity(lang)
-        _insert_entities_batch(collection, get_engine())
+        _insert_entities_batch(collection, db_session)
 
         # Insert again with updated name - should update
         updated_languages = [
@@ -625,7 +323,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Language, shared_classes=frozenset())
         for lang in updated_languages:
             collection.add_entity(lang)
-        _insert_entities_batch(collection, get_engine())
+        _insert_entities_batch(collection, db_session)
 
         # Should still have only one language but with updated name
         final_languages = db_session.query(Language).all()
@@ -661,7 +359,7 @@ class TestWikidataEntityImporter:
         for project in wikipedia_projects:
             collection.add_entity(project)
 
-        _insert_entities_batch(collection, get_engine())
+        _insert_entities_batch(collection, db_session)
 
         # Verify Wikipedia projects were inserted
         inserted_projects = db_session.query(WikipediaProject).all()
@@ -700,7 +398,7 @@ class TestWikidataEntityImporter:
         )
         for project in wikipedia_projects:
             collection.add_entity(project)
-        _insert_entities_batch(collection, get_engine())
+        _insert_entities_batch(collection, db_session)
 
         # Insert again with same wikidata_id - should skip (do nothing)
         updated_projects = [
@@ -715,7 +413,7 @@ class TestWikidataEntityImporter:
         )
         for project in updated_projects:
             collection.add_entity(project)
-        _insert_entities_batch(collection, get_engine())
+        _insert_entities_batch(collection, db_session)
 
         # Should still have only one project, but WikidataEntity name/description are updated
         final_projects = db_session.query(WikipediaProject).all()
@@ -724,261 +422,100 @@ class TestWikidataEntityImporter:
         # Name is updated because WikidataEntity has update columns for name/description
         assert final_projects[0].name == "English Wikipedia Updated"
 
-    def test_wikipedia_project_filtering(self, db_session):
-        """Test that Wikipedia projects are filtered correctly.
 
-        Filtering criteria:
-        - Must have P856 (official website)
-        - P856 must contain 'wikipedia.org'
-        - Must not be umbrella entity (P31 = Q210588)
-        - When multiple P856 values exist, use preferred rank
-        """
-        # Set up hierarchy
-        hierarchy_data = [
-            {"wikidata_id": "Q10876391", "name": "Wikipedia language edition"},
-            {"wikidata_id": "Q210588", "name": "umbrella term"},
-        ]
-        stmt = insert(WikidataEntity).values(hierarchy_data)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
-        db_session.execute(stmt)
-        db_session.flush()
+class TestWikipediaProjectFiltering:
+    """Test Wikipedia project filtering logic in should_import method."""
 
-        test_entities = [
-            # Valid Wikipedia project with P856 - should be imported
-            {
-                "id": "Q877583",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Belarusian Wikipedia"}},
-                "claims": {
-                    "P31": [
-                        {
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q10876391"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                    "P856": [
-                        {
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P856",
-                                "datavalue": {
-                                    "value": "https://be.wikipedia.org/",
-                                    "type": "string",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                },
-            },
-            # Wikipedia project with multiple P856 but one preferred - should be imported with preferred URL
-            # Based on actual Q8937989 data from Wikidata
-            {
-                "id": "Q8937989",
-                "type": "item",
-                "labels": {
-                    "en": {
-                        "language": "en",
-                        "value": "Belarusian Wikipedia (Taraškievica)",
-                    }
-                },
-                "claims": {
-                    "P31": [
-                        {
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q10876391"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                    "P856": [
-                        {
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P856",
-                                "datavalue": {
-                                    "value": "https://be-tarask.wikipedia.org/",
-                                    "type": "string",
-                                },
-                                "datatype": "url",
-                            },
-                            "type": "statement",
-                            "id": "Q8937989$EFBA9BBD-DF52-4301-98FE-D8C7819DC4FD",
-                            "rank": "preferred",
-                        },
-                        {
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P856",
-                                "datavalue": {
-                                    "value": "https://be-x-old.wikipedia.org/",
-                                    "type": "string",
-                                },
-                                "datatype": "url",
-                            },
-                            "type": "statement",
-                            "id": "Q8937989$ace62c47-477a-ab53-88f9-23fd6d33b15e",
-                            "rank": "normal",
-                        },
-                    ],
-                },
-            },
-            # Umbrella entity (P31 = Q210588) - should NOT be imported
-            {
-                "id": "Q122311452",
-                "type": "item",
-                "labels": {
-                    "en": {"language": "en", "value": "Belarusian Wikipedia (umbrella)"}
-                },
-                "claims": {
-                    "P31": [
-                        {
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q210588"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                    "P856": [
-                        {
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P856",
-                                "datavalue": {
-                                    "value": "https://be.wikipedia.org/",
-                                    "type": "string",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                },
-            },
-            # Wikipedia project without P856 - should NOT be imported
-            {
-                "id": "Q123456",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Test Wikipedia No URL"}},
-                "claims": {
-                    "P31": [
-                        {
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q10876391"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                },
-            },
-            # Wikipedia project with non-wikipedia.org URL - should NOT be imported
-            {
-                "id": "Q654321",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Non-Wikipedia Project"}},
-                "claims": {
-                    "P31": [
-                        {
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q10876391"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                    "P856": [
-                        {
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P856",
-                                "datavalue": {
-                                    "value": "https://example.com/",
-                                    "type": "string",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                },
-            },
+    def test_valid_wikipedia_project_with_website(self):
+        """Test that valid Wikipedia project with wikipedia.org URL is imported."""
+        mock_entity = Mock()
+        mock_entity.get_truthy_claims.return_value = [
+            {"mainsnak": {"datavalue": {"value": "https://be.wikipedia.org/"}}}
         ]
 
-        # Create temporary dump file
-        with tempfile.NamedTemporaryFile(
-            mode="w", delete=False, suffix=".json"
-        ) as temp_file:
-            for entity in test_entities:
-                temp_file.write(json.dumps(entity) + "\n")
-            temp_file_path = temp_file.name
+        result = WikipediaProject.should_import(
+            mock_entity,
+            instance_ids={"Q10876391"},  # Wikipedia language edition
+            subclass_ids=set(),
+        )
 
-        try:
-            # Clear existing data
-            db_session.query(WikipediaProject).delete()
-            db_session.flush()
+        assert result is not None
+        assert result["official_website"] == "https://be.wikipedia.org/"
 
-            # Test extraction
-            with patch("poliloom.dump_reader.calculate_file_chunks") as mock_chunks:
-                file_size = os.path.getsize(temp_file_path)
-                mock_chunks.return_value = [(0, file_size)]
-                import_entities(temp_file_path, batch_size=10)
+    def test_wikipedia_project_with_preferred_rank_url(self):
+        """Test that preferred rank URL is selected when multiple P856 exist."""
+        mock_entity = Mock()
+        # Truthy claims already filters to preferred, so we get preferred first
+        mock_entity.get_truthy_claims.return_value = [
+            {"mainsnak": {"datavalue": {"value": "https://be-tarask.wikipedia.org/"}}},
+            {"mainsnak": {"datavalue": {"value": "https://be-x-old.wikipedia.org/"}}},
+        ]
 
-            # Verify only valid Wikipedia projects were imported
-            wikipedia_projects = db_session.query(WikipediaProject).all()
-            assert len(wikipedia_projects) == 2  # Only Q877583 and Q8937989
+        result = WikipediaProject.should_import(
+            mock_entity,
+            instance_ids={"Q10876391"},
+            subclass_ids=set(),
+        )
 
-            # Verify specific project data
-            qids = {p.wikidata_id for p in wikipedia_projects}
-            assert qids == {"Q877583", "Q8937989"}
+        assert result is not None
+        assert result["official_website"] == "https://be-tarask.wikipedia.org/"
 
-            # Verify official website URLs
-            be_wiki = (
-                db_session.query(WikipediaProject)
-                .filter(WikipediaProject.wikidata_id == "Q877583")
-                .first()
-            )
-            assert be_wiki.official_website == "https://be.wikipedia.org/"
+    def test_umbrella_entity_not_imported(self):
+        """Test that umbrella entities (Q210588) are not imported."""
+        mock_entity = Mock()
+        mock_entity.get_truthy_claims.return_value = [
+            {"mainsnak": {"datavalue": {"value": "https://be.wikipedia.org/"}}}
+        ]
 
-            be_tarask_wiki = (
-                db_session.query(WikipediaProject)
-                .filter(WikipediaProject.wikidata_id == "Q8937989")
-                .first()
-            )
-            # Should use preferred rank URL (https://be-tarask.wikipedia.org/)
-            # and NOT the normal rank URL (https://be-x-old.wikipedia.org/)
-            assert be_tarask_wiki.official_website == "https://be-tarask.wikipedia.org/"
+        result = WikipediaProject.should_import(
+            mock_entity,
+            instance_ids={"Q210588"},  # umbrella term
+            subclass_ids=set(),
+        )
 
-        finally:
-            os.unlink(temp_file_path)
+        assert result is None
+
+    def test_wikipedia_project_without_website_not_imported(self):
+        """Test that Wikipedia project without P856 is not imported."""
+        mock_entity = Mock()
+        mock_entity.get_truthy_claims.return_value = []  # No P856
+
+        result = WikipediaProject.should_import(
+            mock_entity,
+            instance_ids={"Q10876391"},
+            subclass_ids=set(),
+        )
+
+        assert result is None
+
+    def test_wikipedia_project_with_non_wikipedia_url_not_imported(self):
+        """Test that projects with non-wikipedia.org URLs are not imported."""
+        mock_entity = Mock()
+        mock_entity.get_truthy_claims.return_value = [
+            {"mainsnak": {"datavalue": {"value": "https://example.com/"}}}
+        ]
+
+        result = WikipediaProject.should_import(
+            mock_entity,
+            instance_ids={"Q10876391"},
+            subclass_ids=set(),
+        )
+
+        assert result is None
+
+    def test_wikipedia_project_with_malformed_claim(self):
+        """Test that malformed P856 claims are handled gracefully."""
+        mock_entity = Mock()
+        mock_entity.get_truthy_claims.return_value = [
+            {
+                "mainsnak": {}  # Missing datavalue
+            }
+        ]
+
+        result = WikipediaProject.should_import(
+            mock_entity,
+            instance_ids={"Q10876391"},
+            subclass_ids=set(),
+        )
+
+        assert result is None

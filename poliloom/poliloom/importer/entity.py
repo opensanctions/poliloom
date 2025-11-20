@@ -88,59 +88,58 @@ def init_entity_worker(
     shared_wikipedia_project_classes = wikipedia_project_classes
 
 
-def _insert_entities_batch(collection: EntityCollection, engine) -> None:
+def _insert_entities_batch(collection: EntityCollection, session: Session) -> None:
     """Insert a batch of entities and their relations into the database."""
     if not collection.has_entities():
         return
 
-    with Session(engine) as session:
-        # Insert WikidataEntity records first (without labels)
-        entity_data = [
-            {
-                "wikidata_id": entity["wikidata_id"],
-                "name": entity["name"],
-                "description": entity["description"],
-            }
-            for entity in collection.entities
-        ]
+    # Insert WikidataEntity records first (without labels)
+    entity_data = [
+        {
+            "wikidata_id": entity["wikidata_id"],
+            "name": entity["name"],
+            "description": entity["description"],
+        }
+        for entity in collection.entities
+    ]
 
-        WikidataEntity.upsert_batch(session, entity_data)
+    WikidataEntity.upsert_batch(session, entity_data)
 
-        # Insert labels into separate table
-        from ..models import WikidataEntityLabel
+    # Insert labels into separate table
+    from ..models import WikidataEntityLabel
 
-        label_data = []
-        for entity in collection.entities:
-            labels = entity.get("labels")
-            if labels:
-                for label in labels:
-                    label_data.append(
-                        {
-                            "entity_id": entity["wikidata_id"],
-                            "label": label,
-                        }
-                    )
+    label_data = []
+    for entity in collection.entities:
+        labels = entity.get("labels")
+        if labels:
+            for label in labels:
+                label_data.append(
+                    {
+                        "entity_id": entity["wikidata_id"],
+                        "label": label,
+                    }
+                )
 
-        if label_data:
-            WikidataEntityLabel.upsert_batch(session, label_data)
+    if label_data:
+        WikidataEntityLabel.upsert_batch(session, label_data)
 
-        # Insert entities referencing the WikidataEntity records
-        # Remove 'name', 'description', and 'labels' keys since they're now stored separately
-        for entity in collection.entities:
-            entity.pop("name", None)
-            entity.pop("description", None)
-            entity.pop("labels", None)
+    # Insert entities referencing the WikidataEntity records
+    # Remove 'name', 'description', and 'labels' keys since they're now stored separately
+    for entity in collection.entities:
+        entity.pop("name", None)
+        entity.pop("description", None)
+        entity.pop("labels", None)
 
-        collection.model_class.upsert_batch(session, collection.entities)
+    collection.model_class.upsert_batch(session, collection.entities)
 
-        # Insert relations for these entities
-        if collection.relations:
-            WikidataRelation.upsert_batch(session, collection.relations)
+    # Insert relations for these entities
+    if collection.relations:
+        WikidataRelation.upsert_batch(session, collection.relations)
 
-        session.commit()
-        logger.debug(
-            f"Processed {len(collection.entities)} {collection.model_class.__name__.lower()}s with {len(collection.relations)} relations"
-        )
+    session.flush()
+    logger.debug(
+        f"Processed {len(collection.entities)} {collection.model_class.__name__.lower()}s with {len(collection.relations)} relations"
+    )
 
 
 def _process_supporting_entities_chunk(
@@ -164,8 +163,9 @@ def _process_supporting_entities_chunk(
         shared_language_classes, \
         shared_wikipedia_project_classes
 
-    # Create a fresh engine for this worker process
+    # Create a fresh engine and session for this worker process
     engine = create_engine(pool_size=2, max_overflow=3)
+    session = Session(engine)
 
     # Entity collections organized by type
     entity_collections = [
@@ -233,109 +233,16 @@ def _process_supporting_entities_chunk(
                 if any(
                     class_id in collection.shared_classes for class_id in all_class_ids
                 ):
-                    # Handle special case for countries requiring ISO code
-                    if collection.model_class is Country:
-                        # Extract ISO 3166-1 alpha-2 code for countries
-                        iso_code = None
-                        iso_claims = entity.get_truthy_claims("P297")
-                        for claim in iso_claims:
-                            try:
-                                iso_code = claim["mainsnak"]["datavalue"]["value"]
-                                break
-                            except (KeyError, TypeError):
-                                continue
+                    # Ask the model class if this entity should be imported
+                    additional_fields = collection.model_class.should_import(
+                        entity, instance_ids, subclass_ids
+                    )
 
-                        # Only import countries that have an ISO code
-                        if iso_code:
-                            # Create separate copy for countries with iso_code
-                            country_data = entity_data.copy()
-                            country_data["iso_code"] = iso_code
-                            collection.add_entity(country_data)
-                    # Handle special case for languages requiring ISO codes or wikimedia code
-                    elif collection.model_class is Language:
-                        # Extract ISO 639-1 code for languages (P218)
-                        iso_639_1 = None
-                        iso_639_1_claims = entity.get_truthy_claims("P218")
-                        for claim in iso_639_1_claims:
-                            try:
-                                iso_639_1 = claim["mainsnak"]["datavalue"]["value"]
-                                break
-                            except (KeyError, TypeError):
-                                continue
-
-                        # Extract ISO 639-2 code for languages (P219)
-                        iso_639_2 = None
-                        iso_639_2_claims = entity.get_truthy_claims("P219")
-                        for claim in iso_639_2_claims:
-                            try:
-                                iso_639_2 = claim["mainsnak"]["datavalue"]["value"]
-                                break
-                            except (KeyError, TypeError):
-                                continue
-
-                        # Extract ISO 639-3 code for languages (P220)
-                        iso_639_3 = None
-                        iso_639_3_claims = entity.get_truthy_claims("P220")
-                        for claim in iso_639_3_claims:
-                            try:
-                                iso_639_3 = claim["mainsnak"]["datavalue"]["value"]
-                                break
-                            except (KeyError, TypeError):
-                                continue
-
-                        # Extract Wikimedia language code (P424)
-                        wikimedia_code = None
-                        wikimedia_claims = entity.get_truthy_claims("P424")
-                        for claim in wikimedia_claims:
-                            try:
-                                wikimedia_code = claim["mainsnak"]["datavalue"]["value"]
-                                break
-                            except (KeyError, TypeError):
-                                continue
-
-                        # Import languages that have either ISO code or wikimedia code
-                        if iso_639_1 or iso_639_2 or iso_639_3 or wikimedia_code:
-                            # Create separate copy for languages with codes
-                            language_data = entity_data.copy()
-                            language_data["iso_639_1"] = iso_639_1
-                            language_data["iso_639_2"] = iso_639_2
-                            language_data["iso_639_3"] = iso_639_3
-                            language_data["wikimedia_code"] = wikimedia_code
-                            collection.add_entity(language_data)
-                    # Standard processing for Wikipedia projects
-                    elif collection.model_class is WikipediaProject:
-                        # Filter out umbrella entities (Q210588)
-                        if "Q210588" in instance_ids:
-                            continue
-
-                        # Extract P856 (official website) using truthy filtering
-                        # This automatically handles preferred rank selection when multiple P856 exist
-                        official_website = None
-                        p856_claims = entity.get_truthy_claims("P856")
-
-                        # Get the first P856 value (truthy filtering already selected preferred if exists)
-                        if p856_claims:
-                            try:
-                                official_website = p856_claims[0]["mainsnak"][
-                                    "datavalue"
-                                ]["value"]
-                            except (KeyError, TypeError):
-                                pass
-
-                        # Only import Wikipedia projects that have a wikipedia.org URL
-                        if official_website and "wikipedia.org" in official_website:
-                            wikipedia_project_data = entity_data.copy()
-                            wikipedia_project_data["official_website"] = (
-                                official_website
-                            )
-                            collection.add_entity(wikipedia_project_data)
-
-                            # Extract relations for this entity
-                            entity_relations = entity.extract_all_relations()
-                            collection.add_relations(entity_relations)
-                    else:
-                        # Standard processing for all other entity types
-                        collection.add_entity(entity_data.copy())
+                    if additional_fields is not None:
+                        # Create entity data with additional fields
+                        import_data = entity_data.copy()
+                        import_data.update(additional_fields)
+                        collection.add_entity(import_data)
 
                         # Extract relations for this entity
                         entity_relations = entity.extract_all_relations()
@@ -344,18 +251,23 @@ def _process_supporting_entities_chunk(
             # Process batches when they reach the batch size
             for collection in entity_collections:
                 if collection.batch_size() >= batch_size:
-                    _insert_entities_batch(collection, engine)
+                    _insert_entities_batch(collection, session)
+                    session.commit()
                     collection.clear_batch()
 
     except Exception as e:
         logger.error(f"Worker {worker_id}: error processing chunk: {e}")
+        session.rollback()
+        session.close()
         raise
 
     # Process remaining entities in final batches on successful completion
     for collection in entity_collections:
         if collection.has_entities():
-            _insert_entities_batch(collection, engine)
+            _insert_entities_batch(collection, session)
+            session.commit()
 
+    session.close()
     logger.info(f"Worker {worker_id}: finished processing {entity_count} entities")
 
     # Extract counts from collections
