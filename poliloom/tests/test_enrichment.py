@@ -552,67 +552,37 @@ class TestCountPoliticiansWithUnevaluated:
         assert count == 0
 
 
-class TestEnrichUntilTarget:
-    """Test enrich_until_target function."""
+class TestEnrichBatch:
+    """Test enrich_batch function."""
 
-    def test_enrich_until_target_already_met(
-        self, db_session, sample_politician, sample_archived_page
-    ):
-        """Test when target is already met."""
-        from poliloom.enrichment import enrich_until_target
-
-        # Add unevaluated property to meet target
-        prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-            archived_page_id=sample_archived_page.id,
-        )
-        db_session.add(prop)
-        db_session.flush()
-
-        # Target is 1, already met
-        enriched_count = enrich_until_target(target_politicians=1)
-        assert enriched_count == 0
-
-    def test_enrich_until_target_enriches_one(
+    def test_enrich_batch_enriches_n_politicians(
         self, db_session, sample_politician, sample_wikipedia_link, sample_archived_page
     ):
-        """Test enriching until target is reached."""
-        from poliloom.enrichment import enrich_until_target
+        """Test enriching a batch of politicians."""
+        from poliloom.enrichment import enrich_batch
 
-        # No unevaluated properties initially, target is 1
         # Mock the enrichment process
         with patch(
             "poliloom.enrichment.enrich_politician_from_wikipedia"
         ) as mock_enrich:
-            # First call: no unevaluated politicians yet, enriches 1
-            # After enrichment, add property to satisfy target
+
             async def mock_enrich_func(languages=None, countries=None):
-                # Simulate adding an unevaluated property
-                prop = Property(
-                    politician_id=sample_politician.id,
-                    type=PropertyType.BIRTH_DATE,
-                    value="1980-01-01",
-                    value_precision=11,
-                    archived_page_id=sample_archived_page.id,
-                )
-                db_session.add(prop)
-                db_session.flush()
                 return True  # politician_found
 
             mock_enrich.side_effect = mock_enrich_func
 
-            enriched_count = enrich_until_target(target_politicians=1)
+            # Mock env var for batch size
+            with patch.dict("os.environ", {"ENRICHMENT_BATCH_SIZE": "3"}):
+                enriched_count = enrich_batch()
 
-        assert enriched_count == 1
+        assert enriched_count == 3
+        assert mock_enrich.call_count == 3
 
-    def test_enrich_until_target_no_more_politicians(self, db_session):
+    def test_enrich_batch_no_more_politicians(self, db_session):
         """Test when no more politicians available to enrich."""
-        from poliloom.enrichment import enrich_until_target
+        from poliloom.enrichment import enrich_batch
 
-        # No politicians in database, target cannot be met
+        # No politicians in database
         with patch(
             "poliloom.enrichment.enrich_politician_from_wikipedia"
         ) as mock_enrich:
@@ -622,11 +592,14 @@ class TestEnrichUntilTarget:
 
             mock_enrich.side_effect = mock_enrich_func
 
-            enriched_count = enrich_until_target(target_politicians=5)
+            with patch.dict("os.environ", {"ENRICHMENT_BATCH_SIZE": "5"}):
+                enriched_count = enrich_batch()
 
         assert enriched_count == 0
+        # Should only call once, then break
+        assert mock_enrich.call_count == 1
 
-    def test_enrich_until_target_with_filters(
+    def test_enrich_batch_with_filters(
         self,
         db_session,
         sample_politician,
@@ -635,9 +608,8 @@ class TestEnrichUntilTarget:
         sample_wikipedia_link,
         sample_archived_page,
     ):
-        """Test enrich_until_target with language and country filters."""
-        from poliloom.enrichment import enrich_until_target
-        from poliloom.models import ArchivedPage
+        """Test enrich_batch with language and country filters."""
+        from poliloom.enrichment import enrich_batch
 
         # Add citizenship
         citizenship_prop = Property(
@@ -654,33 +626,36 @@ class TestEnrichUntilTarget:
         ) as mock_enrich:
 
             async def mock_enrich_func(languages=None, countries=None):
-                # Create English archived page
-                en_page = ArchivedPage(
-                    url="https://en.example.com/test",
-                    content_hash="en123",
-                    iso_639_1="en",
-                )
-                db_session.add(en_page)
-                db_session.flush()
-
-                # Add property matching filters
-                prop = Property(
-                    politician_id=sample_politician.id,
-                    type=PropertyType.BIRTH_DATE,
-                    value="1980-01-01",
-                    value_precision=11,
-                    archived_page_id=en_page.id,
-                )
-                db_session.add(prop)
-                db_session.flush()
                 return True
 
             mock_enrich.side_effect = mock_enrich_func
 
-            enriched_count = enrich_until_target(
-                target_politicians=1, languages=["Q1860"], countries=["Q30"]
-            )
+            with patch.dict("os.environ", {"ENRICHMENT_BATCH_SIZE": "2"}):
+                enriched_count = enrich_batch(languages=["Q1860"], countries=["Q30"])
 
-        assert enriched_count == 1
+        assert enriched_count == 2
         # Verify mock was called with correct filters
         mock_enrich.assert_called_with(languages=["Q1860"], countries=["Q30"])
+
+    def test_enrich_batch_stops_early_when_no_politicians(self, db_session):
+        """Test that batch stops early if politicians run out."""
+        from poliloom.enrichment import enrich_batch
+
+        # Mock to return True twice, then False
+        call_count = [0]
+
+        with patch(
+            "poliloom.enrichment.enrich_politician_from_wikipedia"
+        ) as mock_enrich:
+
+            async def mock_enrich_func(languages=None, countries=None):
+                call_count[0] += 1
+                return call_count[0] <= 2  # True for first 2, False after
+
+            mock_enrich.side_effect = mock_enrich_func
+
+            with patch.dict("os.environ", {"ENRICHMENT_BATCH_SIZE": "5"}):
+                enriched_count = enrich_batch()
+
+        assert enriched_count == 2
+        assert mock_enrich.call_count == 3  # Called 3 times, but only 2 successful

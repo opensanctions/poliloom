@@ -4,7 +4,7 @@ import click
 import logging
 from datetime import datetime, timezone
 import httpx
-from poliloom.enrichment import enrich_until_target
+from poliloom.enrichment import enrich_politician_from_wikipedia
 from poliloom.storage import StorageFactory
 from poliloom.importer.hierarchy import import_hierarchy_trees
 from poliloom.importer.entity import import_entities
@@ -250,10 +250,10 @@ def dump_extract(input, output):
 
 @main.command("enrich-wikipedia")
 @click.option(
-    "--target",
+    "--count",
     type=int,
-    default=10,
-    help="Target number of politicians with unevaluated extracted data (default: 10)",
+    default=5,
+    help="Number of politicians to enrich (default: 5)",
 )
 @click.option(
     "--languages",
@@ -266,37 +266,49 @@ def dump_extract(input, output):
     help="Filter by country QIDs (can be specified multiple times)",
 )
 def enrich_wikipedia(
-    target: int, languages: tuple[str, ...], countries: tuple[str, ...]
+    count: int, languages: tuple[str, ...], countries: tuple[str, ...]
 ) -> None:
-    """Enrich politician entities until target number have unevaluated extracted data.
+    """Enrich a specified number of politicians from Wikipedia.
 
-    This command enriches politicians by extracting data from their Wikipedia articles
-    until the target number of politicians with unevaluated statements is reached.
+    This command enriches politicians by extracting data from their Wikipedia articles.
 
     Examples:
-    - poliloom enrich-wikipedia --target 20
-    - poliloom enrich-wikipedia --target 10 --countries Q30 --countries Q38
-    - poliloom enrich-wikipedia --target 5 --languages Q1860 --languages Q150
+    - poliloom enrich-wikipedia --count 20
+    - poliloom enrich-wikipedia --count 10 --countries Q30 --countries Q38
+    - poliloom enrich-wikipedia --count 5 --languages Q1860 --languages Q150
     """
+    import asyncio
+
     try:
         # Convert tuples to lists (or None if empty)
         languages_list = list(languages) if languages else None
         countries_list = list(countries) if countries else None
 
-        click.echo(f"⏳ Enriching until {target} politicians have unevaluated data...")
+        click.echo(f"⏳ Enriching {count} politicians...")
         if languages_list:
             click.echo(f"   Filtering by languages: {', '.join(languages_list)}")
         if countries_list:
             click.echo(f"   Filtering by countries: {', '.join(countries_list)}")
 
-        enriched_count = enrich_until_target(target, languages_list, countries_list)
+        enriched_count = 0
+        for i in range(count):
+            politician_found = asyncio.run(
+                enrich_politician_from_wikipedia(
+                    languages=languages_list, countries=countries_list
+                )
+            )
+
+            if not politician_found:
+                click.echo("⚠️  No more politicians available to enrich")
+                break
+
+            enriched_count += 1
+            click.echo(f"   Progress: {enriched_count}/{count}")
 
         if enriched_count == 0:
-            click.echo("✅ Target already met - no enrichment needed")
+            click.echo("✅ No politicians enriched")
         else:
-            click.echo(
-                f"✅ Successfully enriched {enriched_count} politicians to meet target"
-            )
+            click.echo(f"✅ Successfully enriched {enriched_count} politicians")
 
     except Exception as e:
         click.echo(f"❌ Error enriching politicians: {e}")

@@ -29,7 +29,7 @@ from .schemas import (
     PropertyAddResponse,
 )
 from .auth import get_current_user, User
-from ..enrichment import enrich_until_target
+from ..enrichment import enrich_batch, count_politicians_with_unevaluated
 from ..wikidata_statement import (
     create_entity,
     create_statement,
@@ -166,18 +166,22 @@ async def get_politicians(
         # Execute query
         politicians = db.execute(query).scalars().all()
 
-        # Trigger background enrichment when filtering for unevaluated
+        # Trigger background enrichment if we have too few unevaluated politicians
         if has_unevaluated is True:
-            min_unevaluated = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
-            # Always queue enrichment job - executor handles concurrent workers and queue
-            loop = asyncio.get_running_loop()
-            loop.run_in_executor(
-                _enrichment_executor,
-                enrich_until_target,
-                min_unevaluated,
-                languages,
-                countries,
-            )
+            min_threshold = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
+            current_count = count_politicians_with_unevaluated(db, languages, countries)
+
+            if current_count < min_threshold:
+                logger.info(
+                    f"Only {current_count} politicians with unevaluated properties (threshold: {min_threshold}), triggering enrichment batch"
+                )
+                loop = asyncio.get_running_loop()
+                loop.run_in_executor(
+                    _enrichment_executor,
+                    enrich_batch,
+                    languages,
+                    countries,
+                )
 
         if not politicians:
             return []

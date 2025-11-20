@@ -621,40 +621,30 @@ def count_politicians_with_unevaluated(
     return result or 0
 
 
-def enrich_until_target(
-    target_politicians: int,
+def enrich_batch(
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,
 ) -> int:
     """
-    Enrich politicians until target number have unevaluated statements.
+    Enrich a batch of politicians based on ENRICHMENT_BATCH_SIZE env var.
 
     This function is synchronous and uses asyncio.run() to call async enrichment functions.
     It's designed to be run in a ThreadPoolExecutor to avoid blocking API workers.
 
     Args:
-        target_politicians: Target number of politicians with unevaluated statements
         languages: Optional list of language QIDs to filter by
         countries: Optional list of country QIDs to filter by
 
     Returns:
-        Number of politicians enriched during this run
+        Number of politicians successfully enriched during this run
     """
+    batch_size = int(os.getenv("ENRICHMENT_BATCH_SIZE", "5"))
     enriched_count = 0
 
-    while True:
-        # Check current count of politicians with unevaluated statements
-        with Session(get_engine()) as db:
-            current_count = count_politicians_with_unevaluated(db, languages, countries)
+    logger.info(f"Starting enrichment batch of {batch_size} politicians")
 
-        logger.info(
-            f"Current politicians with unevaluated statements: {current_count}/{target_politicians}"
-        )
-
-        if current_count >= target_politicians:
-            break
-
-        # Enrich one more politician - run async function in new event loop
+    for i in range(batch_size):
+        # Enrich one politician - run async function in new event loop
         politician_found = asyncio.run(
             enrich_politician_from_wikipedia(languages=languages, countries=countries)
         )
@@ -666,6 +656,9 @@ def enrich_until_target(
 
         enriched_count += 1
 
+    logger.info(
+        f"Enrichment batch complete: {enriched_count}/{batch_size} politicians enriched"
+    )
     return enriched_count
 
 
