@@ -4,7 +4,6 @@ import logging
 import multiprocessing as mp
 from typing import Set, Tuple
 
-from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from .. import dump_reader
@@ -129,11 +128,21 @@ def _process_second_pass_chunk(
 
             # Process batches when they reach the batch size
             if len(wikidata_entities) >= batch_size:
-                _insert_wikidata_entities_batch(wikidata_entities, worker_id, engine)
+                with Session(engine) as session:
+                    WikidataEntity.upsert_batch(session, wikidata_entities)
+                    session.commit()
+                    logger.debug(
+                        f"Worker {worker_id}: inserted batch of {len(wikidata_entities)} WikidataEntity records"
+                    )
                 wikidata_entities = []
 
             if len(wikidata_relations) >= batch_size:
-                _insert_wikidata_relations_batch(wikidata_relations, worker_id, engine)
+                with Session(engine) as session:
+                    WikidataRelation.upsert_batch(session, wikidata_relations)
+                    session.commit()
+                    logger.debug(
+                        f"Worker {worker_id}: inserted batch of {len(wikidata_relations)} WikidataRelation records"
+                    )
                 wikidata_relations = []
 
     except Exception as e:
@@ -142,9 +151,13 @@ def _process_second_pass_chunk(
 
     # Process remaining batches
     if wikidata_entities:
-        _insert_wikidata_entities_batch(wikidata_entities, worker_id, engine)
+        with Session(engine) as session:
+            WikidataEntity.upsert_batch(session, wikidata_entities)
+            session.commit()
     if wikidata_relations:
-        _insert_wikidata_relations_batch(wikidata_relations, worker_id, engine)
+        with Session(engine) as session:
+            WikidataRelation.upsert_batch(session, wikidata_relations)
+            session.commit()
 
     logger.info(
         f"Second pass - Worker {worker_id}: processed {entity_count} entities, "
@@ -152,48 +165,6 @@ def _process_second_pass_chunk(
     )
 
     return processed_count
-
-
-def _insert_wikidata_entities_batch(
-    wikidata_entities: list[dict], worker_id: int, engine: Engine
-) -> None:
-    """Insert a batch of WikidataEntity records into the database."""
-    if not wikidata_entities:
-        return
-
-    try:
-        with Session(engine) as session:
-            WikidataEntity.upsert_batch(session, wikidata_entities)
-            session.commit()
-
-            logger.debug(
-                f"Worker {worker_id}: inserted batch of {len(wikidata_entities)} WikidataEntity records"
-            )
-    except Exception as e:
-        logger.error(f"Worker {worker_id}: failed to insert WikidataEntity batch: {e}")
-        raise
-
-
-def _insert_wikidata_relations_batch(
-    wikidata_relations: list[dict], worker_id: int, engine: Engine
-) -> None:
-    """Insert a batch of WikidataRelation records into the database."""
-    if not wikidata_relations:
-        return
-
-    try:
-        with Session(engine) as session:
-            WikidataRelation.upsert_batch(session, wikidata_relations)
-            session.commit()
-
-            logger.debug(
-                f"Worker {worker_id}: inserted batch of {len(wikidata_relations)} WikidataRelation records"
-            )
-    except Exception as e:
-        logger.error(
-            f"Worker {worker_id}: failed to insert WikidataRelation batch: {e}"
-        )
-        raise
 
 
 def import_hierarchy_trees(

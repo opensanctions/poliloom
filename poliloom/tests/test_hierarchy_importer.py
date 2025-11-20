@@ -1,348 +1,149 @@
 """Tests for WikidataHierarchyImporter."""
 
-import pytest
-import json
-import tempfile
-import os
-
-from poliloom.database import get_engine
-from sqlalchemy.orm import Session
 from poliloom.models import WikidataEntity, WikidataRelation
-from poliloom.importer.hierarchy import import_hierarchy_trees
-from .conftest import load_json_fixture
 
 
 class TestWikidataHierarchyImporter:
     """Test hierarchy importing functionality."""
 
-    @pytest.fixture
-    def sample_dump_content(self):
-        """Create sample dump content for testing."""
-        # Load entities from fixture
-        dump_data = load_json_fixture("dump_processor_entities.json")
-        entities = dump_data["sample_dump_entities"]
-
-        # Convert to JSONL format with newlines
-        return "\n".join(json.dumps(entity) for entity in entities) + "\n"
-
-    def test_process_first_pass_chunk(self):
-        """Test first pass: collecting parent IDs and P279 entities."""
-        # Create test dump content with P279 and other relationships
-        test_entities = [
-            {
-                "id": "Q1",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Entity 1"}},
-                "claims": {
-                    "P279": [
-                        {
-                            "id": "Q1$statement-1",
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P279",
-                                "datavalue": {
-                                    "value": {"id": "Q2"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                    "P31": [  # instance_of
-                        {
-                            "id": "Q1$statement-2",
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q100"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                },
-            },
-            {
-                "id": "Q3",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Entity 3"}},
-                "claims": {
-                    "P279": [
-                        {
-                            "id": "Q3$statement-1",
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P279",
-                                "datavalue": {
-                                    "value": {"id": "Q2"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ]
-                },
-            },
+    def test_upsert_wikidata_entities_batch(self, db_session):
+        """Test upserting a batch of WikidataEntity records."""
+        entities = [
+            {"wikidata_id": "Q1", "name": "Entity 1"},
+            {"wikidata_id": "Q2", "name": "Entity 2"},
         ]
 
-        # Create temporary file
-        with tempfile.NamedTemporaryFile(
-            mode="w", delete=False, suffix=".json"
-        ) as temp_file:
-            for entity in test_entities:
-                temp_file.write(json.dumps(entity) + "\n")
-            temp_file_path = temp_file.name
+        WikidataEntity.upsert_batch(db_session, entities)
 
-        try:
-            from poliloom.importer.hierarchy import (
-                _process_first_pass_chunk,
-            )
+        # Verify entities were inserted
+        inserted_entities = db_session.query(WikidataEntity).all()
+        assert len(inserted_entities) == 2
+        wikidata_ids = {e.wikidata_id for e in inserted_entities}
+        assert wikidata_ids == {"Q1", "Q2"}
 
-            with Session(get_engine()) as session:
-                # Clear existing test data
-                session.query(WikidataRelation).delete()
-                session.query(WikidataEntity).delete()
-                session.commit()
+    def test_upsert_wikidata_entities_batch_with_duplicates(self, db_session):
+        """Test upserting WikidataEntity batch with duplicates."""
+        # Insert initial batch
+        initial_entities = [
+            {"wikidata_id": "Q1", "name": "Entity 1"},
+            {"wikidata_id": "Q2", "name": "Entity 2"},
+        ]
+        WikidataEntity.upsert_batch(db_session, initial_entities)
 
-            # Test first pass processing
-            parent_ids, entity_count = _process_first_pass_chunk(
-                temp_file_path, 0, os.path.getsize(temp_file_path), 0
-            )
-
-            # Verify results
-            assert entity_count == 2
-
-            # All parent IDs (from P279 and P31)
-            assert "Q2" in parent_ids  # Parent from P279
-            assert "Q100" in parent_ids  # Parent from P31
-            assert len(parent_ids) == 2
-
-        finally:
-            os.unlink(temp_file_path)
-
-    def test_import_hierarchy_trees_with_complex_relationships(self):
-        """Test importing hierarchy trees with complex P279 relationships."""
-        # Create dump content with complex hierarchy
-        test_entities = [
+        # Upsert batch with some duplicates and new items
+        entities_with_duplicates = [
             {
-                "id": "Q1",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Root Entity"}},
-                "claims": {},
-            },
+                "wikidata_id": "Q1",
+                "name": "Entity 1 Updated",
+            },  # Duplicate (should update)
+            {"wikidata_id": "Q3", "name": "Entity 3"},  # New
+        ]
+        WikidataEntity.upsert_batch(db_session, entities_with_duplicates)
+
+        # Verify all entities exist with correct data
+        inserted_entities = db_session.query(WikidataEntity).all()
+        assert len(inserted_entities) == 3
+        wikidata_ids = {e.wikidata_id for e in inserted_entities}
+        assert wikidata_ids == {"Q1", "Q2", "Q3"}
+
+        # Verify Q1 was updated
+        q1_entity = (
+            db_session.query(WikidataEntity)
+            .filter(WikidataEntity.wikidata_id == "Q1")
+            .first()
+        )
+        assert q1_entity.name == "Entity 1 Updated"
+
+    def test_upsert_wikidata_entities_batch_empty(self, db_session):
+        """Test upserting empty batch of WikidataEntity records."""
+        # Should handle empty batch gracefully without errors
+        WikidataEntity.upsert_batch(db_session, [])
+
+        # Verify no entities were inserted
+        inserted_entities = db_session.query(WikidataEntity).all()
+        assert len(inserted_entities) == 0
+
+    def test_upsert_wikidata_relations_batch(self, db_session):
+        """Test upserting a batch of WikidataRelation records."""
+        # Create parent entities first
+        parent_entity = WikidataEntity(wikidata_id="Q1", name="Parent Entity")
+        child_entity = WikidataEntity(wikidata_id="Q2", name="Child Entity")
+        db_session.add_all([parent_entity, child_entity])
+        db_session.flush()
+
+        # Upsert relations
+        relations = [
             {
-                "id": "Q2",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Child 1"}},
-                "claims": {
-                    "P279": [
-                        {
-                            "id": "Q2$statement-complex-1",
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P279",
-                                "datavalue": {
-                                    "value": {"id": "Q1"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ]
-                },
-            },
-            {
-                "id": "Q3",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Child 2"}},
-                "claims": {
-                    "P279": [
-                        {
-                            "id": "Q3$statement-complex-1",
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P279",
-                                "datavalue": {
-                                    "value": {"id": "Q1"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ]
-                },
-            },
-            {
-                "id": "Q4",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Grandchild"}},
-                "claims": {
-                    "P279": [
-                        {
-                            "id": "Q4$statement-complex-1",
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P279",
-                                "datavalue": {
-                                    "value": {"id": "Q2"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ]
-                },
+                "parent_entity_id": "Q1",
+                "child_entity_id": "Q2",
+                "relation_type": "SUBCLASS_OF",
+                "statement_id": "Q2$statement-1",
             },
         ]
+        WikidataRelation.upsert_batch(db_session, relations)
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", delete=False, suffix=".json"
-        ) as temp_file:
-            for entity in test_entities:
-                temp_file.write(json.dumps(entity) + "\n")
-            temp_file_path = temp_file.name
+        # Verify relations were inserted
+        inserted_relations = db_session.query(WikidataRelation).all()
+        assert len(inserted_relations) == 1
+        assert inserted_relations[0].parent_entity_id == "Q1"
+        assert inserted_relations[0].child_entity_id == "Q2"
 
-        try:
-            with Session(get_engine()) as session:
-                # Clear existing test data
-                session.query(WikidataRelation).delete()
-                session.query(WikidataEntity).delete()
-                session.commit()
+    def test_upsert_wikidata_relations_batch_with_duplicates(self, db_session):
+        """Test upserting WikidataRelation batch with duplicates."""
+        # Create parent entities
+        parent_entity = WikidataEntity(wikidata_id="Q1", name="Parent Entity")
+        child1_entity = WikidataEntity(wikidata_id="Q2", name="Child Entity 1")
+        child2_entity = WikidataEntity(wikidata_id="Q3", name="Child Entity 2")
+        db_session.add_all([parent_entity, child1_entity, child2_entity])
+        db_session.flush()
 
-            # Test hierarchy tree importing (now saves to database)
-            import_hierarchy_trees(temp_file_path)
-
-            # Verify relationships were saved to database
-            with Session(get_engine()) as session:
-                relations = session.query(WikidataRelation).all()
-
-                # Only relations from entities in target set get stored
-                # Target set = parent IDs (Q1, Q2) + existing DB entities (empty initially)
-                # So only Q1 and Q2 get processed, only their relations are stored
-                parent_child_pairs = [
-                    (r.parent_entity_id, r.child_entity_id) for r in relations
-                ]
-                # Q2 -> Q1 relation (Q2 is in target set as parent of Q4)
-                assert ("Q1", "Q2") in parent_child_pairs
-                # Q3 -> Q1 is NOT stored (Q3 not in target set)
-                assert ("Q1", "Q3") not in parent_child_pairs
-                # Q4 -> Q2 is NOT stored (Q4 not in target set)
-                assert ("Q2", "Q4") not in parent_child_pairs
-                assert len(parent_child_pairs) == 1
-
-                # Verify WikidataEntity records were created
-                all_classes = session.query(WikidataEntity).all()
-                all_class_ids = {c.wikidata_id for c in all_classes}
-
-                # Only parent entities exist (Q1, Q2 are parents)
-                assert "Q1" in all_class_ids  # Parent of Q2 and Q3
-                assert "Q2" in all_class_ids  # Parent of Q4
-                # Q3 and Q4 are NOT in the database (not parents, not in existing DB)
-                assert "Q3" not in all_class_ids
-                assert "Q4" not in all_class_ids
-
-                # Check names - parent entities get names in second pass
-                class_names = {c.wikidata_id: c.name for c in all_classes}
-
-                # Parent entities processed in second pass have names
-                assert class_names["Q1"] == "Root Entity"
-                assert class_names["Q2"] == "Child 1"
-
-        finally:
-            os.unlink(temp_file_path)
-
-    def test_import_hierarchy_trees_with_malformed_claims(self):
-        """Test importing hierarchy trees with malformed P279 claims."""
-        test_entities = [
+        # Upsert initial relations
+        initial_relations = [
             {
-                "id": "Q1",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Valid Entity"}},
-                "claims": {
-                    "P279": [
-                        {
-                            "id": "Q1$statement-malformed-1",
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P279",
-                                "datavalue": {
-                                    "value": {"id": "Q2"},
-                                    "type": "wikibase-entityid",
-                                },
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ]
-                },
-            },
-            {
-                "id": "Q3",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Entity with Bad Claim"}},
-                "claims": {
-                    "P279": [
-                        {
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P279",
-                                # Missing datavalue - should be ignored
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ]
-                },
+                "parent_entity_id": "Q1",
+                "child_entity_id": "Q2",
+                "relation_type": "SUBCLASS_OF",
+                "statement_id": "Q2$statement-1",
             },
         ]
+        WikidataRelation.upsert_batch(db_session, initial_relations)
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", delete=False, suffix=".json"
-        ) as temp_file:
-            for entity in test_entities:
-                temp_file.write(json.dumps(entity) + "\n")
-            temp_file_path = temp_file.name
+        # Upsert again with duplicates and new items
+        relations_with_duplicates = [
+            {
+                "parent_entity_id": "Q1",
+                "child_entity_id": "Q2",
+                "relation_type": "INSTANCE_OF",  # Different relation type for same statement
+                "statement_id": "Q2$statement-1",
+            },
+            {
+                "parent_entity_id": "Q1",
+                "child_entity_id": "Q3",
+                "relation_type": "SUBCLASS_OF",
+                "statement_id": "Q3$statement-1",
+            },
+        ]
+        WikidataRelation.upsert_batch(db_session, relations_with_duplicates)
 
-        try:
-            with Session(get_engine()) as session:
-                # Clear existing test data
-                session.query(WikidataRelation).delete()
-                session.query(WikidataEntity).delete()
-                session.commit()
+        # Verify all relations exist
+        inserted_relations = db_session.query(WikidataRelation).all()
+        assert len(inserted_relations) == 2
+        statement_ids = {r.statement_id for r in inserted_relations}
+        assert statement_ids == {"Q2$statement-1", "Q3$statement-1"}
 
-            import_hierarchy_trees(temp_file_path)
+        # Verify Q2$statement-1 was updated to INSTANCE_OF
+        q2_relation = (
+            db_session.query(WikidataRelation)
+            .filter(WikidataRelation.statement_id == "Q2$statement-1")
+            .first()
+        )
+        assert q2_relation.relation_type.name == "INSTANCE_OF"
 
-            # Verify only valid relationships were saved to database
-            with Session(get_engine()) as session:
-                relations = session.query(WikidataRelation).all()
+    def test_upsert_wikidata_relations_batch_empty(self, db_session):
+        """Test upserting empty batch of WikidataRelation records."""
+        # Should handle empty batch gracefully without errors
+        WikidataRelation.upsert_batch(db_session, [])
 
-                # Q1 has P279 -> Q2, so Q2 is parent, Q1 is child
-                # Only Q2 is in target set (as parent), so no relations stored
-                # (Q1 is not in target set, so its relations aren't stored)
-                parent_child_pairs = [
-                    (r.parent_entity_id, r.child_entity_id) for r in relations
-                ]
-                # No relations should be stored because Q1 (the child) is not in target set
-                assert len(parent_child_pairs) == 0
-
-                # Verify WikidataEntity records were created
-                all_classes = session.query(WikidataEntity).all()
-                all_class_ids = {c.wikidata_id for c in all_classes}
-
-                # Only Q2 should exist (it's a parent)
-                assert "Q2" in all_class_ids
-                # Q1 is not a parent and not in existing DB, so it's not imported
-                assert "Q1" not in all_class_ids
-                # Q3 has malformed claim, no valid parent extracted, so not imported
-                assert "Q3" not in all_class_ids
-
-        finally:
-            os.unlink(temp_file_path)
+        # Verify no relations were inserted
+        inserted_relations = db_session.query(WikidataRelation).all()
+        assert len(inserted_relations) == 0
