@@ -180,11 +180,49 @@ def sample_country(db_session):
 
 
 @pytest.fixture
+def sample_germany_country(db_session):
+    """Return a created Germany country entity."""
+    country = Country.create_with_entity(db_session, "Q183", "Germany")
+    country.iso_code = "DE"
+    db_session.flush()
+    return country
+
+
+@pytest.fixture
+def sample_france_country(db_session):
+    """Return a created France country entity."""
+    country = Country.create_with_entity(db_session, "Q142", "France")
+    country.iso_code = "FR"
+    db_session.flush()
+    return country
+
+
+@pytest.fixture
 def sample_language(db_session):
     """Return a created language entity."""
     language = Language.create_with_entity(db_session, "Q1860", "English")
     language.iso_639_1 = "en"
     language.iso_639_2 = "eng"
+    db_session.flush()
+    return language
+
+
+@pytest.fixture
+def sample_german_language(db_session):
+    """Return a created German language entity."""
+    language = Language.create_with_entity(db_session, "Q188", "German")
+    language.iso_639_1 = "de"
+    language.iso_639_2 = "deu"
+    db_session.flush()
+    return language
+
+
+@pytest.fixture
+def sample_french_language(db_session):
+    """Return a created French language entity."""
+    language = Language.create_with_entity(db_session, "Q150", "French")
+    language.iso_639_1 = "fr"
+    language.iso_639_2 = "fra"
     db_session.flush()
     return language
 

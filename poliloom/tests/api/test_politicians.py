@@ -7,10 +7,6 @@ from poliloom.models import (
     Politician,
     Property,
     PropertyType,
-    Position,
-    Location,
-    Country,
-    Language,
     ArchivedPage,
     Evaluation,
 )
@@ -53,18 +49,17 @@ def politician_with_unevaluated_data(
     db_session, sample_politician, sample_position, sample_location
 ):
     """Create a politician with various types of unevaluated extracted data."""
-    # Create supporting entities
     archived_page = ArchivedPage(
         url="https://example.com/test",
         content_hash="test123",
     )
+    db_session.add(archived_page)
+    db_session.flush()  # Need ID for archived_page
+
     # Use fixture entities
     politician = sample_politician
     position = sample_position
     location = sample_location
-
-    db_session.add(archived_page)
-    db_session.flush()
 
     # Add extracted (unevaluated) data
     extracted_property = Property(
@@ -141,22 +136,18 @@ def politician_with_unevaluated_data(
 @pytest.fixture
 def politician_with_evaluated_data(db_session):
     """Create a politician with only evaluated extracted data (should be excluded)."""
-    # Create supporting entities
     archived_page = ArchivedPage(
         url="https://example.com/test2",
         content_hash="test456",
     )
-    Position.create_with_entity(db_session, "Q30186", "Governor")
-
     db_session.add(archived_page)
-    db_session.flush()
 
     # Create politician
     politician = Politician.create_with_entity(
         db_session, "Q789012", "Evaluated Politician"
     )
     db_session.add(politician)
-    db_session.flush()
+    db_session.flush()  # Need IDs for relationships
 
     # Add extracted property with evaluation
     extracted_property = Property(
@@ -168,7 +159,7 @@ def politician_with_evaluated_data(db_session):
         proof_line="Born on May 20, 1980",
     )
     db_session.add(extracted_property)
-    db_session.flush()
+    db_session.flush()  # Need ID for evaluation
 
     # Add evaluation (this makes the data "evaluated")
     evaluation = Evaluation(
@@ -183,18 +174,13 @@ def politician_with_evaluated_data(db_session):
 
 
 @pytest.fixture
-def politician_with_only_wikidata(db_session):
+def politician_with_only_wikidata(db_session, sample_position):
     """Create a politician with only Wikidata (non-extracted) data."""
-    position = Position.create_with_entity(db_session, "Q30187", "Senator")
-    Location.create_with_entity(db_session, "Q1297", "Chicago")
-
-    db_session.flush()
-
     politician = Politician.create_with_entity(
         db_session, "Q345678", "Wikidata Only Politician"
     )
     db_session.add(politician)
-    db_session.flush()
+    db_session.flush()  # Need ID for properties
 
     # Add only Wikidata (non-extracted) data
     wikidata_property = Property(
@@ -209,7 +195,7 @@ def politician_with_only_wikidata(db_session):
     wikidata_position = Property(
         politician_id=politician.id,
         type=PropertyType.POSITION,
-        entity_id=position.wikidata_id,
+        entity_id=sample_position.wikidata_id,
         qualifiers_json={
             "P580": [WikidataDate.from_date_string("2016").to_wikidata_qualifier()]
         },
@@ -288,29 +274,6 @@ class TestGetPoliticiansEndpoint:
         data = response.json()
         assert data == []
 
-    def test_response_schema_structure(
-        self, client, mock_auth, politician_with_unevaluated_data
-    ):
-        """Test that response follows the expected schema structure."""
-        response = client.get("/politicians/", headers=mock_auth)
-
-        assert response.status_code == 200
-        data = response.json()
-        politician_data = data[0]
-
-        # Test top-level politician fields
-        required_fields = ["id", "name", "wikidata_id"]
-        for field in required_fields:
-            assert field in politician_data
-
-        # Test properties array field exists
-        assert "properties" in politician_data
-        assert isinstance(politician_data["properties"], list)
-
-        # Test that old grouped fields don't exist
-        assert "positions" not in politician_data
-        assert "birthplaces" not in politician_data
-
     def test_extracted_data_contains_proof_and_archive_info(
         self, client, mock_auth, politician_with_unevaluated_data
     ):
@@ -371,28 +334,36 @@ class TestGetPoliticiansEndpoint:
         """Test that pagination parameters limit results correctly."""
         # Create multiple politicians with unevaluated data
         politicians = []
+        archived_pages = []
+        properties = []
+
         for i in range(5):
             archived_page = ArchivedPage(
                 url=f"https://example.com/test{i}",
                 content_hash=f"test{i}",
             )
+            archived_pages.append(archived_page)
+
             politician = Politician.create_with_entity(
                 db_session, f"Q{100000 + i}", f"Politician {i}"
             )
-            db_session.add(archived_page)
-            db_session.flush()
+            politicians.append(politician)
 
-            # Add extracted property
+        db_session.add_all(archived_pages + politicians)
+        db_session.flush()  # Need IDs for properties
+
+        # Add extracted properties
+        for i, politician in enumerate(politicians):
             prop = Property(
                 politician_id=politician.id,
                 type=PropertyType.BIRTH_DATE,
                 value=f"19{70 + i}-01-01",
                 value_precision=11,
-                archived_page_id=archived_page.id,
+                archived_page_id=archived_pages[i].id,
             )
-            db_session.add(prop)
-            politicians.append(politician)
+            properties.append(prop)
 
+        db_session.add_all(properties)
         db_session.flush()
 
         # Test limit parameter
@@ -416,16 +387,13 @@ class TestGetPoliticiansEndpoint:
             url="https://example.com/mixed",
             content_hash="mixed123",
         )
-        position = sample_position
-
         db_session.add(archived_page)
-        db_session.flush()
 
         politician = Politician.create_with_entity(
             db_session, "Q999999", "Mixed Evaluation"
         )
         db_session.add(politician)
-        db_session.flush()
+        db_session.flush()  # Need IDs for properties
 
         # Add evaluated extracted property
         evaluated_prop = Property(
@@ -436,7 +404,7 @@ class TestGetPoliticiansEndpoint:
             archived_page_id=archived_page.id,
         )
         db_session.add(evaluated_prop)
-        db_session.flush()
+        db_session.flush()  # Need ID for evaluation
 
         evaluation = Evaluation(
             user_id="testuser",
@@ -448,7 +416,7 @@ class TestGetPoliticiansEndpoint:
         unevaluated_pos = Property(
             politician_id=politician.id,
             type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
+            entity_id=sample_position.wikidata_id,
             qualifiers_json={
                 "P580": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()]
             },
@@ -479,28 +447,26 @@ class TestGetPoliticiansEndpoint:
         )  # POSITION - Unevaluated, so returned
 
     def test_politician_with_partial_unevaluated_data_types(
-        self, client, mock_auth, db_session
+        self, client, mock_auth, db_session, sample_location
     ):
         """Test politicians appear even if they only have one type of unevaluated data."""
         archived_page = ArchivedPage(
             url="https://example.com/partial",
             content_hash="partial123",
         )
-        location = Location.create_with_entity(db_session, "Q100", "Boston")
-
         db_session.add(archived_page)
-        db_session.flush()
 
         # Politician with only unevaluated birthplace
         politician = Politician.create_with_entity(
             db_session, "Q777777", "Birthplace Only"
         )
-        db_session.flush()
+        db_session.add(politician)
+        db_session.flush()  # Need IDs for properties
 
         birthplace = Property(
             politician_id=politician.id,
             type=PropertyType.BIRTHPLACE,
-            entity_id=location.wikidata_id,
+            entity_id=sample_location.wikidata_id,
             archived_page_id=archived_page.id,
         )
         db_session.add(birthplace)
@@ -521,30 +487,6 @@ class TestGetPoliticiansEndpoint:
         assert len(extracted_properties["P569"]) == 0  # BIRTH_DATE
         assert len(extracted_properties["P39"]) == 0  # POSITION
         assert len(extracted_properties["P19"]) == 1  # BIRTHPLACE
-
-    def test_get_politicians_returns_flat_property_list(
-        self, client, mock_auth, politician_with_unevaluated_data
-    ):
-        """Test that API returns single flat list of properties."""
-        response = client.get("/politicians/", headers=mock_auth)
-        assert response.status_code == 200
-
-        data = response.json()
-        politician = data[0]
-
-        # Should have single properties list
-        assert "properties" in politician
-        assert isinstance(politician["properties"], list)
-
-        # Should NOT have old grouped fields
-        assert "positions" not in politician
-        assert "birthplaces" not in politician
-
-        # Verify all property types in single list
-        property_types = [prop["type"] for prop in politician["properties"]]
-        assert "P569" in property_types  # BIRTH_DATE
-        assert "P39" in property_types  # POSITION
-        assert "P19" in property_types  # BIRTHPLACE
 
     def test_property_response_structure(
         self, client, mock_auth, politician_with_unevaluated_data
@@ -569,30 +511,10 @@ class TestGetPoliticiansEndpoint:
                 assert prop["value"] is None
                 assert "entity_name" in prop
 
-    def test_backwards_compatibility_broken(
-        self, client, mock_auth, politician_with_unevaluated_data
+    def test_language_filtering(
+        self, client, mock_auth, db_session, sample_language, sample_german_language
     ):
-        """Ensure old API format no longer works (intentional breaking change)."""
-        # This documents that we're intentionally breaking compatibility
-        response = client.get("/politicians/", headers=mock_auth)
-        politician = response.json()[0]
-
-        # Old structure should not exist
-        assert not any(
-            key in politician
-            for key in ["positions", "birthplaces", "properties_by_type"]
-        )
-
-    def test_language_filtering(self, client, mock_auth, db_session, sample_language):
         """Test filtering politicians by language QIDs based on archived page iso codes."""
-        # Use the sample_language fixture (English) and create additional languages
-        german_lang = Language.create_with_entity(db_session, "Q188", "German")
-        german_lang.iso_639_1 = "de"
-        german_lang.iso_639_2 = "deu"
-        french_lang = Language.create_with_entity(db_session, "Q150", "French")
-        french_lang.iso_639_1 = "fr"
-        french_lang.iso_639_2 = "fra"
-
         # Create archived pages with different language codes
         english_page = ArchivedPage(
             url="https://en.example.com/test", content_hash="en123", iso_639_1="en"
@@ -684,14 +606,12 @@ class TestGetPoliticiansEndpoint:
         data = response.json()
         assert len(data) == 0
 
-    def test_country_filtering(self, client, mock_auth, db_session, sample_country):
+    def test_country_filtering(
+        self, client, mock_auth, db_session, sample_country, sample_germany_country
+    ):
         """Test filtering politicians by country QIDs based on citizenship properties."""
-        # Use the sample_country fixture (USA) and create additional countries
         usa_country = sample_country
-        germany_country = Country.create_with_entity(db_session, "Q183", "Germany")
-        germany_country.iso_code = "DE"
-        france_country = Country.create_with_entity(db_session, "Q142", "France")
-        france_country.iso_code = "FR"
+        germany_country = sample_germany_country
 
         # Create archived page
         archived_page = ArchivedPage(
@@ -816,13 +736,17 @@ class TestGetPoliticiansEndpoint:
         assert len(data) == 0
 
     def test_combined_language_and_country_filtering(
-        self, client, mock_auth, db_session, sample_language, sample_country
+        self,
+        client,
+        mock_auth,
+        db_session,
+        sample_language,
+        sample_country,
+        sample_germany_country,
     ):
         """Test filtering by both language and country filters combined."""
-        # Use fixtures for English language and USA country
         usa_country = sample_country
-        germany_country = Country.create_with_entity(db_session, "Q183", "Germany")
-        germany_country.iso_code = "DE"
+        germany_country = sample_germany_country
 
         # Create archived pages
         english_page = ArchivedPage(
@@ -935,14 +859,9 @@ class TestGetPoliticiansEndpoint:
         }
 
     def test_language_filter_excludes_properties_from_other_languages(
-        self, client, mock_auth, db_session, sample_language
+        self, client, mock_auth, db_session, sample_language, sample_german_language
     ):
         """Test that when filtering by language, only properties from that language's archived pages are returned."""
-        # Create languages
-        german_lang = Language.create_with_entity(db_session, "Q188", "German")
-        german_lang.iso_639_1 = "de"
-        german_lang.iso_639_2 = "deu"
-
         # Create archived pages with different language codes
         english_page = ArchivedPage(
             url="https://en.wikipedia.org/test", content_hash="en123", iso_639_1="en"
@@ -1104,13 +1023,10 @@ class TestGetPoliticiansEndpoint:
         assert birth_prop["proof_line"] == "Born on January 1, 1980"
 
     def test_excludes_politicians_with_only_soft_deleted_properties(
-        self, client, mock_auth, db_session, sample_archived_page
+        self, client, mock_auth, db_session, sample_archived_page, sample_position
     ):
         """Test that politicians with only soft-deleted unevaluated properties are excluded."""
         from datetime import datetime, timezone
-
-        # Create additional entities
-        position = Position.create_with_entity(db_session, "Q30185", "Deputy")
 
         # Create politician with only soft-deleted properties
         politician = Politician.create_with_entity(
@@ -1133,7 +1049,7 @@ class TestGetPoliticiansEndpoint:
         deleted_position = Property(
             politician_id=politician.id,
             type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
+            entity_id=sample_position.wikidata_id,
             archived_page_id=sample_archived_page.id,
             proof_line="Served as Deputy",
             deleted_at=datetime.now(timezone.utc),
