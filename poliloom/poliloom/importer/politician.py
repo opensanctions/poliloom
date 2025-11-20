@@ -115,85 +115,84 @@ def _should_import_politician(entity: WikidataEntityProcessor) -> bool:
     return True
 
 
-def _insert_politicians_batch(politicians: list[dict], engine) -> None:
+def _insert_politicians_batch(politicians: list[dict], session: Session) -> None:
     """Insert a batch of politicians into the database."""
     if not politicians:
         return
 
-    with Session(engine) as session:
-        # First, ensure WikidataEntity records exist for all politicians (without labels)
-        wikidata_data = [
-            {
-                "wikidata_id": p["wikidata_id"],
-                "name": p["name"],
-            }
-            for p in politicians
+    # First, ensure WikidataEntity records exist for all politicians (without labels)
+    wikidata_data = [
+        {
+            "wikidata_id": p["wikidata_id"],
+            "name": p["name"],
+        }
+        for p in politicians
+    ]
+    WikidataEntity.upsert_batch(session, wikidata_data)
+
+    # Insert labels into separate table
+    from ..models import WikidataEntityLabel
+
+    label_data = []
+    for p in politicians:
+        labels = p.get("labels")
+        if labels:
+            for label in labels:
+                label_data.append(
+                    {
+                        "entity_id": p["wikidata_id"],
+                        "label": label,
+                    }
+                )
+
+    if label_data:
+        WikidataEntityLabel.upsert_batch(session, label_data)
+
+    # Use UpsertMixin for politicians with RETURNING to get IDs directly
+    politician_data = [
+        {
+            "wikidata_id": p["wikidata_id"],
+            "wikidata_id_numeric": p.get("wikidata_id_numeric"),
+            "name": p["name"],
+        }
+        for p in politicians
+    ]
+    politician_rows = Politician.upsert_batch(
+        session,
+        politician_data,
+        returning_columns=[Politician.id, Politician.wikidata_id],
+    )
+
+    # Process properties for each politician (order is guaranteed by PostgreSQL)
+    for row, politician_data in zip(politician_rows, politicians):
+        # Handle properties: all properties (birth/death dates, positions, citizenships, birthplaces) are stored in the unified Property model
+
+        # Add properties using batch UPSERT - update only if NOT extracted (preserve user evaluations)
+        property_batch = [
+            {"politician_id": row.id, "archived_page_id": None, **prop}
+            for prop in politician_data.get("properties", [])
         ]
-        WikidataEntity.upsert_batch(session, wikidata_data)
 
-        # Insert labels into separate table
-        from ..models import WikidataEntityLabel
+        if property_batch:
+            Property.upsert_batch(session, property_batch)
 
-        label_data = []
-        for p in politicians:
-            labels = p.get("labels")
-            if labels:
-                for label in labels:
-                    label_data.append(
-                        {
-                            "entity_id": p["wikidata_id"],
-                            "label": label,
-                        }
-                    )
+        # All properties (positions, citizenships, birthplaces) are now handled above in the unified property_batch
 
-        if label_data:
-            WikidataEntityLabel.upsert_batch(session, label_data)
-
-        # Use UpsertMixin for politicians with RETURNING to get IDs directly
-        politician_data = [
+        # Add Wikipedia links using batch UPSERT
+        wikipedia_batch = [
             {
-                "wikidata_id": p["wikidata_id"],
-                "wikidata_id_numeric": p.get("wikidata_id_numeric"),
-                "name": p["name"],
+                "politician_id": row.id,
+                "url": wiki_link["url"],
+                "iso_code": wiki_link.get("language", "en"),
             }
-            for p in politicians
+            for wiki_link in politician_data.get("wikipedia_links", [])
         ]
-        politician_rows = Politician.upsert_batch(
-            session,
-            politician_data,
-            returning_columns=[Politician.id, Politician.wikidata_id],
-        )
 
-        # Process properties for each politician (order is guaranteed by PostgreSQL)
-        for row, politician_data in zip(politician_rows, politicians):
-            # Handle properties: all properties (birth/death dates, positions, citizenships, birthplaces) are stored in the unified Property model
+        if wikipedia_batch:
+            WikipediaLink.upsert_batch(session, wikipedia_batch)
 
-            # Add properties using batch UPSERT - update only if NOT extracted (preserve user evaluations)
-            property_batch = [
-                {"politician_id": row.id, "archived_page_id": None, **prop}
-                for prop in politician_data.get("properties", [])
-            ]
-
-            if property_batch:
-                Property.upsert_batch(session, property_batch)
-
-            # All properties (positions, citizenships, birthplaces) are now handled above in the unified property_batch
-
-            # Add Wikipedia links using batch UPSERT
-            wikipedia_batch = [
-                {
-                    "politician_id": row.id,
-                    "url": wiki_link["url"],
-                    "iso_code": wiki_link.get("language", "en"),
-                }
-                for wiki_link in politician_data.get("wikipedia_links", [])
-            ]
-
-            if wikipedia_batch:
-                WikipediaLink.upsert_batch(session, wikipedia_batch)
-
-        session.commit()
-        logger.debug(f"Processed {len(politicians)} politicians (upserted)")
+    session.commit()
+    logger.debug(f"Processed {len(politicians)} politicians (upserted)")
 
 
 def _process_politicians_chunk(
@@ -386,7 +385,8 @@ def _process_politicians_chunk(
 
             # Process batches when they reach the batch size
             if len(politicians) >= batch_size:
-                _insert_politicians_batch(politicians, engine)
+                with Session(engine) as session:
+                    _insert_politicians_batch(politicians, session)
                 politicians = []
 
     except Exception as e:
@@ -395,7 +395,8 @@ def _process_politicians_chunk(
 
     # Process remaining entities in final batch on successful completion
     if politicians:
-        _insert_politicians_batch(politicians, engine)
+        with Session(engine) as session:
+            _insert_politicians_batch(politicians, session)
 
     logger.info(f"Worker {worker_id}: finished processing {entity_count} entities")
 

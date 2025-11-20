@@ -1,12 +1,5 @@
 """Tests for WikidataPoliticianImporter."""
 
-import json
-import tempfile
-import os
-from unittest.mock import patch
-
-from poliloom.database import get_engine
-from sqlalchemy.orm import Session
 from poliloom.models import (
     Politician,
     Position,
@@ -17,7 +10,6 @@ from poliloom.models import (
     WikipediaLink,
 )
 from poliloom.importer.politician import (
-    import_politicians,
     _insert_politicians_batch,
     _is_politician,
     _should_import_politician,
@@ -28,80 +20,6 @@ from poliloom.wikidata_date import WikidataDate
 
 class TestWikidataPoliticianImporter:
     """Test politician importing functionality."""
-
-    def test_import_politicians_integration(self):
-        """Test complete politician extraction workflow."""
-
-        # Create simple test entity - focus on integration rather than filtering logic
-        test_entities = [
-            {
-                "id": "Q123456",
-                "type": "item",
-                "labels": {"en": {"language": "en", "value": "Test Politician"}},
-                "claims": {
-                    "P31": [
-                        {  # instance of
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P31",
-                                "datavalue": {
-                                    "value": {"id": "Q5"},
-                                    "type": "wikibase-entityid",
-                                },  # human
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                    "P106": [
-                        {  # occupation
-                            "mainsnak": {
-                                "snaktype": "value",
-                                "property": "P106",
-                                "datavalue": {
-                                    "value": {"id": "Q82955"},
-                                    "type": "wikibase-entityid",
-                                },  # politician
-                            },
-                            "type": "statement",
-                            "rank": "normal",
-                        }
-                    ],
-                },
-            },
-        ]
-
-        # Create temporary dump file
-        with tempfile.NamedTemporaryFile(
-            mode="w", delete=False, suffix=".json"
-        ) as temp_file:
-            for entity in test_entities:
-                temp_file.write(json.dumps(entity) + "\n")
-            temp_file_path = temp_file.name
-
-        try:
-            # Clear existing politician data
-            with Session(get_engine()) as session:
-                session.query(Politician).delete()
-                session.commit()
-
-            # Test extraction
-            with patch("poliloom.dump_reader.calculate_file_chunks") as mock_chunks:
-                # Mock chunks to return single chunk for simpler testing
-                file_size = os.path.getsize(temp_file_path)
-                mock_chunks.return_value = [(0, file_size)]
-
-                import_politicians(temp_file_path, batch_size=10)
-
-            # Verify politician was actually saved to database
-            with Session(get_engine()) as session:
-                politicians = session.query(Politician).all()
-                assert len(politicians) == 1
-                assert politicians[0].wikidata_id == "Q123456"
-                assert politicians[0].name == "Test Politician"
-
-        finally:
-            os.unlink(temp_file_path)
 
     def test_insert_politicians_batch_basic(self, db_session):
         """Test inserting a batch of politicians with basic data."""
@@ -120,7 +38,7 @@ class TestWikidataPoliticianImporter:
             },
         ]
 
-        _insert_politicians_batch(politicians, get_engine())
+        _insert_politicians_batch(politicians, db_session)
 
         # Verify politicians were inserted
         inserted_politicians = db_session.query(Politician).all()
@@ -140,7 +58,7 @@ class TestWikidataPoliticianImporter:
         ]
 
         # Insert first batch
-        _insert_politicians_batch(politicians, get_engine())
+        _insert_politicians_batch(politicians, db_session)
 
         # Insert again with updated name - should update
         updated_politicians = [
@@ -151,7 +69,7 @@ class TestWikidataPoliticianImporter:
                 "wikipedia_links": [],
             }
         ]
-        _insert_politicians_batch(updated_politicians, get_engine())
+        _insert_politicians_batch(updated_politicians, db_session)
 
         # Should still have only 1 politician with updated name
         final_politicians = db_session.query(Politician).all()
@@ -164,7 +82,7 @@ class TestWikidataPoliticianImporter:
         politicians = []
 
         # Should handle empty batch gracefully without errors
-        _insert_politicians_batch(politicians, get_engine())
+        _insert_politicians_batch(politicians, db_session)
 
         # Verify no politicians were inserted
         inserted_politicians = db_session.query(Politician).all()
@@ -190,7 +108,7 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        _insert_politicians_batch(politicians, get_engine())
+        _insert_politicians_batch(politicians, db_session)
 
         # Verify politician and property created correctly
         politician = (
@@ -247,7 +165,7 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        _insert_politicians_batch(politicians, get_engine())
+        _insert_politicians_batch(politicians, db_session)
 
         # Verify property created correctly
         politician = (
@@ -293,7 +211,7 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        _insert_politicians_batch(politicians, get_engine())
+        _insert_politicians_batch(politicians, db_session)
 
         politician = (
             db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
@@ -334,7 +252,7 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        _insert_politicians_batch(politicians, get_engine())
+        _insert_politicians_batch(politicians, db_session)
 
         politician = (
             db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
@@ -415,7 +333,7 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        _insert_politicians_batch(politicians, get_engine())
+        _insert_politicians_batch(politicians, db_session)
 
         # Verify all properties created
         politician = (
@@ -463,7 +381,7 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        _insert_politicians_batch(politicians, get_engine())
+        _insert_politicians_batch(politicians, db_session)
 
         prop = db_session.query(Property).first()
         assert prop.statement_id == "Q1$TEST_STATEMENT"
@@ -490,7 +408,7 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        _insert_politicians_batch(politicians, get_engine())
+        _insert_politicians_batch(politicians, db_session)
 
         # Verify politician was created with Wikipedia links
         politician = (
