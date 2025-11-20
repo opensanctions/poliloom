@@ -1,5 +1,6 @@
 """Tests for the Politician model."""
 
+from datetime import datetime, timezone
 from poliloom.models import (
     Politician,
     Property,
@@ -9,6 +10,7 @@ from poliloom.models import (
     WikipediaLink,
     WikidataRelation,
     RelationType,
+    ArchivedPage,
 )
 from poliloom.wikidata_date import WikidataDate
 
@@ -630,8 +632,6 @@ class TestPoliticianFilterByUnevaluated:
         self, db_session, sample_politician, sample_archived_page
     ):
         """Test that filter excludes soft-deleted properties."""
-        from datetime import datetime, timezone
-
         # Add soft-deleted unevaluated property
         prop = Property(
             politician_id=sample_politician.id,
@@ -656,8 +656,6 @@ class TestPoliticianFilterByUnevaluated:
     ):
         """Test language filtering based on archived page iso codes."""
         # Create archived pages with different languages
-        from poliloom.models import ArchivedPage
-
         en_page = ArchivedPage(
             url="https://en.example.com/test", content_hash="en123", iso_639_1="en"
         )

@@ -1,6 +1,6 @@
 """Tests for import tracking functionality."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -284,8 +284,6 @@ class TestCleanupFunctionality:
 
     def test_cleanup_missing_entities_two_dump_validation(self, db_session: Session):
         """Test that entities are only deleted when missing from two consecutive dumps."""
-        from datetime import timedelta
-
         # Create two dump records
         first_dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=2)
         second_dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=1)
@@ -367,8 +365,6 @@ class TestCleanupFunctionality:
 
     def test_cleanup_with_very_old_cutoff_deletes_nothing(self, db_session: Session):
         """Test that cleanup with very old cutoff timestamp deletes nothing."""
-        from datetime import timedelta
-
         # Create some entities
         entity1 = WikidataEntity(wikidata_id="Q100", name="Entity 1")
         entity2 = WikidataEntity(wikidata_id="Q200", name="Entity 2")
@@ -403,8 +399,6 @@ class TestCleanupFunctionality:
 
     def test_cleanup_missing_statements_two_dump_validation(self, db_session: Session):
         """Test that statement cleanup logic uses two-dump validation (simplified test)."""
-        from datetime import timedelta
-
         # Create two dump records
         first_dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=2)
         second_dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=1)
@@ -440,8 +434,6 @@ class TestCleanupFunctionality:
         self, db_session: Session
     ):
         """Test that statement cleanup with very old cutoff timestamp deletes nothing."""
-        from datetime import timedelta
-
         # Create politician and statements
         politician = Politician.create_with_entity(
             db_session, "Q600", "Test Politician"
@@ -624,8 +616,6 @@ class TestIntegrationWorkflow:
         db_session.flush()
 
         # Create dump records for two-dump validation
-        from datetime import timedelta
-
         first_dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=2)
         current_dump_timestamp = datetime.now(timezone.utc)
 
@@ -725,8 +715,6 @@ class TestIntegrationWorkflow:
 
     def test_enriched_property_positive_evaluation_protection(self, db_session):
         """Test that positively evaluated enriched properties are protected during cleanup."""
-        from datetime import timedelta
-
         # Step 1: Create a dump timestamp in the past (simulates dump was taken hours ago)
         dump_timestamp = datetime.now() - timedelta(hours=2)
 
@@ -776,8 +764,6 @@ class TestIntegrationWorkflow:
 
     def test_enriched_property_negative_evaluation_protection(self, db_session):
         """Test that negatively evaluated enriched properties remain soft-deleted during cleanup."""
-        from datetime import timedelta
-
         # Step 1: Create a dump timestamp in the past (simulates dump was taken hours ago)
         dump_timestamp = datetime.now() - timedelta(hours=2)
 
@@ -833,8 +819,6 @@ class TestIntegrationWorkflow:
         self, db_session
     ):
         """Test that statements in current dump are preserved with two-dump validation."""
-        from datetime import timedelta
-
         # Create dump records for two-dump validation
         first_dump_timestamp = datetime.now() - timedelta(hours=2)
         current_dump_timestamp = datetime.now() - timedelta(hours=1)

@@ -1,6 +1,7 @@
 """Tests for the get_politicians endpoint focusing on behavior, not implementation."""
 
 import pytest
+from datetime import datetime, timezone
 from typing import List, Dict, Any
 
 from poliloom.models import (
@@ -972,8 +973,6 @@ class TestGetPoliticiansEndpoint:
         sample_archived_page,
     ):
         """Test that soft-deleted properties are excluded from results."""
-        from datetime import datetime, timezone
-
         # Add a normal unevaluated property
         normal_property = Property(
             politician_id=sample_politician.id,
@@ -1026,8 +1025,6 @@ class TestGetPoliticiansEndpoint:
         self, client, mock_auth, db_session, sample_archived_page, sample_position
     ):
         """Test that politicians with only soft-deleted unevaluated properties are excluded."""
-        from datetime import datetime, timezone
-
         # Create politician with only soft-deleted properties
         politician = Politician.create_with_entity(
             db_session, "Q998877", "Only Deleted Properties Politician"

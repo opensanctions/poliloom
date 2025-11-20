@@ -16,6 +16,7 @@ from ..models import (
     Language,
     WikipediaProject,
     WikidataEntity,
+    WikidataEntityLabel,
     WikidataRelation,
 )
 from ..wikidata_entity_processor import WikidataEntityProcessor
@@ -106,8 +107,6 @@ def _insert_entities_batch(collection: EntityCollection, session: Session) -> No
     WikidataEntity.upsert_batch(session, entity_data)
 
     # Insert labels into separate table
-    from ..models import WikidataEntityLabel
-
     label_data = []
     for entity in collection.entities:
         labels = entity.get("labels")

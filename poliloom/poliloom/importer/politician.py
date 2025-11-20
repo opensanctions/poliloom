@@ -17,6 +17,7 @@ from ..models import (
     Property,
     PropertyType,
     WikidataEntity,
+    WikidataEntityLabel,
     WikipediaLink,
 )
 from ..wikidata_entity_processor import WikidataEntityProcessor
@@ -131,8 +132,6 @@ def _insert_politicians_batch(politicians: list[dict], session: Session) -> None
     WikidataEntity.upsert_batch(session, wikidata_data)
 
     # Insert labels into separate table
-    from ..models import WikidataEntityLabel
-
     label_data = []
     for p in politicians:
         labels = p.get("labels")

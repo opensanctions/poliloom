@@ -2,7 +2,7 @@
 
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import Optional, Dict, Any
 
 
@@ -28,8 +28,6 @@ class WikidataDate:
             return None
 
         try:
-            from datetime import datetime
-
             # Remove the + sign: "+2011-00-00T00:05:23Z" -> "2011-00-00T00:05:23Z"
             iso_string = self.time_string[1:]
 

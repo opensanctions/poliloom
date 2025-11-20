@@ -1,5 +1,6 @@
 """Main CLI interface for PoliLoom."""
 
+import asyncio
 import click
 import logging
 from datetime import datetime, timezone
@@ -11,9 +12,11 @@ from poliloom.importer.entity import import_entities
 from poliloom.importer.politician import import_politicians
 from poliloom.database import get_engine
 from poliloom.logging import setup_logging
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from poliloom.models import (
     WikidataDump,
+    WikidataEntity,
     CurrentImportEntity,
     CurrentImportStatement,
 )
@@ -277,8 +280,6 @@ def enrich_wikipedia(
     - poliloom enrich-wikipedia --count 10 --countries Q30 --countries Q38
     - poliloom enrich-wikipedia --count 5 --languages Q1860 --languages Q150
     """
-    import asyncio
-
     try:
         # Convert tuples to lists (or None if empty)
         languages_list = list(languages) if languages else None
@@ -710,9 +711,6 @@ def clean_entities(dry_run):
     3. Hard-delete entity records from specialized tables
     4. Hard-delete wikidata_entities only referenced by removed entities
     """
-    from poliloom.models import WikidataEntity
-    from sqlalchemy import text
-
     if dry_run:
         click.echo("🔍 DRY RUN MODE - No changes will be made")
     else:
@@ -847,8 +845,6 @@ def _identify_positions_to_remove(
     session: Session, root_ids: list[str], ignore_ids: list[str]
 ) -> set[str]:
     """Identify positions outside the current hierarchy."""
-    from sqlalchemy import text
-
     result = session.execute(
         text("""
             WITH RECURSIVE descendants AS (
@@ -901,8 +897,6 @@ def _identify_positions_to_remove(
 
 def _identify_locations_to_remove(session: Session, root_ids: list[str]) -> set[str]:
     """Identify locations outside the current hierarchy."""
-    from sqlalchemy import text
-
     result = session.execute(
         text("""
             WITH RECURSIVE descendants AS (
@@ -933,8 +927,6 @@ def _identify_locations_to_remove(session: Session, root_ids: list[str]) -> set[
 
 def _cleanup_orphaned_entities(session: Session) -> int:
     """Hard-delete wikidata_entities that are only referenced by removed entities."""
-    from sqlalchemy import text
-
     # Build temp table of entities to keep
     session.execute(text("CREATE TEMP TABLE entities_to_keep (wikidata_id VARCHAR)"))
 

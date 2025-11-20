@@ -8,6 +8,8 @@ from poliloom.enrichment import (
     extract_properties_generic,
     extract_two_stage_generic,
     store_extracted_data,
+    count_politicians_with_unevaluated,
+    enrich_batch,
     ExtractedProperty,
     ExtractedPosition,
     ExtractedBirthplace,
@@ -24,6 +26,7 @@ from poliloom.models import (
     Location,
     Position,
     Property,
+    ArchivedPage,
 )
 
 
@@ -450,8 +453,6 @@ class TestCountPoliticiansWithUnevaluated:
         self, db_session, sample_politician, sample_archived_page
     ):
         """Test counting politicians with unevaluated properties."""
-        from poliloom.enrichment import count_politicians_with_unevaluated
-
         # Add unevaluated property
         prop = Property(
             politician_id=sample_politician.id,
@@ -470,8 +471,6 @@ class TestCountPoliticiansWithUnevaluated:
         self, db_session, sample_politician, sample_archived_page
     ):
         """Test that count excludes properties with statement_id."""
-        from poliloom.enrichment import count_politicians_with_unevaluated
-
         # Add property with statement_id
         prop = Property(
             politician_id=sample_politician.id,
@@ -491,9 +490,6 @@ class TestCountPoliticiansWithUnevaluated:
         self, db_session, sample_politician, sample_language
     ):
         """Test counting with language filter."""
-        from poliloom.enrichment import count_politicians_with_unevaluated
-        from poliloom.models import ArchivedPage
-
         # Create English archived page
         en_page = ArchivedPage(
             url="https://en.example.com/test", content_hash="en123", iso_639_1="en"
@@ -524,8 +520,6 @@ class TestCountPoliticiansWithUnevaluated:
         self, db_session, sample_politician, sample_country, sample_archived_page
     ):
         """Test counting with country filter."""
-        from poliloom.enrichment import count_politicians_with_unevaluated
-
         # Add citizenship and unevaluated property
         citizenship_prop = Property(
             politician_id=sample_politician.id,
@@ -559,8 +553,6 @@ class TestEnrichBatch:
         self, db_session, sample_politician, sample_wikipedia_link, sample_archived_page
     ):
         """Test enriching a batch of politicians."""
-        from poliloom.enrichment import enrich_batch
-
         # Mock the enrichment process
         with patch(
             "poliloom.enrichment.enrich_politician_from_wikipedia"
@@ -580,8 +572,6 @@ class TestEnrichBatch:
 
     def test_enrich_batch_no_more_politicians(self, db_session):
         """Test when no more politicians available to enrich."""
-        from poliloom.enrichment import enrich_batch
-
         # No politicians in database
         with patch(
             "poliloom.enrichment.enrich_politician_from_wikipedia"
@@ -609,8 +599,6 @@ class TestEnrichBatch:
         sample_archived_page,
     ):
         """Test enrich_batch with language and country filters."""
-        from poliloom.enrichment import enrich_batch
-
         # Add citizenship
         citizenship_prop = Property(
             politician_id=sample_politician.id,
@@ -639,8 +627,6 @@ class TestEnrichBatch:
 
     def test_enrich_batch_stops_early_when_no_politicians(self, db_session):
         """Test that batch stops early if politicians run out."""
-        from poliloom.enrichment import enrich_batch
-
         # Mock to return True twice, then False
         call_count = [0]
 

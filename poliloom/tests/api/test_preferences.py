@@ -9,6 +9,7 @@ from poliloom.models import (
     PreferenceType,
     Country,
     Language,
+    WikidataEntity,
 )
 
 
@@ -165,8 +166,6 @@ class TestPreferencesEndpoint:
 
     def test_get_preferences_missing_entity(self, client, mock_auth, db_session):
         """Test handling of preferences with missing entity references."""
-        from poliloom.models import WikidataEntity
-
         # Create a WikidataEntity without corresponding Country/Language
         orphaned_entity = WikidataEntity(
             wikidata_id="Q99999999", name="Orphaned Entity"

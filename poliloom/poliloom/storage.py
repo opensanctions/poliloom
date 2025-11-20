@@ -3,6 +3,7 @@
 import logging
 import os
 import shutil
+import tempfile
 import httpx
 import indexed_bzip2 as ibz2
 from abc import ABC, abstractmethod
@@ -261,9 +262,6 @@ class GCSStorage(StorageBackend):
 
         Streams compressed file to local disk first to enable seekable access for parallel decompression.
         """
-        import tempfile
-        import shutil
-
         logger.info(f"Parallel extraction from {source_path} to {dest_path}...")
 
         # Ensure destination directory exists for local paths
