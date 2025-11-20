@@ -6,6 +6,7 @@ from typing import Optional
 import pg8000
 from google.cloud.sql.connector import Connector
 from sqlalchemy import Engine, text
+from sqlalchemy.orm import Session
 import sqlalchemy
 from dotenv import load_dotenv
 
@@ -252,3 +253,13 @@ def create_import_tracking_triggers(engine: Engine):
         )
 
         conn.commit()
+
+
+def get_db_session():
+    """FastAPI dependency for database sessions.
+
+    Yields a database session that will be automatically closed after use.
+    This can be overridden in tests to use a transaction-based session.
+    """
+    with Session(get_engine()) as session:
+        yield session

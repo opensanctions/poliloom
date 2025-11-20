@@ -219,12 +219,28 @@ def sample_wikipedia_link(db_session, sample_politician):
 
 
 @pytest.fixture
-def client():
-    """Create a FastAPI test client."""
+def client(db_session):
+    """Create a FastAPI test client with overridden database session.
+
+    Uses dependency_overrides to inject the transaction-based test session
+    into all API endpoints, ensuring test isolation.
+    """
     from fastapi.testclient import TestClient
     from poliloom.api import app
+    from poliloom.database import get_db_session
 
-    return TestClient(app)
+    def override_get_db():
+        """Override database session to use the test transaction."""
+        yield db_session
+
+    # Override the dependency: when endpoints call Depends(get_db_session),
+    # FastAPI will call override_get_db() instead, which yields our test session
+    app.dependency_overrides[get_db_session] = override_get_db
+
+    yield TestClient(app)
+
+    # Clean up the override after the test
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture
