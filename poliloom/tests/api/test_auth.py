@@ -202,3 +202,39 @@ class TestAuthDependencies:
 
         user = await get_optional_user(credentials)
         assert user is None
+
+
+class TestAuthIntegration:
+    """Test that authentication is properly integrated across API endpoints."""
+
+    def test_protected_endpoints_require_auth(self, client):
+        """Test that protected endpoints reject requests without auth."""
+        from fastapi.testclient import TestClient
+        from poliloom.api import app
+
+        # Create client without database override for this test
+        client_no_db = TestClient(app)
+
+        # Test a few representative endpoints
+        assert client_no_db.get("/politicians/").status_code == 403
+        assert (
+            client_no_db.post("/evaluations/", json={"evaluations": []}).status_code
+            == 403
+        )
+
+        fake_id = "12345678-1234-1234-1234-123456789012"
+        assert client_no_db.get(f"/archived-pages/{fake_id}.html").status_code == 403
+        assert client_no_db.get(f"/archived-pages/{fake_id}.md").status_code == 403
+
+    def test_authenticated_requests_pass_auth(self, client, mock_auth):
+        """Test that properly authenticated requests can access protected endpoints."""
+        # Test politicians endpoint with auth - returns a list
+        response = client.get("/politicians/", headers=mock_auth)
+        assert response.status_code == 200
+        assert isinstance(response.json(), list)
+
+        # Test evaluations endpoint with auth
+        response = client.post(
+            "/evaluations/", json={"evaluations": []}, headers=mock_auth
+        )
+        assert response.status_code == 200
