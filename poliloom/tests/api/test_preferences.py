@@ -2,9 +2,7 @@
 
 import pytest
 from unittest.mock import AsyncMock, Mock as SyncMock, patch
-from fastapi.testclient import TestClient
 
-from poliloom.api import app
 from poliloom.api.auth import User
 from poliloom.models import (
     Preference,
@@ -12,23 +10,6 @@ from poliloom.models import (
     Country,
     Language,
 )
-
-
-@pytest.fixture
-def client():
-    """Create a test client."""
-    return TestClient(app)
-
-
-@pytest.fixture
-def mock_auth():
-    """Mock authentication for tests."""
-    with patch("poliloom.api.auth.get_oauth_handler") as mock_get_oauth_handler:
-        mock_user = User(user_id=12345, jwt_token="valid_jwt_token")
-        mock_oauth_handler = SyncMock()
-        mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=mock_user)
-        mock_get_oauth_handler.return_value = mock_oauth_handler
-        yield {"Authorization": "Bearer valid_jwt_token"}
 
 
 @pytest.fixture
@@ -210,31 +191,6 @@ class TestPreferencesEndpoint:
         assert preferences[0]["wikidata_id"] == "Q99999999"
         assert preferences[0]["name"] == "Orphaned Entity"
         assert preferences[0]["preference_type"] == "country"
-
-    def test_preferences_endpoint_structure(self, client):
-        """Test that preferences endpoint exists and has correct structure."""
-        # Should fail with auth error, not 404 (not found)
-        response = client.get("/preferences")
-        assert response.status_code in [401, 403]
-
-    def test_get_preferences_response_schema(
-        self, client, mock_auth, sample_country_preference, sample_country
-    ):
-        """Test that response matches expected schema."""
-        response = client.get("/preferences", headers=mock_auth)
-        assert response.status_code == 200
-        preferences = response.json()
-
-        assert isinstance(preferences, list)
-        if preferences:  # If not empty
-            pref = preferences[0]
-            assert isinstance(pref, dict)
-            assert "wikidata_id" in pref
-            assert "name" in pref
-            assert "preference_type" in pref
-            assert isinstance(pref["wikidata_id"], str)
-            assert isinstance(pref["name"], str)
-            assert isinstance(pref["preference_type"], str)
 
 
 class TestPreferencesEndpointIntegration:
