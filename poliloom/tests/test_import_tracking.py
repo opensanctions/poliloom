@@ -830,7 +830,7 @@ class TestIntegrationWorkflow:
         assert results["properties_marked_deleted"] == 0  # Should not affect count
 
     def test_statement_in_current_dump_not_deleted_two_dump_validation(
-        self, db_session, with_import_tracking_triggers
+        self, db_session
     ):
         """Test that statements in current dump are preserved with two-dump validation."""
         from datetime import timedelta
