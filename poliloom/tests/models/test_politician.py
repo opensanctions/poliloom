@@ -207,7 +207,7 @@ class TestPolitician:
         db_session.flush()
 
         # Create multiple German links to simulate popularity
-        for i in range(50):  # Make German popular
+        for i in range(5):  # Make German popular
             dummy_politician = Politician.create_with_entity(
                 db_session, f"Q{1000 + i}", f"Dummy {i}"
             )
@@ -273,8 +273,8 @@ class TestPolitician:
             lang.iso_639_2 = iso3
 
         # Create many links for each language to simulate different popularity
-        # Make French most popular (100), German second (50), Spanish third (30), English least (25)
-        popularity_data = [("fr", 100), ("de", 50), ("es", 30), ("en", 25)]
+        # Make French most popular (10), German second (7), Spanish third (5), English least (3)
+        popularity_data = [("fr", 10), ("de", 7), ("es", 5), ("en", 3)]
 
         base_qid = 50000  # Use a higher base to avoid conflicts
         for iso_code, count in popularity_data:
@@ -313,8 +313,8 @@ class TestPolitician:
         # Get the ISO codes of returned languages
         returned_iso_codes = {iso_639_1 for _, iso_639_1, _, _ in result}
 
-        # Should contain the 3 most popular languages: fr (100), de (50), es (30)
-        # Should NOT contain en (25) as it's the 4th most popular
+        # Should contain the 3 most popular languages: fr (10), de (7), es (5)
+        # Should NOT contain en (3) as it's the 4th most popular
         expected_top_3 = {"fr", "de", "es"}
         assert returned_iso_codes == expected_top_3, (
             f"Expected top 3 languages {expected_top_3}, got {returned_iso_codes}"
@@ -1072,11 +1072,11 @@ class TestPoliticianQueryForEnrichment:
 
         # Create 5 languages with different popularity levels
         languages_data = [
-            ("Q1568", "Hindi", "hi", "hin", 20),  # Most popular
-            ("Q1860", "English", "en", "eng", 15),  # 2nd most popular
-            ("Q5885", "Tamil", "ta", "tam", 10),  # 3rd most popular
-            ("Q5107", "Telugu", "te", "tel", 5),  # 4th - should NOT match
-            ("Q33298", "Bengali", "bn", "ben", 2),  # 5th - should NOT match
+            ("Q1568", "Hindi", "hi", "hin", 5),  # Most popular
+            ("Q1860", "English", "en", "eng", 4),  # 2nd most popular
+            ("Q5885", "Tamil", "ta", "tam", 3),  # 3rd most popular
+            ("Q5107", "Telugu", "te", "tel", 2),  # 4th - should NOT match
+            ("Q33298", "Bengali", "bn", "ben", 1),  # 5th - should NOT match
         ]
 
         languages = []
