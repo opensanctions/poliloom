@@ -1,5 +1,6 @@
 """Tests for model mixins using test-only concrete models."""
 
+from sqlalchemy import select
 from poliloom.models.base import (
     Base,
     EntityCreationMixin,
@@ -69,3 +70,36 @@ class TestEntityCreationMixin:
         assert "Label 1" in label_texts
         assert "Label 2" in label_texts
         assert "Alias 1" in label_texts
+
+
+class TestWikidataEntityMixinSearchByLabel:
+    """Test cases for WikidataEntityMixin.search_by_label method."""
+
+    def test_search_by_label_finds_matching_entities(self, db_session):
+        """Test that label search filter finds entities with matching labels."""
+        # Create entity with label
+        entity = DummyEntity.create_with_entity(
+            db_session, "Q123", "Test Entity", labels=["John Doe", "J. Doe"]
+        )
+        db_session.flush()
+
+        query = select(DummyEntity)
+        query = DummyEntity.search_by_label(query, "John")
+        result = db_session.execute(query).scalars().all()
+
+        assert len(result) == 1
+        assert result[0].wikidata_id == entity.wikidata_id
+
+    def test_search_by_label_excludes_non_matching(self, db_session):
+        """Test that label search filter excludes non-matching entities."""
+        # Create entity with label
+        DummyEntity.create_with_entity(
+            db_session, "Q123", "Test Entity", labels=["John Doe"]
+        )
+        db_session.flush()
+
+        query = select(DummyEntity)
+        query = DummyEntity.search_by_label(query, "Barack Obama")
+        result = db_session.execute(query).scalars().all()
+
+        assert len(result) == 0
