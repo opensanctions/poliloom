@@ -202,7 +202,7 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         },
         "language": {
             "roots": [
-                "Q17376908",  # languoid
+                "Q34770",  # language
             ],
             "ignore": [],
         },

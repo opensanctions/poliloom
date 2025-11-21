@@ -732,10 +732,12 @@ def clean_entities(dry_run):
             position_root_ids = config["position"]["roots"]
             position_ignore_ids = config["position"]["ignore"]
             location_root_ids = config["location"]["roots"]
+            language_root_ids = config["language"]["roots"]
 
             click.echo(f"  • Position roots: {len(position_root_ids)} IDs")
             click.echo(f"  • Position ignore: {len(position_ignore_ids)} IDs")
             click.echo(f"  • Location roots: {len(location_root_ids)} IDs")
+            click.echo(f"  • Language roots: {len(language_root_ids)} IDs")
 
             # Build hierarchy sets
             click.echo("⏳ Building hierarchy trees from database...")
@@ -745,8 +747,12 @@ def clean_entities(dry_run):
             location_classes = WikidataEntity.query_hierarchy_descendants(
                 session, location_root_ids
             )
+            language_classes = WikidataEntity.query_hierarchy_descendants(
+                session, language_root_ids
+            )
             click.echo(f"  • Valid position classes: {len(position_classes)}")
             click.echo(f"  • Valid location classes: {len(location_classes)}")
+            click.echo(f"  • Valid language classes: {len(language_classes)}")
 
             # Clean positions
             click.echo("\n⏳ Identifying positions outside hierarchy...")
@@ -820,8 +826,44 @@ def clean_entities(dry_run):
                     ).rowcount
                     click.echo(f"    → Hard-deleted {loc_deleted} location records")
 
+            # Clean languages
+            click.echo("\n⏳ Identifying languages outside hierarchy...")
+            languages_to_remove = _identify_languages_to_remove(
+                session, language_root_ids
+            )
+            click.echo(f"  • Found {len(languages_to_remove)} languages to remove")
+
+            if languages_to_remove:
+                if dry_run:
+                    click.echo("  • [DRY RUN] Would soft-delete properties")
+                    click.echo("  • [DRY RUN] Would hard-delete language records")
+                else:
+                    click.echo("  • Soft-deleting properties...")
+                    props_deleted = session.execute(
+                        text("""
+                            UPDATE properties
+                            SET deleted_at = NOW()
+                            WHERE entity_id = ANY(:ids)
+                              AND type = 'NATIVE_LANGUAGE'
+                              AND deleted_at IS NULL
+                            RETURNING id
+                        """),
+                        {"ids": list(languages_to_remove)},
+                    ).rowcount
+                    click.echo(f"    → Soft-deleted {props_deleted} properties")
+
+                    click.echo("  • Hard-deleting language records...")
+                    lang_deleted = session.execute(
+                        text("""
+                            DELETE FROM languages
+                            WHERE wikidata_id = ANY(:ids)
+                        """),
+                        {"ids": list(languages_to_remove)},
+                    ).rowcount
+                    click.echo(f"    → Hard-deleted {lang_deleted} language records")
+
             # Clean orphaned wikidata_entities
-            if positions_to_remove or locations_to_remove:
+            if positions_to_remove or locations_to_remove or languages_to_remove:
                 click.echo("\n⏳ Cleaning orphaned wikidata_entities...")
                 if dry_run:
                     click.echo("  • [DRY RUN] Would hard-delete orphaned entities")
@@ -913,6 +955,36 @@ def _identify_locations_to_remove(session: Session, root_ids: list[str]) -> set[
             )
             SELECT l.wikidata_id
             FROM locations l
+            WHERE NOT EXISTS (
+                SELECT 1 FROM wikidata_relations wr
+                JOIN descendants d ON wr.parent_entity_id = d.wikidata_id
+                WHERE wr.child_entity_id = l.wikidata_id
+                   AND wr.relation_type IN ('INSTANCE_OF', 'SUBCLASS_OF')
+            )
+        """),
+        {"root_ids": root_ids},
+    )
+    return {row[0] for row in result.fetchall()}
+
+
+def _identify_languages_to_remove(session: Session, root_ids: list[str]) -> set[str]:
+    """Identify languages outside the current hierarchy."""
+    result = session.execute(
+        text("""
+            WITH RECURSIVE descendants AS (
+                -- Base case: start with the new root entities
+                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
+                FROM wikidata_entities
+                WHERE wikidata_id = ANY(:root_ids)
+                UNION
+                -- Recursive case: find all children
+                SELECT sr.child_entity_id AS wikidata_id
+                FROM wikidata_relations sr
+                JOIN descendants d ON sr.parent_entity_id = d.wikidata_id
+                WHERE sr.relation_type = 'SUBCLASS_OF'
+            )
+            SELECT l.wikidata_id
+            FROM languages l
             WHERE NOT EXISTS (
                 SELECT 1 FROM wikidata_relations wr
                 JOIN descendants d ON wr.parent_entity_id = d.wikidata_id

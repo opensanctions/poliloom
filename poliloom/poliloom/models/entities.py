@@ -131,16 +131,13 @@ class Language(
             except (KeyError, TypeError):
                 continue
 
-        # Import languages that have either ISO code or wikimedia code
-        if iso_639_1 or iso_639_2 or iso_639_3 or wikimedia_code:
-            return {
-                "iso_639_1": iso_639_1,
-                "iso_639_2": iso_639_2,
-                "iso_639_3": iso_639_3,
-                "wikimedia_code": wikimedia_code,
-            }
-
-        return None
+        # Import all languages (ISO codes optional)
+        return {
+            "iso_639_1": iso_639_1,
+            "iso_639_2": iso_639_2,
+            "iso_639_3": iso_639_3,
+            "wikimedia_code": wikimedia_code,
+        }
 
 
 class WikipediaProject(
