@@ -388,7 +388,12 @@ class TestWikidataPoliticianImporter:
         assert prop.qualifiers_json == expected_qualifiers
         assert prop.references_json == expected_references
 
-    def test_insert_politicians_batch_with_wikipedia_links(self, db_session):
+    def test_insert_politicians_batch_with_wikipedia_links(
+        self,
+        db_session,
+        sample_wikipedia_project,
+        sample_french_wikipedia_project,
+    ):
         """Test inserting politicians with Wikipedia links."""
         politicians = [
             {
@@ -398,11 +403,11 @@ class TestWikidataPoliticianImporter:
                 "wikipedia_links": [
                     {
                         "url": "https://en.wikipedia.org/wiki/John_Doe",
-                        "language": "en",
+                        "wikipedia_project_id": sample_wikipedia_project.wikidata_id,
                     },
                     {
                         "url": "https://fr.wikipedia.org/wiki/John_Doe",
-                        "language": "fr",
+                        "wikipedia_project_id": sample_french_wikipedia_project.wikidata_id,
                     },
                 ],
             }
@@ -423,8 +428,11 @@ class TestWikidataPoliticianImporter:
             .all()
         )
         assert len(wiki_links) == 2
-        wiki_languages = {w.iso_code for w in wiki_links}
-        assert wiki_languages == {"en", "fr"}
+        wiki_projects = {w.wikipedia_project_id for w in wiki_links}
+        assert wiki_projects == {
+            sample_wikipedia_project.wikidata_id,
+            sample_french_wikipedia_project.wikidata_id,
+        }
 
 
 class TestIsPolitician:

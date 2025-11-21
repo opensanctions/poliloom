@@ -241,12 +241,135 @@ def sample_archived_page(db_session):
 
 
 @pytest.fixture
-def sample_wikipedia_link(db_session, sample_politician):
+def sample_wikipedia_project(db_session, sample_language):
+    """Return a created English Wikipedia project entity with LANGUAGE_OF_WORK relation."""
+    from poliloom.models import WikipediaProject, WikidataRelation, RelationType
+
+    wp = WikipediaProject.create_with_entity(db_session, "Q328", "English Wikipedia")
+    wp.official_website = "https://en.wikipedia.org"
+
+    # Create LANGUAGE_OF_WORK relation
+    relation = WikidataRelation(
+        parent_entity_id=sample_language.wikidata_id,
+        child_entity_id=wp.wikidata_id,
+        relation_type=RelationType.LANGUAGE_OF_WORK,
+        statement_id="test_en_wp_lang",
+    )
+    db_session.add(relation)
+    db_session.flush()
+    return wp
+
+
+@pytest.fixture
+def sample_german_wikipedia_project(db_session, sample_german_language):
+    """Return a created German Wikipedia project entity with LANGUAGE_OF_WORK relation."""
+    from poliloom.models import WikipediaProject, WikidataRelation, RelationType
+
+    wp = WikipediaProject.create_with_entity(db_session, "Q48183", "German Wikipedia")
+    wp.official_website = "https://de.wikipedia.org"
+
+    # Create LANGUAGE_OF_WORK relation
+    relation = WikidataRelation(
+        parent_entity_id=sample_german_language.wikidata_id,
+        child_entity_id=wp.wikidata_id,
+        relation_type=RelationType.LANGUAGE_OF_WORK,
+        statement_id="test_de_wp_lang",
+    )
+    db_session.add(relation)
+    db_session.flush()
+    return wp
+
+
+@pytest.fixture
+def sample_french_wikipedia_project(db_session, sample_french_language):
+    """Return a created French Wikipedia project entity with LANGUAGE_OF_WORK relation."""
+    from poliloom.models import WikipediaProject, WikidataRelation, RelationType
+
+    wp = WikipediaProject.create_with_entity(db_session, "Q8447", "French Wikipedia")
+    wp.official_website = "https://fr.wikipedia.org"
+
+    # Create LANGUAGE_OF_WORK relation
+    relation = WikidataRelation(
+        parent_entity_id=sample_french_language.wikidata_id,
+        child_entity_id=wp.wikidata_id,
+        relation_type=RelationType.LANGUAGE_OF_WORK,
+        statement_id="test_fr_wp_lang",
+    )
+    db_session.add(relation)
+    db_session.flush()
+    return wp
+
+
+@pytest.fixture
+def sample_spanish_language(db_session):
+    """Return a created Spanish language entity."""
+    language = Language.create_with_entity(db_session, "Q1321", "Spanish")
+    language.iso_639_1 = "es"
+    language.iso_639_2 = "spa"
+    db_session.flush()
+    return language
+
+
+@pytest.fixture
+def sample_spanish_wikipedia_project(db_session, sample_spanish_language):
+    """Return a created Spanish Wikipedia project entity with LANGUAGE_OF_WORK relation."""
+    from poliloom.models import WikipediaProject, WikidataRelation, RelationType
+
+    wp = WikipediaProject.create_with_entity(db_session, "Q8449", "Spanish Wikipedia")
+    wp.official_website = "https://es.wikipedia.org"
+
+    # Create LANGUAGE_OF_WORK relation
+    relation = WikidataRelation(
+        parent_entity_id=sample_spanish_language.wikidata_id,
+        child_entity_id=wp.wikidata_id,
+        relation_type=RelationType.LANGUAGE_OF_WORK,
+        statement_id="test_es_wp_lang",
+    )
+    db_session.add(relation)
+    db_session.flush()
+    return wp
+
+
+@pytest.fixture
+def create_wikipedia_link(db_session):
+    """Factory fixture to create Wikipedia links easily.
+
+    Returns a function that creates a WikipediaLink given a politician and Wikipedia project.
+    """
+
+    def _create_link(politician, wikipedia_project, article_title=None):
+        """Create a Wikipedia link for a politician.
+
+        Args:
+            politician: Politician instance
+            wikipedia_project: WikipediaProject instance
+            article_title: Optional article title (defaults to politician name with underscores)
+        """
+        if article_title is None:
+            article_title = politician.name.replace(" ", "_")
+
+        # Extract domain from official_website (e.g., "https://en.wikipedia.org")
+        domain = wikipedia_project.official_website
+        url = f"{domain}/wiki/{article_title}"
+
+        link = WikipediaLink(
+            politician_id=politician.id,
+            url=url,
+            wikipedia_project_id=wikipedia_project.wikidata_id,
+        )
+        db_session.add(link)
+        return link
+
+    return _create_link
+
+
+@pytest.fixture
+def sample_wikipedia_link(db_session, sample_politician, sample_wikipedia_project):
     """Return a created Wikipedia link entity."""
     wikipedia_link = WikipediaLink(
         politician_id=sample_politician.id,
         url="https://en.wikipedia.org/wiki/Test_Politician",
-        iso_code="en",
+        wikipedia_project_id=sample_wikipedia_project.wikidata_id,
     )
     db_session.add(wikipedia_link)
     db_session.flush()

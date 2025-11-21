@@ -28,6 +28,7 @@ from sqlalchemy.engine import Row
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Session, relationship
 from sqlalchemy import event
+from sqlalchemy.orm import aliased
 
 from ..wikidata_date import WikidataDate
 from .base import (
@@ -35,11 +36,12 @@ from .base import (
     EntityCreationMixin,
     LanguageCodeMixin,
     PropertyType,
+    RelationType,
     SoftDeleteMixin,
     TimestampMixin,
     UpsertMixin,
 )
-from .entities import Language
+from .entities import Language, WikipediaProject
 from .wikidata import WikidataEntity, WikidataEntityMixin
 
 
@@ -108,7 +110,7 @@ class Politician(
             .cte("politician_citizenships")
         )
 
-        # CTE 2: language_popularity - count global usage of each language
+        # CTE 2: language_popularity - count global usage of each wikipedia project
         language_popularity = self._get_language_popularity_cte()
 
         # Subquery for checking if politician has any citizenships
@@ -117,6 +119,7 @@ class Politician(
         )
 
         # Subquery for checking if language is official language of citizenship country
+        # Join through WikipediaProject to get the language via P407 (language of work)
         citizenship_match_exists = exists(
             select(literal(1))
             .select_from(WikidataRelation)
@@ -134,6 +137,7 @@ class Politician(
         )
 
         # CTE 3: links_with_citizenship_flag - join all data and compute citizenship match
+        # Join WikipediaLink -> WikipediaProject -> Language (via P407 relation)
         links_with_citizenship_flag = (
             select(
                 WikipediaLink.url,
@@ -151,16 +155,21 @@ class Politician(
             )
             .select_from(WikipediaLink)
             .join(
-                Language,
-                or_(
-                    WikipediaLink.iso_code == Language.iso_639_1,
-                    WikipediaLink.iso_code == Language.iso_639_2,
-                    WikipediaLink.iso_code == Language.iso_639_3,
-                ),
+                WikipediaProject,
+                WikipediaLink.wikipedia_project_id == WikipediaProject.wikidata_id,
             )
             .join(
+                WikidataRelation,
+                and_(
+                    WikidataRelation.child_entity_id == WikipediaProject.wikidata_id,
+                    WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
+                ),
+            )
+            .join(Language, WikidataRelation.parent_entity_id == Language.wikidata_id)
+            .join(
                 language_popularity,
-                language_popularity.c.iso_code == WikipediaLink.iso_code,
+                language_popularity.c.wikipedia_project_id
+                == WikipediaLink.wikipedia_project_id,
             )
             .where(WikipediaLink.politician_id == str(self.id))
             .distinct()
@@ -315,11 +324,13 @@ class Politician(
         consistent popularity calculations.
 
         Returns:
-            SQLAlchemy CTE with columns: iso_code, global_count
+            SQLAlchemy CTE with columns: wikipedia_project_id, global_count
         """
         return (
-            select(WikipediaLink.iso_code, func.count().label("global_count"))
-            .group_by(WikipediaLink.iso_code)
+            select(
+                WikipediaLink.wikipedia_project_id, func.count().label("global_count")
+            )
+            .group_by(WikipediaLink.wikipedia_project_id)
             .cte("language_popularity")
         )
 
@@ -472,10 +483,14 @@ class Politician(
             # Strategy: Match politicians where filtered language would be in top 3 selected by get_priority_wikipedia_links
             # Mimics get_priority_wikipedia_links logic: citizenship match + global popularity, top 3
 
-            # CTE 1: Global language popularity (count of Wikipedia links per language)
+            # CTE 1: Global language popularity (count of Wikipedia links per wikipedia project)
             language_popularity = cls._get_language_popularity_cte()
 
             # CTE 2: For each politician, their citizenship-matched languages with links, ranked by global popularity
+            # Join through WikipediaProject -> Language (via P407 relation)
+            # Use aliased WikidataRelation for country->language to avoid ambiguous joins
+            CountryLanguageRelation = aliased(WikidataRelation)
+
             politician_language_ranks = (
                 select(
                     cls.id.label("politician_id"),
@@ -490,16 +505,24 @@ class Politician(
                 .select_from(cls)
                 .join(WikipediaLink, WikipediaLink.politician_id == cls.id)
                 .join(
-                    Language,
-                    or_(
-                        WikipediaLink.iso_code == Language.iso_639_1,
-                        WikipediaLink.iso_code == Language.iso_639_2,
-                        WikipediaLink.iso_code == Language.iso_639_3,
+                    WikipediaProject,
+                    WikipediaLink.wikipedia_project_id == WikipediaProject.wikidata_id,
+                )
+                .join(
+                    WikidataRelation,
+                    and_(
+                        WikidataRelation.child_entity_id
+                        == WikipediaProject.wikidata_id,
+                        WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
                     ),
                 )
                 .join(
+                    Language, WikidataRelation.parent_entity_id == Language.wikidata_id
+                )
+                .join(
                     language_popularity,
-                    language_popularity.c.iso_code == WikipediaLink.iso_code,
+                    language_popularity.c.wikipedia_project_id
+                    == WikipediaLink.wikipedia_project_id,
                 )
                 .join(
                     Property,
@@ -509,11 +532,13 @@ class Politician(
                     ),
                 )
                 .join(
-                    WikidataRelation,
+                    CountryLanguageRelation,
                     and_(
-                        Property.entity_id == WikidataRelation.child_entity_id,
-                        WikidataRelation.relation_type == "OFFICIAL_LANGUAGE",
-                        WikidataRelation.parent_entity_id == Language.wikidata_id,
+                        Property.entity_id == CountryLanguageRelation.child_entity_id,
+                        CountryLanguageRelation.relation_type
+                        == RelationType.OFFICIAL_LANGUAGE,
+                        CountryLanguageRelation.parent_entity_id
+                        == Language.wikidata_id,
                     ),
                 )
                 .distinct()
@@ -612,15 +637,15 @@ class WikipediaLink(Base, TimestampMixin, UpsertMixin):
     __tablename__ = "wikipedia_links"
     __table_args__ = (
         Index(
-            "idx_wikipedia_links_politician_iso_code",
+            "idx_wikipedia_links_politician_project",
             "politician_id",
-            "iso_code",
+            "wikipedia_project_id",
             unique=True,
         ),
     )
 
     # UpsertMixin configuration
-    _upsert_conflict_columns = ["politician_id", "iso_code"]
+    _upsert_conflict_columns = ["politician_id", "wikipedia_project_id"]
     _upsert_update_columns = ["url"]
 
     id = Column(
@@ -632,10 +657,16 @@ class WikipediaLink(Base, TimestampMixin, UpsertMixin):
         nullable=False,
     )
     url = Column(String, nullable=False)
-    iso_code = Column(String, nullable=False, index=True)  # e.g., 'en', 'de', 'fr'
+    wikipedia_project_id = Column(
+        String,
+        ForeignKey("wikipedia_projects.wikidata_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     # Relationships
     politician = relationship("Politician", back_populates="wikipedia_links")
+    wikipedia_project = relationship("WikipediaProject")
 
 
 class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):

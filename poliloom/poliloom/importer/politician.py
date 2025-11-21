@@ -19,6 +19,7 @@ from ..models import (
     WikidataEntity,
     WikidataEntityLabel,
     WikipediaLink,
+    WikipediaProject,
 )
 from ..wikidata_entity_processor import WikidataEntityProcessor
 
@@ -31,18 +32,27 @@ PROGRESS_REPORT_FREQUENCY = 50000
 shared_position_qids: frozenset[str] | None = None
 shared_location_qids: frozenset[str] | None = None
 shared_country_qids: frozenset[str] | None = None
+shared_wikipedia_projects: dict[str, str] | None = (
+    None  # Maps official_website prefix to wikidata_id
+)
 
 
 def init_politician_worker(
     position_qids: frozenset[str],
     location_qids: frozenset[str],
     country_qids: frozenset[str],
+    wikipedia_projects: dict[str, str],
 ) -> None:
     """Initializer runs in each worker process once at startup."""
-    global shared_position_qids, shared_location_qids, shared_country_qids
+    global \
+        shared_position_qids, \
+        shared_location_qids, \
+        shared_country_qids, \
+        shared_wikipedia_projects
     shared_position_qids = position_qids
     shared_location_qids = location_qids
     shared_country_qids = country_qids
+    shared_wikipedia_projects = wikipedia_projects
 
 
 def _is_politician(
@@ -182,7 +192,7 @@ def _insert_politicians_batch(politicians: list[dict], session: Session) -> None
             {
                 "politician_id": row.id,
                 "url": wiki_link["url"],
-                "iso_code": wiki_link.get("language", "en"),
+                "wikipedia_project_id": wiki_link["wikipedia_project_id"],
             }
             for wiki_link in politician_data.get("wikipedia_links", [])
         ]
@@ -372,12 +382,21 @@ def _process_politicians_chunk(
                         ):  # Wikipedia sites, exclude commons and simple
                             language = site_key.replace("wiki", "")
                             url = f"https://{language}.wikipedia.org/wiki/{sitelink['title'].replace(' ', '_')}"
-                            politician_data["wikipedia_links"].append(
-                                {
-                                    "url": url,
-                                    "language": language,
-                                }
+
+                            # Match URL to wikipedia project
+                            url_prefix = f"https://{language}.wikipedia.org"
+                            wikipedia_project_id = shared_wikipedia_projects.get(
+                                url_prefix
                             )
+
+                            # Only add if we have a matching wikipedia project
+                            if wikipedia_project_id:
+                                politician_data["wikipedia_links"].append(
+                                    {
+                                        "url": url,
+                                        "wikipedia_project_id": wikipedia_project_id,
+                                    }
+                                )
 
                 politicians.append(politician_data)
                 politician_count += 1
@@ -431,14 +450,31 @@ def import_politicians(
             .all()
         )
 
+        # Load wikipedia projects to map URLs to project IDs
+        wikipedia_project_rows = session.query(
+            WikipediaProject.wikidata_id, WikipediaProject.official_website
+        ).all()
+
         # Convert to sets of strings (flatten tuples)
         position_qids = {qid[0] for qid in position_qids}
         location_qids = {qid[0] for qid in location_qids}
         country_qids = {qid[0] for qid in country_qids}
 
+        # Create mapping from URL prefix to wikidata_id
+        # e.g., "https://en.wikipedia.org" -> "Q328"
+        wikipedia_projects = {}
+        for wikidata_id, official_website in wikipedia_project_rows:
+            if official_website and "wikipedia.org" in official_website:
+                # Extract base URL without path (e.g., https://en.wikipedia.org)
+                url_parts = official_website.split("/")
+                if len(url_parts) >= 3:
+                    url_prefix = f"{url_parts[0]}//{url_parts[2]}"
+                    wikipedia_projects[url_prefix] = wikidata_id
+
         logger.info(f"Filtering for {len(position_qids)} positions")
         logger.info(f"Filtering for {len(location_qids)} locations")
         logger.info(f"Filtering for {len(country_qids)} countries")
+        logger.info(f"Loaded {len(wikipedia_projects)} wikipedia projects")
 
     # Build frozensets once in parent, BEFORE starting Pool
     position_qids = frozenset(position_qids)
@@ -459,7 +495,7 @@ def import_politicians(
         pool = mp.Pool(
             processes=num_workers,
             initializer=init_politician_worker,
-            initargs=(position_qids, location_qids, country_qids),
+            initargs=(position_qids, location_qids, country_qids, wikipedia_projects),
         )
 
         # Each worker processes its chunk independently

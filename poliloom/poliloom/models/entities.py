@@ -3,6 +3,7 @@
 from typing import List, Optional, Dict, Any
 
 from sqlalchemy import Column, String
+from sqlalchemy.orm import relationship
 from pgvector.sqlalchemy import Vector
 
 from .base import (
@@ -157,6 +158,9 @@ class WikipediaProject(
     _upsert_update_columns = ["official_website"]
 
     official_website = Column(String, nullable=True)  # P856 official website URL
+
+    # Relationships
+    wikipedia_links = relationship("WikipediaLink", back_populates="wikipedia_project")
 
     @classmethod
     def should_import(
