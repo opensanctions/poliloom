@@ -608,7 +608,13 @@ class TestGetPoliticiansEndpoint:
         assert len(data) == 0
 
     def test_country_filtering(
-        self, client, mock_auth, db_session, sample_country, sample_germany_country
+        self,
+        client,
+        mock_auth,
+        db_session,
+        sample_country,
+        sample_germany_country,
+        create_citizenship,
     ):
         """Test filtering politicians by country QIDs based on citizenship properties."""
         usa_country = sample_country
@@ -647,34 +653,12 @@ class TestGetPoliticiansEndpoint:
         db_session.flush()
 
         # Add citizenship properties
-        american_citizenship = Property(
-            politician_id=american_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=usa_country.wikidata_id,
-            archived_page_id=archived_page.id,
-        )
-
-        german_citizenship = Property(
-            politician_id=german_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=germany_country.wikidata_id,
-            archived_page_id=archived_page.id,
-        )
+        create_citizenship(american_politician, usa_country, archived_page)
+        create_citizenship(german_politician, germany_country, archived_page)
 
         # Dual citizen - add both citizenships
-        dual_usa_citizenship = Property(
-            politician_id=dual_citizen_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=usa_country.wikidata_id,
-            archived_page_id=archived_page.id,
-        )
-
-        dual_germany_citizenship = Property(
-            politician_id=dual_citizen_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=germany_country.wikidata_id,
-            archived_page_id=archived_page.id,
-        )
+        create_citizenship(dual_citizen_politician, usa_country, archived_page)
+        create_citizenship(dual_citizen_politician, germany_country, archived_page)
 
         # Non-citizenship property for politician without citizenship
         birth_date_prop = Property(
@@ -684,16 +668,7 @@ class TestGetPoliticiansEndpoint:
             value_precision=11,
             archived_page_id=archived_page.id,
         )
-
-        db_session.add_all(
-            [
-                american_citizenship,
-                german_citizenship,
-                dual_usa_citizenship,
-                dual_germany_citizenship,
-                birth_date_prop,
-            ]
-        )
+        db_session.add(birth_date_prop)
         db_session.flush()
 
         # Test filtering by USA citizenship
@@ -744,6 +719,7 @@ class TestGetPoliticiansEndpoint:
         sample_language,
         sample_country,
         sample_germany_country,
+        create_citizenship,
     ):
         """Test filtering by both language and country filters combined."""
         usa_country = sample_country
@@ -777,12 +753,7 @@ class TestGetPoliticiansEndpoint:
         db_session.flush()
 
         # Add properties for American English speaking politician
-        american_eng_citizenship = Property(
-            politician_id=american_english_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=usa_country.wikidata_id,
-            archived_page_id=english_page.id,
-        )
+        create_citizenship(american_english_politician, usa_country, english_page)
         american_eng_birth = Property(
             politician_id=american_english_politician.id,
             type=PropertyType.BIRTH_DATE,
@@ -792,12 +763,7 @@ class TestGetPoliticiansEndpoint:
         )
 
         # Add properties for German English speaking politician
-        german_eng_citizenship = Property(
-            politician_id=german_english_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=germany_country.wikidata_id,
-            archived_page_id=english_page.id,
-        )
+        create_citizenship(german_english_politician, germany_country, english_page)
         german_eng_birth = Property(
             politician_id=german_english_politician.id,
             type=PropertyType.BIRTH_DATE,
@@ -807,22 +773,9 @@ class TestGetPoliticiansEndpoint:
         )
 
         # Add properties for American non-English speaking politician
-        american_non_eng_citizenship = Property(
-            politician_id=american_non_english_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=usa_country.wikidata_id,
-            archived_page_id=None,  # No archived page = won't match language filter
-        )
+        create_citizenship(american_non_english_politician, usa_country)
 
-        db_session.add_all(
-            [
-                american_eng_citizenship,
-                american_eng_birth,
-                german_eng_citizenship,
-                german_eng_birth,
-                american_non_eng_citizenship,
-            ]
-        )
+        db_session.add_all([american_eng_birth, german_eng_birth])
         db_session.flush()
 
         # Test combined filtering: English language AND American citizenship

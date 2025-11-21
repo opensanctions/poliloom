@@ -3,7 +3,7 @@
 from typing import List, Optional, Type, Callable
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, and_
 
 from ..database import get_db_session
 from ..models import (
@@ -13,9 +13,11 @@ from ..models import (
     Location,
     WikidataEntity,
     WikipediaLink,
+    WikipediaProject,
     Property,
 )
-from ..models.base import PropertyType
+from ..models.wikidata import WikidataRelation
+from ..models.base import PropertyType, RelationType
 from .schemas import (
     LanguageResponse,
     CountryResponse,
@@ -105,16 +107,29 @@ async def get_languages(
     Retrieve all languages with source counts.
 
     Returns a list of all languages with their metadata and the count of
-    sources (currently Wikipedia links) using each language's ISO code.
+    sources (currently Wikipedia links) using each language via Wikipedia projects.
     """
-    # Subquery to count sources per language ISO code
-    # Currently only Wikipedia links, but may include other source types in the future
+    # Subquery to count sources per language
+    # Join WikipediaLink -> WikipediaProject -> Language (via P407 relation)
     sources_count_subquery = (
         select(
-            WikipediaLink.iso_code,
+            Language.wikidata_id.label("language_id"),
             func.count(WikipediaLink.id).label("link_count"),
         )
-        .group_by(WikipediaLink.iso_code)
+        .select_from(WikipediaLink)
+        .join(
+            WikipediaProject,
+            WikipediaLink.wikipedia_project_id == WikipediaProject.wikidata_id,
+        )
+        .join(
+            WikidataRelation,
+            and_(
+                WikidataRelation.child_entity_id == WikipediaProject.wikidata_id,
+                WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
+            ),
+        )
+        .join(Language, WikidataRelation.parent_entity_id == Language.wikidata_id)
+        .group_by(Language.wikidata_id)
         .subquery()
     )
 
@@ -130,13 +145,9 @@ async def get_languages(
             WikidataEntity,
             Language.wikidata_id == WikidataEntity.wikidata_id,
         )
-        .join(
+        .outerjoin(
             sources_count_subquery,
-            or_(
-                Language.iso_639_1 == sources_count_subquery.c.iso_code,
-                Language.iso_639_2 == sources_count_subquery.c.iso_code,
-                Language.iso_639_3 == sources_count_subquery.c.iso_code,
-            ),
+            Language.wikidata_id == sources_count_subquery.c.language_id,
         )
         .where(WikidataEntity.deleted_at.is_(None))
         .order_by(sources_count_subquery.c.link_count.desc())

@@ -252,15 +252,11 @@ class TestEnrichment:
         sample_country,
         sample_politician,
         sample_wikipedia_link,
+        create_citizenship,
     ):
         """Test storing extracted properties."""
         # Add citizenship as Property (Wikipedia link already created by fixture)
-        citizenship = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_country.wikidata_id,
-        )
-        db_session.add(citizenship)
+        create_citizenship(sample_politician, sample_country)
         db_session.flush()
 
         properties = [
@@ -517,16 +513,16 @@ class TestCountPoliticiansWithUnevaluated:
         assert count == 0
 
     def test_count_with_country_filter(
-        self, db_session, sample_politician, sample_country, sample_archived_page
+        self,
+        db_session,
+        sample_politician,
+        sample_country,
+        sample_archived_page,
+        create_citizenship,
     ):
         """Test counting with country filter."""
         # Add citizenship and unevaluated property
-        citizenship_prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_country.wikidata_id,
-            archived_page_id=sample_archived_page.id,
-        )
+        create_citizenship(sample_politician, sample_country, sample_archived_page)
         birth_prop = Property(
             politician_id=sample_politician.id,
             type=PropertyType.BIRTH_DATE,
@@ -534,7 +530,7 @@ class TestCountPoliticiansWithUnevaluated:
             value_precision=11,
             archived_page_id=sample_archived_page.id,
         )
-        db_session.add_all([citizenship_prop, birth_prop])
+        db_session.add(birth_prop)
         db_session.flush()
 
         # Count with USA filter

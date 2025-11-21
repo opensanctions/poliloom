@@ -376,6 +376,37 @@ def sample_wikipedia_link(db_session, sample_politician, sample_wikipedia_projec
     return wikipedia_link
 
 
+@pytest.fixture
+def create_citizenship(db_session):
+    """Factory fixture to create citizenship properties easily.
+
+    Returns a function that creates a citizenship Property given a politician and country.
+    """
+    from poliloom.models import Property, PropertyType
+
+    def _create_citizenship(politician, country, archived_page=None):
+        """Create a citizenship property for a politician.
+
+        Args:
+            politician: Politician instance
+            country: Country instance
+            archived_page: Optional ArchivedPage instance
+
+        Returns:
+            Created Property instance
+        """
+        prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=country.wikidata_id,
+            archived_page_id=archived_page.id if archived_page else None,
+        )
+        db_session.add(prop)
+        return prop
+
+    return _create_citizenship
+
+
 # API Test Fixtures
 
 

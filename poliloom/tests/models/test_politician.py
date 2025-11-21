@@ -7,7 +7,6 @@ from poliloom.models import (
     PropertyType,
     Language,
     Country,
-    WikipediaLink,
     WikidataRelation,
     RelationType,
     ArchivedPage,
@@ -179,6 +178,7 @@ class TestPolitician:
         sample_german_language,
         sample_german_wikipedia_project,
         sample_wikipedia_project,
+        create_wikipedia_link,
     ):
         """Test get_priority_wikipedia_links with citizenship-based prioritization."""
         # Create a German country
@@ -214,26 +214,13 @@ class TestPolitician:
                 db_session, f"Q{1000 + i}", f"Dummy {i}"
             )
             db_session.flush()
-            de_link = WikipediaLink(
-                politician_id=dummy_politician.id,
-                url=f"https://de.wikipedia.org/wiki/Dummy_{i}",
-                wikipedia_project_id=sample_german_wikipedia_project.wikidata_id,
+            create_wikipedia_link(
+                dummy_politician, sample_german_wikipedia_project, f"Dummy_{i}"
             )
-            db_session.add(de_link)
 
         # Create the actual politician's links
-        german_link = WikipediaLink(
-            politician_id=sample_politician.id,
-            url="https://de.wikipedia.org/wiki/Test_Politician",
-            wikipedia_project_id=sample_german_wikipedia_project.wikidata_id,
-        )
-        english_link = WikipediaLink(
-            politician_id=sample_politician.id,
-            url="https://en.wikipedia.org/wiki/Test_Politician",
-            wikipedia_project_id=sample_wikipedia_project.wikidata_id,
-        )
-        db_session.add(german_link)
-        db_session.add(english_link)
+        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
+        create_wikipedia_link(sample_politician, sample_wikipedia_project)
         db_session.flush()
 
         result = sample_politician.get_priority_wikipedia_links(db_session)
@@ -254,6 +241,7 @@ class TestPolitician:
         sample_french_wikipedia_project,
         sample_german_wikipedia_project,
         sample_spanish_wikipedia_project,
+        create_wikipedia_link,
     ):
         """Test get_priority_wikipedia_links when politician has no citizenship."""
         # Map ISO codes to Wikipedia projects for convenience
@@ -278,28 +266,14 @@ class TestPolitician:
                     f"Dummy {iso_code} {i}",
                 )
                 db_session.flush()
-                link = WikipediaLink(
-                    politician_id=dummy_politician.id,
-                    url=f"https://{iso_code}.wikipedia.org/wiki/Dummy_{i}",
-                    wikipedia_project_id=wikipedia_projects[iso_code].wikidata_id,
+                create_wikipedia_link(
+                    dummy_politician, wikipedia_projects[iso_code], f"Dummy_{i}"
                 )
-                db_session.add(link)
             base_qid += count  # Increment base to avoid overlaps
 
         # Create politician's actual links
-        links_data = [
-            ("https://en.wikipedia.org/wiki/Test_Politician", "en"),
-            ("https://fr.wikipedia.org/wiki/Test_Politician", "fr"),
-            ("https://de.wikipedia.org/wiki/Test_Politician", "de"),
-            ("https://es.wikipedia.org/wiki/Test_Politician", "es"),
-        ]
-        for url, iso_code in links_data:
-            link = WikipediaLink(
-                politician_id=sample_politician.id,
-                url=url,
-                wikipedia_project_id=wikipedia_projects[iso_code].wikidata_id,
-            )
-            db_session.add(link)
+        for iso_code in ["en", "fr", "de", "es"]:
+            create_wikipedia_link(sample_politician, wikipedia_projects[iso_code])
 
         db_session.flush()
 
@@ -638,17 +612,16 @@ class TestPoliticianFilterByCountries:
     """Test cases for Politician.filter_by_countries method."""
 
     def test_filter_by_countries_finds_matching_politicians(
-        self, db_session, sample_politician, sample_country, sample_archived_page
+        self,
+        db_session,
+        sample_politician,
+        sample_country,
+        sample_archived_page,
+        create_citizenship,
     ):
         """Test that country filter finds politicians with matching citizenship."""
         # Add citizenship property
-        citizenship_prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_country.wikidata_id,
-            archived_page_id=sample_archived_page.id,
-        )
-        db_session.add(citizenship_prop)
+        create_citizenship(sample_politician, sample_country, sample_archived_page)
         db_session.flush()
 
         # Query with country filter
@@ -792,6 +765,7 @@ class TestPoliticianQueryForEnrichment:
         sample_politician,
         sample_wikipedia_project,
         create_wikipedia_link,
+        create_citizenship,
     ):
         """Test country filtering based on citizenship."""
         # Create USA
@@ -800,12 +774,7 @@ class TestPoliticianQueryForEnrichment:
         db_session.flush()
 
         # Give politician US citizenship
-        citizenship = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=usa.wikidata_id,
-        )
-        db_session.add(citizenship)
+        create_citizenship(sample_politician, usa)
 
         # Create Wikipedia link
         create_wikipedia_link(sample_politician, sample_wikipedia_project)
@@ -826,6 +795,7 @@ class TestPoliticianQueryForEnrichment:
         sample_german_language,
         sample_german_wikipedia_project,
         create_wikipedia_link,
+        create_citizenship,
     ):
         """Test combined language and country filtering."""
         # Create Germany
@@ -843,12 +813,7 @@ class TestPoliticianQueryForEnrichment:
         db_session.add(relation)
 
         # Give politician German citizenship
-        citizenship = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=germany.wikidata_id,
-        )
-        db_session.add(citizenship)
+        create_citizenship(sample_politician, germany)
 
         # Create Wikipedia link
         create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
