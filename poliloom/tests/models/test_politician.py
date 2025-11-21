@@ -5,7 +5,6 @@ from poliloom.models import (
     Politician,
     Property,
     PropertyType,
-    Language,
     Country,
     WikidataRelation,
     RelationType,
@@ -176,20 +175,16 @@ class TestPolitician:
         sample_politician,
         sample_country,
         sample_german_language,
+        sample_germany_country,
         sample_german_wikipedia_project,
         sample_wikipedia_project,
         create_wikipedia_link,
     ):
         """Test get_priority_wikipedia_links with citizenship-based prioritization."""
-        # Create a German country
-        german_country = Country.create_with_entity(db_session, "Q183", "Germany")
-        german_country.iso_code = "DE"
-        db_session.flush()
-
         # Create official language relation: German is official language of Germany
         relation = WikidataRelation(
             parent_entity_id=sample_german_language.wikidata_id,
-            child_entity_id=german_country.wikidata_id,
+            child_entity_id=sample_germany_country.wikidata_id,
             relation_type=RelationType.OFFICIAL_LANGUAGE,
             statement_id="test_statement_1",
         )
@@ -199,7 +194,7 @@ class TestPolitician:
         citizenship = Property(
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
-            entity_id=german_country.wikidata_id,
+            entity_id=sample_germany_country.wikidata_id,
         )
         db_session.add(citizenship)
 
@@ -296,6 +291,8 @@ class TestPolitician:
         self,
         db_session,
         sample_politician,
+        sample_country,
+        sample_germany_country,
         sample_language,
         sample_wikipedia_project,
         sample_german_language,
@@ -303,24 +300,17 @@ class TestPolitician:
         create_wikipedia_link,
     ):
         """Test get_priority_wikipedia_links with multiple citizenships."""
-        # Create two countries with different official languages
-        usa = Country.create_with_entity(db_session, "Q30", "United States")
-        usa.iso_code = "US"
-        germany = Country.create_with_entity(db_session, "Q183", "Germany")
-        germany.iso_code = "DE"
-        db_session.flush()
-
         # Create official language relations
         relations = [
             WikidataRelation(
                 parent_entity_id=sample_language.wikidata_id,
-                child_entity_id=usa.wikidata_id,
+                child_entity_id=sample_country.wikidata_id,
                 relation_type=RelationType.OFFICIAL_LANGUAGE,
                 statement_id="test_statement_en_us",
             ),
             WikidataRelation(
                 parent_entity_id=sample_german_language.wikidata_id,
-                child_entity_id=germany.wikidata_id,
+                child_entity_id=sample_germany_country.wikidata_id,
                 relation_type=RelationType.OFFICIAL_LANGUAGE,
                 statement_id="test_statement_de_de",
             ),
@@ -333,12 +323,12 @@ class TestPolitician:
             Property(
                 politician_id=sample_politician.id,
                 type=PropertyType.CITIZENSHIP,
-                entity_id=usa.wikidata_id,
+                entity_id=sample_country.wikidata_id,
             ),
             Property(
                 politician_id=sample_politician.id,
                 type=PropertyType.CITIZENSHIP,
-                entity_id=germany.wikidata_id,
+                entity_id=sample_germany_country.wikidata_id,
             ),
         ]
         for citizenship in citizenships:
@@ -366,25 +356,17 @@ class TestPolitician:
         self,
         db_session,
         sample_politician,
+        sample_argentina_country,
+        sample_spanish_language,
         sample_language,
         sample_wikipedia_project,
         create_wikipedia_link,
     ):
         """Test get_priority_wikipedia_links when politician has citizenship but Wikipedia link language doesn't match official languages."""
-        # Create a country and language that don't match
-        argentina = Country.create_with_entity(db_session, "Q414", "Argentina")
-        argentina.iso_code = "AR"
-
-        # Spanish as official language of Argentina
-        spanish = Language.create_with_entity(db_session, "Q1321", "Spanish")
-        spanish.iso_639_1 = "es"
-        spanish.iso_639_2 = "spa"
-        db_session.flush()
-
         # Create official language relation: Spanish is official language of Argentina
         relation = WikidataRelation(
-            parent_entity_id=spanish.wikidata_id,
-            child_entity_id=argentina.wikidata_id,
+            parent_entity_id=sample_spanish_language.wikidata_id,
+            child_entity_id=sample_argentina_country.wikidata_id,
             relation_type=RelationType.OFFICIAL_LANGUAGE,
             statement_id="test_statement_es_ar",
         )
@@ -394,7 +376,7 @@ class TestPolitician:
         citizenship = Property(
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
-            entity_id=argentina.wikidata_id,
+            entity_id=sample_argentina_country.wikidata_id,
         )
         db_session.add(citizenship)
 
@@ -419,6 +401,7 @@ class TestPolitician:
         self,
         db_session,
         sample_politician,
+        sample_germany_country,
         sample_language,
         sample_wikipedia_project,
         sample_german_language,
@@ -427,15 +410,10 @@ class TestPolitician:
         create_wikipedia_link,
     ):
         """Test get_priority_wikipedia_links returns all 3 links when one matches citizenship language."""
-        # Create Germany country with German as official language
-        germany = Country.create_with_entity(db_session, "Q183", "Germany")
-        germany.iso_code = "DE"
-        db_session.flush()
-
         # Create official language relation: German is official language of Germany
         relation = WikidataRelation(
             parent_entity_id=sample_german_language.wikidata_id,
-            child_entity_id=germany.wikidata_id,
+            child_entity_id=sample_germany_country.wikidata_id,
             relation_type=RelationType.OFFICIAL_LANGUAGE,
             statement_id="test_statement_de_de",
         )
@@ -445,7 +423,7 @@ class TestPolitician:
         citizenship = Property(
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
-            entity_id=germany.wikidata_id,
+            entity_id=sample_germany_country.wikidata_id,
         )
         db_session.add(citizenship)
 
@@ -673,20 +651,16 @@ class TestPoliticianQueryForEnrichment:
         self,
         db_session,
         sample_politician,
+        sample_germany_country,
         sample_german_language,
         sample_german_wikipedia_project,
         create_wikipedia_link,
     ):
         """Test language filtering based on citizenship official languages."""
-        # Create Germany
-        germany = Country.create_with_entity(db_session, "Q183", "Germany")
-        germany.iso_code = "DE"
-        db_session.flush()
-
         # Create official language relation: German is official in Germany
         relation = WikidataRelation(
             parent_entity_id=sample_german_language.wikidata_id,
-            child_entity_id=germany.wikidata_id,
+            child_entity_id=sample_germany_country.wikidata_id,
             relation_type=RelationType.OFFICIAL_LANGUAGE,
             statement_id="test_statement_de_de",
         )
@@ -696,7 +670,7 @@ class TestPoliticianQueryForEnrichment:
         citizenship = Property(
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
-            entity_id=germany.wikidata_id,
+            entity_id=sample_germany_country.wikidata_id,
         )
         db_session.add(citizenship)
 
@@ -717,6 +691,7 @@ class TestPoliticianQueryForEnrichment:
         self,
         db_session,
         sample_politician,
+        sample_france_country,
         sample_german_language,
         sample_german_wikipedia_project,
         sample_french_language,
@@ -724,15 +699,10 @@ class TestPoliticianQueryForEnrichment:
         create_wikipedia_link,
     ):
         """Test that politicians are excluded when they have citizenship-matched links but filter doesn't match."""
-        # Create France
-        france = Country.create_with_entity(db_session, "Q142", "France")
-        france.iso_code = "FR"
-        db_session.flush()
-
         # Create official language relation: French is official in France
         relation = WikidataRelation(
             parent_entity_id=sample_french_language.wikidata_id,
-            child_entity_id=france.wikidata_id,
+            child_entity_id=sample_france_country.wikidata_id,
             relation_type=RelationType.OFFICIAL_LANGUAGE,
             statement_id="test_statement_fr_fr",
         )
@@ -742,7 +712,7 @@ class TestPoliticianQueryForEnrichment:
         citizenship = Property(
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
-            entity_id=france.wikidata_id,
+            entity_id=sample_france_country.wikidata_id,
         )
         db_session.add(citizenship)
 
@@ -763,18 +733,14 @@ class TestPoliticianQueryForEnrichment:
         self,
         db_session,
         sample_politician,
+        sample_country,
         sample_wikipedia_project,
         create_wikipedia_link,
         create_citizenship,
     ):
         """Test country filtering based on citizenship."""
-        # Create USA
-        usa = Country.create_with_entity(db_session, "Q30", "United States")
-        usa.iso_code = "US"
-        db_session.flush()
-
         # Give politician US citizenship
-        create_citizenship(sample_politician, usa)
+        create_citizenship(sample_politician, sample_country)
 
         # Create Wikipedia link
         create_wikipedia_link(sample_politician, sample_wikipedia_project)
@@ -792,28 +758,24 @@ class TestPoliticianQueryForEnrichment:
         self,
         db_session,
         sample_politician,
+        sample_germany_country,
         sample_german_language,
         sample_german_wikipedia_project,
         create_wikipedia_link,
         create_citizenship,
     ):
         """Test combined language and country filtering."""
-        # Create Germany
-        germany = Country.create_with_entity(db_session, "Q183", "Germany")
-        germany.iso_code = "DE"
-        db_session.flush()
-
         # Create official language relation
         relation = WikidataRelation(
             parent_entity_id=sample_german_language.wikidata_id,
-            child_entity_id=germany.wikidata_id,
+            child_entity_id=sample_germany_country.wikidata_id,
             relation_type=RelationType.OFFICIAL_LANGUAGE,
             statement_id="test_statement_de_de",
         )
         db_session.add(relation)
 
         # Give politician German citizenship
-        create_citizenship(sample_politician, germany)
+        create_citizenship(sample_politician, sample_germany_country)
 
         # Create Wikipedia link
         create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
@@ -831,14 +793,12 @@ class TestPoliticianQueryForEnrichment:
         self,
         db_session,
         sample_politician,
+        sample_germany_country,
         sample_german_wikipedia_project,
         create_wikipedia_link,
     ):
         """Test that politicians without matching citizenship are excluded."""
-        # Create Germany but don't give politician German citizenship
-        germany = Country.create_with_entity(db_session, "Q183", "Germany")
-        germany.iso_code = "DE"
-        db_session.flush()
+        # Note: Germany exists but politician doesn't have German citizenship
 
         # Create Wikipedia link
         create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
@@ -854,6 +814,8 @@ class TestPoliticianQueryForEnrichment:
         self,
         db_session,
         sample_politician,
+        sample_germany_country,
+        sample_france_country,
         sample_german_language,
         sample_german_wikipedia_project,
         sample_french_language,
@@ -861,23 +823,16 @@ class TestPoliticianQueryForEnrichment:
         create_wikipedia_link,
     ):
         """Test that politicians with multiple citizenships match if any citizenship language has a link."""
-        # Create Germany and France
-        germany = Country.create_with_entity(db_session, "Q183", "Germany")
-        germany.iso_code = "DE"
-        france = Country.create_with_entity(db_session, "Q142", "France")
-        france.iso_code = "FR"
-        db_session.flush()
-
         # Create official language relations
         de_relation = WikidataRelation(
             parent_entity_id=sample_german_language.wikidata_id,
-            child_entity_id=germany.wikidata_id,
+            child_entity_id=sample_germany_country.wikidata_id,
             relation_type=RelationType.OFFICIAL_LANGUAGE,
             statement_id="test_statement_de_de",
         )
         fr_relation = WikidataRelation(
             parent_entity_id=sample_french_language.wikidata_id,
-            child_entity_id=france.wikidata_id,
+            child_entity_id=sample_france_country.wikidata_id,
             relation_type=RelationType.OFFICIAL_LANGUAGE,
             statement_id="test_statement_fr_fr",
         )
@@ -888,12 +843,12 @@ class TestPoliticianQueryForEnrichment:
             Property(
                 politician_id=sample_politician.id,
                 type=PropertyType.CITIZENSHIP,
-                entity_id=germany.wikidata_id,
+                entity_id=sample_germany_country.wikidata_id,
             ),
             Property(
                 politician_id=sample_politician.id,
                 type=PropertyType.CITIZENSHIP,
-                entity_id=france.wikidata_id,
+                entity_id=sample_france_country.wikidata_id,
             ),
         ]
         db_session.add_all(citizenships)
@@ -921,20 +876,16 @@ class TestPoliticianQueryForEnrichment:
         self,
         db_session,
         sample_politician,
+        sample_germany_country,
         sample_german_language,
         sample_wikipedia_project,
         create_wikipedia_link,
     ):
         """Test that language filtering requires Wikipedia link in that language."""
-        # Create Germany
-        germany = Country.create_with_entity(db_session, "Q183", "Germany")
-        germany.iso_code = "DE"
-        db_session.flush()
-
         # Create official language relation
         relation = WikidataRelation(
             parent_entity_id=sample_german_language.wikidata_id,
-            child_entity_id=germany.wikidata_id,
+            child_entity_id=sample_germany_country.wikidata_id,
             relation_type=RelationType.OFFICIAL_LANGUAGE,
             statement_id="test_statement_de_de",
         )
@@ -944,7 +895,7 @@ class TestPoliticianQueryForEnrichment:
         citizenship = Property(
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
-            entity_id=germany.wikidata_id,
+            entity_id=sample_germany_country.wikidata_id,
         )
         db_session.add(citizenship)
 

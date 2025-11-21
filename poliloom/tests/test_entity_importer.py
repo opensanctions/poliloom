@@ -332,13 +332,8 @@ class TestWikidataEntityImporter:
         assert final_languages[0].name == "English Language"
         assert final_languages[0].iso_639_1 == "en"
 
-    def test_insert_wikipedia_projects_batch(self, db_session):
+    def test_insert_wikipedia_projects_batch(self, db_session, sample_language):
         """Test inserting a batch of Wikipedia projects."""
-        # Create a language for linking
-        lang = Language.create_with_entity(db_session, "Q1860", "English")
-        lang.iso_639_1 = "en"
-        lang.iso_639_2 = "eng"
-        db_session.flush()
 
         wikipedia_projects = [
             {

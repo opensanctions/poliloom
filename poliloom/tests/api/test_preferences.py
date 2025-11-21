@@ -7,8 +7,6 @@ from poliloom.api.auth import User
 from poliloom.models import (
     Preference,
     PreferenceType,
-    Country,
-    Language,
     WikidataEntity,
 )
 
@@ -40,16 +38,14 @@ def sample_language_preference(db_session, sample_language):
 
 
 @pytest.fixture
-def multiple_preferences(db_session, sample_country, sample_language):
+def multiple_preferences(
+    db_session,
+    sample_country,
+    sample_language,
+    sample_germany_country,
+    sample_spanish_language,
+):
     """Create multiple preferences for testing."""
-    # Create a second country and language for variety
-    country2 = Country.create_with_entity(db_session, "Q183", "Germany")
-    country2.iso_code = "DE"
-    language2 = Language.create_with_entity(db_session, "Q1321", "Spanish")
-    language2.iso_639_1 = "es"
-    language2.iso_639_2 = "spa"
-
-    db_session.flush()
 
     preferences = [
         Preference(
@@ -60,7 +56,7 @@ def multiple_preferences(db_session, sample_country, sample_language):
         Preference(
             user_id="12345",
             preference_type=PreferenceType.COUNTRY,
-            entity_id=country2.wikidata_id,
+            entity_id=sample_germany_country.wikidata_id,
         ),
         Preference(
             user_id="12345",
@@ -70,7 +66,7 @@ def multiple_preferences(db_session, sample_country, sample_language):
         Preference(
             user_id="12345",
             preference_type=PreferenceType.LANGUAGE,
-            entity_id=language2.wikidata_id,
+            entity_id=sample_spanish_language.wikidata_id,
         ),
     ]
 

@@ -4,7 +4,6 @@ from poliloom.models import (
     Politician,
     Position,
     Location,
-    Country,
     Property,
     PropertyType,
     WikipediaLink,
@@ -228,12 +227,8 @@ class TestWikidataPoliticianImporter:
         assert len(properties) == 1
         assert properties[0].entity_id == "Q60"
 
-    def test_import_citizenship(self, db_session):
+    def test_import_citizenship(self, db_session, sample_country):
         """Test importing citizenship from Wikidata claim."""
-        # Create country first
-        country = Country.create_with_entity(db_session, "Q30", "United States")
-        country.iso_code = "US"
-        db_session.flush()
 
         politicians = [
             {
@@ -269,14 +264,11 @@ class TestWikidataPoliticianImporter:
         assert len(properties) == 1
         assert properties[0].entity_id == "Q30"
 
-    def test_import_all_properties(self, db_session):
+    def test_import_all_properties(self, db_session, sample_country):
         """Test importing all property types for a politician."""
         # Create required entities
         Position.create_with_entity(db_session, "Q30185", "Mayor")
         Location.create_with_entity(db_session, "Q60", "New York City")
-        country = Country.create_with_entity(db_session, "Q30", "United States")
-        country.iso_code = "US"
-        db_session.flush()
 
         politicians = [
             {
