@@ -31,7 +31,13 @@ from .entities import Country, Language, Location, Position, WikipediaProject
 from .user import Evaluation, Preference
 
 # Politician domain
-from .politician import ArchivedPage, Politician, Property, WikipediaLink
+from .politician import (
+    ArchivedPage,
+    ArchivedPageLanguage,
+    Politician,
+    Property,
+    WikipediaLink,
+)
 
 __all__ = [
     # Base
@@ -63,6 +69,7 @@ __all__ = [
     "Preference",
     # Politician
     "ArchivedPage",
+    "ArchivedPageLanguage",
     "Politician",
     "Property",
     "WikipediaLink",
