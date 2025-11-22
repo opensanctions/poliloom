@@ -34,7 +34,6 @@ from ..wikidata_date import WikidataDate
 from .base import (
     Base,
     EntityCreationMixin,
-    LanguageCodeMixin,
     PropertyType,
     RelationType,
     SoftDeleteMixin,
@@ -93,7 +92,7 @@ class Politician(
             db: Database session
 
         Returns:
-            List of Row objects containing (url, iso_639_1, iso_639_2, iso_639_3), limited to top 3 by popularity
+            List of Row objects containing (url, wikipedia_project_id), limited to top 3 by popularity
         """
         from .wikidata import WikidataRelation
 
@@ -141,9 +140,7 @@ class Politician(
         links_with_citizenship_flag = (
             select(
                 WikipediaLink.url,
-                Language.iso_639_1,
-                Language.iso_639_2,
-                Language.iso_639_3,
+                WikipediaLink.wikipedia_project_id,
                 language_popularity.c.global_count.label("language_popularity"),
                 case(
                     (
@@ -180,9 +177,7 @@ class Politician(
         query = (
             select(
                 links_with_citizenship_flag.c.url,
-                links_with_citizenship_flag.c.iso_639_1,
-                links_with_citizenship_flag.c.iso_639_2,
-                links_with_citizenship_flag.c.iso_639_3,
+                links_with_citizenship_flag.c.wikipedia_project_id,
             )
             .select_from(links_with_citizenship_flag)
             .order_by(
@@ -383,28 +378,15 @@ class Politician(
                 .select_from(Property)
                 .join(ArchivedPage, Property.archived_page_id == ArchivedPage.id)
                 .join(
-                    Language,
-                    or_(
-                        and_(
-                            ArchivedPage.iso_639_1.isnot(None),
-                            ArchivedPage.iso_639_1 == Language.iso_639_1,
-                        ),
-                        and_(
-                            ArchivedPage.iso_639_2.isnot(None),
-                            ArchivedPage.iso_639_2 == Language.iso_639_2,
-                        ),
-                        and_(
-                            ArchivedPage.iso_639_3.isnot(None),
-                            ArchivedPage.iso_639_3 == Language.iso_639_3,
-                        ),
-                    ),
+                    ArchivedPageLanguage,
+                    ArchivedPageLanguage.archived_page_id == ArchivedPage.id,
                 )
                 .where(
                     and_(
                         Property.politician_id == cls.id,
                         Property.statement_id.is_(None),
                         Property.deleted_at.is_(None),
-                        Language.wikidata_id.in_(languages),
+                        ArchivedPageLanguage.language_id.in_(languages),
                     )
                 )
             )
@@ -583,7 +565,30 @@ class Politician(
     )
 
 
-class ArchivedPage(Base, TimestampMixin, LanguageCodeMixin):
+class ArchivedPageLanguage(Base, TimestampMixin):
+    """Link table between archived pages and language entities."""
+
+    __tablename__ = "archived_page_languages"
+
+    archived_page_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("archived_pages.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    language_id = Column(
+        String,
+        ForeignKey("wikidata_entities.wikidata_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    # Relationships
+    archived_page = relationship(
+        "ArchivedPage", back_populates="archived_page_languages"
+    )
+    language_entity = relationship("WikidataEntity")
+
+
+class ArchivedPage(Base, TimestampMixin):
     """Archived page entity for storing fetched web page metadata."""
 
     __tablename__ = "archived_pages"
@@ -601,6 +606,14 @@ class ArchivedPage(Base, TimestampMixin, LanguageCodeMixin):
 
     # Relationships
     properties = relationship("Property", back_populates="archived_page")
+    archived_page_languages = relationship(
+        "ArchivedPageLanguage",
+        back_populates="archived_page",
+        cascade="all, delete-orphan",
+    )
+    language_entities = relationship(
+        "WikidataEntity", secondary="archived_page_languages", viewonly=True
+    )
 
     @staticmethod
     def _generate_content_hash(url: str) -> str:
