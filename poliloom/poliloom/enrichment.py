@@ -24,8 +24,10 @@ from .models import (
     Location,
     Country,
     ArchivedPage,
+    ArchivedPageLanguage,
     WikidataRelation,
     WikidataEntity,
+    RelationType,
 )
 from . import archive
 from .database import get_engine
@@ -473,22 +475,45 @@ Select the best matching QID or None if no good match exists."""
 async def fetch_and_archive_page(
     url: str,
     db: Session,
-    iso_639_1: str = None,
-    iso_639_2: str = None,
-    iso_639_3: str = None,
+    wikipedia_project_id: str = None,
 ) -> ArchivedPage:
-    """Fetch web page content and archive it."""
+    """Fetch web page content and archive it.
+
+    Args:
+        url: The URL to fetch and archive
+        db: Database session
+        wikipedia_project_id: Wikipedia project Wikidata ID to link languages from
+
+    Returns:
+        ArchivedPage with linked languages from the Wikipedia project's LANGUAGE_OF_WORK relations
+    """
     # Create and insert ArchivedPage first
     now = datetime.now(timezone.utc)
     archived_page = ArchivedPage(
         url=url,
         fetch_timestamp=now,
-        iso_639_1=iso_639_1,
-        iso_639_2=iso_639_2,
-        iso_639_3=iso_639_3,
     )
     db.add(archived_page)
     db.flush()
+
+    # Link languages from Wikipedia project's LANGUAGE_OF_WORK relations
+    if wikipedia_project_id:
+        # Query for all languages that have LANGUAGE_OF_WORK relation to this Wikipedia project
+        language_query = select(WikidataRelation.parent_entity_id).where(
+            WikidataRelation.child_entity_id == wikipedia_project_id,
+            WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
+        )
+        language_ids = db.execute(language_query).scalars().all()
+
+        # Create ArchivedPageLanguage link records
+        for language_id in language_ids:
+            link = ArchivedPageLanguage(
+                archived_page_id=archived_page.id,
+                language_id=language_id,
+            )
+            db.add(link)
+
+        db.flush()
 
     config = CrawlerRunConfig(
         capture_mhtml=True,
@@ -667,9 +692,7 @@ async def _fetch_and_extract_from_page(
     db: Session,
     politician: Politician,
     url: str,
-    iso_639_1: str,
-    iso_639_2: str,
-    iso_639_3: str,
+    wikipedia_project_id: str,
 ) -> tuple[bool, int, int, int, int]:
     """
     Fetch a web page, archive it, and extract politician data from it.
@@ -679,9 +702,7 @@ async def _fetch_and_extract_from_page(
         db: Database session
         politician: Politician to enrich
         url: Web page URL
-        iso_639_1: ISO 639-1 language code
-        iso_639_2: ISO 639-2 language code
-        iso_639_3: ISO 639-3 language code
+        wikipedia_project_id: Wikipedia project Wikidata ID for language linking
 
     Returns:
         Tuple of (success, date_count, position_count, birthplace_count, citizenship_count)
@@ -690,9 +711,7 @@ async def _fetch_and_extract_from_page(
         logger.info(f"Processing source: {url}")
 
         # Fetch and archive the page
-        archived_page = await fetch_and_archive_page(
-            url, db, iso_639_1, iso_639_2, iso_639_3
-        )
+        archived_page = await fetch_and_archive_page(url, db, wikipedia_project_id)
 
         # Read content from archived page
         html_content = archive.read_archived_content(archived_page.path_root, "html")
@@ -838,15 +857,15 @@ async def enrich_politician_from_wikipedia(
 
             logger.info(
                 f"Processing {len(priority_links)} Wikipedia sources for {politician.name}: "
-                f"{[f'{iso_639_1 or iso_639_2 or iso_639_3} ({url})' for url, iso_639_1, iso_639_2, iso_639_3 in priority_links]}"
+                f"{[f'{wikipedia_project_id} ({url})' for url, wikipedia_project_id in priority_links]}"
             )
 
             # Process all pages concurrently
             page_tasks = [
                 _fetch_and_extract_from_page(
-                    openai_client, db, politician, url, iso_639_1, iso_639_2, iso_639_3
+                    openai_client, db, politician, url, wikipedia_project_id
                 )
-                for url, iso_639_1, iso_639_2, iso_639_3 in priority_links
+                for url, wikipedia_project_id in priority_links
             ]
 
             page_results = await asyncio.gather(*page_tasks)
