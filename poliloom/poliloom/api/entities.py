@@ -75,11 +75,11 @@ def create_entity_endpoint(
             .where(WikidataEntity.deleted_at.is_(None))
         )
 
-        # Add eager loading for wikidata_entity with parent_relations
+        # Add eager loading for wikidata_entity with parent_relations and their parent entities
         query = query.options(
-            selectinload(model_class.wikidata_entity).selectinload(
-                WikidataEntity.parent_relations
-            )
+            selectinload(model_class.wikidata_entity)
+            .selectinload(WikidataEntity.parent_relations)
+            .selectinload(WikidataRelation.parent_entity)
         )
 
         # Apply search filter if provided
@@ -151,6 +151,11 @@ async def get_languages(
         )
         .where(WikidataEntity.deleted_at.is_(None))
         .order_by(sources_count_subquery.c.link_count.desc())
+        .options(
+            selectinload(Language.wikidata_entity)
+            .selectinload(WikidataEntity.parent_relations)
+            .selectinload(WikidataRelation.parent_entity)
+        )
     )
 
     results = db.execute(query).all()
@@ -209,6 +214,11 @@ async def get_countries(
         )
         .where(WikidataEntity.deleted_at.is_(None))
         .order_by(citizenship_count_subquery.c.citizenship_count.desc())
+        .options(
+            selectinload(Country.wikidata_entity)
+            .selectinload(WikidataEntity.parent_relations)
+            .selectinload(WikidataRelation.parent_entity)
+        )
     )
 
     results = db.execute(query).all()
