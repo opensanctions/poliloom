@@ -636,13 +636,23 @@ class ArchivedPage(Base, TimestampMixin):
         return f"{date_path}/{self.content_hash}"
 
     def create_references_json(self) -> list:
-        """Create references_json for this Wikipedia source."""
-        return [
-            {
-                "property": {"id": "P854"},  # Reference URL
-                "value": {"type": "value", "content": self.url},
-            }
-        ]
+        """Create references_json for this archived page source."""
+        # For Wikipedia projects, use P143 (imported from)
+        # For other sources, use P854 (reference URL)
+        if self.wikipedia_project_id:
+            return [
+                {
+                    "property": {"id": "P143"},  # Imported from
+                    "value": {"type": "value", "content": self.wikipedia_project_id},
+                }
+            ]
+        else:
+            return [
+                {
+                    "property": {"id": "P854"},  # Reference URL
+                    "value": {"type": "value", "content": self.url},
+                }
+            ]
 
 
 @event.listens_for(ArchivedPage, "before_insert")
