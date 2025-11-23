@@ -411,6 +411,7 @@ class Politician(
                     Property.politician_id == cls.id,
                     Property.type == PropertyType.CITIZENSHIP,
                     Property.entity_id.in_(countries),
+                    Property.deleted_at.is_(None),
                 )
             )
         )
@@ -579,6 +580,7 @@ class ArchivedPageLanguage(Base, TimestampMixin):
         String,
         ForeignKey("wikidata_entities.wikidata_id", ondelete="CASCADE"),
         primary_key=True,
+        index=True,
     )
 
     # Relationships
@@ -716,6 +718,13 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             "type",
             "entity_id",
             postgresql_where=text("deleted_at IS NULL"),
+        ),
+        Index(
+            "idx_properties_citizenship_lookup",
+            "politician_id",
+            "type",
+            "entity_id",
+            postgresql_where=text("type = 'CITIZENSHIP' AND deleted_at IS NULL"),
         ),
         CheckConstraint(
             "(type IN ('BIRTH_DATE', 'DEATH_DATE') AND value IS NOT NULL AND value_precision IS NOT NULL AND entity_id IS NULL) "
