@@ -109,48 +109,35 @@ async def get_languages(
     Returns a list of all languages with their metadata and the count of
     sources (currently Wikipedia links) using each language via Wikipedia projects.
     """
-    # Subquery to count sources per language
-    # Join WikipediaLink -> WikipediaProject -> Language (via P407 relation)
-    sources_count_subquery = (
-        select(
-            Language.wikidata_id.label("language_id"),
-            func.count(WikipediaLink.id).label("link_count"),
-        )
-        .select_from(WikipediaLink)
-        .join(
-            WikipediaProject,
-            WikipediaLink.wikipedia_project_id == WikipediaProject.wikidata_id,
-        )
-        .join(
-            WikidataRelation,
-            and_(
-                WikidataRelation.child_entity_id == WikipediaProject.wikidata_id,
-                WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
-            ),
-        )
-        .join(Language, WikidataRelation.parent_entity_id == Language.wikidata_id)
-        .group_by(Language.wikidata_id)
-        .subquery()
-    )
-
-    # Query languages with their source counts
+    # Direct query with grouping - no subquery needed
     query = (
         select(
             Language,
-            func.coalesce(sources_count_subquery.c.link_count, 0).label(
-                "sources_count"
-            ),
+            func.count(WikipediaLink.id).label("sources_count"),
         )
+        .select_from(Language)
         .join(
             WikidataEntity,
             Language.wikidata_id == WikidataEntity.wikidata_id,
         )
-        .outerjoin(
-            sources_count_subquery,
-            Language.wikidata_id == sources_count_subquery.c.language_id,
+        .join(
+            WikidataRelation,
+            WikidataRelation.parent_entity_id == Language.wikidata_id,
+        )
+        .join(
+            WikipediaProject,
+            and_(
+                WikipediaProject.wikidata_id == WikidataRelation.child_entity_id,
+                WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
+            ),
+        )
+        .join(
+            WikipediaLink,
+            WikipediaLink.wikipedia_project_id == WikipediaProject.wikidata_id,
         )
         .where(WikidataEntity.deleted_at.is_(None))
-        .order_by(sources_count_subquery.c.link_count.desc())
+        .group_by(Language.wikidata_id)
+        .order_by(func.count(WikipediaLink.id).desc())
         .options(
             selectinload(Language.wikidata_entity)
             .selectinload(WikidataEntity.parent_relations)
@@ -180,40 +167,33 @@ async def get_countries(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Retrieve all countries with citizenship counts.
+    Retrieve countries that have politicians with citizenship.
 
-    Returns a list of all countries with their metadata and the count of
+    Returns a list of countries with their metadata and the count of
     politicians who have citizenship in each country.
     """
-    # Subquery to count citizenship properties per country
-    citizenship_count_subquery = (
-        select(
-            Property.entity_id,
-            func.count(Property.id).label("citizenship_count"),
-        )
-        .where(Property.type == PropertyType.CITIZENSHIP)
-        .group_by(Property.entity_id)
-        .subquery()
-    )
-
-    # Query countries with their citizenship counts
+    # Direct query with grouping - no subquery needed
     query = (
         select(
             Country,
-            func.coalesce(citizenship_count_subquery.c.citizenship_count, 0).label(
-                "citizenships_count"
-            ),
+            func.count(Property.id).label("citizenships_count"),
         )
+        .select_from(Country)
         .join(
             WikidataEntity,
             Country.wikidata_id == WikidataEntity.wikidata_id,
         )
         .join(
-            citizenship_count_subquery,
-            Country.wikidata_id == citizenship_count_subquery.c.entity_id,
+            Property,
+            and_(
+                Property.entity_id == Country.wikidata_id,
+                Property.type == PropertyType.CITIZENSHIP,
+                Property.deleted_at.is_(None),
+            ),
         )
         .where(WikidataEntity.deleted_at.is_(None))
-        .order_by(citizenship_count_subquery.c.citizenship_count.desc())
+        .group_by(Country.wikidata_id)
+        .order_by(func.count(Property.id).desc())
         .options(
             selectinload(Country.wikidata_entity)
             .selectinload(WikidataEntity.parent_relations)

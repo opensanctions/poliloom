@@ -360,7 +360,14 @@ class WikidataRelation(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     """Wikidata relationship between entities."""
 
     __tablename__ = "wikidata_relations"
-    __table_args__ = (Index("idx_wikidata_relations_updated_at", "updated_at"),)
+    __table_args__ = (
+        Index("idx_wikidata_relations_updated_at", "updated_at"),
+        Index(
+            "idx_wikidata_relations_child_relation",
+            "child_entity_id",
+            "relation_type",
+        ),
+    )
 
     # UpsertMixin configuration
     _upsert_update_columns = ["parent_entity_id", "child_entity_id", "relation_type"]

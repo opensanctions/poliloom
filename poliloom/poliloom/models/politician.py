@@ -704,6 +704,12 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             "archived_page_id",
             postgresql_where=text("statement_id IS NULL AND deleted_at IS NULL"),
         ),
+        Index(
+            "idx_properties_type_entity",
+            "type",
+            "entity_id",
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
         CheckConstraint(
             "(type IN ('BIRTH_DATE', 'DEATH_DATE') AND value IS NOT NULL AND value_precision IS NOT NULL AND entity_id IS NULL) "
             "OR (type IN ('BIRTHPLACE', 'POSITION', 'CITIZENSHIP') AND entity_id IS NOT NULL AND value IS NULL)",
@@ -731,7 +737,7 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         nullable=False,
         index=True,
     )
-    type = Column(SQLEnum(PropertyType), nullable=False)
+    type = Column(SQLEnum(PropertyType), nullable=False, index=True)
     value = Column(String, nullable=True)  # NULL for entity relationships
     value_precision = Column(
         Integer
