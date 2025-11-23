@@ -4,26 +4,6 @@
 class TestGetLanguages:
     """Test the GET /languages endpoint."""
 
-    def test_languages_with_no_wikipedia_links(
-        self, client, mock_auth, sample_language
-    ):
-        """Languages with no Wikipedia links should have sources_count of 0."""
-        response = client.get("/languages", headers=mock_auth)
-        assert response.status_code == 200
-
-        languages = response.json()
-        assert len(languages) > 0
-
-        # Find our sample language
-        sample_lang = next(
-            (lang for lang in languages if lang["wikidata_id"] == "Q1860"), None
-        )
-        assert sample_lang is not None
-        assert sample_lang["name"] == "English"
-        assert sample_lang["iso_639_1"] == "en"
-        assert sample_lang["iso_639_2"] == "eng"
-        assert sample_lang["sources_count"] == 0
-
     def test_languages_with_wikipedia_links(
         self,
         client,

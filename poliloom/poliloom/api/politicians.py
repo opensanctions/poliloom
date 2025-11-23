@@ -8,7 +8,7 @@ from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, func, exists, and_, or_
+from sqlalchemy import select, func, and_, or_
 
 from ..database import get_db_session
 from ..models import (
@@ -107,15 +107,9 @@ async def get_politicians(
                 # Include Wikidata properties (no archived page)
                 Property.archived_page_id.is_(None),
                 # Include properties where archived page has matching language
-                exists(
-                    select(1)
-                    .select_from(ArchivedPageLanguage)
-                    .where(
-                        and_(
-                            ArchivedPageLanguage.archived_page_id
-                            == Property.archived_page_id,
-                            ArchivedPageLanguage.language_id.in_(languages),
-                        )
+                Property.archived_page_id.in_(
+                    select(ArchivedPageLanguage.archived_page_id).where(
+                        ArchivedPageLanguage.language_id.in_(languages)
                     )
                 ),
             ),
@@ -150,6 +144,11 @@ async def get_politicians(
 
     # Apply offset and limit
     query = query.offset(offset).limit(limit)
+
+    # Apply populate_existing to ensure fresh property loads when using .and_() filters
+    # This is especially important in tests where the same session is reused across requests
+    # In production, each request gets a fresh session, so this mainly helps with test isolation
+    query = query.execution_options(populate_existing=True)
 
     # Execute query
     politicians = db.execute(query).scalars().all()
