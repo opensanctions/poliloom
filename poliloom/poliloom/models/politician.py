@@ -603,6 +603,12 @@ class ArchivedPage(Base, TimestampMixin):
     fetch_timestamp = Column(
         DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
+    wikipedia_project_id = Column(
+        String,
+        ForeignKey("wikipedia_projects.wikidata_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     # Relationships
     properties = relationship("Property", back_populates="archived_page")
@@ -614,6 +620,7 @@ class ArchivedPage(Base, TimestampMixin):
     language_entities = relationship(
         "WikidataEntity", secondary="archived_page_languages", viewonly=True
     )
+    wikipedia_project = relationship("WikipediaProject")
 
     @staticmethod
     def _generate_content_hash(url: str) -> str:

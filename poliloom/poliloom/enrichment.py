@@ -492,6 +492,7 @@ async def fetch_and_archive_page(
     archived_page = ArchivedPage(
         url=url,
         fetch_timestamp=now,
+        wikipedia_project_id=wikipedia_project_id,
     )
     db.add(archived_page)
     db.flush()
