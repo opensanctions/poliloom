@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, Mock as SyncMock, patch
 
 from poliloom.models import (
     ArchivedPage,
+    ArchivedPageLanguage,
     Base,
     Country,
     Language,
@@ -247,6 +248,46 @@ def sample_archived_page(db_session):
     db_session.add(archived_page)
     db_session.flush()
     return archived_page
+
+
+@pytest.fixture
+def create_archived_page(db_session):
+    """Factory fixture to create archived pages with language links.
+
+    Returns a function that creates an ArchivedPage with optional language associations.
+    """
+
+    def _create_archived_page(url, content_hash=None, languages=None):
+        """Create an archived page with optional language links.
+
+        Args:
+            url: Page URL
+            content_hash: Optional content hash (auto-generated if not provided)
+            languages: Optional list of Language entities to link to this page
+
+        Returns:
+            Created ArchivedPage instance
+        """
+        archived_page = ArchivedPage(
+            url=url,
+            content_hash=content_hash,
+            fetch_timestamp=datetime.now(timezone.utc),
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
+        # Create language links if provided
+        if languages:
+            for language in languages:
+                lang_link = ArchivedPageLanguage(
+                    archived_page_id=archived_page.id, language_id=language.wikidata_id
+                )
+                db_session.add(lang_link)
+            db_session.flush()
+
+        return archived_page
+
+    return _create_archived_page
 
 
 @pytest.fixture

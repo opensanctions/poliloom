@@ -8,15 +8,16 @@ from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, func
+from sqlalchemy import select, func, exists, and_, or_
 
 from ..database import get_db_session
 from ..models import (
     Politician,
     Property,
     PropertyType,
-    Language,
     WikidataEntity,
+    ArchivedPage,
+    ArchivedPageLanguage,
 )
 from .schemas import (
     PoliticianResponse,
@@ -97,27 +98,35 @@ async def get_politicians(
     if countries:
         query = Politician.filter_by_countries(query, countries)
 
-    # Load related data (always load all properties for now, we'll filter after)
+    # Load related data
     if languages:
-        # Pre-fetch ISO codes for the requested languages
-        language_codes_query = select(
-            Language.iso_639_1, Language.iso_639_2, Language.iso_639_3
-        ).where(Language.wikidata_id.in_(languages))
+        # Filter properties: include Wikidata properties OR properties with matching language
+        property_filter = and_(
+            Property.deleted_at.is_(None),
+            or_(
+                # Include Wikidata properties (no archived page)
+                Property.archived_page_id.is_(None),
+                # Include properties where archived page has matching language
+                exists(
+                    select(1)
+                    .select_from(ArchivedPageLanguage)
+                    .where(
+                        and_(
+                            ArchivedPageLanguage.archived_page_id
+                            == Property.archived_page_id,
+                            ArchivedPageLanguage.language_id.in_(languages),
+                        )
+                    )
+                ),
+            ),
+        )
 
-        language_rows = db.execute(language_codes_query).all()
-
-        # Collect all ISO codes as sets (filtering out None values)
-        iso_codes_1 = set(row[0] for row in language_rows if row[0])
-        iso_codes_2 = set(row[1] for row in language_rows if row[1])
-        iso_codes_3 = set(row[2] for row in language_rows if row[2])
-
-        # Load all properties with their archived pages (will filter post-load)
         query = query.options(
-            selectinload(
-                Politician.properties.and_(Property.deleted_at.is_(None))
-            ).options(
+            selectinload(Politician.properties.and_(property_filter)).options(
                 selectinload(Property.entity),
-                selectinload(Property.archived_page),
+                selectinload(Property.archived_page).selectinload(
+                    ArchivedPage.language_entities
+                ),
             ),
             selectinload(Politician.wikipedia_links),
         )
@@ -128,7 +137,9 @@ async def get_politicians(
                 Politician.properties.and_(Property.deleted_at.is_(None))
             ).options(
                 selectinload(Property.entity),
-                selectinload(Property.archived_page),
+                selectinload(Property.archived_page).selectinload(
+                    ArchivedPage.language_entities
+                ),
             ),
             selectinload(Politician.wikipedia_links),
         )
@@ -163,32 +174,11 @@ async def get_politicians(
     if not politicians:
         return []
 
-    # Helper function to check if a property matches the language filter
-    def matches_language_filter(prop):
-        """Check if property matches the language filter."""
-        # Always include Wikidata properties (no archived page)
-        if prop.archived_page_id is None:
-            return True
-        # Check if archived page matches any of the language ISO codes
-        if prop.archived_page:
-            page = prop.archived_page
-            return (
-                (page.iso_639_1 and page.iso_639_1 in iso_codes_1)
-                or (page.iso_639_2 and page.iso_639_2 in iso_codes_2)
-                or (page.iso_639_3 and page.iso_639_3 in iso_codes_3)
-            )
-        return False
-
     result = []
     for politician in politicians:
         property_responses = []
-        # Filter properties based on language if filter is active
-        props_to_include = (
-            [p for p in politician.properties if matches_language_filter(p)]
-            if languages
-            else politician.properties
-        )
-        for prop in props_to_include:
+        # Process all properties (filtering applied in query if needed)
+        for prop in politician.properties:
             # Add entity name if applicable
             entity_name = None
             if prop.entity and prop.entity_id:

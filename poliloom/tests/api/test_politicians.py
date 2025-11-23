@@ -513,19 +513,26 @@ class TestGetPoliticiansEndpoint:
                 assert "entity_name" in prop
 
     def test_language_filtering(
-        self, client, mock_auth, db_session, sample_language, sample_german_language
+        self,
+        client,
+        mock_auth,
+        db_session,
+        sample_language,
+        sample_german_language,
+        create_archived_page,
     ):
-        """Test filtering politicians by language QIDs based on archived page iso codes."""
-        # Create archived pages with different language codes
-        english_page = ArchivedPage(
-            url="https://en.example.com/test", content_hash="en123", iso_639_1="en"
+        """Test filtering politicians by language QIDs based on archived page languages."""
+        # Create archived pages with language associations
+        english_page = create_archived_page(
+            url="https://en.example.com/test",
+            content_hash="en123",
+            languages=[sample_language],
         )
-        german_page = ArchivedPage(
-            url="https://de.example.com/test", content_hash="de123", iso_639_2="deu"
+        german_page = create_archived_page(
+            url="https://de.example.com/test",
+            content_hash="de123",
+            languages=[sample_german_language],
         )
-
-        db_session.add_all([english_page, german_page])
-        db_session.flush()
 
         # Create politicians with properties from different language pages
         english_politician = Politician.create_with_entity(
@@ -720,17 +727,18 @@ class TestGetPoliticiansEndpoint:
         sample_country,
         sample_germany_country,
         create_citizenship,
+        create_archived_page,
     ):
         """Test filtering by both language and country filters combined."""
         usa_country = sample_country
         germany_country = sample_germany_country
 
         # Create archived pages
-        english_page = ArchivedPage(
-            url="https://en.example.com/test", content_hash="en123", iso_639_1="en"
+        english_page = create_archived_page(
+            url="https://en.example.com/test",
+            content_hash="en123",
+            languages=[sample_language],
         )
-        db_session.add(english_page)
-        db_session.flush()
 
         # Create politicians
         american_english_politician = Politician.create_with_entity(
@@ -813,23 +821,31 @@ class TestGetPoliticiansEndpoint:
         }
 
     def test_language_filter_excludes_properties_from_other_languages(
-        self, client, mock_auth, db_session, sample_language, sample_german_language
+        self,
+        client,
+        mock_auth,
+        db_session,
+        sample_language,
+        sample_german_language,
+        create_archived_page,
     ):
         """Test that when filtering by language, only properties from that language's archived pages are returned."""
-        # Create archived pages with different language codes
-        english_page = ArchivedPage(
-            url="https://en.wikipedia.org/test", content_hash="en123", iso_639_1="en"
+        # Create archived pages with language associations
+        english_page = create_archived_page(
+            url="https://en.wikipedia.org/test",
+            content_hash="en123",
+            languages=[sample_language],
         )
-        german_page = ArchivedPage(
-            url="https://de.wikipedia.org/test", content_hash="de123", iso_639_1="de"
+        german_page = create_archived_page(
+            url="https://de.wikipedia.org/test",
+            content_hash="de123",
+            languages=[sample_german_language],
         )
-        no_lang_page = ArchivedPage(
+        no_lang_page = create_archived_page(
             url="https://example.com/test",
-            content_hash="none123",  # No language code
+            content_hash="none123",
+            # No languages
         )
-
-        db_session.add_all([english_page, german_page, no_lang_page])
-        db_session.flush()
 
         # Create politician with properties from multiple language pages
         politician = Politician.create_with_entity(

@@ -8,7 +8,6 @@ from poliloom.models import (
     Country,
     WikidataRelation,
     RelationType,
-    ArchivedPage,
 )
 from poliloom.wikidata_date import WikidataDate
 
@@ -164,10 +163,9 @@ class TestPolitician:
         result = sample_politician.get_priority_wikipedia_links(db_session)
 
         assert len(result) == 1
-        url, iso_639_1, iso_639_2, iso_639_3 = result[0]
+        url, wikipedia_project_id = result[0]
         assert "en.wikipedia.org" in url
-        assert iso_639_1 == "en"
-        assert iso_639_2 == "eng"
+        assert wikipedia_project_id == "Q328"  # English Wikipedia project
 
     def test_get_priority_wikipedia_links_citizenship_priority(
         self,
@@ -223,10 +221,8 @@ class TestPolitician:
         # Should get both German (from citizenship) and English, but German should be prioritized
         assert len(result) >= 1
         # German should be first due to citizenship priority
-        url, iso_639_1, iso_639_2, iso_639_3 = result[0]
+        url, wikipedia_project_id = result[0]
         assert "de.wikipedia.org" in url
-        assert iso_639_1 == "de"
-        assert iso_639_2 == "deu"
 
     def test_get_priority_wikipedia_links_no_citizenship(
         self,
@@ -277,14 +273,18 @@ class TestPolitician:
         # Should return exactly 3 languages (the most popular ones available)
         assert len(result) == 3, f"Expected exactly 3 results, got {len(result)}"
 
-        # Get the ISO codes of returned languages
-        returned_iso_codes = {iso_639_1 for _, iso_639_1, _, _ in result}
+        # Get the Wikipedia project IDs of returned results
+        returned_project_ids = {project_id for _, project_id in result}
 
-        # Should contain the 3 most popular languages: fr (10), de (7), es (5)
-        # Should NOT contain en (3) as it's the 4th most popular
-        expected_top_3 = {"fr", "de", "es"}
-        assert returned_iso_codes == expected_top_3, (
-            f"Expected top 3 languages {expected_top_3}, got {returned_iso_codes}"
+        # Should contain the 3 most popular: French (10), German (7), Spanish (5)
+        # Should NOT contain English (3) as it's the 4th most popular
+        expected_top_3 = {
+            "Q8447",
+            "Q48183",
+            "Q8449",
+        }  # French, German, Spanish Wikipedia
+        assert returned_project_ids == expected_top_3, (
+            f"Expected top 3 projects {expected_top_3}, got {returned_project_ids}"
         )
 
     def test_get_priority_wikipedia_links_multiple_citizenships(
@@ -347,10 +347,10 @@ class TestPolitician:
         assert len(result) >= 1
 
         # Both citizenship languages should be represented (they get priority boost)
-        iso_codes = {iso_639_1 for _, iso_639_1, _, _ in result}
+        project_ids = {project_id for _, project_id in result}
         assert (
-            "en" in iso_codes or "de" in iso_codes
-        )  # At least one citizenship language
+            "Q328" in project_ids or "Q48183" in project_ids
+        )  # At least one citizenship language (English or German Wikipedia)
 
     def test_get_priority_wikipedia_links_citizenship_no_matching_language(
         self,
@@ -392,10 +392,9 @@ class TestPolitician:
         # Should return the English link even though it's not an official language
         # When no links match official languages, should fall back to all available links
         assert len(result) == 1, f"Expected 1 result but got {len(result)}: {result}"
-        url, iso_639_1, iso_639_2, iso_639_3 = result[0]
+        url, wikipedia_project_id = result[0]
         assert "en.wikipedia.org" in url
-        assert iso_639_1 == "en"
-        assert iso_639_2 == "eng"
+        assert wikipedia_project_id == "Q328"  # English Wikipedia project
 
     def test_get_priority_wikipedia_links_returns_all_three_with_citizenship_match(
         self,
@@ -438,10 +437,12 @@ class TestPolitician:
         # Should return all 3 links
         assert len(result) == 3, f"Expected 3 results but got {len(result)}: {result}"
 
-        iso_codes = {iso_639_1 for _, iso_639_1, _, _ in result}
-        assert "de" in iso_codes, "German link should be included (citizenship match)"
-        assert "en" in iso_codes, "English link should also be included"
-        assert "fr" in iso_codes, "French link should also be included"
+        project_ids = {project_id for _, project_id in result}
+        assert "Q48183" in project_ids, (
+            "German Wikipedia should be included (citizenship match)"
+        )
+        assert "Q328" in project_ids, "English Wikipedia should also be included"
+        assert "Q8447" in project_ids, "French Wikipedia should also be included"
 
 
 class TestPoliticianQueryBase:
@@ -545,18 +546,25 @@ class TestPoliticianFilterByUnevaluated:
         assert len(result) == 0
 
     def test_filter_with_language_parameter(
-        self, db_session, sample_politician, sample_language
+        self,
+        db_session,
+        sample_politician,
+        sample_language,
+        sample_german_language,
+        create_archived_page,
     ):
-        """Test language filtering based on archived page iso codes."""
-        # Create archived pages with different languages
-        en_page = ArchivedPage(
-            url="https://en.example.com/test", content_hash="en123", iso_639_1="en"
+        """Test language filtering based on archived page languages."""
+        # Create archived pages with language associations
+        en_page = create_archived_page(
+            url="https://en.example.com/test",
+            content_hash="en123",
+            languages=[sample_language],
         )
-        de_page = ArchivedPage(
-            url="https://de.example.com/test", content_hash="de123", iso_639_1="de"
+        de_page = create_archived_page(
+            url="https://de.example.com/test",
+            content_hash="de123",
+            languages=[sample_german_language],
         )
-        db_session.add_all([en_page, de_page])
-        db_session.flush()
 
         # Add properties from different language sources
         en_prop = Property(

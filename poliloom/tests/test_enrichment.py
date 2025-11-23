@@ -26,7 +26,6 @@ from poliloom.models import (
     Location,
     Position,
     Property,
-    ArchivedPage,
 )
 
 
@@ -483,15 +482,15 @@ class TestCountPoliticiansWithUnevaluated:
         assert count == 0
 
     def test_count_with_language_filter(
-        self, db_session, sample_politician, sample_language
+        self, db_session, sample_politician, sample_language, create_archived_page
     ):
         """Test counting with language filter."""
         # Create English archived page
-        en_page = ArchivedPage(
-            url="https://en.example.com/test", content_hash="en123", iso_639_1="en"
+        en_page = create_archived_page(
+            url="https://en.example.com/test",
+            content_hash="en123",
+            languages=[sample_language],
         )
-        db_session.add(en_page)
-        db_session.flush()
 
         # Add English property
         prop = Property(
