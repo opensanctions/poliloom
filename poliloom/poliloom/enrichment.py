@@ -3,8 +3,10 @@
 import os
 import logging
 import asyncio
+import re
 from datetime import datetime, timezone
 from typing import List, Optional, Literal, Type, Union, Any
+from urllib.parse import unquote, urlparse
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, func
 from openai import AsyncOpenAI
@@ -472,6 +474,55 @@ Select the best matching QID or None if no good match exists."""
         return None
 
 
+def extract_revision_id(url: str, html_content: str) -> Optional[str]:
+    """Extract Wikipedia revision ID (oldid) from HTML content.
+
+    Validates that the oldid URL contains the expected page title to ensure
+    we extract the correct revision even if multiple oldid links are present.
+
+    Args:
+        url: The Wikipedia page URL (e.g., "https://en.wikipedia.org/wiki/Mirjam_Blaak")
+        html_content: The HTML content to search
+
+    Returns:
+        The revision ID as a string, or None if not found or title doesn't match
+    """
+    try:
+        # Extract the expected page title from the URL
+        url_path = urlparse(url).path
+        title_match = re.search(r"/wiki/(.+)$", url_path)
+        if not title_match:
+            logger.debug(f"Could not extract page title from URL: {url}")
+            return None
+
+        expected_title = unquote(title_match.group(1))
+
+        # Look for oldid parameter with associated title in HTML
+        # Pattern matches: title=PAGE_TITLE&oldid=123456789
+        pattern = r'index\.php\?title=([^&"]+)&(?:amp;)?oldid=(\d+)'
+
+        for match in re.finditer(pattern, html_content):
+            # URL decode the title from the oldid URL
+            url_title = match.group(1)
+            # Decode percent-encoded characters (e.g., %C3%A7 -> ç)
+            decoded_title = unquote(url_title)
+
+            # Check if this oldid URL matches our expected page title
+            if decoded_title == expected_title:
+                oldid = match.group(2)
+                logger.debug(
+                    f"Found matching oldid {oldid} for title '{expected_title}'"
+                )
+                return oldid
+
+        # If no match found with expected title
+        logger.debug(f"No oldid found matching expected title '{expected_title}'")
+        return None
+    except Exception as e:
+        logger.warning(f"Error extracting revision ID: {e}")
+        return None
+
+
 async def fetch_and_archive_page(
     url: str,
     db: Session,
@@ -549,6 +600,13 @@ async def fetch_and_archive_page(
                     archived_page.path_root, "html", html_content
                 )
                 logger.info(f"Generated HTML from MHTML: {html_path}")
+
+                # Extract revision ID from HTML content (for Wikipedia pages)
+                if wikipedia_project_id:
+                    revision_id = extract_revision_id(archived_page.url, html_content)
+                    if revision_id:
+                        archived_page.revision = revision_id
+                        logger.info(f"Extracted revision ID: {revision_id}")
             except Exception as e:
                 logger.warning(f"Failed to generate HTML from MHTML: {e}")
 

@@ -10,6 +10,7 @@ from poliloom.enrichment import (
     store_extracted_data,
     count_politicians_with_unevaluated,
     enrich_batch,
+    extract_revision_id,
     ExtractedProperty,
     ExtractedPosition,
     ExtractedBirthplace,
@@ -640,3 +641,115 @@ class TestEnrichBatch:
 
         assert enriched_count == 2
         assert mock_enrich.call_count == 3  # Called 3 times, but only 2 successful
+
+
+class TestExtractRevisionId:
+    """Test extract_revision_id function with real-world examples."""
+
+    def test_extract_revision_with_matching_title(self):
+        """Test extracting revision ID when title matches (real example from archives)."""
+        # Real-world example from archives/2025/10/07/b6553eb9883d84dd.html
+        url = "https://en.wikipedia.org/wiki/Mirjam_Blaak"
+        html_snippet = """
+        <li id="t-permalink" class="mw-list-item">
+            <a href="https://en.wikipedia.org/w/index.php?title=Mirjam_Blaak&amp;oldid=1314222018"
+               title="Permanent link to this revision of this page">
+                <span>Permanent link</span>
+            </a>
+        </li>
+        """
+
+        revision_id = extract_revision_id(url, html_snippet)
+        assert revision_id == "1314222018"
+
+    def test_extract_revision_with_url_encoded_title(self):
+        """Test extracting revision ID with URL-encoded characters."""
+        # Real-world example from archives with URL-encoded title
+        url = "https://es.wikipedia.org/wiki/Luis_Mario_Aparcero_Fernández"
+        html_snippet = """
+        <a href="https://es.wikipedia.org/w/index.php?title=Luis_Mario_Aparcero_Fern%C3%A1ndez&amp;oldid=169232970"
+           title="Enlace permanente">Enlace permanente</a>
+        """
+
+        revision_id = extract_revision_id(url, html_snippet)
+        assert revision_id == "169232970"
+
+    def test_extract_revision_with_non_latin_characters(self):
+        """Test extracting revision ID with non-Latin characters."""
+        # Real-world example from archives with Azerbaijani characters
+        url = "https://az.wikipedia.org/wiki/Yalçın_Rəfiyev"
+        html_snippet = """
+        <a href="https://az.wikipedia.org/w/index.php?title=Yal%C3%A7%C4%B1n_R%C9%99fiyev&amp;oldid=8154095"
+           title="Daimi keçid">Daimi keçid</a>
+        """
+
+        revision_id = extract_revision_id(url, html_snippet)
+        assert revision_id == "8154095"
+
+    def test_extract_revision_multiple_oldids_returns_matching_one(self):
+        """Test that when multiple oldid links exist, we extract the one matching our URL."""
+        url = "https://en.wikipedia.org/wiki/Petra_Butler"
+        html_snippet = """
+        <a href="https://en.wikipedia.org/w/index.php?title=Other_Page&amp;oldid=9999999">Other</a>
+        <a href="https://en.wikipedia.org/w/index.php?title=Petra_Butler&amp;oldid=1292404970">Correct</a>
+        <a href="https://en.wikipedia.org/w/index.php?title=Another_Page&amp;oldid=8888888">Another</a>
+        """
+
+        revision_id = extract_revision_id(url, html_snippet)
+        # Should return the oldid for Petra_Butler, not the others
+        assert revision_id == "1292404970"
+
+    def test_extract_revision_wrong_title_returns_none(self):
+        """Test that oldid is not extracted when title doesn't match."""
+        url = "https://en.wikipedia.org/wiki/Mirjam_Blaak"
+        html_snippet = """
+        <a href="https://en.wikipedia.org/w/index.php?title=Different_Page&amp;oldid=1234567890">Link</a>
+        """
+
+        revision_id = extract_revision_id(url, html_snippet)
+        assert revision_id is None
+
+    def test_extract_revision_no_oldid_in_html(self):
+        """Test when no oldid is present in HTML."""
+        url = "https://en.wikipedia.org/wiki/Test_Page"
+        html_snippet = """
+        <div class="content">
+            <a href="https://en.wikipedia.org/wiki/Test_Page">Test Page</a>
+        </div>
+        """
+
+        revision_id = extract_revision_id(url, html_snippet)
+        assert revision_id is None
+
+    def test_extract_revision_invalid_url_format(self):
+        """Test with non-Wikipedia URL format."""
+        url = "https://example.com/page"
+        html_snippet = """
+        <a href="https://en.wikipedia.org/w/index.php?title=Something&amp;oldid=123">Link</a>
+        """
+
+        revision_id = extract_revision_id(url, html_snippet)
+        assert revision_id is None
+
+    def test_extract_revision_from_printfooter(self):
+        """Test extracting from printfooter section (real pattern from archives)."""
+        url = "https://en.wikipedia.org/wiki/Petra_Butler"
+        html_snippet = """
+        <div class="printfooter" data-nosnippet="">
+            Retrieved from "<a dir="ltr" href="https://en.wikipedia.org/w/index.php?title=Petra_Butler&amp;oldid=1292404970">
+            https://en.wikipedia.org/w/index.php?title=Petra_Butler&amp;oldid=1292404970</a>"
+        </div>
+        """
+
+        revision_id = extract_revision_id(url, html_snippet)
+        assert revision_id == "1292404970"
+
+    def test_extract_revision_with_space_in_title(self):
+        """Test extracting revision with underscores/spaces in title."""
+        url = "https://fy.wikipedia.org/wiki/Eddie_van_Marum"
+        html_snippet = """
+        <a href="https://fy.wikipedia.org/w/index.php?title=Eddie_van_Marum&amp;oldid=1179777">Link</a>
+        """
+
+        revision_id = extract_revision_id(url, html_snippet)
+        assert revision_id == "1179777"

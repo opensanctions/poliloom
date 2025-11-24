@@ -611,6 +611,9 @@ class ArchivedPage(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    revision = Column(
+        String, nullable=True
+    )  # Wikipedia revision ID (oldid) for page-version URL
 
     # Relationships
     properties = relationship("Property", back_populates="archived_page")
