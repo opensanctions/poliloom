@@ -1,7 +1,6 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { useSession } from 'next-auth/react'
 import {
   PreferenceResponse,
   PreferenceType,
@@ -14,13 +13,10 @@ interface PreferencesContextType {
   preferences: PreferenceResponse[]
   languages: LanguageResponse[]
   countries: CountryResponse[]
-  loading: boolean
   loadingLanguages: boolean
   loadingCountries: boolean
-  error: string | null
   initialized: boolean
-  updatePreferences: (type: PreferenceType, items: WikidataEntity[]) => Promise<void>
-  refetch: () => void
+  updatePreferences: (type: PreferenceType, items: WikidataEntity[]) => void
 }
 
 const PreferencesContext = createContext<PreferencesContextType | undefined>(undefined)
@@ -62,27 +58,12 @@ const detectBrowserLanguage = (availableLanguages: LanguageResponse[]): Wikidata
 }
 
 export function PreferencesProvider({ children }: { children: React.ReactNode }) {
-  const { status } = useSession()
   const [preferences, setPreferences] = useState<PreferenceResponse[]>([])
   const [languages, setLanguages] = useState<LanguageResponse[]>([])
   const [countries, setCountries] = useState<CountryResponse[]>([])
-  const [loading, setLoading] = useState(false)
   const [loadingLanguages, setLoadingLanguages] = useState(true)
   const [loadingCountries, setLoadingCountries] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [initialized, setInitialized] = useState(false)
-
-  // Helper function to compare preference arrays
-  const preferencesEqual = (a: PreferenceResponse[], b: PreferenceResponse[]) => {
-    if (a.length !== b.length) return false
-    const sortedA = [...a].sort((x, y) => x.wikidata_id.localeCompare(y.wikidata_id))
-    const sortedB = [...b].sort((x, y) => x.wikidata_id.localeCompare(y.wikidata_id))
-    return sortedA.every(
-      (val, i) =>
-        val.wikidata_id === sortedB[i].wikidata_id &&
-        val.preference_type === sortedB[i].preference_type,
-    )
-  }
 
   // Fetch available languages
   useEffect(() => {
@@ -124,6 +105,35 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     fetchCountries()
   }, [])
 
+  // Save preferences to localStorage
+  const saveToStorage = (prefs: PreferenceResponse[]) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
+    } catch (error) {
+      console.warn('Failed to save preferences to localStorage:', error)
+    }
+  }
+
+  // Update preferences locally only
+  const updatePreferences = useCallback(
+    (preferenceType: PreferenceType, items: WikidataEntity[]) => {
+      setPreferences((prevPreferences) => {
+        // Update local state
+        const updated = [
+          ...prevPreferences.filter((p) => p.preference_type !== preferenceType),
+          ...items.map((item) => ({
+            wikidata_id: item.wikidata_id,
+            name: item.name,
+            preference_type: preferenceType,
+          })),
+        ]
+        saveToStorage(updated)
+        return updated
+      })
+    },
+    [],
+  )
+
   // Load preferences from localStorage on mount
   useEffect(() => {
     const loadFromStorage = () => {
@@ -143,112 +153,30 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     loadFromStorage()
   }, [])
 
-  // Save preferences to localStorage
-  const saveToStorage = (prefs: PreferenceResponse[]) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
-    } catch (error) {
-      console.warn('Failed to save preferences to localStorage:', error)
-    }
-  }
-
-  // Update preferences on server and locally
-  const updatePreferences = useCallback(
-    async (preferenceType: PreferenceType, items: WikidataEntity[]) => {
-      setError(null)
-
-      const wikidata_ids = items.map((item) => item.wikidata_id)
-
-      const response = await fetch(`/api/preferences/${preferenceType}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ wikidata_ids }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to update preferences: ${response.statusText}`)
-      }
-
-      // Update local state immediately
-      const updated = [
-        ...preferences.filter((p) => p.preference_type !== preferenceType),
-        ...items.map((item) => ({
-          wikidata_id: item.wikidata_id,
-          name: item.name,
-          preference_type: preferenceType,
-        })),
-      ]
-      setPreferences(updated)
-      saveToStorage(updated)
-    },
-    [preferences],
-  )
-
-  // Fetch preferences from server
-  const fetchPreferences = useCallback(async () => {
-    if (status !== 'authenticated') return
-
-    // Wait for languages to be loaded before fetching preferences
-    // This is necessary for browser language detection to work properly
-    if (loadingLanguages) return
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const response = await fetch('/api/preferences')
-      if (!response.ok) {
-        throw new Error(`Failed to fetch preferences: ${response.statusText}`)
-      }
-
-      const data: PreferenceResponse[] = await response.json()
-
-      const hasNoStoredPreferences = localStorage.getItem(STORAGE_KEY) === null
-      const hasNoLanguagePreferences = !data.some(
-        (p) => p.preference_type === PreferenceType.LANGUAGE,
-      )
-
-      if (hasNoStoredPreferences && hasNoLanguagePreferences) {
-        const detectedLanguages = detectBrowserLanguage(languages)
-        if (detectedLanguages.length > 0) {
-          await updatePreferences(PreferenceType.LANGUAGE, detectedLanguages)
-          return
-        }
-      }
-
-      setPreferences((prev) => {
-        if (preferencesEqual(prev, data)) return prev
-        return data
-      })
-
-      saveToStorage(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch preferences')
-    } finally {
-      setLoading(false)
-    }
-  }, [status, updatePreferences, languages, loadingLanguages])
-
-  // Fetch preferences when authenticated
+  // Auto-detect browser language on first visit
   useEffect(() => {
-    if (status === 'authenticated') {
-      fetchPreferences()
+    if (!initialized || loadingLanguages || languages.length === 0) return
+
+    const hasLanguagePreference = preferences.some(
+      (p) => p.preference_type === PreferenceType.LANGUAGE,
+    )
+
+    if (!hasLanguagePreference) {
+      const detectedLanguages = detectBrowserLanguage(languages)
+      if (detectedLanguages.length > 0) {
+        updatePreferences(PreferenceType.LANGUAGE, detectedLanguages)
+      }
     }
-  }, [status, fetchPreferences])
+  }, [initialized, loadingLanguages, languages, preferences, updatePreferences])
 
   const value: PreferencesContextType = {
     preferences,
     languages,
     countries,
-    loading,
     loadingLanguages,
     loadingCountries,
-    error,
     initialized,
     updatePreferences,
-    refetch: fetchPreferences,
   }
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>

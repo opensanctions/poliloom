@@ -84,15 +84,6 @@ describe('Home Page (Preferences)', () => {
         } as Response)
       }
 
-      if (urlStr.includes('/api/preferences')) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          statusText: 'OK',
-          json: async () => [],
-        } as Response)
-      }
-
       return Promise.resolve({
         ok: true,
         status: 200,

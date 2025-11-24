@@ -12,10 +12,8 @@ export default function Home() {
     preferences,
     languages,
     countries,
-    loading: updating,
     loadingLanguages,
     loadingCountries,
-    error: preferencesError,
     updatePreferences,
   } = usePreferencesContext()
 
@@ -78,12 +76,6 @@ export default function Home() {
 
         {/* Filters Section */}
         <div className="max-w-6xl mx-auto px-8 py-12">
-          {preferencesError && (
-            <div className="bg-red-50 border-l-4 border-red-400 rounded-md p-4 mb-8">
-              <p className="text-red-800 font-medium">{preferencesError}</p>
-            </div>
-          )}
-
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Customize Your Review Session</h2>
             <p className="text-gray-600">
@@ -101,7 +93,6 @@ export default function Home() {
               selected={countryPreferences}
               onChange={handleCountryChange}
               loading={loadingCountries}
-              disabled={updating}
             />
 
             <MultiSelect
@@ -112,7 +103,6 @@ export default function Home() {
               selected={languagePreferences}
               onChange={handleLanguageChange}
               loading={loadingLanguages}
-              disabled={updating}
             />
           </div>
 

@@ -1,19 +1,14 @@
 import { render, waitFor } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { PreferencesProvider, usePreferencesContext } from './PreferencesContext'
-import { useSession } from 'next-auth/react'
 import { PreferenceType } from '@/types'
-
-// Mock next-auth/react
-vi.mock('next-auth/react')
 
 // Test component to access context
 function TestComponent() {
-  const { preferences, loading, initialized } = usePreferencesContext()
+  const { preferences, initialized } = usePreferencesContext()
   return (
     <div>
       <div data-testid="preferences">{JSON.stringify(preferences)}</div>
-      <div data-testid="loading">{String(loading)}</div>
       <div data-testid="initialized">{String(initialized)}</div>
     </div>
   )
@@ -56,14 +51,7 @@ describe('PreferencesContext', () => {
     vi.clearAllMocks()
   })
 
-  it('detects browser language on first load when no localStorage and no server preferences', async () => {
-    // Mock authenticated session
-    vi.mocked(useSession).mockReturnValue({
-      data: { user: { name: 'Test' }, accessToken: 'token', expires: '2099-12-31T23:59:59.999Z' },
-      status: 'authenticated',
-      update: vi.fn(),
-    })
-
+  it('detects browser language on first load when no localStorage preferences exist', async () => {
     // Mock API responses
     fetchMock
       // First call: fetch available languages (on mount)
@@ -77,23 +65,6 @@ describe('PreferencesContext', () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [],
-      } as Response)
-      // Third call: fetch preferences (empty)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [],
-      } as Response)
-      // Fourth call: update preferences with detected language
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({}),
-      } as Response)
-      // Fifth call: refetch preferences after update
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [
-          { wikidata_id: 'Q1860', name: 'English', preference_type: PreferenceType.LANGUAGE },
-        ],
       } as Response)
 
     render(
@@ -110,21 +81,15 @@ describe('PreferencesContext', () => {
       expect(fetchMock).toHaveBeenCalledWith('/api/countries?limit=1000')
     })
 
+    // Wait for auto-detection to run
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/preferences')
-    })
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/preferences/language',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ wikidata_ids: ['Q1860'] }),
-        }),
+      expect(global.localStorage.setItem).toHaveBeenCalledWith(
+        'poliloom_preferences',
+        expect.stringContaining('Q1860'),
       )
     })
 
-    // Verify localStorage was never checked for preferences (it should check once at mount and find nothing)
+    // Verify localStorage was checked for preferences
     expect(global.localStorage.getItem).toHaveBeenCalledWith('poliloom_preferences')
   })
 
@@ -134,13 +99,6 @@ describe('PreferencesContext', () => {
       { wikidata_id: 'Q150', name: 'French', preference_type: PreferenceType.LANGUAGE },
     ])
 
-    // Mock authenticated session
-    vi.mocked(useSession).mockReturnValue({
-      data: { user: { name: 'Test' }, accessToken: 'token', expires: '2099-12-31T23:59:59.999Z' },
-      status: 'authenticated',
-      update: vi.fn(),
-    })
-
     // Mock API responses
     fetchMock
       // First call: fetch available languages (on mount)
@@ -155,11 +113,6 @@ describe('PreferencesContext', () => {
         ok: true,
         json: async () => [],
       } as Response)
-      // Third call: fetch preferences (empty from server, but we have localStorage)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [],
-      } as Response)
 
     render(
       <PreferencesProvider>
@@ -168,103 +121,110 @@ describe('PreferencesContext', () => {
     )
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/preferences')
+      expect(fetchMock).toHaveBeenCalledWith('/api/languages?limit=1000')
     })
 
-    // Should NOT call preferences update (browser detection should not run because localStorage has preferences)
-    expect(fetchMock).not.toHaveBeenCalledWith('/api/preferences/language', expect.anything())
-  })
-
-  it('does NOT detect browser language when server already has preferences', async () => {
-    // Mock authenticated session
-    vi.mocked(useSession).mockReturnValue({
-      data: { user: { name: 'Test' }, accessToken: 'token', expires: '2099-12-31T23:59:59.999Z' },
-      status: 'authenticated',
-      update: vi.fn(),
-    })
-
-    // Mock API responses
-    fetchMock
-      // First call: fetch available languages (on mount)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [
-          { wikidata_id: 'Q1860', name: 'English', iso1_code: 'en', iso3_code: 'eng' },
-        ],
-      } as Response)
-      // Second call: fetch available countries (on mount)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [],
-      } as Response)
-      // Third call: fetch preferences (with existing server preferences)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [
-          { wikidata_id: 'Q150', name: 'French', preference_type: PreferenceType.LANGUAGE },
-        ],
-      } as Response)
-
-    render(
-      <PreferencesProvider>
-        <TestComponent />
-      </PreferencesProvider>,
-    )
-
+    // Wait for initialization
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/preferences')
+      const testElement = document.querySelector('[data-testid="initialized"]')
+      expect(testElement?.textContent).toBe('true')
     })
 
-    // Should NOT call preferences update (browser detection should not run because server has preferences)
-    expect(fetchMock).not.toHaveBeenCalledWith('/api/preferences/language', expect.anything())
+    // Should NOT update preferences (browser detection should not run because localStorage has preferences)
+    // The setItem call count should remain at 0 since we're not updating
+    const setItemCalls = vi.mocked(global.localStorage.setItem).mock.calls
+    const preferenceUpdateCalls = setItemCalls.filter((call) => call[0] === 'poliloom_preferences')
+    expect(preferenceUpdateCalls.length).toBe(0)
   })
 
-  it('does NOT detect browser language when both localStorage and server have preferences', async () => {
-    // Pre-populate localStorage
-    localStorageMock['poliloom_preferences'] = JSON.stringify([
+  it('loads preferences from localStorage on mount', async () => {
+    // Pre-populate localStorage with preferences
+    const existingPreferences = [
       { wikidata_id: 'Q150', name: 'French', preference_type: PreferenceType.LANGUAGE },
-    ])
-
-    // Mock authenticated session
-    vi.mocked(useSession).mockReturnValue({
-      data: { user: { name: 'Test' }, accessToken: 'token', expires: '2099-12-31T23:59:59.999Z' },
-      status: 'authenticated',
-      update: vi.fn(),
-    })
+      { wikidata_id: 'Q142', name: 'France', preference_type: PreferenceType.COUNTRY },
+    ]
+    localStorageMock['poliloom_preferences'] = JSON.stringify(existingPreferences)
 
     // Mock API responses
     fetchMock
-      // First call: fetch available languages (on mount)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [
-          { wikidata_id: 'Q1860', name: 'English', iso1_code: 'en', iso3_code: 'eng' },
-        ],
-      } as Response)
-      // Second call: fetch available countries (on mount)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [],
       } as Response)
-      // Third call: fetch preferences (with existing server preferences)
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => [
-          { wikidata_id: 'Q150', name: 'French', preference_type: PreferenceType.LANGUAGE },
-        ],
+        json: async () => [],
       } as Response)
 
-    render(
+    const { getByTestId } = render(
       <PreferencesProvider>
         <TestComponent />
       </PreferencesProvider>,
     )
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/preferences')
+      expect(getByTestId('initialized').textContent).toBe('true')
     })
 
-    // Should NOT call preferences update (browser detection should not run because both localStorage and server have preferences)
-    expect(fetchMock).not.toHaveBeenCalledWith('/api/preferences/language', expect.anything())
+    await waitFor(() => {
+      const preferencesText = getByTestId('preferences').textContent || ''
+      const preferences = JSON.parse(preferencesText)
+      expect(preferences).toEqual(existingPreferences)
+    })
+  })
+
+  it('persists preference updates to localStorage', async () => {
+    // Mock API responses
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { wikidata_id: 'Q1860', name: 'English', iso1_code: 'en', iso3_code: 'eng' },
+        ],
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      } as Response)
+
+    function TestComponentWithUpdate() {
+      const { updatePreferences, initialized } = usePreferencesContext()
+
+      return (
+        <div>
+          <div data-testid="initialized">{String(initialized)}</div>
+          <button
+            onClick={() =>
+              updatePreferences(PreferenceType.LANGUAGE, [
+                { wikidata_id: 'Q1860', name: 'English' },
+              ])
+            }
+          >
+            Update
+          </button>
+        </div>
+      )
+    }
+
+    const { getByText, getByTestId } = render(
+      <PreferencesProvider>
+        <TestComponentWithUpdate />
+      </PreferencesProvider>,
+    )
+
+    await waitFor(() => {
+      expect(getByTestId('initialized').textContent).toBe('true')
+    })
+
+    // Click update button
+    getByText('Update').click()
+
+    // Wait for localStorage to be updated
+    await waitFor(() => {
+      expect(global.localStorage.setItem).toHaveBeenCalledWith(
+        'poliloom_preferences',
+        expect.stringContaining('Q1860'),
+      )
+    })
   })
 })

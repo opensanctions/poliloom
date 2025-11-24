@@ -31,23 +31,23 @@ vi.mock('@/components/PropertiesEvaluation', () => ({
   }: {
     properties: Property[]
     evaluations: Map<string, boolean>
-    onAction: (propertyId: string, action: 'confirm' | 'discard') => void
+    onAction: (propertyId: string, action: 'accept' | 'reject') => void
   }) => (
     <div data-testid="properties-evaluation">
       {properties.map((prop: Property) => (
         <div key={prop.key} data-testid={`property-${prop.key}`}>
           <span>{prop.type}</span>
-          <button data-testid={`confirm-${prop.key}`} onClick={() => onAction(prop.key, 'confirm')}>
-            Confirm
+          <button data-testid={`accept-${prop.key}`} onClick={() => onAction(prop.key, 'accept')}>
+            Accept
           </button>
-          <button data-testid={`discard-${prop.key}`} onClick={() => onAction(prop.key, 'discard')}>
-            Discard
+          <button data-testid={`reject-${prop.key}`} onClick={() => onAction(prop.key, 'reject')}>
+            Reject
           </button>
           <span data-testid={`evaluation-${prop.key}`}>
             {evaluations.get(prop.key) === true
-              ? 'confirmed'
+              ? 'accepted'
               : evaluations.get(prop.key) === false
-                ? 'discarded'
+                ? 'rejected'
                 : 'pending'}
           </span>
         </div>
@@ -277,12 +277,12 @@ describe('CreatePage Submit Functionality', () => {
       const selectExistingButton = screen.getByTestId('select-existing')
       await user.click(selectExistingButton)
 
-      // Confirm the backend property
-      const confirmButton = screen.getByTestId('confirm-backend-1')
-      await user.click(confirmButton)
+      // Accept the backend property
+      const acceptButton = screen.getByTestId('accept-backend-1')
+      await user.click(acceptButton)
 
-      // Verify property is marked as confirmed
-      expect(screen.getByTestId('evaluation-backend-1')).toHaveTextContent('confirmed')
+      // Verify property is marked as accepted
+      expect(screen.getByTestId('evaluation-backend-1')).toHaveTextContent('accepted')
 
       // Submit
       const submitButton = screen.getByText('Update Politician')
@@ -311,7 +311,7 @@ describe('CreatePage Submit Functionality', () => {
       expect(window.alert).toHaveBeenCalledWith('Successfully updated John Doe')
     })
 
-    it('should handle discard evaluations', async () => {
+    it('should handle reject evaluations', async () => {
       const mockResponse = {
         success: true,
         message: 'Successfully processed evaluations',
@@ -330,12 +330,12 @@ describe('CreatePage Submit Functionality', () => {
       const selectExistingButton = screen.getByTestId('select-existing')
       await user.click(selectExistingButton)
 
-      // Discard the backend property
-      const discardButton = screen.getByTestId('discard-backend-1')
-      await user.click(discardButton)
+      // Reject the backend property
+      const rejectButton = screen.getByTestId('reject-backend-1')
+      await user.click(rejectButton)
 
-      // Verify property is marked as discarded
-      expect(screen.getByTestId('evaluation-backend-1')).toHaveTextContent('discarded')
+      // Verify property is marked as rejected
+      expect(screen.getByTestId('evaluation-backend-1')).toHaveTextContent('rejected')
 
       // Submit
       const submitButton = screen.getByText('Update Politician')
@@ -401,9 +401,9 @@ describe('CreatePage Submit Functionality', () => {
       const addPropertyButton = screen.getByTestId('add-manual-property')
       await user.click(addPropertyButton)
 
-      // Confirm the backend property
-      const confirmButton = screen.getByTestId('confirm-backend-1')
-      await user.click(confirmButton)
+      // Accept the backend property
+      const acceptButton = screen.getByTestId('accept-backend-1')
+      await user.click(acceptButton)
 
       // Submit
       const submitButton = screen.getByText('Update Politician')
@@ -551,9 +551,9 @@ describe('CreatePage Submit Functionality', () => {
       const selectExistingButton = screen.getByTestId('select-existing')
       await user.click(selectExistingButton)
 
-      // Confirm the backend property
-      const confirmButton = screen.getByTestId('confirm-backend-1')
-      await user.click(confirmButton)
+      // Accept the backend property
+      const acceptButton = screen.getByTestId('accept-backend-1')
+      await user.click(acceptButton)
 
       // Submit
       const submitButton = screen.getByText('Update Politician')
