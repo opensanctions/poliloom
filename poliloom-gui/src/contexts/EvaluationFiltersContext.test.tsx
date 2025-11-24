@@ -1,20 +1,20 @@
 import { render, waitFor } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { PreferencesProvider, usePreferencesContext } from './PreferencesContext'
+import { EvaluationFiltersProvider, useEvaluationFilters } from './EvaluationFiltersContext'
 import { PreferenceType } from '@/types'
 
 // Test component to access context
 function TestComponent() {
-  const { preferences, initialized } = usePreferencesContext()
+  const { filters, initialized } = useEvaluationFilters()
   return (
     <div>
-      <div data-testid="preferences">{JSON.stringify(preferences)}</div>
+      <div data-testid="filters">{JSON.stringify(filters)}</div>
       <div data-testid="initialized">{String(initialized)}</div>
     </div>
   )
 }
 
-describe('PreferencesContext', () => {
+describe('EvaluationFiltersContext', () => {
   let localStorageMock: Record<string, string>
   let fetchMock: ReturnType<typeof vi.fn<typeof fetch>>
 
@@ -51,7 +51,7 @@ describe('PreferencesContext', () => {
     vi.clearAllMocks()
   })
 
-  it('detects browser language on first load when no localStorage preferences exist', async () => {
+  it('detects browser language on first load when no localStorage filters exist', async () => {
     // Mock API responses
     fetchMock
       // First call: fetch available languages (on mount)
@@ -68,9 +68,9 @@ describe('PreferencesContext', () => {
       } as Response)
 
     render(
-      <PreferencesProvider>
+      <EvaluationFiltersProvider>
         <TestComponent />
-      </PreferencesProvider>,
+      </EvaluationFiltersProvider>,
     )
 
     await waitFor(() => {
@@ -84,18 +84,18 @@ describe('PreferencesContext', () => {
     // Wait for auto-detection to run
     await waitFor(() => {
       expect(global.localStorage.setItem).toHaveBeenCalledWith(
-        'poliloom_preferences',
+        'poliloom_evaluation_filters',
         expect.stringContaining('Q1860'),
       )
     })
 
-    // Verify localStorage was checked for preferences
-    expect(global.localStorage.getItem).toHaveBeenCalledWith('poliloom_preferences')
+    // Verify localStorage was checked for filters
+    expect(global.localStorage.getItem).toHaveBeenCalledWith('poliloom_evaluation_filters')
   })
 
-  it('does NOT detect browser language when localStorage already has preferences', async () => {
+  it('does NOT detect browser language when localStorage already has filters', async () => {
     // Pre-populate localStorage
-    localStorageMock['poliloom_preferences'] = JSON.stringify([
+    localStorageMock['poliloom_evaluation_filters'] = JSON.stringify([
       { wikidata_id: 'Q150', name: 'French', preference_type: PreferenceType.LANGUAGE },
     ])
 
@@ -115,9 +115,9 @@ describe('PreferencesContext', () => {
       } as Response)
 
     render(
-      <PreferencesProvider>
+      <EvaluationFiltersProvider>
         <TestComponent />
-      </PreferencesProvider>,
+      </EvaluationFiltersProvider>,
     )
 
     await waitFor(() => {
@@ -130,20 +130,22 @@ describe('PreferencesContext', () => {
       expect(testElement?.textContent).toBe('true')
     })
 
-    // Should NOT update preferences (browser detection should not run because localStorage has preferences)
+    // Should NOT update filters (browser detection should not run because localStorage has filters)
     // The setItem call count should remain at 0 since we're not updating
     const setItemCalls = vi.mocked(global.localStorage.setItem).mock.calls
-    const preferenceUpdateCalls = setItemCalls.filter((call) => call[0] === 'poliloom_preferences')
-    expect(preferenceUpdateCalls.length).toBe(0)
+    const filterUpdateCalls = setItemCalls.filter(
+      (call) => call[0] === 'poliloom_evaluation_filters',
+    )
+    expect(filterUpdateCalls.length).toBe(0)
   })
 
-  it('loads preferences from localStorage on mount', async () => {
-    // Pre-populate localStorage with preferences
-    const existingPreferences = [
+  it('loads filters from localStorage on mount', async () => {
+    // Pre-populate localStorage with filters
+    const existingFilters = [
       { wikidata_id: 'Q150', name: 'French', preference_type: PreferenceType.LANGUAGE },
       { wikidata_id: 'Q142', name: 'France', preference_type: PreferenceType.COUNTRY },
     ]
-    localStorageMock['poliloom_preferences'] = JSON.stringify(existingPreferences)
+    localStorageMock['poliloom_evaluation_filters'] = JSON.stringify(existingFilters)
 
     // Mock API responses
     fetchMock
@@ -157,9 +159,9 @@ describe('PreferencesContext', () => {
       } as Response)
 
     const { getByTestId } = render(
-      <PreferencesProvider>
+      <EvaluationFiltersProvider>
         <TestComponent />
-      </PreferencesProvider>,
+      </EvaluationFiltersProvider>,
     )
 
     await waitFor(() => {
@@ -167,13 +169,13 @@ describe('PreferencesContext', () => {
     })
 
     await waitFor(() => {
-      const preferencesText = getByTestId('preferences').textContent || ''
-      const preferences = JSON.parse(preferencesText)
-      expect(preferences).toEqual(existingPreferences)
+      const filtersText = getByTestId('filters').textContent || ''
+      const filters = JSON.parse(filtersText)
+      expect(filters).toEqual(existingFilters)
     })
   })
 
-  it('persists preference updates to localStorage', async () => {
+  it('persists filter updates to localStorage', async () => {
     // Mock API responses
     fetchMock
       .mockResolvedValueOnce({
@@ -188,16 +190,14 @@ describe('PreferencesContext', () => {
       } as Response)
 
     function TestComponentWithUpdate() {
-      const { updatePreferences, initialized } = usePreferencesContext()
+      const { updateFilters, initialized } = useEvaluationFilters()
 
       return (
         <div>
           <div data-testid="initialized">{String(initialized)}</div>
           <button
             onClick={() =>
-              updatePreferences(PreferenceType.LANGUAGE, [
-                { wikidata_id: 'Q1860', name: 'English' },
-              ])
+              updateFilters(PreferenceType.LANGUAGE, [{ wikidata_id: 'Q1860', name: 'English' }])
             }
           >
             Update
@@ -207,9 +207,9 @@ describe('PreferencesContext', () => {
     }
 
     const { getByText, getByTestId } = render(
-      <PreferencesProvider>
+      <EvaluationFiltersProvider>
         <TestComponentWithUpdate />
-      </PreferencesProvider>,
+      </EvaluationFiltersProvider>,
     )
 
     await waitFor(() => {
@@ -222,7 +222,7 @@ describe('PreferencesContext', () => {
     // Wait for localStorage to be updated
     await waitFor(() => {
       expect(global.localStorage.setItem).toHaveBeenCalledWith(
-        'poliloom_preferences',
+        'poliloom_evaluation_filters',
         expect.stringContaining('Q1860'),
       )
     })

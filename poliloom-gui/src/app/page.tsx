@@ -4,24 +4,18 @@ import { Header } from '@/components/Header'
 import { Hero } from '@/components/Hero'
 import { Anchor } from '@/components/Anchor'
 import { MultiSelect, MultiSelectOption } from '@/components/MultiSelect'
-import { usePreferencesContext } from '@/contexts/PreferencesContext'
+import { useEvaluationFilters } from '@/contexts/EvaluationFiltersContext'
 import { PreferenceType, WikidataEntity } from '@/types'
 
 export default function Home() {
-  const {
-    preferences,
-    languages,
-    countries,
-    loadingLanguages,
-    loadingCountries,
-    updatePreferences,
-  } = usePreferencesContext()
+  const { filters, languages, countries, loadingLanguages, loadingCountries, updateFilters } =
+    useEvaluationFilters()
 
-  const languagePreferences = preferences
+  const languageFilters = filters
     .filter((p) => p.preference_type === PreferenceType.LANGUAGE)
     .map((p) => p.wikidata_id)
 
-  const countryPreferences = preferences
+  const countryFilters = filters
     .filter((p) => p.preference_type === PreferenceType.COUNTRY)
     .map((p) => p.wikidata_id)
 
@@ -38,15 +32,15 @@ export default function Home() {
     count: country.citizenships_count,
   }))
 
-  // Generic handler for preference changes
-  const createPreferenceHandler =
+  // Generic handler for filter changes
+  const createFilterHandler =
     (type: PreferenceType, allItems: WikidataEntity[]) => (qids: string[]) => {
       const items = allItems.filter((item) => qids.includes(item.wikidata_id))
-      updatePreferences(type, items)
+      updateFilters(type, items)
     }
 
-  const handleLanguageChange = createPreferenceHandler(PreferenceType.LANGUAGE, languages)
-  const handleCountryChange = createPreferenceHandler(PreferenceType.COUNTRY, countries)
+  const handleLanguageChange = createFilterHandler(PreferenceType.LANGUAGE, languages)
+  const handleCountryChange = createFilterHandler(PreferenceType.COUNTRY, countries)
 
   return (
     <>
@@ -90,7 +84,7 @@ export default function Home() {
               description="We'll show you politicians with citizenship from these countries"
               icon="🌍"
               options={countryOptions}
-              selected={countryPreferences}
+              selected={countryFilters}
               onChange={handleCountryChange}
               loading={loadingCountries}
             />
@@ -100,7 +94,7 @@ export default function Home() {
               description="We'll show you politicians with source documents in these languages"
               icon="🌐"
               options={languageOptions}
-              selected={languagePreferences}
+              selected={languageFilters}
               onChange={handleLanguageChange}
               loading={loadingLanguages}
             />
@@ -112,7 +106,7 @@ export default function Home() {
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to start?</h3>
                 <p className="text-gray-600">
-                  {languagePreferences.length > 0 || countryPreferences.length > 0
+                  {languageFilters.length > 0 || countryFilters.length > 0
                     ? 'Your filters are set. Begin reviewing politicians that match your criteria.'
                     : "No filters selected. You'll review politicians from all languages and countries."}
                 </p>

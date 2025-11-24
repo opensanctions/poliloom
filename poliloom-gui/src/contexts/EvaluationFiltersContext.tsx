@@ -9,19 +9,19 @@ import {
   WikidataEntity,
 } from '@/types'
 
-interface PreferencesContextType {
-  preferences: PreferenceResponse[]
+interface EvaluationFiltersContextType {
+  filters: PreferenceResponse[]
   languages: LanguageResponse[]
   countries: CountryResponse[]
   loadingLanguages: boolean
   loadingCountries: boolean
   initialized: boolean
-  updatePreferences: (type: PreferenceType, items: WikidataEntity[]) => void
+  updateFilters: (type: PreferenceType, items: WikidataEntity[]) => void
 }
 
-const PreferencesContext = createContext<PreferencesContextType | undefined>(undefined)
+const EvaluationFiltersContext = createContext<EvaluationFiltersContextType | undefined>(undefined)
 
-const STORAGE_KEY = 'poliloom_preferences'
+const STORAGE_KEY = 'poliloom_evaluation_filters'
 
 // Helper function to detect browser language and match with available languages
 const detectBrowserLanguage = (availableLanguages: LanguageResponse[]): WikidataEntity[] => {
@@ -57,8 +57,8 @@ const detectBrowserLanguage = (availableLanguages: LanguageResponse[]): Wikidata
   }
 }
 
-export function PreferencesProvider({ children }: { children: React.ReactNode }) {
-  const [preferences, setPreferences] = useState<PreferenceResponse[]>([])
+export function EvaluationFiltersProvider({ children }: { children: React.ReactNode }) {
+  const [filters, setFilters] = useState<PreferenceResponse[]>([])
   const [languages, setLanguages] = useState<LanguageResponse[]>([])
   const [countries, setCountries] = useState<CountryResponse[]>([])
   const [loadingLanguages, setLoadingLanguages] = useState(true)
@@ -105,46 +105,43 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     fetchCountries()
   }, [])
 
-  // Save preferences to localStorage
-  const saveToStorage = (prefs: PreferenceResponse[]) => {
+  // Save filters to localStorage
+  const saveToStorage = (filters: PreferenceResponse[]) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(filters))
     } catch (error) {
-      console.warn('Failed to save preferences to localStorage:', error)
+      console.warn('Failed to save evaluation filters to localStorage:', error)
     }
   }
 
-  // Update preferences locally only
-  const updatePreferences = useCallback(
-    (preferenceType: PreferenceType, items: WikidataEntity[]) => {
-      setPreferences((prevPreferences) => {
-        // Update local state
-        const updated = [
-          ...prevPreferences.filter((p) => p.preference_type !== preferenceType),
-          ...items.map((item) => ({
-            wikidata_id: item.wikidata_id,
-            name: item.name,
-            preference_type: preferenceType,
-          })),
-        ]
-        saveToStorage(updated)
-        return updated
-      })
-    },
-    [],
-  )
+  // Update filters locally only
+  const updateFilters = useCallback((preferenceType: PreferenceType, items: WikidataEntity[]) => {
+    setFilters((prevFilters) => {
+      // Update local state
+      const updated = [
+        ...prevFilters.filter((p) => p.preference_type !== preferenceType),
+        ...items.map((item) => ({
+          wikidata_id: item.wikidata_id,
+          name: item.name,
+          preference_type: preferenceType,
+        })),
+      ]
+      saveToStorage(updated)
+      return updated
+    })
+  }, [])
 
-  // Load preferences from localStorage on mount
+  // Load filters from localStorage on mount
   useEffect(() => {
     const loadFromStorage = () => {
       try {
         const stored = localStorage.getItem(STORAGE_KEY)
         if (stored) {
-          const prefs = JSON.parse(stored)
-          setPreferences(prefs)
+          const filters = JSON.parse(stored)
+          setFilters(filters)
         }
       } catch (error) {
-        console.warn('Failed to load preferences from localStorage:', error)
+        console.warn('Failed to load evaluation filters from localStorage:', error)
       } finally {
         setInitialized(true)
       }
@@ -157,35 +154,35 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (!initialized || loadingLanguages || languages.length === 0) return
 
-    const hasLanguagePreference = preferences.some(
-      (p) => p.preference_type === PreferenceType.LANGUAGE,
-    )
+    const hasLanguageFilter = filters.some((p) => p.preference_type === PreferenceType.LANGUAGE)
 
-    if (!hasLanguagePreference) {
+    if (!hasLanguageFilter) {
       const detectedLanguages = detectBrowserLanguage(languages)
       if (detectedLanguages.length > 0) {
-        updatePreferences(PreferenceType.LANGUAGE, detectedLanguages)
+        updateFilters(PreferenceType.LANGUAGE, detectedLanguages)
       }
     }
-  }, [initialized, loadingLanguages, languages, preferences, updatePreferences])
+  }, [initialized, loadingLanguages, languages, filters, updateFilters])
 
-  const value: PreferencesContextType = {
-    preferences,
+  const value: EvaluationFiltersContextType = {
+    filters,
     languages,
     countries,
     loadingLanguages,
     loadingCountries,
     initialized,
-    updatePreferences,
+    updateFilters,
   }
 
-  return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>
+  return (
+    <EvaluationFiltersContext.Provider value={value}>{children}</EvaluationFiltersContext.Provider>
+  )
 }
 
-export function usePreferencesContext() {
-  const context = useContext(PreferencesContext)
+export function useEvaluationFilters() {
+  const context = useContext(EvaluationFiltersContext)
   if (context === undefined) {
-    throw new Error('usePreferencesContext must be used within a PreferencesProvider')
+    throw new Error('useEvaluationFilters must be used within an EvaluationFiltersProvider')
   }
   return context
 }

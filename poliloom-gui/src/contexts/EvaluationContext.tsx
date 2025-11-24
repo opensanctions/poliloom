@@ -18,7 +18,7 @@ import {
   EvaluationResponse,
 } from '@/types'
 import { useAuthSession } from '@/hooks/useAuthSession'
-import { usePreferencesContext } from './PreferencesContext'
+import { useEvaluationFilters } from './EvaluationFiltersContext'
 
 interface EvaluationContextType {
   // Politician data
@@ -43,7 +43,7 @@ const EvaluationContext = createContext<EvaluationContextType | undefined>(undef
 export function EvaluationProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { session, isAuthenticated } = useAuthSession()
-  const { preferences, initialized } = usePreferencesContext()
+  const { filters, initialized } = useEvaluationFilters()
 
   // Politician state
   const [currentPolitician, setCurrentPolitician] = useState<Politician | null>(null)
@@ -57,21 +57,19 @@ export function EvaluationProvider({ children }: { children: React.ReactNode }) 
 
   const isSessionComplete = completedCount >= sessionGoal
 
-  // Memoize preference arrays to prevent unnecessary recreations
-  const languagePreferences = useMemo(
+  // Memoize filter arrays to prevent unnecessary recreations
+  const languageFilters = useMemo(
     () =>
-      preferences
+      filters
         .filter((p) => p.preference_type === PreferenceType.LANGUAGE)
         .map((p) => p.wikidata_id),
-    [preferences],
+    [filters],
   )
 
-  const countryPreferences = useMemo(
+  const countryFilters = useMemo(
     () =>
-      preferences
-        .filter((p) => p.preference_type === PreferenceType.COUNTRY)
-        .map((p) => p.wikidata_id),
-    [preferences],
+      filters.filter((p) => p.preference_type === PreferenceType.COUNTRY).map((p) => p.wikidata_id),
+    [filters],
   )
 
   const fetchPoliticians = useCallback(
@@ -82,8 +80,8 @@ export function EvaluationProvider({ children }: { children: React.ReactNode }) 
         limit: limit.toString(),
         has_unevaluated: 'true',
       })
-      languagePreferences.forEach((qid) => params.append('languages', qid))
-      countryPreferences.forEach((qid) => params.append('countries', qid))
+      languageFilters.forEach((qid) => params.append('languages', qid))
+      countryFilters.forEach((qid) => params.append('countries', qid))
 
       const response = await fetch(`/api/politicians?${params.toString()}`)
 
@@ -102,14 +100,14 @@ export function EvaluationProvider({ children }: { children: React.ReactNode }) 
         })),
       }))
     },
-    [session?.accessToken, languagePreferences, countryPreferences],
+    [session?.accessToken, languageFilters, countryFilters],
   )
 
-  // Clear politicians when preferences change
+  // Clear politicians when filters change
   useEffect(() => {
     setCurrentPolitician(null)
     setNextPolitician(null)
-  }, [languagePreferences, countryPreferences])
+  }, [languageFilters, countryFilters])
 
   const loadPoliticians = useCallback(async () => {
     if (!isAuthenticated || !initialized) return

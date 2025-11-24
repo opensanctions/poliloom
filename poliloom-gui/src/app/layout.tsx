@@ -3,7 +3,7 @@ import './globals.css'
 import { auth } from '@/auth'
 import { SessionProvider } from '@/components/SessionProvider'
 import { ArchivedPageProvider } from '@/contexts/ArchivedPageContext'
-import { PreferencesProvider } from '@/contexts/PreferencesContext'
+import { EvaluationFiltersProvider } from '@/contexts/EvaluationFiltersContext'
 import { EvaluationProvider } from '@/contexts/EvaluationContext'
 import { FetchInterceptor } from '@/components/FetchInterceptor'
 
@@ -25,11 +25,11 @@ export default async function RootLayout({
       <body className="font-sans antialiased grid grid-rows-[auto_1fr] h-screen">
         <SessionProvider session={session}>
           <FetchInterceptor />
-          <PreferencesProvider>
+          <EvaluationFiltersProvider>
             <EvaluationProvider>
               <ArchivedPageProvider>{children}</ArchivedPageProvider>
             </EvaluationProvider>
-          </PreferencesProvider>
+          </EvaluationFiltersProvider>
         </SessionProvider>
       </body>
     </html>

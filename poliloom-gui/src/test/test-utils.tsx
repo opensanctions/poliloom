@@ -1,7 +1,7 @@
 import React, { ReactElement } from 'react'
 import { render, RenderOptions } from '@testing-library/react'
 import { ArchivedPageProvider } from '@/contexts/ArchivedPageContext'
-import { PreferencesProvider } from '@/contexts/PreferencesContext'
+import { EvaluationFiltersProvider } from '@/contexts/EvaluationFiltersContext'
 import { EvaluationProvider } from '@/contexts/EvaluationContext'
 
 // Mock SessionProvider for testing
@@ -10,11 +10,11 @@ const MockSessionProvider = ({ children }: { children: React.ReactNode }) => <>{
 const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
   return (
     <MockSessionProvider>
-      <PreferencesProvider>
+      <EvaluationFiltersProvider>
         <EvaluationProvider>
           <ArchivedPageProvider>{children}</ArchivedPageProvider>
         </EvaluationProvider>
-      </PreferencesProvider>
+      </EvaluationFiltersProvider>
     </MockSessionProvider>
   )
 }
