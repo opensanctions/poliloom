@@ -5,7 +5,6 @@ from .base import (
     Base,
     EntityCreationMixin,
     LanguageCodeMixin,
-    PreferenceType,
     PropertyType,
     RelationType,
     SoftDeleteMixin,
@@ -28,7 +27,7 @@ from .wikidata import (
 from .entities import Country, Language, Location, Position, WikipediaProject
 
 # User interaction
-from .user import Evaluation, Preference
+from .user import Evaluation
 
 # Politician domain
 from .politician import (
@@ -44,7 +43,6 @@ __all__ = [
     "Base",
     "EntityCreationMixin",
     "LanguageCodeMixin",
-    "PreferenceType",
     "PropertyType",
     "RelationType",
     "SoftDeleteMixin",
@@ -66,7 +64,6 @@ __all__ = [
     "WikipediaProject",
     # User
     "Evaluation",
-    "Preference",
     # Politician
     "ArchivedPage",
     "ArchivedPageLanguage",

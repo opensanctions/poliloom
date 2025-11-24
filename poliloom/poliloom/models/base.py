@@ -21,13 +21,6 @@ class PropertyType(str, Enum):
     CITIZENSHIP = "P27"
 
 
-class PreferenceType(str, Enum):
-    """Enumeration of user preference types."""
-
-    LANGUAGE = "language"
-    COUNTRY = "country"
-
-
 class RelationType(str, Enum):
     """Enumeration of Wikidata relation types."""
 
