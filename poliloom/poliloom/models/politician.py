@@ -750,15 +750,14 @@ class ArchivedPage(Base, TimestampMixin):
                 }
             )
 
-        # Add P813 (retrieved date) for all sources
         fetch_date_str = self.fetch_timestamp.strftime("%Y-%m-%d")
         wikidata_date = WikidataDate.from_date_string(fetch_date_str)
         if wikidata_date:
             references.append(
                 {
-                    "property": {"id": "P813"},  # Retrieved date
+                    "property": {"id": "P813"},
                     "value": {
-                        "type": "time",
+                        "type": "value",
                         "content": wikidata_date.to_wikidata_value(),
                     },
                 }

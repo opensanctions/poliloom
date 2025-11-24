@@ -46,7 +46,7 @@ class TestArchivedPage:
 
         # Third reference should be P813 (retrieved date)
         assert references_json[2]["property"]["id"] == "P813"
-        assert references_json[2]["value"]["type"] == "time"
+        assert references_json[2]["value"]["type"] == "value"
 
     def test_link_languages_from_project_with_languages(
         self, db_session, sample_wikipedia_project, sample_language
@@ -223,7 +223,7 @@ class TestArchivedPage:
 
         # Second reference should be P813 (retrieved date)
         assert references_json[1]["property"]["id"] == "P813"
-        assert references_json[1]["value"]["type"] == "time"
+        assert references_json[1]["value"]["type"] == "value"
 
     def test_create_references_json_p813_retrieved_date_format(self, db_session):
         """Test that P813 (retrieved date) is correctly formatted with proper Wikidata time value."""
@@ -245,11 +245,9 @@ class TestArchivedPage:
 
         p813_ref = p813_refs[0]
 
-        # Verify structure
-        assert p813_ref["value"]["type"] == "time"
+        assert p813_ref["value"]["type"] == "value"
         assert "content" in p813_ref["value"]
 
-        # Verify Wikidata time value format
         time_value = p813_ref["value"]["content"]
         assert time_value["time"] == "+2025-11-24T00:00:00Z"
         assert time_value["precision"] == 11  # Day precision
