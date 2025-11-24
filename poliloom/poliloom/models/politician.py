@@ -2,7 +2,7 @@
 
 import hashlib
 from datetime import datetime, timedelta, timezone
-from typing import List
+from typing import List, Optional
 
 from dicttoxml import dicttoxml
 from sqlalchemy import (
@@ -611,9 +611,6 @@ class ArchivedPage(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
-    revision = Column(
-        String, nullable=True
-    )  # Wikipedia revision ID (oldid) for page-version URL
 
     # Relationships
     properties = relationship("Property", back_populates="archived_page")
@@ -638,24 +635,119 @@ class ArchivedPage(Base, TimestampMixin):
         date_path = f"{self.fetch_timestamp.year:04d}/{self.fetch_timestamp.month:02d}/{self.fetch_timestamp.day:02d}"
         return f"{date_path}/{self.content_hash}"
 
+    def link_languages_from_project(self, db) -> None:
+        """Link languages from Wikipedia project's LANGUAGE_OF_WORK relations.
+
+        Args:
+            db: Database session for querying language relations
+        """
+        if not self.wikipedia_project_id:
+            return
+
+        from sqlalchemy import select
+        from .wikidata import WikidataRelation, RelationType
+
+        language_query = select(WikidataRelation.parent_entity_id).where(
+            WikidataRelation.child_entity_id == self.wikipedia_project_id,
+            WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
+        )
+        language_ids = db.execute(language_query).scalars().all()
+
+        for language_id in language_ids:
+            self.archived_page_languages.append(
+                ArchivedPageLanguage(language_id=language_id)
+            )
+
+    def save_archived_files(
+        self,
+        mhtml_content: Optional[str],
+        html_content: Optional[str],
+        markdown_content: Optional[str],
+    ) -> None:
+        """Save archived content files (MHTML, HTML, markdown) to storage.
+
+        Args:
+            mhtml_content: MHTML content to save
+            html_content: HTML content to save
+            markdown_content: Markdown content to save
+        """
+        from .. import archive
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        if mhtml_content:
+            mhtml_path = archive.save_archived_content(
+                self.path_root, "mhtml", mhtml_content
+            )
+            logger.info(f"Saved MHTML archive: {mhtml_path}")
+
+        if html_content:
+            html_path = archive.save_archived_content(
+                self.path_root, "html", html_content
+            )
+            logger.info(f"Saved HTML from MHTML: {html_path}")
+
+        if markdown_content:
+            markdown_path = archive.save_archived_content(
+                self.path_root, "md", markdown_content
+            )
+            logger.info(f"Saved markdown content: {markdown_path}")
+
     def create_references_json(self) -> list:
-        """Create references_json for this archived page source."""
-        # For Wikipedia projects, use P143 (imported from)
-        # For other sources, use P854 (reference URL)
+        """Create references_json for this archived page source.
+
+        For Wikipedia sources (when wikipedia_project_id exists):
+        - P4656 (Wikimedia import URL) if URL contains oldid, otherwise P854 (reference URL)
+        - P143 (imported from): Wikipedia project (e.g., Q328 for English Wikipedia)
+
+        For non-Wikipedia sources:
+        - P854 (reference URL): The page URL
+        """
+        from urllib.parse import urlparse, parse_qs
+
+        references = []
+
         if self.wikipedia_project_id:
-            return [
+            # Wikipedia source - check if URL has oldid parameter
+            parsed_url = urlparse(self.url)
+            query_params = parse_qs(parsed_url.query)
+            has_oldid = "oldid" in query_params
+
+            if has_oldid:
+                # Use P4656 (Wikimedia import URL) for permanent revision links
+                references.append(
+                    {
+                        "property": {"id": "P4656"},  # Wikimedia import URL
+                        "value": {"type": "value", "content": self.url},
+                    }
+                )
+            else:
+                # Use P854 (reference URL) for Wikipedia pages without oldid
+                references.append(
+                    {
+                        "property": {"id": "P854"},  # Reference URL
+                        "value": {"type": "value", "content": self.url},
+                    }
+                )
+
+            # Always add P143 (imported from) for Wikipedia sources
+            references.append(
                 {
                     "property": {"id": "P143"},  # Imported from
                     "value": {"type": "value", "content": self.wikipedia_project_id},
                 }
-            ]
+            )
         else:
-            return [
+            # Non-Wikipedia source - use P854 (reference URL)
+            references.append(
                 {
                     "property": {"id": "P854"},  # Reference URL
                     "value": {"type": "value", "content": self.url},
                 }
-            ]
+            )
+
+        return references
 
 
 @event.listens_for(ArchivedPage, "before_insert")

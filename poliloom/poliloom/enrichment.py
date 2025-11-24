@@ -26,10 +26,8 @@ from .models import (
     Location,
     Country,
     ArchivedPage,
-    ArchivedPageLanguage,
     WikidataRelation,
     WikidataEntity,
-    RelationType,
 )
 from . import archive
 from .database import get_engine
@@ -474,8 +472,8 @@ Select the best matching QID or None if no good match exists."""
         return None
 
 
-def extract_revision_id(url: str, html_content: str) -> Optional[str]:
-    """Extract Wikipedia revision ID (oldid) from HTML content.
+def extract_permanent_url(url: str, html_content: str) -> Optional[str]:
+    """Extract Wikipedia permanent URL with oldid from HTML content.
 
     Validates that the oldid URL contains the expected page title to ensure
     we extract the correct revision even if multiple oldid links are present.
@@ -485,11 +483,13 @@ def extract_revision_id(url: str, html_content: str) -> Optional[str]:
         html_content: The HTML content to search
 
     Returns:
-        The revision ID as a string, or None if not found or title doesn't match
+        The permanent URL with oldid (e.g., "https://en.wikipedia.org/w/index.php?title=Mirjam_Blaak&oldid=123456789"),
+        or None if not found or title doesn't match
     """
     try:
         # Extract the expected page title from the URL
-        url_path = urlparse(url).path
+        parsed_url = urlparse(url)
+        url_path = parsed_url.path
         title_match = re.search(r"/wiki/(.+)$", url_path)
         if not title_match:
             logger.debug(f"Could not extract page title from URL: {url}")
@@ -510,63 +510,78 @@ def extract_revision_id(url: str, html_content: str) -> Optional[str]:
             # Check if this oldid URL matches our expected page title
             if decoded_title == expected_title:
                 oldid = match.group(2)
+                # Construct permanent URL with oldid
+                permanent_url = f"{parsed_url.scheme}://{parsed_url.netloc}/w/index.php?title={url_title}&oldid={oldid}"
                 logger.debug(
-                    f"Found matching oldid {oldid} for title '{expected_title}'"
+                    f"Found permanent URL for title '{expected_title}': {permanent_url}"
                 )
-                return oldid
+                return permanent_url
 
         # If no match found with expected title
         logger.debug(f"No oldid found matching expected title '{expected_title}'")
         return None
     except Exception as e:
-        logger.warning(f"Error extracting revision ID: {e}")
+        logger.warning(f"Error extracting permanent URL: {e}")
         return None
+
+
+def _convert_mhtml_to_html(mhtml_content: Optional[str]) -> Optional[str]:
+    """Convert MHTML content to HTML, returning None on failure."""
+    if not mhtml_content:
+        return None
+
+    try:
+        converter = MHTMLConverter()
+        return converter.convert(mhtml_content)
+    except Exception as e:
+        logger.warning(f"Failed to convert MHTML to HTML: {e}")
+        return None
+
+
+def _resolve_final_url(
+    url: str,
+    html_content: Optional[str],
+    wikipedia_project_id: Optional[str],
+) -> str:
+    """Determine the final URL to store.
+
+    For Wikipedia pages with a project ID, extracts the permanent URL with oldid.
+    Otherwise returns the original URL.
+    """
+    if not wikipedia_project_id or not html_content:
+        return url
+
+    permanent_url = extract_permanent_url(url, html_content)
+    if permanent_url:
+        logger.info(f"Using permanent URL: {permanent_url}")
+        return permanent_url
+
+    return url
 
 
 async def fetch_and_archive_page(
     url: str,
     db: Session,
-    wikipedia_project_id: str = None,
+    wikipedia_project_id: Optional[str] = None,
 ) -> ArchivedPage:
     """Fetch web page content and archive it.
+
+    Always stores HTML, MHTML, and markdown content. When a Wikipedia project ID
+    is provided, also extracts the permanent URL with oldid and links languages
+    from the project.
 
     Args:
         url: The URL to fetch and archive
         db: Database session
-        wikipedia_project_id: Wikipedia project Wikidata ID to link languages from
+        wikipedia_project_id: Optional Wikipedia project Wikidata ID. When provided,
+            extracts the permanent URL with oldid and links languages from the project.
 
     Returns:
-        ArchivedPage with linked languages from the Wikipedia project's LANGUAGE_OF_WORK relations
+        ArchivedPage with archived content (HTML, MHTML, markdown)
     """
-    # Create and insert ArchivedPage first
     now = datetime.now(timezone.utc)
-    archived_page = ArchivedPage(
-        url=url,
-        fetch_timestamp=now,
-        wikipedia_project_id=wikipedia_project_id,
-    )
-    db.add(archived_page)
-    db.flush()
 
-    # Link languages from Wikipedia project's LANGUAGE_OF_WORK relations
-    if wikipedia_project_id:
-        # Query for all languages that have LANGUAGE_OF_WORK relation to this Wikipedia project
-        language_query = select(WikidataRelation.parent_entity_id).where(
-            WikidataRelation.child_entity_id == wikipedia_project_id,
-            WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
-        )
-        language_ids = db.execute(language_query).scalars().all()
-
-        # Create ArchivedPageLanguage link records
-        for language_id in language_ids:
-            link = ArchivedPageLanguage(
-                archived_page_id=archived_page.id,
-                language_id=language_id,
-            )
-            db.add(link)
-
-        db.flush()
-
+    # Fetch the page
     config = CrawlerRunConfig(
         capture_mhtml=True,
         verbose=True,
@@ -578,45 +593,29 @@ async def fetch_and_archive_page(
         result = await crawler.arun(url, config=config)
 
         if not result.success:
-            db.rollback()
             raise RuntimeError(f"Failed to crawl page: {url}")
 
-        # Save MHTML archive
-        if result.mhtml:
-            mhtml_path = archive.save_archived_content(
-                archived_page.path_root, "mhtml", result.mhtml
-            )
-            logger.info(f"Saved MHTML archive: {mhtml_path}")
+        # Convert MHTML to HTML
+        html_content = _convert_mhtml_to_html(result.mhtml)
 
-            # Generate HTML from MHTML
-            try:
-                # Read MHTML content from storage (works with both local and GCS paths)
-                mhtml_content = archive.read_archived_content(
-                    archived_page.path_root, "mhtml"
-                )
-                converter = MHTMLConverter()
-                html_content = converter.convert(mhtml_content)
-                html_path = archive.save_archived_content(
-                    archived_page.path_root, "html", html_content
-                )
-                logger.info(f"Generated HTML from MHTML: {html_path}")
+        # Determine final URL to store (permanent URL for Wikipedia if applicable)
+        final_url = _resolve_final_url(url, html_content, wikipedia_project_id)
 
-                # Extract revision ID from HTML content (for Wikipedia pages)
-                if wikipedia_project_id:
-                    revision_id = extract_revision_id(archived_page.url, html_content)
-                    if revision_id:
-                        archived_page.revision = revision_id
-                        logger.info(f"Extracted revision ID: {revision_id}")
-            except Exception as e:
-                logger.warning(f"Failed to generate HTML from MHTML: {e}")
+        # Create ArchivedPage record
+        archived_page = ArchivedPage(
+            url=final_url,
+            fetch_timestamp=now,
+            wikipedia_project_id=wikipedia_project_id,
+        )
+        db.add(archived_page)
+        db.flush()
 
-        # Save markdown content
-        markdown_content = result.markdown
-        if markdown_content:
-            markdown_path = archive.save_archived_content(
-                archived_page.path_root, "md", markdown_content
-            )
-            logger.info(f"Saved markdown content: {markdown_path}")
+        # Link languages from Wikipedia project
+        archived_page.link_languages_from_project(db)
+        db.flush()
+
+        # Save all content files
+        archived_page.save_archived_files(result.mhtml, html_content, result.markdown)
 
         db.commit()
         return archived_page

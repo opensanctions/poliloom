@@ -10,7 +10,10 @@ from poliloom.enrichment import (
     store_extracted_data,
     count_politicians_with_unevaluated,
     enrich_batch,
-    extract_revision_id,
+    extract_permanent_url,
+    _convert_mhtml_to_html,
+    _resolve_final_url,
+    fetch_and_archive_page,
     ExtractedProperty,
     ExtractedPosition,
     ExtractedBirthplace,
@@ -643,11 +646,11 @@ class TestEnrichBatch:
         assert mock_enrich.call_count == 3  # Called 3 times, but only 2 successful
 
 
-class TestExtractRevisionId:
-    """Test extract_revision_id function with real-world examples."""
+class TestExtractPermanentUrl:
+    """Test extract_permanent_url function with real-world examples."""
 
-    def test_extract_revision_with_matching_title(self):
-        """Test extracting revision ID when title matches (real example from archives)."""
+    def test_extract_permanent_url_with_matching_title(self):
+        """Test extracting permanent URL when title matches (real example from archives)."""
         # Real-world example from archives/2025/10/07/b6553eb9883d84dd.html
         url = "https://en.wikipedia.org/wiki/Mirjam_Blaak"
         html_snippet = """
@@ -659,11 +662,14 @@ class TestExtractRevisionId:
         </li>
         """
 
-        revision_id = extract_revision_id(url, html_snippet)
-        assert revision_id == "1314222018"
+        permanent_url = extract_permanent_url(url, html_snippet)
+        assert (
+            permanent_url
+            == "https://en.wikipedia.org/w/index.php?title=Mirjam_Blaak&oldid=1314222018"
+        )
 
-    def test_extract_revision_with_url_encoded_title(self):
-        """Test extracting revision ID with URL-encoded characters."""
+    def test_extract_permanent_url_with_url_encoded_title(self):
+        """Test extracting permanent URL with URL-encoded characters."""
         # Real-world example from archives with URL-encoded title
         url = "https://es.wikipedia.org/wiki/Luis_Mario_Aparcero_Fernández"
         html_snippet = """
@@ -671,11 +677,14 @@ class TestExtractRevisionId:
            title="Enlace permanente">Enlace permanente</a>
         """
 
-        revision_id = extract_revision_id(url, html_snippet)
-        assert revision_id == "169232970"
+        permanent_url = extract_permanent_url(url, html_snippet)
+        assert (
+            permanent_url
+            == "https://es.wikipedia.org/w/index.php?title=Luis_Mario_Aparcero_Fern%C3%A1ndez&oldid=169232970"
+        )
 
-    def test_extract_revision_with_non_latin_characters(self):
-        """Test extracting revision ID with non-Latin characters."""
+    def test_extract_permanent_url_with_non_latin_characters(self):
+        """Test extracting permanent URL with non-Latin characters."""
         # Real-world example from archives with Azerbaijani characters
         url = "https://az.wikipedia.org/wiki/Yalçın_Rəfiyev"
         html_snippet = """
@@ -683,10 +692,13 @@ class TestExtractRevisionId:
            title="Daimi keçid">Daimi keçid</a>
         """
 
-        revision_id = extract_revision_id(url, html_snippet)
-        assert revision_id == "8154095"
+        permanent_url = extract_permanent_url(url, html_snippet)
+        assert (
+            permanent_url
+            == "https://az.wikipedia.org/w/index.php?title=Yal%C3%A7%C4%B1n_R%C9%99fiyev&oldid=8154095"
+        )
 
-    def test_extract_revision_multiple_oldids_returns_matching_one(self):
+    def test_extract_permanent_url_multiple_oldids_returns_matching_one(self):
         """Test that when multiple oldid links exist, we extract the one matching our URL."""
         url = "https://en.wikipedia.org/wiki/Petra_Butler"
         html_snippet = """
@@ -695,21 +707,24 @@ class TestExtractRevisionId:
         <a href="https://en.wikipedia.org/w/index.php?title=Another_Page&amp;oldid=8888888">Another</a>
         """
 
-        revision_id = extract_revision_id(url, html_snippet)
-        # Should return the oldid for Petra_Butler, not the others
-        assert revision_id == "1292404970"
+        permanent_url = extract_permanent_url(url, html_snippet)
+        # Should return the permanent URL for Petra_Butler, not the others
+        assert (
+            permanent_url
+            == "https://en.wikipedia.org/w/index.php?title=Petra_Butler&oldid=1292404970"
+        )
 
-    def test_extract_revision_wrong_title_returns_none(self):
-        """Test that oldid is not extracted when title doesn't match."""
+    def test_extract_permanent_url_wrong_title_returns_none(self):
+        """Test that permanent URL is not extracted when title doesn't match."""
         url = "https://en.wikipedia.org/wiki/Mirjam_Blaak"
         html_snippet = """
         <a href="https://en.wikipedia.org/w/index.php?title=Different_Page&amp;oldid=1234567890">Link</a>
         """
 
-        revision_id = extract_revision_id(url, html_snippet)
-        assert revision_id is None
+        permanent_url = extract_permanent_url(url, html_snippet)
+        assert permanent_url is None
 
-    def test_extract_revision_no_oldid_in_html(self):
+    def test_extract_permanent_url_no_oldid_in_html(self):
         """Test when no oldid is present in HTML."""
         url = "https://en.wikipedia.org/wiki/Test_Page"
         html_snippet = """
@@ -718,20 +733,20 @@ class TestExtractRevisionId:
         </div>
         """
 
-        revision_id = extract_revision_id(url, html_snippet)
-        assert revision_id is None
+        permanent_url = extract_permanent_url(url, html_snippet)
+        assert permanent_url is None
 
-    def test_extract_revision_invalid_url_format(self):
+    def test_extract_permanent_url_invalid_url_format(self):
         """Test with non-Wikipedia URL format."""
         url = "https://example.com/page"
         html_snippet = """
         <a href="https://en.wikipedia.org/w/index.php?title=Something&amp;oldid=123">Link</a>
         """
 
-        revision_id = extract_revision_id(url, html_snippet)
-        assert revision_id is None
+        permanent_url = extract_permanent_url(url, html_snippet)
+        assert permanent_url is None
 
-    def test_extract_revision_from_printfooter(self):
+    def test_extract_permanent_url_from_printfooter(self):
         """Test extracting from printfooter section (real pattern from archives)."""
         url = "https://en.wikipedia.org/wiki/Petra_Butler"
         html_snippet = """
@@ -741,15 +756,225 @@ class TestExtractRevisionId:
         </div>
         """
 
-        revision_id = extract_revision_id(url, html_snippet)
-        assert revision_id == "1292404970"
+        permanent_url = extract_permanent_url(url, html_snippet)
+        assert (
+            permanent_url
+            == "https://en.wikipedia.org/w/index.php?title=Petra_Butler&oldid=1292404970"
+        )
 
-    def test_extract_revision_with_space_in_title(self):
-        """Test extracting revision with underscores/spaces in title."""
+    def test_extract_permanent_url_with_space_in_title(self):
+        """Test extracting permanent URL with underscores/spaces in title."""
         url = "https://fy.wikipedia.org/wiki/Eddie_van_Marum"
         html_snippet = """
         <a href="https://fy.wikipedia.org/w/index.php?title=Eddie_van_Marum&amp;oldid=1179777">Link</a>
         """
 
-        revision_id = extract_revision_id(url, html_snippet)
-        assert revision_id == "1179777"
+        permanent_url = extract_permanent_url(url, html_snippet)
+        assert (
+            permanent_url
+            == "https://fy.wikipedia.org/w/index.php?title=Eddie_van_Marum&oldid=1179777"
+        )
+
+
+class TestConvertMhtmlToHtml:
+    """Test _convert_mhtml_to_html private function."""
+
+    def test_convert_mhtml_to_html_success(self):
+        """Test successful MHTML to HTML conversion."""
+        mhtml_content = "MHTML content here"
+        expected_html = "<html>Converted content</html>"
+
+        with patch("poliloom.enrichment.MHTMLConverter") as mock_converter_class:
+            mock_converter = Mock()
+            mock_converter.convert.return_value = expected_html
+            mock_converter_class.return_value = mock_converter
+
+            result = _convert_mhtml_to_html(mhtml_content)
+
+            assert result == expected_html
+            mock_converter.convert.assert_called_once_with(mhtml_content)
+
+    def test_convert_mhtml_to_html_none_input(self):
+        """Test that None input returns None."""
+        result = _convert_mhtml_to_html(None)
+        assert result is None
+
+    def test_convert_mhtml_to_html_conversion_error(self):
+        """Test that conversion errors return None."""
+        mhtml_content = "MHTML content"
+
+        with patch("poliloom.enrichment.MHTMLConverter") as mock_converter_class:
+            mock_converter = Mock()
+            mock_converter.convert.side_effect = Exception("Conversion failed")
+            mock_converter_class.return_value = mock_converter
+
+            result = _convert_mhtml_to_html(mhtml_content)
+            assert result is None
+
+
+class TestResolveFinalUrl:
+    """Test _resolve_final_url private function."""
+
+    def test_resolve_final_url_without_wikipedia_project(self):
+        """Test that original URL is returned when no wikipedia_project_id."""
+        url = "https://example.com/article"
+        html_content = "<html>Content</html>"
+
+        result = _resolve_final_url(url, html_content, wikipedia_project_id=None)
+        assert result == url
+
+    def test_resolve_final_url_without_html_content(self):
+        """Test that original URL is returned when no html_content."""
+        url = "https://en.wikipedia.org/wiki/Test"
+
+        result = _resolve_final_url(url, None, wikipedia_project_id="Q328")
+        assert result == url
+
+    def test_resolve_final_url_with_permanent_url(self):
+        """Test that permanent URL is extracted when available."""
+        url = "https://en.wikipedia.org/wiki/Test_Page"
+        html_content = """
+        <a href="https://en.wikipedia.org/w/index.php?title=Test_Page&amp;oldid=123456789">Permanent</a>
+        """
+
+        result = _resolve_final_url(url, html_content, wikipedia_project_id="Q328")
+        assert (
+            result
+            == "https://en.wikipedia.org/w/index.php?title=Test_Page&oldid=123456789"
+        )
+
+    def test_resolve_final_url_no_permanent_url_found(self):
+        """Test that original URL is returned when no permanent URL found in HTML."""
+        url = "https://en.wikipedia.org/wiki/Test_Page"
+        html_content = "<html>No permanent link here</html>"
+
+        result = _resolve_final_url(url, html_content, wikipedia_project_id="Q328")
+        assert result == url
+
+
+class TestFetchAndArchivePage:
+    """Test fetch_and_archive_page function."""
+
+    @pytest.mark.asyncio
+    async def test_fetch_and_archive_page_success(
+        self, db_session, sample_wikipedia_project
+    ):
+        """Test successful page fetch and archive."""
+        url = "https://en.wikipedia.org/wiki/Test_Page"
+
+        # Mock crawl4ai result
+        mock_result = Mock()
+        mock_result.success = True
+        mock_result.mhtml = "MHTML content"
+        mock_result.markdown = "# Markdown content"
+
+        # Create async mock for crawler
+        mock_crawler = Mock()
+
+        # Mock arun as an async function
+        async def mock_arun(*args, **kwargs):
+            return mock_result
+
+        mock_crawler.arun = mock_arun
+
+        # Mock async context manager
+        async def mock_aenter(*args):
+            return mock_crawler
+
+        async def mock_aexit(*args):
+            return None
+
+        mock_crawler.__aenter__ = mock_aenter
+        mock_crawler.__aexit__ = mock_aexit
+
+        with patch("poliloom.enrichment.AsyncWebCrawler", return_value=mock_crawler):
+            with patch("poliloom.enrichment._convert_mhtml_to_html") as mock_convert:
+                mock_convert.return_value = "<html>Converted</html>"
+
+                with patch("poliloom.enrichment._resolve_final_url") as mock_resolve:
+                    permanent_url = (
+                        "https://en.wikipedia.org/w/index.php?title=Test_Page&oldid=123"
+                    )
+                    mock_resolve.return_value = permanent_url
+
+                    archived_page = await fetch_and_archive_page(
+                        url,
+                        db_session,
+                        wikipedia_project_id=sample_wikipedia_project.wikidata_id,
+                    )
+
+                    assert archived_page.url == permanent_url
+                    assert (
+                        archived_page.wikipedia_project_id
+                        == sample_wikipedia_project.wikidata_id
+                    )
+                    mock_resolve.assert_called_once_with(
+                        url,
+                        "<html>Converted</html>",
+                        sample_wikipedia_project.wikidata_id,
+                    )
+
+    @pytest.mark.asyncio
+    async def test_fetch_and_archive_page_without_wikipedia_project(self, db_session):
+        """Test fetch and archive without Wikipedia project."""
+        url = "https://example.com/article"
+
+        mock_result = Mock()
+        mock_result.success = True
+        mock_result.mhtml = "MHTML content"
+        mock_result.markdown = "# Markdown content"
+
+        # Create async mock for crawler
+        mock_crawler = Mock()
+
+        async def mock_arun(*args, **kwargs):
+            return mock_result
+
+        mock_crawler.arun = mock_arun
+
+        async def mock_aenter(*args):
+            return mock_crawler
+
+        async def mock_aexit(*args):
+            return None
+
+        mock_crawler.__aenter__ = mock_aenter
+        mock_crawler.__aexit__ = mock_aexit
+
+        with patch("poliloom.enrichment.AsyncWebCrawler", return_value=mock_crawler):
+            with patch("poliloom.enrichment._convert_mhtml_to_html") as mock_convert:
+                mock_convert.return_value = "<html>Converted</html>"
+
+                archived_page = await fetch_and_archive_page(url, db_session)
+
+                assert archived_page.url == url
+                assert archived_page.wikipedia_project_id is None
+
+    @pytest.mark.asyncio
+    async def test_fetch_and_archive_page_crawl_failure(self, db_session):
+        """Test handling of crawl failure."""
+        url = "https://example.com/article"
+
+        mock_result = Mock()
+        mock_result.success = False
+
+        # Create async mock for crawler
+        mock_crawler = Mock()
+
+        async def mock_arun(*args, **kwargs):
+            return mock_result
+
+        mock_crawler.arun = mock_arun
+
+        async def mock_aenter(*args):
+            return mock_crawler
+
+        async def mock_aexit(*args):
+            return None
+
+        mock_crawler.__aenter__ = mock_aenter
+        mock_crawler.__aexit__ = mock_aexit
+
+        with patch("poliloom.enrichment.AsyncWebCrawler", return_value=mock_crawler):
+            with pytest.raises(RuntimeError, match="Failed to crawl page"):
+                await fetch_and_archive_page(url, db_session)
