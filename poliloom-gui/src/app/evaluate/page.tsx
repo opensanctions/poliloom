@@ -23,9 +23,9 @@ export default function EvaluatePage() {
               <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
                 <p className="text-gray-600">
                   Currently no politicians available, we&apos;re enriching more. You can wait a
-                  minute, change your filter{' '}
+                  minute, change your{' '}
                   <Link href="/" className="text-gray-700 hover:text-gray-900 underline">
-                    preferences
+                    filters
                   </Link>
                   , or{' '}
                   <button

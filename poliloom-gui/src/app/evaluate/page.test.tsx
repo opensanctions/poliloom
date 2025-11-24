@@ -47,7 +47,7 @@ describe('Evaluate Page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    // Mock fetch for PreferencesProvider API calls
+    // Mock fetch for API calls
     vi.mocked(fetch).mockImplementation((url) => {
       const urlStr = url.toString()
 
@@ -122,7 +122,7 @@ describe('Evaluate Page', () => {
     expect(
       screen.getByText(/Currently no politicians available, we're enriching more/),
     ).toBeInTheDocument()
-    expect(screen.getByText('preferences')).toBeInTheDocument()
+    expect(screen.getByText('filters')).toBeInTheDocument()
     expect(screen.getByText('reload')).toBeInTheDocument()
   })
 
