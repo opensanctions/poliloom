@@ -100,6 +100,16 @@ def create_entity_endpoint(
 # Simple endpoints for reference data (languages and countries)
 @router.get("/languages", response_model=List[LanguageResponse])
 async def get_languages(
+    limit: int = Query(
+        default=100,
+        le=1000,
+        description="Maximum number of languages to return",
+    ),
+    offset: int = Query(default=0, ge=0, description="Number of languages to skip"),
+    search: Optional[str] = Query(
+        default=None,
+        description="Search languages by name/label using fuzzy matching",
+    ),
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -145,6 +155,13 @@ async def get_languages(
         )
     )
 
+    # Apply search filter if provided
+    if search:
+        query = Language.search_by_label(query, search)
+
+    # Apply offset and limit
+    query = query.offset(offset).limit(limit)
+
     results = db.execute(query).all()
 
     return [
@@ -163,6 +180,16 @@ async def get_languages(
 
 @router.get("/countries", response_model=List[CountryResponse])
 async def get_countries(
+    limit: int = Query(
+        default=100,
+        le=1000,
+        description="Maximum number of countries to return",
+    ),
+    offset: int = Query(default=0, ge=0, description="Number of countries to skip"),
+    search: Optional[str] = Query(
+        default=None,
+        description="Search countries by name/label using fuzzy matching",
+    ),
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -200,6 +227,13 @@ async def get_countries(
             .selectinload(WikidataRelation.parent_entity)
         )
     )
+
+    # Apply search filter if provided
+    if search:
+        query = Country.search_by_label(query, search)
+
+    # Apply offset and limit
+    query = query.offset(offset).limit(limit)
 
     results = db.execute(query).all()
 
