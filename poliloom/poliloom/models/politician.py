@@ -700,11 +700,14 @@ class ArchivedPage(Base, TimestampMixin):
         For Wikipedia sources (when wikipedia_project_id exists):
         - P4656 (Wikimedia import URL) if URL contains oldid, otherwise P854 (reference URL)
         - P143 (imported from): Wikipedia project (e.g., Q328 for English Wikipedia)
+        - P813 (retrieved): Date when the page was fetched
 
         For non-Wikipedia sources:
         - P854 (reference URL): The page URL
+        - P813 (retrieved): Date when the page was fetched
         """
         from urllib.parse import urlparse, parse_qs
+        from ..wikidata_date import WikidataDate
 
         references = []
 
@@ -744,6 +747,20 @@ class ArchivedPage(Base, TimestampMixin):
                 {
                     "property": {"id": "P854"},  # Reference URL
                     "value": {"type": "value", "content": self.url},
+                }
+            )
+
+        # Add P813 (retrieved date) for all sources
+        fetch_date_str = self.fetch_timestamp.strftime("%Y-%m-%d")
+        wikidata_date = WikidataDate.from_date_string(fetch_date_str)
+        if wikidata_date:
+            references.append(
+                {
+                    "property": {"id": "P813"},  # Retrieved date
+                    "value": {
+                        "type": "time",
+                        "content": wikidata_date.to_wikidata_value(),
+                    },
                 }
             )
 

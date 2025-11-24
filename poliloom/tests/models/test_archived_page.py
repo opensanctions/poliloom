@@ -16,7 +16,7 @@ class TestArchivedPage:
     def test_create_references_json_with_wikipedia_project(
         self, db_session, sample_wikipedia_project
     ):
-        """Test that create_references_json includes P854 and P143 for Wikipedia projects."""
+        """Test that create_references_json includes P854, P143, and P813 for Wikipedia projects."""
         # Create an archived page with a Wikipedia project ID
         archived_page = ArchivedPage(
             url="https://en.wikipedia.org/wiki/Example",
@@ -28,8 +28,8 @@ class TestArchivedPage:
 
         references_json = archived_page.create_references_json()
 
-        # Should include both P854 (reference URL) and P143 (imported from)
-        assert len(references_json) == 2
+        # Should include P854 (reference URL), P143 (imported from), and P813 (retrieved)
+        assert len(references_json) == 3
 
         # First reference should be P854 (reference URL)
         assert references_json[0]["property"]["id"] == "P854"
@@ -43,6 +43,10 @@ class TestArchivedPage:
         assert references_json[1]["property"]["id"] == "P143"
         assert references_json[1]["value"]["type"] == "value"
         assert references_json[1]["value"]["content"] == "Q328"
+
+        # Third reference should be P813 (retrieved date)
+        assert references_json[2]["property"]["id"] == "P813"
+        assert references_json[2]["value"]["type"] == "time"
 
     def test_link_languages_from_project_with_languages(
         self, db_session, sample_wikipedia_project, sample_language
@@ -199,7 +203,7 @@ class TestArchivedPage:
             assert mock_save.call_count == 0
 
     def test_create_references_json_without_wikipedia_project(self, db_session):
-        """Test that create_references_json uses P854 for non-Wikipedia sources."""
+        """Test that create_references_json uses P854 and P813 for non-Wikipedia sources."""
         # Create an archived page without a Wikipedia project ID
         archived_page = ArchivedPage(
             url="https://example.com/article",
@@ -211,8 +215,77 @@ class TestArchivedPage:
 
         references_json = archived_page.create_references_json()
 
-        # Should use P854 (reference URL) for non-Wikipedia sources
-        assert len(references_json) == 1
+        # Should include P854 (reference URL) and P813 (retrieved date) for non-Wikipedia sources
+        assert len(references_json) == 2
         assert references_json[0]["property"]["id"] == "P854"
         assert references_json[0]["value"]["type"] == "value"
         assert references_json[0]["value"]["content"] == "https://example.com/article"
+
+        # Second reference should be P813 (retrieved date)
+        assert references_json[1]["property"]["id"] == "P813"
+        assert references_json[1]["value"]["type"] == "time"
+
+    def test_create_references_json_p813_retrieved_date_format(self, db_session):
+        """Test that P813 (retrieved date) is correctly formatted with proper Wikidata time value."""
+        # Create an archived page with a specific fetch timestamp
+        fetch_time = datetime(2025, 11, 24, 10, 30, 45, tzinfo=timezone.utc)
+        archived_page = ArchivedPage(
+            url="https://example.com/test",
+            fetch_timestamp=fetch_time,
+            wikipedia_project_id=None,
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
+        references_json = archived_page.create_references_json()
+
+        # Find P813 reference
+        p813_refs = [r for r in references_json if r["property"]["id"] == "P813"]
+        assert len(p813_refs) == 1, "Should have exactly one P813 reference"
+
+        p813_ref = p813_refs[0]
+
+        # Verify structure
+        assert p813_ref["value"]["type"] == "time"
+        assert "content" in p813_ref["value"]
+
+        # Verify Wikidata time value format
+        time_value = p813_ref["value"]["content"]
+        assert time_value["time"] == "+2025-11-24T00:00:00Z"
+        assert time_value["precision"] == 11  # Day precision
+        assert time_value["timezone"] == 0
+        assert time_value["before"] == 0
+        assert time_value["after"] == 0
+        assert time_value["calendarmodel"] == "http://www.wikidata.org/entity/Q1985727"
+
+    def test_create_references_json_with_oldid_uses_p4656(
+        self, db_session, sample_wikipedia_project
+    ):
+        """Test that Wikipedia URLs with oldid parameter use P4656 instead of P854."""
+        # Create an archived page with oldid in URL
+        archived_page = ArchivedPage(
+            url="https://en.wikipedia.org/wiki/Example?oldid=123456",
+            fetch_timestamp=datetime.now(timezone.utc),
+            wikipedia_project_id=sample_wikipedia_project.wikidata_id,
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
+        references_json = archived_page.create_references_json()
+
+        # Should have P4656, P143, and P813
+        assert len(references_json) == 3
+
+        # First reference should be P4656 (Wikimedia import URL) instead of P854
+        assert references_json[0]["property"]["id"] == "P4656"
+        assert references_json[0]["value"]["type"] == "value"
+        assert (
+            references_json[0]["value"]["content"]
+            == "https://en.wikipedia.org/wiki/Example?oldid=123456"
+        )
+
+        # Second reference should be P143 (imported from)
+        assert references_json[1]["property"]["id"] == "P143"
+
+        # Third reference should be P813 (retrieved date)
+        assert references_json[2]["property"]["id"] == "P813"
