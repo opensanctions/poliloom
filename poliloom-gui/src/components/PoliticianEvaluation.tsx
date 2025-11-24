@@ -58,11 +58,12 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
     }
   }, [selectedProofLine, isIframeLoaded, handleProofLineChange])
 
-  const handleEvaluate = (propertyId: string, action: 'confirm' | 'discard') => {
+  const handleEvaluate = (propertyId: string, action: 'accept' | 'reject') => {
     setEvaluations((prev) => {
       const newMap = new Map(prev)
       const currentValue = newMap.get(propertyId)
-      const targetValue = action === 'confirm'
+      // Map accept to true, reject to false
+      const targetValue = action === 'accept'
 
       if (currentValue === targetValue) {
         // Toggle off - remove from map
@@ -97,9 +98,9 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
     setIsSubmitting(true)
 
     const evaluationItems: EvaluationItem[] = Array.from(evaluations.entries()).map(
-      ([id, isConfirmed]) => ({
+      ([id, isAccepted]) => ({
         id,
-        is_confirmed: isConfirmed,
+        is_accepted: isAccepted,
       }),
     )
 

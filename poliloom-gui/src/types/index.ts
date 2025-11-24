@@ -55,7 +55,7 @@ export interface Politician {
 
 export interface EvaluationItem {
   id: string
-  is_confirmed: boolean
+  is_accepted: boolean
 }
 
 export interface EvaluationRequest {

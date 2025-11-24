@@ -83,9 +83,9 @@ const samplePropertyAccept: Property = {
   },
 }
 
-const samplePropertyDiscard: Property = {
-  key: 'demo-property-discard',
-  id: 'demo-property-discard',
+const samplePropertyReject: Property = {
+  key: 'demo-property-reject',
+  id: 'demo-property-reject',
   type: PropertyType.P569,
   value: '+1992-01-01T00:00:00Z',
   value_precision: 9,
@@ -98,7 +98,7 @@ const samplePropertyDiscard: Property = {
   },
 }
 
-// Sample property that's already in Wikidata (for discard demo)
+// Sample property that's already in Wikidata (for deprecate demo)
 const wikidataProperty: Property = {
   key: 'demo-wikidata-property',
   id: 'demo-wikidata-property',
@@ -154,8 +154,8 @@ export default function GuidePage() {
   // All evaluation maps locked to their demo states
   const skipEvaluations = new Map<string, boolean>()
   const acceptEvaluations = new Map<string, boolean>([['demo-property-accept', true]])
-  const discardEvaluations = new Map<string, boolean>([['demo-property-discard', false]])
-  const wikidataEvaluations = new Map<string, boolean>([['demo-wikidata-property', false]])
+  const rejectEvaluations = new Map<string, boolean>([['demo-property-reject', false]])
+  const deprecateEvaluations = new Map<string, boolean>([['demo-wikidata-property', false]])
 
   return (
     <>
@@ -163,7 +163,7 @@ export default function GuidePage() {
       <main className="bg-gray-50 min-h-0 overflow-y-auto">
         <Hero
           title="How It Works"
-          description="Learn how to review and evaluate politician data for Wikidata. This guide will walk you through the process of confirming birth dates, positions, and other details extracted from government sources."
+          description="Learn how to review and evaluate politician data for Wikidata. This guide will walk you through the process of accepting or rejecting birth dates, positions, and other details extracted from government sources."
         />
 
         <div className="max-w-6xl mx-auto px-8 py-12">
@@ -177,15 +177,15 @@ export default function GuidePage() {
                   Your job is simple:{' '}
                   <strong className="text-gray-900">review these proposed edits</strong> and decide
                   whether they&apos;re accurate enough to add to Wikidata. You&apos;ll see extracted
-                  statements like birth dates, positions, and birthplaces that need your
-                  confirmation before being added.
+                  statements like birth dates, positions, and birthplaces that need your acceptance
+                  before being added.
                 </p>
 
                 <p className="text-gray-600 leading-relaxed">
                   Each statement includes a{' '}
                   <strong className="text-gray-900">&quot;view archive&quot; button</strong> that
                   shows you the original source page with the relevant text highlighted. Use this to
-                  verify the information before confirming or discarding.
+                  verify the information before accepting or rejecting.
                 </p>
               </div>
             </div>
@@ -236,8 +236,8 @@ export default function GuidePage() {
                 <p className="text-gray-600 leading-relaxed">
                   This distinction is important because{' '}
                   <strong className="text-gray-900">
-                    accepting extracted data adds something new, while discarding Wikidata data
-                    removes something that&apos;s already there
+                    accepting extracted data adds something new, while deprecating Wikidata data
+                    marks something that&apos;s already there as outdated
                   </strong>
                   .
                 </p>
@@ -270,18 +270,18 @@ export default function GuidePage() {
                   </div>
                 </div>
 
-                {/* Discard example */}
+                {/* Reject example */}
                 <div>
                   <EvaluationItem title="Birth Date" hasNewData={true}>
                     <PropertyDisplay
-                      property={samplePropertyDiscard}
-                      evaluations={discardEvaluations}
+                      property={samplePropertyReject}
+                      evaluations={rejectEvaluations}
                     />
                   </EvaluationItem>
                   <div className="mt-3 prose max-w-none">
                     <p className="text-gray-600 leading-relaxed">
-                      <strong className="text-gray-900">Discard:</strong> Mark this data as
-                      incorrect or unreliable. Discarded items will not be added to Wikidata.
+                      <strong className="text-gray-900">Reject:</strong> Mark this data as incorrect
+                      or unreliable. Rejected items will not be added to Wikidata.
                     </p>
                   </div>
                 </div>
@@ -322,7 +322,7 @@ export default function GuidePage() {
                 Sometimes you might want to replace existing Wikidata data with more accurate
                 information. To do this,{' '}
                 <strong className="text-gray-900">
-                  you can discard the old statement and accept the new one
+                  you can deprecate the old statement and accept the new one
                 </strong>
                 . However,{' '}
                 <strong className="text-gray-900">
@@ -332,7 +332,7 @@ export default function GuidePage() {
               <EvaluationItem title={wikidataProperty.entity_name} hasNewData={false}>
                 <PropertyDisplay
                   property={wikidataProperty}
-                  evaluations={wikidataEvaluations}
+                  evaluations={deprecateEvaluations}
                   shouldAutoOpen={false}
                 />
               </EvaluationItem>
@@ -340,9 +340,9 @@ export default function GuidePage() {
               {/* Explanation paragraph */}
               <div className="mt-4 prose max-w-none">
                 <p className="text-gray-600 leading-relaxed">
-                  If there&apos;s no metadata attached, it&apos;s perfectly fine to discard and
+                  If there&apos;s no metadata attached, it&apos;s perfectly fine to deprecate and
                   replace with more correct data. However, if the existing statement has metadata,
-                  consider editing it directly on Wikidata instead , as PoliLoom currently
+                  consider editing it directly on Wikidata instead, as PoliLoom currently
                   doesn&apos;t support editing metadata.{' '}
                   <strong className="text-gray-900">When in doubt, skip it</strong> and let someone
                   else take a closer look.

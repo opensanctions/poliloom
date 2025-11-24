@@ -9,7 +9,7 @@ import { WikidataMetadataButtons, WikidataMetadataPanel } from './WikidataMetada
 interface PropertyDisplayProps {
   property: Property
   evaluations: Map<string, boolean>
-  onAction?: (propertyId: string, action: 'confirm' | 'discard') => void
+  onAction?: (propertyId: string, action: 'accept' | 'reject') => void
   onShowArchived?: (property: Property) => void
   onHover?: (property: Property) => void
   activeArchivedPageId?: string | null
@@ -28,13 +28,18 @@ export function PropertyDisplay({
   const [openSection, setOpenSection] = useState<'qualifiers' | 'references' | null>(null)
   const [wasAutoOpened, setWasAutoOpened] = useState(false)
 
-  const isDiscarding = !!property.statement_id && evaluations.get(property.key) === false
+  const isDiscarding = evaluations.get(property.key) === false
   const hasQualifiers = property.qualifiers && Object.keys(property.qualifiers).length > 0
   const hasReferences = property.references && property.references.length > 0
 
-  // Auto-open panel when discarding
+  // Auto-open panel when discarding existing Wikidata statements (to show what metadata will be lost)
   useLayoutEffect(() => {
-    if (shouldAutoOpen && isDiscarding && (hasQualifiers || hasReferences)) {
+    if (
+      shouldAutoOpen &&
+      isDiscarding &&
+      !!property.statement_id &&
+      (hasQualifiers || hasReferences)
+    ) {
       if (openSection === null) {
         setWasAutoOpened(true)
         setOpenSection(hasQualifiers ? 'qualifiers' : 'references')
@@ -116,21 +121,21 @@ export function PropertyDisplay({
         <WikidataMetadataButtons
           qualifiers={property.qualifiers}
           references={property.references}
-          isDiscarding={isDiscarding}
+          isDiscarding={isDiscarding && !!property.statement_id}
           openSection={openSection}
           onToggle={handleToggle}
         />
         <EvaluationActions
           statementId={property.key}
           isWikidataStatement={!!property.statement_id}
-          isConfirmed={evaluations.get(property.key) ?? null}
+          isAccepted={evaluations.get(property.key) ?? null}
           onAction={onAction}
         />
       </div>
       <WikidataMetadataPanel
         qualifiers={property.qualifiers}
         references={property.references}
-        isDiscarding={isDiscarding}
+        isDiscarding={isDiscarding && !!property.statement_id}
         openSection={openSection}
       />
     </div>

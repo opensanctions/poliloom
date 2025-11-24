@@ -193,7 +193,7 @@ export const mockPoliticianExistingOnly: Politician = {
   id: 'pol-existing',
   name: 'Existing Only Politician',
   wikidata_id: 'Q555666',
-  properties: [], // No unconfirmed properties - everything exists in Wikidata already
+  properties: [], // No unevaluated properties - everything exists in Wikidata already
 }
 
 export const mockPoliticianWithEdgeCases: Politician = {

@@ -7,7 +7,7 @@ import { EntityLink } from './EntityLink'
 interface PropertiesEvaluationProps {
   properties: Property[]
   evaluations: Map<string, boolean>
-  onAction: (propertyId: string, action: 'confirm' | 'discard') => void
+  onAction: (propertyId: string, action: 'accept' | 'reject') => void
   onShowArchived: (property: Property) => void
   onHover: (property: Property) => void
   activeArchivedPageId: string | null

@@ -125,19 +125,19 @@ describe('PoliticianEvaluation', () => {
     expect(wikidataLink).toHaveAttribute('target', '_blank')
   })
 
-  it('allows users to evaluate items by confirming or discarding', () => {
+  it('allows users to evaluate items by accepting or rejecting', () => {
     render(<PoliticianEvaluation {...defaultProps} />)
 
-    const confirmButton = screen.getAllByText('✓ Confirm')[0]
-    const discardButton = screen.getAllByText('× Discard')[0]
+    const acceptButton = screen.getAllByText('✓ Accept')[0]
+    const rejectButton = screen.getAllByText('× Reject')[0]
 
-    // User can confirm an item - button should provide visual feedback
-    fireEvent.click(confirmButton)
-    expect(confirmButton).toHaveAttribute('class', expect.stringContaining('green'))
+    // User can accept an item - button should provide visual feedback
+    fireEvent.click(acceptButton)
+    expect(acceptButton).toHaveAttribute('class', expect.stringContaining('green'))
 
-    // User can change their mind and discard instead
-    fireEvent.click(discardButton)
-    expect(discardButton).toHaveAttribute('class', expect.stringContaining('red'))
+    // User can change their mind and reject instead
+    fireEvent.click(rejectButton)
+    expect(rejectButton).toHaveAttribute('class', expect.stringContaining('red'))
     // Note: In the current implementation, both buttons can appear selected
     // This tests the behavior as implemented rather than ideal UX
   })
@@ -147,18 +147,18 @@ describe('PoliticianEvaluation', () => {
 
     render(<PoliticianEvaluation {...defaultProps} />)
 
-    const confirmButtons = screen.getAllByText('✓ Confirm')
-    const discardButtons = screen.getAllByText('× Discard')
+    const acceptButtons = screen.getAllByText('✓ Accept')
+    const rejectButtons = screen.getAllByText('× Reject')
 
     // Make multiple evaluations to ensure state clearing is comprehensive
-    fireEvent.click(confirmButtons[0]) // First item confirmed
-    if (confirmButtons[1]) fireEvent.click(confirmButtons[1]) // Second item confirmed
-    if (discardButtons[0]) fireEvent.click(discardButtons[0]) // First item changed to discard
+    fireEvent.click(acceptButtons[0]) // First item accepted
+    if (acceptButtons[1]) fireEvent.click(acceptButtons[1]) // Second item accepted
+    if (rejectButtons[0]) fireEvent.click(rejectButtons[0]) // First item changed to reject
 
     // Verify buttons show selected state before submission
-    expect(discardButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-red-600')) // Selected state
-    if (confirmButtons[1]) {
-      expect(confirmButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-green-600')) // Selected state
+    expect(rejectButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-red-600')) // Selected state
+    if (acceptButtons[1]) {
+      expect(acceptButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-green-600')) // Selected state
     }
 
     const submitButton = screen.getByText('Submit Evaluations & Next')
@@ -166,22 +166,22 @@ describe('PoliticianEvaluation', () => {
 
     await waitFor(() => {
       expect(mockSubmitEvaluation).toHaveBeenCalledWith([
-        { id: 'prop-1', is_confirmed: false }, // discarded
-        ...(confirmButtons[1] ? [{ id: 'pos-1', is_confirmed: true }] : []), // confirmed if exists
+        { id: 'prop-1', is_accepted: false }, // rejected
+        ...(acceptButtons[1] ? [{ id: 'pos-1', is_accepted: true }] : []), // accepted if exists
       ])
     })
 
     // Verify evaluation state is cleared after successful submission
     // Buttons should revert to unselected state (no longer have dark backgrounds)
     await waitFor(() => {
-      expect(discardButtons[0]).not.toHaveAttribute('class', expect.stringContaining('bg-red-600')) // Should be unselected
-      expect(discardButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-red-100')) // Should be default state
-      if (confirmButtons[1]) {
-        expect(confirmButtons[1]).not.toHaveAttribute(
+      expect(rejectButtons[0]).not.toHaveAttribute('class', expect.stringContaining('bg-red-600')) // Should be unselected
+      expect(rejectButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-red-100')) // Should be default state
+      if (acceptButtons[1]) {
+        expect(acceptButtons[1]).not.toHaveAttribute(
           'class',
           expect.stringContaining('bg-green-600'),
         ) // Should be unselected
-        expect(confirmButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-green-100')) // Should be default state
+        expect(acceptButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-green-100')) // Should be default state
       }
     })
   })
@@ -192,17 +192,17 @@ describe('PoliticianEvaluation', () => {
 
     render(<PoliticianEvaluation {...defaultProps} />)
 
-    const confirmButtons = screen.getAllByText('✓ Confirm')
-    const discardButtons = screen.getAllByText('× Discard')
+    const acceptButtons = screen.getAllByText('✓ Accept')
+    const rejectButtons = screen.getAllByText('× Reject')
 
     // Make evaluations
-    fireEvent.click(confirmButtons[0]) // First item confirmed
-    if (discardButtons[1]) fireEvent.click(discardButtons[1]) // Second item discarded
+    fireEvent.click(acceptButtons[0]) // First item accepted
+    if (rejectButtons[1]) fireEvent.click(rejectButtons[1]) // Second item rejected
 
     // Verify buttons show selected state before submission
-    expect(confirmButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')) // Selected state
-    if (discardButtons[1]) {
-      expect(discardButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-red-600')) // Selected state
+    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')) // Selected state
+    if (rejectButtons[1]) {
+      expect(rejectButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-red-600')) // Selected state
     }
 
     const submitButton = screen.getByText('Submit Evaluations & Next')
@@ -215,9 +215,9 @@ describe('PoliticianEvaluation', () => {
 
     // Most importantly: verify evaluation state is PRESERVED after failed submission
     // Buttons should still show their selected state
-    expect(confirmButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')) // Should remain selected
-    if (discardButtons[1]) {
-      expect(discardButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-red-600')) // Should remain selected
+    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')) // Should remain selected
+    if (rejectButtons[1]) {
+      expect(rejectButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-red-600')) // Should remain selected
     }
   })
 
@@ -227,13 +227,13 @@ describe('PoliticianEvaluation', () => {
 
     render(<PoliticianEvaluation {...defaultProps} />)
 
-    const confirmButtons = screen.getAllByText('✓ Confirm')
+    const acceptButtons = screen.getAllByText('✓ Accept')
 
     // Make an evaluation
-    fireEvent.click(confirmButtons[0])
+    fireEvent.click(acceptButtons[0])
 
     // Verify button shows selected state before submission
-    expect(confirmButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')) // Selected state
+    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')) // Selected state
 
     const submitButton = screen.getByText('Submit Evaluations & Next')
     fireEvent.click(submitButton)
@@ -245,10 +245,10 @@ describe('PoliticianEvaluation', () => {
 
     // Most importantly: verify evaluation state is PRESERVED after network failure
     // Button should still show its selected state
-    expect(confirmButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')) // Should remain selected
+    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')) // Should remain selected
   })
 
-  it('does not render sections when politician has no unconfirmed data', () => {
+  it('does not render sections when politician has no unevaluated data', () => {
     render(<PoliticianEvaluation {...defaultProps} politician={mockEmptyPolitician} />)
 
     expect(screen.queryByText('Properties')).not.toBeInTheDocument()
@@ -467,11 +467,11 @@ describe('PoliticianEvaluation', () => {
         expect(propertiesSection).toBeInTheDocument()
 
         // The order should be: death_date (existing-only), birth_date (conflicted), nationality (extracted-only)
-        // Check that we have both extracted/conflicted items with confirm buttons
-        const confirmButtons = screen.getAllByText('✓ Confirm')
+        // Check that we have both extracted/conflicted items with accept buttons
+        const acceptButtons = screen.getAllByText('✓ Accept')
 
         // At least one extracted/conflicted item should exist
-        expect(confirmButtons.length).toBeGreaterThan(0)
+        expect(acceptButtons.length).toBeGreaterThan(0)
       })
     })
 
@@ -482,15 +482,15 @@ describe('PoliticianEvaluation', () => {
         expect(screen.getByText('Extracted Only Politician')).toBeInTheDocument()
 
         // Should have evaluation controls for extracted items
-        const confirmButtons = screen.getAllByText('✓ Confirm')
-        const discardButtons = screen.getAllByText('× Discard')
+        const acceptButtons = screen.getAllByText('✓ Accept')
+        const rejectButtons = screen.getAllByText('× Reject')
 
-        expect(confirmButtons.length).toBeGreaterThan(0)
-        expect(discardButtons.length).toBeGreaterThan(0)
+        expect(acceptButtons.length).toBeGreaterThan(0)
+        expect(rejectButtons.length).toBeGreaterThan(0)
 
         // Evaluation should work
-        fireEvent.click(confirmButtons[0])
-        expect(confirmButtons[0]).toHaveAttribute('class', expect.stringContaining('green'))
+        fireEvent.click(acceptButtons[0])
+        expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('green'))
       })
     })
 
@@ -501,8 +501,8 @@ describe('PoliticianEvaluation', () => {
         expect(screen.getByText('Existing Only Politician')).toBeInTheDocument()
 
         // Should not show evaluation controls for existing-only items
-        expect(screen.queryByText('✓ Confirm')).not.toBeInTheDocument()
-        expect(screen.queryByText('× Discard')).not.toBeInTheDocument()
+        expect(screen.queryByText('✓ Accept')).not.toBeInTheDocument()
+        expect(screen.queryByText('× Reject')).not.toBeInTheDocument()
       })
     })
 
@@ -513,11 +513,11 @@ describe('PoliticianEvaluation', () => {
         render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianWithConflicts} />)
 
         // Make some evaluations
-        const confirmButtons = screen.getAllByText('✓ Confirm')
-        const discardButtons = screen.getAllByText('× Discard')
+        const acceptButtons = screen.getAllByText('✓ Accept')
+        const rejectButtons = screen.getAllByText('× Reject')
 
-        if (confirmButtons[0]) fireEvent.click(confirmButtons[0])
-        if (discardButtons.length > 1) fireEvent.click(discardButtons[1])
+        if (acceptButtons[0]) fireEvent.click(acceptButtons[0])
+        if (rejectButtons.length > 1) fireEvent.click(rejectButtons[1])
 
         const submitButton = screen.getByText('Submit Evaluations & Next')
         fireEvent.click(submitButton)

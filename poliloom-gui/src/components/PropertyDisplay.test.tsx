@@ -103,8 +103,8 @@ describe('PropertyDisplay', () => {
     )
 
     // Should render evaluation actions
-    expect(screen.getByText('✓ Confirm')).toBeInTheDocument()
-    expect(screen.getByText('× Discard')).toBeInTheDocument()
+    expect(screen.getByText('✓ Accept')).toBeInTheDocument()
+    expect(screen.getByText('× Reject')).toBeInTheDocument()
   })
 
   it('calls onHover when mouse enters component', () => {
