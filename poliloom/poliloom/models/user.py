@@ -16,7 +16,7 @@ class Evaluation(Base, TimestampMixin):
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
     user_id = Column(String, nullable=False)
-    is_confirmed = Column(Boolean, nullable=False)
+    is_accepted = Column(Boolean, nullable=False)
     property_id = Column(
         UUID(as_uuid=True), ForeignKey("properties.id"), nullable=False
     )

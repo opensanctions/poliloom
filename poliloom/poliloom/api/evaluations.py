@@ -22,10 +22,11 @@ async def evaluate_extracted_data(
     Evaluate extracted properties, positions, and birthplaces.
 
     This endpoint allows authenticated users to evaluate extracted data,
-    marking it as confirmed or discarded. Creates evaluation records
+    marking it as accepted or rejected. Creates evaluation records
     that can be used for threshold-based evaluation workflows.
 
-    For confirmed evaluations, attempts to push statements to Wikidata.
+    For accepted evaluations, attempts to push statements to Wikidata.
+    For rejected existing statements, deprecates them in Wikidata.
     """
     errors = []
     all_evaluations = []
@@ -40,7 +41,7 @@ async def evaluate_extracted_data(
 
             evaluation = Evaluation(
                 user_id=str(current_user.user_id),
-                is_confirmed=eval_item.is_confirmed,
+                is_accepted=eval_item.is_accepted,
                 property_id=eval_item.id,
             )
             db.add(evaluation)
@@ -91,7 +92,7 @@ async def evaluate_extracted_data(
         EvaluationObjectResponse(
             id=evaluation.id,
             user_id=evaluation.user_id,
-            is_confirmed=evaluation.is_confirmed,
+            is_accepted=evaluation.is_accepted,
             property_id=evaluation.property_id,
             created_at=evaluation.created_at,
         )

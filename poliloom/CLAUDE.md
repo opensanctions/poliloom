@@ -65,7 +65,7 @@ For entity-linked properties (OpenAI's 500 enum limit):
 ### **API Endpoints**
 
 - **GET /politicians:** Retrieve politicians with unevaluated extractions
-- **POST /evaluate:** Submit evaluation results (confirmed/rejected)
+- **POST /evaluate:** Submit evaluation results (accept/reject/deprecate)
 - **Authentication:** MediaWiki OAuth 2.0 JWT tokens
 
 ### **CLI Structure**
@@ -83,7 +83,8 @@ _Use `--help` for detailed command documentation._
 ### **Evaluation System**
 
 - Single Evaluation table for all property types
-- Boolean confirmed/rejected flags instead of direct entity confirmation
+- Boolean accepted/rejected flags for user actions on data
+- Actions: **Accept** new extracted data (submit to Wikidata), **Reject** incorrect extracted data (soft delete), **Deprecate** existing statements (mark as deprecated in Wikidata)
 - Supports multiple users and threshold-based workflows
 
 ### **Embedding Workflow**

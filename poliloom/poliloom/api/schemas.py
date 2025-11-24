@@ -60,13 +60,13 @@ class EvaluationItem(UUIDBaseModel):
     """Single evaluation item."""
 
     id: UUID
-    is_confirmed: bool
+    is_accepted: bool
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "id": "12345678-1234-1234-1234-123456789012",
-                "is_confirmed": True,
+                "is_accepted": True,
             }
         }
     )
@@ -83,11 +83,11 @@ class EvaluationRequest(UUIDBaseModel):
                 "evaluations": [
                     {
                         "id": "12345678-1234-1234-1234-123456789012",
-                        "is_confirmed": True,
+                        "is_accepted": True,
                     },
                     {
                         "id": "22222222-1234-1234-1234-123456789012",
-                        "is_confirmed": False,
+                        "is_accepted": False,
                     },
                 ]
             }
@@ -100,7 +100,7 @@ class EvaluationObjectResponse(UUIDBaseModel):
 
     id: UUID
     user_id: str
-    is_confirmed: bool
+    is_accepted: bool
     property_id: UUID
     created_at: datetime
 
@@ -109,7 +109,7 @@ class EvaluationObjectResponse(UUIDBaseModel):
             "example": {
                 "id": "98765432-4321-4321-4321-210987654321",
                 "user_id": "12345",
-                "is_confirmed": True,
+                "is_accepted": True,
                 "property_id": "12345678-1234-1234-1234-123456789012",
                 "created_at": "2025-10-12T10:30:00Z",
             }
@@ -134,7 +134,7 @@ class EvaluationResponse(UUIDBaseModel):
                     {
                         "id": "98765432-4321-4321-4321-210987654321",
                         "user_id": "12345",
-                        "is_confirmed": True,
+                        "is_accepted": True,
                         "property_id": "12345678-1234-1234-1234-123456789012",
                         "created_at": "2025-10-12T10:30:00Z",
                     }

@@ -316,8 +316,9 @@ async def push_evaluation(
     """
     Push an evaluation to Wikidata - either create a new statement or deprecate an existing one.
 
-    For confirmed evaluations of extracted data: creates new statements
-    For negative evaluations of existing statements: deprecates statements on Wikidata, soft deletes from database
+    For accepted evaluations of extracted data: creates new statements (Accept)
+    For rejected evaluations of extracted data: soft deletes from database (Reject)
+    For rejected evaluations of existing statements: deprecates statements on Wikidata (Deprecate)
 
     Args:
         evaluation: Evaluation
@@ -336,10 +337,10 @@ async def push_evaluation(
     )
 
     try:
-        if not evaluation.is_confirmed and is_existing_statement:
-            # Negative evaluation of existing statement - deprecate on Wikidata
+        if not evaluation.is_accepted and is_existing_statement:
+            # Rejected evaluation of existing statement - deprecate on Wikidata
             logger.info(
-                f"Processing negative evaluation {evaluation.id} - deprecating on Wikidata"
+                f"Processing rejected evaluation {evaluation.id} - deprecating on Wikidata"
             )
 
             logger.info(
@@ -366,10 +367,10 @@ async def push_evaluation(
                 )
                 return False
 
-        elif not evaluation.is_confirmed and not is_existing_statement:
-            # Negative evaluation of extracted data - soft delete from database only
+        elif not evaluation.is_accepted and not is_existing_statement:
+            # Rejected evaluation of extracted data - soft delete from database only
             logger.info(
-                f"Processing negative evaluation {evaluation.id} - soft deleting extracted data"
+                f"Processing rejected evaluation {evaluation.id} - soft deleting extracted data"
             )
 
             evaluation.property.deleted_at = datetime.now(timezone.utc)
@@ -378,10 +379,10 @@ async def push_evaluation(
                 f"Successfully soft deleted property extracted data for politician {politician_wikidata_id}"
             )
 
-        elif evaluation.is_confirmed and not is_existing_statement:
-            # Confirmed evaluation of extracted data - create new statement
+        elif evaluation.is_accepted and not is_existing_statement:
+            # Accepted evaluation of extracted data - create new statement
             logger.info(
-                f"Processing confirmed evaluation {evaluation.id} - creating in Wikidata"
+                f"Processing accepted evaluation {evaluation.id} - creating in Wikidata"
             )
 
             logger.info(
@@ -411,7 +412,7 @@ async def push_evaluation(
             )
 
         else:
-            # Skip other cases (confirmed existing statements)
+            # Skip other cases (accepted existing statements)
             logger.info(
                 f"Skipping evaluation {evaluation.id} - no Wikidata action needed"
             )

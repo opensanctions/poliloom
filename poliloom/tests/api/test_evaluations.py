@@ -60,7 +60,7 @@ class TestEvaluationsEndpoint:
         # Old format should NOT work
         old_format = {
             "property_evaluations": [
-                {"id": str(test_properties[0].id), "is_confirmed": True}
+                {"id": str(test_properties[0].id), "is_accepted": True}
             ],
             "position_evaluations": [],
             "birthplace_evaluations": [],
@@ -71,8 +71,8 @@ class TestEvaluationsEndpoint:
         # New format should work
         new_format = {
             "evaluations": [
-                {"id": str(test_properties[0].id), "is_confirmed": True},
-                {"id": str(test_properties[1].id), "is_confirmed": False},
+                {"id": str(test_properties[0].id), "is_accepted": True},
+                {"id": str(test_properties[1].id), "is_accepted": False},
             ]
         }
         response = client.post("/evaluations/", json=new_format, headers=mock_auth)
@@ -88,7 +88,7 @@ class TestEvaluationsEndpoint:
         for evaluation in data["evaluations"]:
             assert "id" in evaluation
             assert "user_id" in evaluation
-            assert "is_confirmed" in evaluation
+            assert "is_accepted" in evaluation
             assert "property_id" in evaluation
             assert "created_at" in evaluation
 
@@ -97,7 +97,7 @@ class TestEvaluationsEndpoint:
         fake_uuid = "99999999-9999-9999-9999-999999999999"
         evaluation_data = {
             "evaluations": [
-                {"id": fake_uuid, "is_confirmed": True}  # Nonexistent ID
+                {"id": fake_uuid, "is_accepted": True}  # Nonexistent ID
             ]
         }
         response = client.post("/evaluations/", json=evaluation_data, headers=mock_auth)
@@ -118,9 +118,9 @@ class TestEvaluationsEndpoint:
         fake_uuid = "99999999-9999-9999-9999-999999999999"
         evaluation_data = {
             "evaluations": [
-                {"id": str(test_properties[0].id), "is_confirmed": True},  # Valid
-                {"id": fake_uuid, "is_confirmed": False},  # Invalid
-                {"id": str(test_properties[1].id), "is_confirmed": True},  # Valid
+                {"id": str(test_properties[0].id), "is_accepted": True},  # Valid
+                {"id": fake_uuid, "is_accepted": False},  # Invalid
+                {"id": str(test_properties[1].id), "is_accepted": True},  # Valid
             ]
         }
         response = client.post("/evaluations/", json=evaluation_data, headers=mock_auth)
@@ -134,7 +134,7 @@ class TestEvaluationsEndpoint:
         """Test that evaluation endpoint requires authentication."""
         evaluation_data = {
             "evaluations": [
-                {"id": "11111111-1111-1111-1111-111111111111", "is_confirmed": True}
+                {"id": "11111111-1111-1111-1111-111111111111", "is_accepted": True}
             ]
         }
         response = client.post("/evaluations/", json=evaluation_data)
@@ -153,12 +153,12 @@ class TestEvaluationsEndpoint:
     def test_evaluate_with_wikidata_push(
         self, mock_push_evaluation, client, mock_auth, politician_with_unevaluated_data
     ):
-        """Test that evaluations are pushed to Wikidata when confirmed."""
+        """Test that evaluations are pushed to Wikidata when accepted."""
         mock_push_evaluation.return_value = True
         politician, test_properties = politician_with_unevaluated_data
 
         evaluation_data = {
-            "evaluations": [{"id": str(test_properties[0].id), "is_confirmed": True}]
+            "evaluations": [{"id": str(test_properties[0].id), "is_accepted": True}]
         }
         response = client.post("/evaluations/", json=evaluation_data, headers=mock_auth)
         assert response.status_code == 200
@@ -177,7 +177,7 @@ class TestEvaluationsEndpoint:
         politician, test_properties = politician_with_unevaluated_data
 
         evaluation_data = {
-            "evaluations": [{"id": str(test_properties[0].id), "is_confirmed": True}]
+            "evaluations": [{"id": str(test_properties[0].id), "is_accepted": True}]
         }
         response = client.post("/evaluations/", json=evaluation_data, headers=mock_auth)
         assert response.status_code == 200  # Should still succeed locally

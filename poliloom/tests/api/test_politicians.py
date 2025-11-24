@@ -165,7 +165,7 @@ def politician_with_evaluated_data(db_session):
     # Add evaluation (this makes the data "evaluated")
     evaluation = Evaluation(
         user_id="testuser",
-        is_confirmed=True,
+        is_accepted=True,
         property_id=extracted_property.id,
     )
     db_session.add(evaluation)
@@ -409,7 +409,7 @@ class TestGetPoliticiansEndpoint:
 
         evaluation = Evaluation(
             user_id="testuser",
-            is_confirmed=True,
+            is_accepted=True,
             property_id=evaluated_prop.id,
         )
 

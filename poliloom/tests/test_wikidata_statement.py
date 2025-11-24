@@ -631,7 +631,7 @@ class TestPushEvaluation:
 
     def create_mock_evaluation(
         self,
-        is_confirmed=True,
+        is_accepted=True,
         property_type=PropertyType.POSITION,
         has_statement_id=False,
         has_archived_page_id=False,
@@ -666,7 +666,7 @@ class TestPushEvaluation:
         # Create mock evaluation
         evaluation = Mock(spec=Evaluation)
         evaluation.id = "eval-123"
-        evaluation.is_confirmed = is_confirmed
+        evaluation.is_accepted = is_accepted
         evaluation.property = property_mock
 
         return evaluation
@@ -675,7 +675,7 @@ class TestPushEvaluation:
     async def test_confirmed_extracted_data_creates_statement(self):
         """Test confirmed evaluation of extracted data creates new statement."""
         evaluation = self.create_mock_evaluation(
-            is_confirmed=True,
+            is_accepted=True,
             property_type=PropertyType.POSITION,
             has_statement_id=False,  # No statement_id = extracted data
             has_archived_page_id=True,  # Has archived_page_id = extracted data
@@ -710,7 +710,7 @@ class TestPushEvaluation:
     async def test_negative_existing_statement_deprecates_and_soft_deletes(self):
         """Test negative evaluation of existing statement deprecates on Wikidata and soft deletes."""
         evaluation = self.create_mock_evaluation(
-            is_confirmed=False,
+            is_accepted=False,
             property_type=PropertyType.POSITION,
             has_statement_id=True,  # Has statement_id = existing statement
             has_archived_page_id=False,  # No archived_page_id = existing statement
@@ -736,7 +736,7 @@ class TestPushEvaluation:
     async def test_negative_extracted_data_soft_deletes_only(self):
         """Test negative evaluation of extracted data only soft deletes."""
         evaluation = self.create_mock_evaluation(
-            is_confirmed=False,
+            is_accepted=False,
             property_type=PropertyType.POSITION,
             has_statement_id=False,  # No statement_id = extracted data
             has_archived_page_id=True,  # Has archived_page_id = extracted data
@@ -756,7 +756,7 @@ class TestPushEvaluation:
     async def test_confirmed_existing_statement_no_action(self):
         """Test confirmed evaluation of existing statement takes no action."""
         evaluation = self.create_mock_evaluation(
-            is_confirmed=True,
+            is_accepted=True,
             property_type=PropertyType.POSITION,
             has_statement_id=True,  # Has statement_id = existing statement
             has_archived_page_id=False,  # No archived_page_id = existing statement
@@ -774,7 +774,7 @@ class TestPushEvaluation:
     async def test_date_property_handling(self):
         """Test handling of date properties (birth/death dates)."""
         evaluation = self.create_mock_evaluation(
-            is_confirmed=True,
+            is_accepted=True,
             property_type=PropertyType.BIRTH_DATE,
             has_statement_id=False,
             has_archived_page_id=True,
@@ -810,7 +810,7 @@ class TestPushEvaluation:
     async def test_wikidata_deprecation_failure_prevents_soft_delete(self):
         """Test that Wikidata deprecation failure prevents soft delete."""
         evaluation = self.create_mock_evaluation(
-            is_confirmed=False,
+            is_accepted=False,
             property_type=PropertyType.POSITION,
             has_statement_id=True,
             has_archived_page_id=False,
@@ -835,7 +835,7 @@ class TestPushEvaluation:
     async def test_create_statement_failure_returns_false(self):
         """Test that create_statement failure returns False."""
         evaluation = self.create_mock_evaluation(
-            is_confirmed=True,
+            is_accepted=True,
             property_type=PropertyType.POSITION,
             has_statement_id=False,
             has_archived_page_id=True,
@@ -856,7 +856,7 @@ class TestPushEvaluation:
     async def test_qualifiers_conversion_and_passing(self):
         """Test that qualifiers are converted and passed to create_statement."""
         evaluation = self.create_mock_evaluation(
-            is_confirmed=True,
+            is_accepted=True,
             property_type=PropertyType.POSITION,
             has_statement_id=False,
             has_archived_page_id=True,

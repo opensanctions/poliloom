@@ -31,7 +31,7 @@ class TestEvaluation:
         # Create evaluation
         evaluation = Evaluation(
             user_id="user123",
-            is_confirmed=True,
+            is_accepted=True,
             property_id=prop.id,
         )
         db_session.add(evaluation)
@@ -42,7 +42,7 @@ class TestEvaluation:
             evaluation,
             {
                 "user_id": "user123",
-                "is_confirmed": True,
+                "is_accepted": True,
                 "property_id": prop.id,
             },
         )
@@ -79,17 +79,17 @@ class TestEvaluationMultiple:
         evaluations = [
             Evaluation(
                 user_id="user1",
-                is_confirmed=True,
+                is_accepted=True,
                 property_id=prop.id,
             ),
             Evaluation(
                 user_id="user2",
-                is_confirmed=True,
+                is_accepted=True,
                 property_id=prop.id,
             ),
             Evaluation(
                 user_id="user3",
-                is_confirmed=False,
+                is_accepted=False,
                 property_id=prop.id,
             ),
         ]
@@ -105,8 +105,8 @@ class TestEvaluationMultiple:
         assert "user3" in evaluation_users
 
         # Check that evaluations have correct results
-        confirmed_count = sum(1 for e in prop.evaluations if e.is_confirmed)
-        discarded_count = sum(1 for e in prop.evaluations if not e.is_confirmed)
+        confirmed_count = sum(1 for e in prop.evaluations if e.is_accepted)
+        discarded_count = sum(1 for e in prop.evaluations if not e.is_accepted)
         assert confirmed_count == 2
         assert discarded_count == 1
 
@@ -150,17 +150,17 @@ class TestEvaluationMultiple:
         evaluations = [
             Evaluation(
                 user_id="user1",
-                is_confirmed=True,
+                is_accepted=True,
                 property_id=date_prop.id,
             ),
             Evaluation(
                 user_id="user1",
-                is_confirmed=False,
+                is_accepted=False,
                 property_id=birthplace_prop.id,
             ),
             Evaluation(
                 user_id="user1",
-                is_confirmed=True,
+                is_accepted=True,
                 property_id=position_prop.id,
             ),
         ]
@@ -174,6 +174,6 @@ class TestEvaluationMultiple:
         assert len(position_prop.evaluations) == 1
 
         # Check evaluation results
-        assert date_prop.evaluations[0].is_confirmed is True
-        assert birthplace_prop.evaluations[0].is_confirmed is False
-        assert position_prop.evaluations[0].is_confirmed is True
+        assert date_prop.evaluations[0].is_accepted is True
+        assert birthplace_prop.evaluations[0].is_accepted is False
+        assert position_prop.evaluations[0].is_accepted is True

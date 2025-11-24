@@ -102,7 +102,7 @@ uv run uvicorn poliloom.api:app --reload
 The FastAPI server provides endpoints for evaluation workflows:
 
 - `GET /politicians` - Get politicians with unevaluated data
-- `POST /evaluate` - Evaluate extracted data (confirm/discard)
+- `POST /evaluate` - Evaluate extracted data (accept/reject/deprecate)
 
 Access API documentation at `http://localhost:8000/docs` when server is running.
 
