@@ -1,30 +1,18 @@
 """Tests for evaluation models."""
 
-from poliloom.models import (
-    Property,
-    PropertyType,
-    Evaluation,
-)
+from poliloom.models import Evaluation
 from ..conftest import assert_model_fields
 
 
 class TestEvaluation:
     """Test cases for the Evaluation model."""
 
-    def test_date_property_evaluation_creation(self, db_session, sample_politician):
+    def test_date_property_evaluation_creation(
+        self, db_session, sample_politician, create_birth_date
+    ):
         """Test creating an evaluation for a date property."""
-        # Use fixture politician
-        politician = sample_politician
-
-        # Create date property
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-            archived_page_id=None,
-        )
-        db_session.add(prop)
+        # Create date property using fixture
+        prop = create_birth_date(sample_politician)
         db_session.flush()
         db_session.refresh(prop)
 
@@ -57,21 +45,11 @@ class TestEvaluationMultiple:
     """Test cases for multiple evaluations."""
 
     def test_multiple_evaluations_for_same_property(
-        self, db_session, sample_politician
+        self, db_session, sample_politician, create_birth_date
     ):
         """Test multiple evaluations for the same property."""
-        # Use fixture politician
-        politician = sample_politician
-
-        # Create property
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-            archived_page_id=None,
-        )
-        db_session.add(prop)
+        # Create property using fixture
+        prop = create_birth_date(sample_politician)
         db_session.flush()
         db_session.refresh(prop)
 
@@ -111,36 +89,21 @@ class TestEvaluationMultiple:
         assert discarded_count == 1
 
     def test_multiple_evaluations_for_different_property_types(
-        self, db_session, sample_politician, sample_location, sample_position
+        self,
+        db_session,
+        sample_politician,
+        sample_location,
+        sample_position,
+        create_birth_date,
+        create_birthplace,
+        create_position,
     ):
         """Test evaluations for different property types."""
-        # Use fixture politician, location, and position
-        politician = sample_politician
-        location = sample_location
-        position = sample_position
+        # Create different types of properties using fixtures
+        date_prop = create_birth_date(sample_politician)
+        birthplace_prop = create_birthplace(sample_politician, sample_location)
+        position_prop = create_position(sample_politician, sample_position)
 
-        # Create different types of properties
-        date_prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-            archived_page_id=None,
-        )
-        birthplace_prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTHPLACE,
-            entity_id=location.wikidata_id,
-            archived_page_id=None,
-        )
-        position_prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
-            archived_page_id=None,
-        )
-
-        db_session.add_all([date_prop, birthplace_prop, position_prop])
         db_session.flush()
         db_session.refresh(date_prop)
         db_session.refresh(birthplace_prop)

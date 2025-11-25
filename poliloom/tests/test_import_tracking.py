@@ -106,10 +106,8 @@ class TestEntityTracking:
 class TestStatementTracking:
     """Test statement tracking triggers."""
 
-    def test_property_tracking_on_insert(self, db_session: Session):
+    def test_property_tracking_on_insert(self, db_session: Session, create_birth_date):
         """Test that Property statements are tracked."""
-        # Clear tracking table first
-
         # Create a politician first
         politician = Politician.create_with_entity(
             db_session, "Q999", "Test Politician"
@@ -117,29 +115,23 @@ class TestStatementTracking:
         db_session.flush()
 
         # Insert a property with statement_id
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1990-01-01",
-            value_precision=11,
-            statement_id="Q999$12345-abcd-4567-8901-123456789abc",
-        )
-        db_session.add(prop)
+        statement_id = "Q999$12345-abcd-4567-8901-123456789abc"
+        create_birth_date(politician, value="1990-01-01", statement_id=statement_id)
         db_session.flush()
 
         # Check that statement was tracked
         tracked = (
             db_session.query(CurrentImportStatement)
-            .filter_by(statement_id="Q999$12345-abcd-4567-8901-123456789abc")
+            .filter_by(statement_id=statement_id)
             .first()
         )
         assert tracked is not None
-        assert tracked.statement_id == "Q999$12345-abcd-4567-8901-123456789abc"
+        assert tracked.statement_id == statement_id
 
-    def test_property_tracking_without_statement_id(self, db_session: Session):
+    def test_property_tracking_without_statement_id(
+        self, db_session: Session, create_birth_date
+    ):
         """Test that Properties without statement_id are not tracked."""
-        # Clear tracking table first
-
         # Create a politician first
         politician = Politician.create_with_entity(
             db_session, "Q888", "Test Politician"
@@ -147,14 +139,7 @@ class TestStatementTracking:
         db_session.flush()
 
         # Insert a property without statement_id
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1990-01-01",
-            value_precision=11,
-            statement_id=None,
-        )
-        db_session.add(prop)
+        create_birth_date(politician, value="1990-01-01")
         db_session.flush()
 
         # Check that no statement was tracked

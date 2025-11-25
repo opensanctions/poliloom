@@ -1,51 +1,6 @@
 """Tests for the evaluations API endpoint."""
 
-import pytest
 from unittest.mock import patch
-
-from poliloom.models import (
-    Property,
-    PropertyType,
-    ArchivedPage,
-)
-
-
-@pytest.fixture
-def politician_with_unevaluated_data(db_session, sample_politician, sample_position):
-    """Create a politician with unevaluated extracted data for testing evaluations."""
-    # Create supporting entities
-    archived_page = ArchivedPage(
-        url="https://example.com/test",
-        content_hash="test123",
-    )
-    politician = sample_politician
-    position = sample_position
-
-    db_session.add(archived_page)
-    db_session.flush()
-
-    # Add extracted (unevaluated) data
-    extracted_property = Property(
-        politician_id=politician.id,
-        type=PropertyType.BIRTH_DATE,
-        value="1970-01-15",
-        value_precision=11,
-        archived_page_id=archived_page.id,
-        supporting_quotes=["Born on January 15, 1970"],
-    )
-
-    extracted_position = Property(
-        politician_id=politician.id,
-        type=PropertyType.POSITION,
-        entity_id=position.wikidata_id,
-        archived_page_id=archived_page.id,
-        supporting_quotes=["Served as Mayor from 2020 to 2024"],
-    )
-
-    db_session.add_all([extracted_property, extracted_position])
-    db_session.flush()
-
-    return politician, [extracted_property, extracted_position]
 
 
 class TestEvaluationsEndpoint:

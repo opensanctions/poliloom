@@ -300,15 +300,11 @@ class TestEnrichment:
         sample_politician,
         sample_position,
         sample_wikipedia_link,
+        create_citizenship,
     ):
         """Test storing extracted positions."""
         # Add citizenship as Property (Wikipedia link created by sample_wikipedia_link fixture)
-        citizenship = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_country.wikidata_id,
-        )
-        db_session.add(citizenship)
+        create_citizenship(sample_politician, sample_country)
         db_session.flush()
 
         positions = [
@@ -354,15 +350,11 @@ class TestEnrichment:
         sample_archived_page,
         sample_country,
         sample_politician,
+        create_citizenship,
     ):
         """Test storing extracted birthplaces."""
         # Add citizenship as Property
-        citizenship = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_country.wikidata_id,
-        )
-        db_session.add(citizenship)
+        create_citizenship(sample_politician, sample_country)
         db_session.flush()
 
         birthplaces = [
@@ -450,44 +442,38 @@ class TestCountPoliticiansWithUnevaluated:
     """Test count_politicians_with_unevaluated function."""
 
     def test_count_with_unevaluated_properties(
-        self, db_session, sample_politician, sample_archived_page
+        self, db_session, sample_politician, sample_archived_page, create_birth_date
     ):
         """Test counting politicians with unevaluated properties."""
         # Add unevaluated property
-        prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-            archived_page_id=sample_archived_page.id,
-        )
-        db_session.add(prop)
+        create_birth_date(sample_politician, archived_page=sample_archived_page)
         db_session.flush()
 
         count = count_politicians_with_unevaluated(db_session)
         assert count == 1
 
     def test_count_excludes_evaluated_properties(
-        self, db_session, sample_politician, sample_archived_page
+        self, db_session, sample_politician, sample_archived_page, create_birth_date
     ):
         """Test that count excludes properties with statement_id."""
         # Add property with statement_id
-        prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-            archived_page_id=sample_archived_page.id,
+        create_birth_date(
+            sample_politician,
+            archived_page=sample_archived_page,
             statement_id="Q123456$12345678-1234-1234-1234-123456789012",
         )
-        db_session.add(prop)
         db_session.flush()
 
         count = count_politicians_with_unevaluated(db_session)
         assert count == 0
 
     def test_count_with_language_filter(
-        self, db_session, sample_politician, sample_language, create_archived_page
+        self,
+        db_session,
+        sample_politician,
+        sample_language,
+        create_archived_page,
+        create_birth_date,
     ):
         """Test counting with language filter."""
         # Create English archived page
@@ -498,14 +484,7 @@ class TestCountPoliticiansWithUnevaluated:
         )
 
         # Add English property
-        prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-            archived_page_id=en_page.id,
-        )
-        db_session.add(prop)
+        create_birth_date(sample_politician, archived_page=en_page)
         db_session.flush()
 
         # Count with English filter
@@ -523,18 +502,12 @@ class TestCountPoliticiansWithUnevaluated:
         sample_country,
         sample_archived_page,
         create_citizenship,
+        create_birth_date,
     ):
         """Test counting with country filter."""
         # Add citizenship and unevaluated property
         create_citizenship(sample_politician, sample_country, sample_archived_page)
-        birth_prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-            archived_page_id=sample_archived_page.id,
-        )
-        db_session.add(birth_prop)
+        create_birth_date(sample_politician, archived_page=sample_archived_page)
         db_session.flush()
 
         # Count with USA filter
@@ -597,15 +570,11 @@ class TestEnrichBatch:
         sample_language,
         sample_wikipedia_link,
         sample_archived_page,
+        create_citizenship,
     ):
         """Test enrich_batch with language and country filters."""
         # Add citizenship
-        citizenship_prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_country.wikidata_id,
-        )
-        db_session.add(citizenship_prop)
+        create_citizenship(sample_politician, sample_country)
         db_session.flush()
 
         # Mock enrichment

@@ -46,96 +46,7 @@ def extract_properties_by_type(
 
 
 @pytest.fixture
-def politician_with_unevaluated_data(
-    db_session, sample_politician, sample_position, sample_location
-):
-    """Create a politician with various types of unevaluated extracted data."""
-    archived_page = ArchivedPage(
-        url="https://example.com/test",
-        content_hash="test123",
-    )
-    db_session.add(archived_page)
-    db_session.flush()  # Need ID for archived_page
-
-    # Use fixture entities
-    politician = sample_politician
-    position = sample_position
-    location = sample_location
-
-    # Add extracted (unevaluated) data
-    extracted_property = Property(
-        politician_id=politician.id,
-        type=PropertyType.BIRTH_DATE,
-        value="1970-01-15",
-        value_precision=11,
-        archived_page_id=archived_page.id,
-        supporting_quotes=["Born on January 15, 1970"],
-    )
-
-    extracted_position = Property(
-        politician_id=politician.id,
-        type=PropertyType.POSITION,
-        entity_id=position.wikidata_id,
-        qualifiers_json={
-            "P580": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()],
-            "P582": [WikidataDate.from_date_string("2024").to_wikidata_qualifier()],
-        },
-        archived_page_id=archived_page.id,
-        supporting_quotes=["Served as Mayor from 2020 to 2024"],
-    )
-
-    extracted_birthplace = Property(
-        politician_id=politician.id,
-        type=PropertyType.BIRTHPLACE,
-        entity_id=location.wikidata_id,
-        archived_page_id=archived_page.id,
-        supporting_quotes=["Born in Springfield"],
-    )
-
-    # Add Wikidata (non-extracted) data
-    wikidata_property = Property(
-        politician_id=politician.id,
-        type=PropertyType.DEATH_DATE,
-        value="2024-01-01",
-        value_precision=11,
-        archived_page_id=None,  # This makes it Wikidata data
-    )
-
-    wikidata_position = Property(
-        politician_id=politician.id,
-        type=PropertyType.POSITION,
-        entity_id=position.wikidata_id,
-        qualifiers_json={
-            "P580": [WikidataDate.from_date_string("2018").to_wikidata_qualifier()],
-            "P582": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()],
-        },
-        archived_page_id=None,  # This makes it Wikidata data
-    )
-
-    wikidata_birthplace = Property(
-        politician_id=politician.id,
-        type=PropertyType.BIRTHPLACE,
-        entity_id=location.wikidata_id,
-        archived_page_id=None,  # This makes it Wikidata data
-    )
-
-    db_session.add_all(
-        [
-            extracted_property,
-            extracted_position,
-            extracted_birthplace,
-            wikidata_property,
-            wikidata_position,
-            wikidata_birthplace,
-        ]
-    )
-    db_session.flush()
-
-    return politician
-
-
-@pytest.fixture
-def politician_with_evaluated_data(db_session):
+def politician_with_evaluated_data(db_session, create_birth_date):
     """Create a politician with only evaluated extracted data (should be excluded)."""
     archived_page = ArchivedPage(
         url="https://example.com/test2",
@@ -151,15 +62,12 @@ def politician_with_evaluated_data(db_session):
     db_session.flush()  # Need IDs for relationships
 
     # Add extracted property with evaluation
-    extracted_property = Property(
-        politician_id=politician.id,
-        type=PropertyType.BIRTH_DATE,
+    extracted_property = create_birth_date(
+        politician,
         value="1980-05-20",
-        value_precision=11,
-        archived_page_id=archived_page.id,
+        archived_page=archived_page,
         supporting_quotes=["Born on May 20, 1980"],
     )
-    db_session.add(extracted_property)
     db_session.flush()  # Need ID for evaluation
 
     # Add evaluation (this makes the data "evaluated")
@@ -175,7 +83,9 @@ def politician_with_evaluated_data(db_session):
 
 
 @pytest.fixture
-def politician_with_only_wikidata(db_session, sample_position):
+def politician_with_only_wikidata(
+    db_session, sample_position, create_birth_date, create_position
+):
     """Create a politician with only Wikidata (non-extracted) data."""
     politician = Politician.create_with_entity(
         db_session, "Q345678", "Wikidata Only Politician"
@@ -184,27 +94,20 @@ def politician_with_only_wikidata(db_session, sample_position):
     db_session.flush()  # Need ID for properties
 
     # Add only Wikidata (non-extracted) data
-    wikidata_property = Property(
-        politician_id=politician.id,
-        type=PropertyType.BIRTH_DATE,
+    create_birth_date(
+        politician,
         value="1965-12-10",
-        value_precision=11,
-        archived_page_id=None,  # This makes it Wikidata data
-        statement_id="Q345678$12345678-1234-1234-1234-123456789012",  # Wikidata statement ID
+        statement_id="Q345678$12345678-1234-1234-1234-123456789012",
     )
 
-    wikidata_position = Property(
-        politician_id=politician.id,
-        type=PropertyType.POSITION,
-        entity_id=sample_position.wikidata_id,
+    create_position(
+        politician,
+        sample_position,
         qualifiers_json={
             "P580": [WikidataDate.from_date_string("2016").to_wikidata_qualifier()]
         },
-        archived_page_id=None,  # This makes it Wikidata data
-        statement_id="Q345678$87654321-4321-4321-4321-210987654321",  # Wikidata statement ID
+        statement_id="Q345678$87654321-4321-4321-4321-210987654321",
     )
-
-    db_session.add_all([wikidata_property, wikidata_position])
     db_session.flush()
 
     return politician
@@ -382,7 +285,13 @@ class TestGetPoliticiansEndpoint:
         assert len(data) == 2
 
     def test_mixed_evaluation_states(
-        self, client, mock_auth, db_session, sample_position
+        self,
+        client,
+        mock_auth,
+        db_session,
+        sample_position,
+        create_birth_date,
+        create_position,
     ):
         """Test politician with mix of evaluated and unevaluated data appears in results."""
         # Create politician with both evaluated and unevaluated extracted data
@@ -399,14 +308,9 @@ class TestGetPoliticiansEndpoint:
         db_session.flush()  # Need IDs for properties
 
         # Add evaluated extracted property
-        evaluated_prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1975-03-15",
-            value_precision=11,
-            archived_page_id=archived_page.id,
+        evaluated_prop = create_birth_date(
+            politician, value="1975-03-15", archived_page=archived_page
         )
-        db_session.add(evaluated_prop)
         db_session.flush()  # Need ID for evaluation
 
         evaluation = Evaluation(
@@ -416,17 +320,16 @@ class TestGetPoliticiansEndpoint:
         )
 
         # Add unevaluated extracted position
-        unevaluated_pos = Property(
-            politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id=sample_position.wikidata_id,
+        create_position(
+            politician,
+            sample_position,
+            archived_page=archived_page,
             qualifiers_json={
                 "P580": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()]
             },
-            archived_page_id=archived_page.id,
         )
 
-        db_session.add_all([evaluation, unevaluated_pos])
+        db_session.add(evaluation)
         db_session.flush()
 
         # Should appear in results because has unevaluated position
@@ -450,7 +353,7 @@ class TestGetPoliticiansEndpoint:
         )  # POSITION - Unevaluated, so returned
 
     def test_politician_with_partial_unevaluated_data_types(
-        self, client, mock_auth, db_session, sample_location
+        self, client, mock_auth, db_session, sample_location, create_birthplace
     ):
         """Test politicians appear even if they only have one type of unevaluated data."""
         archived_page = ArchivedPage(
@@ -466,13 +369,7 @@ class TestGetPoliticiansEndpoint:
         db_session.add(politician)
         db_session.flush()  # Need IDs for properties
 
-        birthplace = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTHPLACE,
-            entity_id=sample_location.wikidata_id,
-            archived_page_id=archived_page.id,
-        )
-        db_session.add(birthplace)
+        create_birthplace(politician, sample_location, archived_page=archived_page)
         db_session.flush()
 
         response = client.get("/politicians/", headers=mock_auth)
@@ -522,6 +419,7 @@ class TestGetPoliticiansEndpoint:
         sample_language,
         sample_german_language,
         create_archived_page,
+        create_birth_date,
     ):
         """Test filtering politicians by language QIDs based on archived page languages."""
         # Create archived pages with language associations
@@ -551,32 +449,14 @@ class TestGetPoliticiansEndpoint:
         db_session.flush()
 
         # Add properties linked to language-specific archived pages
-        english_prop = Property(
-            politician_id=english_politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1970-01-01",
-            value_precision=11,
-            archived_page_id=english_page.id,
+        create_birth_date(
+            english_politician, value="1970-01-01", archived_page=english_page
         )
-
-        german_prop = Property(
-            politician_id=german_politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1971-01-01",
-            value_precision=11,
-            archived_page_id=german_page.id,
+        create_birth_date(
+            german_politician, value="1971-01-01", archived_page=german_page
         )
-
         # Property without archived page (should not appear in language filtering)
-        no_lang_prop = Property(
-            politician_id=no_lang_politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1972-01-01",
-            value_precision=11,
-            archived_page_id=None,  # No archived page = no language filtering
-        )
-
-        db_session.add_all([english_prop, german_prop, no_lang_prop])
+        create_birth_date(no_lang_politician, value="1972-01-01")
         db_session.flush()
 
         # Test filtering by English language QID
@@ -624,6 +504,7 @@ class TestGetPoliticiansEndpoint:
         sample_country,
         sample_germany_country,
         create_citizenship,
+        create_birth_date,
     ):
         """Test filtering politicians by country QIDs based on citizenship properties."""
         usa_country = sample_country
@@ -670,14 +551,7 @@ class TestGetPoliticiansEndpoint:
         create_citizenship(dual_citizen_politician, germany_country, archived_page)
 
         # Non-citizenship property for politician without citizenship
-        birth_date_prop = Property(
-            politician_id=no_citizenship_politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-            archived_page_id=archived_page.id,
-        )
-        db_session.add(birth_date_prop)
+        create_birth_date(no_citizenship_politician, archived_page=archived_page)
         db_session.flush()
 
         # Test filtering by USA citizenship

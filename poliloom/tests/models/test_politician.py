@@ -15,19 +15,15 @@ from poliloom.wikidata_date import WikidataDate
 class TestPolitician:
     """Test cases for the Politician model."""
 
-    def test_politician_cascade_delete_properties(self, db_session, sample_politician):
+    def test_politician_cascade_delete_properties(
+        self, db_session, sample_politician, create_birth_date
+    ):
         """Test that deleting a politician cascades to properties."""
         # Use fixture politician
         politician = sample_politician
 
         # Create property
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-        )
-        db_session.add(prop)
+        create_birth_date(politician)
         db_session.flush()
 
         # Delete politician should cascade to properties
@@ -47,6 +43,11 @@ class TestPolitician:
         sample_position,
         sample_location,
         sample_country,
+        create_birth_date,
+        create_death_date,
+        create_birthplace,
+        create_position,
+        create_citizenship,
     ):
         """Test politician with all property types stored correctly."""
         # Use fixture entities
@@ -55,42 +56,16 @@ class TestPolitician:
         location = sample_location
         country = sample_country
 
-        # Create properties of all types
-        birth_date = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1970-01-15",
-            value_precision=11,
-        )
-        death_date = Property(
-            politician_id=politician.id,
-            type=PropertyType.DEATH_DATE,
-            value="2020-12-31",
-            value_precision=11,
-        )
-        birthplace = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTHPLACE,
-            entity_id=location.wikidata_id,
-        )
-        pos_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
-            qualifiers_json={
-                "P580": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()],
-                "P582": [WikidataDate.from_date_string("2024").to_wikidata_qualifier()],
-            },
-        )
-        citizenship = Property(
-            politician_id=politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=country.wikidata_id,
-        )
-
-        db_session.add_all(
-            [birth_date, death_date, birthplace, pos_property, citizenship]
-        )
+        # Create properties of all types using fixtures
+        qualifiers = {
+            "P580": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()],
+            "P582": [WikidataDate.from_date_string("2024").to_wikidata_qualifier()],
+        }
+        create_birth_date(politician, value="1970-01-15")
+        create_death_date(politician, value="2020-12-31")
+        create_birthplace(politician, location)
+        create_position(politician, position, qualifiers_json=qualifiers)
+        create_citizenship(politician, country)
         db_session.flush()
         db_session.refresh(politician)
 
@@ -177,6 +152,7 @@ class TestPolitician:
         sample_german_wikipedia_project,
         sample_wikipedia_project,
         create_wikipedia_link,
+        create_citizenship,
     ):
         """Test get_priority_wikipedia_links with citizenship-based prioritization."""
         # Create official language relation: German is official language of Germany
@@ -189,12 +165,7 @@ class TestPolitician:
         db_session.add(relation)
 
         # Create citizenship property for politician
-        citizenship = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_germany_country.wikidata_id,
-        )
-        db_session.add(citizenship)
+        create_citizenship(sample_politician, sample_germany_country)
 
         # Create Wikipedia links for both German and English
         # Add more German wikipedia links globally to make it "popular"
@@ -298,6 +269,7 @@ class TestPolitician:
         sample_german_language,
         sample_german_wikipedia_project,
         create_wikipedia_link,
+        create_citizenship,
     ):
         """Test get_priority_wikipedia_links with multiple citizenships."""
         # Create official language relations
@@ -319,20 +291,8 @@ class TestPolitician:
             db_session.add(relation)
 
         # Create dual citizenship
-        citizenships = [
-            Property(
-                politician_id=sample_politician.id,
-                type=PropertyType.CITIZENSHIP,
-                entity_id=sample_country.wikidata_id,
-            ),
-            Property(
-                politician_id=sample_politician.id,
-                type=PropertyType.CITIZENSHIP,
-                entity_id=sample_germany_country.wikidata_id,
-            ),
-        ]
-        for citizenship in citizenships:
-            db_session.add(citizenship)
+        create_citizenship(sample_politician, sample_country)
+        create_citizenship(sample_politician, sample_germany_country)
 
         # Create Wikipedia links using the factory
         create_wikipedia_link(sample_politician, sample_wikipedia_project)
@@ -361,6 +321,7 @@ class TestPolitician:
         sample_language,
         sample_wikipedia_project,
         create_wikipedia_link,
+        create_citizenship,
     ):
         """Test get_priority_wikipedia_links when politician has citizenship but Wikipedia link language doesn't match official languages."""
         # Create official language relation: Spanish is official language of Argentina
@@ -373,12 +334,7 @@ class TestPolitician:
         db_session.add(relation)
 
         # Give politician Argentine citizenship
-        citizenship = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_argentina_country.wikidata_id,
-        )
-        db_session.add(citizenship)
+        create_citizenship(sample_politician, sample_argentina_country)
 
         # Create only an English Wikipedia link (not matching the official language)
         # sample_language and sample_wikipedia_project provide English language/project
@@ -407,6 +363,7 @@ class TestPolitician:
         sample_german_wikipedia_project,
         sample_french_wikipedia_project,
         create_wikipedia_link,
+        create_citizenship,
     ):
         """Test get_priority_wikipedia_links returns all 3 links when one matches citizenship language."""
         # Create official language relation: German is official language of Germany
@@ -419,12 +376,7 @@ class TestPolitician:
         db_session.add(relation)
 
         # Give politician German citizenship
-        citizenship = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_germany_country.wikidata_id,
-        )
-        db_session.add(citizenship)
+        create_citizenship(sample_politician, sample_germany_country)
 
         # Create 3 Wikipedia links
         create_wikipedia_link(sample_politician, sample_wikipedia_project)
@@ -476,19 +428,11 @@ class TestPoliticianFilterByUnevaluated:
     """Test cases for Politician.filter_by_unevaluated_properties method."""
 
     def test_filter_returns_politicians_with_unevaluated_properties(
-        self, db_session, sample_politician, sample_archived_page
+        self, db_session, sample_politician, sample_archived_page, create_birth_date
     ):
         """Test that filter finds politicians with unevaluated properties."""
         # Add an unevaluated property
-        prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-            archived_page_id=sample_archived_page.id,
-            statement_id=None,  # Unevaluated
-        )
-        db_session.add(prop)
+        create_birth_date(sample_politician, archived_page=sample_archived_page)
         db_session.flush()
 
         # Execute query with filter
@@ -500,19 +444,15 @@ class TestPoliticianFilterByUnevaluated:
         assert result[0].id == sample_politician.id
 
     def test_filter_excludes_politicians_with_only_evaluated_properties(
-        self, db_session, sample_politician, sample_archived_page
+        self, db_session, sample_politician, sample_archived_page, create_birth_date
     ):
         """Test that filter excludes politicians with statement_id (pushed to Wikidata)."""
         # Add property with statement_id (evaluated and pushed)
-        prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-            archived_page_id=sample_archived_page.id,
+        create_birth_date(
+            sample_politician,
+            archived_page=sample_archived_page,
             statement_id="Q123456$12345678-1234-1234-1234-123456789012",
         )
-        db_session.add(prop)
         db_session.flush()
 
         # Execute query with filter
@@ -552,6 +492,8 @@ class TestPoliticianFilterByUnevaluated:
         sample_language,
         sample_german_language,
         create_archived_page,
+        create_birth_date,
+        create_death_date,
     ):
         """Test language filtering based on archived page languages."""
         # Create archived pages with language associations
@@ -567,21 +509,8 @@ class TestPoliticianFilterByUnevaluated:
         )
 
         # Add properties from different language sources
-        en_prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="1980-01-01",
-            value_precision=11,
-            archived_page_id=en_page.id,
-        )
-        de_prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.DEATH_DATE,
-            value="2024-01-01",
-            value_precision=11,
-            archived_page_id=de_page.id,
-        )
-        db_session.add_all([en_prop, de_prop])
+        create_birth_date(sample_politician, archived_page=en_page)
+        create_death_date(sample_politician, archived_page=de_page)
         db_session.flush()
 
         # Query with English language filter
@@ -663,6 +592,7 @@ class TestPoliticianQueryForEnrichment:
         sample_german_language,
         sample_german_wikipedia_project,
         create_wikipedia_link,
+        create_citizenship,
     ):
         """Test language filtering based on citizenship official languages."""
         # Create official language relation: German is official in Germany
@@ -675,12 +605,7 @@ class TestPoliticianQueryForEnrichment:
         db_session.add(relation)
 
         # Give politician German citizenship
-        citizenship = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_germany_country.wikidata_id,
-        )
-        db_session.add(citizenship)
+        create_citizenship(sample_politician, sample_germany_country)
 
         # Create German Wikipedia link
         create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
@@ -705,6 +630,7 @@ class TestPoliticianQueryForEnrichment:
         sample_french_language,
         sample_french_wikipedia_project,
         create_wikipedia_link,
+        create_citizenship,
     ):
         """Test that politicians are excluded when they have citizenship-matched links but filter doesn't match."""
         # Create official language relation: French is official in France
@@ -717,12 +643,7 @@ class TestPoliticianQueryForEnrichment:
         db_session.add(relation)
 
         # Give politician French citizenship
-        citizenship = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_france_country.wikidata_id,
-        )
-        db_session.add(citizenship)
+        create_citizenship(sample_politician, sample_france_country)
 
         # Create BOTH French (citizenship match) and German Wikipedia links
         create_wikipedia_link(sample_politician, sample_french_wikipedia_project)
@@ -829,6 +750,7 @@ class TestPoliticianQueryForEnrichment:
         sample_french_language,
         sample_french_wikipedia_project,
         create_wikipedia_link,
+        create_citizenship,
     ):
         """Test that politicians with multiple citizenships match if any citizenship language has a link."""
         # Create official language relations
@@ -847,19 +769,8 @@ class TestPoliticianQueryForEnrichment:
         db_session.add_all([de_relation, fr_relation])
 
         # Give politician dual citizenship
-        citizenships = [
-            Property(
-                politician_id=sample_politician.id,
-                type=PropertyType.CITIZENSHIP,
-                entity_id=sample_germany_country.wikidata_id,
-            ),
-            Property(
-                politician_id=sample_politician.id,
-                type=PropertyType.CITIZENSHIP,
-                entity_id=sample_france_country.wikidata_id,
-            ),
-        ]
-        db_session.add_all(citizenships)
+        create_citizenship(sample_politician, sample_germany_country)
+        create_citizenship(sample_politician, sample_france_country)
 
         # Create BOTH German and French Wikipedia links
         create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
@@ -888,6 +799,7 @@ class TestPoliticianQueryForEnrichment:
         sample_german_language,
         sample_wikipedia_project,
         create_wikipedia_link,
+        create_citizenship,
     ):
         """Test that language filtering requires Wikipedia link in that language."""
         # Create official language relation
@@ -900,12 +812,7 @@ class TestPoliticianQueryForEnrichment:
         db_session.add(relation)
 
         # Give politician German citizenship
-        citizenship = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_germany_country.wikidata_id,
-        )
-        db_session.add(citizenship)
+        create_citizenship(sample_politician, sample_germany_country)
 
         # Create only English Wikipedia link (not German)
         create_wikipedia_link(sample_politician, sample_wikipedia_project)
@@ -931,6 +838,7 @@ class TestPoliticianQueryForEnrichment:
         sample_spanish_language,
         sample_spanish_wikipedia_project,
         create_wikipedia_link,
+        create_citizenship,
     ):
         """Test that only top 3 most popular citizenship languages are considered."""
         # Create a country with 4 official languages
@@ -983,12 +891,7 @@ class TestPoliticianQueryForEnrichment:
             base_qid += popularity
 
         # Give sample_politician citizenship of multilingual country
-        citizenship = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=multilingual_country.wikidata_id,
-        )
-        db_session.add(citizenship)
+        create_citizenship(sample_politician, multilingual_country)
 
         # Create Wikipedia links for all 4 languages for sample_politician
         create_wikipedia_link(sample_politician, sample_wikipedia_project)
@@ -1354,19 +1257,14 @@ class TestPropertyShouldStore:
         assert new_property.should_store(db_session) is True
 
     def test_should_store_citizenship_duplicate(
-        self, db_session, sample_politician, sample_country
+        self, db_session, sample_politician, sample_country, create_citizenship
     ):
         """Test not storing citizenship when duplicate exists."""
         politician = sample_politician
         country = sample_country
 
         # Create existing citizenship
-        existing_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=country.wikidata_id,
-        )
-        db_session.add(existing_property)
+        create_citizenship(politician, country)
         db_session.flush()
 
         # Try to store duplicate citizenship

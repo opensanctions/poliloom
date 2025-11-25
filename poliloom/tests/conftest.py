@@ -430,6 +430,268 @@ def create_citizenship(db_session):
     return _create_citizenship
 
 
+@pytest.fixture
+def create_birth_date(db_session):
+    """Factory fixture to create birth date properties easily.
+
+    Returns a function that creates a BIRTH_DATE Property given a politician and value.
+    """
+    from poliloom.models import Property, PropertyType
+
+    def _create_birth_date(
+        politician,
+        value="1980-01-01",
+        archived_page=None,
+        statement_id=None,
+        supporting_quotes=None,
+    ):
+        """Create a birth date property for a politician.
+
+        Args:
+            politician: Politician instance
+            value: Date string (default: "1980-01-01")
+            archived_page: Optional ArchivedPage instance (makes it "extracted")
+            statement_id: Optional statement ID (makes it "from Wikidata")
+            supporting_quotes: Optional list of supporting quotes
+
+        Returns:
+            Created Property instance
+        """
+        prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value=value,
+            value_precision=11,
+            archived_page_id=archived_page.id if archived_page else None,
+            statement_id=statement_id,
+            supporting_quotes=supporting_quotes,
+        )
+        db_session.add(prop)
+        return prop
+
+    return _create_birth_date
+
+
+@pytest.fixture
+def create_death_date(db_session):
+    """Factory fixture to create death date properties easily.
+
+    Returns a function that creates a DEATH_DATE Property given a politician and value.
+    """
+    from poliloom.models import Property, PropertyType
+
+    def _create_death_date(
+        politician,
+        value="2020-01-01",
+        archived_page=None,
+        statement_id=None,
+        supporting_quotes=None,
+    ):
+        """Create a death date property for a politician.
+
+        Args:
+            politician: Politician instance
+            value: Date string (default: "2020-01-01")
+            archived_page: Optional ArchivedPage instance (makes it "extracted")
+            statement_id: Optional statement ID (makes it "from Wikidata")
+            supporting_quotes: Optional list of supporting quotes
+
+        Returns:
+            Created Property instance
+        """
+        prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.DEATH_DATE,
+            value=value,
+            value_precision=11,
+            archived_page_id=archived_page.id if archived_page else None,
+            statement_id=statement_id,
+            supporting_quotes=supporting_quotes,
+        )
+        db_session.add(prop)
+        return prop
+
+    return _create_death_date
+
+
+@pytest.fixture
+def create_position(db_session):
+    """Factory fixture to create position properties easily.
+
+    Returns a function that creates a POSITION Property given a politician and position.
+    """
+    from poliloom.models import Property, PropertyType
+
+    def _create_position(
+        politician,
+        position,
+        archived_page=None,
+        qualifiers_json=None,
+        statement_id=None,
+        supporting_quotes=None,
+    ):
+        """Create a position property for a politician.
+
+        Args:
+            politician: Politician instance
+            position: Position instance
+            archived_page: Optional ArchivedPage instance (makes it "extracted")
+            qualifiers_json: Optional qualifiers dict (e.g., P580/P582 for dates)
+            statement_id: Optional statement ID (makes it "from Wikidata")
+            supporting_quotes: Optional list of supporting quotes
+
+        Returns:
+            Created Property instance
+        """
+        prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            archived_page_id=archived_page.id if archived_page else None,
+            qualifiers_json=qualifiers_json,
+            statement_id=statement_id,
+            supporting_quotes=supporting_quotes,
+        )
+        db_session.add(prop)
+        return prop
+
+    return _create_position
+
+
+@pytest.fixture
+def create_birthplace(db_session):
+    """Factory fixture to create birthplace properties easily.
+
+    Returns a function that creates a BIRTHPLACE Property given a politician and location.
+    """
+    from poliloom.models import Property, PropertyType
+
+    def _create_birthplace(
+        politician,
+        location,
+        archived_page=None,
+        statement_id=None,
+        supporting_quotes=None,
+    ):
+        """Create a birthplace property for a politician.
+
+        Args:
+            politician: Politician instance
+            location: Location instance
+            archived_page: Optional ArchivedPage instance (makes it "extracted")
+            statement_id: Optional statement ID (makes it "from Wikidata")
+            supporting_quotes: Optional list of supporting quotes
+
+        Returns:
+            Created Property instance
+        """
+        prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTHPLACE,
+            entity_id=location.wikidata_id,
+            archived_page_id=archived_page.id if archived_page else None,
+            statement_id=statement_id,
+            supporting_quotes=supporting_quotes,
+        )
+        db_session.add(prop)
+        return prop
+
+    return _create_birthplace
+
+
+@pytest.fixture
+def politician_with_unevaluated_data(
+    db_session, sample_politician, sample_position, sample_location
+):
+    """Create a politician with various types of unevaluated extracted data.
+
+    This fixture creates a politician with:
+    - Extracted (unevaluated) properties: birth date, position, birthplace
+    - Wikidata properties: death date, position, birthplace
+
+    Returns:
+        Tuple of (politician, list of extracted properties)
+    """
+    from poliloom.models import Property, PropertyType
+    from poliloom.wikidata_date import WikidataDate
+
+    archived_page = ArchivedPage(
+        url="https://example.com/test",
+        content_hash="test123",
+    )
+    db_session.add(archived_page)
+    db_session.flush()
+
+    politician = sample_politician
+    position = sample_position
+    location = sample_location
+
+    # Add extracted (unevaluated) data
+    extracted_birth = Property(
+        politician_id=politician.id,
+        type=PropertyType.BIRTH_DATE,
+        value="1970-01-15",
+        value_precision=11,
+        archived_page_id=archived_page.id,
+        supporting_quotes=["Born on January 15, 1970"],
+    )
+
+    extracted_position = Property(
+        politician_id=politician.id,
+        type=PropertyType.POSITION,
+        entity_id=position.wikidata_id,
+        qualifiers_json={
+            "P580": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()],
+            "P582": [WikidataDate.from_date_string("2024").to_wikidata_qualifier()],
+        },
+        archived_page_id=archived_page.id,
+        supporting_quotes=["Served as Mayor from 2020 to 2024"],
+    )
+
+    extracted_birthplace = Property(
+        politician_id=politician.id,
+        type=PropertyType.BIRTHPLACE,
+        entity_id=location.wikidata_id,
+        archived_page_id=archived_page.id,
+        supporting_quotes=["Born in Springfield"],
+    )
+
+    # Add Wikidata (non-extracted) data
+    wikidata_death = Property(
+        politician_id=politician.id,
+        type=PropertyType.DEATH_DATE,
+        value="2024-01-01",
+        value_precision=11,
+        archived_page_id=None,
+    )
+
+    wikidata_position = Property(
+        politician_id=politician.id,
+        type=PropertyType.POSITION,
+        entity_id=position.wikidata_id,
+        qualifiers_json={
+            "P580": [WikidataDate.from_date_string("2018").to_wikidata_qualifier()],
+            "P582": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()],
+        },
+        archived_page_id=None,
+    )
+
+    wikidata_birthplace = Property(
+        politician_id=politician.id,
+        type=PropertyType.BIRTHPLACE,
+        entity_id=location.wikidata_id,
+        archived_page_id=None,
+    )
+
+    extracted_properties = [extracted_birth, extracted_position, extracted_birthplace]
+    wikidata_properties = [wikidata_death, wikidata_position, wikidata_birthplace]
+
+    db_session.add_all(extracted_properties + wikidata_properties)
+    db_session.flush()
+
+    return politician, extracted_properties
+
+
 # API Test Fixtures
 
 
