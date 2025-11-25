@@ -6,33 +6,17 @@ import { Header } from '@/components/Header'
 import { Button } from '@/components/Button'
 import { Anchor } from '@/components/Anchor'
 import { CenteredCard } from '@/components/CenteredCard'
-import { TutorialStep } from '@/components/TutorialStep'
+import { PoliticianEvaluation } from '@/components/PoliticianEvaluation'
+import { PoliticianHeader } from '@/components/PoliticianHeader'
+import { ArchivedPageViewer } from '@/components/ArchivedPageViewer'
+import { PropertiesEvaluation } from '@/components/PropertiesEvaluation'
 import { useTutorial } from '@/contexts/TutorialContext'
-import { Property, PropertyType, ArchivedPageResponse } from '@/types'
+import { Politician } from '@/types'
 import tutorialData from './tutorialData.json'
 
-// Build archived pages lookup
-const archivedPages: Record<string, ArchivedPageResponse> = tutorialData.archivedPages as Record<
-  string,
-  ArchivedPageResponse
->
-
-// Build properties with resolved archived pages
-function getProperty(key: keyof typeof tutorialData.properties): Property {
-  const propData = tutorialData.properties[key]
-  return {
-    ...propData,
-    type: propData.type as PropertyType,
-    archived_page: propData.archived_page_key
-      ? archivedPages[propData.archived_page_key]
-      : undefined,
-  } as Property
-}
-
-const birthDateProperty = getProperty('birthDate')
-const birthDateIncorrectProperty = getProperty('birthDateIncorrect')
-const position1Property = getProperty('position1')
-const position2Property = getProperty('position2')
+const extractedDataPolitician = tutorialData.steps.extractedData.politician as Politician
+const birthDatePolitician = tutorialData.steps.birthDateEvaluation.politician as Politician
+const multipleSourcesPolitician = tutorialData.steps.multipleSources.politician as Politician
 
 function TutorialActions({ buttonText, onNext }: { buttonText: string; onNext: () => void }) {
   return (
@@ -46,6 +30,30 @@ function TutorialActions({ buttonText, onNext }: { buttonText: string; onNext: (
       >
         Skip Tutorial
       </Anchor>
+    </div>
+  )
+}
+
+function TutorialFooter({ onNext }: { onNext: () => void }) {
+  return (
+    <div className="flex justify-between items-center">
+      <Anchor href="/evaluate" className="text-gray-500 hover:text-gray-700 font-medium">
+        Skip Tutorial
+      </Anchor>
+      <Button onClick={onNext} className="px-6 py-3">
+        Continue
+      </Button>
+    </div>
+  )
+}
+
+function TwoPanel({ left, right }: { left: React.ReactNode; right: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[46rem_1fr] bg-gray-50 min-h-0">
+      <div className="shadow-lg overflow-y-auto min-h-0 p-6">{left}</div>
+      <div className="bg-gray-50 border-l border-gray-200 overflow-hidden min-h-0 flex items-center justify-center">
+        {right}
+      </div>
     </div>
   )
 }
@@ -65,6 +73,7 @@ export default function TutorialPage() {
   let content: React.ReactNode
 
   if (step === 0) {
+    // Welcome
     content = (
       <CenteredCard emoji="👋" title="Welcome to PoliLoom!">
         <p className="mb-8">
@@ -75,6 +84,7 @@ export default function TutorialPage() {
       </CenteredCard>
     )
   } else if (step === 1) {
+    // Why your help matters
     content = (
       <CenteredCard emoji="🤖" title="Why Your Help Matters">
         <p className="mb-8">
@@ -85,17 +95,10 @@ export default function TutorialPage() {
       </CenteredCard>
     )
   } else if (step === 2) {
+    // Show archived page (explanation left, iframe right)
     content = (
-      <TutorialStep
-        key={2}
-        properties={[]}
-        archivedPages={archivedPages}
-        politician={tutorialData.politician}
-        showArchivedPage={true}
-        showLeftExplanation={true}
-        showRightExplanation={false}
-        isInteractive={false}
-        explanationContent={
+      <TwoPanel
+        left={
           <CenteredCard emoji="📄" title="Source Documents">
             <p>
               On the right side, you&apos;ll see archived web pages from government portals,
@@ -105,34 +108,52 @@ export default function TutorialPage() {
               These are the original documents where we found information about politicians. We save
               copies so you can verify the data even if the original page changes.
             </p>
+            <div className="mt-8">
+              <TutorialActions buttonText="Next" onNext={nextStep} />
+            </div>
           </CenteredCard>
         }
-        onNext={nextStep}
+        right={<ArchivedPageViewer pageId="tutorial-page-1" apiBasePath="/api/tutorial-pages" />}
       />
     )
   } else if (step === 3) {
+    // Show extracted data (properties left, explanation right)
     content = (
-      <TutorialStep
-        key={3}
-        properties={[birthDateProperty]}
-        archivedPages={archivedPages}
-        politician={tutorialData.politician}
-        showArchivedPage={false}
-        showLeftExplanation={false}
-        showRightExplanation={true}
-        isInteractive={false}
-        explanationContent={
+      <TwoPanel
+        left={
+          <>
+            <div className="mb-6">
+              <div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>
+              <PoliticianHeader
+                name={extractedDataPolitician.name}
+                wikidataId={extractedDataPolitician.wikidata_id ?? undefined}
+              />
+            </div>
+            <PropertiesEvaluation
+              properties={extractedDataPolitician.properties}
+              evaluations={new Map()}
+              onAction={() => {}}
+              onShowArchived={() => {}}
+              onHover={() => {}}
+              activeArchivedPageId={null}
+            />
+          </>
+        }
+        right={
           <CenteredCard emoji="🗂️" title="Extracted Data">
             <p>
               On the left, you see structured data that was automatically extracted from the source
               documents using AI.
             </p>
+            <div className="mt-8">
+              <TutorialActions buttonText="Next" onNext={nextStep} />
+            </div>
           </CenteredCard>
         }
-        onNext={nextStep}
       />
     )
   } else if (step === 4) {
+    // Let's try it
     content = (
       <CenteredCard emoji="🎯" title="Let's Try It">
         <p className="mb-8">
@@ -143,66 +164,63 @@ export default function TutorialPage() {
       </CenteredCard>
     )
   } else if (step === 5) {
+    // Interactive: birth date evaluation
     content = (
-      <TutorialStep
-        key={5}
-        properties={[birthDateProperty, birthDateIncorrectProperty]}
-        archivedPages={archivedPages}
-        politician={tutorialData.politician}
-        showArchivedPage={true}
-        showLeftExplanation={false}
-        showRightExplanation={false}
-        isInteractive={true}
-        explanationContent={
-          <CenteredCard emoji="✨" title="Try It Yourself">
-            <p>Now it&apos;s your turn! Review the data and click Accept or Reject.</p>
-          </CenteredCard>
-        }
-        onNext={nextStep}
+      <PoliticianEvaluation
+        key="step-5"
+        politician={birthDatePolitician}
+        footer={<TutorialFooter onNext={nextStep} />}
+        archivedPagesApiPath="/api/tutorial-pages"
       />
     )
   } else if (step === 6) {
+    // Multiple sources explanation (properties left, explanation right)
     content = (
-      <TutorialStep
-        key={6}
-        properties={[position1Property, position2Property]}
-        archivedPages={archivedPages}
-        politician={tutorialData.politician}
-        showArchivedPage={false}
-        showLeftExplanation={false}
-        showRightExplanation={true}
-        isInteractive={false}
-        explanationContent={
+      <TwoPanel
+        left={
+          <>
+            <div className="mb-6">
+              <div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>
+              <PoliticianHeader
+                name={multipleSourcesPolitician.name}
+                wikidataId={multipleSourcesPolitician.wikidata_id ?? undefined}
+              />
+            </div>
+            <PropertiesEvaluation
+              properties={multipleSourcesPolitician.properties}
+              evaluations={new Map()}
+              onAction={() => {}}
+              onShowArchived={() => {}}
+              onHover={() => {}}
+              activeArchivedPageId={null}
+            />
+          </>
+        }
+        right={
           <CenteredCard emoji="📚" title="Multiple Sources">
             <p>Sometimes information comes from different source documents.</p>
             <p className="mt-4">
               Click the &quot;View&quot; button next to any data item to see its source document.
             </p>
+            <div className="mt-8">
+              <TutorialActions buttonText="Next" onNext={nextStep} />
+            </div>
           </CenteredCard>
         }
-        onNext={nextStep}
       />
     )
   } else if (step === 7) {
+    // Interactive: positions evaluation
     content = (
-      <TutorialStep
-        key={7}
-        properties={[position1Property, position2Property]}
-        archivedPages={archivedPages}
-        politician={tutorialData.politician}
-        showArchivedPage={true}
-        showLeftExplanation={false}
-        showRightExplanation={false}
-        isInteractive={true}
-        explanationContent={
-          <CenteredCard emoji="🔄" title="Try Multiple Sources">
-            <p>Review these positions from different sources.</p>
-          </CenteredCard>
-        }
-        onNext={nextStep}
+      <PoliticianEvaluation
+        key="step-7"
+        politician={multipleSourcesPolitician}
+        footer={<TutorialFooter onNext={nextStep} />}
+        archivedPagesApiPath="/api/tutorial-pages"
       />
     )
   } else {
+    // Complete
     content = (
       <CenteredCard emoji="🎉" title="Tutorial Complete!">
         <div className="mb-8">

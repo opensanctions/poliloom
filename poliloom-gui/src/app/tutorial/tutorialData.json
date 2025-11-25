@@ -1,7 +1,8 @@
 {
   "politician": {
+    "id": "tutorial-politician",
     "name": "Jane Doe",
-    "wikidataId": "Q955672"
+    "wikidata_id": "Q955672"
   },
   "archivedPages": {
     "page1": {
@@ -17,128 +18,128 @@
       "fetch_timestamp": "2024-01-15T10:00:00Z"
     }
   },
-  "properties": {
-    "birthDate": {
-      "key": "tutorial-birth-date",
-      "id": "tutorial-birth-date",
-      "type": "P569",
-      "value": "+1975-03-15T00:00:00Z",
-      "value_precision": 11,
-      "supporting_quotes": [
-        "Jane Doe was born on March 15, 1975 in Springfield.",
-        "Born: March 15, 1975"
-      ],
-      "archived_page_key": "page1"
-    },
-    "birthDateIncorrect": {
-      "key": "tutorial-birth-date-incorrect",
-      "id": "tutorial-birth-date-incorrect",
-      "type": "P569",
-      "value": "+1976-03-15T00:00:00Z",
-      "value_precision": 11,
-      "supporting_quotes": [
-        "Jane Doe was born on March 15, 1975 in Springfield.",
-        "Born: March 15, 1975"
-      ],
-      "archived_page_key": "page1"
-    },
-    "position1": {
-      "key": "tutorial-position-1",
-      "id": "tutorial-position-1",
-      "type": "P39",
-      "entity_id": "Q123456",
-      "entity_name": "Member of Parliament",
-      "qualifiers": {
-        "P580": [{ "datavalue": { "value": { "time": "+2020-01-01T00:00:00Z", "precision": 11 } } }]
-      },
-      "supporting_quotes": [
-        "Jane Doe has served as a Member of Parliament since January 2020.",
-        "Elected to Parliament in 2020"
-      ],
-      "archived_page_key": "page1"
-    },
-    "position2": {
-      "key": "tutorial-position-2",
-      "id": "tutorial-position-2",
-      "type": "P39",
-      "entity_id": "Q789012",
-      "entity_name": "Minister of Education",
-      "qualifiers": {
-        "P580": [{ "datavalue": { "value": { "time": "+2022-06-15T00:00:00Z", "precision": 11 } } }]
-      },
-      "supporting_quotes": [
-        "She was appointed Minister of Education in June 2022.",
-        "Current Minister of Education since 2022"
-      ],
-      "archived_page_key": "page2"
-    }
-  },
   "steps": {
-    "intro": {
-      "title": "Welcome to PoliLoom!",
-      "emoji": "👋",
-      "description": "You're about to help build accurate, open political data by verifying information extracted from official sources.",
-      "secondaryDescription": "Let's take a quick tour to show you how it works."
+    "extractedData": {
+      "politician": {
+        "id": "tutorial-politician",
+        "name": "Jane Doe",
+        "wikidata_id": "Q955672",
+        "properties": [
+          {
+            "key": "tutorial-birth-date",
+            "id": "tutorial-birth-date",
+            "type": "P569",
+            "value": "+1975-03-15T00:00:00Z",
+            "value_precision": 11,
+            "supporting_quotes": [
+              "Jane Doe was born on March 15, 1975 in Springfield.",
+              "Born: March 15, 1975"
+            ],
+            "archived_page": {
+              "id": "tutorial-page-1",
+              "url": "https://example.parliament.gov/members/jane-doe",
+              "content_hash": "tutorial-hash-1",
+              "fetch_timestamp": "2024-01-15T10:00:00Z"
+            }
+          }
+        ]
+      }
     },
-    "why": {
-      "title": "Why Your Help Matters",
-      "emoji": "🤖",
-      "description": "We use AI to automatically extract political data from websites. But AI isn't perfect—it sometimes misreads or misinterprets information.",
-      "secondaryDescription": "Your role is to check whether what the AI extracted actually matches what's written in the source document."
+    "birthDateEvaluation": {
+      "politician": {
+        "id": "tutorial-politician",
+        "name": "Jane Doe",
+        "wikidata_id": "Q955672",
+        "properties": [
+          {
+            "key": "tutorial-birth-date",
+            "id": "tutorial-birth-date",
+            "type": "P569",
+            "value": "+1975-03-15T00:00:00Z",
+            "value_precision": 11,
+            "supporting_quotes": [
+              "Jane Doe was born on March 15, 1975 in Springfield.",
+              "Born: March 15, 1975"
+            ],
+            "archived_page": {
+              "id": "tutorial-page-1",
+              "url": "https://example.parliament.gov/members/jane-doe",
+              "content_hash": "tutorial-hash-1",
+              "fetch_timestamp": "2024-01-15T10:00:00Z"
+            }
+          },
+          {
+            "key": "tutorial-birth-date-incorrect",
+            "id": "tutorial-birth-date-incorrect",
+            "type": "P569",
+            "value": "+1976-03-15T00:00:00Z",
+            "value_precision": 11,
+            "supporting_quotes": [
+              "Jane Doe was born on March 15, 1975 in Springfield.",
+              "Born: March 15, 1975"
+            ],
+            "archived_page": {
+              "id": "tutorial-page-1",
+              "url": "https://example.parliament.gov/members/jane-doe",
+              "content_hash": "tutorial-hash-1",
+              "fetch_timestamp": "2024-01-15T10:00:00Z"
+            }
+          }
+        ]
+      }
     },
-    "archivedPage": {
-      "title": "Source Documents",
-      "emoji": "📄",
-      "description": "On the right side, you'll see archived web pages from government portals, Wikipedia, and other official sources.",
-      "secondaryDescription": "These are the original documents where we found information about politicians. We save copies so you can verify the data even if the original page changes.",
-      "showArchivedPage": true,
-      "showLeftExplanation": true
-    },
-    "structuredData": {
-      "title": "Extracted Data",
-      "emoji": "🗂️",
-      "description": "On the left, you see structured data that was automatically extracted from the source documents using AI.",
-      "properties": ["birthDate"],
-      "showRightExplanation": true
-    },
-    "letsTry": {
-      "title": "Let's Try It",
-      "emoji": "🎯",
-      "description": "Compare the extracted data to the source. If they match, accept. If they don't, reject."
-    },
-    "tryYourself1": {
-      "title": "Try It Yourself",
-      "emoji": "✨",
-      "description": "Now it's your turn! Review the data and click Accept or Reject.",
-      "properties": ["birthDate"],
-      "showArchivedPage": true,
-      "interactive": true
-    },
-    "multiplePages": {
-      "title": "Multiple Sources",
-      "emoji": "📚",
-      "description": "Sometimes information comes from different source documents.",
-      "secondaryDescription": "Click the \"View\" button next to any data item to see its source document.",
-      "properties": ["position1", "position2"],
-      "showRightExplanation": true
-    },
-    "tryYourself2": {
-      "title": "Try Multiple Sources",
-      "emoji": "🔄",
-      "description": "Review these positions from different sources.",
-      "properties": ["position1", "position2"],
-      "showArchivedPage": true,
-      "interactive": true
-    },
-    "complete": {
-      "title": "Tutorial Complete!",
-      "emoji": "🎉",
-      "description": "Great job! You now know how to:",
-      "bullets": [
-        "View source documents with highlighted text",
-        "Review extracted data and accept or reject it",
-        "Handle multiple sources for different data"
-      ]
+    "multipleSources": {
+      "politician": {
+        "id": "tutorial-politician",
+        "name": "Jane Doe",
+        "wikidata_id": "Q955672",
+        "properties": [
+          {
+            "key": "tutorial-position-1",
+            "id": "tutorial-position-1",
+            "type": "P39",
+            "entity_id": "Q123456",
+            "entity_name": "Member of Parliament",
+            "qualifiers": {
+              "P580": [
+                { "datavalue": { "value": { "time": "+2020-01-01T00:00:00Z", "precision": 11 } } }
+              ]
+            },
+            "supporting_quotes": [
+              "Jane Doe has served as a Member of Parliament since January 2020.",
+              "Elected to Parliament in 2020"
+            ],
+            "archived_page": {
+              "id": "tutorial-page-1",
+              "url": "https://example.parliament.gov/members/jane-doe",
+              "content_hash": "tutorial-hash-1",
+              "fetch_timestamp": "2024-01-15T10:00:00Z"
+            }
+          },
+          {
+            "key": "tutorial-position-2",
+            "id": "tutorial-position-2",
+            "type": "P39",
+            "entity_id": "Q789012",
+            "entity_name": "Minister of Education",
+            "qualifiers": {
+              "P580": [
+                { "datavalue": { "value": { "time": "+2022-06-15T00:00:00Z", "precision": 11 } } }
+              ]
+            },
+            "supporting_quotes": [
+              "She was appointed Minister of Education in June 2022.",
+              "Current Minister of Education since 2022"
+            ],
+            "archived_page": {
+              "id": "tutorial-page-2",
+              "url": "https://en.wikipedia.org/wiki/Jane_Doe_(politician)",
+              "content_hash": "tutorial-hash-2",
+              "fetch_timestamp": "2024-01-15T10:00:00Z"
+            }
+          }
+        ]
+      }
     }
   }
 }

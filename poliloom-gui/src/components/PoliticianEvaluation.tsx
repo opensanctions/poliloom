@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, ReactNode } from 'react'
 import { Politician, Property, EvaluationItem, ArchivedPageResponse } from '@/types'
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting'
 import { highlightTextInScope } from '@/lib/textHighlighter'
@@ -8,12 +8,20 @@ import { useArchivedPageCache } from '@/contexts/ArchivedPageContext'
 import { useEvaluation } from '@/contexts/EvaluationContext'
 import { Button } from './Button'
 import { PropertiesEvaluation } from './PropertiesEvaluation'
+import { PoliticianHeader } from './PoliticianHeader'
+import { ArchivedPageViewer } from './ArchivedPageViewer'
 
 interface PoliticianEvaluationProps {
   politician: Politician
+  footer?: ReactNode
+  archivedPagesApiPath?: string
 }
 
-export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) {
+export function PoliticianEvaluation({
+  politician,
+  footer,
+  archivedPagesApiPath = '/api/archived-pages',
+}: PoliticianEvaluationProps) {
   const { completedCount, sessionGoal, submitEvaluation, skipPolitician } = useEvaluation()
   const [evaluations, setEvaluations] = useState<Map<string, boolean>>(new Map())
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -127,21 +135,10 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
         {/* Scrollable content area */}
         <div ref={leftPanelRef} className="overflow-y-auto min-h-0 p-6">
           <div className="mb-6">
-            {politician.wikidata_id ? (
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                <a
-                  href={`https://www.wikidata.org/wiki/${politician.wikidata_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:underline"
-                >
-                  {politician.name}{' '}
-                  <span className="text-gray-500 font-normal">({politician.wikidata_id})</span>
-                </a>
-              </h1>
-            ) : (
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">{politician.name}</h1>
-            )}
+            <PoliticianHeader
+              name={politician.name}
+              wikidataId={politician.wikidata_id ?? undefined}
+            />
           </div>
 
           <PropertiesEvaluation
@@ -161,34 +158,30 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
 
         {/* Fixed button at bottom */}
         <div className="p-6 border-t border-gray-200">
-          <div className="flex justify-between items-center">
-            <div className="text-base text-gray-900">
-              Progress:{' '}
-              <strong>
-                {completedCount} / {sessionGoal}
-              </strong>{' '}
-              politicians evaluated
+          {footer ?? (
+            <div className="flex justify-between items-center">
+              <div className="text-base text-gray-900">
+                Progress:{' '}
+                <strong>
+                  {completedCount} / {sessionGoal}
+                </strong>{' '}
+                politicians evaluated
+              </div>
+              <Button onClick={handleSubmit} disabled={isSubmitting} className="px-6 py-3">
+                {isSubmitting ? 'Submitting...' : 'Submit'}
+              </Button>
             </div>
-            <Button onClick={handleSubmit} disabled={isSubmitting} className="px-6 py-3">
-              {isSubmitting
-                ? 'Submitting...'
-                : evaluations.size === 0
-                  ? 'Skip Politician'
-                  : 'Submit Evaluations & Next'}
-            </Button>
-          </div>
+          )}
         </div>
       </div>
 
       {/* Right panel - Archived page viewer */}
       <div className="bg-gray-50 border-l border-gray-200 overflow-hidden min-h-0">
         {selectedArchivedPage ? (
-          <iframe
-            ref={iframeRef}
-            src={`/api/archived-pages/${selectedArchivedPage.id}/html`}
-            className="w-full h-full border-0"
-            title="Archived Page"
-            sandbox="allow-scripts allow-same-origin"
+          <ArchivedPageViewer
+            pageId={selectedArchivedPage.id}
+            apiBasePath={archivedPagesApiPath}
+            iframeRef={iframeRef}
             onLoad={() => {
               archivedPageCache.markPageAsLoaded(selectedArchivedPage.id)
               handleIframeLoad()
