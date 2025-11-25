@@ -41,6 +41,19 @@
               "content_hash": "tutorial-hash-1",
               "fetch_timestamp": "2024-01-15T10:00:00Z"
             }
+          },
+          {
+            "key": "tutorial-existing-position",
+            "id": "tutorial-existing-position",
+            "type": "P39",
+            "entity_id": "Q123456",
+            "entity_name": "Member of Parliament",
+            "statement_id": "Q955672$existing-statement-1",
+            "qualifiers": {
+              "P580": [
+                { "datavalue": { "value": { "time": "+2020-01-01T00:00:00Z", "precision": 11 } } }
+              ]
+            }
           }
         ]
       }
@@ -72,11 +85,10 @@
             "key": "tutorial-birth-date-incorrect",
             "id": "tutorial-birth-date-incorrect",
             "type": "P569",
-            "value": "+1976-03-15T00:00:00Z",
+            "value": "+1952-06-08T00:00:00Z",
             "value_precision": 11,
             "supporting_quotes": [
-              "Jane Doe was born on March 15, 1975 in Springfield.",
-              "Born: March 15, 1975"
+              "Following in the footsteps of her mother Mary Doe (born June 8, 1952), she pursued a career in public service."
             ],
             "archived_page": {
               "id": "tutorial-page-1",

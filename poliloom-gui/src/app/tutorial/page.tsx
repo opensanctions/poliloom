@@ -142,8 +142,8 @@ export default function TutorialPage() {
         right={
           <CenteredCard emoji="🗂️" title="Extracted Data">
             <p>
-              On the left, you see structured data that was automatically extracted from the source
-              documents using AI.
+              On the left, you see data automatically extracted from source documents, alongside
+              existing data already in Wikidata.
             </p>
             <div className="mt-8">
               <TutorialActions buttonText="Next" onNext={nextStep} />
