@@ -18,7 +18,7 @@ export function EvaluationActions({
     <div className="flex gap-2 items-center ml-auto">
       {!isWikidataStatement ? (
         <>
-          <DataLabel variant="new">New data!</DataLabel>
+          <DataLabel variant="new">New data 🎉</DataLabel>
           <Button
             size="sm"
             variant="success"
