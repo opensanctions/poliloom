@@ -236,15 +236,16 @@ class TestGetPoliticiansEndpoint:
         # But they should have precision fields
         assert "value_precision" in wikidata_prop
 
-    def test_pagination_limits_results(self, client, mock_auth, db_session):
+    def test_pagination_limits_results(
+        self, client, mock_auth, db_session, create_archived_page, create_birth_date
+    ):
         """Test that pagination parameters limit results correctly."""
         # Create multiple politicians with unevaluated data
         politicians = []
         archived_pages = []
-        properties = []
 
         for i in range(5):
-            archived_page = ArchivedPage(
+            archived_page = create_archived_page(
                 url=f"https://example.com/test{i}",
                 content_hash=f"test{i}",
             )
@@ -255,21 +256,16 @@ class TestGetPoliticiansEndpoint:
             )
             politicians.append(politician)
 
-        db_session.add_all(archived_pages + politicians)
         db_session.flush()  # Need IDs for properties
 
         # Add extracted properties
         for i, politician in enumerate(politicians):
-            prop = Property(
-                politician_id=politician.id,
-                type=PropertyType.BIRTH_DATE,
+            create_birth_date(
+                politician,
                 value=f"19{70 + i}-01-01",
-                value_precision=11,
-                archived_page_id=archived_pages[i].id,
+                archived_page=archived_pages[i],
             )
-            properties.append(prop)
 
-        db_session.add_all(properties)
         db_session.flush()
 
         # Test limit parameter
@@ -604,6 +600,7 @@ class TestGetPoliticiansEndpoint:
         sample_germany_country,
         create_citizenship,
         create_archived_page,
+        create_birth_date,
     ):
         """Test filtering by both language and country filters combined."""
         usa_country = sample_country
@@ -638,28 +635,23 @@ class TestGetPoliticiansEndpoint:
 
         # Add properties for American English speaking politician
         create_citizenship(american_english_politician, usa_country, english_page)
-        american_eng_birth = Property(
-            politician_id=american_english_politician.id,
-            type=PropertyType.BIRTH_DATE,
+        create_birth_date(
+            american_english_politician,
             value="1970-01-01",
-            value_precision=11,
-            archived_page_id=english_page.id,
+            archived_page=english_page,
         )
 
         # Add properties for German English speaking politician
         create_citizenship(german_english_politician, germany_country, english_page)
-        german_eng_birth = Property(
-            politician_id=german_english_politician.id,
-            type=PropertyType.BIRTH_DATE,
+        create_birth_date(
+            german_english_politician,
             value="1971-01-01",
-            value_precision=11,
-            archived_page_id=english_page.id,
+            archived_page=english_page,
         )
 
         # Add properties for American non-English speaking politician
         create_citizenship(american_non_english_politician, usa_country)
 
-        db_session.add_all([american_eng_birth, german_eng_birth])
         db_session.flush()
 
         # Test combined filtering: English language AND American citizenship
@@ -704,6 +696,8 @@ class TestGetPoliticiansEndpoint:
         sample_language,
         sample_german_language,
         create_archived_page,
+        create_birth_date,
+        create_death_date,
     ):
         """Test that when filtering by language, only properties from that language's archived pages are returned."""
         # Create archived pages with language associations
@@ -731,44 +725,34 @@ class TestGetPoliticiansEndpoint:
         db_session.flush()
 
         # Add properties from different language sources
-        english_birth = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
+        create_birth_date(
+            politician,
             value="1970-01-01",
-            value_precision=11,
-            archived_page_id=english_page.id,
+            archived_page=english_page,
             supporting_quotes=["Born on January 1, 1970"],
         )
 
-        german_birth = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
+        create_birth_date(
+            politician,
             value="1970-01-02",  # Different date from German source
-            value_precision=11,
-            archived_page_id=german_page.id,
+            archived_page=german_page,
             supporting_quotes=["Geboren am 2. Januar 1970"],
         )
 
-        no_lang_birth = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
+        create_birth_date(
+            politician,
             value="1970-01-03",
-            value_precision=11,
-            archived_page_id=no_lang_page.id,
+            archived_page=no_lang_page,
             supporting_quotes=["Unknown language source"],
         )
 
         # Add a Wikidata property (no archived page)
-        wikidata_death = Property(
-            politician_id=politician.id,
-            type=PropertyType.DEATH_DATE,
+        create_death_date(
+            politician,
             value="2024-01-01",
-            value_precision=11,
-            archived_page_id=None,
             statement_id="Q4001$12345678-1234-1234-1234-123456789012",
         )
 
-        db_session.add_all([english_birth, german_birth, no_lang_birth, wikidata_death])
         db_session.flush()
 
         # Test filtering by English - should only return English property
@@ -816,29 +800,27 @@ class TestGetPoliticiansEndpoint:
         sample_politician,
         sample_position,
         sample_archived_page,
+        create_birth_date,
+        create_position,
     ):
         """Test that soft-deleted properties are excluded from results."""
         # Add a normal unevaluated property
-        normal_property = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.BIRTH_DATE,
+        create_birth_date(
+            sample_politician,
             value="1980-01-01",
-            value_precision=11,
-            archived_page_id=sample_archived_page.id,
+            archived_page=sample_archived_page,
             supporting_quotes=["Born on January 1, 1980"],
         )
 
         # Add a soft-deleted property
-        deleted_property = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.POSITION,
-            entity_id=sample_position.wikidata_id,
-            archived_page_id=sample_archived_page.id,
+        deleted_property = create_position(
+            sample_politician,
+            sample_position,
+            archived_page=sample_archived_page,
             supporting_quotes=["Served as Mayor"],
-            deleted_at=datetime.now(timezone.utc),  # This makes it soft-deleted
         )
+        deleted_property.deleted_at = datetime.now(timezone.utc)  # Soft-delete it
 
-        db_session.add_all([normal_property, deleted_property])
         db_session.flush()
 
         # Request politicians
@@ -867,7 +849,14 @@ class TestGetPoliticiansEndpoint:
         assert birth_prop["supporting_quotes"] == ["Born on January 1, 1980"]
 
     def test_excludes_politicians_with_only_soft_deleted_properties(
-        self, client, mock_auth, db_session, sample_archived_page, sample_position
+        self,
+        client,
+        mock_auth,
+        db_session,
+        sample_archived_page,
+        sample_position,
+        create_birth_date,
+        create_position,
     ):
         """Test that politicians with only soft-deleted unevaluated properties are excluded."""
         # Create politician with only soft-deleted properties
@@ -878,26 +867,22 @@ class TestGetPoliticiansEndpoint:
         db_session.flush()
 
         # Add only soft-deleted properties
-        deleted_birth = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
+        deleted_birth = create_birth_date(
+            politician,
             value="1975-05-15",
-            value_precision=11,
-            archived_page_id=sample_archived_page.id,
+            archived_page=sample_archived_page,
             supporting_quotes=["Born on May 15, 1975"],
-            deleted_at=datetime.now(timezone.utc),
         )
+        deleted_birth.deleted_at = datetime.now(timezone.utc)
 
-        deleted_position = Property(
-            politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id=sample_position.wikidata_id,
-            archived_page_id=sample_archived_page.id,
+        deleted_position = create_position(
+            politician,
+            sample_position,
+            archived_page=sample_archived_page,
             supporting_quotes=["Served as Deputy"],
-            deleted_at=datetime.now(timezone.utc),
         )
+        deleted_position.deleted_at = datetime.now(timezone.utc)
 
-        db_session.add_all([deleted_birth, deleted_position])
         db_session.flush()
 
         # Request politicians
@@ -909,7 +894,7 @@ class TestGetPoliticiansEndpoint:
         assert len(data) == 0
 
     def test_excludes_politicians_with_soft_deleted_wikidata_entity(
-        self, client, mock_auth, db_session, sample_archived_page
+        self, client, mock_auth, db_session, sample_archived_page, create_birth_date
     ):
         """Test that politicians whose WikidataEntity has been soft-deleted are excluded."""
 
@@ -921,15 +906,12 @@ class TestGetPoliticiansEndpoint:
         db_session.flush()
 
         # Add unevaluated property
-        property = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
+        create_birth_date(
+            politician,
             value="1985-07-20",
-            value_precision=11,
-            archived_page_id=sample_archived_page.id,
+            archived_page=sample_archived_page,
             supporting_quotes=["Born on July 20, 1985"],
         )
-        db_session.add(property)
         db_session.flush()
 
         # Verify politician appears before soft-delete

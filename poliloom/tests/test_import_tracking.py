@@ -211,7 +211,9 @@ class TestStatementTracking:
         )
         assert tracked is not None
 
-    def test_multiple_statements_tracked(self, db_session: Session):
+    def test_multiple_statements_tracked(
+        self, db_session: Session, create_birth_date, create_position
+    ):
         """Test that multiple statements are tracked correctly."""
         # Clear tracking table first
 
@@ -223,17 +225,14 @@ class TestStatementTracking:
         db_session.flush()
 
         # Create multiple statements
-        prop1 = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
+        create_birth_date(
+            politician,
             value="1990-01-01",
-            value_precision=11,
             statement_id="Q777$statement-1",
         )
-        prop2 = Property(
-            politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
+        create_position(
+            politician,
+            position,
             statement_id="Q777$statement-2",
         )
 
@@ -245,8 +244,6 @@ class TestStatementTracking:
             statement_id="Q777$relation-1",
         )
 
-        db_session.add(prop1)
-        db_session.add(prop2)
         db_session.add(relation)
         db_session.flush()
 
@@ -416,7 +413,7 @@ class TestCleanupFunctionality:
         assert isinstance(result["relations_marked_deleted"], int)
 
     def test_cleanup_statements_with_very_old_cutoff_deletes_nothing(
-        self, db_session: Session
+        self, db_session: Session, create_birth_date
     ):
         """Test that statement cleanup with very old cutoff timestamp deletes nothing."""
         # Create politician and statements
@@ -425,14 +422,11 @@ class TestCleanupFunctionality:
         )
         db_session.flush()
 
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
+        create_birth_date(
+            politician,
             value="1990-01-01",
-            value_precision=11,
             statement_id="Q600$test-prop",
         )
-        db_session.add(prop)
         db_session.flush()
 
         # Clear tracking table
@@ -456,7 +450,7 @@ class TestCleanupFunctionality:
         )
         assert prop_fresh.deleted_at is None
 
-    def test_clear_tracking_tables(self, db_session: Session):
+    def test_clear_tracking_tables(self, db_session: Session, create_birth_date):
         """Test that individual tracking tables are cleared properly."""
         # Create entities and statements (triggers will automatically track them)
         entity = WikidataEntity(wikidata_id="Q123", name="Test Entity")
@@ -469,14 +463,11 @@ class TestCleanupFunctionality:
         )
         db_session.flush()
 
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
+        create_birth_date(
+            politician,
             value="1990-01-01",
-            value_precision=11,
             statement_id="Q456$test-statement",
         )
-        db_session.add(prop)
         db_session.flush()
 
         # Verify triggers populated tracking tables
@@ -517,7 +508,9 @@ class TestCleanupFunctionality:
 class TestIntegrationWorkflow:
     """Test full import workflow integration."""
 
-    def test_full_import_cleanup_workflow(self, db_session: Session):
+    def test_full_import_cleanup_workflow(
+        self, db_session: Session, create_birth_date, create_death_date, create_position
+    ):
         """Test complete workflow: clear -> import -> cleanup -> clear."""
         # Step 1: Clear tracking tables (start of import)
         CurrentImportEntity.clear_tracking_table(db_session)
@@ -540,23 +533,17 @@ class TestIntegrationWorkflow:
         )
         db_session.flush()
 
-        old_prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
+        create_birth_date(
+            politician,
             value="1990-01-01",
-            value_precision=11,
             statement_id="Q_pol$old_prop",
         )
-        keep_prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.DEATH_DATE,
+        keep_prop = create_death_date(
+            politician,
             value="2020-01-01",
-            value_precision=11,
             statement_id="Q_pol$keep_prop",
         )
 
-        db_session.add(old_prop)
-        db_session.add(keep_prop)
         db_session.flush()
 
         # Step 3: Clear tracking (fresh import start)
@@ -591,13 +578,11 @@ class TestIntegrationWorkflow:
         db_session.flush()
 
         # Add new prop during import
-        import_prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id=import_position.wikidata_id,
+        create_position(
+            politician,
+            import_position,
             statement_id="Q_pol$import_prop",
         )
-        db_session.add(import_prop)
         db_session.flush()
 
         # Create dump records for two-dump validation
@@ -698,7 +683,9 @@ class TestIntegrationWorkflow:
         assert db_session.query(CurrentImportEntity).count() == 0
         assert db_session.query(CurrentImportStatement).count() == 0
 
-    def test_enriched_property_positive_evaluation_protection(self, db_session):
+    def test_enriched_property_positive_evaluation_protection(
+        self, db_session, create_birth_date
+    ):
         """Test that positively evaluated enriched properties are protected during cleanup."""
         # Step 1: Create a dump timestamp in the past (simulates dump was taken hours ago)
         dump_timestamp = datetime.now() - timedelta(hours=2)
@@ -710,14 +697,11 @@ class TestIntegrationWorkflow:
         db_session.flush()
 
         # Step 3: Enrich after dump - create property without statement_id (extracted from web)
-        enriched_prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,  # P569 birth date
+        enriched_prop = create_birth_date(
+            politician,
             value="1980-01-01",
-            value_precision=11,
             statement_id=None,  # No statement_id yet - extracted from web
         )
-        db_session.add(enriched_prop)
         db_session.flush()
 
         # Verify property was created after dump timestamp
@@ -747,7 +731,9 @@ class TestIntegrationWorkflow:
         assert fresh_prop.statement_id == "Q_politician$positive_eval"
         assert results["properties_marked_deleted"] == 0  # Nothing should be deleted
 
-    def test_enriched_property_negative_evaluation_protection(self, db_session):
+    def test_enriched_property_negative_evaluation_protection(
+        self, db_session, create_birthplace
+    ):
         """Test that negatively evaluated enriched properties remain soft-deleted during cleanup."""
         # Step 1: Create a dump timestamp in the past (simulates dump was taken hours ago)
         dump_timestamp = datetime.now() - timedelta(hours=2)
@@ -763,13 +749,11 @@ class TestIntegrationWorkflow:
         location = Location.create_with_entity(db_session, "Q123456", "Test Location")
         db_session.flush()
 
-        enriched_prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTHPLACE,  # P19 birth place
-            entity_id=location.wikidata_id,
+        enriched_prop = create_birthplace(
+            politician,
+            location,
             statement_id=None,  # Extracted from web
         )
-        db_session.add(enriched_prop)
         db_session.flush()
 
         # Verify property was created after dump timestamp
@@ -801,7 +785,7 @@ class TestIntegrationWorkflow:
         assert results["properties_marked_deleted"] == 0  # Should not affect count
 
     def test_statement_in_current_dump_not_deleted_two_dump_validation(
-        self, db_session
+        self, db_session, create_birth_date
     ):
         """Test that statements in current dump are preserved with two-dump validation."""
         # Create dump records for two-dump validation
@@ -829,14 +813,11 @@ class TestIntegrationWorkflow:
         db_session.flush()
 
         # Create a property that exists in current dump (tracked)
-        dump_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
+        create_birth_date(
+            politician,
             value="1985-06-15",
-            value_precision=11,
             statement_id="Q_politician_in_dump$in_dump_stmt",
         )
-        db_session.add(dump_property)
         db_session.flush()
 
         # Statement is automatically tracked by database trigger
