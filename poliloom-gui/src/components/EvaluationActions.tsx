@@ -16,17 +16,22 @@ export function EvaluationActions({
   return (
     <div className="flex gap-2 items-center">
       {!isWikidataStatement ? (
-        <Button
-          size="sm"
-          variant="success"
-          active={isAccepted === true}
-          onClick={() => onAction?.(statementId, 'accept')}
-        >
-          ✓ Accept
-        </Button>
+        <>
+          <span className="px-2 py-1 text-sm font-medium text-indigo-600 bg-indigo-50 rounded">
+            New data
+          </span>
+          <Button
+            size="sm"
+            variant="success"
+            active={isAccepted === true}
+            onClick={() => onAction?.(statementId, 'accept')}
+          >
+            ✓ Accept
+          </Button>
+        </>
       ) : (
         <span className="px-2 py-1 text-sm font-medium text-gray-500 bg-gray-100 rounded">
-          Current in Wikidata
+          Existing data
         </span>
       )}
       <Button
