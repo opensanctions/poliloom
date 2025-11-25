@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
 import { Button } from '@/components/Button'
 import { Anchor } from '@/components/Anchor'
@@ -59,16 +58,17 @@ function TwoPanel({ left, right }: { left: React.ReactNode; right: React.ReactNo
 }
 
 export default function TutorialPage() {
-  const router = useRouter()
-  const { completeTutorial } = useTutorial()
   const [step, setStep] = useState(0)
+  const { completeTutorial } = useTutorial()
 
   const nextStep = () => setStep(step + 1)
 
-  const handleComplete = () => {
-    completeTutorial()
-    router.push('/evaluate')
-  }
+  // Mark tutorial as completed when reaching the final step
+  useEffect(() => {
+    if (step >= 8) {
+      completeTutorial()
+    }
+  }, [step, completeTutorial])
 
   let content: React.ReactNode
 
@@ -223,17 +223,15 @@ export default function TutorialPage() {
     // Complete
     content = (
       <CenteredCard emoji="🎉" title="Tutorial Complete!">
-        <div className="mb-8">
-          <p>Great job! You now know how to:</p>
-          <ul className="text-left mt-4 space-y-2">
-            <li>• View source documents with highlighted text</li>
-            <li>• Review extracted data and accept or reject it</li>
-            <li>• Handle multiple sources for different data</li>
-          </ul>
-        </div>
-        <Button onClick={handleComplete} className="px-6 py-3 w-full">
+        <p className="mb-8">
+          You&apos;re all set! You now have everything you need to start verifying politician data.
+        </p>
+        <Anchor
+          href="/evaluate"
+          className="inline-flex items-center justify-center px-6 py-3 w-full bg-indigo-600 text-white font-medium hover:bg-indigo-700 rounded-md transition-colors"
+        >
           Start Evaluating
-        </Button>
+        </Anchor>
       </CenteredCard>
     )
   }

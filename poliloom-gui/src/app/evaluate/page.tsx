@@ -1,12 +1,19 @@
 'use client'
 
+import { useEffect } from 'react'
 import { Header } from '@/components/Header'
 import { PoliticianEvaluation } from '@/components/PoliticianEvaluation'
 import { useEvaluation } from '@/contexts/EvaluationContext'
+import { useTutorial } from '@/contexts/TutorialContext'
 import Link from 'next/link'
 
 export default function EvaluatePage() {
   const { currentPolitician, loading, loadPoliticians } = useEvaluation()
+  const { completeTutorial } = useTutorial()
+
+  useEffect(() => {
+    completeTutorial()
+  }, [completeTutorial])
 
   return (
     <>
