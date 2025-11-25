@@ -33,6 +33,7 @@ function getProperty(key: keyof typeof tutorialData.properties): Property {
 }
 
 const birthDateProperty = getProperty('birthDate')
+const birthDateIncorrectProperty = getProperty('birthDateIncorrect')
 const position1Property = getProperty('position1')
 const position2Property = getProperty('position2')
 
@@ -143,41 +144,42 @@ function EvaluationStep({
       <div className="grid grid-cols-[46rem_1fr] bg-gray-50 min-h-0">
         <div className="shadow-lg grid grid-rows-[1fr_auto] min-h-0">
           <div ref={leftPanelRef} className="overflow-y-auto min-h-0 p-6">
-            <div className="mb-6">
-              <div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                <a
-                  href={`https://www.wikidata.org/wiki/${tutorialData.politician.wikidataId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:underline"
-                >
-                  {tutorialData.politician.name}{' '}
-                  <span className="text-gray-500 font-normal">
-                    ({tutorialData.politician.wikidataId})
-                  </span>
-                </a>
-              </h1>
-            </div>
-
             {showLeftExplanation ? (
               <TutorialExplanation {...explanation} />
             ) : (
-              properties.length > 0 && (
-                <PropertiesEvaluation
-                  properties={properties}
-                  evaluations={evaluations}
-                  onAction={isInteractive ? handleEvaluate : () => {}}
-                  onShowArchived={(property) => {
-                    if (property.archived_page && showArchivedPage) {
-                      setSelectedArchivedPage(property.archived_page)
-                      setSelectedQuotes(property.supporting_quotes || null)
-                    }
-                  }}
-                  onHover={handlePropertyHover}
-                  activeArchivedPageId={selectedArchivedPage?.id || null}
-                />
-              )
+              <>
+                <div className="mb-6">
+                  <div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>
+                  <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                    <a
+                      href={`https://www.wikidata.org/wiki/${tutorialData.politician.wikidataId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline"
+                    >
+                      {tutorialData.politician.name}{' '}
+                      <span className="text-gray-500 font-normal">
+                        ({tutorialData.politician.wikidataId})
+                      </span>
+                    </a>
+                  </h1>
+                </div>
+                {properties.length > 0 && (
+                  <PropertiesEvaluation
+                    properties={properties}
+                    evaluations={evaluations}
+                    onAction={isInteractive ? handleEvaluate : () => {}}
+                    onShowArchived={(property) => {
+                      if (property.archived_page && showArchivedPage) {
+                        setSelectedArchivedPage(property.archived_page)
+                        setSelectedQuotes(property.supporting_quotes || null)
+                      }
+                    }}
+                    onHover={handlePropertyHover}
+                    activeArchivedPageId={selectedArchivedPage?.id || null}
+                  />
+                )}
+              </>
             )}
           </div>
 
@@ -245,7 +247,6 @@ export default function TutorialPage() {
               You&apos;re about to help build accurate, open political data by verifying information
               extracted from official sources.
             </p>
-            <p className="mt-4">Let&apos;s take a quick tour to show you how it works.</p>
           </>
         }
       >
@@ -262,11 +263,39 @@ export default function TutorialPage() {
     )
   }
 
-  // Step 1: Archived page explanation
+  // Step 1: Why your help matters
   if (step === 1) {
     return (
+      <NotificationPage
+        emoji="🤖"
+        title="Why Your Help Matters"
+        description={
+          <>
+            <p>
+              Your role is to check whether what the AI extracted actually matches what&apos;s
+              written in the source document.
+            </p>
+          </>
+        }
+      >
+        <Button onClick={nextStep} className="px-6 py-3 w-full">
+          Got It
+        </Button>
+        <Anchor
+          href="/evaluate"
+          className="inline-flex items-center justify-center px-6 py-3 w-full text-gray-700 font-medium hover:bg-gray-100 rounded-md transition-colors"
+        >
+          Skip Tutorial
+        </Anchor>
+      </NotificationPage>
+    )
+  }
+
+  // Step 2: Archived page explanation
+  if (step === 2) {
+    return (
       <EvaluationStep
-        key={1}
+        key={2}
         properties={[]}
         showArchivedPage={true}
         showLeftExplanation={true}
@@ -285,11 +314,11 @@ export default function TutorialPage() {
     )
   }
 
-  // Step 2: Structured data explanation
-  if (step === 2) {
+  // Step 3: Structured data explanation
+  if (step === 3) {
     return (
       <EvaluationStep
-        key={2}
+        key={3}
         properties={[birthDateProperty]}
         showArchivedPage={false}
         showLeftExplanation={false}
@@ -300,20 +329,44 @@ export default function TutorialPage() {
           title: 'Extracted Data',
           description:
             'On the left, you see structured data that was automatically extracted from the source documents using AI.',
-          secondaryDescription:
-            'Your job is to verify if this extracted data is correct by checking it against the source document.',
         }}
         onNext={nextStep}
       />
     )
   }
 
-  // Step 3: Try yourself (single property)
-  if (step === 3) {
+  // Step 4: Let's try it - intro
+  if (step === 4) {
+    return (
+      <NotificationPage
+        emoji="🎯"
+        title="Let's Try It"
+        description={
+          <p>
+            Compare the extracted data to the source. If they match, accept. If they don&apos;t,
+            reject.
+          </p>
+        }
+      >
+        <Button onClick={nextStep} className="px-6 py-3 w-full">
+          Let&apos;s Go
+        </Button>
+        <Anchor
+          href="/evaluate"
+          className="inline-flex items-center justify-center px-6 py-3 w-full text-gray-700 font-medium hover:bg-gray-100 rounded-md transition-colors"
+        >
+          Skip Tutorial
+        </Anchor>
+      </NotificationPage>
+    )
+  }
+
+  // Step 5: Try yourself (correct and incorrect birthdate)
+  if (step === 5) {
     return (
       <EvaluationStep
-        key={3}
-        properties={[birthDateProperty]}
+        key={5}
+        properties={[birthDateProperty, birthDateIncorrectProperty]}
         showArchivedPage={true}
         showLeftExplanation={false}
         showRightExplanation={false}
@@ -328,11 +381,11 @@ export default function TutorialPage() {
     )
   }
 
-  // Step 4: Multiple pages explanation
-  if (step === 4) {
+  // Step 6: Multiple pages explanation
+  if (step === 6) {
     return (
       <EvaluationStep
-        key={4}
+        key={6}
         properties={[position1Property, position2Property]}
         showArchivedPage={false}
         showLeftExplanation={false}
@@ -350,11 +403,11 @@ export default function TutorialPage() {
     )
   }
 
-  // Step 5: Try yourself (multiple properties)
-  if (step === 5) {
+  // Step 7: Try yourself (multiple properties)
+  if (step === 7) {
     return (
       <EvaluationStep
-        key={5}
+        key={7}
         properties={[position1Property, position2Property]}
         showArchivedPage={true}
         showLeftExplanation={false}
@@ -370,7 +423,7 @@ export default function TutorialPage() {
     )
   }
 
-  // Step 6: Complete
+  // Step 8: Complete
   return (
     <NotificationPage
       emoji="🎉"

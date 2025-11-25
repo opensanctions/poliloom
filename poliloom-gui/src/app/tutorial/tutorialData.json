@@ -1,7 +1,7 @@
 {
   "politician": {
     "name": "Jane Doe",
-    "wikidataId": "Q12345"
+    "wikidataId": "Q955672"
   },
   "archivedPages": {
     "page1": {
@@ -23,6 +23,18 @@
       "id": "tutorial-birth-date",
       "type": "P569",
       "value": "+1975-03-15T00:00:00Z",
+      "value_precision": 11,
+      "supporting_quotes": [
+        "Jane Doe was born on March 15, 1975 in Springfield.",
+        "Born: March 15, 1975"
+      ],
+      "archived_page_key": "page1"
+    },
+    "birthDateIncorrect": {
+      "key": "tutorial-birth-date-incorrect",
+      "id": "tutorial-birth-date-incorrect",
+      "type": "P569",
+      "value": "+1976-03-15T00:00:00Z",
       "value_precision": 11,
       "supporting_quotes": [
         "Jane Doe was born on March 15, 1975 in Springfield.",
@@ -68,6 +80,12 @@
       "description": "You're about to help build accurate, open political data by verifying information extracted from official sources.",
       "secondaryDescription": "Let's take a quick tour to show you how it works."
     },
+    "why": {
+      "title": "Why Your Help Matters",
+      "emoji": "🤖",
+      "description": "We use AI to automatically extract political data from websites. But AI isn't perfect—it sometimes misreads or misinterprets information.",
+      "secondaryDescription": "Your role is to check whether what the AI extracted actually matches what's written in the source document."
+    },
     "archivedPage": {
       "title": "Source Documents",
       "emoji": "📄",
@@ -80,9 +98,13 @@
       "title": "Extracted Data",
       "emoji": "🗂️",
       "description": "On the left, you see structured data that was automatically extracted from the source documents using AI.",
-      "secondaryDescription": "Your job is to verify if this extracted data is correct by checking it against the source document.",
       "properties": ["birthDate"],
       "showRightExplanation": true
+    },
+    "letsTry": {
+      "title": "Let's Try It",
+      "emoji": "🎯",
+      "description": "Compare the extracted data to the source. If they match, accept. If they don't, reject."
     },
     "tryYourself1": {
       "title": "Try It Yourself",
