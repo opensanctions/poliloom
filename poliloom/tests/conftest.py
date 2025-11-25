@@ -23,27 +23,6 @@ from sqlalchemy.orm import Session
 from poliloom.database import create_timestamp_triggers, create_import_tracking_triggers
 
 
-@pytest.fixture
-def generate_embedding():
-    """Mock generate_embedding to avoid loading models in tests.
-
-    Returns a deterministic mock function that generates embeddings based on text hash.
-    Use this fixture in tests instead of importing the real generate_embedding.
-    """
-
-    def mock_embedding(text: str):
-        """Generate a deterministic embedding based on text hash."""
-        text_hash = hashlib.md5(text.encode()).digest()
-        dummy_embedding = []
-        for i in range(384):
-            byte_val = text_hash[i % len(text_hash)]
-            val = (byte_val / 127.5) - 1.0
-            dummy_embedding.append(val)
-        return dummy_embedding
-
-    return mock_embedding
-
-
 @pytest.fixture(autouse=True)
 def mock_embeddings_batch():
     """Mock generate_embeddings_batch to avoid loading transformer models in tests.
@@ -97,12 +76,6 @@ def setup_test_database():
     Base.metadata.drop_all(engine)
 
 
-@pytest.fixture
-def sample_politician_data():
-    """Return data for creating a politician."""
-    return {"name": "Test Politician", "wikidata_id": "Q123456"}
-
-
 def assert_model_fields(model, expected_fields):
     """Assert that model has expected fields."""
     for field, value in expected_fields.items():
@@ -136,12 +109,12 @@ def db_session(setup_test_database):
 
 # Entity fixtures - created and committed to database
 @pytest.fixture
-def sample_politician(db_session, sample_politician_data):
+def sample_politician(db_session):
     """Return a created politician entity."""
     politician = Politician.create_with_entity(
         db_session,
-        sample_politician_data["wikidata_id"],
-        sample_politician_data["name"],
+        "Q123456",
+        "Test Politician",
         labels=["Test Politician", "John Doe", "Test Person"],
     )
     db_session.flush()
