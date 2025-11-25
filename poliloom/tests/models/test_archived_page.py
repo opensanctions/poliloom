@@ -13,40 +13,33 @@ from poliloom import archive
 class TestArchivedPage:
     """Test cases for the ArchivedPage model."""
 
-    def test_create_references_json_with_wikipedia_project(
+    def test_create_references_json_with_wikipedia_project_no_permanent_url(
         self, db_session, sample_wikipedia_project
     ):
-        """Test that create_references_json includes P854, P143, and P813 for Wikipedia projects."""
-        # Create an archived page with a Wikipedia project ID
+        """Test that create_references_json includes P143 and P813 for Wikipedia without permanent_url."""
+        # Create an archived page with a Wikipedia project ID but no permanent_url
         archived_page = ArchivedPage(
             url="https://en.wikipedia.org/wiki/Example",
             fetch_timestamp=datetime.now(timezone.utc),
             wikipedia_project_id=sample_wikipedia_project.wikidata_id,
+            permanent_url=None,
         )
         db_session.add(archived_page)
         db_session.flush()
 
         references_json = archived_page.create_references_json()
 
-        # Should include P854 (reference URL), P143 (imported from), and P813 (retrieved)
-        assert len(references_json) == 3
+        # Should include P143 (imported from) and P813 (retrieved) - no URL reference without permanent_url
+        assert len(references_json) == 2
 
-        # First reference should be P854 (reference URL)
-        assert references_json[0]["property"]["id"] == "P854"
+        # First reference should be P143 (imported from)
+        assert references_json[0]["property"]["id"] == "P143"
         assert references_json[0]["value"]["type"] == "value"
-        assert (
-            references_json[0]["value"]["content"]
-            == "https://en.wikipedia.org/wiki/Example"
-        )
+        assert references_json[0]["value"]["content"] == "Q328"
 
-        # Second reference should be P143 (imported from)
-        assert references_json[1]["property"]["id"] == "P143"
+        # Second reference should be P813 (retrieved date)
+        assert references_json[1]["property"]["id"] == "P813"
         assert references_json[1]["value"]["type"] == "value"
-        assert references_json[1]["value"]["content"] == "Q328"
-
-        # Third reference should be P813 (retrieved date)
-        assert references_json[2]["property"]["id"] == "P813"
-        assert references_json[2]["value"]["type"] == "value"
 
     def test_link_languages_from_project_with_languages(
         self, db_session, sample_wikipedia_project, sample_language
@@ -256,13 +249,14 @@ class TestArchivedPage:
         assert time_value["after"] == 0
         assert time_value["calendarmodel"] == "http://www.wikidata.org/entity/Q1985727"
 
-    def test_create_references_json_with_oldid_uses_p4656(
+    def test_create_references_json_with_permanent_url_uses_p4656(
         self, db_session, sample_wikipedia_project
     ):
-        """Test that Wikipedia URLs with oldid parameter use P4656 instead of P854."""
-        # Create an archived page with oldid in URL
+        """Test that Wikipedia pages with permanent_url use P4656."""
+        # Create an archived page with permanent_url
         archived_page = ArchivedPage(
-            url="https://en.wikipedia.org/wiki/Example?oldid=123456",
+            url="https://en.wikipedia.org/wiki/Example",
+            permanent_url="https://en.wikipedia.org/w/index.php?title=Example&oldid=123456",
             fetch_timestamp=datetime.now(timezone.utc),
             wikipedia_project_id=sample_wikipedia_project.wikidata_id,
         )
@@ -274,12 +268,12 @@ class TestArchivedPage:
         # Should have P4656, P143, and P813
         assert len(references_json) == 3
 
-        # First reference should be P4656 (Wikimedia import URL) instead of P854
+        # First reference should be P4656 (Wikimedia import URL) with permanent_url
         assert references_json[0]["property"]["id"] == "P4656"
         assert references_json[0]["value"]["type"] == "value"
         assert (
             references_json[0]["value"]["content"]
-            == "https://en.wikipedia.org/wiki/Example?oldid=123456"
+            == "https://en.wikipedia.org/w/index.php?title=Example&oldid=123456"
         )
 
         # Second reference should be P143 (imported from)

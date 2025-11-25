@@ -12,7 +12,6 @@ from poliloom.enrichment import (
     enrich_batch,
     extract_permanent_url,
     _convert_mhtml_to_html,
-    _resolve_final_url,
     fetch_and_archive_page,
     ExtractedProperty,
     ExtractedPosition,
@@ -812,46 +811,6 @@ class TestConvertMhtmlToHtml:
             assert result is None
 
 
-class TestResolveFinalUrl:
-    """Test _resolve_final_url private function."""
-
-    def test_resolve_final_url_without_wikipedia_project(self):
-        """Test that original URL is returned when no wikipedia_project_id."""
-        url = "https://example.com/article"
-        html_content = "<html>Content</html>"
-
-        result = _resolve_final_url(url, html_content, wikipedia_project_id=None)
-        assert result == url
-
-    def test_resolve_final_url_without_html_content(self):
-        """Test that original URL is returned when no html_content."""
-        url = "https://en.wikipedia.org/wiki/Test"
-
-        result = _resolve_final_url(url, None, wikipedia_project_id="Q328")
-        assert result == url
-
-    def test_resolve_final_url_with_permanent_url(self):
-        """Test that permanent URL is extracted when available."""
-        url = "https://en.wikipedia.org/wiki/Test_Page"
-        html_content = """
-        <a href="https://en.wikipedia.org/w/index.php?title=Test_Page&amp;oldid=123456789">Permanent</a>
-        """
-
-        result = _resolve_final_url(url, html_content, wikipedia_project_id="Q328")
-        assert (
-            result
-            == "https://en.wikipedia.org/w/index.php?title=Test_Page&oldid=123456789"
-        )
-
-    def test_resolve_final_url_no_permanent_url_found(self):
-        """Test that original URL is returned when no permanent URL found in HTML."""
-        url = "https://en.wikipedia.org/wiki/Test_Page"
-        html_content = "<html>No permanent link here</html>"
-
-        result = _resolve_final_url(url, html_content, wikipedia_project_id="Q328")
-        assert result == url
-
-
 class TestFetchAndArchivePage:
     """Test fetch_and_archive_page function."""
 
@@ -859,8 +818,9 @@ class TestFetchAndArchivePage:
     async def test_fetch_and_archive_page_success(
         self, db_session, sample_wikipedia_project
     ):
-        """Test successful page fetch and archive."""
+        """Test successful page fetch and archive with permanent URL extraction."""
         url = "https://en.wikipedia.org/wiki/Test_Page"
+        permanent_url = "https://en.wikipedia.org/w/index.php?title=Test_Page&oldid=123"
 
         # Mock crawl4ai result
         mock_result = Mock()
@@ -891,11 +851,8 @@ class TestFetchAndArchivePage:
             with patch("poliloom.enrichment._convert_mhtml_to_html") as mock_convert:
                 mock_convert.return_value = "<html>Converted</html>"
 
-                with patch("poliloom.enrichment._resolve_final_url") as mock_resolve:
-                    permanent_url = (
-                        "https://en.wikipedia.org/w/index.php?title=Test_Page&oldid=123"
-                    )
-                    mock_resolve.return_value = permanent_url
+                with patch("poliloom.enrichment.extract_permanent_url") as mock_extract:
+                    mock_extract.return_value = permanent_url
 
                     archived_page = await fetch_and_archive_page(
                         url,
@@ -903,15 +860,17 @@ class TestFetchAndArchivePage:
                         wikipedia_project_id=sample_wikipedia_project.wikidata_id,
                     )
 
-                    assert archived_page.url == permanent_url
+                    # Original URL is preserved for display
+                    assert archived_page.url == url
+                    # Permanent URL is stored separately for references
+                    assert archived_page.permanent_url == permanent_url
                     assert (
                         archived_page.wikipedia_project_id
                         == sample_wikipedia_project.wikidata_id
                     )
-                    mock_resolve.assert_called_once_with(
+                    mock_extract.assert_called_once_with(
                         url,
                         "<html>Converted</html>",
-                        sample_wikipedia_project.wikidata_id,
                     )
 
     @pytest.mark.asyncio
@@ -948,6 +907,7 @@ class TestFetchAndArchivePage:
                 archived_page = await fetch_and_archive_page(url, db_session)
 
                 assert archived_page.url == url
+                assert archived_page.permanent_url is None
                 assert archived_page.wikipedia_project_id is None
 
     @pytest.mark.asyncio

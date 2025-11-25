@@ -538,27 +538,6 @@ def _convert_mhtml_to_html(mhtml_content: Optional[str]) -> Optional[str]:
         return None
 
 
-def _resolve_final_url(
-    url: str,
-    html_content: Optional[str],
-    wikipedia_project_id: Optional[str],
-) -> str:
-    """Determine the final URL to store.
-
-    For Wikipedia pages with a project ID, extracts the permanent URL with oldid.
-    Otherwise returns the original URL.
-    """
-    if not wikipedia_project_id or not html_content:
-        return url
-
-    permanent_url = extract_permanent_url(url, html_content)
-    if permanent_url:
-        logger.info(f"Using permanent URL: {permanent_url}")
-        return permanent_url
-
-    return url
-
-
 async def fetch_and_archive_page(
     url: str,
     db: Session,
@@ -598,12 +577,17 @@ async def fetch_and_archive_page(
         # Convert MHTML to HTML
         html_content = _convert_mhtml_to_html(result.mhtml)
 
-        # Determine final URL to store (permanent URL for Wikipedia if applicable)
-        final_url = _resolve_final_url(url, html_content, wikipedia_project_id)
+        # Extract permanent URL for Wikipedia pages (used in references)
+        permanent_url = None
+        if wikipedia_project_id and html_content:
+            permanent_url = extract_permanent_url(url, html_content)
+            if permanent_url:
+                logger.info(f"Extracted permanent URL: {permanent_url}")
 
-        # Create ArchivedPage record
+        # Create ArchivedPage record with original URL for display
         archived_page = ArchivedPage(
-            url=final_url,
+            url=url,
+            permanent_url=permanent_url,
             fetch_timestamp=now,
             wikipedia_project_id=wikipedia_project_id,
         )

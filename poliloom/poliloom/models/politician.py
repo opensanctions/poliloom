@@ -599,6 +599,7 @@ class ArchivedPage(Base, TimestampMixin):
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
     url = Column(String, nullable=False)
+    permanent_url = Column(String, nullable=True)  # Wikipedia oldid URL for references
     content_hash = Column(
         String, nullable=False, index=True
     )  # SHA256 hash for deduplication
@@ -698,7 +699,7 @@ class ArchivedPage(Base, TimestampMixin):
         """Create references_json for this archived page source.
 
         For Wikipedia sources (when wikipedia_project_id exists):
-        - P4656 (Wikimedia import URL) if URL contains oldid, otherwise P854 (reference URL)
+        - P4656 (Wikimedia import URL) if permanent_url exists
         - P143 (imported from): Wikipedia project (e.g., Q328 for English Wikipedia)
         - P813 (retrieved): Date when the page was fetched
 
@@ -706,31 +707,17 @@ class ArchivedPage(Base, TimestampMixin):
         - P854 (reference URL): The page URL
         - P813 (retrieved): Date when the page was fetched
         """
-        from urllib.parse import urlparse, parse_qs
         from ..wikidata_date import WikidataDate
 
         references = []
 
         if self.wikipedia_project_id:
-            # Wikipedia source - check if URL has oldid parameter
-            parsed_url = urlparse(self.url)
-            query_params = parse_qs(parsed_url.query)
-            has_oldid = "oldid" in query_params
-
-            if has_oldid:
-                # Use P4656 (Wikimedia import URL) for permanent revision links
+            # Wikipedia source - use permanent_url with P4656 if available
+            if self.permanent_url:
                 references.append(
                     {
                         "property": {"id": "P4656"},  # Wikimedia import URL
-                        "value": {"type": "value", "content": self.url},
-                    }
-                )
-            else:
-                # Use P854 (reference URL) for Wikipedia pages without oldid
-                references.append(
-                    {
-                        "property": {"id": "P854"},  # Reference URL
-                        "value": {"type": "value", "content": self.url},
+                        "value": {"type": "value", "content": self.permanent_url},
                     }
                 )
 
