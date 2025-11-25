@@ -198,8 +198,10 @@ export default function TutorialPage() {
         }
         right={
           <CenteredCard emoji="📚" title="Multiple Sources">
-            <p>Sometimes information comes from different source documents.</p>
-            <p className="mt-4">Next, try switching between these to evaluate all statements.</p>
+            <p>
+              Sometimes information comes from different source documents. Next, try switching
+              between these to evaluate all statements.
+            </p>
             <div className="mt-8">
               <TutorialActions buttonText="Let's do it" onNext={nextStep} />
             </div>
