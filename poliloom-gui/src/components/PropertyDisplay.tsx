@@ -117,14 +117,15 @@ export function PropertyDisplay({
           onHover={() => onHover?.(property)}
         />
       )}
-      <div className="flex justify-between items-center gap-4">
-        <WikidataMetadataButtons
-          qualifiers={property.qualifiers}
-          references={property.references}
-          isDiscarding={isDiscarding && !!property.statement_id}
-          openSection={openSection}
-          onToggle={handleToggle}
-        />
+      <div className="flex items-center gap-4">
+        {isDiscarding && property.statement_id && (
+          <WikidataMetadataButtons
+            qualifiers={property.qualifiers}
+            references={property.references}
+            openSection={openSection}
+            onToggle={handleToggle}
+          />
+        )}
         <EvaluationActions
           statementId={property.key}
           isWikidataStatement={!!property.statement_id}
@@ -132,12 +133,13 @@ export function PropertyDisplay({
           onAction={onAction}
         />
       </div>
-      <WikidataMetadataPanel
-        qualifiers={property.qualifiers}
-        references={property.references}
-        isDiscarding={isDiscarding && !!property.statement_id}
-        openSection={openSection}
-      />
+      {isDiscarding && property.statement_id && (
+        <WikidataMetadataPanel
+          qualifiers={property.qualifiers}
+          references={property.references}
+          openSection={openSection}
+        />
+      )}
     </div>
   )
 }

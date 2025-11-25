@@ -14,7 +14,7 @@ export function EvaluationActions({
   onAction,
 }: EvaluationActionsProps) {
   return (
-    <div className="flex gap-2 items-center">
+    <div className="flex gap-2 items-center ml-auto">
       {!isWikidataStatement ? (
         <>
           <span className="px-2 py-1 text-sm font-medium text-indigo-600 bg-indigo-50 rounded">
