@@ -377,5 +377,48 @@ describe('textHighlighter with CSS Custom Highlight API', () => {
       expect(result).toBeGreaterThan(0)
       expect(CSS.highlights.has('poliloom')).toBe(true)
     })
+
+    it('highlights Born infobox row spanning th and td with punctuation boundaries', () => {
+      // This tests virtual space matching after punctuation (closing parenthesis)
+      // The text "1943 (age 81–82)" ends with ")" and "Lucknow" starts in a separate <a> tag
+      document.body.innerHTML = `<tbody><tr><th scope="row" class="infobox-label">Born</th><td class="infobox-data"><div style="display:inline" class="nickname">Mehnaz Chaudhry</div><br>1943 (age&nbsp;81–82)<br><div style="display:inline" class="birthplace"><a href="https://en.wikipedia.org/wiki/Lucknow" title="Lucknow">Lucknow</a>, <a href="https://en.wikipedia.org/wiki/Presidencies_and_provinces_of_British_India" title="Presidencies and provinces of British India">British India</a></div><span style="display:none" data-plural="1"></span></td></tr></tbody>`
+      const result = highlightTextInScope(
+        document,
+        document.body,
+        'Born Mehnaz Chaudhry 1943 (age 81–82) Lucknow, British India',
+      )
+      expect(result).toBeGreaterThan(0)
+      expect(CSS.highlights.has('poliloom')).toBe(true)
+    })
+
+    it('highlights text with punctuation on both sides of element boundary', () => {
+      // Test case: )</a><a>( - punctuation to punctuation across elements
+      document.body.innerHTML = `<p>foo (bar)<a>)</a><a>(</a>baz (qux)</p>`
+      const result = highlightTextInScope(document, document.body, 'foo (bar)) (baz (qux)')
+      expect(result).toBeGreaterThan(0)
+      expect(CSS.highlights.has('poliloom')).toBe(true)
+    })
+
+    it('does not match when there is no space in search text but elements are adjacent', () => {
+      // If search text has no space, adjacent elements should not insert a virtual space
+      document.body.innerHTML = `<p><span>hello</span><span>world</span></p>`
+      const result = highlightTextInScope(
+        document,
+        document.body,
+        'helloworld', // no space - should match since text is actually adjacent
+      )
+      expect(result).toBeGreaterThan(0)
+    })
+
+    it('does not falsely match adjacent words as spaced when search has space', () => {
+      // "helloworld" in DOM should not match "hello world" search
+      document.body.innerHTML = `<p>helloworld</p>`
+      const result = highlightTextInScope(
+        document,
+        document.body,
+        'hello world', // has space - should NOT match "helloworld"
+      )
+      expect(result).toBe(0)
+    })
   })
 })
