@@ -37,9 +37,6 @@ global.fetch = vi.fn()
 
 vi.mock('@/hooks/useIframeHighlighting', () => ({
   useIframeAutoHighlight: () => ({
-    highlightText: vi.fn(() => Promise.resolve(1)),
-    clearAllHighlights: vi.fn(),
-    isHighlighting: false,
     isIframeLoaded: true,
     handleIframeLoad: vi.fn(),
     handleProofLineChange: vi.fn(),

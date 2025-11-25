@@ -1,30 +1,16 @@
 import { useCallback, useState, RefObject } from 'react'
 import { highlightTextInScope, scrollToFirstHighlight } from '@/lib/textHighlighter'
 
-interface UseIframeHighlightingReturn {
-  highlightText: (searchText: string) => Promise<number>
-  isHighlighting: boolean
-}
-
 /**
- * Custom hook for managing text highlighting within iframes
+ * Creates a highlight function for text within iframes
  */
-export function useIframeHighlighting(
-  iframeRef: RefObject<HTMLIFrameElement | null>,
-): UseIframeHighlightingReturn {
-  const [isHighlighting, setIsHighlighting] = useState(false)
-
-  /**
-   * Highlights text within the iframe document
-   */
-  const highlightText = useCallback(
+function useIframeHighlighter(iframeRef: RefObject<HTMLIFrameElement | null>) {
+  return useCallback(
     async (searchText: string): Promise<number> => {
       if (!iframeRef.current?.contentDocument) {
         console.warn('Iframe document not available for highlighting')
         return 0
       }
-
-      setIsHighlighting(true)
 
       try {
         const document = iframeRef.current.contentDocument
@@ -38,7 +24,6 @@ export function useIframeHighlighting(
 
           // Scroll to first match if any found
           if (matchCount > 0) {
-            // Scroll immediately after highlights are applied
             scrollToFirstHighlight(document)
           }
         }
@@ -47,17 +32,10 @@ export function useIframeHighlighting(
       } catch (error) {
         console.error('Error highlighting text in iframe:', error)
         return 0
-      } finally {
-        setIsHighlighting(false)
       }
     },
     [iframeRef],
   )
-
-  return {
-    highlightText,
-    isHighlighting,
-  }
 }
 
 /**
@@ -68,7 +46,7 @@ export function useIframeAutoHighlight(
   proofLine: string | null,
 ) {
   const [isIframeLoaded, setIsIframeLoaded] = useState(false)
-  const highlighting = useIframeHighlighting(iframeRef)
+  const highlightText = useIframeHighlighter(iframeRef)
 
   /**
    * Handler for iframe load events
@@ -78,9 +56,9 @@ export function useIframeAutoHighlight(
 
     // Auto-highlight if proof line is available
     if (proofLine) {
-      highlighting.highlightText(proofLine)
+      highlightText(proofLine)
     }
-  }, [proofLine, highlighting])
+  }, [proofLine, highlightText])
 
   /**
    * Handler when proof line changes
@@ -88,14 +66,13 @@ export function useIframeAutoHighlight(
   const handleProofLineChange = useCallback(
     (newProofLine: string | null) => {
       if (isIframeLoaded && newProofLine) {
-        highlighting.highlightText(newProofLine)
+        highlightText(newProofLine)
       }
     },
-    [isIframeLoaded, highlighting],
+    [isIframeLoaded, highlightText],
   )
 
   return {
-    ...highlighting,
     isIframeLoaded,
     handleIframeLoad,
     handleProofLineChange,

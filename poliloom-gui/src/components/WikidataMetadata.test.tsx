@@ -58,7 +58,7 @@ describe('WikidataMetadataButtons', () => {
     expect(screen.getByText('References')).toBeInTheDocument()
   })
 
-  it('shows warning when panel is closed', () => {
+  it('shows warning emoji when panel is closed', () => {
     const qualifiers = { P580: [{ datavalue: { value: 'test' } }] }
 
     render(
@@ -69,10 +69,10 @@ describe('WikidataMetadataButtons', () => {
       />,
     )
 
-    expect(screen.getByText('⚠ Metadata will be lost')).toBeInTheDocument()
+    expect(screen.getByText('⚠️')).toBeInTheDocument()
   })
 
-  it('does not show warning when panel is open', () => {
+  it('does not show warning emoji when panel is open', () => {
     const qualifiers = { P580: [{ datavalue: { value: 'test' } }] }
 
     render(
@@ -83,7 +83,7 @@ describe('WikidataMetadataButtons', () => {
       />,
     )
 
-    expect(screen.queryByText('⚠ Metadata will be lost')).not.toBeInTheDocument()
+    expect(screen.queryByText('⚠️')).not.toBeInTheDocument()
   })
 
   it('calls onToggle when qualifiers button is clicked', () => {
@@ -207,6 +207,6 @@ describe('WikidataMetadataPanel', () => {
 
     render(<WikidataMetadataPanel qualifiers={qualifiers} openSection="qualifiers" />)
 
-    expect(screen.getByText('Metadata will be lost ⚠')).toBeInTheDocument()
+    expect(screen.getByText('Metadata will be lost ⚠️')).toBeInTheDocument()
   })
 })

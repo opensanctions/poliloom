@@ -195,6 +195,6 @@ describe('PropertyDisplay', () => {
     )
 
     expect(screen.getByText('References')).toBeInTheDocument()
-    expect(screen.getByText('⚠ Metadata will be lost')).toBeInTheDocument()
+    expect(screen.getByText('⚠️')).toBeInTheDocument()
   })
 })
