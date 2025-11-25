@@ -2,22 +2,16 @@ function MetadataSectionButton({
   title,
   sectionKey,
   isOpen,
-  isDiscarding,
   onToggle,
 }: {
   title: string
   sectionKey: 'qualifiers' | 'references'
   isOpen: boolean
-  isDiscarding: boolean
   onToggle: (section: 'qualifiers' | 'references') => void
 }) {
-  const textColor = isDiscarding
-    ? 'text-red-600 hover:text-red-700'
-    : 'text-gray-700 hover:text-gray-900'
-
   return (
     <button
-      className={`font-medium cursor-pointer flex items-center gap-1 ${textColor}`}
+      className="font-medium cursor-pointer flex items-center gap-1 text-red-600 hover:text-red-700"
       onClick={() => onToggle(sectionKey)}
     >
       <span className={`transition-transform ${isOpen ? '' : '-rotate-90'}`}>▼</span>
@@ -29,13 +23,11 @@ function MetadataSectionButton({
 export function WikidataMetadataButtons({
   qualifiers,
   references,
-  isDiscarding = false,
   openSection,
   onToggle,
 }: {
   qualifiers?: Record<string, unknown>
   references?: Array<Record<string, unknown>>
-  isDiscarding?: boolean
   openSection: 'qualifiers' | 'references' | null
   onToggle: (section: 'qualifiers' | 'references') => void
 }) {
@@ -43,7 +35,7 @@ export function WikidataMetadataButtons({
   const hasReferences = references && references.length > 0
 
   if (!hasQualifiers && !hasReferences) {
-    return <div className="text-sm text-gray-700">No metadata</div>
+    return null
   }
 
   return (
@@ -53,7 +45,6 @@ export function WikidataMetadataButtons({
           title="Qualifiers"
           sectionKey="qualifiers"
           isOpen={openSection === 'qualifiers'}
-          isDiscarding={isDiscarding}
           onToggle={onToggle}
         />
       )}
@@ -62,13 +53,10 @@ export function WikidataMetadataButtons({
           title="References"
           sectionKey="references"
           isOpen={openSection === 'references'}
-          isDiscarding={isDiscarding}
           onToggle={onToggle}
         />
       )}
-      {isDiscarding && openSection === null && (hasQualifiers || hasReferences) && (
-        <span className="text-red-600 text-xs font-medium">⚠ Metadata will be lost</span>
-      )}
+      {openSection === null && (hasQualifiers || hasReferences) && <span>⚠️</span>}
     </div>
   )
 }
@@ -76,12 +64,10 @@ export function WikidataMetadataButtons({
 export function WikidataMetadataPanel({
   qualifiers,
   references,
-  isDiscarding = false,
   openSection,
 }: {
   qualifiers?: Record<string, unknown>
   references?: Array<Record<string, unknown>>
-  isDiscarding?: boolean
   openSection: 'qualifiers' | 'references' | null
 }) {
   const hasQualifiers = qualifiers && Object.keys(qualifiers).length > 0
@@ -90,10 +76,8 @@ export function WikidataMetadataPanel({
   if (openSection === null) return null
 
   const renderPanel = (data: Record<string, unknown> | Array<Record<string, unknown>>) => (
-    <div className={`relative p-2 rounded ${isDiscarding ? 'bg-red-900' : 'bg-gray-700'}`}>
-      {isDiscarding && (
-        <div className="absolute top-2 right-2 text-white text-xs">Metadata will be lost ⚠</div>
-      )}
+    <div className="relative p-2 rounded bg-red-900">
+      <div className="absolute top-2 right-2 text-white text-xs">Metadata will be lost ⚠️</div>
       <pre className="text-white text-xs overflow-x-auto">
         <code>{JSON.stringify(data, null, 2)}</code>
       </pre>

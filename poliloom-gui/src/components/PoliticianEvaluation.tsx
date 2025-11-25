@@ -20,20 +20,21 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
   const [selectedArchivedPage, setSelectedArchivedPage] = useState<ArchivedPageResponse | null>(
     null,
   )
-  const [selectedProofLine, setSelectedProofLine] = useState<string | null>(null)
+  const [selectedQuotes, setSelectedQuotes] = useState<string[] | null>(null)
 
-  // Helper function to find first property with archived page
+  // Helper function to find first new property with archived page
+  // Only new properties (without statement_id) show the View button
   const findFirstPropertyWithArchive = (properties: Property[]) => {
-    return properties.find((p) => p.archived_page)
+    return properties.find((p) => p.archived_page && !p.statement_id)
   }
 
   // Refs and hooks for iframe highlighting
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const leftPanelRef = useRef<HTMLDivElement | null>(null)
   const archivedPageCache = useArchivedPageCache()
-  const { isIframeLoaded, handleIframeLoad, handleProofLineChange } = useIframeAutoHighlight(
+  const { isIframeLoaded, handleIframeLoad, handleQuotesChange } = useIframeAutoHighlight(
     iframeRef,
-    selectedProofLine,
+    selectedQuotes,
   )
 
   // Auto-load first archived page found
@@ -41,28 +42,29 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
     const firstWithArchive = findFirstPropertyWithArchive(politician.properties)
     if (firstWithArchive && firstWithArchive.archived_page) {
       setSelectedArchivedPage(firstWithArchive.archived_page)
-      setSelectedProofLine(firstWithArchive.proof_line || null)
+      setSelectedQuotes(firstWithArchive.supporting_quotes || null)
     }
   }, [politician])
 
-  // Update highlighting when proof line changes
+  // Update highlighting when supporting quotes change
   useEffect(() => {
-    // Left panel highlighting - always do this when proof line changes
-    if (leftPanelRef.current && selectedProofLine) {
-      highlightTextInScope(document, leftPanelRef.current, selectedProofLine)
+    // Left panel highlighting - always do this when quotes change
+    if (leftPanelRef.current && selectedQuotes && selectedQuotes.length > 0) {
+      highlightTextInScope(document, leftPanelRef.current, selectedQuotes)
     }
 
     // Iframe highlighting - only when iframe is loaded
-    if (isIframeLoaded && selectedProofLine) {
-      handleProofLineChange(selectedProofLine)
+    if (isIframeLoaded && selectedQuotes && selectedQuotes.length > 0) {
+      handleQuotesChange(selectedQuotes)
     }
-  }, [selectedProofLine, isIframeLoaded, handleProofLineChange])
+  }, [selectedQuotes, isIframeLoaded, handleQuotesChange])
 
-  const handleEvaluate = (propertyId: string, action: 'confirm' | 'discard') => {
+  const handleEvaluate = (propertyId: string, action: 'accept' | 'reject') => {
     setEvaluations((prev) => {
       const newMap = new Map(prev)
       const currentValue = newMap.get(propertyId)
-      const targetValue = action === 'confirm'
+      // Map accept to true, reject to false
+      const targetValue = action === 'accept'
 
       if (currentValue === targetValue) {
         // Toggle off - remove from map
@@ -77,13 +79,14 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
 
   // Unified hover handler for all property types
   const handlePropertyHover = (property: Property) => {
-    // Only update proof line (which triggers highlighting) if we're viewing this property's archived page
+    // Only update quotes (which triggers highlighting) if we're viewing this property's archived page
     if (
       property.archived_page &&
       selectedArchivedPage?.id === property.archived_page.id &&
-      property.proof_line
+      property.supporting_quotes &&
+      property.supporting_quotes.length > 0
     ) {
-      setSelectedProofLine(property.proof_line)
+      setSelectedQuotes(property.supporting_quotes)
     }
   }
 
@@ -97,9 +100,9 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
     setIsSubmitting(true)
 
     const evaluationItems: EvaluationItem[] = Array.from(evaluations.entries()).map(
-      ([id, isConfirmed]) => ({
+      ([id, isAccepted]) => ({
         id,
-        is_confirmed: isConfirmed,
+        is_accepted: isAccepted,
       }),
     )
 
@@ -148,7 +151,7 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
             onShowArchived={(property) => {
               if (property.archived_page) {
                 setSelectedArchivedPage(property.archived_page)
-                setSelectedProofLine(property.proof_line || null)
+                setSelectedQuotes(property.supporting_quotes || null)
               }
             }}
             onHover={handlePropertyHover}
@@ -195,7 +198,7 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
           <div className="flex items-center justify-center h-full text-gray-500">
             <div className="text-center">
               <p className="text-lg mb-2">📄</p>
-              <p>Click &ldquo;View Archive&rdquo; on any item to see the archived page</p>
+              <p>Click &ldquo;View&rdquo; on any item to see the source page</p>
             </div>
           </div>
         )}

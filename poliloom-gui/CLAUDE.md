@@ -63,10 +63,10 @@ curl http://localhost:8000/openapi.json
 - Unconfirmed political positions (with dates)
 - Unconfirmed birthplaces (with location data)
 
-**Evaluations**: Users can confirm or discard individual entities with:
+**Evaluations**: Users can accept or reject individual entities with:
 
 - Entity type and ID reference
-- Confirmation result (confirmed/discarded)
+- Evaluation result (accepted/rejected)
 - Batch submission support
 
 ## Application Architecture
@@ -82,7 +82,7 @@ curl http://localhost:8000/openapi.json
 ### Main Evaluation Interface
 
 - Display one politician at a time with all extracted data
-- Individual confirm/discard actions for each data item
+- Individual accept/reject actions for each data item
 - Sequential navigation between politicians
 - Progress indicator showing current position
 - Links to external resources (Wikipedia/Wikidata)
@@ -101,7 +101,7 @@ curl http://localhost:8000/openapi.json
 - Clean, professional interface suitable for data verification
 - Clear visual hierarchy with proper spacing
 - Accessible design with good color contrast
-- Clear call-to-action buttons for confirm/discard actions
+- Clear call-to-action buttons for accept/reject actions
 
 ### Usability Requirements
 
@@ -123,7 +123,7 @@ curl http://localhost:8000/openapi.json
 **Testing Priorities**:
 
 - Authentication flow (OAuth login/logout)
-- Core evaluation workflow (confirm/discard actions)
+- Core evaluation workflow (accept/reject actions)
 - Politician data display and navigation
 - API integration and error handling
 

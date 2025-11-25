@@ -52,11 +52,11 @@ vi.mock('next-auth/react', () => ({
   signIn: (...args: unknown[]) => mockSignIn(...args),
 }))
 
-describe('Home Page (Preferences)', () => {
+describe('Home Page (Filter Selection)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    // Mock fetch for PreferencesProvider API calls
+    // Mock fetch for API calls
     vi.mocked(fetch).mockImplementation((url) => {
       const urlStr = url.toString()
 
@@ -84,15 +84,6 @@ describe('Home Page (Preferences)', () => {
         } as Response)
       }
 
-      if (urlStr.includes('/api/preferences')) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          statusText: 'OK',
-          json: async () => [],
-        } as Response)
-      }
-
       return Promise.resolve({
         ok: true,
         status: 200,
@@ -102,7 +93,7 @@ describe('Home Page (Preferences)', () => {
     })
   })
 
-  it('renders preferences page with filter options', async () => {
+  it('renders home page with filter options', async () => {
     mockUseSession.mockReturnValue({
       data: null,
       status: 'loading',

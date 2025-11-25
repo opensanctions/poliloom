@@ -1,46 +1,54 @@
 import { Button } from './Button'
+import { DataLabel } from './DataLabel'
 
 interface EvaluationActionsProps {
   statementId: string
   isWikidataStatement: boolean
-  isConfirmed: boolean | null
-  onAction?: (id: string, action: 'confirm' | 'discard') => void
+  isAccepted: boolean | null
+  onAction?: (id: string, action: 'accept' | 'reject') => void
 }
 
 export function EvaluationActions({
   statementId,
   isWikidataStatement,
-  isConfirmed,
+  isAccepted,
   onAction,
 }: EvaluationActionsProps) {
   return (
-    <div className="flex gap-2 items-center">
+    <div className="flex gap-2 items-center ml-auto">
       {!isWikidataStatement ? (
-        <Button
-          size="sm"
-          variant="success"
-          active={isConfirmed === true}
-          onClick={() => onAction?.(statementId, 'confirm')}
-        >
-          ✓ Confirm
-        </Button>
+        <>
+          <DataLabel variant="new">New data 🎉</DataLabel>
+          <Button
+            size="sm"
+            variant="success"
+            active={isAccepted === true}
+            onClick={() => onAction?.(statementId, 'accept')}
+            title="Mark this data as correct and submit it to Wikidata"
+          >
+            ✓ Accept
+          </Button>
+        </>
       ) : (
-        <span className="px-2 py-1 text-sm font-medium text-gray-500 bg-gray-100 rounded">
-          Current in Wikidata
-        </span>
+        <DataLabel variant="existing">Existing data</DataLabel>
       )}
       <Button
         size="sm"
-        variant={isWikidataStatement && isConfirmed !== false ? 'secondary' : 'danger'}
-        active={isConfirmed === false}
-        onClick={() => onAction?.(statementId, 'discard')}
+        variant={isWikidataStatement && isAccepted !== false ? 'secondary' : 'danger'}
+        active={isAccepted === false}
+        onClick={() => onAction?.(statementId, 'reject')}
         className={
-          isWikidataStatement && isConfirmed !== false
+          isWikidataStatement && isAccepted !== false
             ? '!text-gray-500 !bg-gray-100 hover:!bg-gray-300'
             : ''
         }
+        title={
+          isWikidataStatement
+            ? 'Mark this existing Wikidata statement as deprecated (incorrect or outdated)'
+            : 'Mark this data as incorrect and prevent it from being submitted'
+        }
       >
-        × Discard
+        {isWikidataStatement ? '↓ Deprecate' : '× Reject'}
       </Button>
     </div>
   )

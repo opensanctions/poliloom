@@ -103,8 +103,8 @@ describe('PropertyDisplay', () => {
     )
 
     // Should render evaluation actions
-    expect(screen.getByText('✓ Confirm')).toBeInTheDocument()
-    expect(screen.getByText('× Discard')).toBeInTheDocument()
+    expect(screen.getByText('✓ Accept')).toBeInTheDocument()
+    expect(screen.getByText('× Reject')).toBeInTheDocument()
   })
 
   it('calls onHover when mouse enters component', () => {
@@ -133,7 +133,7 @@ describe('PropertyDisplay', () => {
     const property = {
       ...baseProperty,
       statement_id: null,
-      proof_line: 'Test proof line',
+      supporting_quotes: ['Test proof line'],
     }
 
     render(
@@ -150,13 +150,14 @@ describe('PropertyDisplay', () => {
     expect(screen.getByText('"Test proof line"')).toBeInTheDocument()
   })
 
-  it('shows WikidataMetadata for existing Wikidata statements', () => {
+  it('shows WikidataMetadata only when deprecating existing Wikidata statements', () => {
     const property = {
       ...baseProperty,
       statement_id: 'Q123$abc-def',
       references: [{ url: 'https://example.com', title: 'Reference' }],
     }
 
+    // Initially, metadata is not shown
     render(
       <PropertyDisplay
         property={property}
@@ -168,7 +169,32 @@ describe('PropertyDisplay', () => {
       />,
     )
 
-    expect(screen.getByText('Current in Wikidata')).toBeInTheDocument()
+    expect(screen.getByText('Existing data')).toBeInTheDocument()
+    expect(screen.queryByText('References')).not.toBeInTheDocument()
+  })
+
+  it('shows WikidataMetadata when user is deprecating a statement', () => {
+    const property = {
+      ...baseProperty,
+      statement_id: 'Q123$abc-def',
+      references: [{ url: 'https://example.com', title: 'Reference' }],
+    }
+
+    // When isDiscarding is true (evaluation is false), metadata should show
+    const evaluations = new Map([[property.key, false]])
+
+    render(
+      <PropertyDisplay
+        property={property}
+        evaluations={evaluations}
+        onAction={mockOnAction}
+        onShowArchived={mockOnShowArchived}
+        onHover={mockOnHover}
+        activeArchivedPageId={null}
+      />,
+    )
+
     expect(screen.getByText('References')).toBeInTheDocument()
+    expect(screen.getByText('⚠️')).toBeInTheDocument()
   })
 })

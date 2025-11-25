@@ -7,7 +7,7 @@ import { EntityLink } from './EntityLink'
 interface PropertiesEvaluationProps {
   properties: Property[]
   evaluations: Map<string, boolean>
-  onAction: (propertyId: string, action: 'confirm' | 'discard') => void
+  onAction: (propertyId: string, action: 'accept' | 'reject') => void
   onShowArchived: (property: Property) => void
   onHover: (property: Property) => void
   activeArchivedPageId: string | null
@@ -140,14 +140,10 @@ export function PropertiesEvaluation({
           <h2 className="text-xl font-semibold text-gray-900 mb-4">{section.title}</h2>
           <div className="space-y-4">
             {section.items.map((item) => {
-              // Check if this item contains any new data (properties without statement_id)
-              const hasNewData = item.properties.some((p) => !p.statement_id)
-
               return (
                 <EvaluationItem
                   key={item.key}
                   title={item.title}
-                  hasNewData={hasNewData}
                   onHover={() => {
                     const firstWithArchive = item.properties.find(
                       (p) => p.archived_page && !p.statement_id,

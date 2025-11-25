@@ -5,10 +5,12 @@ import { describe, it, expect, vi } from 'vitest'
 describe('WikidataMetadataButtons', () => {
   const mockOnToggle = vi.fn()
 
-  it('shows "No metadata" when there are no qualifiers or references', () => {
-    render(<WikidataMetadataButtons openSection={null} onToggle={mockOnToggle} />)
+  it('returns null when there are no qualifiers or references', () => {
+    const { container } = render(
+      <WikidataMetadataButtons openSection={null} onToggle={mockOnToggle} />,
+    )
 
-    expect(screen.getByText('No metadata')).toBeInTheDocument()
+    expect(container.firstChild).toBeNull()
   })
 
   it('renders qualifiers button when qualifiers exist', () => {
@@ -56,49 +58,32 @@ describe('WikidataMetadataButtons', () => {
     expect(screen.getByText('References')).toBeInTheDocument()
   })
 
-  it('shows warning when discarding with closed panel', () => {
+  it('shows warning emoji when panel is closed', () => {
     const qualifiers = { P580: [{ datavalue: { value: 'test' } }] }
 
     render(
       <WikidataMetadataButtons
         qualifiers={qualifiers}
-        isDiscarding={true}
         openSection={null}
         onToggle={mockOnToggle}
       />,
     )
 
-    expect(screen.getByText('⚠ Metadata will be lost')).toBeInTheDocument()
+    expect(screen.getByText('⚠️')).toBeInTheDocument()
   })
 
-  it('does not show warning when panel is open while discarding', () => {
+  it('does not show warning emoji when panel is open', () => {
     const qualifiers = { P580: [{ datavalue: { value: 'test' } }] }
 
     render(
       <WikidataMetadataButtons
         qualifiers={qualifiers}
-        isDiscarding={true}
         openSection="qualifiers"
         onToggle={mockOnToggle}
       />,
     )
 
-    expect(screen.queryByText('⚠ Metadata will be lost')).not.toBeInTheDocument()
-  })
-
-  it('does not show warning when not discarding', () => {
-    const qualifiers = { P580: [{ datavalue: { value: 'test' } }] }
-
-    render(
-      <WikidataMetadataButtons
-        qualifiers={qualifiers}
-        isDiscarding={false}
-        openSection={null}
-        onToggle={mockOnToggle}
-      />,
-    )
-
-    expect(screen.queryByText('⚠ Metadata will be lost')).not.toBeInTheDocument()
+    expect(screen.queryByText('⚠️')).not.toBeInTheDocument()
   })
 
   it('calls onToggle when qualifiers button is clicked', () => {
@@ -162,6 +147,21 @@ describe('WikidataMetadataButtons', () => {
     const arrow = container.querySelector('.transition-transform')
     expect(arrow).not.toHaveClass('-rotate-90')
   })
+
+  it('renders buttons with red color', () => {
+    const qualifiers = { P580: [{ datavalue: { value: 'test' } }] }
+
+    render(
+      <WikidataMetadataButtons
+        qualifiers={qualifiers}
+        openSection={null}
+        onToggle={mockOnToggle}
+      />,
+    )
+
+    const button = screen.getByText('Qualifiers').closest('button')
+    expect(button).toHaveClass('text-red-600')
+  })
 })
 
 describe('WikidataMetadataPanel', () => {
@@ -191,61 +191,22 @@ describe('WikidataMetadataPanel', () => {
     expect(screen.getByText(/"url"/)).toBeInTheDocument()
   })
 
-  it('shows gray background when not discarding', () => {
+  it('shows red background', () => {
     const qualifiers = { P580: [{ datavalue: { value: 'test' } }] }
 
     const { container } = render(
-      <WikidataMetadataPanel
-        qualifiers={qualifiers}
-        openSection="qualifiers"
-        isDiscarding={false}
-      />,
-    )
-
-    const panel = container.querySelector('.bg-gray-700')
-    expect(panel).toBeInTheDocument()
-  })
-
-  it('shows red background when discarding', () => {
-    const qualifiers = { P580: [{ datavalue: { value: 'test' } }] }
-
-    const { container } = render(
-      <WikidataMetadataPanel
-        qualifiers={qualifiers}
-        openSection="qualifiers"
-        isDiscarding={true}
-      />,
+      <WikidataMetadataPanel qualifiers={qualifiers} openSection="qualifiers" />,
     )
 
     const panel = container.querySelector('.bg-red-900')
     expect(panel).toBeInTheDocument()
   })
 
-  it('shows warning text inside panel when discarding', () => {
+  it('shows warning text inside panel', () => {
     const qualifiers = { P580: [{ datavalue: { value: 'test' } }] }
 
-    render(
-      <WikidataMetadataPanel
-        qualifiers={qualifiers}
-        openSection="qualifiers"
-        isDiscarding={true}
-      />,
-    )
+    render(<WikidataMetadataPanel qualifiers={qualifiers} openSection="qualifiers" />)
 
-    expect(screen.getByText('Metadata will be lost ⚠')).toBeInTheDocument()
-  })
-
-  it('does not show warning text inside panel when not discarding', () => {
-    const qualifiers = { P580: [{ datavalue: { value: 'test' } }] }
-
-    render(
-      <WikidataMetadataPanel
-        qualifiers={qualifiers}
-        openSection="qualifiers"
-        isDiscarding={false}
-      />,
-    )
-
-    expect(screen.queryByText('Metadata will be lost ⚠')).not.toBeInTheDocument()
+    expect(screen.getByText('Metadata will be lost ⚠️')).toBeInTheDocument()
   })
 })

@@ -3,14 +3,14 @@ import './globals.css'
 import { auth } from '@/auth'
 import { SessionProvider } from '@/components/SessionProvider'
 import { ArchivedPageProvider } from '@/contexts/ArchivedPageContext'
-import { PreferencesProvider } from '@/contexts/PreferencesContext'
+import { EvaluationFiltersProvider } from '@/contexts/EvaluationFiltersContext'
 import { EvaluationProvider } from '@/contexts/EvaluationContext'
 import { FetchInterceptor } from '@/components/FetchInterceptor'
 
 export const metadata: Metadata = {
   title: 'PoliLoom - Verify Political Data',
   description:
-    'Join the community validating political information for Wikidata. Review and confirm politician data extracted from Wikipedia and government sources to help build accurate, open political knowledge.',
+    'Help build accurate, open political data. Review and confirm politician information extracted from Wikipedia and government sources before it becomes part of the open knowledge commons.',
 }
 
 export default async function RootLayout({
@@ -25,11 +25,11 @@ export default async function RootLayout({
       <body className="font-sans antialiased grid grid-rows-[auto_1fr] h-screen">
         <SessionProvider session={session}>
           <FetchInterceptor />
-          <PreferencesProvider>
+          <EvaluationFiltersProvider>
             <EvaluationProvider>
               <ArchivedPageProvider>{children}</ArchivedPageProvider>
             </EvaluationProvider>
-          </PreferencesProvider>
+          </EvaluationFiltersProvider>
         </SessionProvider>
       </body>
     </html>

@@ -52,11 +52,11 @@ export default function CreatePage() {
     setEvaluations(new Map())
   }
 
-  const handleEvaluate = (propertyId: string, action: 'confirm' | 'discard') => {
+  const handleEvaluate = (propertyId: string, action: 'accept' | 'reject') => {
     setEvaluations((prev) => {
       const newMap = new Map(prev)
       const currentValue = newMap.get(propertyId)
-      const targetValue = action === 'confirm'
+      const targetValue = action === 'accept'
 
       if (currentValue === targetValue) {
         // Toggle off - remove from map
