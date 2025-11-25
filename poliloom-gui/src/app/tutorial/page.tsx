@@ -203,7 +203,7 @@ function EvaluationStep({
           ) : showArchivedPage && selectedArchivedPage ? (
             <iframe
               ref={iframeRef}
-              src={`/api/archived-pages/${selectedArchivedPage.id}/html`}
+              src={`/api/tutorial-pages/${selectedArchivedPage.id}/html`}
               className="w-full h-full border-0"
               title="Archived Page"
               sandbox="allow-scripts allow-same-origin"
