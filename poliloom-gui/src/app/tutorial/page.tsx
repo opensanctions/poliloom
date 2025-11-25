@@ -142,8 +142,8 @@ export default function TutorialPage() {
         right={
           <CenteredCard emoji="🗂️" title="Extracted Data">
             <p>
-              On the left, you see data automatically extracted from source documents, alongside
-              existing data already in Wikidata.
+              On the left, you&apos;ll see data automatically extracted from those source documents,
+              alongside existing data already known.
             </p>
             <div className="mt-8">
               <TutorialActions buttonText="Next" onNext={nextStep} />
