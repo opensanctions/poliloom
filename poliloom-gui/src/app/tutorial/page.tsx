@@ -1,16 +1,13 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Header'
-import { NotificationPage } from '@/components/NotificationPage'
 import { Button } from '@/components/Button'
 import { Anchor } from '@/components/Anchor'
-import { PropertiesEvaluation } from '@/components/PropertiesEvaluation'
+import { CenteredCard } from '@/components/CenteredCard'
+import { TutorialStep } from '@/components/TutorialStep'
 import { useTutorial } from '@/contexts/TutorialContext'
-import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting'
-import { highlightTextInScope } from '@/lib/textHighlighter'
-import { useArchivedPageCache } from '@/contexts/ArchivedPageContext'
 import { Property, PropertyType, ArchivedPageResponse } from '@/types'
 import tutorialData from './tutorialData.json'
 
@@ -37,189 +34,19 @@ const birthDateIncorrectProperty = getProperty('birthDateIncorrect')
 const position1Property = getProperty('position1')
 const position2Property = getProperty('position2')
 
-function TutorialExplanation({
-  emoji,
-  title,
-  description,
-  secondaryDescription,
-}: {
-  emoji: string
-  title: string
-  description: string
-  secondaryDescription?: string
-}) {
+function TutorialActions({ buttonText, onNext }: { buttonText: string; onNext: () => void }) {
   return (
-    <div className="flex items-center justify-center min-h-0 flex-1 bg-gray-50 h-full">
-      <div className="text-center max-w-md p-8">
-        <div className="text-6xl mb-6">{emoji}</div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">{title}</h1>
-        <div className="text-lg text-gray-600">
-          <p>{description}</p>
-          {secondaryDescription && <p className="mt-4">{secondaryDescription}</p>}
-        </div>
-      </div>
+    <div className="flex flex-col gap-4">
+      <Button onClick={onNext} className="px-6 py-3 w-full">
+        {buttonText}
+      </Button>
+      <Anchor
+        href="/evaluate"
+        className="inline-flex items-center justify-center px-6 py-3 w-full text-gray-700 font-medium hover:bg-gray-100 rounded-md transition-colors"
+      >
+        Skip Tutorial
+      </Anchor>
     </div>
-  )
-}
-
-// Step content that shows properties and archived page
-function EvaluationStep({
-  properties,
-  showArchivedPage,
-  showLeftExplanation,
-  showRightExplanation,
-  isInteractive,
-  explanation,
-  onNext,
-}: {
-  properties: Property[]
-  showArchivedPage: boolean
-  showLeftExplanation: boolean
-  showRightExplanation: boolean
-  isInteractive: boolean
-  explanation: { emoji: string; title: string; description: string; secondaryDescription?: string }
-  onNext: () => void
-}) {
-  const [evaluations, setEvaluations] = useState<Map<string, boolean>>(new Map())
-  const [selectedArchivedPage, setSelectedArchivedPage] = useState<ArchivedPageResponse | null>(
-    () => {
-      if (!showArchivedPage) return null
-      const first = properties.find((p) => p.archived_page)
-      return first?.archived_page || archivedPages.page1
-    },
-  )
-  const [selectedQuotes, setSelectedQuotes] = useState<string[] | null>(() => {
-    if (!showArchivedPage) return null
-    const first = properties.find((p) => p.archived_page)
-    return first?.supporting_quotes || null
-  })
-
-  const iframeRef = useRef<HTMLIFrameElement | null>(null)
-  const leftPanelRef = useRef<HTMLDivElement | null>(null)
-  const archivedPageCache = useArchivedPageCache()
-  const { isIframeLoaded, handleIframeLoad, handleQuotesChange } = useIframeAutoHighlight(
-    iframeRef,
-    selectedQuotes,
-  )
-
-  useEffect(() => {
-    if (leftPanelRef.current && selectedQuotes && selectedQuotes.length > 0) {
-      highlightTextInScope(document, leftPanelRef.current, selectedQuotes)
-    }
-    if (isIframeLoaded && selectedQuotes && selectedQuotes.length > 0) {
-      handleQuotesChange(selectedQuotes)
-    }
-  }, [selectedQuotes, isIframeLoaded, handleQuotesChange])
-
-  const handleEvaluate = (propertyId: string, action: 'accept' | 'reject') => {
-    if (!isInteractive) return
-    setEvaluations((prev) => {
-      const newMap = new Map(prev)
-      const currentValue = newMap.get(propertyId)
-      const targetValue = action === 'accept'
-      if (currentValue === targetValue) {
-        newMap.delete(propertyId)
-      } else {
-        newMap.set(propertyId, targetValue)
-      }
-      return newMap
-    })
-  }
-
-  const handlePropertyHover = (property: Property) => {
-    if (
-      property.archived_page &&
-      selectedArchivedPage?.id === property.archived_page.id &&
-      property.supporting_quotes?.length
-    ) {
-      setSelectedQuotes(property.supporting_quotes)
-    }
-  }
-
-  const hasEvaluations = evaluations.size > 0
-
-  return (
-    <>
-      <Header />
-      <div className="grid grid-cols-[46rem_1fr] bg-gray-50 min-h-0">
-        <div className="shadow-lg grid grid-rows-[1fr_auto] min-h-0">
-          <div ref={leftPanelRef} className="overflow-y-auto min-h-0 p-6">
-            {showLeftExplanation ? (
-              <TutorialExplanation {...explanation} />
-            ) : (
-              <>
-                <div className="mb-6">
-                  <div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>
-                  <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                    <a
-                      href={`https://www.wikidata.org/wiki/${tutorialData.politician.wikidataId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:underline"
-                    >
-                      {tutorialData.politician.name}{' '}
-                      <span className="text-gray-500 font-normal">
-                        ({tutorialData.politician.wikidataId})
-                      </span>
-                    </a>
-                  </h1>
-                </div>
-                {properties.length > 0 && (
-                  <PropertiesEvaluation
-                    properties={properties}
-                    evaluations={evaluations}
-                    onAction={isInteractive ? handleEvaluate : () => {}}
-                    onShowArchived={(property) => {
-                      if (property.archived_page && showArchivedPage) {
-                        setSelectedArchivedPage(property.archived_page)
-                        setSelectedQuotes(property.supporting_quotes || null)
-                      }
-                    }}
-                    onHover={handlePropertyHover}
-                    activeArchivedPageId={selectedArchivedPage?.id || null}
-                  />
-                )}
-              </>
-            )}
-          </div>
-
-          <div className="p-6 border-t border-gray-200">
-            <div className="flex justify-between items-center">
-              <Anchor href="/evaluate" className="text-gray-500 hover:text-gray-700 font-medium">
-                Skip Tutorial
-              </Anchor>
-              <Button
-                onClick={onNext}
-                disabled={isInteractive && !hasEvaluations}
-                className="px-6 py-3"
-              >
-                {isInteractive ? 'Continue' : 'Next'}
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gray-50 border-l border-gray-200 overflow-hidden min-h-0">
-          {showRightExplanation ? (
-            <TutorialExplanation {...explanation} />
-          ) : showArchivedPage && selectedArchivedPage ? (
-            <iframe
-              ref={iframeRef}
-              src={`/api/tutorial-pages/${selectedArchivedPage.id}/html`}
-              className="w-full h-full border-0"
-              title="Archived Page"
-              sandbox="allow-scripts allow-same-origin"
-              onLoad={() => {
-                archivedPageCache.markPageAsLoaded(selectedArchivedPage.id)
-                handleIframeLoad()
-              }}
-            />
-          ) : (
-            <TutorialExplanation {...explanation} />
-          )}
-        </div>
-      </div>
-    </>
   )
 }
 
@@ -235,213 +62,168 @@ export default function TutorialPage() {
     router.push('/evaluate')
   }
 
-  // Step 0: Intro
+  let content: React.ReactNode
+
   if (step === 0) {
-    return (
-      <NotificationPage
-        emoji="👋"
-        title="Welcome to PoliLoom!"
-        description={
-          <>
-            <p>
-              You&apos;re about to help build accurate, open political data by verifying information
-              extracted from official sources.
-            </p>
-          </>
-        }
-      >
-        <Button onClick={nextStep} className="px-6 py-3 w-full">
-          Let&apos;s Go
-        </Button>
-        <Anchor
-          href="/evaluate"
-          className="inline-flex items-center justify-center px-6 py-3 w-full text-gray-700 font-medium hover:bg-gray-100 rounded-md transition-colors"
-        >
-          Skip Tutorial
-        </Anchor>
-      </NotificationPage>
+    content = (
+      <CenteredCard emoji="👋" title="Welcome to PoliLoom!">
+        <p className="mb-8">
+          You&apos;re about to help build accurate, open political data by verifying information
+          extracted from official sources.
+        </p>
+        <TutorialActions buttonText="Let's Go" onNext={nextStep} />
+      </CenteredCard>
     )
-  }
-
-  // Step 1: Why your help matters
-  if (step === 1) {
-    return (
-      <NotificationPage
-        emoji="🤖"
-        title="Why Your Help Matters"
-        description={
-          <>
-            <p>
-              Your role is to check whether what the AI extracted actually matches what&apos;s
-              written in the source document.
-            </p>
-          </>
-        }
-      >
-        <Button onClick={nextStep} className="px-6 py-3 w-full">
-          Got It
-        </Button>
-        <Anchor
-          href="/evaluate"
-          className="inline-flex items-center justify-center px-6 py-3 w-full text-gray-700 font-medium hover:bg-gray-100 rounded-md transition-colors"
-        >
-          Skip Tutorial
-        </Anchor>
-      </NotificationPage>
+  } else if (step === 1) {
+    content = (
+      <CenteredCard emoji="🤖" title="Why Your Help Matters">
+        <p className="mb-8">
+          Your role is to check whether what the AI extracted actually matches what&apos;s written
+          in the source document.
+        </p>
+        <TutorialActions buttonText="Got It" onNext={nextStep} />
+      </CenteredCard>
     )
-  }
-
-  // Step 2: Archived page explanation
-  if (step === 2) {
-    return (
-      <EvaluationStep
+  } else if (step === 2) {
+    content = (
+      <TutorialStep
         key={2}
         properties={[]}
+        archivedPages={archivedPages}
+        politician={tutorialData.politician}
         showArchivedPage={true}
         showLeftExplanation={true}
         showRightExplanation={false}
         isInteractive={false}
-        explanation={{
-          emoji: '📄',
-          title: 'Source Documents',
-          description:
-            "On the right side, you'll see archived web pages from government portals, Wikipedia, and other official sources.",
-          secondaryDescription:
-            'These are the original documents where we found information about politicians. We save copies so you can verify the data even if the original page changes.',
-        }}
+        explanationContent={
+          <CenteredCard emoji="📄" title="Source Documents">
+            <p>
+              On the right side, you&apos;ll see archived web pages from government portals,
+              Wikipedia, and other official sources.
+            </p>
+            <p className="mt-4">
+              These are the original documents where we found information about politicians. We save
+              copies so you can verify the data even if the original page changes.
+            </p>
+          </CenteredCard>
+        }
         onNext={nextStep}
       />
     )
-  }
-
-  // Step 3: Structured data explanation
-  if (step === 3) {
-    return (
-      <EvaluationStep
+  } else if (step === 3) {
+    content = (
+      <TutorialStep
         key={3}
         properties={[birthDateProperty]}
+        archivedPages={archivedPages}
+        politician={tutorialData.politician}
         showArchivedPage={false}
         showLeftExplanation={false}
         showRightExplanation={true}
         isInteractive={false}
-        explanation={{
-          emoji: '🗂️',
-          title: 'Extracted Data',
-          description:
-            'On the left, you see structured data that was automatically extracted from the source documents using AI.',
-        }}
+        explanationContent={
+          <CenteredCard emoji="🗂️" title="Extracted Data">
+            <p>
+              On the left, you see structured data that was automatically extracted from the source
+              documents using AI.
+            </p>
+          </CenteredCard>
+        }
         onNext={nextStep}
       />
     )
-  }
-
-  // Step 4: Let's try it - intro
-  if (step === 4) {
-    return (
-      <NotificationPage
-        emoji="🎯"
-        title="Let's Try It"
-        description={
-          <p>
-            Compare the extracted data to the source. If they match, accept. If they don&apos;t,
-            reject.
-          </p>
-        }
-      >
-        <Button onClick={nextStep} className="px-6 py-3 w-full">
-          Let&apos;s Go
-        </Button>
-        <Anchor
-          href="/evaluate"
-          className="inline-flex items-center justify-center px-6 py-3 w-full text-gray-700 font-medium hover:bg-gray-100 rounded-md transition-colors"
-        >
-          Skip Tutorial
-        </Anchor>
-      </NotificationPage>
+  } else if (step === 4) {
+    content = (
+      <CenteredCard emoji="🎯" title="Let's Try It">
+        <p className="mb-8">
+          Compare the extracted data to the source. If they match, accept. If they don&apos;t,
+          reject.
+        </p>
+        <TutorialActions buttonText="Got It" onNext={nextStep} />
+      </CenteredCard>
     )
-  }
-
-  // Step 5: Try yourself (correct and incorrect birthdate)
-  if (step === 5) {
-    return (
-      <EvaluationStep
+  } else if (step === 5) {
+    content = (
+      <TutorialStep
         key={5}
         properties={[birthDateProperty, birthDateIncorrectProperty]}
+        archivedPages={archivedPages}
+        politician={tutorialData.politician}
         showArchivedPage={true}
         showLeftExplanation={false}
         showRightExplanation={false}
         isInteractive={true}
-        explanation={{
-          emoji: '✨',
-          title: 'Try It Yourself',
-          description: "Now it's your turn! Review the data and click Accept or Reject.",
-        }}
+        explanationContent={
+          <CenteredCard emoji="✨" title="Try It Yourself">
+            <p>Now it&apos;s your turn! Review the data and click Accept or Reject.</p>
+          </CenteredCard>
+        }
         onNext={nextStep}
       />
     )
-  }
-
-  // Step 6: Multiple pages explanation
-  if (step === 6) {
-    return (
-      <EvaluationStep
+  } else if (step === 6) {
+    content = (
+      <TutorialStep
         key={6}
         properties={[position1Property, position2Property]}
+        archivedPages={archivedPages}
+        politician={tutorialData.politician}
         showArchivedPage={false}
         showLeftExplanation={false}
         showRightExplanation={true}
         isInteractive={false}
-        explanation={{
-          emoji: '📚',
-          title: 'Multiple Sources',
-          description: 'Sometimes information comes from different source documents.',
-          secondaryDescription:
-            'Click the "View" button next to any data item to see its source document.',
-        }}
+        explanationContent={
+          <CenteredCard emoji="📚" title="Multiple Sources">
+            <p>Sometimes information comes from different source documents.</p>
+            <p className="mt-4">
+              Click the &quot;View&quot; button next to any data item to see its source document.
+            </p>
+          </CenteredCard>
+        }
         onNext={nextStep}
       />
     )
-  }
-
-  // Step 7: Try yourself (multiple properties)
-  if (step === 7) {
-    return (
-      <EvaluationStep
+  } else if (step === 7) {
+    content = (
+      <TutorialStep
         key={7}
         properties={[position1Property, position2Property]}
+        archivedPages={archivedPages}
+        politician={tutorialData.politician}
         showArchivedPage={true}
         showLeftExplanation={false}
         showRightExplanation={false}
         isInteractive={true}
-        explanation={{
-          emoji: '🔄',
-          title: 'Try Multiple Sources',
-          description: 'Review these positions from different sources.',
-        }}
+        explanationContent={
+          <CenteredCard emoji="🔄" title="Try Multiple Sources">
+            <p>Review these positions from different sources.</p>
+          </CenteredCard>
+        }
         onNext={nextStep}
       />
     )
-  }
-
-  // Step 8: Complete
-  return (
-    <NotificationPage
-      emoji="🎉"
-      title="Tutorial Complete!"
-      description={
-        <>
+  } else {
+    content = (
+      <CenteredCard emoji="🎉" title="Tutorial Complete!">
+        <div className="mb-8">
           <p>Great job! You now know how to:</p>
           <ul className="text-left mt-4 space-y-2">
             <li>• View source documents with highlighted text</li>
             <li>• Review extracted data and accept or reject it</li>
             <li>• Handle multiple sources for different data</li>
           </ul>
-        </>
-      }
-    >
-      <Button onClick={handleComplete} className="px-6 py-3 w-full">
-        Start Evaluating
-      </Button>
-    </NotificationPage>
+        </div>
+        <Button onClick={handleComplete} className="px-6 py-3 w-full">
+          Start Evaluating
+        </Button>
+      </CenteredCard>
+    )
+  }
+
+  return (
+    <>
+      <Header />
+      {content}
+    </>
   )
 }
