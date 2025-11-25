@@ -30,13 +30,6 @@ def get_embedding_model():
     return _embedding_model
 
 
-def generate_embedding(text: str) -> List[float]:
-    """Generate embedding for a single text string."""
-    model = get_embedding_model()
-    embedding = model.encode(text, convert_to_tensor=False)
-    return embedding.tolist()
-
-
 def generate_embeddings_batch(texts: List[str]) -> List[List[float]]:
     """Generate embeddings for multiple text strings in a batch.
 

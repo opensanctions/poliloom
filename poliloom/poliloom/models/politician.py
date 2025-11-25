@@ -68,11 +68,6 @@ class Politician(
         DateTime, nullable=True
     )  # Timestamp of last enrichment attempt
 
-    @property
-    def is_deceased(self) -> bool:
-        """Check if politician is deceased based on death_date property."""
-        return any(prop.type == PropertyType.DEATH_DATE for prop in self.properties)
-
     def get_properties_by_types(
         self, property_types: List[PropertyType]
     ) -> List["Property"]:
