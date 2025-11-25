@@ -44,13 +44,13 @@ export function StatementSource({
         </div>
       )}
       {supportingQuotes && supportingQuotes.length > 0 && (
-        <div className="space-y-1 py-2">
+        <ol className="list-decimal list-outside ml-4 space-y-1 py-2">
           {supportingQuotes.map((quote, index) => (
-            <div key={index} className="text-sm text-gray-600 italic">
+            <li key={index} className="text-sm text-gray-600 italic">
               &quot;{quote}&quot;
-            </div>
+            </li>
           ))}
-        </div>
+        </ol>
       )}
     </div>
   )
