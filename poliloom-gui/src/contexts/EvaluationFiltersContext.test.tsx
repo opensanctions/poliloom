@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react'
+import { render, waitFor, fireEvent } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { EvaluationFiltersProvider, useEvaluationFilters } from './EvaluationFiltersContext'
 import { PreferenceType } from '@/types'
@@ -217,7 +217,7 @@ describe('EvaluationFiltersContext', () => {
     })
 
     // Click update button
-    getByText('Update').click()
+    fireEvent.click(getByText('Update'))
 
     // Wait for localStorage to be updated
     await waitFor(() => {

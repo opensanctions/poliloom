@@ -163,7 +163,7 @@ export default function GuidePage() {
       <main className="bg-gray-50 min-h-0 overflow-y-auto">
         <Hero
           title="How It Works"
-          description="Learn how to review and evaluate politician data for Wikidata. This guide will walk you through the process of accepting or rejecting birth dates, positions, and other details extracted from government sources."
+          description="Learn how to review and evaluate politician data. This guide will walk you through the process of accepting or rejecting birth dates, positions, and other details extracted from government sources."
         />
 
         <div className="max-w-6xl mx-auto px-8 py-12">
@@ -176,16 +176,16 @@ export default function GuidePage() {
                   PoliLoom extracts statements on politicians from government portals and Wikipedia.
                   Your job is simple:{' '}
                   <strong className="text-gray-900">review these proposed edits</strong> and decide
-                  whether they&apos;re accurate enough to add to Wikidata. You&apos;ll see extracted
+                  whether they&apos;re accurate enough to publish. You&apos;ll see extracted
                   statements like birth dates, positions, and birthplaces that need your acceptance
-                  before being added.
+                  before being added to the open data commons.
                 </p>
 
                 <p className="text-gray-600 leading-relaxed">
                   Each statement includes a{' '}
-                  <strong className="text-gray-900">&quot;view archive&quot; button</strong> that
-                  shows you the original source page with the relevant text highlighted. Use this to
-                  verify the information before accepting or rejecting.
+                  <strong className="text-gray-900">&quot;view&quot; button</strong> that shows you
+                  the original source page with the relevant text highlighted. Use this to verify
+                  the information before accepting or rejecting.
                 </p>
               </div>
             </div>
@@ -206,8 +206,8 @@ export default function GuidePage() {
                   <div className="mt-3 prose max-w-none">
                     <p className="text-gray-600 leading-relaxed">
                       <strong className="text-gray-900">Extracted Information:</strong> New proposed
-                      statements <strong className="text-gray-900">not yet in Wikidata</strong>.
-                      These items are waiting for your review before they can be submitted.
+                      statements <strong className="text-gray-900">not yet published</strong>. These
+                      items are waiting for your review before they can be submitted.
                     </p>
                   </div>
                 </div>
@@ -222,10 +222,9 @@ export default function GuidePage() {
                   </EvaluationItem>
                   <div className="mt-3 prose max-w-none">
                     <p className="text-gray-600 leading-relaxed">
-                      <strong className="text-gray-900">Current in Wikidata:</strong> Data that{' '}
-                      <strong className="text-gray-900">already exists in Wikidata</strong>.
-                      You&apos;ll see the existing statement with its metadata (references and
-                      qualifiers).
+                      <strong className="text-gray-900">Existing Data:</strong> Data that{' '}
+                      <strong className="text-gray-900">has already been added</strong>. You&apos;ll
+                      see the existing statement with its metadata (references and qualifiers).
                     </p>
                   </div>
                 </div>
@@ -236,7 +235,7 @@ export default function GuidePage() {
                 <p className="text-gray-600 leading-relaxed">
                   This distinction is important because{' '}
                   <strong className="text-gray-900">
-                    accepting extracted data adds something new, while deprecating Wikidata data
+                    accepting extracted data adds something new, while deprecating existing data
                     marks something that&apos;s already there as outdated
                   </strong>
                   .
@@ -265,7 +264,7 @@ export default function GuidePage() {
                   <div className="mt-3 prose max-w-none">
                     <p className="text-gray-600 leading-relaxed">
                       <strong className="text-gray-900">Accept:</strong> Confirm this data is
-                      accurate. Accepted items will be submitted to Wikidata with proper references.
+                      accurate. Accepted items will be added with proper references.
                     </p>
                   </div>
                 </div>
@@ -281,7 +280,7 @@ export default function GuidePage() {
                   <div className="mt-3 prose max-w-none">
                     <p className="text-gray-600 leading-relaxed">
                       <strong className="text-gray-900">Reject:</strong> Mark this data as incorrect
-                      or unreliable. Rejected items will not be added to Wikidata.
+                      or unreliable. Rejected items will not be added.
                     </p>
                   </div>
                 </div>
@@ -306,21 +305,21 @@ export default function GuidePage() {
                   <strong className="text-gray-900">Not sure?</strong> That&apos;s completely fine:{' '}
                   <strong className="text-gray-900">just skip it!</strong> You&apos;re never
                   required to make a decision on any item. If something feels uncertain, leave it
-                  for another reviewer or take a moment to check the politician&apos;s Wikidata page
-                  yourself. Every contribution helps, even if you only evaluate the items
-                  you&apos;re confident about.
+                  for another reviewer or take a moment to research the politician yourself. Every
+                  contribution helps, even if you only evaluate the items you&apos;re confident
+                  about.
                 </p>
               </div>
             </div>
 
-            {/* Replacing existing Wikidata statements */}
+            {/* Replacing existing statements */}
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
                 Replacing Existing Statements
               </h2>
               <p className="text-gray-600 mb-6">
-                Sometimes you might want to replace existing Wikidata data with more accurate
-                information. To do this,{' '}
+                Sometimes you might want to replace existing data with more accurate information. To
+                do this,{' '}
                 <strong className="text-gray-900">
                   you can deprecate the old statement and accept the new one
                 </strong>

@@ -196,7 +196,7 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
           <div className="flex items-center justify-center h-full text-gray-500">
             <div className="text-center">
               <p className="text-lg mb-2">📄</p>
-              <p>Click &ldquo;View Archive&rdquo; on any item to see the archived page</p>
+              <p>Click &ldquo;View&rdquo; on any item to see the source page</p>
             </div>
           </div>
         )}

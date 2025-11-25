@@ -260,8 +260,8 @@ describe('PoliticianEvaluation', () => {
     render(<PoliticianEvaluation {...defaultProps} />)
 
     // Should show source viewing controls
-    const viewingArchiveButtons = screen.getAllByText(/Viewing Archive/)
-    expect(viewingArchiveButtons.length).toBeGreaterThan(0)
+    const viewingButtons = screen.getAllByText(/Viewing/)
+    expect(viewingButtons.length).toBeGreaterThan(0)
 
     // Should show source URL
     const sourceTexts = screen.getAllByText('https://en.wikipedia.org/wiki/Test_Politician')
@@ -534,8 +534,8 @@ describe('PoliticianEvaluation', () => {
         render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianWithConflicts} />)
 
         // Should show source viewing controls for items that have archived pages
-        const viewingArchiveButtons = screen.getAllByText(/Viewing Archive/)
-        expect(viewingArchiveButtons.length).toBeGreaterThan(0)
+        const viewingButtons = screen.getAllByText(/Viewing/)
+        expect(viewingButtons.length).toBeGreaterThan(0)
 
         // Should show the archived page iframe
         expect(screen.getByTitle('Archived Page')).toBeInTheDocument()
@@ -546,7 +546,7 @@ describe('PoliticianEvaluation', () => {
 
         // Should show helpful message when no source is available
         expect(
-          screen.getByText(/Click.*View Archive.*on any item to see the archived page/),
+          screen.getByText(/Click.*View.*on any item to see the source page/),
         ).toBeInTheDocument()
       })
     })

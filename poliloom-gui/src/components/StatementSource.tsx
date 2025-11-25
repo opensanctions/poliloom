@@ -29,7 +29,7 @@ export function StatementSource({
             onClick={onShowArchived}
             className="flex-shrink-0"
           >
-            • {isActive ? 'Viewing Archive' : 'View Archive'}
+            • {isActive ? 'Viewing' : 'View'}
           </Button>
           <a
             href={archivedPage.url}
