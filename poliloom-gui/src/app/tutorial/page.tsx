@@ -155,12 +155,12 @@ export default function TutorialPage() {
   } else if (step === 4) {
     // Let's try it
     content = (
-      <CenteredCard emoji="🎯" title="Let's Try It">
+      <CenteredCard emoji="🎯" title="Give It a Try">
         <p className="mb-8">
           Compare the extracted data to the source. If they match, accept. If they don&apos;t,
           reject.
         </p>
-        <TutorialActions buttonText="Got It" onNext={nextStep} />
+        <TutorialActions buttonText="Let's do it" onNext={nextStep} />
       </CenteredCard>
     )
   } else if (step === 5) {
@@ -199,11 +199,9 @@ export default function TutorialPage() {
         right={
           <CenteredCard emoji="📚" title="Multiple Sources">
             <p>Sometimes information comes from different source documents.</p>
-            <p className="mt-4">
-              Click the &quot;View&quot; button next to any data item to see its source document.
-            </p>
+            <p className="mt-4">Next, try switching between these to evaluate all statements.</p>
             <div className="mt-8">
-              <TutorialActions buttonText="Next" onNext={nextStep} />
+              <TutorialActions buttonText="Let's do it" onNext={nextStep} />
             </div>
           </CenteredCard>
         }
