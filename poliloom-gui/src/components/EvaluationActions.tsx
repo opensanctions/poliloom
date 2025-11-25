@@ -1,4 +1,5 @@
 import { Button } from './Button'
+import { DataLabel } from './DataLabel'
 
 interface EvaluationActionsProps {
   statementId: string
@@ -17,9 +18,7 @@ export function EvaluationActions({
     <div className="flex gap-2 items-center ml-auto">
       {!isWikidataStatement ? (
         <>
-          <span className="px-2 py-1 text-sm font-medium text-indigo-600 bg-indigo-50 rounded">
-            New data
-          </span>
+          <DataLabel variant="new">New data!</DataLabel>
           <Button
             size="sm"
             variant="success"
@@ -30,9 +29,7 @@ export function EvaluationActions({
           </Button>
         </>
       ) : (
-        <span className="px-2 py-1 text-sm font-medium text-gray-500 bg-gray-100 rounded">
-          Existing data
-        </span>
+        <DataLabel variant="existing">Existing data</DataLabel>
       )}
       <Button
         size="sm"
