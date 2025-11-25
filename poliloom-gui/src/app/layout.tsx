@@ -5,6 +5,7 @@ import { SessionProvider } from '@/components/SessionProvider'
 import { ArchivedPageProvider } from '@/contexts/ArchivedPageContext'
 import { EvaluationFiltersProvider } from '@/contexts/EvaluationFiltersContext'
 import { EvaluationProvider } from '@/contexts/EvaluationContext'
+import { TutorialProvider } from '@/contexts/TutorialContext'
 import { FetchInterceptor } from '@/components/FetchInterceptor'
 
 export const metadata: Metadata = {
@@ -27,7 +28,9 @@ export default async function RootLayout({
           <FetchInterceptor />
           <EvaluationFiltersProvider>
             <EvaluationProvider>
-              <ArchivedPageProvider>{children}</ArchivedPageProvider>
+              <ArchivedPageProvider>
+                <TutorialProvider>{children}</TutorialProvider>
+              </ArchivedPageProvider>
             </EvaluationProvider>
           </EvaluationFiltersProvider>
         </SessionProvider>

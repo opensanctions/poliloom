@@ -5,11 +5,13 @@ import { Hero } from '@/components/Hero'
 import { Anchor } from '@/components/Anchor'
 import { MultiSelect, MultiSelectOption } from '@/components/MultiSelect'
 import { useEvaluationFilters } from '@/contexts/EvaluationFiltersContext'
+import { useTutorial } from '@/contexts/TutorialContext'
 import { PreferenceType, WikidataEntity } from '@/types'
 
 export default function Home() {
   const { filters, languages, countries, loadingLanguages, loadingCountries, updateFilters } =
     useEvaluationFilters()
+  const { hasCompletedTutorial } = useTutorial()
 
   const languageFilters = filters
     .filter((p) => p.preference_type === PreferenceType.LANGUAGE)
@@ -112,10 +114,10 @@ export default function Home() {
                 </p>
               </div>
               <Anchor
-                href="/evaluate"
+                href={hasCompletedTutorial ? '/evaluate' : '/tutorial'}
                 className="bg-indigo-600 text-white font-semibold hover:bg-indigo-700 px-8 py-4 rounded-lg transition-colors shadow-sm hover:shadow-md whitespace-nowrap ml-6"
               >
-                Begin Review Session
+                {hasCompletedTutorial ? 'Begin Review Session' : 'Start Tutorial'}
               </Anchor>
             </div>
           </div>
