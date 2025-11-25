@@ -648,132 +648,73 @@ class TestEnrichBatch:
 
 
 class TestExtractPermanentUrl:
-    """Test extract_permanent_url function with real-world examples."""
+    """Test extract_permanent_url function using t-permalink element."""
 
-    def test_extract_permanent_url_with_matching_title(self):
-        """Test extracting permanent URL when title matches (real example from archives)."""
-        # Real-world example from archives/2025/10/07/b6553eb9883d84dd.html
-        url = "https://en.wikipedia.org/wiki/Mirjam_Blaak"
+    def test_extract_permanent_url_basic(self):
+        """Test extracting permanent URL from t-permalink element."""
         html_snippet = """
         <li id="t-permalink" class="mw-list-item">
-            <a href="https://en.wikipedia.org/w/index.php?title=Mirjam_Blaak&amp;oldid=1314222018"
+            <a href="https://en.wikipedia.org/w/index.php?title=Mirjam_Blaak&oldid=1314222018"
                title="Permanent link to this revision of this page">
                 <span>Permanent link</span>
             </a>
         </li>
         """
 
-        permanent_url = extract_permanent_url(url, html_snippet)
+        permanent_url = extract_permanent_url(html_snippet)
         assert (
             permanent_url
             == "https://en.wikipedia.org/w/index.php?title=Mirjam_Blaak&oldid=1314222018"
         )
 
-    def test_extract_permanent_url_with_url_encoded_title(self):
-        """Test extracting permanent URL with URL-encoded characters."""
-        # Real-world example from archives with URL-encoded title
-        url = "https://es.wikipedia.org/wiki/Luis_Mario_Aparcero_Fernández"
+    def test_extract_permanent_url_uses_t_permalink_not_other_links(self):
+        """Test that only the t-permalink element is used, not other oldid links."""
         html_snippet = """
-        <a href="https://es.wikipedia.org/w/index.php?title=Luis_Mario_Aparcero_Fern%C3%A1ndez&amp;oldid=169232970"
-           title="Enlace permanente">Enlace permanente</a>
+        <a href="https://en.wikipedia.org/w/index.php?title=Other_Page&oldid=9999999">Other</a>
+        <li id="t-permalink" class="mw-list-item">
+            <a href="https://en.wikipedia.org/w/index.php?title=Petra_Butler&oldid=1292404970">Correct</a>
+        </li>
+        <a href="https://en.wikipedia.org/w/index.php?title=Another_Page&oldid=8888888">Another</a>
         """
 
-        permanent_url = extract_permanent_url(url, html_snippet)
-        assert (
-            permanent_url
-            == "https://es.wikipedia.org/w/index.php?title=Luis_Mario_Aparcero_Fern%C3%A1ndez&oldid=169232970"
-        )
-
-    def test_extract_permanent_url_with_non_latin_characters(self):
-        """Test extracting permanent URL with non-Latin characters."""
-        # Real-world example from archives with Azerbaijani characters
-        url = "https://az.wikipedia.org/wiki/Yalçın_Rəfiyev"
-        html_snippet = """
-        <a href="https://az.wikipedia.org/w/index.php?title=Yal%C3%A7%C4%B1n_R%C9%99fiyev&amp;oldid=8154095"
-           title="Daimi keçid">Daimi keçid</a>
-        """
-
-        permanent_url = extract_permanent_url(url, html_snippet)
-        assert (
-            permanent_url
-            == "https://az.wikipedia.org/w/index.php?title=Yal%C3%A7%C4%B1n_R%C9%99fiyev&oldid=8154095"
-        )
-
-    def test_extract_permanent_url_multiple_oldids_returns_matching_one(self):
-        """Test that when multiple oldid links exist, we extract the one matching our URL."""
-        url = "https://en.wikipedia.org/wiki/Petra_Butler"
-        html_snippet = """
-        <a href="https://en.wikipedia.org/w/index.php?title=Other_Page&amp;oldid=9999999">Other</a>
-        <a href="https://en.wikipedia.org/w/index.php?title=Petra_Butler&amp;oldid=1292404970">Correct</a>
-        <a href="https://en.wikipedia.org/w/index.php?title=Another_Page&amp;oldid=8888888">Another</a>
-        """
-
-        permanent_url = extract_permanent_url(url, html_snippet)
-        # Should return the permanent URL for Petra_Butler, not the others
+        permanent_url = extract_permanent_url(html_snippet)
         assert (
             permanent_url
             == "https://en.wikipedia.org/w/index.php?title=Petra_Butler&oldid=1292404970"
         )
 
-    def test_extract_permanent_url_wrong_title_returns_none(self):
-        """Test that permanent URL is not extracted when title doesn't match."""
-        url = "https://en.wikipedia.org/wiki/Mirjam_Blaak"
+    def test_extract_permanent_url_no_t_permalink_returns_none(self):
+        """Test that None is returned when no t-permalink element exists."""
         html_snippet = """
-        <a href="https://en.wikipedia.org/w/index.php?title=Different_Page&amp;oldid=1234567890">Link</a>
+        <a href="https://en.wikipedia.org/w/index.php?title=Mirjam_Blaak&oldid=1234567890">Link</a>
         """
 
-        permanent_url = extract_permanent_url(url, html_snippet)
+        permanent_url = extract_permanent_url(html_snippet)
         assert permanent_url is None
 
-    def test_extract_permanent_url_no_oldid_in_html(self):
-        """Test when no oldid is present in HTML."""
-        url = "https://en.wikipedia.org/wiki/Test_Page"
+    def test_extract_permanent_url_no_anchor_in_t_permalink(self):
+        """Test when t-permalink exists but has no anchor tag."""
         html_snippet = """
-        <div class="content">
-            <a href="https://en.wikipedia.org/wiki/Test_Page">Test Page</a>
-        </div>
+        <li id="t-permalink" class="mw-list-item">
+            <span>Permanent link</span>
+        </li>
         """
 
-        permanent_url = extract_permanent_url(url, html_snippet)
+        permanent_url = extract_permanent_url(html_snippet)
         assert permanent_url is None
 
-    def test_extract_permanent_url_invalid_url_format(self):
-        """Test with non-Wikipedia URL format."""
-        url = "https://example.com/page"
+    def test_extract_permanent_url_with_fragment(self):
+        """Test that URL fragments are preserved in permanent URL."""
         html_snippet = """
-        <a href="https://en.wikipedia.org/w/index.php?title=Something&amp;oldid=123">Link</a>
+        <li id="t-permalink" class="mw-list-item">
+            <a href="https://en.wikipedia.org/w/index.php?title=2025_shootings&oldid=1321768448#Accused">Link</a>
+        </li>
         """
 
-        permanent_url = extract_permanent_url(url, html_snippet)
-        assert permanent_url is None
-
-    def test_extract_permanent_url_from_printfooter(self):
-        """Test extracting from printfooter section (real pattern from archives)."""
-        url = "https://en.wikipedia.org/wiki/Petra_Butler"
-        html_snippet = """
-        <div class="printfooter" data-nosnippet="">
-            Retrieved from "<a dir="ltr" href="https://en.wikipedia.org/w/index.php?title=Petra_Butler&amp;oldid=1292404970">
-            https://en.wikipedia.org/w/index.php?title=Petra_Butler&amp;oldid=1292404970</a>"
-        </div>
-        """
-
-        permanent_url = extract_permanent_url(url, html_snippet)
+        permanent_url = extract_permanent_url(html_snippet)
         assert (
             permanent_url
-            == "https://en.wikipedia.org/w/index.php?title=Petra_Butler&oldid=1292404970"
-        )
-
-    def test_extract_permanent_url_with_space_in_title(self):
-        """Test extracting permanent URL with underscores/spaces in title."""
-        url = "https://fy.wikipedia.org/wiki/Eddie_van_Marum"
-        html_snippet = """
-        <a href="https://fy.wikipedia.org/w/index.php?title=Eddie_van_Marum&amp;oldid=1179777">Link</a>
-        """
-
-        permanent_url = extract_permanent_url(url, html_snippet)
-        assert (
-            permanent_url
-            == "https://fy.wikipedia.org/w/index.php?title=Eddie_van_Marum&oldid=1179777"
+            == "https://en.wikipedia.org/w/index.php?title=2025_shootings&oldid=1321768448#Accused"
         )
 
 
@@ -870,10 +811,7 @@ class TestFetchAndArchivePage:
                         archived_page.wikipedia_project_id
                         == sample_wikipedia_project.wikidata_id
                     )
-                    mock_extract.assert_called_once_with(
-                        url,
-                        "<html>Converted</html>",
-                    )
+                    mock_extract.assert_called_once_with("<html>Converted</html>")
 
     @pytest.mark.asyncio
     async def test_fetch_and_archive_page_without_wikipedia_project(self, db_session):

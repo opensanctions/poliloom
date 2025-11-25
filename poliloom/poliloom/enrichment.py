@@ -3,10 +3,8 @@
 import os
 import logging
 import asyncio
-import re
 from datetime import datetime, timezone
 from typing import List, Optional, Literal, Type, Union, Any
-from urllib.parse import unquote, urlparse
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, func
 from openai import AsyncOpenAI
@@ -476,54 +474,37 @@ Select the best matching QID or None if no good match exists."""
         return None
 
 
-def extract_permanent_url(url: str, html_content: str) -> Optional[str]:
+def extract_permanent_url(html_content: str) -> Optional[str]:
     """Extract Wikipedia permanent URL with oldid from HTML content.
 
-    Validates that the oldid URL contains the expected page title to ensure
-    we extract the correct revision even if multiple oldid links are present.
+    Uses the Wikipedia sidebar's permanent link element (id="t-permalink") to extract
+    the canonical permanent URL. This handles redirects correctly since the permanent
+    link always points to the actual page revision being viewed.
 
     Args:
-        url: The Wikipedia page URL (e.g., "https://en.wikipedia.org/wiki/Mirjam_Blaak")
         html_content: The HTML content to search
 
     Returns:
-        The permanent URL with oldid (e.g., "https://en.wikipedia.org/w/index.php?title=Mirjam_Blaak&oldid=123456789"),
-        or None if not found or title doesn't match
+        The permanent URL with oldid (e.g., "https://en.wikipedia.org/w/index.php?title=Page&oldid=123456789"),
+        or None if not found
     """
     try:
-        # Extract the expected page title from the URL
-        parsed_url = urlparse(url)
-        url_path = parsed_url.path
-        title_match = re.search(r"/wiki/(.+)$", url_path)
-        if not title_match:
-            logger.debug(f"Could not extract page title from URL: {url}")
+        soup = BeautifulSoup(html_content, "html.parser")
+        permalink_element = soup.find(id="t-permalink")
+
+        if not permalink_element:
+            logger.debug("No t-permalink element found in HTML")
             return None
 
-        expected_title = unquote(title_match.group(1))
+        anchor = permalink_element.find("a")
+        if not anchor or not anchor.get("href"):
+            logger.debug("No anchor with href found in t-permalink element")
+            return None
 
-        # Look for oldid parameter with associated title in HTML
-        # Pattern matches: title=PAGE_TITLE&oldid=123456789
-        pattern = r'index\.php\?title=([^&"]+)&(?:amp;)?oldid=(\d+)'
+        permanent_url = anchor["href"]
+        logger.debug(f"Found permanent URL via t-permalink: {permanent_url}")
+        return permanent_url
 
-        for match in re.finditer(pattern, html_content):
-            # URL decode the title from the oldid URL
-            url_title = match.group(1)
-            # Decode percent-encoded characters (e.g., %C3%A7 -> ç)
-            decoded_title = unquote(url_title)
-
-            # Check if this oldid URL matches our expected page title
-            if decoded_title == expected_title:
-                oldid = match.group(2)
-                # Construct permanent URL with oldid
-                permanent_url = f"{parsed_url.scheme}://{parsed_url.netloc}/w/index.php?title={url_title}&oldid={oldid}"
-                logger.debug(
-                    f"Found permanent URL for title '{expected_title}': {permanent_url}"
-                )
-                return permanent_url
-
-        # If no match found with expected title
-        logger.debug(f"No oldid found matching expected title '{expected_title}'")
-        return None
     except Exception as e:
         logger.warning(f"Error extracting permanent URL: {e}")
         return None
@@ -584,7 +565,7 @@ async def fetch_and_archive_page(
         # Extract permanent URL for Wikipedia pages (used in references)
         permanent_url = None
         if wikipedia_project_id and html_content:
-            permanent_url = extract_permanent_url(url, html_content)
+            permanent_url = extract_permanent_url(html_content)
             if permanent_url:
                 logger.info(f"Extracted permanent URL: {permanent_url}")
 
