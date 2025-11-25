@@ -28,6 +28,7 @@ export function StatementSource({
             active={isActive}
             onClick={onShowArchived}
             className="flex-shrink-0"
+            title="Show the archived source page with highlighted supporting quotes"
           >
             • {isActive ? 'Viewing' : 'View'}
           </Button>

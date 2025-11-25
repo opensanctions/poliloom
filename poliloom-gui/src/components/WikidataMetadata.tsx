@@ -56,9 +56,7 @@ export function WikidataMetadataButtons({
           onToggle={onToggle}
         />
       )}
-      {openSection === null && (hasQualifiers || hasReferences) && (
-        <span className="text-red-600 text-xs font-medium">⚠ Metadata will be lost</span>
-      )}
+      {openSection === null && (hasQualifiers || hasReferences) && <span>⚠️</span>}
     </div>
   )
 }
@@ -79,7 +77,7 @@ export function WikidataMetadataPanel({
 
   const renderPanel = (data: Record<string, unknown> | Array<Record<string, unknown>>) => (
     <div className="relative p-2 rounded bg-red-900">
-      <div className="absolute top-2 right-2 text-white text-xs">Metadata will be lost ⚠</div>
+      <div className="absolute top-2 right-2 text-white text-xs">Metadata will be lost ⚠️</div>
       <pre className="text-white text-xs overflow-x-auto">
         <code>{JSON.stringify(data, null, 2)}</code>
       </pre>

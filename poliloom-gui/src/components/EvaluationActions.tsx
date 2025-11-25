@@ -24,6 +24,7 @@ export function EvaluationActions({
             variant="success"
             active={isAccepted === true}
             onClick={() => onAction?.(statementId, 'accept')}
+            title="Mark this data as correct and submit it to Wikidata"
           >
             ✓ Accept
           </Button>
@@ -40,6 +41,11 @@ export function EvaluationActions({
           isWikidataStatement && isAccepted !== false
             ? '!text-gray-500 !bg-gray-100 hover:!bg-gray-300'
             : ''
+        }
+        title={
+          isWikidataStatement
+            ? 'Mark this existing Wikidata statement as deprecated (incorrect or outdated)'
+            : 'Mark this data as incorrect and prevent it from being submitted'
         }
       >
         {isWikidataStatement ? '↓ Deprecate' : '× Reject'}
