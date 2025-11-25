@@ -200,7 +200,7 @@ export default function GuidePage() {
               <div className="space-y-8">
                 {/* Extracted Information example */}
                 <div>
-                  <EvaluationItem title="Birth Date" hasNewData={true}>
+                  <EvaluationItem title="Birth Date">
                     <PropertyDisplay property={extractedProperty} evaluations={skipEvaluations} />
                   </EvaluationItem>
                   <div className="mt-3 prose max-w-none">
@@ -214,7 +214,7 @@ export default function GuidePage() {
 
                 {/* Current in Wikidata example */}
                 <div>
-                  <EvaluationItem title="Birth Date" hasNewData={false}>
+                  <EvaluationItem title="Birth Date">
                     <PropertyDisplay
                       property={wikidataExistingProperty}
                       evaluations={skipEvaluations}
@@ -255,7 +255,7 @@ export default function GuidePage() {
               <div className="space-y-8">
                 {/* Accept example */}
                 <div>
-                  <EvaluationItem title="Birth Date" hasNewData={true}>
+                  <EvaluationItem title="Birth Date">
                     <PropertyDisplay
                       property={samplePropertyAccept}
                       evaluations={acceptEvaluations}
@@ -271,7 +271,7 @@ export default function GuidePage() {
 
                 {/* Reject example */}
                 <div>
-                  <EvaluationItem title="Birth Date" hasNewData={true}>
+                  <EvaluationItem title="Birth Date">
                     <PropertyDisplay
                       property={samplePropertyReject}
                       evaluations={rejectEvaluations}
@@ -287,7 +287,7 @@ export default function GuidePage() {
 
                 {/* Skip example */}
                 <div>
-                  <EvaluationItem title="Birth Date" hasNewData={true}>
+                  <EvaluationItem title="Birth Date">
                     <PropertyDisplay property={samplePropertySkip} evaluations={skipEvaluations} />
                   </EvaluationItem>
                   <div className="mt-3 prose max-w-none">
@@ -328,7 +328,7 @@ export default function GuidePage() {
                   make sure to keep metadata that won&apos;t be replaced.
                 </strong>
               </p>
-              <EvaluationItem title={wikidataProperty.entity_name} hasNewData={false}>
+              <EvaluationItem title={wikidataProperty.entity_name}>
                 <PropertyDisplay
                   property={wikidataProperty}
                   evaluations={deprecateEvaluations}

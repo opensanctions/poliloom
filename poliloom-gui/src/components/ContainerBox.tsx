@@ -8,7 +8,6 @@ interface ContainerBoxProps {
   loading?: boolean
   children: ReactNode
   onHover?: () => void
-  hasNewData?: boolean
 }
 
 export function ContainerBox({
@@ -18,7 +17,6 @@ export function ContainerBox({
   loading = false,
   children,
   onHover,
-  hasNewData = false,
 }: ContainerBoxProps) {
   return (
     <div

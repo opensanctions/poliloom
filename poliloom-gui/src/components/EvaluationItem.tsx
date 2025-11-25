@@ -5,12 +5,11 @@ interface EvaluationItemProps {
   title: ReactNode
   children: ReactNode
   onHover?: () => void
-  hasNewData?: boolean
 }
 
-export function EvaluationItem({ title, children, onHover, hasNewData }: EvaluationItemProps) {
+export function EvaluationItem({ title, children, onHover }: EvaluationItemProps) {
   return (
-    <ContainerBox title={title} onHover={onHover} hasNewData={hasNewData}>
+    <ContainerBox title={title} onHover={onHover}>
       <div className="space-y-3">{children}</div>
     </ContainerBox>
   )
