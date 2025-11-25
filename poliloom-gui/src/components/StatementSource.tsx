@@ -2,7 +2,7 @@ import { ArchivedPageResponse } from '@/types'
 import { Button } from './Button'
 
 interface StatementSourceProps {
-  proofLine: string | null
+  supportingQuotes: string[] | null
   archivedPage: ArchivedPageResponse | null
   isWikidataStatement: boolean
   isActive: boolean
@@ -11,7 +11,7 @@ interface StatementSourceProps {
 }
 
 export function StatementSource({
-  proofLine,
+  supportingQuotes,
   archivedPage,
   isWikidataStatement,
   isActive,
@@ -43,8 +43,14 @@ export function StatementSource({
           </a>
         </div>
       )}
-      {proofLine && (
-        <div className="text-sm text-gray-600 italic py-2">&quot;{proofLine}&quot;</div>
+      {supportingQuotes && supportingQuotes.length > 0 && (
+        <div className="space-y-1 py-2">
+          {supportingQuotes.map((quote, index) => (
+            <div key={index} className="text-sm text-gray-600 italic">
+              &quot;{quote}&quot;
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )

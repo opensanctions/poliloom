@@ -39,7 +39,7 @@ vi.mock('@/hooks/useIframeHighlighting', () => ({
   useIframeAutoHighlight: () => ({
     isIframeLoaded: true,
     handleIframeLoad: vi.fn(),
-    handleProofLineChange: vi.fn(),
+    handleQuotesChange: vi.fn(),
   }),
 }))
 
@@ -279,7 +279,7 @@ describe('PoliticianEvaluation', () => {
             entity_id: 'Q142',
             entity_name: 'France',
             statement_id: null,
-            proof_line: 'French politician',
+            supporting_quotes: ['French politician'],
           },
           // Birthplace second (should appear as "Birthplaces" section)
           {
@@ -289,7 +289,7 @@ describe('PoliticianEvaluation', () => {
             entity_id: 'Q123456',
             entity_name: 'Test City',
             statement_id: null,
-            proof_line: 'was born in Test City',
+            supporting_quotes: ['was born in Test City'],
           },
           // Position third (should appear as "Political Positions" section)
           {
@@ -303,7 +303,7 @@ describe('PoliticianEvaluation', () => {
               P580: [{ datavalue: { value: { time: '+2020-01-01T00:00:00Z', precision: 11 } } }],
               P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }],
             },
-            proof_line: 'served as mayor from 2020 to 2024',
+            supporting_quotes: ['served as mayor from 2020 to 2024'],
           },
           // Birth date last (should appear as "Properties" section)
           {
@@ -313,7 +313,7 @@ describe('PoliticianEvaluation', () => {
             value: '+1970-01-01T00:00:00Z',
             value_precision: 11,
             statement_id: null,
-            proof_line: 'born on January 1, 1970',
+            supporting_quotes: ['born on January 1, 1970'],
           },
         ],
       }
@@ -389,7 +389,7 @@ describe('PoliticianEvaluation', () => {
               P580: [{ datavalue: { value: { time: '+2022-01-01T00:00:00Z', precision: 11 } } }],
               P582: [{ datavalue: { value: { time: '+2026-01-01T00:00:00Z', precision: 11 } } }],
             },
-            proof_line: 'served as mayor from 2022 to 2026',
+            supporting_quotes: ['served as mayor from 2022 to 2026'],
             archived_page: {
               id: 'archived-1',
               url: 'https://example.com',

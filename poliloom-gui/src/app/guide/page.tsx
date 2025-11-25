@@ -14,7 +14,7 @@ const extractedProperty: Property = {
   type: PropertyType.P569,
   value: '+1990-05-15T00:00:00Z',
   value_precision: 11,
-  proof_line: 'Born on May 15, 1990 in Stockholm, Sweden.',
+  supporting_quotes: ['Born on May 15, 1990 in Stockholm, Sweden.'],
   archived_page: {
     id: 'demo-archive-1',
     url: 'https://example.gov/politicians/bio',
@@ -29,7 +29,7 @@ const wikidataExistingProperty: Property = {
   type: PropertyType.P569,
   value: '+1990-05-14T00:00:00Z',
   value_precision: 11,
-  proof_line: 'Date of birth: May 14, 1990.',
+  supporting_quotes: ['Date of birth: May 14, 1990.'],
   statement_id: 'Q12345$XYZ-789',
   references: [
     {
@@ -59,7 +59,7 @@ const samplePropertySkip: Property = {
   type: PropertyType.P569,
   value: '+1990-05-15T00:00:00Z',
   value_precision: 11,
-  proof_line: 'Born on May 15, 1990 in Stockholm, Sweden.',
+  supporting_quotes: ['Born on May 15, 1990 in Stockholm, Sweden.'],
   archived_page: {
     id: 'demo-archive-2',
     url: 'https://example.gov/politicians/profile',
@@ -74,7 +74,7 @@ const samplePropertyAccept: Property = {
   type: PropertyType.P569,
   value: '+1985-03-22T00:00:00Z',
   value_precision: 11,
-  proof_line: 'Date of birth: March 22, 1985.',
+  supporting_quotes: ['Date of birth: March 22, 1985.'],
   archived_page: {
     id: 'demo-archive-3',
     url: 'https://parliament.example.com/members/details',
@@ -89,7 +89,7 @@ const samplePropertyReject: Property = {
   type: PropertyType.P569,
   value: '+1992-01-01T00:00:00Z',
   value_precision: 9,
-  proof_line: 'Born in 1992.',
+  supporting_quotes: ['Born in 1992.'],
   archived_page: {
     id: 'demo-archive-4',
     url: 'https://en.wikipedia.org/wiki/Example_Politician',
@@ -105,7 +105,7 @@ const wikidataProperty: Property = {
   type: PropertyType.P39,
   entity_id: 'Q486839',
   entity_name: 'Member of Parliament',
-  proof_line: 'Served as MP from 2015 to 2019.',
+  supporting_quotes: ['Served as MP from 2015 to 2019.'],
   statement_id: 'Q12345$ABC-123',
   qualifiers: {
     P580: [

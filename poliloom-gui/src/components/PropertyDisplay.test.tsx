@@ -133,7 +133,7 @@ describe('PropertyDisplay', () => {
     const property = {
       ...baseProperty,
       statement_id: null,
-      proof_line: 'Test proof line',
+      supporting_quotes: ['Test proof line'],
     }
 
     render(

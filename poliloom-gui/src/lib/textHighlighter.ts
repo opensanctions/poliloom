@@ -175,22 +175,30 @@ function findRangesAcrossNodes(document: Document, scope: Element, searchText: s
 
 /**
  * Highlights text within a scope using the CSS Custom Highlight API
- * Returns the number of highlights created
+ * Accepts either a single search text or an array of search texts to highlight simultaneously
+ * Returns the total number of highlights created
  */
 export function highlightTextInScope(
   document: Document,
   scope: Element,
-  searchText: string,
+  searchTexts: string | string[],
 ): number {
-  if (!searchText.trim()) return 0
+  const texts = Array.isArray(searchTexts) ? searchTexts : [searchTexts]
+  const validTexts = texts.filter((t) => t.trim())
+  if (validTexts.length === 0) return 0
 
-  const ranges = findRangesAcrossNodes(document, scope, searchText)
-  if (ranges.length > 0) {
-    const highlight = new Highlight(...ranges)
+  const allRanges: Range[] = []
+  for (const text of validTexts) {
+    const ranges = findRangesAcrossNodes(document, scope, text)
+    allRanges.push(...ranges)
+  }
+
+  if (allRanges.length > 0) {
+    const highlight = new Highlight(...allRanges)
     const documentCSS = document.defaultView?.CSS || CSS
     documentCSS.highlights.set(HIGHLIGHT_NAME, highlight)
   }
-  return ranges.length
+  return allRanges.length
 }
 
 /**

@@ -109,7 +109,7 @@ export function PropertyDisplay({
       )}
       {!property.statement_id && (
         <StatementSource
-          proofLine={property.proof_line || null}
+          supportingQuotes={property.supporting_quotes || null}
           archivedPage={property.archived_page || null}
           isWikidataStatement={!!property.statement_id}
           isActive={activeArchivedPageId === property.archived_page?.id}

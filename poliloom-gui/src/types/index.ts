@@ -39,7 +39,7 @@ export interface Property {
   value_precision?: number
   entity_id?: string
   entity_name?: string
-  proof_line?: string
+  supporting_quotes?: string[]
   statement_id?: string | null
   qualifiers?: PropertyQualifiers
   references?: Array<Record<string, unknown>>

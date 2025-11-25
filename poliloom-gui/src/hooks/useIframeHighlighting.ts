@@ -3,10 +3,11 @@ import { highlightTextInScope, scrollToFirstHighlight } from '@/lib/textHighligh
 
 /**
  * Creates a highlight function for text within iframes
+ * Accepts either a single search text or an array of search texts
  */
 function useIframeHighlighter(iframeRef: RefObject<HTMLIFrameElement | null>) {
   return useCallback(
-    async (searchText: string): Promise<number> => {
+    async (searchTexts: string | string[]): Promise<number> => {
       if (!iframeRef.current?.contentDocument) {
         console.warn('Iframe document not available for highlighting')
         return 0
@@ -14,13 +15,15 @@ function useIframeHighlighter(iframeRef: RefObject<HTMLIFrameElement | null>) {
 
       try {
         const document = iframeRef.current.contentDocument
+        const texts = Array.isArray(searchTexts) ? searchTexts : [searchTexts]
+        const hasValidText = texts.some((t) => t.trim())
 
         let matchCount = 0
 
-        if (searchText.trim()) {
+        if (hasValidText) {
           // Add new highlights - use the iframe's body as the scope
           const root = document.body || document.documentElement
-          matchCount = highlightTextInScope(document, root, searchText)
+          matchCount = highlightTextInScope(document, root, texts)
 
           // Scroll to first match if any found
           if (matchCount > 0) {
@@ -40,10 +43,11 @@ function useIframeHighlighter(iframeRef: RefObject<HTMLIFrameElement | null>) {
 
 /**
  * Hook for managing iframe load state and automatic highlighting
+ * Supports multiple supporting quotes to be highlighted simultaneously
  */
 export function useIframeAutoHighlight(
   iframeRef: RefObject<HTMLIFrameElement | null>,
-  proofLine: string | null,
+  supportingQuotes: string[] | null,
 ) {
   const [isIframeLoaded, setIsIframeLoaded] = useState(false)
   const highlightText = useIframeHighlighter(iframeRef)
@@ -54,19 +58,19 @@ export function useIframeAutoHighlight(
   const handleIframeLoad = useCallback(() => {
     setIsIframeLoaded(true)
 
-    // Auto-highlight if proof line is available
-    if (proofLine) {
-      highlightText(proofLine)
+    // Auto-highlight if supporting quotes are available
+    if (supportingQuotes && supportingQuotes.length > 0) {
+      highlightText(supportingQuotes)
     }
-  }, [proofLine, highlightText])
+  }, [supportingQuotes, highlightText])
 
   /**
-   * Handler when proof line changes
+   * Handler when supporting quotes change
    */
-  const handleProofLineChange = useCallback(
-    (newProofLine: string | null) => {
-      if (isIframeLoaded && newProofLine) {
-        highlightText(newProofLine)
+  const handleQuotesChange = useCallback(
+    (newQuotes: string[] | null) => {
+      if (isIframeLoaded && newQuotes && newQuotes.length > 0) {
+        highlightText(newQuotes)
       }
     },
     [isIframeLoaded, highlightText],
@@ -75,6 +79,6 @@ export function useIframeAutoHighlight(
   return {
     isIframeLoaded,
     handleIframeLoad,
-    handleProofLineChange,
+    handleQuotesChange,
   }
 }
