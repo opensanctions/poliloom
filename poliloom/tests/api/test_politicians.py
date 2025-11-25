@@ -69,7 +69,7 @@ def politician_with_unevaluated_data(
         value="1970-01-15",
         value_precision=11,
         archived_page_id=archived_page.id,
-        proof_line="Born on January 15, 1970",
+        supporting_quotes=["Born on January 15, 1970"],
     )
 
     extracted_position = Property(
@@ -81,7 +81,7 @@ def politician_with_unevaluated_data(
             "P582": [WikidataDate.from_date_string("2024").to_wikidata_qualifier()],
         },
         archived_page_id=archived_page.id,
-        proof_line="Served as Mayor from 2020 to 2024",
+        supporting_quotes=["Served as Mayor from 2020 to 2024"],
     )
 
     extracted_birthplace = Property(
@@ -89,7 +89,7 @@ def politician_with_unevaluated_data(
         type=PropertyType.BIRTHPLACE,
         entity_id=location.wikidata_id,
         archived_page_id=archived_page.id,
-        proof_line="Born in Springfield",
+        supporting_quotes=["Born in Springfield"],
     )
 
     # Add Wikidata (non-extracted) data
@@ -157,7 +157,7 @@ def politician_with_evaluated_data(db_session):
         value="1980-05-20",
         value_precision=11,
         archived_page_id=archived_page.id,
-        proof_line="Born on May 20, 1980",
+        supporting_quotes=["Born on May 20, 1980"],
     )
     db_session.add(extracted_property)
     db_session.flush()  # Need ID for evaluation
@@ -275,16 +275,16 @@ class TestGetPoliticiansEndpoint:
         data = response.json()
         assert data == []
 
-    def test_extracted_data_contains_proof_and_archive_info(
+    def test_extracted_data_contains_supporting_quotes_and_archive_info(
         self, client, mock_auth, politician_with_unevaluated_data
     ):
-        """Test that extracted data includes proof_line and archived_page info."""
+        """Test that extracted data includes supporting_quotes and archived_page info."""
         response = client.get("/politicians/", headers=mock_auth)
 
         data = response.json()
         politician_data = data[0]
 
-        # Find extracted properties (those with proof_line and archived_page)
+        # Find extracted properties (those with supporting_quotes and archived_page)
         extracted_properties = extract_properties_by_type(
             politician_data, extracted=True
         )
@@ -292,20 +292,22 @@ class TestGetPoliticiansEndpoint:
         # Check extracted property
         assert len(extracted_properties["P569"]) == 1  # BIRTH_DATE
         extracted_prop = extracted_properties["P569"][0]
-        assert extracted_prop["proof_line"] == "Born on January 15, 1970"
+        assert extracted_prop["supporting_quotes"] == ["Born on January 15, 1970"]
         assert extracted_prop["archived_page"] is not None
         assert "url" in extracted_prop["archived_page"]
 
         # Check extracted position
         assert len(extracted_properties["P39"]) == 1  # POSITION
         extracted_pos = extracted_properties["P39"][0]
-        assert extracted_pos["proof_line"] == "Served as Mayor from 2020 to 2024"
+        assert extracted_pos["supporting_quotes"] == [
+            "Served as Mayor from 2020 to 2024"
+        ]
         assert extracted_pos["archived_page"] is not None
 
         # Check extracted birthplace
         assert len(extracted_properties["P19"]) == 1  # BIRTHPLACE
         extracted_bp = extracted_properties["P19"][0]
-        assert extracted_bp["proof_line"] == "Born in Springfield"
+        assert extracted_bp["supporting_quotes"] == ["Born in Springfield"]
         assert extracted_bp["archived_page"] is not None
 
     def test_wikidata_data_excludes_extraction_fields(
@@ -317,15 +319,15 @@ class TestGetPoliticiansEndpoint:
         data = response.json()
         politician_data = data[0]
 
-        # Find Wikidata properties (those without proof_line)
+        # Find Wikidata properties (those without supporting_quotes)
         wikidata_properties = extract_properties_by_type(
             politician_data, extracted=False
         )
 
-        # Wikidata properties should not have proof_line or archived_page
+        # Wikidata properties should not have supporting_quotes or archived_page
         assert len(wikidata_properties["P570"]) >= 1  # DEATH_DATE
         wikidata_prop = wikidata_properties["P570"][0]
-        assert wikidata_prop.get("proof_line") is None
+        assert wikidata_prop.get("supporting_quotes") is None
         assert wikidata_prop.get("archived_page") is None
 
         # But they should have precision fields
@@ -435,7 +437,7 @@ class TestGetPoliticiansEndpoint:
 
         politician_data = data[0]
 
-        # Find extracted properties (those with proof_line and archived_page)
+        # Find extracted properties (those with supporting_quotes and archived_page)
         extracted_properties = extract_properties_by_type(
             politician_data, extracted=True
         )
@@ -480,7 +482,7 @@ class TestGetPoliticiansEndpoint:
 
         politician_data = data[0]
 
-        # Find extracted properties (those with proof_line and archived_page)
+        # Find extracted properties (those with supporting_quotes and archived_page)
         extracted_properties = extract_properties_by_type(
             politician_data, extracted=True
         )
@@ -861,7 +863,7 @@ class TestGetPoliticiansEndpoint:
             value="1970-01-01",
             value_precision=11,
             archived_page_id=english_page.id,
-            proof_line="Born on January 1, 1970",
+            supporting_quotes=["Born on January 1, 1970"],
         )
 
         german_birth = Property(
@@ -870,7 +872,7 @@ class TestGetPoliticiansEndpoint:
             value="1970-01-02",  # Different date from German source
             value_precision=11,
             archived_page_id=german_page.id,
-            proof_line="Geboren am 2. Januar 1970",
+            supporting_quotes=["Geboren am 2. Januar 1970"],
         )
 
         no_lang_birth = Property(
@@ -879,7 +881,7 @@ class TestGetPoliticiansEndpoint:
             value="1970-01-03",
             value_precision=11,
             archived_page_id=no_lang_page.id,
-            proof_line="Unknown language source",
+            supporting_quotes=["Unknown language source"],
         )
 
         # Add a Wikidata property (no archived page)
@@ -911,7 +913,7 @@ class TestGetPoliticiansEndpoint:
         assert len(extracted_props) == 1
         english_prop = extracted_props[0]
         assert english_prop["value"] == "1970-01-01"
-        assert english_prop["proof_line"] == "Born on January 1, 1970"
+        assert english_prop["supporting_quotes"] == ["Born on January 1, 1970"]
         assert english_prop["archived_page"]["url"] == "https://en.wikipedia.org/test"
 
         # Test filtering by German - should only return German property
@@ -929,7 +931,7 @@ class TestGetPoliticiansEndpoint:
         assert len(extracted_props) == 1
         german_prop = extracted_props[0]
         assert german_prop["value"] == "1970-01-02"
-        assert german_prop["proof_line"] == "Geboren am 2. Januar 1970"
+        assert german_prop["supporting_quotes"] == ["Geboren am 2. Januar 1970"]
         assert german_prop["archived_page"]["url"] == "https://de.wikipedia.org/test"
 
     def test_excludes_soft_deleted_properties(
@@ -949,7 +951,7 @@ class TestGetPoliticiansEndpoint:
             value="1980-01-01",
             value_precision=11,
             archived_page_id=sample_archived_page.id,
-            proof_line="Born on January 1, 1980",
+            supporting_quotes=["Born on January 1, 1980"],
         )
 
         # Add a soft-deleted property
@@ -958,7 +960,7 @@ class TestGetPoliticiansEndpoint:
             type=PropertyType.POSITION,
             entity_id=sample_position.wikidata_id,
             archived_page_id=sample_archived_page.id,
-            proof_line="Served as Mayor",
+            supporting_quotes=["Served as Mayor"],
             deleted_at=datetime.now(timezone.utc),  # This makes it soft-deleted
         )
 
@@ -988,7 +990,7 @@ class TestGetPoliticiansEndpoint:
         # Verify the returned property is the correct one
         birth_prop = extracted_properties["P569"][0]
         assert birth_prop["value"] == "1980-01-01"
-        assert birth_prop["proof_line"] == "Born on January 1, 1980"
+        assert birth_prop["supporting_quotes"] == ["Born on January 1, 1980"]
 
     def test_excludes_politicians_with_only_soft_deleted_properties(
         self, client, mock_auth, db_session, sample_archived_page, sample_position
@@ -1008,7 +1010,7 @@ class TestGetPoliticiansEndpoint:
             value="1975-05-15",
             value_precision=11,
             archived_page_id=sample_archived_page.id,
-            proof_line="Born on May 15, 1975",
+            supporting_quotes=["Born on May 15, 1975"],
             deleted_at=datetime.now(timezone.utc),
         )
 
@@ -1017,7 +1019,7 @@ class TestGetPoliticiansEndpoint:
             type=PropertyType.POSITION,
             entity_id=sample_position.wikidata_id,
             archived_page_id=sample_archived_page.id,
-            proof_line="Served as Deputy",
+            supporting_quotes=["Served as Deputy"],
             deleted_at=datetime.now(timezone.utc),
         )
 
@@ -1051,7 +1053,7 @@ class TestGetPoliticiansEndpoint:
             value="1985-07-20",
             value_precision=11,
             archived_page_id=sample_archived_page.id,
-            proof_line="Born on July 20, 1985",
+            supporting_quotes=["Born on July 20, 1985"],
         )
         db_session.add(property)
         db_session.flush()

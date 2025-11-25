@@ -22,12 +22,13 @@ Extract ONLY these two property types when found:
 - Return an empty list if the text contains no date information
 </extraction_rules>
 
-<proof_requirements>
-- Each property must include one exact verbatim quote from the source content that mentions this property
-- The quote must be copied exactly as it appears in the source, word-for-word
-- When multiple sentences support the claim, choose the most important and relevant single quote
-- The quote must actually exist in the provided content
-</proof_requirements>"""
+<supporting_quotes_requirements>
+- Each property must include one or more exact verbatim quotes from the source content that support this property
+- Each quote must be a single, complete sentence copied exactly as it appears in the source, word-for-word
+- Include all relevant quotes that provide evidence for the property (e.g., multiple sentences mentioning the same date from different contexts)
+- Each quote must actually exist in the provided content
+- Do not merge or combine sentences - keep each quote as a separate item
+</supporting_quotes_requirements>"""
 
 DATES_ANALYSIS_FOCUS_TEMPLATE = """<validation_focus>
 Use this information to:
@@ -54,12 +55,13 @@ Extract all political positions from the provided content following these rules:
 - Leave end_date null if position is current or unknown
 </date_formatting_rules>
 
-<proof_requirements>
-- Each position must include one exact verbatim quote from the source content that mentions this position
-- The quote must be copied exactly as it appears in the source, word-for-word
-- When multiple sentences support the claim, choose the most important and relevant single quote
-- The quote must actually exist in the provided content
-</proof_requirements>"""
+<supporting_quotes_requirements>
+- Each position must include one or more exact verbatim quotes from the source content that support this position
+- Each quote must be a single, complete sentence copied exactly as it appears in the source, word-for-word
+- Include all relevant quotes that provide evidence for the position (e.g., sentences mentioning the role, dates, or jurisdiction from different parts of the article)
+- Each quote must actually exist in the provided content
+- Do not merge or combine sentences - keep each quote as a separate item
+</supporting_quotes_requirements>"""
 
 POSITIONS_ANALYSIS_FOCUS_TEMPLATE = """<position_analysis_focus>
 Use this information to:
@@ -82,12 +84,13 @@ Extract birthplace information following these rules:
 - Only extract actual location names that are explicitly stated in the text
 </extraction_scope>
 
-<proof_requirements>
-- Provide one exact verbatim quote from the source content that mentions the birthplace
-- The quote must be copied exactly as it appears in the source, word-for-word
-- When multiple sentences support the claim, choose the most important and relevant single quote
-- The quote must actually exist in the provided content
-</proof_requirements>"""
+<supporting_quotes_requirements>
+- Provide one or more exact verbatim quotes from the source content that mention the birthplace
+- Each quote must be a single, complete sentence copied exactly as it appears in the source, word-for-word
+- Include all relevant quotes that provide evidence for the birthplace (e.g., sentences mentioning the location with additional context like region or country)
+- Each quote must actually exist in the provided content
+- Do not merge or combine sentences - keep each quote as a separate item
+</supporting_quotes_requirements>"""
 
 BIRTHPLACES_ANALYSIS_FOCUS_TEMPLATE = """<birthplace_analysis_focus>
 Use this information to:
@@ -109,12 +112,13 @@ Extract citizenship and nationality information following these rules:
 - Extract country names as they are commonly known (e.g., "United States" not "USA")
 </extraction_scope>
 
-<proof_requirements>
-- Provide one exact verbatim quote from the source content that mentions the citizenship/nationality
-- The quote must be copied exactly as it appears in the source, word-for-word
-- When multiple sentences support the claim, choose the most important and relevant single quote
-- The quote must actually exist in the provided content
-</proof_requirements>"""
+<supporting_quotes_requirements>
+- Provide one or more exact verbatim quotes from the source content that mention the citizenship/nationality
+- Each quote must be a single, complete sentence copied exactly as it appears in the source, word-for-word
+- Include all relevant quotes that provide evidence for the citizenship (e.g., sentences mentioning nationality, citizenship status, or country of origin)
+- Each quote must actually exist in the provided content
+- Do not merge or combine sentences - keep each quote as a separate item
+</supporting_quotes_requirements>"""
 
 CITIZENSHIPS_ANALYSIS_FOCUS_TEMPLATE = """<citizenship_analysis_focus>
 Use this information to:

@@ -23,7 +23,7 @@ from sqlalchemy import (
     text,
     Enum as SQLEnum,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Session, relationship
@@ -867,8 +867,8 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     archived_page_id = Column(
         UUID(as_uuid=True), ForeignKey("archived_pages.id"), nullable=True
     )  # NULL for Wikidata imports, set for extracted data
-    proof_line = Column(
-        String, nullable=True
+    supporting_quotes = Column(
+        ARRAY(String), nullable=True
     )  # NULL for Wikidata imports, set for extracted data
 
     @hybrid_property

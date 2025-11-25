@@ -49,12 +49,12 @@ class TestEnrichment:
             ExtractedProperty(
                 type=PropertyType.BIRTH_DATE,
                 value="1970-01-15",
-                proof="born January 15, 1970",
+                supporting_quotes=["born January 15, 1970"],
             ),
             ExtractedProperty(
                 type=PropertyType.DEATH_DATE,
                 value="2020-05-20",
-                proof="died May 20, 2020",
+                supporting_quotes=["died May 20, 2020"],
             ),
         ]
         mock_response = Mock()
@@ -129,7 +129,7 @@ class TestEnrichment:
                     name="Mayor of Springfield",
                     start_date="2020",
                     end_date="2024",
-                    proof="served as Mayor from 2020 to 2024",
+                    supporting_quotes=["served as Mayor from 2020 to 2024"],
                 )
             ]
         )
@@ -211,7 +211,7 @@ class TestEnrichment:
             birthplaces=[
                 FreeFormBirthplace(
                     name="Springfield, Illinois",
-                    proof="born in Springfield, Illinois",
+                    supporting_quotes=["born in Springfield, Illinois"],
                 )
             ]
         )
@@ -265,7 +265,7 @@ class TestEnrichment:
             ExtractedProperty(
                 type=PropertyType.BIRTH_DATE,
                 value="1970-01-15",
-                proof="born January 15, 1970",
+                supporting_quotes=["born January 15, 1970"],
             )
         ]
 
@@ -316,7 +316,7 @@ class TestEnrichment:
                 wikidata_id="Q30185",
                 start_date="2020",
                 end_date="2024",
-                proof="served as Mayor",
+                supporting_quotes=["served as Mayor"],
             )
         ]
 
@@ -366,7 +366,9 @@ class TestEnrichment:
         db_session.flush()
 
         birthplaces = [
-            ExtractedBirthplace(wikidata_id="Q28513", proof="born in Springfield")
+            ExtractedBirthplace(
+                wikidata_id="Q28513", supporting_quotes=["born in Springfield"]
+            )
         ]
 
         success = store_extracted_data(
@@ -407,7 +409,7 @@ class TestEnrichment:
             ExtractedProperty(
                 type=PropertyType.BIRTH_DATE,
                 value="1970-01-15",
-                proof="born January 15, 1970",
+                supporting_quotes=["born January 15, 1970"],
             )
         ]
 

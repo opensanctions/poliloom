@@ -31,7 +31,7 @@ def politician_with_unevaluated_data(db_session, sample_politician, sample_posit
         value="1970-01-15",
         value_precision=11,
         archived_page_id=archived_page.id,
-        proof_line="Born on January 15, 1970",
+        supporting_quotes=["Born on January 15, 1970"],
     )
 
     extracted_position = Property(
@@ -39,7 +39,7 @@ def politician_with_unevaluated_data(db_session, sample_politician, sample_posit
         type=PropertyType.POSITION,
         entity_id=position.wikidata_id,
         archived_page_id=archived_page.id,
-        proof_line="Served as Mayor from 2020 to 2024",
+        supporting_quotes=["Served as Mayor from 2020 to 2024"],
     )
 
     db_session.add_all([extracted_property, extracted_position])

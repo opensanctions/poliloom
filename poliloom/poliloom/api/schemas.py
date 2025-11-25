@@ -35,7 +35,7 @@ class PropertyResponse(UUIDBaseModel):
     value_precision: Optional[int] = None
     entity_id: Optional[str] = None
     entity_name: Optional[str] = None  # Add for frontend convenience
-    proof_line: Optional[str] = None
+    supporting_quotes: Optional[List[str]] = None
     statement_id: Optional[str] = None
     qualifiers: Optional[Dict[str, Any]] = None
     references: Optional[List[Dict[str, Any]]] = None
@@ -354,7 +354,7 @@ class PoliticianCreateResponse(UUIDBaseModel):
                                 "value_precision": 9,
                                 "entity_id": None,
                                 "entity_name": None,
-                                "proof_line": None,
+                                "supporting_quotes": None,
                                 "statement_id": None,
                                 "qualifiers": None,
                                 "references": None,
@@ -411,7 +411,7 @@ class PropertyAddResponse(UUIDBaseModel):
                         "value_precision": 9,
                         "entity_id": None,
                         "entity_name": None,
-                        "proof_line": None,
+                        "supporting_quotes": None,
                         "statement_id": None,
                         "qualifiers": None,
                         "references": None,

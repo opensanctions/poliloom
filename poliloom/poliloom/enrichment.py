@@ -67,7 +67,7 @@ class ExtractedProperty(BaseModel):
 
     type: PropertyType
     value: str
-    proof: str
+    supporting_quotes: List[str]
 
     @field_validator("value")
     @classmethod
@@ -81,7 +81,7 @@ class ExtractedPosition(BaseModel):
     wikidata_id: str
     start_date: Optional[str] = None
     end_date: Optional[str] = None
-    proof: str
+    supporting_quotes: List[str]
 
     @field_validator("start_date", "end_date")
     @classmethod
@@ -95,7 +95,7 @@ class ExtractedBirthplace(BaseModel):
     """Schema for extracted birthplace data."""
 
     wikidata_id: str
-    proof: str
+    supporting_quotes: List[str]
 
 
 class PropertyExtractionResult(BaseModel):
@@ -110,7 +110,7 @@ class FreeFormPosition(BaseModel):
     name: str
     start_date: Optional[str] = None
     end_date: Optional[str] = None
-    proof: str
+    supporting_quotes: List[str]
     embedding: Optional[List[float]] = (
         None  # Populated after extraction for similarity search
     )
@@ -133,7 +133,7 @@ class FreeFormBirthplace(BaseModel):
     """Free-form birthplace extracted before mapping to Wikidata."""
 
     name: str
-    proof: str
+    supporting_quotes: List[str]
 
 
 class FreeFormBirthplaceResult(BaseModel):
@@ -146,7 +146,7 @@ class FreeFormCitizenship(BaseModel):
     """Free-form citizenship extracted before mapping to Wikidata."""
 
     name: str
-    proof: str
+    supporting_quotes: List[str]
 
 
 class FreeFormCitizenshipResult(BaseModel):
@@ -159,7 +159,7 @@ class ExtractedCitizenship(BaseModel):
     """Schema for extracted citizenship data."""
 
     wikidata_id: str
-    proof: str
+    supporting_quotes: List[str]
 
 
 @dataclass
@@ -300,7 +300,7 @@ async def _map_single_item(
         mapped_qid = await map_to_wikidata_entity(
             openai_client,
             free_item.name,
-            free_item.proof,
+            free_item.supporting_quotes,
             candidate_entities,
             politician,
             config.entity_class.MAPPING_ENTITY_NAME,
@@ -321,17 +321,17 @@ async def _map_single_item(
                 wikidata_id=entity.wikidata_id,
                 start_date=getattr(free_item, "start_date", None),
                 end_date=getattr(free_item, "end_date", None),
-                proof=free_item.proof,
+                supporting_quotes=free_item.supporting_quotes,
             )
         elif config.entity_class.MAPPING_ENTITY_NAME == "location":
             result = ExtractedBirthplace(
                 wikidata_id=entity.wikidata_id,
-                proof=free_item.proof,
+                supporting_quotes=free_item.supporting_quotes,
             )
         else:  # country
             result = ExtractedCitizenship(
                 wikidata_id=entity.wikidata_id,
-                proof=free_item.proof,
+                supporting_quotes=free_item.supporting_quotes,
             )
 
         logger.debug(f"Mapped '{free_item.name}' -> '{entity.name}' ({mapped_qid})")
@@ -408,7 +408,7 @@ async def extract_two_stage_generic(
 async def map_to_wikidata_entity(
     openai_client: AsyncOpenAI,
     extracted_name: str,
-    proof_text: str,
+    supporting_quotes: List[str],
     candidate_entities: List[dict],
     politician: Politician,
     entity_type: str,
@@ -440,12 +440,16 @@ async def map_to_wikidata_entity(
         # Build politician context for stage 2 mapping
         politician_context = politician.to_xml_context()
 
+        # Format supporting quotes as bulleted list
+        quotes_text = "\n".join(f'- "{quote}"' for quote in supporting_quotes)
+
         user_prompt = f"""Map this extracted {entity_type} to the correct Wikidata {entity_type}:
 
 {politician_context}
 
 Extracted {entity_type.title()}: "{extracted_name}"
-Proof Context: "{proof_text}"
+Supporting Evidence:
+{quotes_text}
 
 Candidate Wikidata {entity_type.title()}s:
 {candidates_text}
@@ -983,7 +987,7 @@ def store_extracted_data(
                     qualifiers_json=None,  # For extracted dates, no qualifiers initially
                     references_json=archived_page.create_references_json(),
                     archived_page_id=archived_page.id,
-                    proof_line=property_data.proof,
+                    supporting_quotes=property_data.supporting_quotes,
                 )
 
                 if new_property.should_store(db):
@@ -1025,7 +1029,7 @@ def store_extracted_data(
                             qualifiers_json=qualifiers_json,
                             references_json=archived_page.create_references_json(),
                             archived_page_id=archived_page.id,
-                            proof_line=item_data.proof,
+                            supporting_quotes=item_data.supporting_quotes,
                         )
 
                         if new_property.should_store(db):
