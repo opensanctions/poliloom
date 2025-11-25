@@ -22,9 +22,10 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
   )
   const [selectedProofLine, setSelectedProofLine] = useState<string | null>(null)
 
-  // Helper function to find first property with archived page
+  // Helper function to find first new property with archived page
+  // Only new properties (without statement_id) show the View button
   const findFirstPropertyWithArchive = (properties: Property[]) => {
-    return properties.find((p) => p.archived_page)
+    return properties.find((p) => p.archived_page && !p.statement_id)
   }
 
   // Refs and hooks for iframe highlighting
