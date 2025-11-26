@@ -73,23 +73,15 @@ export default function Home() {
           title="Welcome to PoliLoom"
           description={
             <>
-              Help improve Wikidata by verifying politician information extracted from government
-              sources and Wikipedia. Review birth dates, positions, and other details to ensure
-              accuracy before they&apos;re added to the knowledge base.
+              Help build the world&apos;s largest open database of politicians. Review facts
+              extracted from government sources and Wikipedia to ensure accuracy before they&apos;re
+              published.
+              <br />
+              <br />
+              Your contributions make political data freely accessible to everyone.
             </>
           }
-        >
-          <p className="mt-4 text-indigo-200">
-            New to PoliLoom?{' '}
-            <Anchor
-              href="/guide"
-              className="text-white font-semibold underline hover:text-indigo-100"
-            >
-              Check out the guide
-            </Anchor>{' '}
-            to learn how reviewing works.
-          </p>
-        </Hero>
+        />
 
         {/* Filters Section */}
         <div className="max-w-6xl mx-auto px-8 py-12">
