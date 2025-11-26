@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent } from '@/test/test-utils'
 import { PropertyDisplay } from './PropertyDisplay'
 import { PropertyType } from '@/types'
 import { vi } from 'vitest'

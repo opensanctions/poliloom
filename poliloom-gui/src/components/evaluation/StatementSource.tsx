@@ -1,5 +1,5 @@
 import { ArchivedPageResponse } from '@/types'
-import { Button } from './Button'
+import { Button } from '@/components/ui/Button'
 
 interface StatementSourceProps {
   supportingQuotes: string[] | null
@@ -23,7 +23,7 @@ export function StatementSource({
       {archivedPage && !isWikidataStatement && (
         <div className="flex items-center gap-2">
           <Button
-            size="sm"
+            size="small"
             variant="info"
             active={isActive}
             onClick={onShowArchived}

@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Header } from '@/components/Header'
-import { Button } from '@/components/Button'
+import { Header } from '@/components/layout/Header'
+import { Button } from '@/components/ui/Button'
 import { Property, Politician } from '@/types'
-import { PropertiesEvaluation } from '@/components/PropertiesEvaluation'
-import { AddPropertyForm } from '@/components/AddPropertyForm'
-import { EntitySelector } from '@/components/EntitySelector'
+import { PropertiesEvaluation } from '@/components/evaluation/PropertiesEvaluation'
+import { AddPropertyForm } from '@/components/entity/AddPropertyForm'
+import { EntitySelector } from '@/components/entity/EntitySelector'
 
 export default function CreatePage() {
   const [selectedPolitician, setSelectedPolitician] = useState<{
@@ -280,7 +280,7 @@ export default function CreatePage() {
                   <Button type="button" variant="secondary" onClick={() => window.history.back()}>
                     Cancel
                   </Button>
-                  <Button type="button" onClick={handleSubmit} className="px-6 py-3">
+                  <Button type="button" onClick={handleSubmit} size="large">
                     {selectedPolitician.id ? 'Update Politician' : 'Create Politician'}
                   </Button>
                 </div>

@@ -2,7 +2,7 @@ import { ReactNode, Fragment } from 'react'
 import { Property, PropertyType } from '@/types'
 import { EvaluationItem } from './EvaluationItem'
 import { PropertyDisplay } from './PropertyDisplay'
-import { EntityLink } from './EntityLink'
+import { EntityLink } from '@/components/ui/EntityLink'
 
 interface PropertiesEvaluationProps {
   properties: Property[]

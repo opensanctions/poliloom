@@ -1,13 +1,13 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEvaluation } from '@/contexts/EvaluationContext'
-import { NotificationPage } from '@/components/NotificationPage'
-import { Button } from '@/components/Button'
+import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
+import { NotificationPage } from '@/components/layout/NotificationPage'
+import { Button } from '@/components/ui/Button'
 
 export default function CompletePage() {
   const router = useRouter()
-  const { sessionGoal, resetSession } = useEvaluation()
+  const { sessionGoal, resetSession } = useEvaluationSession()
 
   const handleStartAnother = () => {
     resetSession()
@@ -25,10 +25,10 @@ export default function CompletePage() {
       title="Session Complete!"
       description={<p>Great work! You&apos;ve reviewed {sessionGoal} politicians.</p>}
     >
-      <Button onClick={handleStartAnother} className="px-6 py-3 w-full">
+      <Button onClick={handleStartAnother} size="large" fullWidth>
         Start Another Round
       </Button>
-      <Button onClick={handleReturnHome} variant="secondary" className="px-6 py-3 w-full">
+      <Button onClick={handleReturnHome} variant="secondary" size="large" fullWidth>
         Return Home
       </Button>
     </NotificationPage>

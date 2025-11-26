@@ -1,11 +1,12 @@
-import { Button } from './Button'
-import { DataLabel } from './DataLabel'
+import { Button } from '@/components/ui/Button'
+import { DataLabel } from '@/components/ui/DataLabel'
 
 interface EvaluationActionsProps {
   statementId: string
   isWikidataStatement: boolean
   isAccepted: boolean | null
   isSourceVisible: boolean
+  isAdvancedMode: boolean
   onAction?: (id: string, action: 'accept' | 'reject') => void
 }
 
@@ -14,6 +15,7 @@ export function EvaluationActions({
   isWikidataStatement,
   isAccepted,
   isSourceVisible,
+  isAdvancedMode,
   onAction,
 }: EvaluationActionsProps) {
   // Source not visible only happens for new data (with archived pages)
@@ -26,13 +28,22 @@ export function EvaluationActions({
     )
   }
 
+  // For existing Wikidata statements without advanced mode, just show the label
+  if (isWikidataStatement && !isAdvancedMode) {
+    return (
+      <div className="flex gap-2 items-center ml-auto">
+        <DataLabel variant="existing">Existing data</DataLabel>
+      </div>
+    )
+  }
+
   return (
     <div className="flex gap-2 items-center ml-auto">
       {!isWikidataStatement ? (
         <>
           <DataLabel variant="new">New data 🎉</DataLabel>
           <Button
-            size="sm"
+            size="small"
             variant="success"
             active={isAccepted === true}
             onClick={() => onAction?.(statementId, 'accept')}
@@ -45,7 +56,7 @@ export function EvaluationActions({
         <DataLabel variant="existing">Existing data</DataLabel>
       )}
       <Button
-        size="sm"
+        size="small"
         variant={isWikidataStatement && isAccepted !== false ? 'secondary' : 'danger'}
         active={isAccepted === false}
         onClick={() => onAction?.(statementId, 'reject')}

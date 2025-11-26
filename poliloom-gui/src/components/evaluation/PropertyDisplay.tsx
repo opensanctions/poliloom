@@ -2,6 +2,7 @@ import { useState, useLayoutEffect } from 'react'
 import { Property, PropertyType } from '@/types'
 import { parseWikidataDate } from '@/lib/wikidata/dateParser'
 import { parsePositionQualifiers, formatPositionDates } from '@/lib/wikidata/qualifierParser'
+import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { EvaluationActions } from './EvaluationActions'
 import { StatementSource } from './StatementSource'
 import { WikidataMetadataButtons, WikidataMetadataPanel } from './WikidataMetadata'
@@ -25,6 +26,7 @@ export function PropertyDisplay({
   activeArchivedPageId,
   shouldAutoOpen,
 }: PropertyDisplayProps) {
+  const { isAdvancedMode } = useUserPreferences()
   const [openSection, setOpenSection] = useState<'qualifiers' | 'references' | null>(null)
   const [wasAutoOpened, setWasAutoOpened] = useState(false)
 
@@ -133,6 +135,7 @@ export function PropertyDisplay({
           isSourceVisible={
             !property.archived_page || activeArchivedPageId === property.archived_page.id
           }
+          isAdvancedMode={isAdvancedMode}
           onAction={onAction}
         />
       </div>

@@ -1,17 +1,38 @@
 'use client'
 
-import { Header } from '@/components/Header'
-import { Hero } from '@/components/Hero'
-import { Anchor } from '@/components/Anchor'
-import { MultiSelect, MultiSelectOption } from '@/components/MultiSelect'
-import { useEvaluationFilters } from '@/contexts/EvaluationFiltersContext'
+import { Header } from '@/components/layout/Header'
+import { Hero } from '@/components/layout/Hero'
+import { Button } from '@/components/ui/Button'
+import { Toggle } from '@/components/ui/Toggle'
+import { MultiSelect, MultiSelectOption } from '@/components/entity/MultiSelect'
+import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useTutorial } from '@/contexts/TutorialContext'
+import { useMemo } from 'react'
 import { PreferenceType, WikidataEntity } from '@/types'
 
 export default function Home() {
-  const { filters, languages, countries, loadingLanguages, loadingCountries, updateFilters } =
-    useEvaluationFilters()
-  const { hasCompletedTutorial } = useTutorial()
+  const {
+    filters,
+    languages,
+    countries,
+    loadingLanguages,
+    loadingCountries,
+    updateFilters,
+    isAdvancedMode,
+    setAdvancedMode,
+  } = useUserPreferences()
+  const { hasCompletedBasicTutorial, hasCompletedAdvancedTutorial } = useTutorial()
+
+  // Determine where to route the user based on tutorial completion and advanced mode
+  const { ctaHref, ctaText } = useMemo(() => {
+    if (!hasCompletedBasicTutorial) {
+      return { ctaHref: '/tutorial', ctaText: 'Start Tutorial' }
+    }
+    if (isAdvancedMode && !hasCompletedAdvancedTutorial) {
+      return { ctaHref: '/tutorial', ctaText: 'Start Advanced Tutorial' }
+    }
+    return { ctaHref: '/evaluate', ctaText: 'Begin Review Session' }
+  }, [hasCompletedBasicTutorial, hasCompletedAdvancedTutorial, isAdvancedMode])
 
   const languageFilters = filters
     .filter((p) => p.preference_type === PreferenceType.LANGUAGE)
@@ -52,23 +73,15 @@ export default function Home() {
           title="Welcome to PoliLoom"
           description={
             <>
-              Help improve Wikidata by verifying politician information extracted from government
-              sources and Wikipedia. Review birth dates, positions, and other details to ensure
-              accuracy before they&apos;re added to the knowledge base.
+              Help build the world&apos;s largest open database of politicians. Review data
+              extracted from government sources and Wikipedia to ensure accuracy before they&apos;re
+              published.
+              <br />
+              <br />
+              Your contributions make political data freely accessible to everyone.
             </>
           }
-        >
-          <p className="mt-4 text-indigo-200">
-            New to PoliLoom?{' '}
-            <Anchor
-              href="/guide"
-              className="text-white font-semibold underline hover:text-indigo-100"
-            >
-              Check out the guide
-            </Anchor>{' '}
-            to learn how reviewing works.
-          </p>
-        </Hero>
+        />
 
         {/* Filters Section */}
         <div className="max-w-6xl mx-auto px-8 py-12">
@@ -113,12 +126,25 @@ export default function Home() {
                     : "No filters selected. You'll review politicians from all languages and countries."}
                 </p>
               </div>
-              <Anchor
-                href={hasCompletedTutorial ? '/evaluate' : '/tutorial'}
-                className="bg-indigo-600 text-white font-semibold hover:bg-indigo-700 px-8 py-4 rounded-lg transition-colors shadow-sm hover:shadow-md whitespace-nowrap ml-6"
-              >
-                {hasCompletedTutorial ? 'Begin Review Session' : 'Start Tutorial'}
-              </Anchor>
+              <Button href={ctaHref} size="xlarge" className="ml-6">
+                {ctaText}
+              </Button>
+            </div>
+
+            {/* Advanced Mode Toggle */}
+            <div className="mt-6 pt-6 border-t border-gray-100">
+              <label className="flex items-center gap-3 text-sm text-gray-600 cursor-pointer">
+                <Toggle
+                  checked={isAdvancedMode}
+                  onChange={(e) => setAdvancedMode(e.target.checked)}
+                />
+                <span>
+                  Advanced mode{' '}
+                  <span className="text-gray-400">
+                    — enables deprecating existing Wikidata statements
+                  </span>
+                </span>
+              </label>
             </div>
           </div>
         </div>

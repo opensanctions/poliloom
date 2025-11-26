@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { auth } from '@/auth'
 import { SessionProvider } from '@/components/SessionProvider'
-import { EvaluationFiltersProvider } from '@/contexts/EvaluationFiltersContext'
-import { EvaluationProvider } from '@/contexts/EvaluationContext'
+import { UserPreferencesProvider } from '@/contexts/UserPreferencesContext'
+import { EvaluationSessionProvider } from '@/contexts/EvaluationSessionContext'
 import { TutorialProvider } from '@/contexts/TutorialContext'
 import { FetchInterceptor } from '@/components/FetchInterceptor'
 
@@ -25,11 +25,11 @@ export default async function RootLayout({
       <body className="font-sans antialiased grid grid-rows-[auto_1fr] h-screen">
         <SessionProvider session={session}>
           <FetchInterceptor />
-          <EvaluationFiltersProvider>
-            <EvaluationProvider>
+          <UserPreferencesProvider>
+            <EvaluationSessionProvider>
               <TutorialProvider>{children}</TutorialProvider>
-            </EvaluationProvider>
-          </EvaluationFiltersProvider>
+            </EvaluationSessionProvider>
+          </UserPreferencesProvider>
         </SessionProvider>
       </body>
     </html>

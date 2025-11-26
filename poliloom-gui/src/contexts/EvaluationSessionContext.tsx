@@ -1,15 +1,6 @@
 'use client'
 
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  useMemo,
-  startTransition,
-} from 'react'
-import { useRouter } from 'next/navigation'
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
 import {
   Politician,
   PreferenceType,
@@ -18,9 +9,9 @@ import {
   EvaluationResponse,
 } from '@/types'
 import { useAuthSession } from '@/hooks/useAuthSession'
-import { useEvaluationFilters } from './EvaluationFiltersContext'
+import { useUserPreferences } from './UserPreferencesContext'
 
-interface EvaluationContextType {
+interface EvaluationSessionContextType {
   // Politician data
   currentPolitician: Politician | null
   nextPolitician: Politician | null
@@ -38,12 +29,13 @@ interface EvaluationContextType {
   loadPoliticians: () => Promise<void>
 }
 
-const EvaluationContext = createContext<EvaluationContextType | undefined>(undefined)
+export const EvaluationSessionContext = createContext<EvaluationSessionContextType | undefined>(
+  undefined,
+)
 
-export function EvaluationProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
+export function EvaluationSessionProvider({ children }: { children: React.ReactNode }) {
   const { session, isAuthenticated } = useAuthSession()
-  const { filters, initialized } = useEvaluationFilters()
+  const { filters, initialized } = useUserPreferences()
 
   // Politician state
   const [currentPolitician, setCurrentPolitician] = useState<Politician | null>(null)
@@ -182,19 +174,8 @@ export function EvaluationProvider({ children }: { children: React.ReactNode }) 
         // Increment session count (this politician counts as reviewed)
         setCompletedCount((prev) => Math.min(prev + 1, sessionGoal))
 
-        // Check if we just completed the session
-        const newCount = completedCount + 1
-        if (newCount >= sessionGoal) {
-          // Session complete - navigate to completion page
-          router.push('/evaluate/complete')
-          // Advance to next politician as low-priority transition to avoid flash before navigation
-          startTransition(() => {
-            advanceToNextPolitician()
-          })
-        } else {
-          // Normal flow: move to next politician
-          await advanceToNextPolitician()
-        }
+        // Move to next politician (consuming component handles navigation when session is complete)
+        await advanceToNextPolitician()
       } catch (error) {
         console.error('Error submitting evaluations:', error)
         alert('Error submitting evaluations. Please try again.')
@@ -202,7 +183,7 @@ export function EvaluationProvider({ children }: { children: React.ReactNode }) 
         setIsSubmitting(false)
       }
     },
-    [isSubmitting, completedCount, sessionGoal, router, advanceToNextPolitician],
+    [isSubmitting, sessionGoal, advanceToNextPolitician],
   )
 
   const skipPolitician = useCallback(async () => {
@@ -214,7 +195,7 @@ export function EvaluationProvider({ children }: { children: React.ReactNode }) 
     setCompletedCount(0)
   }, [])
 
-  const value: EvaluationContextType = {
+  const value: EvaluationSessionContextType = {
     currentPolitician,
     nextPolitician,
     loading,
@@ -227,13 +208,15 @@ export function EvaluationProvider({ children }: { children: React.ReactNode }) 
     loadPoliticians,
   }
 
-  return <EvaluationContext.Provider value={value}>{children}</EvaluationContext.Provider>
+  return (
+    <EvaluationSessionContext.Provider value={value}>{children}</EvaluationSessionContext.Provider>
+  )
 }
 
-export function useEvaluation() {
-  const context = useContext(EvaluationContext)
+export function useEvaluationSession() {
+  const context = useContext(EvaluationSessionContext)
   if (context === undefined) {
-    throw new Error('useEvaluation must be used within an EvaluationProvider')
+    throw new Error('useEvaluationSession must be used within an EvaluationSessionProvider')
   }
   return context
 }

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, fireEvent, waitFor } from '@testing-library/react'
-import { render } from '@testing-library/react'
+import { screen, fireEvent, waitFor, render, mockSubmitEvaluation } from '@/test/test-utils'
 import { PoliticianEvaluation } from './PoliticianEvaluation'
 import { PropertyType } from '@/types'
 import {
@@ -32,9 +31,6 @@ global.Highlight = class MockHighlight {
   }
 } as unknown as typeof Highlight
 
-// Mock fetch for API calls
-global.fetch = vi.fn()
-
 vi.mock('@/hooks/useIframeHighlighting', () => ({
   useIframeAutoHighlight: () => ({
     isIframeLoaded: true,
@@ -43,26 +39,8 @@ vi.mock('@/hooks/useIframeHighlighting', () => ({
   }),
 }))
 
-const mockSubmitEvaluation = vi.fn()
-const mockSkipPolitician = vi.fn()
-
 // Mock console.error to suppress expected error output
 vi.spyOn(console, 'error').mockImplementation(() => {})
-
-vi.mock('@/contexts/EvaluationContext', () => ({
-  useEvaluation: () => ({
-    completedCount: 0,
-    sessionGoal: 1,
-    isSessionComplete: false,
-    submitEvaluation: mockSubmitEvaluation,
-    skipPolitician: mockSkipPolitician,
-    resetSession: vi.fn(),
-    loadPoliticians: vi.fn(),
-    currentPolitician: null,
-    nextPolitician: null,
-    loading: false,
-  }),
-}))
 
 describe('PoliticianEvaluation', () => {
   const defaultProps = {
@@ -71,6 +49,7 @@ describe('PoliticianEvaluation', () => {
 
   beforeEach(() => {
     CSS.highlights.clear()
+    mockSubmitEvaluation.mockClear()
   })
 
   it('renders politician name and wikidata id', () => {
@@ -148,9 +127,7 @@ describe('PoliticianEvaluation', () => {
     expect(screen.queryByText('Submit Evaluations & Next')).not.toBeInTheDocument()
   })
 
-  it('submits evaluations and calls submitEvaluation with correct data', async () => {
-    mockSubmitEvaluation.mockResolvedValueOnce(undefined)
-
+  it('submits evaluations and calls API with correct data', async () => {
     render(<PoliticianEvaluation {...defaultProps} />)
 
     const acceptButtons = screen.getAllByText('✓ Accept')
@@ -169,14 +146,17 @@ describe('PoliticianEvaluation', () => {
     fireEvent.click(submitButton)
 
     await waitFor(() => {
-      expect(mockSubmitEvaluation).toHaveBeenCalledWith([
-        { id: 'prop-1', is_accepted: false },
-        ...(acceptButtons[1] ? [{ id: 'pos-1', is_accepted: true }] : []),
-      ])
+      expect(mockSubmitEvaluation).toHaveBeenCalled()
+      const evaluations = mockSubmitEvaluation.mock.calls[0][0]
+      expect(evaluations).toContainEqual({ id: 'prop-1', is_accepted: false })
+      if (acceptButtons[1]) {
+        expect(evaluations).toContainEqual({ id: 'pos-1', is_accepted: true })
+      }
     })
   })
 
   it('preserves evaluation state when submission fails', async () => {
+    // Make submitEvaluation reject to simulate failure
     mockSubmitEvaluation.mockRejectedValueOnce(new Error('Submission failed'))
 
     render(<PoliticianEvaluation {...defaultProps} />)
@@ -209,6 +189,7 @@ describe('PoliticianEvaluation', () => {
   })
 
   it('preserves evaluation state when network request fails', async () => {
+    // Make submitEvaluation reject to simulate network failure
     mockSubmitEvaluation.mockRejectedValueOnce(new Error('Network connection failed'))
 
     render(<PoliticianEvaluation {...defaultProps} />)
@@ -455,8 +436,6 @@ describe('PoliticianEvaluation', () => {
 
     describe('evaluation submission with mixed data', () => {
       it('submits evaluations and progresses to next politician', async () => {
-        mockSubmitEvaluation.mockResolvedValueOnce(undefined)
-
         render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianWithConflicts} />)
 
         const acceptButtons = screen.getAllByText('✓ Accept')

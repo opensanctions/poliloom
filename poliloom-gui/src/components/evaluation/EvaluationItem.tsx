@@ -1,5 +1,5 @@
 import { ReactNode } from 'react'
-import { ContainerBox } from './ContainerBox'
+import { ContainerBox } from '@/components/ui/ContainerBox'
 
 interface EvaluationItemProps {
   title: ReactNode

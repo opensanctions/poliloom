@@ -2,7 +2,7 @@
 
 import { ReactNode } from 'react'
 import { Header } from './Header'
-import { CenteredCard } from './CenteredCard'
+import { CenteredCard } from '@/components/ui/CenteredCard'
 
 interface NotificationPageProps {
   emoji: string

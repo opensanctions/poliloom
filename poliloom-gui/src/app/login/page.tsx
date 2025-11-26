@@ -1,8 +1,8 @@
 'use client'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
-import { Header } from '@/components/Header'
-import { Button } from '@/components/Button'
+import { Header } from '@/components/layout/Header'
+import { Button } from '@/components/ui/Button'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
@@ -42,7 +42,7 @@ export default function LoginPage() {
               <p className="text-gray-600">
                 Please sign in with your MediaWiki account to start evaluating data.
               </p>
-              <Button onClick={handleSignIn} className="px-6 py-3 text-base">
+              <Button onClick={handleSignIn} size="large">
                 Sign in with MediaWiki
               </Button>
             </div>

@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Input } from './Input'
-import { Button } from './Button'
-import { Spinner } from './Spinner'
+import { Input } from '@/components/ui/Input'
+import { Button } from '@/components/ui/Button'
+import { Spinner } from '@/components/ui/Spinner'
 
 export interface SearchResult {
   wikidata_id?: string | null
