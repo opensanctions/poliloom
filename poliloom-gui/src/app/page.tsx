@@ -6,6 +6,7 @@ import { Anchor } from '@/components/ui/Anchor'
 import { MultiSelect, MultiSelectOption } from '@/components/entity/MultiSelect'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useTutorial } from '@/contexts/TutorialContext'
+import { useMemo } from 'react'
 import { PreferenceType, WikidataEntity } from '@/types'
 
 export default function Home() {
@@ -19,7 +20,18 @@ export default function Home() {
     isAdvancedMode,
     setAdvancedMode,
   } = useUserPreferences()
-  const { hasCompletedTutorial } = useTutorial()
+  const { hasCompletedBasicTutorial, hasCompletedAdvancedTutorial } = useTutorial()
+
+  // Determine where to route the user based on tutorial completion and advanced mode
+  const { ctaHref, ctaText } = useMemo(() => {
+    if (!hasCompletedBasicTutorial) {
+      return { ctaHref: '/tutorial', ctaText: 'Start Tutorial' }
+    }
+    if (isAdvancedMode && !hasCompletedAdvancedTutorial) {
+      return { ctaHref: '/tutorial', ctaText: 'Start Advanced Tutorial' }
+    }
+    return { ctaHref: '/evaluate', ctaText: 'Begin Review Session' }
+  }, [hasCompletedBasicTutorial, hasCompletedAdvancedTutorial, isAdvancedMode])
 
   const languageFilters = filters
     .filter((p) => p.preference_type === PreferenceType.LANGUAGE)
@@ -122,10 +134,10 @@ export default function Home() {
                 </p>
               </div>
               <Anchor
-                href={hasCompletedTutorial ? '/evaluate' : '/tutorial'}
+                href={ctaHref}
                 className="bg-indigo-600 text-white font-semibold hover:bg-indigo-700 px-8 py-4 rounded-lg transition-colors shadow-sm hover:shadow-md whitespace-nowrap ml-6"
               >
-                {hasCompletedTutorial ? 'Begin Review Session' : 'Start Tutorial'}
+                {ctaText}
               </Anchor>
             </div>
           </div>

@@ -18,14 +18,12 @@ function findFirstPropertyWithArchive(properties: Property[]) {
 
 interface PoliticianEvaluationViewProps {
   politician: Politician
-  header?: ReactNode
   footer: (evaluations: Map<string, boolean>) => ReactNode
   archivedPagesApiPath?: string
 }
 
 export function PoliticianEvaluationView({
   politician,
-  header,
   footer,
   archivedPagesApiPath = '/api/archived-pages',
 }: PoliticianEvaluationViewProps) {
@@ -96,7 +94,6 @@ export function PoliticianEvaluationView({
     <div className="grid grid-rows-[1fr_auto] h-full">
       <div className="overflow-y-auto min-h-0 p-6">
         <div className="mb-6">
-          {header}
           <PoliticianHeader
             name={politician.name}
             wikidataId={politician.wikidata_id ?? undefined}

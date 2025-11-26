@@ -196,6 +196,99 @@
           }
         ]
       }
+    },
+    "deprecateSimple": {
+      "politician": {
+        "id": "tutorial-politician",
+        "name": "Jane Doe",
+        "wikidata_id": "Q955672",
+        "properties": [
+          {
+            "key": "tutorial-existing-generic-no-metadata",
+            "id": "tutorial-existing-generic-no-metadata",
+            "type": "P39",
+            "entity_id": "Q123456",
+            "entity_name": "Member of Parliament",
+            "statement_id": "Q955672$existing-generic-1"
+          },
+          {
+            "key": "tutorial-new-specific-position",
+            "id": "tutorial-new-specific-position",
+            "type": "P39",
+            "entity_id": "Q555555",
+            "entity_name": "Member of Springfield Parliament",
+            "qualifiers": {
+              "P580": [
+                { "datavalue": { "value": { "time": "+2020-01-01T00:00:00Z", "precision": 11 } } }
+              ]
+            },
+            "supporting_quotes": [
+              "Jane Doe has been a Member of the Springfield Parliament since January 2020.",
+              "Elected to Springfield Parliament in 2020"
+            ],
+            "archived_page": {
+              "id": "tutorial-page-1",
+              "url": "https://example.parliament.gov/members/jane-doe",
+              "content_hash": "tutorial-hash-1",
+              "fetch_timestamp": "2024-01-15T10:00:00Z"
+            }
+          }
+        ]
+      }
+    },
+    "deprecateWithMetadata": {
+      "politician": {
+        "id": "tutorial-politician",
+        "name": "Jane Doe",
+        "wikidata_id": "Q955672",
+        "properties": [
+          {
+            "key": "tutorial-existing-with-metadata",
+            "id": "tutorial-existing-with-metadata",
+            "type": "P39",
+            "entity_id": "Q123456",
+            "entity_name": "Member of Parliament",
+            "statement_id": "Q955672$existing-with-refs-1",
+            "qualifiers": {
+              "P580": [
+                { "datavalue": { "value": { "time": "+2020-01-01T00:00:00Z", "precision": 11 } } }
+              ]
+            },
+            "references": [
+              {
+                "P854": [
+                  { "datavalue": { "value": "https://parliament.gov/elections/2020/results" } }
+                ],
+                "P813": [
+                  { "datavalue": { "value": { "time": "+2020-02-15T00:00:00Z", "precision": 11 } } }
+                ]
+              }
+            ]
+          },
+          {
+            "key": "tutorial-new-specific-with-source",
+            "id": "tutorial-new-specific-with-source",
+            "type": "P39",
+            "entity_id": "Q555555",
+            "entity_name": "Member of Springfield Parliament",
+            "qualifiers": {
+              "P580": [
+                { "datavalue": { "value": { "time": "+2020-01-01T00:00:00Z", "precision": 11 } } }
+              ]
+            },
+            "supporting_quotes": [
+              "Jane Doe has been a Member of the Springfield Parliament since January 2020.",
+              "Elected to Springfield Parliament in 2020"
+            ],
+            "archived_page": {
+              "id": "tutorial-page-1",
+              "url": "https://example.parliament.gov/members/jane-doe",
+              "content_hash": "tutorial-hash-1",
+              "fetch_timestamp": "2024-01-15T10:00:00Z"
+            }
+          }
+        ]
+      }
     }
   }
 }

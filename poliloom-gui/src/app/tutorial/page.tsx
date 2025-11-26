@@ -14,6 +14,7 @@ import { TutorialFooter } from './_components/TutorialFooter'
 import { SuccessFeedback } from './_components/SuccessFeedback'
 import { ErrorFeedback } from './_components/ErrorFeedback'
 import { useTutorial } from '@/contexts/TutorialContext'
+import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { Politician } from '@/types'
 import tutorialData from './tutorialData.json'
 
@@ -21,6 +22,9 @@ const extractedDataPolitician = tutorialData.steps.extractedData.politician as P
 const birthDatePolitician = tutorialData.steps.birthDateEvaluation.politician as Politician
 const multipleSourcesPolitician = tutorialData.steps.multipleSources.politician as Politician
 const genericVsSpecificPolitician = tutorialData.steps.genericVsSpecific.politician as Politician
+const deprecateSimplePolitician = tutorialData.steps.deprecateSimple.politician as Politician
+const deprecateWithMetadataPolitician = tutorialData.steps.deprecateWithMetadata
+  .politician as Politician
 
 // Expected answers for each evaluation step
 type ExpectedEvaluations = Record<string, boolean>
@@ -37,6 +41,17 @@ const multipleSourcesExpected: ExpectedEvaluations = {
 
 const genericVsSpecificExpected: ExpectedEvaluations = {
   'tutorial-generic-position': false, // Reject - generic "Member of Parliament" when specific exists
+}
+
+// Advanced tutorial expected answers
+const deprecateSimpleExpected: ExpectedEvaluations = {
+  'tutorial-existing-generic-no-metadata': false, // Deprecate - generic with no metadata
+  'tutorial-new-specific-position': true, // Accept - specific replacement
+}
+
+const deprecateWithMetadataExpected: ExpectedEvaluations = {
+  'tutorial-new-specific-with-source': true, // Accept the new specific data
+  // Note: We DON'T require deprecating the existing data - the lesson is to be careful
 }
 
 interface EvaluationResult {
@@ -63,9 +78,29 @@ function checkEvaluations(
   }
 }
 
+// Step ranges
+const BASIC_START = 0
+const BASIC_END = 12 // Last basic step
+const ADVANCED_START = 13
+const ADVANCED_END = 18 // Last advanced step
+
 export default function TutorialPage() {
-  const [step, setStep] = useState(0)
-  const { completeTutorial } = useTutorial()
+  const {
+    hasCompletedBasicTutorial,
+    hasCompletedAdvancedTutorial,
+    completeBasicTutorial,
+    completeAdvancedTutorial,
+  } = useTutorial()
+  const { isAdvancedMode } = useUserPreferences()
+
+  // Determine starting step based on completion status
+  const startingStep = (): number => {
+    if (!hasCompletedBasicTutorial) return BASIC_START
+    if (isAdvancedMode && !hasCompletedAdvancedTutorial) return ADVANCED_START
+    return BASIC_START
+  }
+
+  const [step, setStep] = useState(startingStep)
 
   // Track evaluation results for each interactive step
   const [birthDateResult, setBirthDateResult] = useState<EvaluationResult | null>(null)
@@ -73,24 +108,60 @@ export default function TutorialPage() {
   const [genericVsSpecificResult, setGenericVsSpecificResult] = useState<EvaluationResult | null>(
     null,
   )
+  // Advanced tutorial results
+  const [deprecateSimpleResult, setDeprecateSimpleResult] = useState<EvaluationResult | null>(null)
+  const [deprecateWithMetadataResult, setDeprecateWithMetadataResult] =
+    useState<EvaluationResult | null>(null)
 
   // Keys to force remount of evaluation components on retry
   const [birthDateKey, setBirthDateKey] = useState(0)
   const [multipleSourcesKey, setMultipleSourcesKey] = useState(0)
   const [genericVsSpecificKey, setGenericVsSpecificKey] = useState(0)
+  const [deprecateSimpleKey, setDeprecateSimpleKey] = useState(0)
+  const [deprecateWithMetadataKey, setDeprecateWithMetadataKey] = useState(0)
 
   const nextStep = () => setStep(step + 1)
 
-  // Mark tutorial as completed when reaching the final step
+  // Handle tutorial completion
   useEffect(() => {
-    if (step >= 13) {
-      completeTutorial()
+    // Complete basic tutorial when passing the last basic step
+    if (step > BASIC_END && !hasCompletedBasicTutorial) {
+      completeBasicTutorial()
     }
-  }, [step, completeTutorial])
+    // Complete advanced tutorial when passing the last advanced step
+    if (step > ADVANCED_END) {
+      completeAdvancedTutorial()
+    }
+  }, [step, hasCompletedBasicTutorial, completeBasicTutorial, completeAdvancedTutorial])
+
+  // Determine what to show
+  const isBasicComplete = step > BASIC_END
+  const isAdvancedComplete = step > ADVANCED_END
+  const shouldShowAdvanced = isAdvancedMode && !hasCompletedAdvancedTutorial
+
+  // Show completion screen when:
+  // - Basic is done AND (not in advanced mode OR advanced is already completed)
+  // - OR advanced is done
+  const isComplete = (isBasicComplete && !shouldShowAdvanced) || isAdvancedComplete
 
   let content: React.ReactNode
 
-  if (step === 0) {
+  // Completion screen
+  if (isComplete) {
+    content = (
+      <CenteredCard emoji="🎉" title="Tutorial Complete!">
+        <p className="mb-8">
+          You&apos;re all set! You now have everything you need to start verifying politician data.
+        </p>
+        <Anchor
+          href="/evaluate"
+          className="inline-flex items-center justify-center px-6 py-3 w-full bg-indigo-600 text-white font-medium hover:bg-indigo-700 rounded-md transition-colors"
+        >
+          Start Evaluating
+        </Anchor>
+      </CenteredCard>
+    )
+  } else if (step === 0) {
     // Welcome
     content = (
       <CenteredCard emoji="👋" title="Welcome to PoliLoom!">
@@ -141,7 +212,6 @@ export default function TutorialPage() {
         left={
           <div className="overflow-y-auto p-6 h-full">
             <div className="mb-6">
-              <div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>
               <PoliticianHeader
                 name={extractedDataPolitician.name}
                 wikidataId={extractedDataPolitician.wikidata_id ?? undefined}
@@ -191,7 +261,6 @@ export default function TutorialPage() {
       <PoliticianEvaluationView
         key={`birth-date-${birthDateKey}`}
         politician={birthDatePolitician}
-        header={<div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>}
         footer={(evaluations) => (
           <TutorialFooter
             evaluations={evaluations}
@@ -247,7 +316,6 @@ export default function TutorialPage() {
       <PoliticianEvaluationView
         key={`multiple-sources-${multipleSourcesKey}`}
         politician={multipleSourcesPolitician}
-        header={<div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>}
         footer={(evaluations) => (
           <TutorialFooter
             evaluations={evaluations}
@@ -303,7 +371,6 @@ export default function TutorialPage() {
       <PoliticianEvaluationView
         key={`generic-vs-specific-${genericVsSpecificKey}`}
         politician={genericVsSpecificPolitician}
-        header={<div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>}
         footer={(evaluations) => (
           <TutorialFooter
             evaluations={evaluations}
@@ -342,19 +409,151 @@ export default function TutorialPage() {
         />
       )
     }
-  } else {
-    // Complete
+  }
+  // ============ ADVANCED TUTORIAL STEPS (13-18) ============
+  else if (step === 13) {
+    // Advanced mode welcome
     content = (
-      <CenteredCard emoji="🎉" title="Tutorial Complete!">
-        <p className="mb-8">
-          You&apos;re all set! You now have everything you need to start verifying politician data.
+      <CenteredCard emoji="⚡" title="Advanced Mode Tutorial">
+        <p className="mb-4">
+          Welcome to advanced mode! You now have the power to deprecate existing Wikidata
+          statements.
         </p>
-        <Anchor
-          href="/evaluate"
-          className="inline-flex items-center justify-center px-6 py-3 w-full bg-indigo-600 text-white font-medium hover:bg-indigo-700 rounded-md transition-colors"
-        >
-          Start Evaluating
-        </Anchor>
+        <p className="mb-8">
+          This is useful when you find more specific or accurate data that should replace
+          what&apos;s currently in Wikidata.
+        </p>
+        <TutorialActions buttonText="Let's Learn" onNext={nextStep} />
+      </CenteredCard>
+    )
+  } else if (step === 14) {
+    // Chapter 1: Deprecating simple existing data
+    content = (
+      <CenteredCard emoji="🔄" title="Replacing Generic Data">
+        <p className="mb-4">
+          Sometimes Wikidata has generic data that should be replaced with something more specific.
+        </p>
+        <p className="mb-8">
+          In these cases, you can deprecate the existing data and accept the more specific
+          extraction. Let&apos;s try an example.
+        </p>
+        <TutorialActions buttonText="Show Me" onNext={nextStep} />
+      </CenteredCard>
+    )
+  } else if (step === 15) {
+    // Interactive: deprecate simple existing data
+    if (deprecateSimpleResult?.isCorrect) {
+      content = (
+        <SuccessFeedback
+          title="Well Done!"
+          message="You correctly deprecated the generic 'Member of Parliament' and accepted the more specific 'Member of Springfield Parliament'. Nice work!"
+          onNext={nextStep}
+        />
+      )
+    } else if (deprecateSimpleResult) {
+      content = (
+        <ErrorFeedback
+          title="Not Quite Right"
+          message="The existing 'Member of Parliament' is generic. The new extraction gives us more specific information - deprecate the old and accept the new."
+          hint="Hint: Deprecate the generic existing data and accept the specific new extraction."
+          onRetry={() => {
+            setDeprecateSimpleKey((k) => k + 1)
+            setDeprecateSimpleResult(null)
+          }}
+        />
+      )
+    } else {
+      content = (
+        <PoliticianEvaluationView
+          key={`deprecate-simple-${deprecateSimpleKey}`}
+          politician={deprecateSimplePolitician}
+          footer={(evaluations) => (
+            <TutorialFooter
+              evaluations={evaluations}
+              requiredKeys={Object.keys(deprecateSimpleExpected)}
+              onSubmit={() => {
+                const result = checkEvaluations(evaluations, deprecateSimpleExpected)
+                setDeprecateSimpleResult(result)
+              }}
+            />
+          )}
+          archivedPagesApiPath="/api/tutorial-pages"
+        />
+      )
+    }
+  } else if (step === 16) {
+    // Chapter 2: Deprecating data with qualifiers/references
+    content = (
+      <CenteredCard emoji="⚠️" title="Data With Metadata">
+        <p className="mb-4">
+          Some existing Wikidata statements have valuable metadata: references (sources) and
+          qualifiers (like start/end dates).
+        </p>
+        <p className="mb-4">
+          When you deprecate such data, this metadata is lost. Sometimes it&apos;s better to add
+          your new data via PoliLoom, then manually edit Wikidata to preserve the metadata.
+        </p>
+        <p className="mb-8">Let&apos;s see an example where you might want to be more careful.</p>
+        <TutorialActions buttonText="Show Me" onNext={nextStep} />
+      </CenteredCard>
+    )
+  } else if (step === 17) {
+    // Interactive: data with metadata - just need to accept the new data
+    if (deprecateWithMetadataResult?.isCorrect) {
+      content = (
+        <SuccessFeedback
+          title="Great Choice!"
+          message="You accepted the new specific data. Notice the existing data has references and qualifiers - valuable metadata that would be lost if deprecated. In cases like this, you might want to add the new data through PoliLoom first, then manually edit Wikidata to merge or update the existing statement."
+          onNext={nextStep}
+        />
+      )
+    } else if (deprecateWithMetadataResult) {
+      content = (
+        <ErrorFeedback
+          title="Let's Reconsider"
+          message="Look at the existing data - it has references (sources) and qualifiers (dates). This metadata is valuable and would be lost if you deprecate it."
+          hint="Hint: Accept the new specific extraction. You can choose whether to deprecate the existing data, but consider that its metadata has value."
+          onRetry={() => {
+            setDeprecateWithMetadataKey((k) => k + 1)
+            setDeprecateWithMetadataResult(null)
+          }}
+        />
+      )
+    } else {
+      content = (
+        <PoliticianEvaluationView
+          key={`deprecate-metadata-${deprecateWithMetadataKey}`}
+          politician={deprecateWithMetadataPolitician}
+          footer={(evaluations) => (
+            <TutorialFooter
+              evaluations={evaluations}
+              requiredKeys={Object.keys(deprecateWithMetadataExpected)}
+              onSubmit={() => {
+                const result = checkEvaluations(evaluations, deprecateWithMetadataExpected)
+                setDeprecateWithMetadataResult(result)
+              }}
+            />
+          )}
+          archivedPagesApiPath="/api/tutorial-pages"
+        />
+      )
+    }
+  } else if (step === 18) {
+    // Advanced tutorial summary
+    content = (
+      <CenteredCard emoji="💡" title="Key Takeaways">
+        <div className="mb-8 space-y-4">
+          <p>
+            <strong>Simple cases:</strong> Feel free to deprecate generic or incorrect existing data
+            when you have better, more specific information.
+          </p>
+          <p>
+            <strong>Data with metadata:</strong> When existing data has references or qualifiers,
+            consider whether that metadata is valuable. You might want to add your data first, then
+            edit Wikidata manually to preserve the metadata.
+          </p>
+        </div>
+        <TutorialActions buttonText="Got It!" onNext={nextStep} />
       </CenteredCard>
     )
   }

@@ -29,8 +29,10 @@ export const mockSkipPolitician = vi.fn()
 const MockTutorialProvider = ({ children }: { children: React.ReactNode }) => (
   <TutorialContext.Provider
     value={{
-      hasCompletedTutorial: true,
-      completeTutorial: vi.fn(),
+      hasCompletedBasicTutorial: true,
+      hasCompletedAdvancedTutorial: true,
+      completeBasicTutorial: vi.fn(),
+      completeAdvancedTutorial: vi.fn(),
       resetTutorial: vi.fn(),
     }}
   >

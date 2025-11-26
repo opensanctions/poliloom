@@ -56,8 +56,10 @@ describe('Home Page (Filter Selection)', () => {
 
     // Default tutorial state - not completed
     mockUseTutorial.mockReturnValue({
-      hasCompletedTutorial: false,
-      completeTutorial: vi.fn(),
+      hasCompletedBasicTutorial: false,
+      hasCompletedAdvancedTutorial: false,
+      completeBasicTutorial: vi.fn(),
+      completeAdvancedTutorial: vi.fn(),
       resetTutorial: vi.fn(),
     })
 
@@ -143,8 +145,10 @@ describe('Home Page (Filter Selection)', () => {
     })
 
     mockUseTutorial.mockReturnValue({
-      hasCompletedTutorial: true,
-      completeTutorial: vi.fn(),
+      hasCompletedBasicTutorial: true,
+      hasCompletedAdvancedTutorial: true,
+      completeBasicTutorial: vi.fn(),
+      completeAdvancedTutorial: vi.fn(),
       resetTutorial: vi.fn(),
     })
 
