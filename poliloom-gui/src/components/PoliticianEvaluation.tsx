@@ -4,7 +4,6 @@ import { useState, useRef, useEffect, ReactNode } from 'react'
 import { Politician, Property, EvaluationItem, ArchivedPageResponse } from '@/types'
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting'
 import { highlightTextInScope } from '@/lib/textHighlighter'
-import { useArchivedPageCache } from '@/contexts/ArchivedPageContext'
 import { useEvaluation } from '@/contexts/EvaluationContext'
 import { Button } from './Button'
 import { PropertiesEvaluation } from './PropertiesEvaluation'
@@ -39,7 +38,6 @@ export function PoliticianEvaluation({
   // Refs and hooks for iframe highlighting
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const leftPanelRef = useRef<HTMLDivElement | null>(null)
-  const archivedPageCache = useArchivedPageCache()
   const { isIframeLoaded, handleIframeLoad, handleQuotesChange } = useIframeAutoHighlight(
     iframeRef,
     selectedQuotes,
@@ -168,7 +166,11 @@ export function PoliticianEvaluation({
                 politicians evaluated
               </div>
               <Button onClick={handleSubmit} disabled={isSubmitting} className="px-6 py-3">
-                {isSubmitting ? 'Submitting...' : 'Submit'}
+                {isSubmitting
+                  ? 'Submitting...'
+                  : evaluations.size === 0
+                    ? 'Skip Politician'
+                    : 'Submit Evaluations & Next'}
               </Button>
             </div>
           )}
@@ -182,10 +184,7 @@ export function PoliticianEvaluation({
             pageId={selectedArchivedPage.id}
             apiBasePath={archivedPagesApiPath}
             iframeRef={iframeRef}
-            onLoad={() => {
-              archivedPageCache.markPageAsLoaded(selectedArchivedPage.id)
-              handleIframeLoad()
-            }}
+            onLoad={handleIframeLoad}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-gray-500">

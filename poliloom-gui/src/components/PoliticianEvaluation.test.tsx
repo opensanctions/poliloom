@@ -43,12 +43,6 @@ vi.mock('@/hooks/useIframeHighlighting', () => ({
   }),
 }))
 
-vi.mock('@/contexts/ArchivedPageContext', () => ({
-  useArchivedPageCache: () => ({
-    markPageAsLoaded: vi.fn(),
-  }),
-}))
-
 const mockSubmitEvaluation = vi.fn()
 const mockSkipPolitician = vi.fn()
 
@@ -137,6 +131,27 @@ describe('PoliticianEvaluation', () => {
     expect(rejectButton).toHaveAttribute('class', expect.stringContaining('red'))
     // Note: In the current implementation, both buttons can appear selected
     // This tests the behavior as implemented rather than ideal UX
+  })
+
+  it('shows "Skip Politician" when no evaluations are set, and "Submit Evaluations & Next" when evaluations exist', () => {
+    render(<PoliticianEvaluation {...defaultProps} />)
+
+    // Initially shows "Skip Politician" when no evaluations
+    expect(screen.getByText('Skip Politician')).toBeInTheDocument()
+    expect(screen.queryByText('Submit Evaluations & Next')).not.toBeInTheDocument()
+
+    // After making an evaluation, button text changes
+    const acceptButton = screen.getAllByText('✓ Accept')[0]
+    fireEvent.click(acceptButton)
+
+    expect(screen.getByText('Submit Evaluations & Next')).toBeInTheDocument()
+    expect(screen.queryByText('Skip Politician')).not.toBeInTheDocument()
+
+    // Toggling off the evaluation reverts to "Skip Politician"
+    fireEvent.click(acceptButton)
+
+    expect(screen.getByText('Skip Politician')).toBeInTheDocument()
+    expect(screen.queryByText('Submit Evaluations & Next')).not.toBeInTheDocument()
   })
 
   it('submits evaluations successfully, clears state, and calls submitEvaluation', async () => {

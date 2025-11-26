@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { auth } from '@/auth'
 import { SessionProvider } from '@/components/SessionProvider'
-import { ArchivedPageProvider } from '@/contexts/ArchivedPageContext'
 import { EvaluationFiltersProvider } from '@/contexts/EvaluationFiltersContext'
 import { EvaluationProvider } from '@/contexts/EvaluationContext'
 import { TutorialProvider } from '@/contexts/TutorialContext'
@@ -28,9 +27,7 @@ export default async function RootLayout({
           <FetchInterceptor />
           <EvaluationFiltersProvider>
             <EvaluationProvider>
-              <ArchivedPageProvider>
-                <TutorialProvider>{children}</TutorialProvider>
-              </ArchivedPageProvider>
+              <TutorialProvider>{children}</TutorialProvider>
             </EvaluationProvider>
           </EvaluationFiltersProvider>
         </SessionProvider>

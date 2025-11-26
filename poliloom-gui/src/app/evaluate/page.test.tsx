@@ -7,17 +7,6 @@ import { mockPolitician } from '@/test/mock-data'
 // Mock fetch for API calls
 global.fetch = vi.fn()
 
-// Mock localStorage
-Object.defineProperty(window, 'localStorage', {
-  value: {
-    getItem: vi.fn(),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
-  },
-  writable: true,
-})
-
 // Mock navigator.languages for browser language detection
 Object.defineProperty(navigator, 'languages', {
   value: ['en-US'],
