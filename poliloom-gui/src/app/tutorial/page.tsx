@@ -5,7 +5,7 @@ import { Header } from '@/components/Header'
 import { Button } from '@/components/Button'
 import { Anchor } from '@/components/Anchor'
 import { CenteredCard } from '@/components/CenteredCard'
-import { PoliticianEvaluation } from '@/components/PoliticianEvaluation'
+import { PoliticianEvaluationView } from '@/components/PoliticianEvaluationView'
 import { PoliticianHeader } from '@/components/PoliticianHeader'
 import { ArchivedPageViewer } from '@/components/ArchivedPageViewer'
 import { PropertiesEvaluation } from '@/components/PropertiesEvaluation'
@@ -17,6 +17,47 @@ const extractedDataPolitician = tutorialData.steps.extractedData.politician as P
 const birthDatePolitician = tutorialData.steps.birthDateEvaluation.politician as Politician
 const multipleSourcesPolitician = tutorialData.steps.multipleSources.politician as Politician
 const genericVsSpecificPolitician = tutorialData.steps.genericVsSpecific.politician as Politician
+
+// Expected answers for each evaluation step
+type ExpectedEvaluations = Record<string, boolean>
+
+const birthDateExpected: ExpectedEvaluations = {
+  'tutorial-birth-date': true, // Accept - March 15, 1975 is correct
+  'tutorial-birth-date-incorrect': false, // Reject - June 8, 1952 is the mother's birth date
+}
+
+const multipleSourcesExpected: ExpectedEvaluations = {
+  'tutorial-position-1': true, // Accept - Member of Parliament
+  'tutorial-position-2': true, // Accept - Minister of Education
+}
+
+const genericVsSpecificExpected: ExpectedEvaluations = {
+  'tutorial-generic-position': false, // Reject - generic "Member of Parliament" when specific exists
+}
+
+interface EvaluationResult {
+  isCorrect: boolean
+  mistakes: string[]
+}
+
+function checkEvaluations(
+  evaluations: Map<string, boolean>,
+  expected: ExpectedEvaluations,
+): EvaluationResult {
+  const mistakes: string[] = []
+
+  for (const [key, expectedValue] of Object.entries(expected)) {
+    const actualValue = evaluations.get(key)
+    if (actualValue !== expectedValue) {
+      mistakes.push(key)
+    }
+  }
+
+  return {
+    isCorrect: mistakes.length === 0,
+    mistakes,
+  }
+}
 
 function TutorialActions({ buttonText, onNext }: { buttonText: string; onNext: () => void }) {
   return (
@@ -34,14 +75,25 @@ function TutorialActions({ buttonText, onNext }: { buttonText: string; onNext: (
   )
 }
 
-function TutorialFooter({ onNext }: { onNext: () => void }) {
+function TutorialFooter({
+  evaluations,
+  expected,
+  onSubmit,
+}: {
+  evaluations: Map<string, boolean>
+  expected: ExpectedEvaluations
+  onSubmit: () => void
+}) {
+  const expectedKeys = Object.keys(expected)
+  const isComplete = expectedKeys.every((key) => evaluations.has(key))
+
   return (
     <div className="flex justify-between items-center">
       <Anchor href="/evaluate" className="text-gray-500 hover:text-gray-700 font-medium">
         Skip Tutorial
       </Anchor>
-      <Button onClick={onNext} className="px-6 py-3">
-        Continue
+      <Button onClick={onSubmit} disabled={!isComplete} className="px-6 py-3">
+        Check Answers
       </Button>
     </div>
   )
@@ -58,15 +110,66 @@ function TwoPanel({ left, right }: { left: React.ReactNode; right: React.ReactNo
   )
 }
 
+// Success feedback component
+function SuccessFeedback({
+  title,
+  message,
+  onNext,
+}: {
+  title: string
+  message: string
+  onNext: () => void
+}) {
+  return (
+    <CenteredCard emoji="🎉" title={title}>
+      <p className="mb-8">{message}</p>
+      <TutorialActions buttonText="Continue" onNext={onNext} />
+    </CenteredCard>
+  )
+}
+
+// Error feedback component with retry
+function ErrorFeedback({
+  title,
+  message,
+  hint,
+  onRetry,
+}: {
+  title: string
+  message: string
+  hint: string
+  onRetry: () => void
+}) {
+  return (
+    <CenteredCard emoji="🤔" title={title}>
+      <p className="mb-4">{message}</p>
+      <p className="mb-8 text-indigo-600 font-medium">{hint}</p>
+      <TutorialActions buttonText="Try Again" onNext={onRetry} />
+    </CenteredCard>
+  )
+}
+
 export default function TutorialPage() {
   const [step, setStep] = useState(0)
   const { completeTutorial } = useTutorial()
+
+  // Track evaluation results for each interactive step
+  const [birthDateResult, setBirthDateResult] = useState<EvaluationResult | null>(null)
+  const [multipleSourcesResult, setMultipleSourcesResult] = useState<EvaluationResult | null>(null)
+  const [genericVsSpecificResult, setGenericVsSpecificResult] = useState<EvaluationResult | null>(
+    null,
+  )
+
+  // Keys to force remount of evaluation components on retry
+  const [birthDateKey, setBirthDateKey] = useState(0)
+  const [multipleSourcesKey, setMultipleSourcesKey] = useState(0)
+  const [genericVsSpecificKey, setGenericVsSpecificKey] = useState(0)
 
   const nextStep = () => setStep(step + 1)
 
   // Mark tutorial as completed when reaching the final step
   useEffect(() => {
-    if (step >= 10) {
+    if (step >= 13) {
       completeTutorial()
     }
   }, [step, completeTutorial])
@@ -171,14 +274,49 @@ export default function TutorialPage() {
   } else if (step === 5) {
     // Interactive: birth date evaluation
     content = (
-      <PoliticianEvaluation
-        key="step-5"
+      <PoliticianEvaluationView
+        key={`birth-date-${birthDateKey}`}
         politician={birthDatePolitician}
-        footer={<TutorialFooter onNext={nextStep} />}
+        header={<div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>}
+        footer={({ evaluations }) => (
+          <TutorialFooter
+            evaluations={evaluations}
+            expected={birthDateExpected}
+            onSubmit={() => {
+              const result = checkEvaluations(evaluations, birthDateExpected)
+              setBirthDateResult(result)
+              nextStep()
+            }}
+          />
+        )}
         archivedPagesApiPath="/api/tutorial-pages"
       />
     )
   } else if (step === 6) {
+    // Birth date result/feedback
+    if (birthDateResult?.isCorrect) {
+      content = (
+        <SuccessFeedback
+          title="Excellent!"
+          message="You correctly identified that March 15, 1975 matches the source, while June 8, 1952 was actually the mother's birth date. Reading carefully makes all the difference!"
+          onNext={nextStep}
+        />
+      )
+    } else {
+      content = (
+        <ErrorFeedback
+          title="Not Quite Right"
+          message="Take another look at the source document. One birth date belongs to Jane Doe, and the other belongs to someone else mentioned in the text."
+          hint="Hint: Look carefully at who each date refers to in the source text."
+          onRetry={() => {
+            setBirthDateKey((k) => k + 1)
+            setBirthDateResult(null)
+            setStep(5)
+          }}
+        />
+      )
+    }
+  } else if (step === 7) {
     // Multiple sources explanation
     content = (
       <CenteredCard emoji="📚" title="Multiple Sources">
@@ -189,17 +327,52 @@ export default function TutorialPage() {
         <TutorialActions buttonText="Let's do it" onNext={nextStep} />
       </CenteredCard>
     )
-  } else if (step === 7) {
+  } else if (step === 8) {
     // Interactive: positions evaluation
     content = (
-      <PoliticianEvaluation
-        key="step-7"
+      <PoliticianEvaluationView
+        key={`multiple-sources-${multipleSourcesKey}`}
         politician={multipleSourcesPolitician}
-        footer={<TutorialFooter onNext={nextStep} />}
+        header={<div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>}
+        footer={({ evaluations }) => (
+          <TutorialFooter
+            evaluations={evaluations}
+            expected={multipleSourcesExpected}
+            onSubmit={() => {
+              const result = checkEvaluations(evaluations, multipleSourcesExpected)
+              setMultipleSourcesResult(result)
+              nextStep()
+            }}
+          />
+        )}
         archivedPagesApiPath="/api/tutorial-pages"
       />
     )
-  } else if (step === 8) {
+  } else if (step === 9) {
+    // Multiple sources result/feedback
+    if (multipleSourcesResult?.isCorrect) {
+      content = (
+        <SuccessFeedback
+          title="Great Job!"
+          message="You correctly verified both positions from their respective source documents. Being able to work with multiple sources is an important skill!"
+          onNext={nextStep}
+        />
+      )
+    } else {
+      content = (
+        <ErrorFeedback
+          title="Let's Try Again"
+          message="Make sure to check each position against its source document. Click 'View' to switch between sources and verify each extraction."
+          hint="Hint: Both positions are correctly extracted from their sources in this example."
+          onRetry={() => {
+            setMultipleSourcesKey((k) => k + 1)
+            setMultipleSourcesResult(null)
+            setStep(8)
+          }}
+        />
+      )
+    }
+  } else if (step === 10) {
     // Generic vs specific explanation
     content = (
       <CenteredCard emoji="🎯" title="Specific Over Generic">
@@ -210,16 +383,51 @@ export default function TutorialPage() {
         <TutorialActions buttonText="Let's try it" onNext={nextStep} />
       </CenteredCard>
     )
-  } else if (step === 9) {
+  } else if (step === 11) {
     // Interactive: generic vs specific evaluation
     content = (
-      <PoliticianEvaluation
-        key="step-9"
+      <PoliticianEvaluationView
+        key={`generic-vs-specific-${genericVsSpecificKey}`}
         politician={genericVsSpecificPolitician}
-        footer={<TutorialFooter onNext={nextStep} />}
+        header={<div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>}
+        footer={({ evaluations }) => (
+          <TutorialFooter
+            evaluations={evaluations}
+            expected={genericVsSpecificExpected}
+            onSubmit={() => {
+              const result = checkEvaluations(evaluations, genericVsSpecificExpected)
+              setGenericVsSpecificResult(result)
+              nextStep()
+            }}
+          />
+        )}
         archivedPagesApiPath="/api/tutorial-pages"
       />
     )
+  } else if (step === 12) {
+    // Generic vs specific result/feedback
+    if (genericVsSpecificResult?.isCorrect) {
+      content = (
+        <SuccessFeedback
+          title="Perfect!"
+          message="You correctly rejected the generic 'Member of Parliament' because the more specific 'Member of Springfield Parliament' already exists. Quality over quantity!"
+          onNext={nextStep}
+        />
+      )
+    } else {
+      content = (
+        <ErrorFeedback
+          title="Almost There"
+          message="Remember: when we already have specific data, we don't need a generic version. Look at what's already in Wikidata before accepting new extractions."
+          hint="Hint: 'Member of Springfield Parliament' is more specific than 'Member of Parliament'."
+          onRetry={() => {
+            setGenericVsSpecificKey((k) => k + 1)
+            setGenericVsSpecificResult(null)
+            setStep(11)
+          }}
+        />
+      )
+    }
   } else {
     // Complete
     content = (
