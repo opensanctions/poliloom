@@ -5,6 +5,7 @@ interface EvaluationActionsProps {
   statementId: string
   isWikidataStatement: boolean
   isAccepted: boolean | null
+  isSourceVisible: boolean
   onAction?: (id: string, action: 'accept' | 'reject') => void
 }
 
@@ -12,8 +13,19 @@ export function EvaluationActions({
   statementId,
   isWikidataStatement,
   isAccepted,
+  isSourceVisible,
   onAction,
 }: EvaluationActionsProps) {
+  // Source not visible only happens for new data (with archived pages)
+  if (!isSourceVisible) {
+    return (
+      <div className="flex gap-2 items-center ml-auto">
+        <DataLabel variant="new">New data 🎉</DataLabel>
+        <span className="text-sm text-gray-500">View source to evaluate</span>
+      </div>
+    )
+  }
+
   return (
     <div className="flex gap-2 items-center ml-auto">
       {!isWikidataStatement ? (

@@ -7,9 +7,12 @@ const HIGHLIGHT_STYLES = `<style data-poliloom-highlight="true">
 </style>`
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:8000'
   const resolvedParams = await params
-  const url = `${apiBaseUrl}/archived-pages/${resolvedParams.id}.html`
+  const pageId = resolvedParams.id
+
+  // Fetch archived page from backend
+  const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:8000'
+  const url = `${apiBaseUrl}/archived-pages/${pageId}.html`
 
   const response = await fetchWithAuth(url)
 

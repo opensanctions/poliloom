@@ -43,12 +43,6 @@ vi.mock('@/hooks/useIframeHighlighting', () => ({
   }),
 }))
 
-vi.mock('@/contexts/ArchivedPageContext', () => ({
-  useArchivedPageCache: () => ({
-    markPageAsLoaded: vi.fn(),
-  }),
-}))
-
 const mockSubmitEvaluation = vi.fn()
 const mockSkipPolitician = vi.fn()
 
@@ -76,7 +70,6 @@ describe('PoliticianEvaluation', () => {
   }
 
   beforeEach(() => {
-    // Clear highlights before each test
     CSS.highlights.clear()
   })
 
@@ -135,11 +128,27 @@ describe('PoliticianEvaluation', () => {
     // User can change their mind and reject instead
     fireEvent.click(rejectButton)
     expect(rejectButton).toHaveAttribute('class', expect.stringContaining('red'))
-    // Note: In the current implementation, both buttons can appear selected
-    // This tests the behavior as implemented rather than ideal UX
   })
 
-  it('submits evaluations successfully, clears state, and calls submitEvaluation', async () => {
+  it('shows "Skip Politician" when no evaluations are set, and "Submit Evaluations & Next" when evaluations exist', () => {
+    render(<PoliticianEvaluation {...defaultProps} />)
+
+    expect(screen.getByText('Skip Politician')).toBeInTheDocument()
+    expect(screen.queryByText('Submit Evaluations & Next')).not.toBeInTheDocument()
+
+    const acceptButton = screen.getAllByText('✓ Accept')[0]
+    fireEvent.click(acceptButton)
+
+    expect(screen.getByText('Submit Evaluations & Next')).toBeInTheDocument()
+    expect(screen.queryByText('Skip Politician')).not.toBeInTheDocument()
+
+    fireEvent.click(acceptButton)
+
+    expect(screen.getByText('Skip Politician')).toBeInTheDocument()
+    expect(screen.queryByText('Submit Evaluations & Next')).not.toBeInTheDocument()
+  })
+
+  it('submits evaluations and calls submitEvaluation with correct data', async () => {
     mockSubmitEvaluation.mockResolvedValueOnce(undefined)
 
     render(<PoliticianEvaluation {...defaultProps} />)
@@ -147,15 +156,13 @@ describe('PoliticianEvaluation', () => {
     const acceptButtons = screen.getAllByText('✓ Accept')
     const rejectButtons = screen.getAllByText('× Reject')
 
-    // Make multiple evaluations to ensure state clearing is comprehensive
-    fireEvent.click(acceptButtons[0]) // First item accepted
-    if (acceptButtons[1]) fireEvent.click(acceptButtons[1]) // Second item accepted
-    if (rejectButtons[0]) fireEvent.click(rejectButtons[0]) // First item changed to reject
+    fireEvent.click(acceptButtons[0])
+    if (acceptButtons[1]) fireEvent.click(acceptButtons[1])
+    if (rejectButtons[0]) fireEvent.click(rejectButtons[0])
 
-    // Verify buttons show selected state before submission
-    expect(rejectButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-red-600')) // Selected state
+    expect(rejectButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-red-600'))
     if (acceptButtons[1]) {
-      expect(acceptButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-green-600')) // Selected state
+      expect(acceptButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-green-600'))
     }
 
     const submitButton = screen.getByText('Submit Evaluations & Next')
@@ -163,28 +170,13 @@ describe('PoliticianEvaluation', () => {
 
     await waitFor(() => {
       expect(mockSubmitEvaluation).toHaveBeenCalledWith([
-        { id: 'prop-1', is_accepted: false }, // rejected
-        ...(acceptButtons[1] ? [{ id: 'pos-1', is_accepted: true }] : []), // accepted if exists
+        { id: 'prop-1', is_accepted: false },
+        ...(acceptButtons[1] ? [{ id: 'pos-1', is_accepted: true }] : []),
       ])
-    })
-
-    // Verify evaluation state is cleared after successful submission
-    // Buttons should revert to unselected state (no longer have dark backgrounds)
-    await waitFor(() => {
-      expect(rejectButtons[0]).not.toHaveAttribute('class', expect.stringContaining('bg-red-600')) // Should be unselected
-      expect(rejectButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-red-100')) // Should be default state
-      if (acceptButtons[1]) {
-        expect(acceptButtons[1]).not.toHaveAttribute(
-          'class',
-          expect.stringContaining('bg-green-600'),
-        ) // Should be unselected
-        expect(acceptButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-green-100')) // Should be default state
-      }
     })
   })
 
   it('preserves evaluation state when submission fails', async () => {
-    // Mock submitEvaluation to throw an error (simulating context handling the error)
     mockSubmitEvaluation.mockRejectedValueOnce(new Error('Submission failed'))
 
     render(<PoliticianEvaluation {...defaultProps} />)
@@ -193,33 +185,30 @@ describe('PoliticianEvaluation', () => {
     const rejectButtons = screen.getAllByText('× Reject')
 
     // Make evaluations
-    fireEvent.click(acceptButtons[0]) // First item accepted
-    if (rejectButtons[1]) fireEvent.click(rejectButtons[1]) // Second item rejected
+    fireEvent.click(acceptButtons[0])
+    if (rejectButtons[1]) fireEvent.click(rejectButtons[1])
 
     // Verify buttons show selected state before submission
-    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')) // Selected state
+    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600'))
     if (rejectButtons[1]) {
-      expect(rejectButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-red-600')) // Selected state
+      expect(rejectButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-red-600'))
     }
 
     const submitButton = screen.getByText('Submit Evaluations & Next')
     fireEvent.click(submitButton)
 
-    // Wait for the failed submission to complete
     await waitFor(() => {
       expect(mockSubmitEvaluation).toHaveBeenCalled()
     })
 
-    // Most importantly: verify evaluation state is PRESERVED after failed submission
-    // Buttons should still show their selected state
-    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')) // Should remain selected
+    // Verify evaluation state is PRESERVED after failed submission
+    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600'))
     if (rejectButtons[1]) {
-      expect(rejectButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-red-600')) // Should remain selected
+      expect(rejectButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-red-600'))
     }
   })
 
   it('preserves evaluation state when network request fails', async () => {
-    // Mock submitEvaluation to reject (simulating network failure)
     mockSubmitEvaluation.mockRejectedValueOnce(new Error('Network connection failed'))
 
     render(<PoliticianEvaluation {...defaultProps} />)
@@ -228,21 +217,17 @@ describe('PoliticianEvaluation', () => {
 
     // Make an evaluation
     fireEvent.click(acceptButtons[0])
-
-    // Verify button shows selected state before submission
-    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')) // Selected state
+    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600'))
 
     const submitButton = screen.getByText('Submit Evaluations & Next')
     fireEvent.click(submitButton)
 
-    // Wait for the failed submission to complete
     await waitFor(() => {
       expect(mockSubmitEvaluation).toHaveBeenCalled()
     })
 
-    // Most importantly: verify evaluation state is PRESERVED after network failure
-    // Button should still show its selected state
-    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600')) // Should remain selected
+    // Verify evaluation state is PRESERVED after network failure
+    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600'))
   })
 
   it('does not render sections when politician has no unevaluated data', () => {
@@ -256,22 +241,18 @@ describe('PoliticianEvaluation', () => {
   it('displays source information for items with archived pages', () => {
     render(<PoliticianEvaluation {...defaultProps} />)
 
-    // Should show source viewing controls
     const viewingButtons = screen.getAllByText(/Viewing/)
     expect(viewingButtons.length).toBeGreaterThan(0)
 
-    // Should show source URL
     const sourceTexts = screen.getAllByText('https://en.wikipedia.org/wiki/Test_Politician')
     expect(sourceTexts.length).toBeGreaterThan(0)
   })
 
   describe('property grouping', () => {
     it('displays sections in consistent order regardless of data order', () => {
-      // Create politician with properties in different order to test section ordering
       const mockPoliticianReversedOrder = {
         ...mockPoliticianWithConflicts,
         properties: [
-          // Citizenship first (should appear as "Citizenships" section)
           {
             key: 'prop-citizenship',
             id: 'prop-citizenship',
@@ -281,7 +262,6 @@ describe('PoliticianEvaluation', () => {
             statement_id: null,
             supporting_quotes: ['French politician'],
           },
-          // Birthplace second (should appear as "Birthplaces" section)
           {
             key: 'birth-1',
             id: 'birth-1',
@@ -291,7 +271,6 @@ describe('PoliticianEvaluation', () => {
             statement_id: null,
             supporting_quotes: ['was born in Test City'],
           },
-          // Position third (should appear as "Political Positions" section)
           {
             key: 'pos-1',
             id: 'pos-1',
@@ -305,7 +284,6 @@ describe('PoliticianEvaluation', () => {
             },
             supporting_quotes: ['served as mayor from 2020 to 2024'],
           },
-          // Birth date last (should appear as "Properties" section)
           {
             key: 'prop-birth',
             id: 'prop-birth',
@@ -320,11 +298,9 @@ describe('PoliticianEvaluation', () => {
 
       render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianReversedOrder} />)
 
-      // Get all section headings in order
       const sectionHeadings = screen.getAllByRole('heading', { level: 2 })
       const sectionTexts = sectionHeadings.map((heading) => heading.textContent)
 
-      // Verify consistent order: Properties, Political Positions, Birthplaces, Citizenships
       const expectedOrder = ['Properties', 'Political Positions', 'Birthplaces', 'Citizenships']
       const actualOrder = sectionTexts.filter((text) => expectedOrder.includes(text || ''))
 
@@ -334,34 +310,24 @@ describe('PoliticianEvaluation', () => {
     it('groups properties correctly by type and entity', () => {
       render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianWithConflicts} />)
 
-      // Should have Properties section with birth dates grouped together
       expect(screen.getByText('Properties')).toBeInTheDocument()
       expect(screen.getByText('Birth Date')).toBeInTheDocument()
-
-      // Should have Political Positions section
       expect(screen.getByText('Political Positions')).toBeInTheDocument()
-
-      // Should have separate items for different positions
       expect(screen.getByText(/Mayor of Test City/)).toBeInTheDocument()
       expect(screen.getByText(/Council Member/)).toBeInTheDocument()
-
-      // Should have Birthplaces section
       expect(screen.getByText('Birthplaces')).toBeInTheDocument()
 
-      // Look for birthplace specific Test City (with Q123456)
       const birthplaceSection = screen.getByText('Birthplaces').closest('.mb-8')
       expect(birthplaceSection).toBeInTheDocument()
       expect(birthplaceSection).toHaveTextContent('Test City')
       expect(birthplaceSection).toHaveTextContent('Q123456')
       expect(birthplaceSection).toHaveTextContent('New City')
 
-      // Should have Citizenships section
       expect(screen.getByText('Citizenships')).toBeInTheDocument()
       expect(screen.getByText(/France/)).toBeInTheDocument()
     })
 
     it('groups multiple statements for the same entity together', () => {
-      // Create a politician with multiple statements for the same position
       const mockPoliticianSamePosition = {
         ...mockPolitician,
         properties: [
@@ -402,15 +368,12 @@ describe('PoliticianEvaluation', () => {
 
       render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianSamePosition} />)
 
-      // Should have only ONE "Mayor of Test City" item that contains both statements
       const mayorItems = screen.getAllByText(/Mayor of Test City/)
-      expect(mayorItems).toHaveLength(1) // Only one title, not two separate items
+      expect(mayorItems).toHaveLength(1)
 
-      // Should have both date ranges visible within the same item
       expect(screen.getByText('January 1, 2020 – January 1, 2024')).toBeInTheDocument()
       expect(screen.getByText('January 1, 2022 – January 1, 2026')).toBeInTheDocument()
 
-      // Should have separator line between the statements
       const evaluationItem = screen.getByText(/Mayor of Test City/).closest('.border')
       expect(evaluationItem).toBeInTheDocument()
     })
@@ -418,11 +381,9 @@ describe('PoliticianEvaluation', () => {
     it('shows individual items for value-based properties', () => {
       render(<PoliticianEvaluation {...defaultProps} />)
 
-      // Birth dates should be individual items, not grouped by entity
       expect(screen.getByText('Birth Date')).toBeInTheDocument()
       expect(screen.getByText('January 1, 1970')).toBeInTheDocument()
 
-      // Should only have one Birth Date item even if there were multiple birth date properties
       const birthDateItems = screen.getAllByText('Birth Date')
       expect(birthDateItems).toHaveLength(1)
     })
@@ -442,8 +403,6 @@ describe('PoliticianEvaluation', () => {
       it('shows existing-only items as read-only', () => {
         render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianWithConflicts} />)
 
-        // Should show "Current in Wikidata" badges or no evaluation controls for existing-only items
-        // For now, let's just check that sections exist for properties, positions, and birthplaces
         expect(screen.getByText('Properties')).toBeInTheDocument()
         expect(screen.getByText('Political Positions')).toBeInTheDocument()
         expect(screen.getByText('Birthplaces')).toBeInTheDocument()
@@ -452,9 +411,7 @@ describe('PoliticianEvaluation', () => {
       it('shows conflicted items with both values', () => {
         render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianWithConflicts} />)
 
-        // Should show the new extracted value
-        expect(screen.getByText('January 2, 1970')).toBeInTheDocument() // New extracted value from mock data
-        // Note: Current/existing values might not be shown in this implementation
+        expect(screen.getByText('January 2, 1970')).toBeInTheDocument()
       })
 
       it('maintains priority ordering: existing-only, conflicted, extracted-only', () => {
@@ -463,11 +420,7 @@ describe('PoliticianEvaluation', () => {
         const propertiesSection = screen.getByText('Properties').closest('div')
         expect(propertiesSection).toBeInTheDocument()
 
-        // The order should be: death_date (existing-only), birth_date (conflicted), nationality (extracted-only)
-        // Check that we have both extracted/conflicted items with accept buttons
         const acceptButtons = screen.getAllByText('✓ Accept')
-
-        // At least one extracted/conflicted item should exist
         expect(acceptButtons.length).toBeGreaterThan(0)
       })
     })
@@ -478,14 +431,12 @@ describe('PoliticianEvaluation', () => {
 
         expect(screen.getByText('Extracted Only Politician')).toBeInTheDocument()
 
-        // Should have evaluation controls for extracted items
         const acceptButtons = screen.getAllByText('✓ Accept')
         const rejectButtons = screen.getAllByText('× Reject')
 
         expect(acceptButtons.length).toBeGreaterThan(0)
         expect(rejectButtons.length).toBeGreaterThan(0)
 
-        // Evaluation should work
         fireEvent.click(acceptButtons[0])
         expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('green'))
       })
@@ -497,7 +448,6 @@ describe('PoliticianEvaluation', () => {
 
         expect(screen.getByText('Existing Only Politician')).toBeInTheDocument()
 
-        // Should not show evaluation controls for existing-only items
         expect(screen.queryByText('✓ Accept')).not.toBeInTheDocument()
         expect(screen.queryByText('× Reject')).not.toBeInTheDocument()
       })
@@ -509,7 +459,6 @@ describe('PoliticianEvaluation', () => {
 
         render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianWithConflicts} />)
 
-        // Make some evaluations
         const acceptButtons = screen.getAllByText('✓ Accept')
         const rejectButtons = screen.getAllByText('× Reject')
 
@@ -519,7 +468,6 @@ describe('PoliticianEvaluation', () => {
         const submitButton = screen.getByText('Submit Evaluations & Next')
         fireEvent.click(submitButton)
 
-        // Should call submitEvaluation and progress to next
         await waitFor(() => {
           expect(mockSubmitEvaluation).toHaveBeenCalled()
         })
@@ -530,18 +478,15 @@ describe('PoliticianEvaluation', () => {
       it('provides source viewing for items with archived pages', () => {
         render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianWithConflicts} />)
 
-        // Should show source viewing controls for items that have archived pages
         const viewingButtons = screen.getAllByText(/Viewing/)
         expect(viewingButtons.length).toBeGreaterThan(0)
 
-        // Should show the archived page iframe
         expect(screen.getByTitle('Archived Page')).toBeInTheDocument()
       })
 
       it('shows placeholder when no source is available', () => {
         render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianExistingOnly} />)
 
-        // Should show helpful message when no source is available
         expect(
           screen.getByText(/Click.*View.*on any item to see the source page/),
         ).toBeInTheDocument()

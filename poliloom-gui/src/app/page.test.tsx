@@ -6,17 +6,6 @@ import Home from './page'
 // Mock fetch for API calls
 global.fetch = vi.fn()
 
-// Mock localStorage
-Object.defineProperty(window, 'localStorage', {
-  value: {
-    getItem: vi.fn(),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
-  },
-  writable: true,
-})
-
 // Mock navigator.languages for browser language detection
 Object.defineProperty(navigator, 'languages', {
   value: ['en-US'],
@@ -52,9 +41,22 @@ vi.mock('next-auth/react', () => ({
   signIn: (...args: unknown[]) => mockSignIn(...args),
 }))
 
+const mockUseTutorial = vi.fn()
+vi.mock('@/contexts/TutorialContext', () => ({
+  useTutorial: () => mockUseTutorial(),
+  TutorialProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
+
 describe('Home Page (Filter Selection)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+
+    // Default tutorial state - not completed
+    mockUseTutorial.mockReturnValue({
+      hasCompletedTutorial: false,
+      completeTutorial: vi.fn(),
+      resetTutorial: vi.fn(),
+    })
 
     // Mock fetch for API calls
     vi.mocked(fetch).mockImplementation((url) => {
@@ -116,10 +118,31 @@ describe('Home Page (Filter Selection)', () => {
     expect(screen.getByText('Which countries are you interested in?')).toBeInTheDocument()
   })
 
-  it('shows Begin Review Session button', async () => {
+  it('shows Start Tutorial button when tutorial not completed', async () => {
     mockUseSession.mockReturnValue({
       data: null,
       status: 'loading',
+    })
+
+    await act(async () => {
+      render(<Home />)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Start Tutorial')).toBeInTheDocument()
+    })
+  })
+
+  it('shows Begin Review Session button when tutorial completed', async () => {
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: 'loading',
+    })
+
+    mockUseTutorial.mockReturnValue({
+      hasCompletedTutorial: true,
+      completeTutorial: vi.fn(),
+      resetTutorial: vi.fn(),
     })
 
     await act(async () => {
