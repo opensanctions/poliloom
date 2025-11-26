@@ -3,6 +3,7 @@
 import { Header } from '@/components/layout/Header'
 import { Hero } from '@/components/layout/Hero'
 import { Anchor } from '@/components/ui/Anchor'
+import { Toggle } from '@/components/ui/Toggle'
 import { MultiSelect, MultiSelectOption } from '@/components/entity/MultiSelect'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useTutorial } from '@/contexts/TutorialContext'
@@ -140,24 +141,22 @@ export default function Home() {
                 {ctaText}
               </Anchor>
             </div>
-          </div>
 
-          {/* Advanced Mode Toggle */}
-          <div className="mt-6">
-            <label className="flex items-center gap-3 text-sm text-gray-600 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isAdvancedMode}
-                onChange={(e) => setAdvancedMode(e.target.checked)}
-                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-              />
-              <span>
-                Advanced mode{' '}
-                <span className="text-gray-400">
-                  — enables deprecating existing Wikidata statements
+            {/* Advanced Mode Toggle */}
+            <div className="mt-6 pt-6 border-t border-gray-100">
+              <label className="flex items-center gap-3 text-sm text-gray-600 cursor-pointer">
+                <Toggle
+                  checked={isAdvancedMode}
+                  onChange={(e) => setAdvancedMode(e.target.checked)}
+                />
+                <span>
+                  Advanced mode{' '}
+                  <span className="text-gray-400">
+                    — enables deprecating existing Wikidata statements
+                  </span>
                 </span>
-              </span>
-            </label>
+              </label>
+            </div>
           </div>
         </div>
       </main>
