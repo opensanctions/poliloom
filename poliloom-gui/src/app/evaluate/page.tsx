@@ -2,8 +2,8 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Header } from '@/components/Header'
-import { PoliticianEvaluation } from '@/components/PoliticianEvaluation'
+import { Header } from '@/components/layout/Header'
+import { PoliticianEvaluation } from '@/components/evaluation/PoliticianEvaluation'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useTutorial } from '@/contexts/TutorialContext'
 import Link from 'next/link'

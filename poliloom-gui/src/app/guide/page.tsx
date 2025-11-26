@@ -1,10 +1,10 @@
 'use client'
 
-import { Header } from '@/components/Header'
-import { Hero } from '@/components/Hero'
-import { Anchor } from '@/components/Anchor'
-import { EvaluationItem } from '@/components/EvaluationItem'
-import { PropertyDisplay } from '@/components/PropertyDisplay'
+import { Header } from '@/components/layout/Header'
+import { Hero } from '@/components/layout/Hero'
+import { Anchor } from '@/components/ui/Anchor'
+import { EvaluationItem } from '@/components/evaluation/EvaluationItem'
+import { PropertyDisplay } from '@/components/evaluation/PropertyDisplay'
 import { Property, PropertyType } from '@/types'
 
 // Sample properties for data types demonstration

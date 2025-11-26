@@ -10,11 +10,11 @@ vi.mock('next/navigation', () => ({
   }),
 }))
 
-vi.mock('@/components/Header', () => ({
+vi.mock('@/components/layout/Header', () => ({
   Header: () => <div>Header</div>,
 }))
 
-vi.mock('@/components/PoliticianEvaluation', () => ({
+vi.mock('@/components/evaluation/PoliticianEvaluation', () => ({
   PoliticianEvaluation: () => <div>PoliticianEvaluation Component</div>,
 }))
 

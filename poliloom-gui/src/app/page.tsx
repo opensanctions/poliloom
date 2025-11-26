@@ -1,9 +1,9 @@
 'use client'
 
-import { Header } from '@/components/Header'
-import { Hero } from '@/components/Hero'
-import { Anchor } from '@/components/Anchor'
-import { MultiSelect, MultiSelectOption } from '@/components/MultiSelect'
+import { Header } from '@/components/layout/Header'
+import { Hero } from '@/components/layout/Hero'
+import { Anchor } from '@/components/ui/Anchor'
+import { MultiSelect, MultiSelectOption } from '@/components/entity/MultiSelect'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useTutorial } from '@/contexts/TutorialContext'
 import { PreferenceType, WikidataEntity } from '@/types'

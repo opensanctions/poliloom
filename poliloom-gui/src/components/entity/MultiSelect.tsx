@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ContainerBox } from './ContainerBox'
+import { ContainerBox } from '@/components/ui/ContainerBox'
 
 export interface MultiSelectOption {
   value: string

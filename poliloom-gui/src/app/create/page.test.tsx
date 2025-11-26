@@ -6,11 +6,11 @@ import { Property, PropertyType, Politician } from '@/types'
 import React from 'react'
 
 // Mock components
-vi.mock('@/components/Header', () => ({
+vi.mock('@/components/layout/Header', () => ({
   Header: () => <div data-testid="header">Header</div>,
 }))
 
-vi.mock('@/components/Button', () => ({
+vi.mock('@/components/ui/Button', () => ({
   Button: ({
     children,
     onClick,
@@ -23,7 +23,7 @@ vi.mock('@/components/Button', () => ({
   ),
 }))
 
-vi.mock('@/components/PropertiesEvaluation', () => ({
+vi.mock('@/components/evaluation/PropertiesEvaluation', () => ({
   PropertiesEvaluation: ({
     properties,
     evaluations,
@@ -56,7 +56,7 @@ vi.mock('@/components/PropertiesEvaluation', () => ({
   ),
 }))
 
-vi.mock('@/components/AddPropertyForm', () => ({
+vi.mock('@/components/entity/AddPropertyForm', () => ({
   AddPropertyForm: ({ onAddProperty }: { onAddProperty: (property: Property) => void }) => (
     <div data-testid="add-property-form">
       <button
@@ -77,7 +77,7 @@ vi.mock('@/components/AddPropertyForm', () => ({
   ),
 }))
 
-vi.mock('@/components/EntitySelector', () => ({
+vi.mock('@/components/entity/EntitySelector', () => ({
   EntitySelector: ({
     onSelect,
     onCreateNew,

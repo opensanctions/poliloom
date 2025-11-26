@@ -17,7 +17,7 @@ Object.defineProperty(navigator, 'language', {
   writable: true,
 })
 
-vi.mock('@/components/Header', () => ({
+vi.mock('@/components/layout/Header', () => ({
   Header: () => <div>Header</div>,
 }))
 

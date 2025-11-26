@@ -1,14 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Header } from '@/components/Header'
-import { Button } from '@/components/Button'
-import { Anchor } from '@/components/Anchor'
-import { CenteredCard } from '@/components/CenteredCard'
-import { PoliticianEvaluationView } from '@/components/PoliticianEvaluationView'
-import { PoliticianHeader } from '@/components/PoliticianHeader'
-import { ArchivedPageViewer } from '@/components/ArchivedPageViewer'
-import { PropertiesEvaluation } from '@/components/PropertiesEvaluation'
+import { Header } from '@/components/layout/Header'
+import { TwoPanel } from '@/components/layout/TwoPanel'
+import { Anchor } from '@/components/ui/Anchor'
+import { CenteredCard } from '@/components/ui/CenteredCard'
+import { PoliticianEvaluationView } from '@/components/evaluation/PoliticianEvaluationView'
+import { PoliticianHeader } from '@/components/evaluation/PoliticianHeader'
+import { ArchivedPageViewer } from '@/components/evaluation/ArchivedPageViewer'
+import { PropertiesEvaluation } from '@/components/evaluation/PropertiesEvaluation'
+import { TutorialActions } from './_components/TutorialActions'
+import { TutorialFooter } from './_components/TutorialFooter'
+import { SuccessFeedback } from './_components/SuccessFeedback'
+import { ErrorFeedback } from './_components/ErrorFeedback'
 import { useTutorial } from '@/contexts/TutorialContext'
 import { Politician } from '@/types'
 import tutorialData from './tutorialData.json'
@@ -57,96 +61,6 @@ function checkEvaluations(
     isCorrect: mistakes.length === 0,
     mistakes,
   }
-}
-
-function TutorialActions({ buttonText, onNext }: { buttonText: string; onNext: () => void }) {
-  return (
-    <div className="flex flex-col gap-4">
-      <Button onClick={onNext} className="px-6 py-3 w-full">
-        {buttonText}
-      </Button>
-      <Anchor
-        href="/evaluate"
-        className="inline-flex items-center justify-center px-6 py-3 w-full text-gray-700 font-medium hover:bg-gray-100 rounded-md transition-colors"
-      >
-        Skip Tutorial
-      </Anchor>
-    </div>
-  )
-}
-
-function TutorialFooter({
-  evaluations,
-  expected,
-  onSubmit,
-}: {
-  evaluations: Map<string, boolean>
-  expected: ExpectedEvaluations
-  onSubmit: () => void
-}) {
-  const expectedKeys = Object.keys(expected)
-  const isComplete = expectedKeys.every((key) => evaluations.has(key))
-
-  return (
-    <div className="flex justify-between items-center">
-      <Anchor href="/evaluate" className="text-gray-500 hover:text-gray-700 font-medium">
-        Skip Tutorial
-      </Anchor>
-      <Button onClick={onSubmit} disabled={!isComplete} className="px-6 py-3">
-        Check Answers
-      </Button>
-    </div>
-  )
-}
-
-function TwoPanel({ left, right }: { left: React.ReactNode; right: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-[46rem_1fr] bg-gray-50 min-h-0">
-      <div className="shadow-lg overflow-y-auto min-h-0 p-6">{left}</div>
-      <div className="bg-gray-50 border-l border-gray-200 overflow-hidden min-h-0 flex items-center justify-center">
-        {right}
-      </div>
-    </div>
-  )
-}
-
-// Success feedback component
-function SuccessFeedback({
-  title,
-  message,
-  onNext,
-}: {
-  title: string
-  message: string
-  onNext: () => void
-}) {
-  return (
-    <CenteredCard emoji="🎉" title={title}>
-      <p className="mb-8">{message}</p>
-      <TutorialActions buttonText="Continue" onNext={onNext} />
-    </CenteredCard>
-  )
-}
-
-// Error feedback component with retry
-function ErrorFeedback({
-  title,
-  message,
-  hint,
-  onRetry,
-}: {
-  title: string
-  message: string
-  hint: string
-  onRetry: () => void
-}) {
-  return (
-    <CenteredCard emoji="🤔" title={title}>
-      <p className="mb-4">{message}</p>
-      <p className="mb-8 text-indigo-600 font-medium">{hint}</p>
-      <TutorialActions buttonText="Try Again" onNext={onRetry} />
-    </CenteredCard>
-  )
 }
 
 export default function TutorialPage() {
@@ -225,7 +139,7 @@ export default function TutorialPage() {
     content = (
       <TwoPanel
         left={
-          <>
+          <div className="overflow-y-auto p-6 h-full">
             <div className="mb-6">
               <div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>
               <PoliticianHeader
@@ -241,7 +155,7 @@ export default function TutorialPage() {
               onHover={() => {}}
               activeArchivedPageId={null}
             />
-          </>
+          </div>
         }
         right={
           <CenteredCard emoji="🗂️" title="Extracted Data">
@@ -278,7 +192,7 @@ export default function TutorialPage() {
         key={`birth-date-${birthDateKey}`}
         politician={birthDatePolitician}
         header={<div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>}
-        footer={({ evaluations }) => (
+        footer={(evaluations) => (
           <TutorialFooter
             evaluations={evaluations}
             expected={birthDateExpected}
@@ -334,7 +248,7 @@ export default function TutorialPage() {
         key={`multiple-sources-${multipleSourcesKey}`}
         politician={multipleSourcesPolitician}
         header={<div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>}
-        footer={({ evaluations }) => (
+        footer={(evaluations) => (
           <TutorialFooter
             evaluations={evaluations}
             expected={multipleSourcesExpected}
@@ -390,7 +304,7 @@ export default function TutorialPage() {
         key={`generic-vs-specific-${genericVsSpecificKey}`}
         politician={genericVsSpecificPolitician}
         header={<div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>}
-        footer={({ evaluations }) => (
+        footer={(evaluations) => (
           <TutorialFooter
             evaluations={evaluations}
             expected={genericVsSpecificExpected}

@@ -1,8 +1,8 @@
 'use client'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
-import { Header } from '@/components/Header'
-import { Button } from '@/components/Button'
+import { Header } from '@/components/layout/Header'
+import { Button } from '@/components/ui/Button'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'

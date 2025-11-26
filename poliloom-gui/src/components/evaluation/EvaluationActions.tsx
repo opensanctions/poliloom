@@ -1,5 +1,5 @@
-import { Button } from './Button'
-import { DataLabel } from './DataLabel'
+import { Button } from '@/components/ui/Button'
+import { DataLabel } from '@/components/ui/DataLabel'
 
 interface EvaluationActionsProps {
   statementId: string

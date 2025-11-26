@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Header } from '@/components/Header'
-import { Button } from '@/components/Button'
+import { Header } from '@/components/layout/Header'
+import { Button } from '@/components/ui/Button'
 import { Property, Politician } from '@/types'
-import { PropertiesEvaluation } from '@/components/PropertiesEvaluation'
-import { AddPropertyForm } from '@/components/AddPropertyForm'
-import { EntitySelector } from '@/components/EntitySelector'
+import { PropertiesEvaluation } from '@/components/evaluation/PropertiesEvaluation'
+import { AddPropertyForm } from '@/components/entity/AddPropertyForm'
+import { EntitySelector } from '@/components/entity/EntitySelector'
 
 export default function CreatePage() {
   const [selectedPolitician, setSelectedPolitician] = useState<{

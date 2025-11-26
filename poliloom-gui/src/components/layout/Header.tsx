@@ -2,8 +2,8 @@
 
 import { useSession, signOut, signIn } from 'next-auth/react'
 import Image from 'next/image'
-import { Button } from './Button'
-import { Anchor } from './Anchor'
+import { Button } from '@/components/ui/Button'
+import { Anchor } from '@/components/ui/Anchor'
 
 export function Header() {
   const { data: session, status } = useSession()

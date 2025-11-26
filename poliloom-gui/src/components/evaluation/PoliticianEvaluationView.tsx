@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, ReactNode } from 'react'
 import { Politician, Property, ArchivedPageResponse } from '@/types'
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting'
 import { highlightTextInScope } from '@/lib/textHighlighter'
+import { TwoPanel } from '@/components/layout/TwoPanel'
 import { PropertiesEvaluation } from './PropertiesEvaluation'
 import { PoliticianHeader } from './PoliticianHeader'
 import { ArchivedPageViewer } from './ArchivedPageViewer'
@@ -17,7 +18,7 @@ function findFirstPropertyWithArchive(properties: Property[]) {
 interface PoliticianEvaluationViewProps {
   politician: Politician
   header?: ReactNode
-  footer: (props: { evaluations: Map<string, boolean> }) => ReactNode
+  footer: (evaluations: Map<string, boolean>) => ReactNode
   archivedPagesApiPath?: string
 }
 
@@ -41,9 +42,9 @@ export function PoliticianEvaluationView({
     return first?.supporting_quotes ?? null
   })
 
-  // Refs and hooks for iframe highlighting
+  // Refs and hooks for highlighting
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
-  const leftPanelRef = useRef<HTMLDivElement | null>(null)
+  const propertiesRef = useRef<HTMLDivElement | null>(null)
   const { isIframeLoaded, handleIframeLoad, handleQuotesChange } = useIframeAutoHighlight(
     iframeRef,
     selectedQuotes,
@@ -51,9 +52,9 @@ export function PoliticianEvaluationView({
 
   // Update highlighting when supporting quotes change
   useEffect(() => {
-    // Left panel highlighting - always do this when quotes change
-    if (leftPanelRef.current && selectedQuotes && selectedQuotes.length > 0) {
-      highlightTextInScope(document, leftPanelRef.current, selectedQuotes)
+    // Properties panel highlighting - always do this when quotes change
+    if (propertiesRef.current && selectedQuotes && selectedQuotes.length > 0) {
+      highlightTextInScope(document, propertiesRef.current, selectedQuotes)
     }
 
     // Iframe highlighting - only when iframe is loaded
@@ -66,14 +67,11 @@ export function PoliticianEvaluationView({
     setEvaluations((prev) => {
       const newMap = new Map(prev)
       const currentValue = newMap.get(propertyId)
-      // Map accept to true, reject to false
       const targetValue = action === 'accept'
 
       if (currentValue === targetValue) {
-        // Toggle off - remove from map
         newMap.delete(propertyId)
       } else {
-        // Set new value
         newMap.set(propertyId, targetValue)
       }
       return newMap
@@ -93,20 +91,18 @@ export function PoliticianEvaluationView({
     }
   }
 
-  return (
-    <div className="grid grid-cols-[46rem_1fr] bg-gray-50 min-h-0">
-      {/* Left panel - Evaluation interface */}
-      <div className="shadow-lg grid grid-rows-[1fr_auto] min-h-0">
-        {/* Scrollable content area */}
-        <div ref={leftPanelRef} className="overflow-y-auto min-h-0 p-6">
-          <div className="mb-6">
-            {header}
-            <PoliticianHeader
-              name={politician.name}
-              wikidataId={politician.wikidata_id ?? undefined}
-            />
-          </div>
+  const leftPanel = (
+    <div className="grid grid-rows-[1fr_auto] h-full">
+      <div className="overflow-y-auto min-h-0 p-6">
+        <div className="mb-6">
+          {header}
+          <PoliticianHeader
+            name={politician.name}
+            wikidataId={politician.wikidata_id ?? undefined}
+          />
+        </div>
 
+        <div ref={propertiesRef}>
           <PropertiesEvaluation
             properties={politician.properties}
             evaluations={evaluations}
@@ -121,29 +117,27 @@ export function PoliticianEvaluationView({
             activeArchivedPageId={selectedArchivedPage?.id || null}
           />
         </div>
-
-        {/* Fixed footer at bottom */}
-        <div className="p-6 border-t border-gray-200">{footer({ evaluations })}</div>
       </div>
 
-      {/* Right panel - Archived page viewer */}
-      <div className="bg-gray-50 border-l border-gray-200 overflow-hidden min-h-0">
-        {selectedArchivedPage ? (
-          <ArchivedPageViewer
-            pageId={selectedArchivedPage.id}
-            apiBasePath={archivedPagesApiPath}
-            iframeRef={iframeRef}
-            onLoad={handleIframeLoad}
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            <div className="text-center">
-              <p className="text-lg mb-2">📄</p>
-              <p>Click &ldquo;View&rdquo; on any item to see the source page</p>
-            </div>
-          </div>
-        )}
+      <div className="p-6 border-t border-gray-200">{footer(evaluations)}</div>
+    </div>
+  )
+
+  const rightPanel = selectedArchivedPage ? (
+    <ArchivedPageViewer
+      pageId={selectedArchivedPage.id}
+      apiBasePath={archivedPagesApiPath}
+      iframeRef={iframeRef}
+      onLoad={handleIframeLoad}
+    />
+  ) : (
+    <div className="flex items-center justify-center h-full text-gray-500">
+      <div className="text-center">
+        <p className="text-lg mb-2">📄</p>
+        <p>Click &ldquo;View&rdquo; on any item to see the source page</p>
       </div>
     </div>
   )
+
+  return <TwoPanel left={leftPanel} right={rightPanel} />
 }

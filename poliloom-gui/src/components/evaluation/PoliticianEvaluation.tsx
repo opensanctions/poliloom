@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Politician, EvaluationItem } from '@/types'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
-import { Button } from './Button'
+import { Button } from '@/components/ui/Button'
 import { PoliticianEvaluationView } from './PoliticianEvaluationView'
 
 interface PoliticianEvaluationProps {
@@ -44,7 +44,7 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
   return (
     <PoliticianEvaluationView
       politician={politician}
-      footer={({ evaluations }) => (
+      footer={(evaluations) => (
         <div className="flex justify-between items-center">
           <div className="text-base text-gray-900">
             Progress:{' '}

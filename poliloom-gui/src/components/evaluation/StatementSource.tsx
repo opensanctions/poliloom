@@ -1,5 +1,5 @@
 import { ArchivedPageResponse } from '@/types'
-import { Button } from './Button'
+import { Button } from '@/components/ui/Button'
 
 interface StatementSourceProps {
   supportingQuotes: string[] | null

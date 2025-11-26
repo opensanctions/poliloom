@@ -2,8 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
-import { NotificationPage } from '@/components/NotificationPage'
-import { Button } from '@/components/Button'
+import { NotificationPage } from '@/components/layout/NotificationPage'
+import { Button } from '@/components/ui/Button'
 
 export default function CompletePage() {
   const router = useRouter()
