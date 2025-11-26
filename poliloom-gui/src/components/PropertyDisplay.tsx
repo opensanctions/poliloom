@@ -130,6 +130,9 @@ export function PropertyDisplay({
           statementId={property.key}
           isWikidataStatement={!!property.statement_id}
           isAccepted={evaluations.get(property.key) ?? null}
+          isSourceVisible={
+            !property.archived_page || activeArchivedPageId === property.archived_page.id
+          }
           onAction={onAction}
         />
       </div>
