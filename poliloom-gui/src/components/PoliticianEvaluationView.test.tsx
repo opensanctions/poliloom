@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
-import { render } from '@testing-library/react'
+import { screen, fireEvent, render } from '@/test/test-utils'
 import { PoliticianEvaluationView } from './PoliticianEvaluationView'
 import {
   mockPoliticianWithDifferentSources,

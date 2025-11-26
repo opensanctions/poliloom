@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Politician, EvaluationItem } from '@/types'
-import { useEvaluation } from '@/contexts/EvaluationContext'
+import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { Button } from './Button'
 import { PoliticianEvaluationView } from './PoliticianEvaluationView'
 
@@ -11,7 +11,7 @@ interface PoliticianEvaluationProps {
 }
 
 export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) {
-  const { completedCount, sessionGoal, submitEvaluation, skipPolitician } = useEvaluation()
+  const { completedCount, sessionGoal, submitEvaluation, skipPolitician } = useEvaluationSession()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (evaluations: Map<string, boolean>) => {

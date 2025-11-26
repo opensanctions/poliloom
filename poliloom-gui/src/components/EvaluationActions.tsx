@@ -6,6 +6,7 @@ interface EvaluationActionsProps {
   isWikidataStatement: boolean
   isAccepted: boolean | null
   isSourceVisible: boolean
+  isAdvancedMode: boolean
   onAction?: (id: string, action: 'accept' | 'reject') => void
 }
 
@@ -14,6 +15,7 @@ export function EvaluationActions({
   isWikidataStatement,
   isAccepted,
   isSourceVisible,
+  isAdvancedMode,
   onAction,
 }: EvaluationActionsProps) {
   // Source not visible only happens for new data (with archived pages)
@@ -22,6 +24,15 @@ export function EvaluationActions({
       <div className="flex gap-2 items-center ml-auto">
         <DataLabel variant="new">New data 🎉</DataLabel>
         <span className="text-sm text-gray-500">View source to evaluate</span>
+      </div>
+    )
+  }
+
+  // For existing Wikidata statements without advanced mode, just show the label
+  if (isWikidataStatement && !isAdvancedMode) {
+    return (
+      <div className="flex gap-2 items-center ml-auto">
+        <DataLabel variant="existing">Existing data</DataLabel>
       </div>
     )
   }

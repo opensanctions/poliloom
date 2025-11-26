@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, fireEvent, waitFor } from '@testing-library/react'
-import { render } from '@testing-library/react'
+import { screen, fireEvent, waitFor, render, mockFetch } from '@/test/test-utils'
 import { PoliticianEvaluation } from './PoliticianEvaluation'
 import { PropertyType } from '@/types'
 import {
@@ -32,9 +31,6 @@ global.Highlight = class MockHighlight {
   }
 } as unknown as typeof Highlight
 
-// Mock fetch for API calls
-global.fetch = vi.fn()
-
 vi.mock('@/hooks/useIframeHighlighting', () => ({
   useIframeAutoHighlight: () => ({
     isIframeLoaded: true,
@@ -43,26 +39,8 @@ vi.mock('@/hooks/useIframeHighlighting', () => ({
   }),
 }))
 
-const mockSubmitEvaluation = vi.fn()
-const mockSkipPolitician = vi.fn()
-
 // Mock console.error to suppress expected error output
 vi.spyOn(console, 'error').mockImplementation(() => {})
-
-vi.mock('@/contexts/EvaluationContext', () => ({
-  useEvaluation: () => ({
-    completedCount: 0,
-    sessionGoal: 1,
-    isSessionComplete: false,
-    submitEvaluation: mockSubmitEvaluation,
-    skipPolitician: mockSkipPolitician,
-    resetSession: vi.fn(),
-    loadPoliticians: vi.fn(),
-    currentPolitician: null,
-    nextPolitician: null,
-    loading: false,
-  }),
-}))
 
 describe('PoliticianEvaluation', () => {
   const defaultProps = {
@@ -71,6 +49,7 @@ describe('PoliticianEvaluation', () => {
 
   beforeEach(() => {
     CSS.highlights.clear()
+    mockFetch.mockClear()
   })
 
   it('renders politician name and wikidata id', () => {
@@ -148,9 +127,7 @@ describe('PoliticianEvaluation', () => {
     expect(screen.queryByText('Submit Evaluations & Next')).not.toBeInTheDocument()
   })
 
-  it('submits evaluations and calls submitEvaluation with correct data', async () => {
-    mockSubmitEvaluation.mockResolvedValueOnce(undefined)
-
+  it('submits evaluations and calls API with correct data', async () => {
     render(<PoliticianEvaluation {...defaultProps} />)
 
     const acceptButtons = screen.getAllByText('✓ Accept')
@@ -169,15 +146,30 @@ describe('PoliticianEvaluation', () => {
     fireEvent.click(submitButton)
 
     await waitFor(() => {
-      expect(mockSubmitEvaluation).toHaveBeenCalledWith([
-        { id: 'prop-1', is_accepted: false },
-        ...(acceptButtons[1] ? [{ id: 'pos-1', is_accepted: true }] : []),
-      ])
+      const evaluationCall = mockFetch.mock.calls.find((call) => call[0] === '/api/evaluations') as
+        | [string, RequestInit]
+        | undefined
+      expect(evaluationCall).toBeDefined()
+      const body = JSON.parse(evaluationCall![1].body as string)
+      expect(body.evaluations).toContainEqual({ id: 'prop-1', is_accepted: false })
+      if (acceptButtons[1]) {
+        expect(body.evaluations).toContainEqual({ id: 'pos-1', is_accepted: true })
+      }
     })
   })
 
   it('preserves evaluation state when submission fails', async () => {
-    mockSubmitEvaluation.mockRejectedValueOnce(new Error('Submission failed'))
+    // Override fetch to return error for evaluations
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes('/api/evaluations')) {
+        return Promise.resolve({
+          ok: false,
+          statusText: 'Submission failed',
+          json: async () => ({}),
+        })
+      }
+      return Promise.resolve({ ok: true, json: async () => [] })
+    })
 
     render(<PoliticianEvaluation {...defaultProps} />)
 
@@ -198,7 +190,7 @@ describe('PoliticianEvaluation', () => {
     fireEvent.click(submitButton)
 
     await waitFor(() => {
-      expect(mockSubmitEvaluation).toHaveBeenCalled()
+      expect(mockFetch).toHaveBeenCalledWith('/api/evaluations', expect.anything())
     })
 
     // Verify evaluation state is PRESERVED after failed submission
@@ -209,7 +201,13 @@ describe('PoliticianEvaluation', () => {
   })
 
   it('preserves evaluation state when network request fails', async () => {
-    mockSubmitEvaluation.mockRejectedValueOnce(new Error('Network connection failed'))
+    // Override fetch to reject (network failure)
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes('/api/evaluations')) {
+        return Promise.reject(new Error('Network connection failed'))
+      }
+      return Promise.resolve({ ok: true, json: async () => [] })
+    })
 
     render(<PoliticianEvaluation {...defaultProps} />)
 
@@ -223,7 +221,7 @@ describe('PoliticianEvaluation', () => {
     fireEvent.click(submitButton)
 
     await waitFor(() => {
-      expect(mockSubmitEvaluation).toHaveBeenCalled()
+      expect(mockFetch).toHaveBeenCalledWith('/api/evaluations', expect.anything())
     })
 
     // Verify evaluation state is PRESERVED after network failure
@@ -455,8 +453,6 @@ describe('PoliticianEvaluation', () => {
 
     describe('evaluation submission with mixed data', () => {
       it('submits evaluations and progresses to next politician', async () => {
-        mockSubmitEvaluation.mockResolvedValueOnce(undefined)
-
         render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianWithConflicts} />)
 
         const acceptButtons = screen.getAllByText('✓ Accept')
@@ -469,7 +465,7 @@ describe('PoliticianEvaluation', () => {
         fireEvent.click(submitButton)
 
         await waitFor(() => {
-          expect(mockSubmitEvaluation).toHaveBeenCalled()
+          expect(mockFetch).toHaveBeenCalledWith('/api/evaluations', expect.anything())
         })
       })
     })

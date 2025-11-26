@@ -24,7 +24,7 @@ The PoliLoom GUI is a web application that provides a user interface for confirm
 
 - **Single Politician View**: Show one politician at a time with their extracted data
 - **Sequential Navigation**: Move through politicians one by one
-- **Individual Item Actions**: Evaluate each property, position, and birthplace individually
+- **Individual Item Actions**: Evaluate each property individually (birth dates, positions, birthplaces, etc. are all property types)
 - **Batch Evaluation**: Submit multiple evaluations in a single request
 - **Archived Pages**: Access and display archived web pages from government portals, Wikipedia, and other sources for verification
 - **Text Highlighting**: Automatic highlighting of proof text within archived pages using CSS Custom Highlight API
@@ -59,19 +59,27 @@ curl http://localhost:8000/openapi.json
 **Politicians**: Each politician contains:
 
 - Basic identification (ID, name, Wikidata ID)
-- Unconfirmed properties (birth date, etc.)
-- Unconfirmed political positions (with dates)
-- Unconfirmed birthplaces (with location data)
+- A unified `properties` array containing all extracted data
 
-**Evaluations**: Users can accept or reject individual entities with:
+**Properties**: Each property has a `type` field indicating what kind of data it represents:
 
-- Entity type and ID reference
+- `P569` - Birth date (with optional precision)
+- `P570` - Death date (with optional precision)
+- `P19` - Birthplace (with entity ID and name)
+- `P39` - Political position (with entity ID, name, and date qualifiers)
+- `P27` - Citizenship (with entity ID and name)
+
+Properties may include supporting quotes, an attached archived page for verification, and qualifiers (start/end dates for positions).
+
+**Evaluations**: Users accept or reject individual properties:
+
+- Property ID reference
 - Evaluation result (accepted/rejected)
-- Batch submission support
+- Batch submission support (multiple evaluations in one request)
 
 ## Application Architecture
 
-- **Evaluation Components**: Individual UI for confirming properties, positions, and birthplaces
+- **Evaluation Components**: Individual UI for confirming properties (grouped by type in the interface)
 - **Navigation**: Simple sequential navigation between politicians
 - **Text Highlighting System**: CSS Custom Highlight API implementation for highlighting proof text in archived pages
 - **Iframe Integration**: Secure display of archived web pages with automatic highlighting

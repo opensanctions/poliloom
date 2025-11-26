@@ -1,11 +1,11 @@
 import { render, waitFor, fireEvent } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { EvaluationFiltersProvider, useEvaluationFilters } from './EvaluationFiltersContext'
+import { UserPreferencesProvider, useUserPreferences } from './UserPreferencesContext'
 import { PreferenceType } from '@/types'
 
 // Test component to access context
 function TestComponent() {
-  const { filters, initialized } = useEvaluationFilters()
+  const { filters, initialized } = useUserPreferences()
   return (
     <div>
       <div data-testid="filters">{JSON.stringify(filters)}</div>
@@ -14,7 +14,7 @@ function TestComponent() {
   )
 }
 
-describe('EvaluationFiltersContext', () => {
+describe('UserPreferencesContext', () => {
   let localStorageMock: Record<string, string>
   let fetchMock: ReturnType<typeof vi.fn<typeof fetch>>
 
@@ -68,9 +68,9 @@ describe('EvaluationFiltersContext', () => {
       } as Response)
 
     render(
-      <EvaluationFiltersProvider>
+      <UserPreferencesProvider>
         <TestComponent />
-      </EvaluationFiltersProvider>,
+      </UserPreferencesProvider>,
     )
 
     await waitFor(() => {
@@ -115,9 +115,9 @@ describe('EvaluationFiltersContext', () => {
       } as Response)
 
     render(
-      <EvaluationFiltersProvider>
+      <UserPreferencesProvider>
         <TestComponent />
-      </EvaluationFiltersProvider>,
+      </UserPreferencesProvider>,
     )
 
     await waitFor(() => {
@@ -159,9 +159,9 @@ describe('EvaluationFiltersContext', () => {
       } as Response)
 
     const { getByTestId } = render(
-      <EvaluationFiltersProvider>
+      <UserPreferencesProvider>
         <TestComponent />
-      </EvaluationFiltersProvider>,
+      </UserPreferencesProvider>,
     )
 
     await waitFor(() => {
@@ -190,7 +190,7 @@ describe('EvaluationFiltersContext', () => {
       } as Response)
 
     function TestComponentWithUpdate() {
-      const { updateFilters, initialized } = useEvaluationFilters()
+      const { updateFilters, initialized } = useUserPreferences()
 
       return (
         <div>
@@ -207,9 +207,9 @@ describe('EvaluationFiltersContext', () => {
     }
 
     const { getByText, getByTestId } = render(
-      <EvaluationFiltersProvider>
+      <UserPreferencesProvider>
         <TestComponentWithUpdate />
-      </EvaluationFiltersProvider>,
+      </UserPreferencesProvider>,
     )
 
     await waitFor(() => {

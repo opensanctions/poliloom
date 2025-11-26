@@ -4,13 +4,21 @@ import { Header } from '@/components/Header'
 import { Hero } from '@/components/Hero'
 import { Anchor } from '@/components/Anchor'
 import { MultiSelect, MultiSelectOption } from '@/components/MultiSelect'
-import { useEvaluationFilters } from '@/contexts/EvaluationFiltersContext'
+import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useTutorial } from '@/contexts/TutorialContext'
 import { PreferenceType, WikidataEntity } from '@/types'
 
 export default function Home() {
-  const { filters, languages, countries, loadingLanguages, loadingCountries, updateFilters } =
-    useEvaluationFilters()
+  const {
+    filters,
+    languages,
+    countries,
+    loadingLanguages,
+    loadingCountries,
+    updateFilters,
+    isAdvancedMode,
+    setAdvancedMode,
+  } = useUserPreferences()
   const { hasCompletedTutorial } = useTutorial()
 
   const languageFilters = filters
@@ -120,6 +128,24 @@ export default function Home() {
                 {hasCompletedTutorial ? 'Begin Review Session' : 'Start Tutorial'}
               </Anchor>
             </div>
+          </div>
+
+          {/* Advanced Mode Toggle */}
+          <div className="mt-6">
+            <label className="flex items-center gap-3 text-sm text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isAdvancedMode}
+                onChange={(e) => setAdvancedMode(e.target.checked)}
+                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              />
+              <span>
+                Advanced mode{' '}
+                <span className="text-gray-400">
+                  — enables deprecating existing Wikidata statements
+                </span>
+              </span>
+            </label>
           </div>
         </div>
       </main>

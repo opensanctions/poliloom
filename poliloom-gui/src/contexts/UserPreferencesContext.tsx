@@ -1,6 +1,13 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useSyncExternalStore,
+} from 'react'
 import {
   PreferenceResponse,
   PreferenceType,
@@ -9,7 +16,7 @@ import {
   WikidataEntity,
 } from '@/types'
 
-interface EvaluationFiltersContextType {
+interface UserPreferencesContextType {
   filters: PreferenceResponse[]
   languages: LanguageResponse[]
   countries: CountryResponse[]
@@ -17,11 +24,29 @@ interface EvaluationFiltersContextType {
   loadingCountries: boolean
   initialized: boolean
   updateFilters: (type: PreferenceType, items: WikidataEntity[]) => void
+  isAdvancedMode: boolean
+  setAdvancedMode: (enabled: boolean) => void
 }
 
-const EvaluationFiltersContext = createContext<EvaluationFiltersContextType | undefined>(undefined)
+const UserPreferencesContext = createContext<UserPreferencesContextType | undefined>(undefined)
 
-const STORAGE_KEY = 'poliloom_evaluation_filters'
+const FILTERS_STORAGE_KEY = 'poliloom_evaluation_filters'
+const ADVANCED_MODE_KEY = 'poliloom_advanced_mode'
+
+// Advanced mode uses useSyncExternalStore for SSR safety
+function getAdvancedModeSnapshot(): boolean {
+  if (typeof window === 'undefined') return false
+  return localStorage.getItem(ADVANCED_MODE_KEY) === 'true'
+}
+
+function getAdvancedModeServerSnapshot(): boolean {
+  return false
+}
+
+function subscribeToAdvancedMode(callback: () => void): () => void {
+  window.addEventListener('storage', callback)
+  return () => window.removeEventListener('storage', callback)
+}
 
 // Helper function to detect browser language and match with available languages
 const detectBrowserLanguage = (availableLanguages: LanguageResponse[]): WikidataEntity[] => {
@@ -57,13 +82,30 @@ const detectBrowserLanguage = (availableLanguages: LanguageResponse[]): Wikidata
   }
 }
 
-export function EvaluationFiltersProvider({ children }: { children: React.ReactNode }) {
+export function UserPreferencesProvider({ children }: { children: React.ReactNode }) {
   const [filters, setFilters] = useState<PreferenceResponse[]>([])
   const [languages, setLanguages] = useState<LanguageResponse[]>([])
   const [countries, setCountries] = useState<CountryResponse[]>([])
   const [loadingLanguages, setLoadingLanguages] = useState(true)
   const [loadingCountries, setLoadingCountries] = useState(true)
   const [initialized, setInitialized] = useState(false)
+
+  // Advanced mode state
+  const isAdvancedMode = useSyncExternalStore(
+    subscribeToAdvancedMode,
+    getAdvancedModeSnapshot,
+    getAdvancedModeServerSnapshot,
+  )
+  const [, forceUpdate] = useState(0)
+
+  const setAdvancedMode = useCallback((enabled: boolean) => {
+    if (enabled) {
+      localStorage.setItem(ADVANCED_MODE_KEY, 'true')
+    } else {
+      localStorage.removeItem(ADVANCED_MODE_KEY)
+    }
+    forceUpdate((n) => n + 1)
+  }, [])
 
   // Fetch available languages
   useEffect(() => {
@@ -108,7 +150,7 @@ export function EvaluationFiltersProvider({ children }: { children: React.ReactN
   // Save filters to localStorage
   const saveToStorage = (filters: PreferenceResponse[]) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(filters))
+      localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters))
     } catch (error) {
       console.warn('Failed to save evaluation filters to localStorage:', error)
     }
@@ -135,7 +177,7 @@ export function EvaluationFiltersProvider({ children }: { children: React.ReactN
   useEffect(() => {
     const loadFromStorage = () => {
       try {
-        const stored = localStorage.getItem(STORAGE_KEY)
+        const stored = localStorage.getItem(FILTERS_STORAGE_KEY)
         if (stored) {
           const filters = JSON.parse(stored)
           setFilters(filters)
@@ -164,7 +206,7 @@ export function EvaluationFiltersProvider({ children }: { children: React.ReactN
     }
   }, [initialized, loadingLanguages, languages, filters, updateFilters])
 
-  const value: EvaluationFiltersContextType = {
+  const value: UserPreferencesContextType = {
     filters,
     languages,
     countries,
@@ -172,17 +214,21 @@ export function EvaluationFiltersProvider({ children }: { children: React.ReactN
     loadingCountries,
     initialized,
     updateFilters,
+    isAdvancedMode,
+    setAdvancedMode,
   }
 
-  return (
-    <EvaluationFiltersContext.Provider value={value}>{children}</EvaluationFiltersContext.Provider>
-  )
+  return <UserPreferencesContext.Provider value={value}>{children}</UserPreferencesContext.Provider>
 }
 
-export function useEvaluationFilters() {
-  const context = useContext(EvaluationFiltersContext)
+export function useUserPreferences() {
+  const context = useContext(UserPreferencesContext)
   if (context === undefined) {
-    throw new Error('useEvaluationFilters must be used within an EvaluationFiltersProvider')
+    throw new Error('useUserPreferences must be used within a UserPreferencesProvider')
   }
   return context
 }
+
+// Backwards compatibility alias
+export const useEvaluationFilters = useUserPreferences
+export const EvaluationFiltersProvider = UserPreferencesProvider

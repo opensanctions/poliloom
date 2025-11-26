@@ -1,13 +1,13 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEvaluation } from '@/contexts/EvaluationContext'
+import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { NotificationPage } from '@/components/NotificationPage'
 import { Button } from '@/components/Button'
 
 export default function CompletePage() {
   const router = useRouter()
-  const { sessionGoal, resetSession } = useEvaluation()
+  const { sessionGoal, resetSession } = useEvaluationSession()
 
   const handleStartAnother = () => {
     resetSession()

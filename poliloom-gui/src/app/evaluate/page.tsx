@@ -1,19 +1,28 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Header'
 import { PoliticianEvaluation } from '@/components/PoliticianEvaluation'
-import { useEvaluation } from '@/contexts/EvaluationContext'
+import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useTutorial } from '@/contexts/TutorialContext'
 import Link from 'next/link'
 
 export default function EvaluatePage() {
-  const { currentPolitician, loading, loadPoliticians } = useEvaluation()
+  const router = useRouter()
+  const { currentPolitician, loading, loadPoliticians, isSessionComplete } = useEvaluationSession()
   const { completeTutorial } = useTutorial()
 
   useEffect(() => {
     completeTutorial()
   }, [completeTutorial])
+
+  // Navigate to completion page when session goal is reached
+  useEffect(() => {
+    if (isSessionComplete) {
+      router.push('/evaluate/complete')
+    }
+  }, [isSessionComplete, router])
 
   return (
     <>

@@ -4,19 +4,11 @@ import { render } from '@/test/test-utils'
 import EvaluatePage from './page'
 import { mockPolitician } from '@/test/mock-data'
 
-// Mock fetch for API calls
-global.fetch = vi.fn()
-
-// Mock navigator.languages for browser language detection
-Object.defineProperty(navigator, 'languages', {
-  value: ['en-US'],
-  writable: true,
-})
-
-Object.defineProperty(navigator, 'language', {
-  value: 'en-US',
-  writable: true,
-})
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+  }),
+}))
 
 vi.mock('@/components/Header', () => ({
   Header: () => <div>Header</div>,
@@ -26,49 +18,19 @@ vi.mock('@/components/PoliticianEvaluation', () => ({
   PoliticianEvaluation: () => <div>PoliticianEvaluation Component</div>,
 }))
 
-const mockUseEvaluation = vi.fn()
-vi.mock('@/contexts/EvaluationContext', () => ({
-  useEvaluation: () => mockUseEvaluation(),
-  EvaluationProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+const mockUseEvaluationSession = vi.fn()
+vi.mock('@/contexts/EvaluationSessionContext', () => ({
+  useEvaluationSession: () => mockUseEvaluationSession(),
+  EvaluationSessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
 describe('Evaluate Page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    // Mock fetch for API calls
-    vi.mocked(fetch).mockImplementation((url) => {
-      const urlStr = url.toString()
-
-      if (urlStr.includes('/api/languages')) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          statusText: 'OK',
-          json: async () => [],
-        } as Response)
-      }
-
-      if (urlStr.includes('/api/countries')) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          statusText: 'OK',
-          json: async () => [],
-        } as Response)
-      }
-
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        statusText: 'OK',
-        json: async () => [],
-      } as Response)
-    })
   })
 
   it('shows loading state when loading politicians', async () => {
-    mockUseEvaluation.mockReturnValue({
+    mockUseEvaluationSession.mockReturnValue({
       currentPolitician: null,
       nextPolitician: null,
       loading: true,
@@ -91,7 +53,7 @@ describe('Evaluate Page', () => {
 
   it('shows no politicians message when not loading and no politician available', async () => {
     const mockLoadPoliticians = vi.fn()
-    mockUseEvaluation.mockReturnValue({
+    mockUseEvaluationSession.mockReturnValue({
       currentPolitician: null,
       nextPolitician: null,
       loading: false,
@@ -116,7 +78,7 @@ describe('Evaluate Page', () => {
   })
 
   it('shows PoliticianEvaluation component when politician data is available', async () => {
-    mockUseEvaluation.mockReturnValue({
+    mockUseEvaluationSession.mockReturnValue({
       currentPolitician: mockPolitician,
       nextPolitician: null,
       loading: false,
