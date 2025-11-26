@@ -110,16 +110,16 @@
             "key": "tutorial-position-1",
             "id": "tutorial-position-1",
             "type": "P39",
-            "entity_id": "Q123456",
-            "entity_name": "Member of Parliament",
+            "entity_id": "Q555555",
+            "entity_name": "Member of Springfield Parliament",
             "qualifiers": {
               "P580": [
                 { "datavalue": { "value": { "time": "+2020-01-01T00:00:00Z", "precision": 11 } } }
               ]
             },
             "supporting_quotes": [
-              "has served as a Member of Parliament since January 2020.",
-              "Elected to Parliament in 2020"
+              "Jane Doe has been a Member of the Springfield Parliament since January 2020.",
+              "Elected to Springfield Parliament in 2020"
             ],
             "archived_page": {
               "id": "tutorial-page-1",
@@ -184,8 +184,8 @@
               ]
             },
             "supporting_quotes": [
-              "has served as a Member of Parliament since January 2020.",
-              "Elected to Parliament in 2020"
+              "Jane Doe has been a Member of the Springfield Parliament since January 2020.",
+              "Elected to Springfield Parliament in 2020"
             ],
             "archived_page": {
               "id": "tutorial-page-1",
