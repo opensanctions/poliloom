@@ -152,6 +152,50 @@
           }
         ]
       }
+    },
+    "genericVsSpecific": {
+      "politician": {
+        "id": "tutorial-politician",
+        "name": "Jane Doe",
+        "wikidata_id": "Q955672",
+        "properties": [
+          {
+            "key": "tutorial-existing-specific-position",
+            "id": "tutorial-existing-specific-position",
+            "type": "P39",
+            "entity_id": "Q555555",
+            "entity_name": "Member of Springfield Parliament",
+            "statement_id": "Q955672$existing-specific-1",
+            "qualifiers": {
+              "P580": [
+                { "datavalue": { "value": { "time": "+2020-01-01T00:00:00Z", "precision": 11 } } }
+              ]
+            }
+          },
+          {
+            "key": "tutorial-generic-position",
+            "id": "tutorial-generic-position",
+            "type": "P39",
+            "entity_id": "Q123456",
+            "entity_name": "Member of Parliament",
+            "qualifiers": {
+              "P580": [
+                { "datavalue": { "value": { "time": "+2020-01-01T00:00:00Z", "precision": 11 } } }
+              ]
+            },
+            "supporting_quotes": [
+              "has served as a Member of Parliament since January 2020.",
+              "Elected to Parliament in 2020"
+            ],
+            "archived_page": {
+              "id": "tutorial-page-1",
+              "url": "https://example.parliament.gov/members/jane-doe",
+              "content_hash": "tutorial-hash-1",
+              "fetch_timestamp": "2024-01-15T10:00:00Z"
+            }
+          }
+        ]
+      }
     }
   }
 }

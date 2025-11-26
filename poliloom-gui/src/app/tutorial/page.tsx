@@ -16,6 +16,7 @@ import tutorialData from './tutorialData.json'
 const extractedDataPolitician = tutorialData.steps.extractedData.politician as Politician
 const birthDatePolitician = tutorialData.steps.birthDateEvaluation.politician as Politician
 const multipleSourcesPolitician = tutorialData.steps.multipleSources.politician as Politician
+const genericVsSpecificPolitician = tutorialData.steps.genericVsSpecific.politician as Politician
 
 function TutorialActions({ buttonText, onNext }: { buttonText: string; onNext: () => void }) {
   return (
@@ -65,7 +66,7 @@ export default function TutorialPage() {
 
   // Mark tutorial as completed when reaching the final step
   useEffect(() => {
-    if (step >= 8) {
+    if (step >= 10) {
       completeTutorial()
     }
   }, [step, completeTutorial])
@@ -194,6 +195,27 @@ export default function TutorialPage() {
       <PoliticianEvaluation
         key="step-7"
         politician={multipleSourcesPolitician}
+        footer={<TutorialFooter onNext={nextStep} />}
+        archivedPagesApiPath="/api/tutorial-pages"
+      />
+    )
+  } else if (step === 8) {
+    // Generic vs specific explanation
+    content = (
+      <CenteredCard emoji="🎯" title="Specific Over Generic">
+        <p className="mb-8">
+          Specific data is better than generic data. If a more specific version already exists,
+          reject the generic extraction.
+        </p>
+        <TutorialActions buttonText="Let's try it" onNext={nextStep} />
+      </CenteredCard>
+    )
+  } else if (step === 9) {
+    // Interactive: generic vs specific evaluation
+    content = (
+      <PoliticianEvaluation
+        key="step-9"
+        politician={genericVsSpecificPolitician}
         footer={<TutorialFooter onNext={nextStep} />}
         archivedPagesApiPath="/api/tutorial-pages"
       />
