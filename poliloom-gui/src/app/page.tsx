@@ -31,7 +31,7 @@ export default function Home() {
     if (isAdvancedMode && !hasCompletedAdvancedTutorial) {
       return { ctaHref: '/tutorial', ctaText: 'Start Advanced Tutorial' }
     }
-    return { ctaHref: '/evaluate', ctaText: 'Begin Review Session' }
+    return { ctaHref: '/evaluate', ctaText: 'Begin Evaluation Session' }
   }, [hasCompletedBasicTutorial, hasCompletedAdvancedTutorial, isAdvancedMode])
 
   const languageFilters = filters
@@ -73,12 +73,9 @@ export default function Home() {
           title="Welcome to PoliLoom"
           description={
             <>
-              Help build the world&apos;s largest open database of politicians. Review data
-              extracted from government sources and Wikipedia to ensure accuracy before they&apos;re
+              Help build the world&apos;s largest open database of politicians. Evaluate data
+              extracted from government sources and Wikipedia to ensure accuracy before it&apos;s
               published.
-              <br />
-              <br />
-              Your contributions make political data freely accessible to everyone.
             </>
           }
         />
@@ -86,10 +83,12 @@ export default function Home() {
         {/* Filters Section */}
         <div className="max-w-6xl mx-auto px-8 py-12">
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Customize Your Review Session</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Customize Your Evaluation Session
+            </h2>
             <p className="text-gray-600">
-              Select the countries and languages you&apos;re interested in reviewing. Leave filters
-              empty to review all available politicians.
+              Select the countries and languages you&apos;re interested in evaluating. Leave filters
+              empty to evaluate all available politicians.
             </p>
           </div>
 
@@ -122,8 +121,8 @@ export default function Home() {
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to start?</h3>
                 <p className="text-gray-600">
                   {languageFilters.length > 0 || countryFilters.length > 0
-                    ? 'Your filters are set. Begin reviewing politicians that match your criteria.'
-                    : "No filters selected. You'll review politicians from all languages and countries."}
+                    ? 'Your filters are set. Begin evaluating politicians that match your criteria.'
+                    : "No filters selected. You'll evaluate politicians from all languages and countries."}
                 </p>
               </div>
               <Button href={ctaHref} size="xlarge" className="ml-6">

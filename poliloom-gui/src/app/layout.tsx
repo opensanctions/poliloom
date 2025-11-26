@@ -10,7 +10,7 @@ import { FetchInterceptor } from '@/components/FetchInterceptor'
 export const metadata: Metadata = {
   title: 'PoliLoom - Verify Political Data',
   description:
-    'Help build accurate, open political data. Review and confirm politician information extracted from Wikipedia and government sources before it becomes part of the open knowledge commons.',
+    'Help build accurate, open political data. Evaluate politician information extracted from Wikipedia and government sources before it becomes part of the open knowledge commons.',
 }
 
 export default async function RootLayout({

@@ -28,7 +28,7 @@ export function Header() {
           <div className="flex items-center space-x-4">
             {status === 'authenticated' && session?.user && (
               <>
-                <div className="text-sm text-gray-700">
+                <div className="text-sm text-gray-700 font-medium">
                   Welcome, {session.user.name || session.user.email}
                 </div>
                 <a
