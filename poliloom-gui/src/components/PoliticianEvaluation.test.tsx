@@ -9,6 +9,11 @@ import {
   mockPoliticianWithConflicts,
   mockPoliticianExtractedOnly,
   mockPoliticianExistingOnly,
+  mockPoliticianWithDifferentSources,
+  mockPoliticianWithEdgeCases,
+  mockArchivedPage,
+  mockArchivedPage2,
+  mockArchivedPage3,
 } from '@/test/mock-data'
 
 // Mock the CSS Custom Highlight API for testing
@@ -560,6 +565,141 @@ describe('PoliticianEvaluation', () => {
         expect(
           screen.getByText(/Click.*View.*on any item to see the source page/),
         ).toBeInTheDocument()
+      })
+
+      it('auto-loads the first property with an archived page on mount', () => {
+        render(
+          <PoliticianEvaluation
+            {...defaultProps}
+            politician={mockPoliticianWithDifferentSources}
+            archivedPagesApiPath="/api/archived-pages"
+          />,
+        )
+
+        // The iframe should be present and pointing to the first property's archived page
+        const iframe = screen.getByTitle('Archived Page') as HTMLIFrameElement
+        expect(iframe).toBeInTheDocument()
+        expect(iframe.src).toContain(`/api/archived-pages/${mockArchivedPage.id}/html`)
+
+        // The first property should show "Viewing" (active state)
+        // First new property is prop-source-1 (birth date) with archived-1
+        const viewButtons = screen.getAllByRole('button', { name: /• View|• Viewing/ })
+        // First button should show "Viewing" since it's auto-loaded
+        expect(viewButtons[0]).toHaveTextContent('• Viewing')
+      })
+
+      it('clicking View on a property updates the iframe to show that archived page', () => {
+        render(
+          <PoliticianEvaluation
+            {...defaultProps}
+            politician={mockPoliticianWithDifferentSources}
+            archivedPagesApiPath="/api/archived-pages"
+          />,
+        )
+
+        // Initially showing first archived page
+        const iframe = screen.getByTitle('Archived Page') as HTMLIFrameElement
+        expect(iframe.src).toContain(`/api/archived-pages/${mockArchivedPage.id}/html`)
+
+        // Find the View button for the second property (Governor position with archived-2)
+        // It should show "View" not "Viewing" since the first property is auto-loaded
+        const viewButtons = screen.getAllByRole('button', { name: /• View|• Viewing/ })
+
+        // Click on the second View button (for the position with archived-2)
+        const secondViewButton = viewButtons.find((btn) => btn.textContent === '• View')
+        expect(secondViewButton).toBeDefined()
+        fireEvent.click(secondViewButton!)
+
+        // Iframe should now point to the second archived page
+        expect(iframe.src).toContain(`/api/archived-pages/${mockArchivedPage2.id}/html`)
+
+        // The clicked button should now show "Viewing"
+        expect(secondViewButton).toHaveTextContent('• Viewing')
+      })
+
+      it('switching between properties with different archived pages updates the iframe', async () => {
+        render(
+          <PoliticianEvaluation
+            {...defaultProps}
+            politician={mockPoliticianWithDifferentSources}
+            archivedPagesApiPath="/api/archived-pages"
+          />,
+        )
+
+        const iframe = screen.getByTitle('Archived Page') as HTMLIFrameElement
+
+        // Initially showing first archived page (archived-1)
+        expect(iframe.src).toContain(`/api/archived-pages/${mockArchivedPage.id}/html`)
+
+        // Get all View buttons
+        const viewButtons = screen.getAllByRole('button', { name: /• View|• Viewing/ })
+        expect(viewButtons.length).toBe(3) // Three properties with archived pages
+
+        // Click the second button (Governor - archived-2)
+        fireEvent.click(viewButtons[1])
+        expect(iframe.src).toContain(`/api/archived-pages/${mockArchivedPage2.id}/html`)
+
+        // Click the third button (Birthplace - archived-3)
+        fireEvent.click(viewButtons[2])
+        expect(iframe.src).toContain(`/api/archived-pages/${mockArchivedPage3.id}/html`)
+
+        // Click back to first button (Birth Date - archived-1)
+        fireEvent.click(viewButtons[0])
+        expect(iframe.src).toContain(`/api/archived-pages/${mockArchivedPage.id}/html`)
+      })
+
+      it('only the active property View button shows "Viewing"', () => {
+        render(
+          <PoliticianEvaluation
+            {...defaultProps}
+            politician={mockPoliticianWithDifferentSources}
+            archivedPagesApiPath="/api/archived-pages"
+          />,
+        )
+
+        // Get all View buttons
+        const viewButtons = screen.getAllByRole('button', { name: /• View|• Viewing/ })
+
+        // Initially only the first should be active
+        expect(viewButtons[0]).toHaveTextContent('• Viewing')
+        expect(viewButtons[1]).toHaveTextContent('• View')
+        expect(viewButtons[2]).toHaveTextContent('• View')
+
+        // Click the second button
+        fireEvent.click(viewButtons[1])
+
+        // Now second should be active, others should not
+        expect(viewButtons[0]).toHaveTextContent('• View')
+        expect(viewButtons[1]).toHaveTextContent('• Viewing')
+        expect(viewButtons[2]).toHaveTextContent('• View')
+
+        // Click the third button
+        fireEvent.click(viewButtons[2])
+
+        // Now third should be active
+        expect(viewButtons[0]).toHaveTextContent('• View')
+        expect(viewButtons[1]).toHaveTextContent('• View')
+        expect(viewButtons[2]).toHaveTextContent('• Viewing')
+      })
+
+      it('does not show View button for Wikidata statements even if they have archived pages', () => {
+        render(
+          <PoliticianEvaluation
+            {...defaultProps}
+            politician={mockPoliticianWithEdgeCases}
+            archivedPagesApiPath="/api/archived-pages"
+          />,
+        )
+
+        // The mockPoliticianWithEdgeCases has Wikidata statements with archived pages
+        // but View buttons should only appear for the non-Wikidata statements
+
+        // There should be at least one View button (for the extracted statement)
+        const viewButtons = screen.getAllByRole('button', { name: /• View|• Viewing/ })
+
+        // Only the extracted statement (prop-extracted-1) should have a View button
+        // The Wikidata statements should not show View buttons
+        expect(viewButtons.length).toBe(1)
       })
     })
   })

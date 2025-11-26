@@ -7,6 +7,20 @@ const mockArchivedPage: ArchivedPageResponse = {
   fetch_timestamp: '2024-01-01T00:00:00Z',
 }
 
+const mockArchivedPage2: ArchivedPageResponse = {
+  id: 'archived-2',
+  url: 'https://government.example.com/officials/test-politician',
+  content_hash: 'def456',
+  fetch_timestamp: '2024-02-15T00:00:00Z',
+}
+
+const mockArchivedPage3: ArchivedPageResponse = {
+  id: 'archived-3',
+  url: 'https://news.example.com/article/politician-bio',
+  content_hash: 'ghi789',
+  fetch_timestamp: '2024-03-20T00:00:00Z',
+}
+
 export const mockPolitician: Politician = {
   id: 'pol-1',
   name: 'Test Politician',
@@ -251,3 +265,48 @@ export const mockPoliticianWithEdgeCases: Politician = {
     },
   ],
 }
+
+// Mock politician with different archived pages for testing View button switching
+export const mockPoliticianWithDifferentSources: Politician = {
+  id: 'pol-different-sources',
+  name: 'Multi-Source Politician',
+  wikidata_id: 'Q999888',
+  properties: [
+    {
+      key: 'prop-source-1',
+      id: 'prop-source-1',
+      type: PropertyType.P569,
+      value: '+1975-06-15T00:00:00Z',
+      value_precision: 11,
+      statement_id: null,
+      supporting_quotes: ['born on June 15, 1975'],
+      archived_page: mockArchivedPage, // archived-1
+    },
+    {
+      key: 'pos-source-2',
+      id: 'pos-source-2',
+      type: PropertyType.P39,
+      entity_id: 'Q444555',
+      entity_name: 'Governor',
+      statement_id: null,
+      qualifiers: {
+        P580: [{ datavalue: { value: { time: '+2018-01-01T00:00:00Z', precision: 11 } } }],
+      },
+      supporting_quotes: ['elected governor in 2018'],
+      archived_page: mockArchivedPage2, // archived-2
+    },
+    {
+      key: 'birth-source-3',
+      id: 'birth-source-3',
+      type: PropertyType.P19,
+      entity_id: 'Q666777',
+      entity_name: 'Capital City',
+      statement_id: null,
+      supporting_quotes: ['was born in Capital City'],
+      archived_page: mockArchivedPage3, // archived-3
+    },
+  ],
+}
+
+// Export archived pages for tests
+export { mockArchivedPage, mockArchivedPage2, mockArchivedPage3 }
