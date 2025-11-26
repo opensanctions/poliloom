@@ -516,7 +516,7 @@ export default function TutorialPage() {
       content = (
         <SuccessFeedback
           title="Great Choice!"
-          message="You accepted the new specific data and kept the existing data. The existing statement has multiple references and qualifiers (electoral district, parliamentary term) that would be lost if deprecated. In cases like this, add your new data through PoliLoom, then manually edit Wikidata to merge or update the existing statement."
+          message="You accepted the new specific data and kept the existing data with its valuable metadata. Well done!"
           onNext={nextStep}
         />
       )
@@ -557,13 +557,13 @@ export default function TutorialPage() {
       <CenteredCard emoji="💡" title="Key Takeaways">
         <div className="mb-8 space-y-4">
           <p>
-            <strong>Simple cases:</strong> Feel free to deprecate generic or incorrect existing data
-            when you have better, more specific information.
+            Feel free to deprecate generic or incorrect existing data when you have better, more
+            specific information.
           </p>
           <p>
-            <strong>Data with metadata:</strong> When existing data has references or qualifiers,
-            consider whether that metadata is valuable. You might want to add your data first, then
-            edit Wikidata manually to preserve the metadata.
+            When existing data has references or qualifiers, consider whether that metadata is
+            valuable. You might want to add your data first, then edit Wikidata manually to preserve
+            the metadata.
           </p>
         </div>
         <TutorialActions buttonText="Got It!" onNext={nextStep} />
