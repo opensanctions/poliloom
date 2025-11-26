@@ -250,6 +250,14 @@ describe('Tutorial Page', () => {
       expect(checkButton).not.toBeDisabled()
     })
 
+    it('goes back to step 4 when clicking "Go Back"', () => {
+      render(<TutorialContent initialStep={5} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Go Back' }))
+
+      expect(screen.getByText('Give It a Try')).toBeInTheDocument()
+    })
+
     describe('Input combinations', () => {
       it('shows success when accepting correct date and rejecting incorrect date', () => {
         render(<TutorialContent initialStep={5} />)
@@ -434,6 +442,14 @@ describe('Tutorial Page', () => {
       expect(screen.getByRole('button', { name: 'Check Answers' })).toBeDisabled()
     })
 
+    it('goes back to step 7 when clicking "Go Back"', () => {
+      render(<TutorialContent initialStep={8} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Go Back' }))
+
+      expect(screen.getByText('Multiple Sources')).toBeInTheDocument()
+    })
+
     describe('Input combinations', () => {
       it('shows success when accepting both positions', () => {
         render(<TutorialContent initialStep={8} />)
@@ -534,6 +550,14 @@ describe('Tutorial Page', () => {
       fireEvent.click(rejectButtons[0]) // Reject the generic one
 
       expect(screen.getByRole('button', { name: 'Check Answers' })).not.toBeDisabled()
+    })
+
+    it('goes back to step 10 when clicking "Go Back"', () => {
+      render(<TutorialContent initialStep={11} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Go Back' }))
+
+      expect(screen.getByText('Specific Over Generic')).toBeInTheDocument()
     })
 
     describe('Input combinations', () => {
@@ -739,6 +763,14 @@ describe('Tutorial Page', () => {
         expect(screen.getByText('Member of Springfield Parliament')).toBeInTheDocument()
       })
 
+      it('goes back to step 15 when clicking "Go Back"', () => {
+        render(<TutorialContent initialStep={16} />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Go Back' }))
+
+        expect(screen.getByText('Replacing Generic Data')).toBeInTheDocument()
+      })
+
       describe('Input combinations', () => {
         it('shows success when deprecating generic and accepting specific', () => {
           render(<TutorialContent initialStep={16} />)
@@ -814,6 +846,14 @@ describe('Tutorial Page', () => {
         expect(screen.getByText('Political Positions')).toBeInTheDocument()
         expect(screen.getByText('Member of Parliament')).toBeInTheDocument()
         expect(screen.getByText('Member of Springfield Parliament')).toBeInTheDocument()
+      })
+
+      it('goes back to step 17 when clicking "Go Back"', () => {
+        render(<TutorialContent initialStep={18} />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Go Back' }))
+
+        expect(screen.getByText('Data With Metadata')).toBeInTheDocument()
       })
 
       describe('Input combinations', () => {

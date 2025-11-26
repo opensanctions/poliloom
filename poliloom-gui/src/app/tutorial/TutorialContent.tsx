@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Header } from '@/components/layout/Header'
 import { TwoPanel } from '@/components/layout/TwoPanel'
-import { Anchor } from '@/components/ui/Anchor'
+import { Button } from '@/components/ui/Button'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { PoliticianEvaluationView } from '@/components/evaluation/PoliticianEvaluationView'
 import { PoliticianHeader } from '@/components/evaluation/PoliticianHeader'
@@ -171,12 +171,9 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         <p className="mb-8">
           You&apos;re all set! You now have everything you need to start verifying politician data.
         </p>
-        <Anchor
-          href="/evaluate"
-          className="inline-flex items-center justify-center px-6 py-3 w-full bg-indigo-600 text-white font-medium hover:bg-indigo-700 rounded-md transition-colors"
-        >
+        <Button href="/evaluate" size="large" fullWidth>
           Start Evaluating
-        </Anchor>
+        </Button>
       </CenteredCard>
     )
   } else if (step === 0) {
@@ -288,6 +285,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
               setBirthDateResult(result)
               nextStep()
             }}
+            onBack={() => setStep(4)}
           />
         )}
         archivedPagesApiPath="/api/tutorial-pages"
@@ -343,6 +341,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
               setMultipleSourcesResult(result)
               nextStep()
             }}
+            onBack={() => setStep(7)}
           />
         )}
         archivedPagesApiPath="/api/tutorial-pages"
@@ -398,6 +397,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
               setGenericVsSpecificResult(result)
               nextStep()
             }}
+            onBack={() => setStep(10)}
           />
         )}
         archivedPagesApiPath="/api/tutorial-pages"
@@ -511,6 +511,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                 const result = checkEvaluations(evaluations, deprecateSimpleExpected)
                 setDeprecateSimpleResult(result)
               }}
+              onBack={() => setStep(15)}
             />
           )}
           archivedPagesApiPath="/api/tutorial-pages"
@@ -567,6 +568,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                 const result = checkEvaluations(evaluations, deprecateWithMetadataExpected)
                 setDeprecateWithMetadataResult(result)
               }}
+              onBack={() => setStep(17)}
             />
           )}
           archivedPagesApiPath="/api/tutorial-pages"

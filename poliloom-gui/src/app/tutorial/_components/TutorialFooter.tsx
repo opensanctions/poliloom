@@ -1,23 +1,34 @@
+import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
-import { Anchor } from '@/components/ui/Anchor'
 
 interface TutorialFooterProps {
   evaluations: Map<string, boolean>
   requiredKeys: string[]
   onSubmit: () => void
+  onBack: () => void
 }
 
-export function TutorialFooter({ evaluations, requiredKeys, onSubmit }: TutorialFooterProps) {
+export function TutorialFooter({
+  evaluations,
+  requiredKeys,
+  onSubmit,
+  onBack,
+}: TutorialFooterProps) {
   const isComplete = requiredKeys.every((key) => evaluations.has(key))
 
   return (
     <div className="flex justify-between items-center">
-      <Anchor href="/evaluate" className="text-gray-500 hover:text-gray-700 font-medium">
+      <Link href="/evaluate" className="text-gray-600 hover:text-gray-800 font-medium">
         Skip Tutorial
-      </Anchor>
-      <Button onClick={onSubmit} disabled={!isComplete} className="px-6 py-3">
-        Check Answers
-      </Button>
+      </Link>
+      <div className="flex gap-3">
+        <Button onClick={onBack} variant="secondary" size="large">
+          Go Back
+        </Button>
+        <Button onClick={onSubmit} disabled={!isComplete} size="large">
+          Check Answers
+        </Button>
+      </div>
     </div>
   )
 }

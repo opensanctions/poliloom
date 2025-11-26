@@ -42,7 +42,7 @@ export default function LoginPage() {
               <p className="text-gray-600">
                 Please sign in with your MediaWiki account to start evaluating data.
               </p>
-              <Button onClick={handleSignIn} className="px-6 py-3 text-base">
+              <Button onClick={handleSignIn} size="large">
                 Sign in with MediaWiki
               </Button>
             </div>

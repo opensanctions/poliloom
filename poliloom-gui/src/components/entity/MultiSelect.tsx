@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ContainerBox } from '@/components/ui/ContainerBox'
+import { Input } from '@/components/ui/Input'
 
 export interface MultiSelectOption {
   value: string
@@ -89,13 +90,12 @@ export function MultiSelect({
     <ContainerBox title={title} description={description} icon={icon} loading={loading}>
       {/* Search */}
       <div className="mb-4">
-        <input
+        <Input
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Start typing to search..."
           disabled={disabled || loading}
-          className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed text-sm text-gray-900 placeholder-gray-400 transition-all"
           autoComplete="off"
         />
       </div>
@@ -115,12 +115,12 @@ export function MultiSelect({
                 }}
                 disabled={disabled || loading}
                 className={`
-                    px-4 py-2 rounded-lg text-sm font-medium transition-all
-                    border-2 disabled:cursor-not-allowed inline-flex items-center gap-2
+                    px-4 py-2 rounded-md text-sm font-medium transition-all cursor-pointer
+                    border disabled:cursor-not-allowed inline-flex items-center gap-2
                     ${
                       isSelected
-                        ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700 hover:border-indigo-700 shadow-sm'
-                        : 'bg-white border-gray-200 text-gray-700 hover:border-indigo-300 hover:bg-indigo-50'
+                        ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700 hover:border-indigo-700'
+                        : 'bg-white border-gray-300 text-gray-700 hover:border-indigo-300 hover:bg-indigo-50'
                     }
                     ${disabled ? 'opacity-50' : ''}
                   `}

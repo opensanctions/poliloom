@@ -280,7 +280,7 @@ export default function CreatePage() {
                   <Button type="button" variant="secondary" onClick={() => window.history.back()}>
                     Cancel
                   </Button>
-                  <Button type="button" onClick={handleSubmit} className="px-6 py-3">
+                  <Button type="button" onClick={handleSubmit} size="large">
                     {selectedPolitician.id ? 'Update Politician' : 'Create Politician'}
                   </Button>
                 </div>

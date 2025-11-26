@@ -2,8 +2,8 @@
 
 import { useSession, signOut, signIn } from 'next-auth/react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
-import { Anchor } from '@/components/ui/Anchor'
 
 export function Header() {
   const { data: session, status } = useSession()
@@ -13,7 +13,7 @@ export function Header() {
       <div className="w-full pl-6 pr-4 sm:pr-6 lg:pr-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <Anchor href="/" className="flex items-center gap-2 text-xl font-bold text-gray-900">
+            <Link href="/" className="flex items-center gap-2 text-xl font-bold text-gray-900">
               <Image
                 src="https://assets.opensanctions.org/images/ep/logo-icon-color.svg"
                 alt="European Parliament"
@@ -22,7 +22,7 @@ export function Header() {
                 className="h-8 w-8"
               />
               PoliLoom
-            </Anchor>
+            </Link>
           </div>
 
           <div className="flex items-center space-x-4">
@@ -31,12 +31,18 @@ export function Header() {
                 <div className="text-sm text-gray-700">
                   Welcome, {session.user.name || session.user.email}
                 </div>
-                <Anchor href="https://www.opensanctions.org/impressum/">Impressum</Anchor>
+                <a
+                  href="https://www.opensanctions.org/impressum/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2 py-1 text-sm text-gray-600 hover:text-gray-800 transition-colors font-medium"
+                >
+                  Impressum
+                </a>
                 <Button
                   onClick={() => signOut({ callbackUrl: '/' })}
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-500 hover:text-gray-700"
+                  variant="secondary"
+                  size="small"
                 >
                   Sign out
                 </Button>
@@ -45,12 +51,18 @@ export function Header() {
 
             {status === 'unauthenticated' && (
               <>
-                <Anchor href="https://www.opensanctions.org/impressum/">Impressum</Anchor>
+                <a
+                  href="https://www.opensanctions.org/impressum/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2 py-1 text-sm text-gray-600 hover:text-gray-800 transition-colors font-medium"
+                >
+                  Impressum
+                </a>
                 <Button
                   onClick={() => signIn('wikimedia', { callbackUrl: '/' })}
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-600 hover:text-gray-800"
+                  variant="secondary"
+                  size="small"
                 >
                   Sign in
                 </Button>

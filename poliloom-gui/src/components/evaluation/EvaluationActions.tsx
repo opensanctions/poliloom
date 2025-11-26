@@ -43,7 +43,7 @@ export function EvaluationActions({
         <>
           <DataLabel variant="new">New data 🎉</DataLabel>
           <Button
-            size="sm"
+            size="small"
             variant="success"
             active={isAccepted === true}
             onClick={() => onAction?.(statementId, 'accept')}
@@ -56,7 +56,7 @@ export function EvaluationActions({
         <DataLabel variant="existing">Existing data</DataLabel>
       )}
       <Button
-        size="sm"
+        size="small"
         variant={isWikidataStatement && isAccepted !== false ? 'secondary' : 'danger'}
         active={isAccepted === false}
         onClick={() => onAction?.(statementId, 'reject')}

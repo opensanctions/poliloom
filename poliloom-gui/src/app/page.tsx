@@ -2,7 +2,7 @@
 
 import { Header } from '@/components/layout/Header'
 import { Hero } from '@/components/layout/Hero'
-import { Anchor } from '@/components/ui/Anchor'
+import { Button } from '@/components/ui/Button'
 import { Toggle } from '@/components/ui/Toggle'
 import { MultiSelect, MultiSelectOption } from '@/components/entity/MultiSelect'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
@@ -73,7 +73,7 @@ export default function Home() {
           title="Welcome to PoliLoom"
           description={
             <>
-              Help build the world&apos;s largest open database of politicians. Review facts
+              Help build the world&apos;s largest open database of politicians. Review data
               extracted from government sources and Wikipedia to ensure accuracy before they&apos;re
               published.
               <br />
@@ -126,12 +126,9 @@ export default function Home() {
                     : "No filters selected. You'll review politicians from all languages and countries."}
                 </p>
               </div>
-              <Anchor
-                href={ctaHref}
-                className="bg-indigo-600 text-white font-semibold hover:bg-indigo-700 px-8 py-4 rounded-lg transition-colors shadow-sm hover:shadow-md whitespace-nowrap ml-6"
-              >
+              <Button href={ctaHref} size="xlarge" className="ml-6">
                 {ctaText}
-              </Anchor>
+              </Button>
             </div>
 
             {/* Advanced Mode Toggle */}

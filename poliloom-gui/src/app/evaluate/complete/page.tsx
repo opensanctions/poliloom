@@ -25,10 +25,10 @@ export default function CompletePage() {
       title="Session Complete!"
       description={<p>Great work! You&apos;ve reviewed {sessionGoal} politicians.</p>}
     >
-      <Button onClick={handleStartAnother} className="px-6 py-3 w-full">
+      <Button onClick={handleStartAnother} size="large" fullWidth>
         Start Another Round
       </Button>
-      <Button onClick={handleReturnHome} variant="secondary" className="px-6 py-3 w-full">
+      <Button onClick={handleReturnHome} variant="secondary" size="large" fullWidth>
         Return Home
       </Button>
     </NotificationPage>
