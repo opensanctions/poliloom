@@ -28,7 +28,9 @@ interface UserPreferencesContextType {
   setAdvancedMode: (enabled: boolean) => void
 }
 
-const UserPreferencesContext = createContext<UserPreferencesContextType | undefined>(undefined)
+export const UserPreferencesContext = createContext<UserPreferencesContextType | undefined>(
+  undefined,
+)
 
 const FILTERS_STORAGE_KEY = 'poliloom_evaluation_filters'
 const ADVANCED_MODE_KEY = 'poliloom_advanced_mode'

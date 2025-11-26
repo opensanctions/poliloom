@@ -1,9 +1,9 @@
 import React, { ReactElement } from 'react'
 import { render, RenderOptions } from '@testing-library/react'
 import { vi } from 'vitest'
-import { UserPreferencesProvider } from '@/contexts/UserPreferencesContext'
-import { TutorialProvider } from '@/contexts/TutorialContext'
-import { EvaluationSessionProvider } from '@/contexts/EvaluationSessionContext'
+import { UserPreferencesContext } from '@/contexts/UserPreferencesContext'
+import { TutorialContext } from '@/contexts/TutorialContext'
+import { EvaluationSessionContext } from '@/contexts/EvaluationSessionContext'
 
 // Mock useAuthSession to avoid next-auth SessionProvider dependency
 vi.mock('@/hooks/useAuthSession', () => ({
@@ -14,36 +14,74 @@ vi.mock('@/hooks/useAuthSession', () => ({
   }),
 }))
 
-// Mock fetch globally for provider API calls
-const mockFetch = vi.fn()
-
-// Set default implementation (can be overridden in tests)
-mockFetch.mockImplementation((url: string) => {
-  if (url.includes('/api/languages')) {
-    return Promise.resolve({ ok: true, json: async () => [] })
-  }
-  if (url.includes('/api/countries')) {
-    return Promise.resolve({ ok: true, json: async () => [] })
-  }
-  if (url.includes('/api/politicians')) {
-    return Promise.resolve({ ok: true, json: async () => [] })
-  }
-  if (url.includes('/api/evaluations')) {
-    return Promise.resolve({ ok: true, json: async () => ({ success: true }) })
-  }
-  return Promise.resolve({ ok: true, json: async () => [] })
+// Mock fetch for tests that need to verify API calls
+export const mockFetch = vi.fn().mockResolvedValue({
+  ok: true,
+  json: async () => ({ success: true }),
 })
 global.fetch = mockFetch as unknown as typeof fetch
 
-export { mockFetch }
+// Mock functions exported for test assertions
+export const mockSubmitEvaluation = vi.fn()
+export const mockSkipPolitician = vi.fn()
+
+// Mock providers with static values - no useEffects, no async side effects
+const MockTutorialProvider = ({ children }: { children: React.ReactNode }) => (
+  <TutorialContext.Provider
+    value={{
+      hasCompletedTutorial: true,
+      completeTutorial: vi.fn(),
+      resetTutorial: vi.fn(),
+    }}
+  >
+    {children}
+  </TutorialContext.Provider>
+)
+
+const MockUserPreferencesProvider = ({ children }: { children: React.ReactNode }) => (
+  <UserPreferencesContext.Provider
+    value={{
+      filters: [],
+      languages: [],
+      countries: [],
+      loadingLanguages: false,
+      loadingCountries: false,
+      initialized: true,
+      updateFilters: vi.fn(),
+      isAdvancedMode: false,
+      setAdvancedMode: vi.fn(),
+    }}
+  >
+    {children}
+  </UserPreferencesContext.Provider>
+)
+
+const MockEvaluationSessionProvider = ({ children }: { children: React.ReactNode }) => (
+  <EvaluationSessionContext.Provider
+    value={{
+      currentPolitician: null,
+      nextPolitician: null,
+      loading: false,
+      completedCount: 0,
+      sessionGoal: 5,
+      isSessionComplete: false,
+      submitEvaluation: mockSubmitEvaluation,
+      skipPolitician: mockSkipPolitician,
+      resetSession: vi.fn(),
+      loadPoliticians: vi.fn(),
+    }}
+  >
+    {children}
+  </EvaluationSessionContext.Provider>
+)
 
 const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
   return (
-    <TutorialProvider>
-      <UserPreferencesProvider>
-        <EvaluationSessionProvider>{children}</EvaluationSessionProvider>
-      </UserPreferencesProvider>
-    </TutorialProvider>
+    <MockTutorialProvider>
+      <MockUserPreferencesProvider>
+        <MockEvaluationSessionProvider>{children}</MockEvaluationSessionProvider>
+      </MockUserPreferencesProvider>
+    </MockTutorialProvider>
   )
 }
 

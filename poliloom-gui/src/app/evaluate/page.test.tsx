@@ -19,10 +19,13 @@ vi.mock('@/components/PoliticianEvaluation', () => ({
 }))
 
 const mockUseEvaluationSession = vi.fn()
-vi.mock('@/contexts/EvaluationSessionContext', () => ({
-  useEvaluationSession: () => mockUseEvaluationSession(),
-  EvaluationSessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}))
+vi.mock('@/contexts/EvaluationSessionContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/contexts/EvaluationSessionContext')>()
+  return {
+    ...actual,
+    useEvaluationSession: () => mockUseEvaluationSession(),
+  }
+})
 
 describe('Evaluate Page', () => {
   beforeEach(() => {

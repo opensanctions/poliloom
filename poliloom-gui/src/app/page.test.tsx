@@ -42,10 +42,13 @@ vi.mock('next-auth/react', () => ({
 }))
 
 const mockUseTutorial = vi.fn()
-vi.mock('@/contexts/TutorialContext', () => ({
-  useTutorial: () => mockUseTutorial(),
-  TutorialProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}))
+vi.mock('@/contexts/TutorialContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/contexts/TutorialContext')>()
+  return {
+    ...actual,
+    useTutorial: () => mockUseTutorial(),
+  }
+})
 
 describe('Home Page (Filter Selection)', () => {
   beforeEach(() => {

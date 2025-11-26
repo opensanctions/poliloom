@@ -31,7 +31,7 @@ interface TutorialContextType {
   resetTutorial: () => void
 }
 
-const TutorialContext = createContext<TutorialContextType | undefined>(undefined)
+export const TutorialContext = createContext<TutorialContextType | undefined>(undefined)
 
 export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const hasCompletedTutorial = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)

@@ -29,7 +29,9 @@ interface EvaluationSessionContextType {
   loadPoliticians: () => Promise<void>
 }
 
-const EvaluationSessionContext = createContext<EvaluationSessionContextType | undefined>(undefined)
+export const EvaluationSessionContext = createContext<EvaluationSessionContextType | undefined>(
+  undefined,
+)
 
 export function EvaluationSessionProvider({ children }: { children: React.ReactNode }) {
   const { session, isAuthenticated } = useAuthSession()

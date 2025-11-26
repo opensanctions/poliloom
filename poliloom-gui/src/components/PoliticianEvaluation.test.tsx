@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, fireEvent, waitFor, render, mockFetch } from '@/test/test-utils'
+import { screen, fireEvent, waitFor, render, mockSubmitEvaluation } from '@/test/test-utils'
 import { PoliticianEvaluation } from './PoliticianEvaluation'
 import { PropertyType } from '@/types'
 import {
@@ -49,7 +49,7 @@ describe('PoliticianEvaluation', () => {
 
   beforeEach(() => {
     CSS.highlights.clear()
-    mockFetch.mockClear()
+    mockSubmitEvaluation.mockClear()
   })
 
   it('renders politician name and wikidata id', () => {
@@ -146,30 +146,18 @@ describe('PoliticianEvaluation', () => {
     fireEvent.click(submitButton)
 
     await waitFor(() => {
-      const evaluationCall = mockFetch.mock.calls.find((call) => call[0] === '/api/evaluations') as
-        | [string, RequestInit]
-        | undefined
-      expect(evaluationCall).toBeDefined()
-      const body = JSON.parse(evaluationCall![1].body as string)
-      expect(body.evaluations).toContainEqual({ id: 'prop-1', is_accepted: false })
+      expect(mockSubmitEvaluation).toHaveBeenCalled()
+      const evaluations = mockSubmitEvaluation.mock.calls[0][0]
+      expect(evaluations).toContainEqual({ id: 'prop-1', is_accepted: false })
       if (acceptButtons[1]) {
-        expect(body.evaluations).toContainEqual({ id: 'pos-1', is_accepted: true })
+        expect(evaluations).toContainEqual({ id: 'pos-1', is_accepted: true })
       }
     })
   })
 
   it('preserves evaluation state when submission fails', async () => {
-    // Override fetch to return error for evaluations
-    mockFetch.mockImplementation((url: string) => {
-      if (url.includes('/api/evaluations')) {
-        return Promise.resolve({
-          ok: false,
-          statusText: 'Submission failed',
-          json: async () => ({}),
-        })
-      }
-      return Promise.resolve({ ok: true, json: async () => [] })
-    })
+    // Make submitEvaluation reject to simulate failure
+    mockSubmitEvaluation.mockRejectedValueOnce(new Error('Submission failed'))
 
     render(<PoliticianEvaluation {...defaultProps} />)
 
@@ -190,7 +178,7 @@ describe('PoliticianEvaluation', () => {
     fireEvent.click(submitButton)
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith('/api/evaluations', expect.anything())
+      expect(mockSubmitEvaluation).toHaveBeenCalled()
     })
 
     // Verify evaluation state is PRESERVED after failed submission
@@ -201,13 +189,8 @@ describe('PoliticianEvaluation', () => {
   })
 
   it('preserves evaluation state when network request fails', async () => {
-    // Override fetch to reject (network failure)
-    mockFetch.mockImplementation((url: string) => {
-      if (url.includes('/api/evaluations')) {
-        return Promise.reject(new Error('Network connection failed'))
-      }
-      return Promise.resolve({ ok: true, json: async () => [] })
-    })
+    // Make submitEvaluation reject to simulate network failure
+    mockSubmitEvaluation.mockRejectedValueOnce(new Error('Network connection failed'))
 
     render(<PoliticianEvaluation {...defaultProps} />)
 
@@ -221,7 +204,7 @@ describe('PoliticianEvaluation', () => {
     fireEvent.click(submitButton)
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith('/api/evaluations', expect.anything())
+      expect(mockSubmitEvaluation).toHaveBeenCalled()
     })
 
     // Verify evaluation state is PRESERVED after network failure
@@ -465,7 +448,7 @@ describe('PoliticianEvaluation', () => {
         fireEvent.click(submitButton)
 
         await waitFor(() => {
-          expect(mockFetch).toHaveBeenCalledWith('/api/evaluations', expect.anything())
+          expect(mockSubmitEvaluation).toHaveBeenCalled()
         })
       })
     })
