@@ -145,6 +145,10 @@ export default function TutorialPage() {
               On the left, you&apos;ll see data automatically extracted from those source documents,
               alongside existing data already known.
             </p>
+            <p className="mt-4">
+              New items show the source text that was used as evidence for the extraction, and allow
+              you to view the source document.
+            </p>
             <div className="mt-8">
               <TutorialActions buttonText="Next" onNext={nextStep} />
             </div>
@@ -174,40 +178,15 @@ export default function TutorialPage() {
       />
     )
   } else if (step === 6) {
-    // Multiple sources explanation (properties left, explanation right)
+    // Multiple sources explanation
     content = (
-      <TwoPanel
-        left={
-          <>
-            <div className="mb-6">
-              <div className="text-sm text-indigo-600 font-medium mb-2">Tutorial Mode</div>
-              <PoliticianHeader
-                name={multipleSourcesPolitician.name}
-                wikidataId={multipleSourcesPolitician.wikidata_id ?? undefined}
-              />
-            </div>
-            <PropertiesEvaluation
-              properties={multipleSourcesPolitician.properties}
-              evaluations={new Map()}
-              onAction={() => {}}
-              onShowArchived={() => {}}
-              onHover={() => {}}
-              activeArchivedPageId={null}
-            />
-          </>
-        }
-        right={
-          <CenteredCard emoji="📚" title="Multiple Sources">
-            <p>
-              Sometimes information comes from different source documents. Next, try switching
-              between these to evaluate all statements.
-            </p>
-            <div className="mt-8">
-              <TutorialActions buttonText="Let's do it" onNext={nextStep} />
-            </div>
-          </CenteredCard>
-        }
-      />
+      <CenteredCard emoji="📚" title="Multiple Sources">
+        <p className="mb-8">
+          Sometimes information comes from different source documents. Next, try switching between
+          these to evaluate all statements.
+        </p>
+        <TutorialActions buttonText="Let's do it" onNext={nextStep} />
+      </CenteredCard>
     )
   } else if (step === 7) {
     // Interactive: positions evaluation
