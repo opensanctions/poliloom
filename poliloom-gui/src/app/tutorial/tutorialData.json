@@ -252,6 +252,20 @@
             "qualifiers": {
               "P580": [
                 { "datavalue": { "value": { "time": "+2020-01-01T00:00:00Z", "precision": 11 } } }
+              ],
+              "P768": [
+                {
+                  "datavalue": {
+                    "value": { "entity-type": "item", "id": "Q987654", "numeric-id": 987654 }
+                  }
+                }
+              ],
+              "P2937": [
+                {
+                  "datavalue": {
+                    "value": { "entity-type": "item", "id": "Q456789", "numeric-id": 456789 }
+                  }
+                }
               ]
             },
             "references": [
@@ -261,6 +275,32 @@
                 ],
                 "P813": [
                   { "datavalue": { "value": { "time": "+2020-02-15T00:00:00Z", "precision": 11 } } }
+                ],
+                "P1476": [
+                  {
+                    "datavalue": {
+                      "value": { "text": "Official Election Results 2020", "language": "en" }
+                    }
+                  }
+                ]
+              },
+              {
+                "P854": [
+                  {
+                    "datavalue": {
+                      "value": "https://news.example.com/politics/election-winners-2020"
+                    }
+                  }
+                ],
+                "P813": [
+                  { "datavalue": { "value": { "time": "+2020-01-05T00:00:00Z", "precision": 11 } } }
+                ],
+                "P1476": [
+                  {
+                    "datavalue": {
+                      "value": { "text": "Election Winners Announced", "language": "en" }
+                    }
+                  }
                 ]
               }
             ]

@@ -20,14 +20,18 @@ interface PoliticianEvaluationViewProps {
   politician: Politician
   footer: (evaluations: Map<string, boolean>) => ReactNode
   archivedPagesApiPath?: string
+  initialEvaluations?: Map<string, boolean>
 }
 
 export function PoliticianEvaluationView({
   politician,
   footer,
   archivedPagesApiPath = '/api/archived-pages',
+  initialEvaluations,
 }: PoliticianEvaluationViewProps) {
-  const [evaluations, setEvaluations] = useState<Map<string, boolean>>(new Map())
+  const [evaluations, setEvaluations] = useState<Map<string, boolean>>(
+    () => initialEvaluations ?? new Map(),
+  )
 
   // Initialize with first archived page found (component should be keyed by politician.id)
   const [selectedArchivedPage, setSelectedArchivedPage] = useState<ArchivedPageResponse | null>(

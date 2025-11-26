@@ -41,18 +41,25 @@ const multipleSourcesExpected: ExpectedEvaluations = {
 
 const genericVsSpecificExpected: ExpectedEvaluations = {
   'tutorial-generic-position': false, // Reject - generic "Member of Parliament" when specific exists
+  'tutorial-existing-specific-position': true, // Keep - don't deprecate the existing specific data
 }
+// Only new data keys are required for the submit button
+const genericVsSpecificRequiredKeys: string[] = ['tutorial-generic-position']
 
 // Advanced tutorial expected answers
 const deprecateSimpleExpected: ExpectedEvaluations = {
   'tutorial-existing-generic-no-metadata': false, // Deprecate - generic with no metadata
   'tutorial-new-specific-position': true, // Accept - specific replacement
 }
+// Only new data keys are required for the submit button (existing data is optional to interact with)
+const deprecateSimpleRequiredKeys: string[] = ['tutorial-new-specific-position']
 
 const deprecateWithMetadataExpected: ExpectedEvaluations = {
   'tutorial-new-specific-with-source': true, // Accept the new specific data
-  // Note: We DON'T require deprecating the existing data - the lesson is to be careful
+  'tutorial-existing-with-metadata': true, // Keep - don't deprecate (metadata is valuable)
 }
+// Only new data keys are required for the submit button
+const deprecateWithMetadataRequiredKeys: string[] = ['tutorial-new-specific-with-source']
 
 interface EvaluationResult {
   isCorrect: boolean
@@ -66,7 +73,13 @@ function checkEvaluations(
   const mistakes: string[] = []
 
   for (const [key, expectedValue] of Object.entries(expected)) {
+    // For existing data (where expected is true = keep), only count as mistake if user deprecated it
+    // If the key is not in evaluations, that means "keep" which is correct
     const actualValue = evaluations.get(key)
+    if (expectedValue === true && actualValue === undefined) {
+      // Expected to keep and user didn't touch it - correct, skip
+      continue
+    }
     if (actualValue !== expectedValue) {
       mistakes.push(key)
     }
@@ -362,7 +375,7 @@ export default function TutorialPage() {
           Specific data is better than generic data. If a more specific version already exists,
           reject the generic extraction.
         </p>
-        <TutorialActions buttonText="Let's try it" onNext={nextStep} />
+        <TutorialActions buttonText="Let's do it" onNext={nextStep} />
       </CenteredCard>
     )
   } else if (step === 11) {
@@ -374,7 +387,7 @@ export default function TutorialPage() {
         footer={(evaluations) => (
           <TutorialFooter
             evaluations={evaluations}
-            requiredKeys={Object.keys(genericVsSpecificExpected)}
+            requiredKeys={genericVsSpecificRequiredKeys}
             onSubmit={() => {
               const result = checkEvaluations(evaluations, genericVsSpecificExpected)
               setGenericVsSpecificResult(result)
@@ -399,7 +412,7 @@ export default function TutorialPage() {
       content = (
         <ErrorFeedback
           title="Almost There"
-          message="Remember: when we already have specific data, we don't need a generic version. Look at what's already in Wikidata before accepting new extractions."
+          message="Remember: when we already have specific data, we don't need a generic version. Look at what data already exists before accepting new extractions."
           hint="Hint: 'Member of Springfield Parliament' is more specific than 'Member of Parliament'."
           onRetry={() => {
             setGenericVsSpecificKey((k) => k + 1)
@@ -416,14 +429,13 @@ export default function TutorialPage() {
     content = (
       <CenteredCard emoji="⚡" title="Advanced Mode Tutorial">
         <p className="mb-4">
-          Welcome to advanced mode! You now have the power to deprecate existing Wikidata
-          statements.
+          Welcome to advanced mode! You now have the power to deprecate existing data.
         </p>
         <p className="mb-8">
           This is useful when you find more specific or accurate data that should replace
           what&apos;s currently in Wikidata.
         </p>
-        <TutorialActions buttonText="Let's Learn" onNext={nextStep} />
+        <TutorialActions buttonText="Let's Advance" onNext={nextStep} />
       </CenteredCard>
     )
   } else if (step === 14) {
@@ -431,13 +443,13 @@ export default function TutorialPage() {
     content = (
       <CenteredCard emoji="🔄" title="Replacing Generic Data">
         <p className="mb-4">
-          Sometimes Wikidata has generic data that should be replaced with something more specific.
+          Sometimes existing data is to generic and could be replaced with something more specific.
         </p>
         <p className="mb-8">
           In these cases, you can deprecate the existing data and accept the more specific
-          extraction. Let&apos;s try an example.
+          extraction.
         </p>
-        <TutorialActions buttonText="Show Me" onNext={nextStep} />
+        <TutorialActions buttonText="Let's do it" onNext={nextStep} />
       </CenteredCard>
     )
   } else if (step === 15) {
@@ -446,7 +458,9 @@ export default function TutorialPage() {
       content = (
         <SuccessFeedback
           title="Well Done!"
-          message="You correctly deprecated the generic 'Member of Parliament' and accepted the more specific 'Member of Springfield Parliament'. Nice work!"
+          message={
+            'You correctly deprecated the generic "Member of Parliament" and accepted the more specific "Member of Springfield Parliament". Nice work!'
+          }
           onNext={nextStep}
         />
       )
@@ -470,7 +484,7 @@ export default function TutorialPage() {
           footer={(evaluations) => (
             <TutorialFooter
               evaluations={evaluations}
-              requiredKeys={Object.keys(deprecateSimpleExpected)}
+              requiredKeys={deprecateSimpleRequiredKeys}
               onSubmit={() => {
                 const result = checkEvaluations(evaluations, deprecateSimpleExpected)
                 setDeprecateSimpleResult(result)
@@ -489,21 +503,20 @@ export default function TutorialPage() {
           Some existing Wikidata statements have valuable metadata: references (sources) and
           qualifiers (like start/end dates).
         </p>
-        <p className="mb-4">
+        <p className="mb-8">
           When you deprecate such data, this metadata is lost. Sometimes it&apos;s better to add
           your new data via PoliLoom, then manually edit Wikidata to preserve the metadata.
         </p>
-        <p className="mb-8">Let&apos;s see an example where you might want to be more careful.</p>
-        <TutorialActions buttonText="Show Me" onNext={nextStep} />
+        <TutorialActions buttonText="Let's do it" onNext={nextStep} />
       </CenteredCard>
     )
   } else if (step === 17) {
-    // Interactive: data with metadata - just need to accept the new data
+    // Interactive: data with metadata - accept the new data AND keep the existing data
     if (deprecateWithMetadataResult?.isCorrect) {
       content = (
         <SuccessFeedback
           title="Great Choice!"
-          message="You accepted the new specific data. Notice the existing data has references and qualifiers - valuable metadata that would be lost if deprecated. In cases like this, you might want to add the new data through PoliLoom first, then manually edit Wikidata to merge or update the existing statement."
+          message="You accepted the new specific data and kept the existing data. The existing statement has multiple references and qualifiers (electoral district, parliamentary term) that would be lost if deprecated. In cases like this, add your new data through PoliLoom, then manually edit Wikidata to merge or update the existing statement."
           onNext={nextStep}
         />
       )
@@ -511,8 +524,8 @@ export default function TutorialPage() {
       content = (
         <ErrorFeedback
           title="Let's Reconsider"
-          message="Look at the existing data - it has references (sources) and qualifiers (dates). This metadata is valuable and would be lost if you deprecate it."
-          hint="Hint: Accept the new specific extraction. You can choose whether to deprecate the existing data, but consider that its metadata has value."
+          message="The new data is good, but the existing data has rich metadata attached. Deprecating it means losing all of that."
+          hint="Hint: Accept the new extraction and keep the existing. Merge them manually in Wikidata later."
           onRetry={() => {
             setDeprecateWithMetadataKey((k) => k + 1)
             setDeprecateWithMetadataResult(null)
@@ -527,7 +540,7 @@ export default function TutorialPage() {
           footer={(evaluations) => (
             <TutorialFooter
               evaluations={evaluations}
-              requiredKeys={Object.keys(deprecateWithMetadataExpected)}
+              requiredKeys={deprecateWithMetadataRequiredKeys}
               onSubmit={() => {
                 const result = checkEvaluations(evaluations, deprecateWithMetadataExpected)
                 setDeprecateWithMetadataResult(result)
