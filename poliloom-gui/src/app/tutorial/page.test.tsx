@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { screen, fireEvent, waitFor, act, within } from '@testing-library/react'
+import { screen, fireEvent } from '@testing-library/react'
 import { render } from '@/test/test-utils'
-import TutorialPage from './page'
+import { TutorialContent } from './TutorialContent'
 
 // Mock the CSS Custom Highlight API for testing
 global.CSS = {
@@ -74,50 +74,6 @@ vi.mock('@/contexts/UserPreferencesContext', async (importOriginal) => {
 })
 
 describe('Tutorial Page', () => {
-  // Helper function to complete step 5 (birth date evaluation) correctly
-  const completeStep5 = () => {
-    const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
-    const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
-    fireEvent.click(acceptButtons[0]) // Accept correct date
-    fireEvent.click(rejectButtons[1]) // Reject incorrect date
-    fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-  }
-
-  // Helper function to complete step 8 (multiple sources) correctly
-  // The two positions come from different archived pages, so we need to:
-  // 1. Accept first position (visible because auto-loaded)
-  // 2. Click View on second position to load its source
-  // 3. Accept second position
-  // NOTE: This only evaluates the positions and clicks Check Answers -
-  // caller should click Continue to advance from step 9 feedback
-  const completeStep8 = () => {
-    // First position is auto-loaded, so its Accept button is visible
-    fireEvent.click(screen.getByRole('button', { name: /Accept/ }))
-
-    // Click View on the second position to load its archived page
-    const viewButtons = screen.getAllByRole('button', { name: /View/ })
-    fireEvent.click(viewButtons[viewButtons.length - 1])
-
-    // Now accept the second position
-    const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
-    fireEvent.click(acceptButtons[acceptButtons.length - 1])
-
-    fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
-    // Step 9 feedback shows now - caller should click Continue to advance
-  }
-
-  // Helper function to complete step 11 (generic vs specific) correctly
-  // NOTE: This only evaluates and clicks Check Answers -
-  // caller should click Continue to advance from step 12 feedback
-  const completeStep11 = () => {
-    // Reject the generic position
-    const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
-    fireEvent.click(rejectButtons[0])
-    fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
-    // Step 12 feedback shows now - caller should click Continue to advance
-  }
-
   beforeEach(() => {
     vi.clearAllMocks()
     CSS.highlights.clear()
@@ -150,7 +106,7 @@ describe('Tutorial Page', () => {
 
   describe('Step 0 - Welcome', () => {
     it('renders welcome screen with correct content', () => {
-      render(<TutorialPage />)
+      render(<TutorialContent />)
 
       expect(screen.getByText('Welcome to PoliLoom!')).toBeInTheDocument()
       expect(
@@ -163,7 +119,7 @@ describe('Tutorial Page', () => {
     })
 
     it('advances to step 1 when clicking "Let\'s Go"', () => {
-      render(<TutorialPage />)
+      render(<TutorialContent />)
 
       fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
 
@@ -173,8 +129,7 @@ describe('Tutorial Page', () => {
 
   describe('Step 1 - Why Your Help Matters', () => {
     it('renders explanation about AI extraction validation', () => {
-      render(<TutorialPage />)
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
+      render(<TutorialContent initialStep={1} />)
 
       expect(screen.getByText('Why Your Help Matters')).toBeInTheDocument()
       expect(
@@ -186,8 +141,7 @@ describe('Tutorial Page', () => {
     })
 
     it('advances to step 2 when clicking "Got It"', () => {
-      render(<TutorialPage />)
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
+      render(<TutorialContent initialStep={1} />)
       fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
 
       expect(screen.getByText('Source Documents')).toBeInTheDocument()
@@ -196,10 +150,7 @@ describe('Tutorial Page', () => {
 
   describe('Step 2 - Source Documents', () => {
     it('renders source documents explanation with archived page viewer', () => {
-      render(<TutorialPage />)
-      // Navigate to step 2
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
+      render(<TutorialContent initialStep={2} />)
 
       expect(screen.getByText('Source Documents')).toBeInTheDocument()
       expect(
@@ -213,9 +164,7 @@ describe('Tutorial Page', () => {
     })
 
     it('advances to step 3 when clicking "Next"', () => {
-      render(<TutorialPage />)
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
+      render(<TutorialContent initialStep={2} />)
       fireEvent.click(screen.getByRole('button', { name: 'Next' }))
 
       expect(screen.getByText('Extracted Data')).toBeInTheDocument()
@@ -224,11 +173,7 @@ describe('Tutorial Page', () => {
 
   describe('Step 3 - Extracted Data', () => {
     it('renders extracted data explanation with properties panel', () => {
-      render(<TutorialPage />)
-      // Navigate to step 3
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+      render(<TutorialContent initialStep={3} />)
 
       expect(screen.getByText('Extracted Data')).toBeInTheDocument()
       expect(
@@ -241,10 +186,7 @@ describe('Tutorial Page', () => {
     })
 
     it('advances to step 4 when clicking "Next"', () => {
-      render(<TutorialPage />)
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+      render(<TutorialContent initialStep={3} />)
       fireEvent.click(screen.getByRole('button', { name: 'Next' }))
 
       expect(screen.getByText('Give It a Try')).toBeInTheDocument()
@@ -253,12 +195,7 @@ describe('Tutorial Page', () => {
 
   describe('Step 4 - Give It a Try', () => {
     it('renders teaser for interactive evaluation', () => {
-      render(<TutorialPage />)
-      // Navigate to step 4
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+      render(<TutorialContent initialStep={4} />)
 
       expect(screen.getByText('Give It a Try')).toBeInTheDocument()
       expect(
@@ -270,11 +207,7 @@ describe('Tutorial Page', () => {
     })
 
     it('advances to step 5 (birth date evaluation) when clicking "Let\'s do it"', () => {
-      render(<TutorialPage />)
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+      render(<TutorialContent initialStep={4} />)
       fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
 
       // Step 5 shows the interactive birth date evaluation
@@ -284,17 +217,8 @@ describe('Tutorial Page', () => {
   })
 
   describe('Step 5 - Birth Date Evaluation (Interactive)', () => {
-    const navigateToStep5 = () => {
-      render(<TutorialPage />)
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-    }
-
     it('renders birth date evaluation with two dates', () => {
-      navigateToStep5()
+      render(<TutorialContent initialStep={5} />)
 
       // Should show Jane Doe and Properties section
       expect(screen.getByText('Jane Doe')).toBeInTheDocument()
@@ -305,14 +229,14 @@ describe('Tutorial Page', () => {
     })
 
     it('has Check Answers button disabled until both dates are evaluated', () => {
-      navigateToStep5()
+      render(<TutorialContent initialStep={5} />)
 
       const checkButton = screen.getByRole('button', { name: 'Check Answers' })
       expect(checkButton).toBeDisabled()
     })
 
-    it('enables Check Answers after both dates are evaluated', async () => {
-      navigateToStep5()
+    it('enables Check Answers after both dates are evaluated', () => {
+      render(<TutorialContent initialStep={5} />)
 
       // Find all accept/reject buttons - there should be 2 of each (for each date)
       const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
@@ -323,14 +247,12 @@ describe('Tutorial Page', () => {
       fireEvent.click(rejectButtons[1])
 
       const checkButton = screen.getByRole('button', { name: 'Check Answers' })
-      await waitFor(() => {
-        expect(checkButton).not.toBeDisabled()
-      })
+      expect(checkButton).not.toBeDisabled()
     })
 
     describe('Input combinations', () => {
-      it('shows success when accepting correct date and rejecting incorrect date', async () => {
-        navigateToStep5()
+      it('shows success when accepting correct date and rejecting incorrect date', () => {
+        render(<TutorialContent initialStep={5} />)
 
         const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
         const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
@@ -341,16 +263,14 @@ describe('Tutorial Page', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-        await waitFor(() => {
-          expect(screen.getByText('Excellent!')).toBeInTheDocument()
-        })
+        expect(screen.getByText('Excellent!')).toBeInTheDocument()
         expect(
           screen.getByText(/You correctly identified that March 15, 1975 matches the source/),
         ).toBeInTheDocument()
       })
 
-      it('shows error when rejecting correct date and accepting incorrect date', async () => {
-        navigateToStep5()
+      it('shows error when rejecting correct date and accepting incorrect date', () => {
+        render(<TutorialContent initialStep={5} />)
 
         const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
         const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
@@ -361,14 +281,12 @@ describe('Tutorial Page', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-        await waitFor(() => {
-          expect(screen.getByText('Not Quite Right')).toBeInTheDocument()
-        })
+        expect(screen.getByText('Not Quite Right')).toBeInTheDocument()
         expect(screen.getByText(/Take another look at the source document/)).toBeInTheDocument()
       })
 
-      it('shows error when accepting both dates', async () => {
-        navigateToStep5()
+      it('shows error when accepting both dates', () => {
+        render(<TutorialContent initialStep={5} />)
 
         const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
 
@@ -378,13 +296,11 @@ describe('Tutorial Page', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-        await waitFor(() => {
-          expect(screen.getByText('Not Quite Right')).toBeInTheDocument()
-        })
+        expect(screen.getByText('Not Quite Right')).toBeInTheDocument()
       })
 
-      it('shows error when rejecting both dates', async () => {
-        navigateToStep5()
+      it('shows error when rejecting both dates', () => {
+        render(<TutorialContent initialStep={5} />)
 
         const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
 
@@ -394,23 +310,15 @@ describe('Tutorial Page', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-        await waitFor(() => {
-          expect(screen.getByText('Not Quite Right')).toBeInTheDocument()
-        })
+        expect(screen.getByText('Not Quite Right')).toBeInTheDocument()
       })
     })
   })
 
   describe('Step 6 - Birth Date Feedback', () => {
-    const navigateToStep6Success = () => {
-      render(<TutorialPage />)
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-
-      // Correct answers
+    // Helper to complete step 5 with correct answers and advance to step 6
+    const goToStep6WithSuccess = () => {
+      render(<TutorialContent initialStep={5} />)
       const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
       const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
       fireEvent.click(acceptButtons[0])
@@ -418,59 +326,43 @@ describe('Tutorial Page', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
     }
 
-    const navigateToStep6Error = () => {
-      render(<TutorialPage />)
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-
-      // Wrong answers
+    // Helper to complete step 5 with wrong answers and advance to step 6
+    const goToStep6WithError = () => {
+      render(<TutorialContent initialStep={5} />)
       const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
       fireEvent.click(acceptButtons[0])
       fireEvent.click(acceptButtons[1])
       fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
     }
 
-    it('shows success feedback with Continue button', async () => {
-      navigateToStep6Success()
+    it('shows success feedback with Continue button', () => {
+      goToStep6WithSuccess()
 
-      await waitFor(() => {
-        expect(screen.getByText('Excellent!')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Excellent!')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument()
     })
 
-    it('advances to step 7 when clicking Continue on success', async () => {
-      navigateToStep6Success()
+    it('advances to step 7 when clicking Continue on success', () => {
+      goToStep6WithSuccess()
 
-      await waitFor(() => {
-        expect(screen.getByText('Excellent!')).toBeInTheDocument()
-      })
       fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
 
       expect(screen.getByText('Multiple Sources')).toBeInTheDocument()
     })
 
-    it('shows error feedback with Try Again button', async () => {
-      navigateToStep6Error()
+    it('shows error feedback with Try Again button', () => {
+      goToStep6WithError()
 
-      await waitFor(() => {
-        expect(screen.getByText('Not Quite Right')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Not Quite Right')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Try Again' })).toBeInTheDocument()
       expect(
         screen.getByText('Hint: Look carefully at who each date refers to in the source text.'),
       ).toBeInTheDocument()
     })
 
-    it('returns to step 5 when clicking Try Again on error', async () => {
-      navigateToStep6Error()
+    it('returns to step 5 when clicking Try Again on error', () => {
+      goToStep6WithError()
 
-      await waitFor(() => {
-        expect(screen.getByText('Not Quite Right')).toBeInTheDocument()
-      })
       fireEvent.click(screen.getByRole('button', { name: 'Try Again' }))
 
       // Should be back at step 5 with fresh evaluation state
@@ -480,43 +372,19 @@ describe('Tutorial Page', () => {
   })
 
   describe('Step 7 - Multiple Sources', () => {
-    const navigateToStep7 = () => {
-      render(<TutorialPage />)
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
+    it('renders multiple sources explanation', () => {
+      render(<TutorialContent initialStep={7} />)
 
-      // Complete step 5 correctly
-      const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
-      const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
-      fireEvent.click(acceptButtons[0])
-      fireEvent.click(rejectButtons[1])
-      fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
-
-      // Continue past success
-      fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-    }
-
-    it('renders multiple sources explanation', async () => {
-      navigateToStep7()
-
-      await waitFor(() => {
-        expect(screen.getByText('Multiple Sources')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Multiple Sources')).toBeInTheDocument()
       expect(
         screen.getByText(/Sometimes information comes from different source documents/),
       ).toBeInTheDocument()
       expect(screen.getByRole('button', { name: "Let's do it" })).toBeInTheDocument()
     })
 
-    it('advances to step 8 when clicking "Let\'s do it"', async () => {
-      navigateToStep7()
+    it('advances to step 8 when clicking "Let\'s do it"', () => {
+      render(<TutorialContent initialStep={7} />)
 
-      await waitFor(() => {
-        expect(screen.getByText('Multiple Sources')).toBeInTheDocument()
-      })
       fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
 
       // Step 8 shows interactive positions evaluation
@@ -525,150 +393,103 @@ describe('Tutorial Page', () => {
   })
 
   describe('Step 8 - Multiple Sources Evaluation (Interactive)', () => {
-    const navigateToStep8 = () => {
-      render(<TutorialPage />)
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
+    // Helper to evaluate both positions - positions come from different archived pages
+    // so we need to click View on the second one to make its buttons visible
+    const evaluateBothPositions = (
+      firstAction: 'accept' | 'reject',
+      secondAction: 'accept' | 'reject',
+    ) => {
+      // First position is auto-loaded, so its buttons are visible
+      if (firstAction === 'accept') {
+        fireEvent.click(screen.getByRole('button', { name: /Accept/ }))
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: /Reject/ }))
+      }
 
-      const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
-      const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
-      fireEvent.click(acceptButtons[0])
-      fireEvent.click(rejectButtons[1])
-      fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
+      // Click View on the second position to load its archived page
+      const viewButtons = screen.getAllByRole('button', { name: /View/ })
+      fireEvent.click(viewButtons[viewButtons.length - 1]) // Click the last View button (second position)
+
+      // Now the second position's buttons should be visible
+      if (secondAction === 'accept') {
+        const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
+        fireEvent.click(acceptButtons[acceptButtons.length - 1])
+      } else {
+        const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
+        fireEvent.click(rejectButtons[rejectButtons.length - 1])
+      }
     }
 
-    it('renders two political positions from different sources', async () => {
-      navigateToStep8()
+    it('renders two political positions from different sources', () => {
+      render(<TutorialContent initialStep={8} />)
 
-      await waitFor(() => {
-        expect(screen.getByText('Political Positions')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Political Positions')).toBeInTheDocument()
       expect(screen.getByText('Member of Springfield Parliament')).toBeInTheDocument()
       expect(screen.getByText('Minister of Education')).toBeInTheDocument()
     })
 
-    it('has Check Answers button disabled until both positions are evaluated', async () => {
-      navigateToStep8()
+    it('has Check Answers button disabled until both positions are evaluated', () => {
+      render(<TutorialContent initialStep={8} />)
 
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Check Answers' })).toBeDisabled()
-      })
+      expect(screen.getByRole('button', { name: 'Check Answers' })).toBeDisabled()
     })
 
     describe('Input combinations', () => {
-      // Helper to evaluate both positions - positions come from different archived pages
-      // so we need to click View on the second one to make its buttons visible
-      const evaluateBothPositions = (
-        firstAction: 'accept' | 'reject',
-        secondAction: 'accept' | 'reject',
-      ) => {
-        // First position is auto-loaded, so its buttons are visible
-        if (firstAction === 'accept') {
-          fireEvent.click(screen.getByRole('button', { name: /Accept/ }))
-        } else {
-          fireEvent.click(screen.getByRole('button', { name: /Reject/ }))
-        }
-
-        // Click View on the second position to load its archived page
-        const viewButtons = screen.getAllByRole('button', { name: /View/ })
-        fireEvent.click(viewButtons[viewButtons.length - 1]) // Click the last View button (second position)
-
-        // Now the second position's buttons should be visible
-        if (secondAction === 'accept') {
-          const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
-          fireEvent.click(acceptButtons[acceptButtons.length - 1])
-        } else {
-          const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
-          fireEvent.click(rejectButtons[rejectButtons.length - 1])
-        }
-      }
-
-      it('shows success when accepting both positions', async () => {
-        navigateToStep8()
-
-        await waitFor(() => {
-          expect(screen.getByText('Political Positions')).toBeInTheDocument()
-        })
+      it('shows success when accepting both positions', () => {
+        render(<TutorialContent initialStep={8} />)
 
         evaluateBothPositions('accept', 'accept')
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-        await waitFor(() => {
-          expect(screen.getByText('Great Job!')).toBeInTheDocument()
-        })
+        expect(screen.getByText('Great Job!')).toBeInTheDocument()
       })
 
-      it('shows error when rejecting both positions', async () => {
-        navigateToStep8()
-
-        await waitFor(() => {
-          expect(screen.getByText('Political Positions')).toBeInTheDocument()
-        })
+      it('shows error when rejecting both positions', () => {
+        render(<TutorialContent initialStep={8} />)
 
         evaluateBothPositions('reject', 'reject')
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-        await waitFor(() => {
-          expect(screen.getByText("Let's Try Again")).toBeInTheDocument()
-        })
+        expect(screen.getByText("Let's Try Again")).toBeInTheDocument()
       })
 
-      it('shows error when accepting first and rejecting second', async () => {
-        navigateToStep8()
-
-        await waitFor(() => {
-          expect(screen.getByText('Political Positions')).toBeInTheDocument()
-        })
+      it('shows error when accepting first and rejecting second', () => {
+        render(<TutorialContent initialStep={8} />)
 
         evaluateBothPositions('accept', 'reject')
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-        await waitFor(() => {
-          expect(screen.getByText("Let's Try Again")).toBeInTheDocument()
-        })
+        expect(screen.getByText("Let's Try Again")).toBeInTheDocument()
       })
 
-      it('shows error when rejecting first and accepting second', async () => {
-        navigateToStep8()
-
-        await waitFor(() => {
-          expect(screen.getByText('Political Positions')).toBeInTheDocument()
-        })
+      it('shows error when rejecting first and accepting second', () => {
+        render(<TutorialContent initialStep={8} />)
 
         evaluateBothPositions('reject', 'accept')
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-        await waitFor(() => {
-          expect(screen.getByText("Let's Try Again")).toBeInTheDocument()
-        })
+        expect(screen.getByText("Let's Try Again")).toBeInTheDocument()
       })
     })
   })
 
   describe('Step 9 - Multiple Sources Feedback', () => {
-    const navigateToStep9Success = () => {
-      render(<TutorialPage />)
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      completeStep5()
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      completeStep8()
+    // Helper to complete step 8 with correct answers
+    const goToStep9WithSuccess = () => {
+      render(<TutorialContent initialStep={8} />)
+      // Accept both positions (first is auto-loaded, second needs View click)
+      fireEvent.click(screen.getByRole('button', { name: /Accept/ }))
+      const viewButtons = screen.getAllByRole('button', { name: /View/ })
+      fireEvent.click(viewButtons[viewButtons.length - 1])
+      const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
+      fireEvent.click(acceptButtons[acceptButtons.length - 1])
+      fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
     }
 
-    it('shows success feedback and advances to step 10', async () => {
-      navigateToStep9Success()
+    it('shows success feedback and advances to step 10', () => {
+      goToStep9WithSuccess()
 
-      await waitFor(() => {
-        expect(screen.getByText('Great Job!')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Great Job!')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
 
       expect(screen.getByText('Specific Over Generic')).toBeInTheDocument()
@@ -676,34 +497,16 @@ describe('Tutorial Page', () => {
   })
 
   describe('Step 10 - Specific Over Generic', () => {
-    const navigateToStep10 = () => {
-      render(<TutorialPage />)
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      completeStep5()
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      completeStep8()
-      fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-    }
+    it('renders specific over generic explanation', () => {
+      render(<TutorialContent initialStep={10} />)
 
-    it('renders specific over generic explanation', async () => {
-      navigateToStep10()
-
-      await waitFor(() => {
-        expect(screen.getByText('Specific Over Generic')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Specific Over Generic')).toBeInTheDocument()
       expect(screen.getByText(/Specific data is better than generic data/)).toBeInTheDocument()
     })
 
-    it('advances to step 11 when clicking "Let\'s do it"', async () => {
-      navigateToStep10()
+    it('advances to step 11 when clicking "Let\'s do it"', () => {
+      render(<TutorialContent initialStep={10} />)
 
-      await waitFor(() => {
-        expect(screen.getByText('Specific Over Generic')).toBeInTheDocument()
-      })
       fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
 
       expect(screen.getByText('Political Positions')).toBeInTheDocument()
@@ -711,38 +514,18 @@ describe('Tutorial Page', () => {
   })
 
   describe('Step 11 - Generic vs Specific Evaluation (Interactive)', () => {
-    const navigateToStep11 = () => {
-      render(<TutorialPage />)
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      completeStep5()
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      completeStep8()
-      fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-    }
+    it('renders generic and specific positions', () => {
+      render(<TutorialContent initialStep={11} />)
 
-    it('renders generic and specific positions', async () => {
-      navigateToStep11()
-
-      await waitFor(() => {
-        expect(screen.getByText('Political Positions')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Political Positions')).toBeInTheDocument()
       // Existing specific data
       expect(screen.getByText('Member of Springfield Parliament')).toBeInTheDocument()
       // New generic extraction
       expect(screen.getByText('Member of Parliament')).toBeInTheDocument()
     })
 
-    it('only requires evaluation of new data (generic position)', async () => {
-      navigateToStep11()
-
-      await waitFor(() => {
-        expect(screen.getByText('Political Positions')).toBeInTheDocument()
-      })
+    it('only requires evaluation of new data (generic position)', () => {
+      render(<TutorialContent initialStep={11} />)
 
       // Only the generic position needs to be evaluated, not the existing specific one
       // Find the Reject button for the generic position (has supporting quotes)
@@ -750,44 +533,30 @@ describe('Tutorial Page', () => {
       // The generic "Member of Parliament" should be the one we need to reject
       fireEvent.click(rejectButtons[0]) // Reject the generic one
 
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Check Answers' })).not.toBeDisabled()
-      })
+      expect(screen.getByRole('button', { name: 'Check Answers' })).not.toBeDisabled()
     })
 
     describe('Input combinations', () => {
-      it('shows success when rejecting generic position', async () => {
-        navigateToStep11()
-
-        await waitFor(() => {
-          expect(screen.getByText('Political Positions')).toBeInTheDocument()
-        })
+      it('shows success when rejecting generic position', () => {
+        render(<TutorialContent initialStep={11} />)
 
         // Reject the generic "Member of Parliament"
         const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
         fireEvent.click(rejectButtons[0])
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-        await waitFor(() => {
-          expect(screen.getByText('Perfect!')).toBeInTheDocument()
-        })
+        expect(screen.getByText('Perfect!')).toBeInTheDocument()
       })
 
-      it('shows error when accepting generic position', async () => {
-        navigateToStep11()
-
-        await waitFor(() => {
-          expect(screen.getByText('Political Positions')).toBeInTheDocument()
-        })
+      it('shows error when accepting generic position', () => {
+        render(<TutorialContent initialStep={11} />)
 
         // Accept the generic "Member of Parliament" - wrong
         const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
         fireEvent.click(acceptButtons[0])
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-        await waitFor(() => {
-          expect(screen.getByText('Almost There')).toBeInTheDocument()
-        })
+        expect(screen.getByText('Almost There')).toBeInTheDocument()
       })
     })
 
@@ -807,29 +576,19 @@ describe('Tutorial Page', () => {
         })
       })
 
-      it('shows success when rejecting generic and keeping existing specific', async () => {
-        navigateToStep11()
-
-        await waitFor(() => {
-          expect(screen.getByText('Political Positions')).toBeInTheDocument()
-        })
+      it('shows success when rejecting generic and keeping existing specific', () => {
+        render(<TutorialContent initialStep={11} />)
 
         // Reject the generic position, don't touch the existing specific
         const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
         fireEvent.click(rejectButtons[0])
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-        await waitFor(() => {
-          expect(screen.getByText('Perfect!')).toBeInTheDocument()
-        })
+        expect(screen.getByText('Perfect!')).toBeInTheDocument()
       })
 
-      it('shows error when rejecting generic and deprecating existing specific', async () => {
-        navigateToStep11()
-
-        await waitFor(() => {
-          expect(screen.getByText('Political Positions')).toBeInTheDocument()
-        })
+      it('shows error when rejecting generic and deprecating existing specific', () => {
+        render(<TutorialContent initialStep={11} />)
 
         // Reject the generic position
         const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
@@ -841,17 +600,11 @@ describe('Tutorial Page', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-        await waitFor(() => {
-          expect(screen.getByText('Almost There')).toBeInTheDocument()
-        })
+        expect(screen.getByText('Almost There')).toBeInTheDocument()
       })
 
-      it('shows error when accepting generic and deprecating existing specific', async () => {
-        navigateToStep11()
-
-        await waitFor(() => {
-          expect(screen.getByText('Political Positions')).toBeInTheDocument()
-        })
+      it('shows error when accepting generic and deprecating existing specific', () => {
+        render(<TutorialContent initialStep={11} />)
 
         // Accept the generic position - wrong
         const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
@@ -863,64 +616,38 @@ describe('Tutorial Page', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-        await waitFor(() => {
-          expect(screen.getByText('Almost There')).toBeInTheDocument()
-        })
+        expect(screen.getByText('Almost There')).toBeInTheDocument()
       })
     })
   })
 
   describe('Step 12 - Generic vs Specific Feedback', () => {
-    const navigateToStep12Success = () => {
-      render(<TutorialPage />)
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      completeStep5()
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      completeStep8()
-      fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      completeStep11()
+    // Helper to complete step 11 with correct answers
+    const goToStep12WithSuccess = () => {
+      render(<TutorialContent initialStep={11} />)
+      const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
+      fireEvent.click(rejectButtons[0])
+      fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
     }
 
-    it('shows success feedback and completes basic tutorial', async () => {
-      navigateToStep12Success()
+    it('shows success feedback and completes basic tutorial', () => {
+      goToStep12WithSuccess()
 
-      await waitFor(() => {
-        expect(screen.getByText('Perfect!')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Perfect!')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
 
       // Basic tutorial is complete - should show completion screen (not in advanced mode)
-      await waitFor(() => {
-        expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
       expect(mockCompleteBasicTutorial).toHaveBeenCalled()
     })
   })
 
   describe('Tutorial Completion (Basic Mode)', () => {
-    it('shows completion screen with link to evaluate page', async () => {
-      render(<TutorialPage />)
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      completeStep5()
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      completeStep8()
-      fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      completeStep11()
-      fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    it('shows completion screen with link to evaluate page', () => {
+      // Use initialStep=13 which triggers completion screen in basic mode
+      render(<TutorialContent initialStep={13} />)
 
-      await waitFor(() => {
-        expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
       expect(
         screen.getByText(/You're all set! You now have everything you need/),
       ).toBeInTheDocument()
@@ -947,42 +674,20 @@ describe('Tutorial Page', () => {
       })
     })
 
-    const completeBasicTutorialInternal = () => {
-      fireEvent.click(screen.getByRole('button', { name: "Let's Go" }))
-      fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      completeStep5()
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      completeStep8()
-      fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-      fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      completeStep11()
-      fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-    }
-
     describe('Step 13 - Advanced Mode Welcome', () => {
-      it('shows advanced mode welcome after basic tutorial', async () => {
-        render(<TutorialPage />)
-        completeBasicTutorialInternal()
+      it('shows advanced mode welcome after basic tutorial', () => {
+        render(<TutorialContent initialStep={13} />)
 
-        await waitFor(() => {
-          expect(screen.getByText('Advanced Mode Tutorial')).toBeInTheDocument()
-        })
+        expect(screen.getByText('Advanced Mode Tutorial')).toBeInTheDocument()
         expect(
           screen.getByText(/You now have the power to deprecate existing data/),
         ).toBeInTheDocument()
         expect(screen.getByRole('button', { name: "Let's Advance" })).toBeInTheDocument()
       })
 
-      it('advances to step 14 when clicking "Let\'s Advance"', async () => {
-        render(<TutorialPage />)
-        completeBasicTutorialInternal()
+      it('advances to step 14 when clicking "Let\'s Advance"', () => {
+        render(<TutorialContent initialStep={13} />)
 
-        await waitFor(() => {
-          expect(screen.getByText('Advanced Mode Tutorial')).toBeInTheDocument()
-        })
         fireEvent.click(screen.getByRole('button', { name: "Let's Advance" }))
 
         expect(screen.getByText('Replacing Generic Data')).toBeInTheDocument()
@@ -990,14 +695,8 @@ describe('Tutorial Page', () => {
     })
 
     describe('Step 14 - Replacing Generic Data', () => {
-      it('renders replacing generic data explanation', async () => {
-        render(<TutorialPage />)
-        completeBasicTutorialInternal()
-
-        await waitFor(() => {
-          expect(screen.getByText('Advanced Mode Tutorial')).toBeInTheDocument()
-        })
-        fireEvent.click(screen.getByRole('button', { name: "Let's Advance" }))
+      it('renders replacing generic data explanation', () => {
+        render(<TutorialContent initialStep={14} />)
 
         expect(screen.getByText('Replacing Generic Data')).toBeInTheDocument()
         expect(
@@ -1009,19 +708,10 @@ describe('Tutorial Page', () => {
     })
 
     describe('Step 15 - Deprecate Simple Existing Data (Interactive)', () => {
-      const navigateToStep15 = () => {
-        render(<TutorialPage />)
-        completeBasicTutorialInternal()
-        fireEvent.click(screen.getByRole('button', { name: "Let's Advance" }))
-        fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      }
+      it('renders existing generic and new specific positions', () => {
+        render(<TutorialContent initialStep={15} />)
 
-      it('renders existing generic and new specific positions', async () => {
-        navigateToStep15()
-
-        await waitFor(() => {
-          expect(screen.getByText('Political Positions')).toBeInTheDocument()
-        })
+        expect(screen.getByText('Political Positions')).toBeInTheDocument()
         // Existing generic data (no supporting quotes)
         expect(screen.getByText('Member of Parliament')).toBeInTheDocument()
         // New specific extraction
@@ -1029,12 +719,8 @@ describe('Tutorial Page', () => {
       })
 
       describe('Input combinations', () => {
-        it('shows success when deprecating generic and accepting specific', async () => {
-          navigateToStep15()
-
-          await waitFor(() => {
-            expect(screen.getByText('Political Positions')).toBeInTheDocument()
-          })
+        it('shows success when deprecating generic and accepting specific', () => {
+          render(<TutorialContent initialStep={15} />)
 
           // Find deprecate button for existing data
           const deprecateButtons = screen.getAllByRole('button', { name: /Deprecate/ })
@@ -1047,17 +733,11 @@ describe('Tutorial Page', () => {
 
           fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-          await waitFor(() => {
-            expect(screen.getByText('Well Done!')).toBeInTheDocument()
-          })
+          expect(screen.getByText('Well Done!')).toBeInTheDocument()
         })
 
-        it('shows error when keeping generic and accepting specific', async () => {
-          navigateToStep15()
-
-          await waitFor(() => {
-            expect(screen.getByText('Political Positions')).toBeInTheDocument()
-          })
+        it('shows error when keeping generic and accepting specific', () => {
+          render(<TutorialContent initialStep={15} />)
 
           // Only accept the new specific (don't touch existing)
           const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
@@ -1065,17 +745,11 @@ describe('Tutorial Page', () => {
 
           fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-          await waitFor(() => {
-            expect(screen.getByText('Not Quite Right')).toBeInTheDocument()
-          })
+          expect(screen.getByText('Not Quite Right')).toBeInTheDocument()
         })
 
-        it('shows error when deprecating generic and rejecting specific', async () => {
-          navigateToStep15()
-
-          await waitFor(() => {
-            expect(screen.getByText('Political Positions')).toBeInTheDocument()
-          })
+        it('shows error when deprecating generic and rejecting specific', () => {
+          render(<TutorialContent initialStep={15} />)
 
           const deprecateButtons = screen.getAllByRole('button', { name: /Deprecate/ })
           const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
@@ -1085,52 +759,27 @@ describe('Tutorial Page', () => {
 
           fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-          await waitFor(() => {
-            expect(screen.getByText('Not Quite Right')).toBeInTheDocument()
-          })
+          expect(screen.getByText('Not Quite Right')).toBeInTheDocument()
         })
 
-        it('shows error when keeping generic and rejecting specific', async () => {
-          navigateToStep15()
-
-          await waitFor(() => {
-            expect(screen.getByText('Political Positions')).toBeInTheDocument()
-          })
+        it('shows error when keeping generic and rejecting specific', () => {
+          render(<TutorialContent initialStep={15} />)
 
           const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
           fireEvent.click(rejectButtons[0])
 
           fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-          await waitFor(() => {
-            expect(screen.getByText('Not Quite Right')).toBeInTheDocument()
-          })
+          expect(screen.getByText('Not Quite Right')).toBeInTheDocument()
         })
       })
     })
 
     describe('Step 16 - Data With Metadata', () => {
-      const navigateToStep16 = () => {
-        render(<TutorialPage />)
-        completeBasicTutorialInternal()
-        fireEvent.click(screen.getByRole('button', { name: "Let's Advance" }))
-        fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
+      it('renders data with metadata explanation', () => {
+        render(<TutorialContent initialStep={16} />)
 
-        // Complete step 15 correctly
-        const deprecateButtons = screen.getAllByRole('button', { name: /Deprecate/ })
-        const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
-        fireEvent.click(deprecateButtons[0])
-        fireEvent.click(acceptButtons[0])
-        fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-      }
-
-      it('renders data with metadata explanation', async () => {
-        navigateToStep16()
-
-        await waitFor(() => {
-          expect(screen.getByText('Data With Metadata')).toBeInTheDocument()
-        })
+        expect(screen.getByText('Data With Metadata')).toBeInTheDocument()
         expect(
           screen.getByText(/Some existing Wikidata statements have valuable metadata/),
         ).toBeInTheDocument()
@@ -1138,38 +787,17 @@ describe('Tutorial Page', () => {
     })
 
     describe('Step 17 - Deprecate With Metadata (Interactive)', () => {
-      const navigateToStep17 = () => {
-        render(<TutorialPage />)
-        completeBasicTutorialInternal()
-        fireEvent.click(screen.getByRole('button', { name: "Let's Advance" }))
-        fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
+      it('renders existing data with metadata and new specific data', () => {
+        render(<TutorialContent initialStep={17} />)
 
-        const deprecateButtons = screen.getAllByRole('button', { name: /Deprecate/ })
-        const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
-        fireEvent.click(deprecateButtons[0])
-        fireEvent.click(acceptButtons[0])
-        fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-        fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-      }
-
-      it('renders existing data with metadata and new specific data', async () => {
-        navigateToStep17()
-
-        await waitFor(() => {
-          expect(screen.getByText('Political Positions')).toBeInTheDocument()
-        })
+        expect(screen.getByText('Political Positions')).toBeInTheDocument()
         expect(screen.getByText('Member of Parliament')).toBeInTheDocument()
         expect(screen.getByText('Member of Springfield Parliament')).toBeInTheDocument()
       })
 
       describe('Input combinations', () => {
-        it('shows success when accepting new and keeping existing with metadata', async () => {
-          navigateToStep17()
-
-          await waitFor(() => {
-            expect(screen.getByText('Political Positions')).toBeInTheDocument()
-          })
+        it('shows success when accepting new and keeping existing with metadata', () => {
+          render(<TutorialContent initialStep={17} />)
 
           // Just accept the new specific data (keep existing with metadata)
           const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
@@ -1177,17 +805,11 @@ describe('Tutorial Page', () => {
 
           fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-          await waitFor(() => {
-            expect(screen.getByText('Great Choice!')).toBeInTheDocument()
-          })
+          expect(screen.getByText('Great Choice!')).toBeInTheDocument()
         })
 
-        it('shows error when deprecating existing with metadata', async () => {
-          navigateToStep17()
-
-          await waitFor(() => {
-            expect(screen.getByText('Political Positions')).toBeInTheDocument()
-          })
+        it('shows error when deprecating existing with metadata', () => {
+          render(<TutorialContent initialStep={17} />)
 
           const deprecateButtons = screen.getAllByRole('button', { name: /Deprecate/ })
           const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
@@ -1199,58 +821,27 @@ describe('Tutorial Page', () => {
 
           fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-          await waitFor(() => {
-            expect(screen.getByText("Let's Reconsider")).toBeInTheDocument()
-          })
+          expect(screen.getByText("Let's Reconsider")).toBeInTheDocument()
         })
 
-        it('shows error when rejecting new data', async () => {
-          navigateToStep17()
-
-          await waitFor(() => {
-            expect(screen.getByText('Political Positions')).toBeInTheDocument()
-          })
+        it('shows error when rejecting new data', () => {
+          render(<TutorialContent initialStep={17} />)
 
           const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
           fireEvent.click(rejectButtons[0])
 
           fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
-          await waitFor(() => {
-            expect(screen.getByText("Let's Reconsider")).toBeInTheDocument()
-          })
+          expect(screen.getByText("Let's Reconsider")).toBeInTheDocument()
         })
       })
     })
 
     describe('Step 18 - Key Takeaways', () => {
-      const navigateToStep18 = () => {
-        render(<TutorialPage />)
-        completeBasicTutorialInternal()
-        fireEvent.click(screen.getByRole('button', { name: "Let's Advance" }))
-        fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
+      it('renders key takeaways', () => {
+        render(<TutorialContent initialStep={18} />)
 
-        let deprecateButtons = screen.getAllByRole('button', { name: /Deprecate/ })
-        let acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
-        fireEvent.click(deprecateButtons[0])
-        fireEvent.click(acceptButtons[0])
-        fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-        fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
-
-        // Step 17 - accept new, keep existing
-        acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
-        fireEvent.click(acceptButtons[0])
-        fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-      }
-
-      it('renders key takeaways', async () => {
-        navigateToStep18()
-
-        await waitFor(() => {
-          expect(screen.getByText('Key Takeaways')).toBeInTheDocument()
-        })
+        expect(screen.getByText('Key Takeaways')).toBeInTheDocument()
         expect(
           screen.getByText(/Feel free to deprecate generic or incorrect existing data/),
         ).toBeInTheDocument()
@@ -1260,17 +851,12 @@ describe('Tutorial Page', () => {
         expect(screen.getByRole('button', { name: 'Got It!' })).toBeInTheDocument()
       })
 
-      it('completes advanced tutorial and shows completion screen', async () => {
-        navigateToStep18()
+      it('completes advanced tutorial and shows completion screen', () => {
+        render(<TutorialContent initialStep={18} />)
 
-        await waitFor(() => {
-          expect(screen.getByText('Key Takeaways')).toBeInTheDocument()
-        })
         fireEvent.click(screen.getByRole('button', { name: 'Got It!' }))
 
-        await waitFor(() => {
-          expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
-        })
+        expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
         expect(mockCompleteAdvancedTutorial).toHaveBeenCalled()
       })
     })
@@ -1278,7 +864,7 @@ describe('Tutorial Page', () => {
 
   describe('Skip Tutorial', () => {
     it('all steps have Skip Tutorial link', () => {
-      render(<TutorialPage />)
+      render(<TutorialContent />)
 
       // Step 0
       expect(screen.getByRole('link', { name: 'Skip Tutorial' })).toBeInTheDocument()
@@ -1289,7 +875,7 @@ describe('Tutorial Page', () => {
     })
 
     it('Skip Tutorial links to /evaluate', () => {
-      render(<TutorialPage />)
+      render(<TutorialContent />)
 
       const skipLink = screen.getByRole('link', { name: 'Skip Tutorial' })
       expect(skipLink).toHaveAttribute('href', '/evaluate')
@@ -1297,7 +883,7 @@ describe('Tutorial Page', () => {
   })
 
   describe('Starting from advanced tutorial when basic is completed', () => {
-    it('starts at step 13 when basic is completed and advanced mode enabled', async () => {
+    it('starts at step 13 when basic is completed and advanced mode enabled', () => {
       mockUseTutorial.mockReturnValue({
         hasCompletedBasicTutorial: true,
         hasCompletedAdvancedTutorial: false,
@@ -1318,11 +904,9 @@ describe('Tutorial Page', () => {
         setAdvancedMode: vi.fn(),
       })
 
-      render(<TutorialPage />)
+      render(<TutorialContent />)
 
-      await waitFor(() => {
-        expect(screen.getByText('Advanced Mode Tutorial')).toBeInTheDocument()
-      })
+      expect(screen.getByText('Advanced Mode Tutorial')).toBeInTheDocument()
     })
   })
 })
