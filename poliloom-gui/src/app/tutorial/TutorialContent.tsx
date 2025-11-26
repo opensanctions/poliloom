@@ -93,9 +93,9 @@ function checkEvaluations(
 
 // Step ranges
 const BASIC_START = 0
-const BASIC_END = 12 // Last basic step
-const ADVANCED_START = 13
-const ADVANCED_END = 18 // Last advanced step
+const BASIC_END = 13 // Last basic step
+const ADVANCED_START = 14
+const ADVANCED_END = 19 // Last advanced step
 
 export interface TutorialContentProps {
   initialStep?: number // For testing - allows starting at any step
@@ -427,9 +427,26 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         />
       )
     }
+  } else if (step === 13) {
+    // Basic tutorial key takeaways
+    content = (
+      <CenteredCard emoji="💡" title="Key Takeaways">
+        <div className="mb-8 space-y-4">
+          <p>
+            Accept data that matches the source. Reject data that doesn&apos;t match or is less
+            specific than what we already have.
+          </p>
+          <p>
+            Not sure about something? That&apos;s completely fine — just skip it. You&apos;re never
+            required to decide on every item.
+          </p>
+        </div>
+        <TutorialActions buttonText="Got It!" onNext={nextStep} />
+      </CenteredCard>
+    )
   }
-  // ============ ADVANCED TUTORIAL STEPS (13-18) ============
-  else if (step === 13) {
+  // ============ ADVANCED TUTORIAL STEPS (14-19) ============
+  else if (step === 14) {
     // Advanced mode welcome
     content = (
       <CenteredCard emoji="⚡" title="Advanced Mode Tutorial">
@@ -443,7 +460,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         <TutorialActions buttonText="Let's Advance" onNext={nextStep} />
       </CenteredCard>
     )
-  } else if (step === 14) {
+  } else if (step === 15) {
     // Chapter 1: Deprecating simple existing data
     content = (
       <CenteredCard emoji="🔄" title="Replacing Generic Data">
@@ -457,7 +474,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         <TutorialActions buttonText="Let's do it" onNext={nextStep} />
       </CenteredCard>
     )
-  } else if (step === 15) {
+  } else if (step === 16) {
     // Interactive: deprecate simple existing data
     if (deprecateSimpleResult?.isCorrect) {
       content = (
@@ -500,7 +517,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         />
       )
     }
-  } else if (step === 16) {
+  } else if (step === 17) {
     // Chapter 2: Deprecating data with qualifiers/references
     content = (
       <CenteredCard emoji="⚠️" title="Data With Metadata">
@@ -515,7 +532,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         <TutorialActions buttonText="Let's do it" onNext={nextStep} />
       </CenteredCard>
     )
-  } else if (step === 17) {
+  } else if (step === 18) {
     // Interactive: data with metadata - accept the new data AND keep the existing data
     if (deprecateWithMetadataResult?.isCorrect) {
       content = (
@@ -556,7 +573,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         />
       )
     }
-  } else if (step === 18) {
+  } else if (step === 19) {
     // Advanced tutorial summary
     content = (
       <CenteredCard emoji="💡" title="Key Takeaways">

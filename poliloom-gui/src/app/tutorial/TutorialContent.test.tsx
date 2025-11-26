@@ -630,13 +630,34 @@ describe('Tutorial Page', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
     }
 
-    it('shows success feedback and completes basic tutorial', () => {
+    it('shows success feedback and advances to key takeaways', () => {
       goToStep12WithSuccess()
 
       expect(screen.getByText('Perfect!')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
 
-      // Basic tutorial is complete - should show completion screen (not in advanced mode)
+      // Should show key takeaways
+      expect(screen.getByText('Key Takeaways')).toBeInTheDocument()
+    })
+  })
+
+  describe('Step 13 - Basic Key Takeaways', () => {
+    it('renders key takeaways with skip explanation', () => {
+      render(<TutorialContent initialStep={13} />)
+
+      expect(screen.getByText('Key Takeaways')).toBeInTheDocument()
+      expect(screen.getByText(/Accept data that matches the source/)).toBeInTheDocument()
+      expect(
+        screen.getByText(/Not sure about something\? That's completely fine/),
+      ).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Got It!' })).toBeInTheDocument()
+    })
+
+    it('completes basic tutorial and shows completion screen', () => {
+      render(<TutorialContent initialStep={13} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Got It!' }))
+
       expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
       expect(mockCompleteBasicTutorial).toHaveBeenCalled()
     })
@@ -644,8 +665,8 @@ describe('Tutorial Page', () => {
 
   describe('Tutorial Completion (Basic Mode)', () => {
     it('shows completion screen with link to evaluate page', () => {
-      // Use initialStep=13 which triggers completion screen in basic mode
-      render(<TutorialContent initialStep={13} />)
+      // Use initialStep=14 which triggers completion screen in basic mode
+      render(<TutorialContent initialStep={14} />)
 
       expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
       expect(
@@ -674,9 +695,9 @@ describe('Tutorial Page', () => {
       })
     })
 
-    describe('Step 13 - Advanced Mode Welcome', () => {
+    describe('Step 14 - Advanced Mode Welcome', () => {
       it('shows advanced mode welcome after basic tutorial', () => {
-        render(<TutorialContent initialStep={13} />)
+        render(<TutorialContent initialStep={14} />)
 
         expect(screen.getByText('Advanced Mode Tutorial')).toBeInTheDocument()
         expect(
@@ -685,8 +706,8 @@ describe('Tutorial Page', () => {
         expect(screen.getByRole('button', { name: "Let's Advance" })).toBeInTheDocument()
       })
 
-      it('advances to step 14 when clicking "Let\'s Advance"', () => {
-        render(<TutorialContent initialStep={13} />)
+      it('advances to step 15 when clicking "Let\'s Advance"', () => {
+        render(<TutorialContent initialStep={14} />)
 
         fireEvent.click(screen.getByRole('button', { name: "Let's Advance" }))
 
@@ -694,9 +715,9 @@ describe('Tutorial Page', () => {
       })
     })
 
-    describe('Step 14 - Replacing Generic Data', () => {
+    describe('Step 15 - Replacing Generic Data', () => {
       it('renders replacing generic data explanation', () => {
-        render(<TutorialContent initialStep={14} />)
+        render(<TutorialContent initialStep={15} />)
 
         expect(screen.getByText('Replacing Generic Data')).toBeInTheDocument()
         expect(
@@ -707,9 +728,9 @@ describe('Tutorial Page', () => {
       })
     })
 
-    describe('Step 15 - Deprecate Simple Existing Data (Interactive)', () => {
+    describe('Step 16 - Deprecate Simple Existing Data (Interactive)', () => {
       it('renders existing generic and new specific positions', () => {
-        render(<TutorialContent initialStep={15} />)
+        render(<TutorialContent initialStep={16} />)
 
         expect(screen.getByText('Political Positions')).toBeInTheDocument()
         // Existing generic data (no supporting quotes)
@@ -720,7 +741,7 @@ describe('Tutorial Page', () => {
 
       describe('Input combinations', () => {
         it('shows success when deprecating generic and accepting specific', () => {
-          render(<TutorialContent initialStep={15} />)
+          render(<TutorialContent initialStep={16} />)
 
           // Find deprecate button for existing data
           const deprecateButtons = screen.getAllByRole('button', { name: /Deprecate/ })
@@ -737,7 +758,7 @@ describe('Tutorial Page', () => {
         })
 
         it('shows error when keeping generic and accepting specific', () => {
-          render(<TutorialContent initialStep={15} />)
+          render(<TutorialContent initialStep={16} />)
 
           // Only accept the new specific (don't touch existing)
           const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
@@ -749,7 +770,7 @@ describe('Tutorial Page', () => {
         })
 
         it('shows error when deprecating generic and rejecting specific', () => {
-          render(<TutorialContent initialStep={15} />)
+          render(<TutorialContent initialStep={16} />)
 
           const deprecateButtons = screen.getAllByRole('button', { name: /Deprecate/ })
           const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
@@ -763,7 +784,7 @@ describe('Tutorial Page', () => {
         })
 
         it('shows error when keeping generic and rejecting specific', () => {
-          render(<TutorialContent initialStep={15} />)
+          render(<TutorialContent initialStep={16} />)
 
           const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
           fireEvent.click(rejectButtons[0])
@@ -775,9 +796,9 @@ describe('Tutorial Page', () => {
       })
     })
 
-    describe('Step 16 - Data With Metadata', () => {
+    describe('Step 17 - Data With Metadata', () => {
       it('renders data with metadata explanation', () => {
-        render(<TutorialContent initialStep={16} />)
+        render(<TutorialContent initialStep={17} />)
 
         expect(screen.getByText('Data With Metadata')).toBeInTheDocument()
         expect(
@@ -786,9 +807,9 @@ describe('Tutorial Page', () => {
       })
     })
 
-    describe('Step 17 - Deprecate With Metadata (Interactive)', () => {
+    describe('Step 18 - Deprecate With Metadata (Interactive)', () => {
       it('renders existing data with metadata and new specific data', () => {
-        render(<TutorialContent initialStep={17} />)
+        render(<TutorialContent initialStep={18} />)
 
         expect(screen.getByText('Political Positions')).toBeInTheDocument()
         expect(screen.getByText('Member of Parliament')).toBeInTheDocument()
@@ -797,7 +818,7 @@ describe('Tutorial Page', () => {
 
       describe('Input combinations', () => {
         it('shows success when accepting new and keeping existing with metadata', () => {
-          render(<TutorialContent initialStep={17} />)
+          render(<TutorialContent initialStep={18} />)
 
           // Just accept the new specific data (keep existing with metadata)
           const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
@@ -809,7 +830,7 @@ describe('Tutorial Page', () => {
         })
 
         it('shows error when deprecating existing with metadata', () => {
-          render(<TutorialContent initialStep={17} />)
+          render(<TutorialContent initialStep={18} />)
 
           const deprecateButtons = screen.getAllByRole('button', { name: /Deprecate/ })
           const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
@@ -825,7 +846,7 @@ describe('Tutorial Page', () => {
         })
 
         it('shows error when rejecting new data', () => {
-          render(<TutorialContent initialStep={17} />)
+          render(<TutorialContent initialStep={18} />)
 
           const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
           fireEvent.click(rejectButtons[0])
@@ -837,9 +858,9 @@ describe('Tutorial Page', () => {
       })
     })
 
-    describe('Step 18 - Key Takeaways', () => {
+    describe('Step 19 - Key Takeaways', () => {
       it('renders key takeaways', () => {
-        render(<TutorialContent initialStep={18} />)
+        render(<TutorialContent initialStep={19} />)
 
         expect(screen.getByText('Key Takeaways')).toBeInTheDocument()
         expect(
@@ -852,7 +873,7 @@ describe('Tutorial Page', () => {
       })
 
       it('completes advanced tutorial and shows completion screen', () => {
-        render(<TutorialContent initialStep={18} />)
+        render(<TutorialContent initialStep={19} />)
 
         fireEvent.click(screen.getByRole('button', { name: 'Got It!' }))
 
@@ -883,7 +904,7 @@ describe('Tutorial Page', () => {
   })
 
   describe('Starting from advanced tutorial when basic is completed', () => {
-    it('starts at step 13 when basic is completed and advanced mode enabled', () => {
+    it('starts at step 14 when basic is completed and advanced mode enabled', () => {
       mockUseTutorial.mockReturnValue({
         hasCompletedBasicTutorial: true,
         hasCompletedAdvancedTutorial: false,
