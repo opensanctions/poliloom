@@ -1,17 +1,14 @@
 import { Button } from '@/components/ui/Button'
 import { Anchor } from '@/components/ui/Anchor'
 
-type ExpectedEvaluations = Record<string, boolean>
-
 interface TutorialFooterProps {
   evaluations: Map<string, boolean>
-  expected: ExpectedEvaluations
+  requiredKeys: string[]
   onSubmit: () => void
 }
 
-export function TutorialFooter({ evaluations, expected, onSubmit }: TutorialFooterProps) {
-  const expectedKeys = Object.keys(expected)
-  const isComplete = expectedKeys.every((key) => evaluations.has(key))
+export function TutorialFooter({ evaluations, requiredKeys, onSubmit }: TutorialFooterProps) {
+  const isComplete = requiredKeys.every((key) => evaluations.has(key))
 
   return (
     <div className="flex justify-between items-center">

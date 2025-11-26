@@ -195,7 +195,7 @@ export default function TutorialPage() {
         footer={(evaluations) => (
           <TutorialFooter
             evaluations={evaluations}
-            expected={birthDateExpected}
+            requiredKeys={Object.keys(birthDateExpected)}
             onSubmit={() => {
               const result = checkEvaluations(evaluations, birthDateExpected)
               setBirthDateResult(result)
@@ -251,7 +251,7 @@ export default function TutorialPage() {
         footer={(evaluations) => (
           <TutorialFooter
             evaluations={evaluations}
-            expected={multipleSourcesExpected}
+            requiredKeys={Object.keys(multipleSourcesExpected)}
             onSubmit={() => {
               const result = checkEvaluations(evaluations, multipleSourcesExpected)
               setMultipleSourcesResult(result)
@@ -307,7 +307,7 @@ export default function TutorialPage() {
         footer={(evaluations) => (
           <TutorialFooter
             evaluations={evaluations}
-            expected={genericVsSpecificExpected}
+            requiredKeys={Object.keys(genericVsSpecificExpected)}
             onSubmit={() => {
               const result = checkEvaluations(evaluations, genericVsSpecificExpected)
               setGenericVsSpecificResult(result)

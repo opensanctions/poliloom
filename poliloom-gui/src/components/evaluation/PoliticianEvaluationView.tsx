@@ -5,6 +5,7 @@ import { Politician, Property, ArchivedPageResponse } from '@/types'
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting'
 import { highlightTextInScope } from '@/lib/textHighlighter'
 import { TwoPanel } from '@/components/layout/TwoPanel'
+import { CenteredCard } from '@/components/ui/CenteredCard'
 import { PropertiesEvaluation } from './PropertiesEvaluation'
 import { PoliticianHeader } from './PoliticianHeader'
 import { ArchivedPageViewer } from './ArchivedPageViewer'
@@ -131,12 +132,9 @@ export function PoliticianEvaluationView({
       onLoad={handleIframeLoad}
     />
   ) : (
-    <div className="flex items-center justify-center h-full text-gray-500">
-      <div className="text-center">
-        <p className="text-lg mb-2">📄</p>
-        <p>Click &ldquo;View&rdquo; on any item to see the source page</p>
-      </div>
-    </div>
+    <CenteredCard emoji="📄" title="Select a Source">
+      <p>Click &ldquo;View&rdquo; on any item to see the source page</p>
+    </CenteredCard>
   )
 
   return <TwoPanel left={leftPanel} right={rightPanel} />
