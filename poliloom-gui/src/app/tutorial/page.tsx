@@ -357,7 +357,7 @@ export default function TutorialPage() {
       content = (
         <ErrorFeedback
           title="Let's Try Again"
-          message="Make sure to check each position against its source document. Click 'View' to switch between sources and verify each extraction."
+          message={`Make sure to check each position against its source document. Click "View" to switch between sources and verify each extraction.`}
           hint="Hint: Both positions are correctly extracted from their sources in this example."
           onRetry={() => {
             setMultipleSourcesKey((k) => k + 1)
@@ -404,7 +404,7 @@ export default function TutorialPage() {
       content = (
         <SuccessFeedback
           title="Perfect!"
-          message="You correctly rejected the generic 'Member of Parliament' because the more specific 'Member of Springfield Parliament' already exists. Quality over quantity!"
+          message={`You correctly rejected the generic "Member of Parliament" because the more specific "Member of Springfield Parliament" already exists. Quality over quantity!`}
           onNext={nextStep}
         />
       )
@@ -413,7 +413,7 @@ export default function TutorialPage() {
         <ErrorFeedback
           title="Almost There"
           message="Remember: when we already have specific data, we don't need a generic version. Look at what data already exists before accepting new extractions."
-          hint="Hint: 'Member of Springfield Parliament' is more specific than 'Member of Parliament'."
+          hint={`Hint: "Member of Springfield Parliament" is more specific than "Member of Parliament".`}
           onRetry={() => {
             setGenericVsSpecificKey((k) => k + 1)
             setGenericVsSpecificResult(null)
@@ -468,7 +468,7 @@ export default function TutorialPage() {
       content = (
         <ErrorFeedback
           title="Not Quite Right"
-          message="The existing 'Member of Parliament' is generic. The new extraction gives us more specific information - deprecate the old and accept the new."
+          message={`The existing "Member of Parliament" is generic. The new extraction gives us more specific information - deprecate the old and accept the new.`}
           hint="Hint: Deprecate the generic existing data and accept the specific new extraction."
           onRetry={() => {
             setDeprecateSimpleKey((k) => k + 1)
