@@ -697,7 +697,9 @@ class CurrentImportEntity(Base):
     __tablename__ = "current_import_entities"
 
     entity_id = Column(
-        String, ForeignKey("wikidata_entities.wikidata_id"), primary_key=True
+        String,
+        ForeignKey("wikidata_entities.wikidata_id", ondelete="CASCADE"),
+        primary_key=True,
     )
 
     @classmethod
