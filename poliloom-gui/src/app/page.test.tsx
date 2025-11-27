@@ -50,6 +50,15 @@ vi.mock('@/contexts/TutorialContext', async (importOriginal) => {
   }
 })
 
+const mockUseUserPreferences = vi.fn()
+vi.mock('@/contexts/UserPreferencesContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/contexts/UserPreferencesContext')>()
+  return {
+    ...actual,
+    useUserPreferences: () => mockUseUserPreferences(),
+  }
+})
+
 describe('Home Page (Filter Selection)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -61,6 +70,19 @@ describe('Home Page (Filter Selection)', () => {
       completeBasicTutorial: vi.fn(),
       completeAdvancedTutorial: vi.fn(),
       resetTutorial: vi.fn(),
+    })
+
+    // Default user preferences - basic mode
+    mockUseUserPreferences.mockReturnValue({
+      filters: [],
+      languages: [],
+      countries: [],
+      loadingLanguages: false,
+      loadingCountries: false,
+      initialized: true,
+      updateFilters: vi.fn(),
+      isAdvancedMode: false,
+      setAdvancedMode: vi.fn(),
     })
 
     // Mock fetch for API calls
@@ -111,12 +133,12 @@ describe('Home Page (Filter Selection)', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Customize Your Review Session')).toBeInTheDocument()
+      expect(screen.getByText('Customize Your Evaluation Session')).toBeInTheDocument()
     })
 
     expect(
       screen.getByText(
-        "Select the countries and languages you're interested in reviewing. Leave filters empty to review all available politicians.",
+        "Select the countries and languages you're interested in evaluating. Leave filters empty to evaluate all available politicians.",
       ),
     ).toBeInTheDocument()
     expect(screen.getByText('What languages can you read?')).toBeInTheDocument()
@@ -138,7 +160,66 @@ describe('Home Page (Filter Selection)', () => {
     })
   })
 
-  it('shows Begin Review Session button when tutorial completed', async () => {
+  it('shows Begin Evaluation Session button when basic tutorial completed in basic mode', async () => {
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: 'loading',
+    })
+
+    mockUseTutorial.mockReturnValue({
+      hasCompletedBasicTutorial: true,
+      hasCompletedAdvancedTutorial: false,
+      completeBasicTutorial: vi.fn(),
+      completeAdvancedTutorial: vi.fn(),
+      resetTutorial: vi.fn(),
+    })
+
+    // Basic mode (default from beforeEach)
+    await act(async () => {
+      render(<Home />)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Begin Evaluation Session')).toBeInTheDocument()
+    })
+  })
+
+  it('shows Start Advanced Tutorial button when basic completed but advanced not completed in advanced mode', async () => {
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: 'loading',
+    })
+
+    mockUseTutorial.mockReturnValue({
+      hasCompletedBasicTutorial: true,
+      hasCompletedAdvancedTutorial: false,
+      completeBasicTutorial: vi.fn(),
+      completeAdvancedTutorial: vi.fn(),
+      resetTutorial: vi.fn(),
+    })
+
+    mockUseUserPreferences.mockReturnValue({
+      filters: [],
+      languages: [],
+      countries: [],
+      loadingLanguages: false,
+      loadingCountries: false,
+      initialized: true,
+      updateFilters: vi.fn(),
+      isAdvancedMode: true,
+      setAdvancedMode: vi.fn(),
+    })
+
+    await act(async () => {
+      render(<Home />)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Start Advanced Tutorial')).toBeInTheDocument()
+    })
+  })
+
+  it('shows Begin Evaluation Session button when both tutorials completed in advanced mode', async () => {
     mockUseSession.mockReturnValue({
       data: null,
       status: 'loading',
@@ -152,12 +233,52 @@ describe('Home Page (Filter Selection)', () => {
       resetTutorial: vi.fn(),
     })
 
+    mockUseUserPreferences.mockReturnValue({
+      filters: [],
+      languages: [],
+      countries: [],
+      loadingLanguages: false,
+      loadingCountries: false,
+      initialized: true,
+      updateFilters: vi.fn(),
+      isAdvancedMode: true,
+      setAdvancedMode: vi.fn(),
+    })
+
     await act(async () => {
       render(<Home />)
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Begin Review Session')).toBeInTheDocument()
+      expect(screen.getByText('Begin Evaluation Session')).toBeInTheDocument()
+    })
+  })
+
+  it('shows Start Tutorial button when no tutorials completed in advanced mode', async () => {
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: 'loading',
+    })
+
+    // No tutorials completed (default from beforeEach)
+    mockUseUserPreferences.mockReturnValue({
+      filters: [],
+      languages: [],
+      countries: [],
+      loadingLanguages: false,
+      loadingCountries: false,
+      initialized: true,
+      updateFilters: vi.fn(),
+      isAdvancedMode: true,
+      setAdvancedMode: vi.fn(),
+    })
+
+    await act(async () => {
+      render(<Home />)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Start Tutorial')).toBeInTheDocument()
     })
   })
 
