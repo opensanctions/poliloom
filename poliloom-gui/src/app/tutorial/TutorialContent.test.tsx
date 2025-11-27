@@ -265,9 +265,9 @@ describe('Tutorial Page', () => {
         const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
         const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
 
-        // Correct answer: Accept March 15, 1975 (first) and Reject June 8, 1952 (second)
-        fireEvent.click(acceptButtons[0])
-        fireEvent.click(rejectButtons[1])
+        // Correct answer: Reject June 8, 1952 (first - mother's) and Accept March 15, 1975 (second - Jane's)
+        fireEvent.click(rejectButtons[0])
+        fireEvent.click(acceptButtons[1])
 
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
@@ -283,9 +283,9 @@ describe('Tutorial Page', () => {
         const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
         const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
 
-        // Wrong answer: Reject correct date, Accept incorrect date
-        fireEvent.click(rejectButtons[0])
-        fireEvent.click(acceptButtons[1])
+        // Wrong answer: Accept incorrect date (first), Reject correct date (second)
+        fireEvent.click(acceptButtons[0])
+        fireEvent.click(rejectButtons[1])
 
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
@@ -329,8 +329,9 @@ describe('Tutorial Page', () => {
       render(<TutorialContent initialStep={5} />)
       const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
       const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
-      fireEvent.click(acceptButtons[0])
-      fireEvent.click(rejectButtons[1])
+      // Correct: Reject first (1952 - mother's), Accept second (1975 - Jane's)
+      fireEvent.click(rejectButtons[0])
+      fireEvent.click(acceptButtons[1])
       fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
     }
 
@@ -968,6 +969,93 @@ describe('Tutorial Page', () => {
       render(<TutorialContent />)
 
       expect(screen.getByText('Advanced Mode Tutorial')).toBeInTheDocument()
+    })
+  })
+
+  describe('Basic mode shows only basic tutorial', () => {
+    it('shows completion screen after step 13 when not in advanced mode', () => {
+      // Basic mode (isAdvancedMode: false) - default from beforeEach
+      render(<TutorialContent initialStep={13} />)
+
+      // Click "Got It!" on key takeaways
+      fireEvent.click(screen.getByRole('button', { name: 'Got It!' }))
+
+      // Should show completion screen, NOT advance to step 14
+      expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
+      expect(screen.queryByText('Advanced Mode Tutorial')).not.toBeInTheDocument()
+      expect(mockCompleteBasicTutorial).toHaveBeenCalled()
+    })
+
+    it('does not continue to advanced tutorial in basic mode', () => {
+      // Explicitly test that completion happens
+      render(<TutorialContent initialStep={14} />)
+
+      // In basic mode, step 14 should show completion (not advanced welcome)
+      expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
+      expect(screen.queryByText('Advanced Mode Tutorial')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('Advanced mode runs both tutorials in succession', () => {
+    beforeEach(() => {
+      // Enable advanced mode, no tutorials completed yet
+      mockUseTutorial.mockReturnValue({
+        hasCompletedBasicTutorial: false,
+        hasCompletedAdvancedTutorial: false,
+        completeBasicTutorial: mockCompleteBasicTutorial,
+        completeAdvancedTutorial: mockCompleteAdvancedTutorial,
+        resetTutorial: vi.fn(),
+      })
+
+      mockUseUserPreferences.mockReturnValue({
+        filters: [],
+        languages: [],
+        countries: [],
+        loadingLanguages: false,
+        loadingCountries: false,
+        initialized: true,
+        updateFilters: vi.fn(),
+        isAdvancedMode: true,
+        setAdvancedMode: vi.fn(),
+      })
+    })
+
+    it('starts at step 0 (basic tutorial) when neither tutorial is completed', () => {
+      render(<TutorialContent />)
+
+      expect(screen.getByText('Welcome to PoliLoom!')).toBeInTheDocument()
+    })
+
+    it('advances to advanced tutorial (step 14) after completing basic tutorial in advanced mode', () => {
+      render(<TutorialContent initialStep={13} />)
+
+      // Click "Got It!" on basic key takeaways
+      fireEvent.click(screen.getByRole('button', { name: 'Got It!' }))
+
+      // Should show advanced tutorial welcome, NOT completion screen
+      expect(screen.getByText('Advanced Mode Tutorial')).toBeInTheDocument()
+      expect(screen.queryByText('Tutorial Complete!')).not.toBeInTheDocument()
+      expect(mockCompleteBasicTutorial).toHaveBeenCalled()
+    })
+
+    it('shows completion screen after completing advanced tutorial (step 19)', () => {
+      // Simulate that basic was just completed
+      mockUseTutorial.mockReturnValue({
+        hasCompletedBasicTutorial: true,
+        hasCompletedAdvancedTutorial: false,
+        completeBasicTutorial: mockCompleteBasicTutorial,
+        completeAdvancedTutorial: mockCompleteAdvancedTutorial,
+        resetTutorial: vi.fn(),
+      })
+
+      render(<TutorialContent initialStep={19} />)
+
+      // Click "Got It!" on advanced key takeaways
+      fireEvent.click(screen.getByRole('button', { name: 'Got It!' }))
+
+      // Now should show completion screen
+      expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
+      expect(mockCompleteAdvancedTutorial).toHaveBeenCalled()
     })
   })
 })

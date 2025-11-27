@@ -3,6 +3,8 @@ import { Property, PropertyType } from '@/types'
 import { EvaluationItem } from './EvaluationItem'
 import { PropertyDisplay } from './PropertyDisplay'
 import { EntityLink } from '@/components/ui/EntityLink'
+import { parsePositionQualifiers, compareDates } from '@/lib/wikidata/qualifierParser'
+import { parseWikidataDate } from '@/lib/wikidata/dateParser'
 
 interface PropertiesEvaluationProps {
   properties: Property[]
@@ -65,6 +67,35 @@ export function PropertiesEvaluation({
       }
     })
 
+    // Helper to compare parsed dates: precision first (higher wins), then date value
+    const compareByPrecisionThenDate = (
+      a: { precision: number } & Parameters<typeof compareDates>[0],
+      b: { precision: number } & Parameters<typeof compareDates>[0],
+    ) => {
+      if (a.precision !== b.precision) {
+        return b.precision - a.precision
+      }
+      return compareDates(a, b)
+    }
+
+    // Helper to get start date for sorting by qualifiers
+    const getStartDate = (property: Property) => {
+      if (!property.qualifiers) return null
+      return parsePositionQualifiers(property.qualifiers).startDate
+    }
+
+    // Helper to compare properties by start date: precision first, then date value
+    const compareByStartDate = (a: Property, b: Property) => {
+      const startA = getStartDate(a)
+      const startB = getStartDate(b)
+
+      if (!startA && !startB) return 0
+      if (!startA) return 1
+      if (!startB) return -1
+
+      return compareByPrecisionThenDate(startA, startB)
+    }
+
     // Add Properties section (birth and death dates)
     if (dateProps.length > 0) {
       // Group by property type (P569 for birth, P570 for death)
@@ -74,6 +105,18 @@ export function PropertiesEvaluation({
           dateGroups.set(prop.type, [])
         }
         dateGroups.get(prop.type)!.push(prop)
+      })
+
+      // Sort by precision first, then by date value
+      dateGroups.forEach((props) => {
+        props.sort((a, b) => {
+          if (!a.value || !a.value_precision) return 1
+          if (!b.value || !b.value_precision) return -1
+
+          const dateA = parseWikidataDate(a.value, a.value_precision)
+          const dateB = parseWikidataDate(b.value, b.value_precision)
+          return compareByPrecisionThenDate(dateA, dateB)
+        })
       })
 
       const items = Array.from(dateGroups.entries()).map(([type, props]) => ({
@@ -91,8 +134,6 @@ export function PropertiesEvaluation({
       const typeProperties = entityBasedProps.get(propertyType)
       if (!typeProperties) return
 
-      const sectionTitle = getSectionTitle(propertyType)
-
       // Group by entity_id
       const entityGroups = new Map<string, Property[]>()
       typeProperties.forEach((property) => {
@@ -103,13 +144,18 @@ export function PropertiesEvaluation({
         entityGroups.get(key)!.push(property)
       })
 
-      const items = Array.from(entityGroups.entries()).map(([entityKey, entityProperties]) => ({
-        title: getPropertyTitle(entityProperties[0]),
-        properties: entityProperties,
-        key: entityKey,
-      }))
+      // Sort within each group by start date, then sort groups by earliest start date
+      entityGroups.forEach((props) => props.sort(compareByStartDate))
 
-      sections.push({ title: sectionTitle, items })
+      const items = Array.from(entityGroups.entries())
+        .map(([entityKey, entityProperties]) => ({
+          title: getPropertyTitle(entityProperties[0]),
+          properties: entityProperties,
+          key: entityKey,
+        }))
+        .sort((a, b) => compareByStartDate(a.properties[0], b.properties[0]))
+
+      sections.push({ title: getSectionTitle(propertyType), items })
     })
 
     return sections
@@ -117,9 +163,6 @@ export function PropertiesEvaluation({
 
   const getSectionTitle = (propertyType: PropertyType): string => {
     switch (propertyType) {
-      case PropertyType.P569:
-      case PropertyType.P570:
-        return 'Properties'
       case PropertyType.P39:
         return 'Political Positions'
       case PropertyType.P19:
