@@ -1,7 +1,6 @@
 'use client'
 
 import { Header } from '@/components/layout/Header'
-import { Hero } from '@/components/layout/Hero'
 import { Button } from '@/components/ui/Button'
 import { Toggle } from '@/components/ui/Toggle'
 import { MultiSelect, MultiSelectOption } from '@/components/entity/MultiSelect'
@@ -31,7 +30,7 @@ export default function Home() {
     if (isAdvancedMode && !hasCompletedAdvancedTutorial) {
       return { ctaHref: '/tutorial', ctaText: 'Start Advanced Tutorial' }
     }
-    return { ctaHref: '/evaluate', ctaText: 'Begin Evaluation Session' }
+    return { ctaHref: '/evaluate', ctaText: 'Start Your Session' }
   }, [hasCompletedBasicTutorial, hasCompletedAdvancedTutorial, isAdvancedMode])
 
   const languageFilters = filters
@@ -69,26 +68,12 @@ export default function Home() {
     <>
       <Header />
       <main className="bg-gray-50 min-h-0 overflow-y-auto">
-        <Hero
-          title="Welcome to PoliLoom"
-          description={
-            <>
-              Help build the world&apos;s largest open database of politicians. Evaluate data
-              extracted from government sources and Wikipedia to ensure accuracy before it&apos;s
-              published.
-            </>
-          }
-        />
-
         {/* Filters Section */}
         <div className="max-w-6xl mx-auto px-8 py-12">
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Customize Your Evaluation Session
-            </h2>
-            <p className="text-gray-600">
-              Select the countries and languages you&apos;re interested in evaluating. Leave filters
-              empty to evaluate all available politicians.
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">Configure Your Session</h1>
+            <p className="text-lg text-gray-600">
+              Pick your focus, then work through a batch of politicians at your own pace.
             </p>
           </div>
 

@@ -27,10 +27,9 @@ export default function LoginPage() {
       <Header />
       <main className="bg-gray-50 grid place-items-center py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
         <div className="text-center max-w-4xl">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Contribute to Open Knowledge</h1>
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">Welcome to PoliLoom</h1>
           <p className="text-lg text-gray-600 mb-8">
-            Help verify politician information. Your reviews ensure accurate, reliable data is
-            available to everyone.
+            Help build the world&apos;s largest open database of politicians.
           </p>
 
           {status === 'loading' && (
@@ -38,14 +37,9 @@ export default function LoginPage() {
           )}
 
           {status === 'unauthenticated' && (
-            <div className="space-y-4">
-              <p className="text-gray-600">
-                Please sign in with your MediaWiki account to start evaluating data.
-              </p>
-              <Button onClick={handleSignIn} size="large">
-                Sign in with MediaWiki
-              </Button>
-            </div>
+            <Button onClick={handleSignIn} size="large">
+              Sign in with MediaWiki
+            </Button>
           )}
 
           {isAuthenticated && <div className="text-gray-500">Redirecting...</div>}
