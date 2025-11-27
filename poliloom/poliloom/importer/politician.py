@@ -176,6 +176,19 @@ def _insert_politicians_batch(politicians: list[dict], session: Session) -> None
     for row, politician_data in zip(politician_rows, politicians):
         # Handle properties: all properties (birth/death dates, positions, citizenships, birthplaces) are stored in the unified Property model
 
+        # Soft-delete matching extracted properties before upserting
+        # This prevents duplicates when Wikidata has data matching our extracted properties
+        for prop in politician_data.get("properties", []):
+            Property.soft_delete_matching_extracted(
+                session,
+                politician_id=row.id,
+                property_type=prop["type"],
+                value=prop.get("value"),
+                value_precision=prop.get("value_precision"),
+                entity_id=prop.get("entity_id"),
+                qualifiers_json=prop.get("qualifiers_json"),
+            )
+
         # Add properties using batch UPSERT - update only if NOT extracted (preserve user evaluations)
         property_batch = [
             {"politician_id": row.id, "archived_page_id": None, **prop}

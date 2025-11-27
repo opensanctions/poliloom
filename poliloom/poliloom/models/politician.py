@@ -34,6 +34,7 @@ from ..wikidata_date import WikidataDate
 from .base import (
     Base,
     EntityCreationMixin,
+    PropertyComparisonResult,
     PropertyType,
     RelationType,
     SoftDeleteMixin,
@@ -929,136 +930,236 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
 
         return ""
 
-    def should_store(self, db: Session) -> bool:
-        """Check if this property should be stored based on existing data.
+    @staticmethod
+    def _extract_timeframe_from_qualifiers(
+        qualifiers_json: dict | None,
+    ) -> tuple[WikidataDate | None, WikidataDate | None]:
+        """Extract start and end dates from position qualifiers.
 
-        For positions: only store if we have more precise or different timeframe data.
-        For value properties (dates): only store if we have more precise data.
-        For other entity properties: only store if no duplicate exists.
+        Args:
+            qualifiers_json: Qualifiers dict containing P580 (start) and P582 (end)
+
+        Returns:
+            Tuple of (start_date, end_date) as WikidataDate objects or None
         """
-        if self.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
-            # For date properties, check for more precise data
-            existing_dates = (
-                db.query(Property)
-                .filter_by(
-                    politician_id=self.politician_id,
-                    type=self.type,
-                )
-                .all()
-            )
+        start_date = None
+        end_date = None
 
-            if not existing_dates:
-                return True
-
-            # Convert our date to WikidataDate
-            new_date = WikidataDate.from_wikidata_time(self.value, self.value_precision)
-
-            # Check against existing dates
-            for existing in existing_dates:
-                existing_date = WikidataDate.from_wikidata_time(
-                    existing.value, existing.value_precision
-                )
-
-                # If dates could be the same, check precision
-                if WikidataDate.dates_could_be_same(new_date, existing_date):
-                    more_precise = WikidataDate.more_precise_date(
-                        new_date, existing_date
-                    )
-                    # Only store if we're more precise
-                    if more_precise != new_date:
-                        return False
-            return True
-
-        elif self.type != PropertyType.POSITION:
-            # For non-position entity properties, check for exact duplicates
-            existing = (
-                db.query(Property)
-                .filter_by(
-                    politician_id=self.politician_id,
-                    type=self.type,
-                    entity_id=self.entity_id,
-                )
-                .first()
-            )
-            return existing is None
-
-        # For positions, use sophisticated timeframe comparison
-        existing_positions = (
-            db.query(Property)
-            .filter_by(
-                politician_id=self.politician_id,
-                type=PropertyType.POSITION,
-                entity_id=self.entity_id,
-            )
-            .all()
-        )
-
-        if not existing_positions:
-            return True
-
-        # Extract our dates from qualifiers
-        new_start = None
-        new_end = None
-
-        if self.qualifiers_json:
-            if "P580" in self.qualifiers_json:
-                start_data = self.qualifiers_json["P580"][0]["datavalue"]["value"]
-                new_start = WikidataDate.from_wikidata_time(
+        if qualifiers_json:
+            if "P580" in qualifiers_json:
+                start_data = qualifiers_json["P580"][0]["datavalue"]["value"]
+                start_date = WikidataDate.from_wikidata_time(
                     start_data["time"], start_data["precision"]
                 )
-            if "P582" in self.qualifiers_json:
-                end_data = self.qualifiers_json["P582"][0]["datavalue"]["value"]
-                new_end = WikidataDate.from_wikidata_time(
+            if "P582" in qualifiers_json:
+                end_data = qualifiers_json["P582"][0]["datavalue"]["value"]
+                end_date = WikidataDate.from_wikidata_time(
                     end_data["time"], end_data["precision"]
                 )
 
-        # Check against each existing position
-        for existing in existing_positions:
-            existing_start = None
-            existing_end = None
+        return start_date, end_date
 
-            if existing.qualifiers_json:
-                if "P580" in existing.qualifiers_json:
-                    start_data = existing.qualifiers_json["P580"][0]["datavalue"][
-                        "value"
-                    ]
-                    existing_start = WikidataDate.from_wikidata_time(
-                        start_data["time"], start_data["precision"]
-                    )
-                if "P582" in existing.qualifiers_json:
-                    end_data = existing.qualifiers_json["P582"][0]["datavalue"]["value"]
-                    existing_end = WikidataDate.from_wikidata_time(
-                        end_data["time"], end_data["precision"]
-                    )
+    def _compare_to(self, other: "Property") -> PropertyComparisonResult:
+        """Compare this property to another to determine if they match and which is more precise.
 
-            # Don't store position without dates when we already have position with dates
-            new_has_no_dates = new_start is None and new_end is None
-            existing_has_dates = existing_start is not None or existing_end is not None
-            if new_has_no_dates and existing_has_dates:
-                return False
+        Args:
+            other: Another Property to compare against
+
+        Returns:
+            PropertyComparisonResult indicating match status and precision comparison
+        """
+        # Must be same type
+        if self.type != other.type:
+            return PropertyComparisonResult.NO_MATCH
+
+        if self.type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
+            # For date properties, compare values
+            self_date = WikidataDate.from_wikidata_time(
+                self.value, self.value_precision
+            )
+            other_date = WikidataDate.from_wikidata_time(
+                other.value, other.value_precision
+            )
+
+            if not WikidataDate.dates_could_be_same(self_date, other_date):
+                return PropertyComparisonResult.NO_MATCH
+
+            more_precise = WikidataDate.more_precise_date(self_date, other_date)
+            if more_precise is None:
+                return PropertyComparisonResult.EQUAL
+            if more_precise == self_date:
+                return PropertyComparisonResult.SELF_MORE_PRECISE
+            return PropertyComparisonResult.OTHER_MORE_PRECISE
+
+        elif self.type == PropertyType.POSITION:
+            # For positions, must have same entity_id
+            if self.entity_id != other.entity_id:
+                return PropertyComparisonResult.NO_MATCH
+
+            # Compare timeframes
+            self_start, self_end = self._extract_timeframe_from_qualifiers(
+                self.qualifiers_json
+            )
+            other_start, other_end = self._extract_timeframe_from_qualifiers(
+                other.qualifiers_json
+            )
+
+            # Special case: position with dates is considered more precise than without
+            # Must check this before dates_could_be_same since None vs date returns False
+            self_has_dates = self_start is not None or self_end is not None
+            other_has_dates = other_start is not None or other_end is not None
+            if self_has_dates and not other_has_dates:
+                return PropertyComparisonResult.SELF_MORE_PRECISE
+            if other_has_dates and not self_has_dates:
+                return PropertyComparisonResult.OTHER_MORE_PRECISE
 
             # Check if timeframes could be the same
-            start_same = WikidataDate.dates_could_be_same(new_start, existing_start)
-            end_same = WikidataDate.dates_could_be_same(new_end, existing_end)
+            start_same = WikidataDate.dates_could_be_same(self_start, other_start)
+            end_same = WikidataDate.dates_could_be_same(self_end, other_end)
 
-            if start_same and end_same:
-                # Same timeframe - check if new data is more precise
-                start_more_precise = WikidataDate.more_precise_date(
-                    new_start, existing_start
-                )
-                end_more_precise = WikidataDate.more_precise_date(new_end, existing_end)
+            if not (start_same and end_same):
+                return PropertyComparisonResult.NO_MATCH
 
-                # Check if we have more precise data
-                # more_precise_date returns None when dates have equal precision or both are None
-                has_more_precise_start = (
-                    start_more_precise is not None and start_more_precise == new_start
-                )
-                has_more_precise_end = (
-                    end_more_precise is not None and end_more_precise == new_end
-                )
+            # Compare precision of start and end dates
+            start_more_precise = WikidataDate.more_precise_date(self_start, other_start)
+            end_more_precise = WikidataDate.more_precise_date(self_end, other_end)
 
-                # If we don't have more precise data for any date, don't store
-                if not has_more_precise_start and not has_more_precise_end:
-                    return False
+            # Determine overall precision comparison
+            self_more_precise_start = (
+                start_more_precise is not None and start_more_precise == self_start
+            )
+            self_more_precise_end = (
+                end_more_precise is not None and end_more_precise == self_end
+            )
+            other_more_precise_start = (
+                start_more_precise is not None and start_more_precise == other_start
+            )
+            other_more_precise_end = (
+                end_more_precise is not None and end_more_precise == other_end
+            )
 
-        return True  # New timeframe or more precise data
+            # Self is more precise if it has more precise data for at least one date
+            # and other doesn't have more precise data for any date
+            if (self_more_precise_start or self_more_precise_end) and not (
+                other_more_precise_start or other_more_precise_end
+            ):
+                return PropertyComparisonResult.SELF_MORE_PRECISE
+            if (other_more_precise_start or other_more_precise_end) and not (
+                self_more_precise_start or self_more_precise_end
+            ):
+                return PropertyComparisonResult.OTHER_MORE_PRECISE
+
+            return PropertyComparisonResult.EQUAL
+
+        else:
+            # For BIRTHPLACE, CITIZENSHIP - exact entity_id match, no precision concept
+            if self.entity_id != other.entity_id:
+                return PropertyComparisonResult.NO_MATCH
+            return PropertyComparisonResult.EQUAL
+
+    def should_store(self, db: Session) -> bool:
+        """Check if this property should be stored based on existing data.
+
+        Uses _compare_to() to check against existing properties. Only stores if:
+        - No matching property exists, OR
+        - This property is more precise than the existing match
+
+        Returns False if an existing property matches and is same or more precise.
+        """
+        # Query for potential matching properties
+        query = db.query(Property).filter_by(
+            politician_id=self.politician_id,
+            type=self.type,
+        )
+
+        # For entity-linked properties, also filter by entity_id
+        if self.type not in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
+            query = query.filter_by(entity_id=self.entity_id)
+
+        existing_properties = query.all()
+
+        if not existing_properties:
+            return True
+
+        # Check against each existing property
+        for existing in existing_properties:
+            comparison = self._compare_to(existing)
+            # If properties match and existing is same or more precise, don't store
+            if comparison in [
+                PropertyComparisonResult.OTHER_MORE_PRECISE,
+                PropertyComparisonResult.EQUAL,
+            ]:
+                return False
+
+        return True  # No match found, or this property is more precise
+
+    @classmethod
+    def soft_delete_matching_extracted(
+        cls,
+        db: Session,
+        politician_id,
+        property_type: PropertyType,
+        value: str | None = None,
+        value_precision: int | None = None,
+        entity_id: str | None = None,
+        qualifiers_json: dict | None = None,
+    ) -> int:
+        """Soft-delete extracted properties that match the given Wikidata statement.
+
+        This method is called during import to remove unevaluated extracted properties
+        that match an incoming Wikidata statement, preventing duplicates.
+
+        Only soft-deletes if the imported statement is same or more precise than the
+        extracted property.
+
+        Args:
+            db: Database session
+            politician_id: UUID of the politician
+            property_type: Type of property (BIRTH_DATE, POSITION, etc.)
+            value: Value for date properties
+            value_precision: Precision for date properties
+            entity_id: Entity ID for entity-linked properties
+            qualifiers_json: Qualifiers for position properties (contains P580/P582 dates)
+
+        Returns:
+            Number of properties soft-deleted
+        """
+        # Create a temporary Property object to use _compare_to
+        imported_property = cls(
+            politician_id=politician_id,
+            type=property_type,
+            value=value,
+            value_precision=value_precision,
+            entity_id=entity_id,
+            qualifiers_json=qualifiers_json,
+        )
+
+        # Find extracted properties (statement_id IS NULL, archived_page_id IS NOT NULL)
+        # that are not already deleted
+        query = db.query(cls).filter(
+            cls.politician_id == politician_id,
+            cls.type == property_type,
+            cls.statement_id.is_(None),  # Extracted (not from Wikidata)
+            cls.archived_page_id.isnot(None),  # Has source
+            cls.deleted_at.is_(None),  # Not already deleted
+        )
+
+        # For entity-linked properties, also filter by entity_id
+        if property_type not in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
+            query = query.filter(cls.entity_id == entity_id)
+
+        candidates = query.all()
+
+        # Soft-delete matching properties where imported is same or more precise
+        deleted_count = 0
+        for candidate in candidates:
+            comparison = imported_property._compare_to(candidate)
+            # Soft-delete if imported is more precise or equal
+            if comparison in [
+                PropertyComparisonResult.SELF_MORE_PRECISE,
+                PropertyComparisonResult.EQUAL,
+            ]:
+                candidate.soft_delete()
+                deleted_count += 1
+
+        return deleted_count

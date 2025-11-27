@@ -21,6 +21,15 @@ class PropertyType(str, Enum):
     CITIZENSHIP = "P27"
 
 
+class PropertyComparisonResult(Enum):
+    """Result of comparing two properties for matching and precision."""
+
+    NO_MATCH = "no_match"  # Properties represent different facts
+    SELF_MORE_PRECISE = "self"  # Self property is more precise
+    OTHER_MORE_PRECISE = "other"  # Other property is more precise
+    EQUAL = "equal"  # Same precision (or both lack precision data)
+
+
 class RelationType(str, Enum):
     """Enumeration of Wikidata relation types."""
 

@@ -525,6 +525,11 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         session.execute(
             text("INSERT INTO entities_to_keep SELECT wikidata_id FROM languages")
         )
+        session.execute(
+            text(
+                "INSERT INTO entities_to_keep SELECT wikidata_id FROM wikipedia_projects"
+            )
+        )
 
         # Keep entities referenced by properties
         session.execute(
@@ -552,6 +557,8 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
                 SELECT wikidata_id FROM countries
                 UNION ALL
                 SELECT wikidata_id FROM languages
+                UNION ALL
+                SELECT wikidata_id FROM wikipedia_projects
             )
         """)
         )

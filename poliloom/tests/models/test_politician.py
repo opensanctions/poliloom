@@ -947,7 +947,11 @@ class TestPoliticianQueryForEnrichment:
 
 
 class TestPropertyShouldStore:
-    """Test cases for the Property.should_store() method."""
+    """Test cases for the Property.should_store() method.
+
+    Note: Comparison logic is tested in TestPropertyCompareTo.
+    These tests focus on the DB integration (no existing property case).
+    """
 
     def test_should_store_birth_date_no_existing(self, db_session, sample_politician):
         """Test storing birth date when no existing date exists."""
@@ -957,80 +961,6 @@ class TestPropertyShouldStore:
             politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="+1990-01-01T00:00:00Z",
-            value_precision=11,
-        )
-
-        assert new_property.should_store(db_session) is True
-
-    def test_should_store_birth_date_more_precise(self, db_session, sample_politician):
-        """Test storing birth date when new date is more precise."""
-        politician = sample_politician
-
-        # Create existing property with year precision
-        existing_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="+1990-00-00T00:00:00Z",
-            value_precision=9,  # Year precision
-        )
-        db_session.add(existing_property)
-        db_session.flush()
-
-        # Try to store more precise date (day precision)
-        new_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="+1990-01-01T00:00:00Z",
-            value_precision=11,  # Day precision
-        )
-
-        assert new_property.should_store(db_session) is True
-
-    def test_should_store_birth_date_less_precise(self, db_session, sample_politician):
-        """Test not storing birth date when new date is less precise."""
-        politician = sample_politician
-
-        # Create existing property with day precision
-        existing_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="+1990-01-01T00:00:00Z",
-            value_precision=11,  # Day precision
-        )
-        db_session.add(existing_property)
-        db_session.flush()
-
-        # Try to store less precise date (year precision)
-        new_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="+1990-00-00T00:00:00Z",
-            value_precision=9,  # Year precision
-        )
-
-        assert new_property.should_store(db_session) is False
-
-    def test_should_store_birth_date_different_year(
-        self, db_session, sample_politician
-    ):
-        """Test storing birth date when years are different."""
-        politician = sample_politician
-
-        # Create existing property for 1990
-        existing_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="+1990-01-01T00:00:00Z",
-            value_precision=11,
-        )
-        db_session.add(existing_property)
-        db_session.flush()
-
-        # Try to store date for different year
-        new_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value="+1991-01-01T00:00:00Z",
             value_precision=11,
         )
 
@@ -1060,147 +990,6 @@ class TestPropertyShouldStore:
 
         assert new_property.should_store(db_session) is True
 
-    def test_should_store_position_more_precise_dates(
-        self, db_session, sample_politician, sample_position
-    ):
-        """Test storing position when new dates are more precise."""
-        politician = sample_politician
-        position = sample_position
-
-        # Create existing position with year precision
-        existing_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
-            qualifiers_json={
-                "P580": [
-                    {
-                        "datavalue": {
-                            "value": {
-                                "time": "+2020-00-00T00:00:00Z",
-                                "precision": 9,  # Year precision
-                            }
-                        }
-                    }
-                ]
-            },
-        )
-        db_session.add(existing_property)
-        db_session.flush()
-
-        # Try to store position with more precise start date
-        new_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
-            qualifiers_json={
-                "P580": [
-                    {
-                        "datavalue": {
-                            "value": {
-                                "time": "+2020-01-15T00:00:00Z",
-                                "precision": 11,  # Day precision
-                            }
-                        }
-                    }
-                ]
-            },
-        )
-
-        assert new_property.should_store(db_session) is True
-
-    def test_should_store_position_less_precise_dates(
-        self, db_session, sample_politician, sample_position
-    ):
-        """Test not storing position when new dates are less precise."""
-        politician = sample_politician
-        position = sample_position
-
-        # Create existing position with day precision
-        existing_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
-            qualifiers_json={
-                "P580": [
-                    {
-                        "datavalue": {
-                            "value": {
-                                "time": "+2020-01-15T00:00:00Z",
-                                "precision": 11,  # Day precision
-                            }
-                        }
-                    }
-                ]
-            },
-        )
-        db_session.add(existing_property)
-        db_session.flush()
-
-        # Try to store position with less precise start date
-        new_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
-            qualifiers_json={
-                "P580": [
-                    {
-                        "datavalue": {
-                            "value": {
-                                "time": "+2020-00-00T00:00:00Z",
-                                "precision": 9,  # Year precision
-                            }
-                        }
-                    }
-                ]
-            },
-        )
-
-        assert new_property.should_store(db_session) is False
-
-    def test_should_store_position_different_timeframe(
-        self, db_session, sample_politician, sample_position
-    ):
-        """Test storing position when timeframes are different."""
-        politician = sample_politician
-        position = sample_position
-
-        # Create existing position for 2020
-        existing_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
-            qualifiers_json={
-                "P580": [
-                    {
-                        "datavalue": {
-                            "value": {"time": "+2020-01-01T00:00:00Z", "precision": 11}
-                        }
-                    }
-                ]
-            },
-        )
-        db_session.add(existing_property)
-        db_session.flush()
-
-        # Try to store position for different year
-        new_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
-            qualifiers_json={
-                "P580": [
-                    {
-                        "datavalue": {
-                            "value": {"time": "+2021-01-01T00:00:00Z", "precision": 11}
-                        }
-                    }
-                ]
-            },
-        )
-
-        assert new_property.should_store(db_session) is True
-
     def test_should_store_birthplace_no_existing(
         self, db_session, sample_politician, sample_location
     ):
@@ -1215,31 +1004,6 @@ class TestPropertyShouldStore:
         )
 
         assert new_property.should_store(db_session) is True
-
-    def test_should_store_birthplace_duplicate(
-        self, db_session, sample_politician, sample_location
-    ):
-        """Test not storing birthplace when duplicate exists."""
-        politician = sample_politician
-        location = sample_location
-
-        # Create existing birthplace
-        existing_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTHPLACE,
-            entity_id=location.wikidata_id,
-        )
-        db_session.add(existing_property)
-        db_session.flush()
-
-        # Try to store duplicate birthplace
-        new_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTHPLACE,
-            entity_id=location.wikidata_id,
-        )
-
-        assert new_property.should_store(db_session) is False
 
     def test_should_store_citizenship_no_existing(
         self, db_session, sample_politician, sample_country
@@ -1256,57 +1020,368 @@ class TestPropertyShouldStore:
 
         assert new_property.should_store(db_session) is True
 
-    def test_should_store_citizenship_duplicate(
-        self, db_session, sample_politician, sample_country, create_citizenship
-    ):
-        """Test not storing citizenship when duplicate exists."""
-        politician = sample_politician
-        country = sample_country
 
-        # Create existing citizenship
-        create_citizenship(politician, country)
-        db_session.flush()
+class TestPropertyExtractTimeframe:
+    """Tests for Property._extract_timeframe_from_qualifiers."""
 
-        # Try to store duplicate citizenship
-        new_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=country.wikidata_id,
+    def test_extract_both_dates(self):
+        """Test extracting both start and end dates."""
+        qualifiers = {
+            "P580": [
+                {
+                    "datavalue": {
+                        "value": {"time": "+2020-01-15T00:00:00Z", "precision": 11}
+                    }
+                }
+            ],
+            "P582": [
+                {
+                    "datavalue": {
+                        "value": {"time": "+2024-06-30T00:00:00Z", "precision": 11}
+                    }
+                }
+            ],
+        }
+        start, end = Property._extract_timeframe_from_qualifiers(qualifiers)
+
+        assert start is not None
+        assert end is not None
+        assert start.precision == 11
+        assert end.precision == 11
+
+    def test_extract_start_only(self):
+        """Test extracting only start date."""
+        qualifiers = {
+            "P580": [
+                {
+                    "datavalue": {
+                        "value": {"time": "+2020-01-01T00:00:00Z", "precision": 11}
+                    }
+                }
+            ],
+        }
+        start, end = Property._extract_timeframe_from_qualifiers(qualifiers)
+
+        assert start is not None
+        assert end is None
+
+    def test_extract_end_only(self):
+        """Test extracting only end date."""
+        qualifiers = {
+            "P582": [
+                {
+                    "datavalue": {
+                        "value": {"time": "+2024-12-31T00:00:00Z", "precision": 11}
+                    }
+                }
+            ],
+        }
+        start, end = Property._extract_timeframe_from_qualifiers(qualifiers)
+
+        assert start is None
+        assert end is not None
+
+    def test_extract_none_qualifiers(self):
+        """Test with None qualifiers."""
+        start, end = Property._extract_timeframe_from_qualifiers(None)
+
+        assert start is None
+        assert end is None
+
+    def test_extract_empty_qualifiers(self):
+        """Test with empty qualifiers dict."""
+        start, end = Property._extract_timeframe_from_qualifiers({})
+
+        assert start is None
+        assert end is None
+
+    def test_extract_other_qualifiers_only(self):
+        """Test with qualifiers that don't include P580/P582."""
+        qualifiers = {
+            "P585": [  # Point in time
+                {
+                    "datavalue": {
+                        "value": {"time": "+2020-01-01T00:00:00Z", "precision": 11}
+                    }
+                }
+            ],
+        }
+        start, end = Property._extract_timeframe_from_qualifiers(qualifiers)
+
+        assert start is None
+        assert end is None
+
+
+class TestPropertyCompareTo:
+    """Tests for Property._compare_to method."""
+
+    def test_different_types_no_match(self, sample_politician):
+        """Test that different property types don't match."""
+        prop1 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1950-05-15T00:00:00Z",
+            value_precision=11,
+        )
+        prop2 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.DEATH_DATE,
+            value="+1950-05-15T00:00:00Z",
+            value_precision=11,
         )
 
-        assert new_property.should_store(db_session) is False
+        from poliloom.models import PropertyComparisonResult
 
-    def test_should_store_position_no_dates_when_dates_exist(
-        self, db_session, sample_politician, sample_position
-    ):
-        """Test not storing position without dates when position with dates exists."""
-        politician = sample_politician
-        position = sample_position
+        assert prop1._compare_to(prop2) == PropertyComparisonResult.NO_MATCH
 
-        # Create existing position with dates (May 24, 2016 - present)
-        existing_property = Property(
-            politician_id=politician.id,
+    def test_birth_date_equal_precision(self, sample_politician):
+        """Test birth dates with equal precision."""
+        prop1 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1950-05-15T00:00:00Z",
+            value_precision=11,
+        )
+        prop2 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1950-05-15T00:00:00Z",
+            value_precision=11,
+        )
+
+        from poliloom.models import PropertyComparisonResult
+
+        assert prop1._compare_to(prop2) == PropertyComparisonResult.EQUAL
+
+    def test_birth_date_self_more_precise(self, sample_politician):
+        """Test birth date where self is more precise."""
+        prop1 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1950-05-15T00:00:00Z",
+            value_precision=11,  # Day
+        )
+        prop2 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1950-05-00T00:00:00Z",
+            value_precision=10,  # Month
+        )
+
+        from poliloom.models import PropertyComparisonResult
+
+        assert prop1._compare_to(prop2) == PropertyComparisonResult.SELF_MORE_PRECISE
+
+    def test_birth_date_other_more_precise(self, sample_politician):
+        """Test birth date where other is more precise."""
+        prop1 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1950-00-00T00:00:00Z",
+            value_precision=9,  # Year
+        )
+        prop2 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1950-05-15T00:00:00Z",
+            value_precision=11,  # Day
+        )
+
+        from poliloom.models import PropertyComparisonResult
+
+        assert prop1._compare_to(prop2) == PropertyComparisonResult.OTHER_MORE_PRECISE
+
+    def test_birth_date_different_years_no_match(self, sample_politician):
+        """Test birth dates with different years don't match."""
+        prop1 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1950-05-15T00:00:00Z",
+            value_precision=11,
+        )
+        prop2 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1951-05-15T00:00:00Z",
+            value_precision=11,
+        )
+
+        from poliloom.models import PropertyComparisonResult
+
+        assert prop1._compare_to(prop2) == PropertyComparisonResult.NO_MATCH
+
+    def test_position_different_entity_no_match(self, sample_politician):
+        """Test positions with different entities don't match."""
+        prop1 = Property(
+            politician_id=sample_politician.id,
             type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
+            entity_id="Q123",
+        )
+        prop2 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.POSITION,
+            entity_id="Q456",
+        )
+
+        from poliloom.models import PropertyComparisonResult
+
+        assert prop1._compare_to(prop2) == PropertyComparisonResult.NO_MATCH
+
+    def test_position_self_has_dates_other_none(self, sample_politician):
+        """Test position where self has dates and other doesn't."""
+        prop1 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.POSITION,
+            entity_id="Q123",
             qualifiers_json={
                 "P580": [
                     {
                         "datavalue": {
-                            "value": {"time": "+2016-05-24T00:00:00Z", "precision": 11}
+                            "value": {"time": "+2020-01-01T00:00:00Z", "precision": 11}
                         }
                     }
                 ]
             },
         )
-        db_session.add(existing_property)
-        db_session.flush()
-
-        # Try to store same position without any dates
-        new_property = Property(
-            politician_id=politician.id,
+        prop2 = Property(
+            politician_id=sample_politician.id,
             type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
-            qualifiers_json=None,  # No dates specified
+            entity_id="Q123",
+            qualifiers_json=None,
         )
 
-        assert new_property.should_store(db_session) is False
+        from poliloom.models import PropertyComparisonResult
+
+        assert prop1._compare_to(prop2) == PropertyComparisonResult.SELF_MORE_PRECISE
+
+    def test_position_other_has_dates_self_none(self, sample_politician):
+        """Test position where other has dates and self doesn't."""
+        prop1 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.POSITION,
+            entity_id="Q123",
+            qualifiers_json=None,
+        )
+        prop2 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.POSITION,
+            entity_id="Q123",
+            qualifiers_json={
+                "P580": [
+                    {
+                        "datavalue": {
+                            "value": {"time": "+2020-01-01T00:00:00Z", "precision": 11}
+                        }
+                    }
+                ]
+            },
+        )
+
+        from poliloom.models import PropertyComparisonResult
+
+        assert prop1._compare_to(prop2) == PropertyComparisonResult.OTHER_MORE_PRECISE
+
+    def test_position_both_no_dates_equal(self, sample_politician):
+        """Test positions both without dates are equal."""
+        prop1 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.POSITION,
+            entity_id="Q123",
+            qualifiers_json=None,
+        )
+        prop2 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.POSITION,
+            entity_id="Q123",
+            qualifiers_json=None,
+        )
+
+        from poliloom.models import PropertyComparisonResult
+
+        assert prop1._compare_to(prop2) == PropertyComparisonResult.EQUAL
+
+    def test_position_different_timeframes_no_match(self, sample_politician):
+        """Test positions with different timeframes don't match."""
+        prop1 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.POSITION,
+            entity_id="Q123",
+            qualifiers_json={
+                "P580": [
+                    {
+                        "datavalue": {
+                            "value": {"time": "+2020-01-01T00:00:00Z", "precision": 11}
+                        }
+                    }
+                ]
+            },
+        )
+        prop2 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.POSITION,
+            entity_id="Q123",
+            qualifiers_json={
+                "P580": [
+                    {
+                        "datavalue": {
+                            "value": {"time": "+2015-01-01T00:00:00Z", "precision": 11}
+                        }
+                    }
+                ]
+            },
+        )
+
+        from poliloom.models import PropertyComparisonResult
+
+        assert prop1._compare_to(prop2) == PropertyComparisonResult.NO_MATCH
+
+    def test_birthplace_same_entity_equal(self, sample_politician):
+        """Test birthplaces with same entity are equal."""
+        prop1 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTHPLACE,
+            entity_id="Q60",
+        )
+        prop2 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTHPLACE,
+            entity_id="Q60",
+        )
+
+        from poliloom.models import PropertyComparisonResult
+
+        assert prop1._compare_to(prop2) == PropertyComparisonResult.EQUAL
+
+    def test_birthplace_different_entity_no_match(self, sample_politician):
+        """Test birthplaces with different entities don't match."""
+        prop1 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTHPLACE,
+            entity_id="Q60",
+        )
+        prop2 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.BIRTHPLACE,
+            entity_id="Q65",
+        )
+
+        from poliloom.models import PropertyComparisonResult
+
+        assert prop1._compare_to(prop2) == PropertyComparisonResult.NO_MATCH
+
+    def test_citizenship_same_entity_equal(self, sample_politician):
+        """Test citizenships with same entity are equal."""
+        prop1 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id="Q30",
+        )
+        prop2 = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id="Q30",
+        )
+
+        from poliloom.models import PropertyComparisonResult
+
+        assert prop1._compare_to(prop2) == PropertyComparisonResult.EQUAL
