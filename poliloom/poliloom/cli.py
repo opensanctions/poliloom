@@ -12,13 +12,16 @@ from poliloom.importer.entity import import_entities
 from poliloom.importer.politician import import_politicians
 from poliloom.database import get_engine
 from poliloom.logging import setup_logging
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 from poliloom.models import (
-    WikidataDump,
-    WikidataEntity,
+    Country,
     CurrentImportEntity,
     CurrentImportStatement,
+    Language,
+    Location,
+    Position,
+    WikidataDump,
+    WikidataEntity,
 )
 
 # Configure logging
@@ -688,6 +691,10 @@ def garbage_collect():
             click.echo("  • Tracking tables cleared")
 
 
+# Entity classes to clean, in order
+_ENTITY_CLASSES = [Position, Location, Country, Language]
+
+
 @main.command("clean-entities")
 @click.option(
     "--dry-run",
@@ -698,8 +705,9 @@ def clean_entities(dry_run):
     """Clean entities outside current hierarchy definition.
 
     This command removes positions, locations, countries, and languages that don't
-    match the hierarchy rules defined in WikidataEntity.HIERARCHY_CONFIG. It's useful
-    after changing hierarchy definitions to clean up existing data.
+    match the hierarchy rules defined in each entity class (_hierarchy_roots and
+    _hierarchy_ignore). It's useful after changing hierarchy definitions to clean
+    up existing data.
 
     Entity types cleaned:
     - Positions: Uses position roots and ignore lists
@@ -725,318 +733,65 @@ def clean_entities(dry_run):
 
     with Session(get_engine()) as session:
         try:
-            # Load hierarchy configuration from WikidataEntity model
-            click.echo(
-                "⏳ Loading hierarchy definitions from WikidataEntity.HIERARCHY_CONFIG..."
-            )
-            config = WikidataEntity.HIERARCHY_CONFIG
+            # Display hierarchy configuration from entity classes
+            click.echo("⏳ Loading hierarchy definitions from entity classes...")
+            for entity_cls in _ENTITY_CLASSES:
+                label = entity_cls.__tablename__[:-1]
+                roots = entity_cls._hierarchy_roots or []
+                ignore = entity_cls._hierarchy_ignore or []
+                click.echo(f"  • {label.capitalize()} roots: {len(roots)} IDs")
+                if ignore:
+                    click.echo(f"  • {label.capitalize()} ignore: {len(ignore)} IDs")
 
-            position_root_ids = config["position"]["roots"]
-            position_ignore_ids = config["position"]["ignore"]
-            location_root_ids = config["location"]["roots"]
-            country_root_ids = config["country"]["roots"]
-            country_ignore_ids = config["country"]["ignore"]
-            language_root_ids = config["language"]["roots"]
-
-            click.echo(f"  • Position roots: {len(position_root_ids)} IDs")
-            click.echo(f"  • Position ignore: {len(position_ignore_ids)} IDs")
-            click.echo(f"  • Location roots: {len(location_root_ids)} IDs")
-            click.echo(f"  • Country roots: {len(country_root_ids)} IDs")
-            click.echo(f"  • Language roots: {len(language_root_ids)} IDs")
-
-            # Build hierarchy sets
+            # Build hierarchy sets and display counts
             click.echo("⏳ Building hierarchy trees from database...")
-            position_classes = WikidataEntity.query_hierarchy_descendants(
-                session, position_root_ids, position_ignore_ids
-            )
-            location_classes = WikidataEntity.query_hierarchy_descendants(
-                session, location_root_ids
-            )
-            country_classes = WikidataEntity.query_hierarchy_descendants(
-                session, country_root_ids, country_ignore_ids
-            )
-            language_classes = WikidataEntity.query_hierarchy_descendants(
-                session, language_root_ids
-            )
-            click.echo(f"  • Valid position classes: {len(position_classes)}")
-            click.echo(f"  • Valid location classes: {len(location_classes)}")
-            click.echo(f"  • Valid country classes: {len(country_classes)}")
-            click.echo(f"  • Valid language classes: {len(language_classes)}")
+            for entity_cls in _ENTITY_CLASSES:
+                label = entity_cls.__tablename__[:-1]
+                roots = entity_cls._hierarchy_roots or []
+                ignore = entity_cls._hierarchy_ignore or []
+                classes = WikidataEntity.query_hierarchy_descendants(
+                    session, roots, ignore if ignore else None
+                )
+                click.echo(f"  • Valid {label} classes: {len(classes)}")
 
-            # Clean positions
-            click.echo("⏳ Identifying positions outside hierarchy...")
-            positions_to_remove = _identify_positions_to_remove(
-                session, position_root_ids, position_ignore_ids
-            )
-            total_positions = session.execute(
-                text("SELECT COUNT(*) FROM positions")
-            ).scalar()
-            pct_positions = (
-                (len(positions_to_remove) / total_positions * 100)
-                if total_positions
-                else 0
-            )
-            click.echo(
-                f"  • Found {len(positions_to_remove)}/{total_positions} positions to remove ({pct_positions:.1f}%)"
-            )
+            # Process each entity type
+            any_removed = False
+            for entity_cls in _ENTITY_CLASSES:
+                label = entity_cls.__tablename__[:-1]
+                click.echo(f"⏳ Identifying {label}s outside hierarchy...")
 
-            if positions_to_remove:
-                if dry_run:
-                    stats = session.execute(
-                        text("""
-                            SELECT
-                                COUNT(*) as total,
-                                COUNT(*) FILTER (WHERE p.statement_id IS NULL) as extracted,
-                                COUNT(DISTINCT e.property_id) FILTER (WHERE p.statement_id IS NULL) as evaluated,
-                                (SELECT COUNT(*) FROM properties WHERE type = 'POSITION' AND deleted_at IS NULL) as all_props
-                            FROM properties p
-                            LEFT JOIN evaluations e ON e.property_id = p.id
-                            WHERE p.entity_id = ANY(:ids)
-                              AND p.type = 'POSITION'
-                              AND p.deleted_at IS NULL
-                        """),
-                        {"ids": list(positions_to_remove)},
-                    ).fetchone()
-                    pct_props = (
-                        (stats.total / stats.all_props * 100) if stats.all_props else 0
-                    )
-                    click.echo(
-                        f"  • [DRY RUN] Would soft-delete {stats.total}/{stats.all_props} properties ({pct_props:.1f}%) - {stats.extracted} extracted, {stats.evaluated} with evaluations"
-                    )
-                    click.echo(
-                        f"  • [DRY RUN] Would hard-delete {len(positions_to_remove)} position records"
-                    )
-                else:
-                    click.echo("  • Soft-deleting properties...")
-                    props_deleted = session.execute(
-                        text("""
-                            UPDATE properties
-                            SET deleted_at = NOW()
-                            WHERE entity_id = ANY(:ids)
-                              AND type = 'POSITION'
-                              AND deleted_at IS NULL
-                            RETURNING id
-                        """),
-                        {"ids": list(positions_to_remove)},
-                    ).rowcount
-                    click.echo(f"    → Soft-deleted {props_deleted} properties")
+                stats = entity_cls.cleanup_outside_hierarchy(session, dry_run=dry_run)
+                total = stats["total_entities"]
+                removed = stats["entities_removed"]
+                props = stats["properties_deleted"]
+                pct = (removed / total * 100) if total else 0
 
-                    click.echo("  • Hard-deleting position records...")
-                    pos_deleted = session.execute(
-                        text("""
-                            DELETE FROM positions
-                            WHERE wikidata_id = ANY(:ids)
-                        """),
-                        {"ids": list(positions_to_remove)},
-                    ).rowcount
-                    click.echo(f"    → Hard-deleted {pos_deleted} position records")
+                click.echo(
+                    f"  • Found {removed}/{total} {label}s to remove ({pct:.1f}%)"
+                )
 
-            # Clean locations
-            click.echo("⏳ Identifying locations outside hierarchy...")
-            locations_to_remove = _identify_locations_to_remove(
-                session, location_root_ids
-            )
-            total_locations = session.execute(
-                text("SELECT COUNT(*) FROM locations")
-            ).scalar()
-            pct_locations = (
-                (len(locations_to_remove) / total_locations * 100)
-                if total_locations
-                else 0
-            )
-            click.echo(
-                f"  • Found {len(locations_to_remove)}/{total_locations} locations to remove ({pct_locations:.1f}%)"
-            )
-
-            if locations_to_remove:
-                if dry_run:
-                    stats = session.execute(
-                        text("""
-                            SELECT
-                                COUNT(*) as total,
-                                COUNT(*) FILTER (WHERE p.statement_id IS NULL) as extracted,
-                                COUNT(DISTINCT e.property_id) FILTER (WHERE p.statement_id IS NULL) as evaluated,
-                                (SELECT COUNT(*) FROM properties WHERE type = 'BIRTHPLACE' AND deleted_at IS NULL) as all_props
-                            FROM properties p
-                            LEFT JOIN evaluations e ON e.property_id = p.id
-                            WHERE p.entity_id = ANY(:ids)
-                              AND p.type = 'BIRTHPLACE'
-                              AND p.deleted_at IS NULL
-                        """),
-                        {"ids": list(locations_to_remove)},
-                    ).fetchone()
-                    pct_props = (
-                        (stats.total / stats.all_props * 100) if stats.all_props else 0
-                    )
-                    click.echo(
-                        f"  • [DRY RUN] Would soft-delete {stats.total}/{stats.all_props} properties ({pct_props:.1f}%) - {stats.extracted} extracted, {stats.evaluated} with evaluations"
-                    )
-                    click.echo(
-                        f"  • [DRY RUN] Would hard-delete {len(locations_to_remove)} location records"
-                    )
-                else:
-                    click.echo("  • Soft-deleting properties...")
-                    props_deleted = session.execute(
-                        text("""
-                            UPDATE properties
-                            SET deleted_at = NOW()
-                            WHERE entity_id = ANY(:ids)
-                              AND type = 'BIRTHPLACE'
-                              AND deleted_at IS NULL
-                            RETURNING id
-                        """),
-                        {"ids": list(locations_to_remove)},
-                    ).rowcount
-                    click.echo(f"    → Soft-deleted {props_deleted} properties")
-
-                    click.echo("  • Hard-deleting location records...")
-                    loc_deleted = session.execute(
-                        text("""
-                            DELETE FROM locations
-                            WHERE wikidata_id = ANY(:ids)
-                        """),
-                        {"ids": list(locations_to_remove)},
-                    ).rowcount
-                    click.echo(f"    → Hard-deleted {loc_deleted} location records")
-
-            # Clean countries
-            click.echo("⏳ Identifying countries outside hierarchy...")
-            countries_to_remove = _identify_countries_to_remove(
-                session, country_root_ids, country_ignore_ids
-            )
-            total_countries = session.execute(
-                text("SELECT COUNT(*) FROM countries")
-            ).scalar()
-            pct_countries = (
-                (len(countries_to_remove) / total_countries * 100)
-                if total_countries
-                else 0
-            )
-            click.echo(
-                f"  • Found {len(countries_to_remove)}/{total_countries} countries to remove ({pct_countries:.1f}%)"
-            )
-
-            if countries_to_remove:
-                if dry_run:
-                    stats = session.execute(
-                        text("""
-                            SELECT
-                                COUNT(*) as total,
-                                COUNT(*) FILTER (WHERE p.statement_id IS NULL) as extracted,
-                                COUNT(DISTINCT e.property_id) FILTER (WHERE p.statement_id IS NULL) as evaluated,
-                                (SELECT COUNT(*) FROM properties WHERE type = 'CITIZENSHIP' AND deleted_at IS NULL) as all_props
-                            FROM properties p
-                            LEFT JOIN evaluations e ON e.property_id = p.id
-                            WHERE p.entity_id = ANY(:ids)
-                              AND p.type = 'CITIZENSHIP'
-                              AND p.deleted_at IS NULL
-                        """),
-                        {"ids": list(countries_to_remove)},
-                    ).fetchone()
-                    pct_props = (
-                        (stats.total / stats.all_props * 100) if stats.all_props else 0
-                    )
-                    click.echo(
-                        f"  • [DRY RUN] Would soft-delete {stats.total}/{stats.all_props} properties ({pct_props:.1f}%) - {stats.extracted} extracted, {stats.evaluated} with evaluations"
-                    )
-                    click.echo(
-                        f"  • [DRY RUN] Would hard-delete {len(countries_to_remove)} country records"
-                    )
-                else:
-                    click.echo("  • Soft-deleting properties...")
-                    props_deleted = session.execute(
-                        text("""
-                            UPDATE properties
-                            SET deleted_at = NOW()
-                            WHERE entity_id = ANY(:ids)
-                              AND type = 'CITIZENSHIP'
-                              AND deleted_at IS NULL
-                            RETURNING id
-                        """),
-                        {"ids": list(countries_to_remove)},
-                    ).rowcount
-                    click.echo(f"    → Soft-deleted {props_deleted} properties")
-
-                    click.echo("  • Hard-deleting country records...")
-                    country_deleted = session.execute(
-                        text("""
-                            DELETE FROM countries
-                            WHERE wikidata_id = ANY(:ids)
-                        """),
-                        {"ids": list(countries_to_remove)},
-                    ).rowcount
-                    click.echo(f"    → Hard-deleted {country_deleted} country records")
-
-            # Clean languages
-            click.echo("⏳ Identifying languages outside hierarchy...")
-            languages_to_remove = _identify_languages_to_remove(
-                session, language_root_ids
-            )
-            total_languages = session.execute(
-                text("SELECT COUNT(*) FROM languages")
-            ).scalar()
-            pct_languages = (
-                (len(languages_to_remove) / total_languages * 100)
-                if total_languages
-                else 0
-            )
-            click.echo(
-                f"  • Found {len(languages_to_remove)}/{total_languages} languages to remove ({pct_languages:.1f}%)"
-            )
-
-            if languages_to_remove:
-                if dry_run:
-                    click.echo(
-                        f"  • [DRY RUN] Would hard-delete {len(languages_to_remove)} language records"
-                    )
-                else:
-                    # No properties reference languages (no NATIVE_LANGUAGE property type)
-                    click.echo("  • Hard-deleting language records...")
-                    lang_deleted = session.execute(
-                        text("""
-                            DELETE FROM languages
-                            WHERE wikidata_id = ANY(:ids)
-                        """),
-                        {"ids": list(languages_to_remove)},
-                    ).rowcount
-                    click.echo(f"    → Hard-deleted {lang_deleted} language records")
+                if removed > 0:
+                    any_removed = True
+                    if dry_run:
+                        if props:
+                            click.echo(
+                                f"  • [DRY RUN] Would soft-delete {props} properties"
+                            )
+                        click.echo(
+                            f"  • [DRY RUN] Would hard-delete {removed} {label} records"
+                        )
+                    else:
+                        if props:
+                            click.echo(f"    → Soft-deleted {props} properties")
+                        click.echo(f"    → Hard-deleted {removed} {label} records")
 
             # Clean orphaned wikidata_entities
-            if (
-                positions_to_remove
-                or locations_to_remove
-                or countries_to_remove
-                or languages_to_remove
-            ):
+            if any_removed:
                 click.echo("⏳ Cleaning orphaned wikidata_entities...")
-                total_entities = session.execute(
-                    text("SELECT COUNT(*) FROM wikidata_entities")
-                ).scalar()
                 if dry_run:
-                    # Count entities that would be orphaned (only in removed sets, not referenced elsewhere)
-                    all_removed = (
-                        positions_to_remove
-                        | locations_to_remove
-                        | countries_to_remove
-                        | languages_to_remove
-                    )
-                    orphan_count = session.execute(
-                        text("""
-                            SELECT COUNT(*) FROM wikidata_entities we
-                            WHERE we.wikidata_id = ANY(:removed_ids)
-                              AND NOT EXISTS (SELECT 1 FROM politicians p WHERE p.wikidata_id = we.wikidata_id)
-                              AND NOT EXISTS (SELECT 1 FROM properties pr WHERE pr.entity_id = we.wikidata_id)
-                        """),
-                        {"removed_ids": list(all_removed)},
-                    ).scalar()
-                    pct_orphans = (
-                        (orphan_count / total_entities * 100) if total_entities else 0
-                    )
-                    click.echo(
-                        f"  • [DRY RUN] Would hard-delete ~{orphan_count}/{total_entities} orphaned entities ({pct_orphans:.1f}%)"
-                    )
+                    click.echo("  • [DRY RUN] Would clean orphaned wikidata_entities")
                 else:
-                    orphans_deleted = _cleanup_orphaned_entities(session)
+                    orphans_deleted = WikidataEntity.cleanup_orphaned(session)
                     click.echo(f"  • Hard-deleted {orphans_deleted} orphaned entities")
 
             if not dry_run:
@@ -1049,248 +804,6 @@ def clean_entities(dry_run):
             session.rollback()
             click.echo(f"\n❌ Error during cleanup: {e}")
             raise SystemExit(1)
-
-
-def _identify_positions_to_remove(
-    session: Session, root_ids: list[str], ignore_ids: list[str]
-) -> set[str]:
-    """Identify positions outside the current hierarchy."""
-    result = session.execute(
-        text("""
-            WITH RECURSIVE descendants AS (
-                -- Base case: start with the new root entities
-                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
-                FROM wikidata_entities
-                WHERE wikidata_id = ANY(:root_ids)
-                UNION
-                -- Recursive case: find all children
-                SELECT sr.child_entity_id AS wikidata_id
-                FROM wikidata_relations sr
-                JOIN descendants d ON sr.parent_entity_id = d.wikidata_id
-                WHERE sr.relation_type = 'SUBCLASS_OF'
-            ),
-            ignored_branches AS (
-                -- Base case: start with ignored root entities
-                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
-                FROM wikidata_entities
-                WHERE wikidata_id = ANY(:ignore_ids)
-                UNION
-                -- Recursive case: find all descendants of ignored branches
-                SELECT sr.child_entity_id AS wikidata_id
-                FROM wikidata_relations sr
-                JOIN ignored_branches ib ON sr.parent_entity_id = ib.wikidata_id
-                WHERE sr.relation_type = 'SUBCLASS_OF'
-            )
-            SELECT p.wikidata_id
-            FROM positions p
-            WHERE (
-                -- Not in the valid hierarchy
-                NOT EXISTS (
-                    SELECT 1 FROM wikidata_relations wr
-                    JOIN descendants d ON wr.parent_entity_id = d.wikidata_id
-                    WHERE wr.child_entity_id = p.wikidata_id
-                       AND wr.relation_type IN ('INSTANCE_OF', 'SUBCLASS_OF')
-                )
-                -- OR in the ignored branches
-                OR EXISTS (
-                    SELECT 1 FROM wikidata_relations wr
-                    JOIN ignored_branches ib ON wr.parent_entity_id = ib.wikidata_id
-                    WHERE wr.child_entity_id = p.wikidata_id
-                       AND wr.relation_type IN ('INSTANCE_OF', 'SUBCLASS_OF')
-                )
-            )
-        """),
-        {"root_ids": root_ids, "ignore_ids": ignore_ids},
-    )
-    return {row[0] for row in result.fetchall()}
-
-
-def _identify_locations_to_remove(session: Session, root_ids: list[str]) -> set[str]:
-    """Identify locations outside the current hierarchy."""
-    result = session.execute(
-        text("""
-            WITH RECURSIVE descendants AS (
-                -- Base case: start with the new root entities
-                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
-                FROM wikidata_entities
-                WHERE wikidata_id = ANY(:root_ids)
-                UNION
-                -- Recursive case: find all children
-                SELECT sr.child_entity_id AS wikidata_id
-                FROM wikidata_relations sr
-                JOIN descendants d ON sr.parent_entity_id = d.wikidata_id
-                WHERE sr.relation_type = 'SUBCLASS_OF'
-            )
-            SELECT l.wikidata_id
-            FROM locations l
-            WHERE NOT EXISTS (
-                SELECT 1 FROM wikidata_relations wr
-                JOIN descendants d ON wr.parent_entity_id = d.wikidata_id
-                WHERE wr.child_entity_id = l.wikidata_id
-                   AND wr.relation_type IN ('INSTANCE_OF', 'SUBCLASS_OF')
-            )
-        """),
-        {"root_ids": root_ids},
-    )
-    return {row[0] for row in result.fetchall()}
-
-
-def _identify_countries_to_remove(
-    session: Session, root_ids: list[str], ignore_ids: list[str]
-) -> set[str]:
-    """Identify countries outside the current hierarchy."""
-    result = session.execute(
-        text("""
-            WITH RECURSIVE descendants AS (
-                -- Base case: start with the new root entities
-                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
-                FROM wikidata_entities
-                WHERE wikidata_id = ANY(:root_ids)
-                UNION
-                -- Recursive case: find all children
-                SELECT sr.child_entity_id AS wikidata_id
-                FROM wikidata_relations sr
-                JOIN descendants d ON sr.parent_entity_id = d.wikidata_id
-                WHERE sr.relation_type = 'SUBCLASS_OF'
-            ),
-            ignored_branches AS (
-                -- Base case: start with ignored root entities
-                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
-                FROM wikidata_entities
-                WHERE wikidata_id = ANY(:ignore_ids)
-                UNION
-                -- Recursive case: find all descendants of ignored branches
-                SELECT sr.child_entity_id AS wikidata_id
-                FROM wikidata_relations sr
-                JOIN ignored_branches ib ON sr.parent_entity_id = ib.wikidata_id
-                WHERE sr.relation_type = 'SUBCLASS_OF'
-            )
-            SELECT c.wikidata_id
-            FROM countries c
-            WHERE (
-                -- Not in the valid hierarchy
-                NOT EXISTS (
-                    SELECT 1 FROM wikidata_relations wr
-                    JOIN descendants d ON wr.parent_entity_id = d.wikidata_id
-                    WHERE wr.child_entity_id = c.wikidata_id
-                       AND wr.relation_type IN ('INSTANCE_OF', 'SUBCLASS_OF')
-                )
-                -- OR in the ignored branches
-                OR EXISTS (
-                    SELECT 1 FROM wikidata_relations wr
-                    JOIN ignored_branches ib ON wr.parent_entity_id = ib.wikidata_id
-                    WHERE wr.child_entity_id = c.wikidata_id
-                       AND wr.relation_type IN ('INSTANCE_OF', 'SUBCLASS_OF')
-                )
-            )
-        """),
-        {"root_ids": root_ids, "ignore_ids": ignore_ids},
-    )
-    return {row[0] for row in result.fetchall()}
-
-
-def _identify_languages_to_remove(session: Session, root_ids: list[str]) -> set[str]:
-    """Identify languages outside the current hierarchy."""
-    result = session.execute(
-        text("""
-            WITH RECURSIVE descendants AS (
-                -- Base case: start with the new root entities
-                SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
-                FROM wikidata_entities
-                WHERE wikidata_id = ANY(:root_ids)
-                UNION
-                -- Recursive case: find all children
-                SELECT sr.child_entity_id AS wikidata_id
-                FROM wikidata_relations sr
-                JOIN descendants d ON sr.parent_entity_id = d.wikidata_id
-                WHERE sr.relation_type = 'SUBCLASS_OF'
-            )
-            SELECT l.wikidata_id
-            FROM languages l
-            WHERE NOT EXISTS (
-                SELECT 1 FROM wikidata_relations wr
-                JOIN descendants d ON wr.parent_entity_id = d.wikidata_id
-                WHERE wr.child_entity_id = l.wikidata_id
-                   AND wr.relation_type IN ('INSTANCE_OF', 'SUBCLASS_OF')
-            )
-        """),
-        {"root_ids": root_ids},
-    )
-    return {row[0] for row in result.fetchall()}
-
-
-def _cleanup_orphaned_entities(session: Session) -> int:
-    """Hard-delete wikidata_entities that are only referenced by removed entities."""
-    # Build temp table of entities to keep
-    session.execute(text("CREATE TEMP TABLE entities_to_keep (wikidata_id VARCHAR)"))
-
-    # Insert from each entity table
-    session.execute(
-        text("INSERT INTO entities_to_keep SELECT wikidata_id FROM politicians")
-    )
-    session.execute(
-        text("INSERT INTO entities_to_keep SELECT wikidata_id FROM locations")
-    )
-    session.execute(
-        text("INSERT INTO entities_to_keep SELECT wikidata_id FROM positions")
-    )
-    session.execute(
-        text("INSERT INTO entities_to_keep SELECT wikidata_id FROM countries")
-    )
-    session.execute(
-        text("INSERT INTO entities_to_keep SELECT wikidata_id FROM languages")
-    )
-
-    # Keep entities referenced by properties
-    session.execute(
-        text("""
-        INSERT INTO entities_to_keep
-        SELECT DISTINCT entity_id
-        FROM properties
-        WHERE entity_id IS NOT NULL
-    """)
-    )
-
-    # Keep parent entities from relations
-    session.execute(
-        text("""
-        INSERT INTO entities_to_keep
-        SELECT DISTINCT parent_entity_id
-        FROM wikidata_relations
-        WHERE child_entity_id IN (
-            SELECT wikidata_id FROM politicians
-            UNION ALL
-            SELECT wikidata_id FROM locations
-            UNION ALL
-            SELECT wikidata_id FROM positions
-            UNION ALL
-            SELECT wikidata_id FROM countries
-            UNION ALL
-            SELECT wikidata_id FROM languages
-        )
-    """)
-    )
-
-    # Create index
-    session.execute(
-        text("CREATE INDEX idx_temp_entities_to_keep ON entities_to_keep(wikidata_id)")
-    )
-
-    # Delete entities not in keep list
-    result = session.execute(
-        text("""
-        DELETE FROM wikidata_entities
-        WHERE NOT EXISTS (
-            SELECT 1 FROM entities_to_keep
-            WHERE entities_to_keep.wikidata_id = wikidata_entities.wikidata_id
-        )
-    """)
-    )
-
-    # Clean up temp table
-    session.execute(text("DROP TABLE entities_to_keep"))
-
-    return result.rowcount
 
 
 if __name__ == "__main__":

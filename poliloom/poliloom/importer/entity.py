@@ -289,30 +289,27 @@ def import_entities(
         dump_file_path: Path to the Wikidata JSON dump file
         batch_size: Number of entities to process in each database batch
     """
-    # Load hierarchy configuration from WikidataEntity model
-    config = WikidataEntity.HIERARCHY_CONFIG
-
-    # Load only position and location descendants from database (optimized)
+    # Load hierarchy descendants from database using entity class configuration
     with Session(get_engine()) as session:
         position_classes = WikidataEntity.query_hierarchy_descendants(
             session,
-            config["position"]["roots"],
-            config["position"]["ignore"],
+            Position._hierarchy_roots,
+            Position._hierarchy_ignore,
         )
         location_classes = WikidataEntity.query_hierarchy_descendants(
             session,
-            config["location"]["roots"],
-            config["location"]["ignore"],
+            Location._hierarchy_roots,
+            Location._hierarchy_ignore,
         )
         country_classes = WikidataEntity.query_hierarchy_descendants(
             session,
-            config["country"]["roots"],
-            config["country"]["ignore"],
+            Country._hierarchy_roots,
+            Country._hierarchy_ignore,
         )
         language_classes = WikidataEntity.query_hierarchy_descendants(
             session,
-            config["language"]["roots"],
-            config["language"]["ignore"],
+            Language._hierarchy_roots,
+            Language._hierarchy_ignore,
         )
 
         logger.info(
@@ -325,8 +322,8 @@ def import_entities(
     location_classes = frozenset(location_classes)
     country_classes = frozenset(country_classes)
     language_classes = frozenset(language_classes)
-    # Wikipedia projects have a flat structure - just use the root ID
-    wikipedia_project_classes = frozenset(config["wikipedia_project"]["roots"])
+    # Wikipedia projects have a flat structure - just use the root ID directly
+    wikipedia_project_classes = frozenset(["Q10876391"])
 
     logger.info(f"Prepared {len(position_classes)} position classes")
     logger.info(f"Prepared {len(location_classes)} location classes")

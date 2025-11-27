@@ -146,6 +146,170 @@ class WikidataEntityMixin:
 
         return query
 
+    # Default hierarchy configuration - override in subclasses
+    _hierarchy_roots = None
+    _hierarchy_ignore = None
+
+    @classmethod
+    def identify_outside_hierarchy(cls, session: Session) -> set[str]:
+        """Find entities of this type that are outside the configured hierarchy.
+
+        Uses class attributes _hierarchy_roots and _hierarchy_ignore to determine
+        valid hierarchy roots and ignored branches.
+
+        Args:
+            session: Database session
+
+        Returns:
+            Set of wikidata_ids for entities outside the hierarchy
+        """
+        root_ids = getattr(cls, "_hierarchy_roots", None)
+        if not root_ids:
+            return set()
+
+        ignore_ids = getattr(cls, "_hierarchy_ignore", None) or []
+        table_name = cls.__tablename__
+
+        if ignore_ids:
+            query = text(f"""
+                WITH RECURSIVE descendants AS (
+                    SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
+                    FROM wikidata_entities
+                    WHERE wikidata_id = ANY(:root_ids)
+                    UNION
+                    SELECT sr.child_entity_id AS wikidata_id
+                    FROM wikidata_relations sr
+                    JOIN descendants d ON sr.parent_entity_id = d.wikidata_id
+                    WHERE sr.relation_type = 'SUBCLASS_OF'
+                ),
+                ignored_branches AS (
+                    SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
+                    FROM wikidata_entities
+                    WHERE wikidata_id = ANY(:ignore_ids)
+                    UNION
+                    SELECT sr.child_entity_id AS wikidata_id
+                    FROM wikidata_relations sr
+                    JOIN ignored_branches ib ON sr.parent_entity_id = ib.wikidata_id
+                    WHERE sr.relation_type = 'SUBCLASS_OF'
+                )
+                SELECT e.wikidata_id
+                FROM {table_name} e
+                WHERE (
+                    NOT EXISTS (
+                        SELECT 1 FROM wikidata_relations wr
+                        JOIN descendants d ON wr.parent_entity_id = d.wikidata_id
+                        WHERE wr.child_entity_id = e.wikidata_id
+                           AND wr.relation_type IN ('INSTANCE_OF', 'SUBCLASS_OF')
+                    )
+                    OR EXISTS (
+                        SELECT 1 FROM wikidata_relations wr
+                        JOIN ignored_branches ib ON wr.parent_entity_id = ib.wikidata_id
+                        WHERE wr.child_entity_id = e.wikidata_id
+                           AND wr.relation_type IN ('INSTANCE_OF', 'SUBCLASS_OF')
+                    )
+                )
+            """)
+            params = {"root_ids": root_ids, "ignore_ids": ignore_ids}
+        else:
+            query = text(f"""
+                WITH RECURSIVE descendants AS (
+                    SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
+                    FROM wikidata_entities
+                    WHERE wikidata_id = ANY(:root_ids)
+                    UNION
+                    SELECT sr.child_entity_id AS wikidata_id
+                    FROM wikidata_relations sr
+                    JOIN descendants d ON sr.parent_entity_id = d.wikidata_id
+                    WHERE sr.relation_type = 'SUBCLASS_OF'
+                )
+                SELECT e.wikidata_id
+                FROM {table_name} e
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM wikidata_relations wr
+                    JOIN descendants d ON wr.parent_entity_id = d.wikidata_id
+                    WHERE wr.child_entity_id = e.wikidata_id
+                       AND wr.relation_type IN ('INSTANCE_OF', 'SUBCLASS_OF')
+                )
+            """)
+            params = {"root_ids": root_ids}
+
+        result = session.execute(query, params)
+        return {row[0] for row in result.fetchall()}
+
+    @classmethod
+    def cleanup_outside_hierarchy(
+        cls, session: Session, dry_run: bool = False
+    ) -> dict[str, int]:
+        """Remove entities outside the configured hierarchy.
+
+        Soft-deletes properties referencing these entities (if applicable),
+        then hard-deletes the entity records.
+
+        Args:
+            session: Database session
+            dry_run: If True, only report what would be done without making changes
+
+        Returns:
+            Dict with cleanup statistics:
+            - 'entities_removed': Number of entity records deleted
+            - 'properties_deleted': Number of properties soft-deleted
+            - 'total_entities': Total entities before cleanup
+        """
+        table_name = cls.__tablename__
+        prop_type = getattr(cls, "_cleanup_property_type", None)
+        label = cls.__tablename__[:-1]  # "positions" -> "position"
+
+        to_remove = cls.identify_outside_hierarchy(session)
+        total = session.execute(text(f"SELECT COUNT(*) FROM {table_name}")).scalar()
+
+        stats = {
+            "entities_removed": len(to_remove),
+            "properties_deleted": 0,
+            "total_entities": total,
+            "label": label,
+        }
+
+        if not to_remove:
+            return stats
+
+        if dry_run:
+            if prop_type:
+                prop_stats = session.execute(
+                    text("""
+                        SELECT COUNT(*) as total
+                        FROM properties
+                        WHERE entity_id = ANY(:ids)
+                          AND type = :prop_type
+                          AND deleted_at IS NULL
+                    """),
+                    {"ids": list(to_remove), "prop_type": prop_type},
+                ).scalar()
+                stats["properties_deleted"] = prop_stats
+            return stats
+
+        # Soft-delete properties if this entity type has associated properties
+        if prop_type:
+            props_deleted = session.execute(
+                text("""
+                    UPDATE properties
+                    SET deleted_at = NOW()
+                    WHERE entity_id = ANY(:ids)
+                      AND type = :prop_type
+                      AND deleted_at IS NULL
+                """),
+                {"ids": list(to_remove), "prop_type": prop_type},
+            ).rowcount
+            stats["properties_deleted"] = props_deleted
+
+        # Hard-delete entity records
+        deleted = session.execute(
+            text(f"DELETE FROM {table_name} WHERE wikidata_id = ANY(:ids)"),
+            {"ids": list(to_remove)},
+        ).rowcount
+        stats["entities_removed"] = deleted
+
+        return stats
+
 
 class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     """Wikidata entity for hierarchy storage."""
@@ -155,64 +319,6 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
 
     # UpsertMixin configuration
     _upsert_update_columns = ["name", "description"]
-
-    # Hierarchy configuration - single source of truth for entity hierarchies
-    # Used by import_entities() and clean-entities CLI command
-    HIERARCHY_CONFIG = {
-        "position": {
-            "roots": [
-                "Q4164871",  # position
-                "Q29645880",  # ambassador of a country
-                "Q29645886",  # ambassador to a country
-                "Q707492",  # military chief of staff
-            ],
-            "ignore": [
-                "Q114962596",  # historical position
-                "Q193622",  # order
-                "Q60754876",  # grade of an order
-                "Q618779",  # award
-                "Q4240305",  # cross
-                "Q120560",  # minor basilica
-                "Q2977",  # cathedral
-                "Q63187345",  # religious occupation
-                "Q29982545",  # function in the Evangelical Church of Czech Brethren
-                "Q12737077",  # occupation
-            ],
-        },
-        "location": {
-            "roots": [
-                "Q486972",  # human settlement
-                "Q82794",  # region
-                "Q1306755",  # administrative centre
-                "Q3257686",  # locality
-                "Q48907157",  # section of populated place
-            ],
-            "ignore": [],
-        },
-        "country": {
-            "roots": [
-                "Q6256",  # country
-                "Q3624078",  # sovereign state
-                "Q20181813",  # disputed territory
-                "Q1520223",  # constituent country
-                "Q1489259",  # dependent territory
-                "Q1048835",  # political territorial entity
-            ],
-            "ignore": [],
-        },
-        "language": {
-            "roots": [
-                "Q34770",  # language
-            ],
-            "ignore": [],
-        },
-        "wikipedia_project": {
-            "roots": [
-                "Q10876391"
-            ],  # Wikipedia language edition (no subclasses - flat structure)
-            "ignore": [],
-        },
-    }
 
     wikidata_id = Column(String, primary_key=True)  # Wikidata QID as primary key
     name = Column(
@@ -316,6 +422,96 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             },
         )
         return {row[0] for row in result.fetchall()}
+
+    @classmethod
+    def cleanup_orphaned(cls, session: Session) -> int:
+        """Hard-delete wikidata_entities not referenced by any entity table or property.
+
+        Removes WikidataEntity records that are no longer needed because:
+        - No politician, position, location, country, or language references them
+        - No property references them as entity_id
+        - No relation references them as parent of a kept entity
+
+        Args:
+            session: Database session
+
+        Returns:
+            Number of orphaned entities deleted
+        """
+        # Build temp table of entities to keep
+        session.execute(
+            text("CREATE TEMP TABLE entities_to_keep (wikidata_id VARCHAR)")
+        )
+
+        # Insert from each entity table
+        session.execute(
+            text("INSERT INTO entities_to_keep SELECT wikidata_id FROM politicians")
+        )
+        session.execute(
+            text("INSERT INTO entities_to_keep SELECT wikidata_id FROM locations")
+        )
+        session.execute(
+            text("INSERT INTO entities_to_keep SELECT wikidata_id FROM positions")
+        )
+        session.execute(
+            text("INSERT INTO entities_to_keep SELECT wikidata_id FROM countries")
+        )
+        session.execute(
+            text("INSERT INTO entities_to_keep SELECT wikidata_id FROM languages")
+        )
+
+        # Keep entities referenced by properties
+        session.execute(
+            text("""
+            INSERT INTO entities_to_keep
+            SELECT DISTINCT entity_id
+            FROM properties
+            WHERE entity_id IS NOT NULL
+        """)
+        )
+
+        # Keep parent entities from relations
+        session.execute(
+            text("""
+            INSERT INTO entities_to_keep
+            SELECT DISTINCT parent_entity_id
+            FROM wikidata_relations
+            WHERE child_entity_id IN (
+                SELECT wikidata_id FROM politicians
+                UNION ALL
+                SELECT wikidata_id FROM locations
+                UNION ALL
+                SELECT wikidata_id FROM positions
+                UNION ALL
+                SELECT wikidata_id FROM countries
+                UNION ALL
+                SELECT wikidata_id FROM languages
+            )
+        """)
+        )
+
+        # Create index for efficient lookup
+        session.execute(
+            text(
+                "CREATE INDEX idx_temp_entities_to_keep ON entities_to_keep(wikidata_id)"
+            )
+        )
+
+        # Delete entities not in keep list
+        result = session.execute(
+            text("""
+            DELETE FROM wikidata_entities
+            WHERE NOT EXISTS (
+                SELECT 1 FROM entities_to_keep
+                WHERE entities_to_keep.wikidata_id = wikidata_entities.wikidata_id
+            )
+        """)
+        )
+
+        # Clean up temp table
+        session.execute(text("DROP TABLE entities_to_keep"))
+
+        return result.rowcount
 
 
 class WikidataEntityLabel(Base, TimestampMixin, UpsertMixin):
