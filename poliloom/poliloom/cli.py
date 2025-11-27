@@ -780,6 +780,10 @@ def clean_entities(dry_run):
             if not dry_run:
                 session.commit()
                 click.echo("\n✅ Clean-up completed successfully")
+                if any_removed:
+                    click.echo(
+                        "\n⚠️ Run 'poliloom dump build-trees' to rebuild the hierarchy."
+                    )
             else:
                 click.echo("\n✅ Dry run completed - no changes made")
 
