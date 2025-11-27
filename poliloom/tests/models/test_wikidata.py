@@ -190,6 +190,100 @@ class TestQueryHierarchyDescendants:
         descendants = TestClass.query_hierarchy_descendants(db_session)
         assert descendants == set()
 
+    def test_query_hierarchy_descendants_multiple_roots(self, db_session):
+        """Test querying descendants from multiple root nodes."""
+        # Create two separate hierarchies: Q1 -> Q2, Q10 -> Q11 -> Q12
+        test_classes = [
+            {"wikidata_id": "Q1", "name": "Root 1"},
+            {"wikidata_id": "Q2", "name": "Child of Root 1"},
+            {"wikidata_id": "Q10", "name": "Root 2"},
+            {"wikidata_id": "Q11", "name": "Child of Root 2"},
+            {"wikidata_id": "Q12", "name": "Grandchild of Root 2"},
+        ]
+
+        test_relations = [
+            {
+                "parent_entity_id": "Q1",
+                "child_entity_id": "Q2",
+                "statement_id": "Q2$multi-root-1",
+            },
+            {
+                "parent_entity_id": "Q10",
+                "child_entity_id": "Q11",
+                "statement_id": "Q11$multi-root-1",
+            },
+            {
+                "parent_entity_id": "Q11",
+                "child_entity_id": "Q12",
+                "statement_id": "Q12$multi-root-1",
+            },
+        ]
+
+        stmt = insert(WikidataEntity).values(test_classes)
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+
+        stmt = insert(WikidataRelation).values(test_relations)
+        stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
+        db_session.execute(stmt)
+        db_session.flush()
+
+        # Test with multiple roots
+        TestClass = self._create_test_class(["Q1", "Q10"])
+        descendants = TestClass.query_hierarchy_descendants(db_session)
+
+        # Should include both roots and all their descendants
+        assert descendants == {"Q1", "Q2", "Q10", "Q11", "Q12"}
+
+    def test_query_hierarchy_descendants_diamond_inheritance(self, db_session):
+        """Test that diamond inheritance returns each entity only once."""
+        # Diamond: Q1 -> Q2, Q1 -> Q3, Q2 -> Q4, Q3 -> Q4
+        # Q4 is reachable via two paths
+        test_classes = [
+            {"wikidata_id": "Q1", "name": "Root"},
+            {"wikidata_id": "Q2", "name": "Left Branch"},
+            {"wikidata_id": "Q3", "name": "Right Branch"},
+            {"wikidata_id": "Q4", "name": "Diamond Bottom"},
+        ]
+
+        test_relations = [
+            {
+                "parent_entity_id": "Q1",
+                "child_entity_id": "Q2",
+                "statement_id": "Q2$diamond-1",
+            },
+            {
+                "parent_entity_id": "Q1",
+                "child_entity_id": "Q3",
+                "statement_id": "Q3$diamond-1",
+            },
+            {
+                "parent_entity_id": "Q2",
+                "child_entity_id": "Q4",
+                "statement_id": "Q4$diamond-left",
+            },
+            {
+                "parent_entity_id": "Q3",
+                "child_entity_id": "Q4",
+                "statement_id": "Q4$diamond-right",
+            },
+        ]
+
+        stmt = insert(WikidataEntity).values(test_classes)
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+
+        stmt = insert(WikidataRelation).values(test_relations)
+        stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
+        db_session.execute(stmt)
+        db_session.flush()
+
+        TestClass = self._create_test_class(["Q1"])
+        descendants = TestClass.query_hierarchy_descendants(db_session)
+
+        # Q4 should appear only once despite two paths
+        assert descendants == {"Q1", "Q2", "Q3", "Q4"}
+
 
 class TestCleanupOutsideHierarchy:
     """Test cleanup_outside_hierarchy functionality on entity classes."""
@@ -450,3 +544,259 @@ class TestCleanupOutsideHierarchy:
         stats = WikipediaProject.cleanup_outside_hierarchy(db_session, dry_run=False)
 
         assert stats["entities_removed"] == 0
+
+    def test_entity_in_both_valid_and_ignored_branch_is_removed(self, db_session):
+        """Test that entity in both valid and ignored branches is removed (ignored wins)."""
+        from poliloom.models import Position
+        from sqlalchemy import text
+
+        # Create valid hierarchy branch
+        self._create_hierarchy(db_session, "Q4164871", ["Q100"])
+
+        # Create ignored hierarchy branch (Q12737077 is in Position._hierarchy_ignore)
+        self._create_hierarchy(db_session, "Q12737077", ["Q500"])
+
+        # Create position that is instance of BOTH valid and ignored classes
+        stmt = insert(WikidataEntity).values(
+            [{"wikidata_id": "Q999", "name": "Position in both branches"}]
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+
+        from poliloom.models import Position as PositionModel
+
+        stmt = insert(PositionModel.__table__).values([{"wikidata_id": "Q999"}])
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+
+        # Create relations to both valid and ignored classes
+        stmt = insert(WikidataRelation).values(
+            [
+                {
+                    "parent_entity_id": "Q100",
+                    "child_entity_id": "Q999",
+                    "relation_type": RelationType.INSTANCE_OF,
+                    "statement_id": "Q999$instance-of-valid",
+                },
+                {
+                    "parent_entity_id": "Q500",
+                    "child_entity_id": "Q999",
+                    "relation_type": RelationType.INSTANCE_OF,
+                    "statement_id": "Q999$instance-of-ignored",
+                },
+            ]
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
+        db_session.execute(stmt)
+        db_session.flush()
+
+        # Run cleanup
+        stats = Position.cleanup_outside_hierarchy(db_session, dry_run=False)
+
+        # Entity should be removed because ignored branch takes precedence
+        assert stats["entities_removed"] == 1
+
+        # Verify position was removed
+        count = db_session.execute(text("SELECT COUNT(*) FROM positions")).scalar()
+        assert count == 0
+
+    def test_ignored_branch_within_valid_hierarchy(self, db_session):
+        """Test ignored branch that's a descendant of a valid root."""
+        from poliloom.models import Position
+        from sqlalchemy import text
+
+        # Create hierarchy: Q4164871 -> Q100 -> Q12737077 (ignored) -> Q500
+        # Q12737077 is in Position._hierarchy_ignore
+        self._create_hierarchy(db_session, "Q4164871", ["Q100"])
+
+        # Make Q12737077 a child of Q100 (within valid hierarchy)
+        stmt = insert(WikidataEntity).values(
+            [{"wikidata_id": "Q12737077", "name": "Ignored Root (as child)"}]
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+
+        stmt = insert(WikidataRelation).values(
+            [
+                {
+                    "parent_entity_id": "Q100",
+                    "child_entity_id": "Q12737077",
+                    "relation_type": RelationType.SUBCLASS_OF,
+                    "statement_id": "Q12737077$subclass-nested",
+                }
+            ]
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
+        db_session.execute(stmt)
+
+        # Create Q500 as child of ignored branch
+        self._create_hierarchy(db_session, "Q12737077", ["Q500"])
+
+        # Create position in valid part of hierarchy (instance of Q100)
+        self._create_position_in_hierarchy(db_session, "Q200", "Q100")
+
+        # Create position in nested ignored branch (instance of Q500)
+        self._create_position_in_hierarchy(db_session, "Q600", "Q500")
+
+        db_session.flush()
+
+        # Verify setup
+        count = db_session.execute(text("SELECT COUNT(*) FROM positions")).scalar()
+        assert count == 2
+
+        # Run cleanup
+        stats = Position.cleanup_outside_hierarchy(db_session, dry_run=False)
+
+        # Position in ignored branch should be removed
+        assert stats["entities_removed"] == 1
+
+        # Only valid position should remain
+        remaining = db_session.execute(
+            text("SELECT wikidata_id FROM positions")
+        ).fetchall()
+        assert len(remaining) == 1
+        assert remaining[0][0] == "Q200"
+
+    def test_multiple_roots_keeps_entities_from_all_roots(self, db_session):
+        """Test cleanup with multiple hierarchy roots keeps entities from all roots."""
+        from poliloom.models import Position
+        from sqlalchemy import text
+
+        # Position has multiple roots: Q4164871, Q29645880, Q29918328, Q707492
+        # Create hierarchies for two of them
+        self._create_hierarchy(db_session, "Q4164871", ["Q100"])
+        self._create_hierarchy(db_session, "Q29645880", ["Q200"])
+
+        # Create positions in each hierarchy
+        self._create_position_in_hierarchy(db_session, "Q1000", "Q100")
+        self._create_position_in_hierarchy(db_session, "Q2000", "Q200")
+
+        # Create orphan position
+        self._create_orphan_position(db_session, "Q3000")
+
+        # Verify setup
+        count = db_session.execute(text("SELECT COUNT(*) FROM positions")).scalar()
+        assert count == 3
+
+        # Run cleanup
+        stats = Position.cleanup_outside_hierarchy(db_session, dry_run=False)
+
+        # Only orphan should be removed
+        assert stats["entities_removed"] == 1
+
+        # Both valid positions should remain
+        remaining = db_session.execute(
+            text("SELECT wikidata_id FROM positions ORDER BY wikidata_id")
+        ).fetchall()
+        assert len(remaining) == 2
+        assert {r[0] for r in remaining} == {"Q1000", "Q2000"}
+
+    def test_deep_ignored_hierarchy(self, db_session):
+        """Test that entities deep in ignored hierarchy are removed."""
+        from poliloom.models import Position
+        from sqlalchemy import text
+
+        # Create valid hierarchy
+        self._create_hierarchy(db_session, "Q4164871", ["Q100"])
+
+        # Create deep ignored hierarchy: Q12737077 -> Q500 -> Q501 -> Q502
+        self._create_hierarchy(db_session, "Q12737077", ["Q500"])
+
+        stmt = insert(WikidataEntity).values(
+            [
+                {"wikidata_id": "Q501", "name": "Deep ignored 1"},
+                {"wikidata_id": "Q502", "name": "Deep ignored 2"},
+            ]
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+
+        stmt = insert(WikidataRelation).values(
+            [
+                {
+                    "parent_entity_id": "Q500",
+                    "child_entity_id": "Q501",
+                    "relation_type": RelationType.SUBCLASS_OF,
+                    "statement_id": "Q501$subclass-deep",
+                },
+                {
+                    "parent_entity_id": "Q501",
+                    "child_entity_id": "Q502",
+                    "relation_type": RelationType.SUBCLASS_OF,
+                    "statement_id": "Q502$subclass-deep",
+                },
+            ]
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
+        db_session.execute(stmt)
+
+        # Create valid position
+        self._create_position_in_hierarchy(db_session, "Q1000", "Q100")
+
+        # Create position deep in ignored hierarchy (instance of Q502)
+        self._create_position_in_hierarchy(db_session, "Q2000", "Q502")
+
+        db_session.flush()
+
+        # Verify setup
+        count = db_session.execute(text("SELECT COUNT(*) FROM positions")).scalar()
+        assert count == 2
+
+        # Run cleanup
+        stats = Position.cleanup_outside_hierarchy(db_session, dry_run=False)
+
+        # Deep ignored position should be removed
+        assert stats["entities_removed"] == 1
+
+        # Only valid position should remain
+        remaining = db_session.execute(
+            text("SELECT wikidata_id FROM positions")
+        ).fetchall()
+        assert len(remaining) == 1
+        assert remaining[0][0] == "Q1000"
+
+    def test_entity_with_subclass_relation_to_hierarchy(self, db_session):
+        """Test that SUBCLASS_OF relation also counts as being in hierarchy."""
+        from poliloom.models import Position
+        from sqlalchemy import text
+
+        # Create hierarchy
+        self._create_hierarchy(db_session, "Q4164871", ["Q100"])
+
+        # Create position with SUBCLASS_OF relation (not INSTANCE_OF)
+        stmt = insert(WikidataEntity).values(
+            [{"wikidata_id": "Q200", "name": "Position via subclass"}]
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+
+        from poliloom.models import Position as PositionModel
+
+        stmt = insert(PositionModel.__table__).values([{"wikidata_id": "Q200"}])
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+
+        # Create SUBCLASS_OF relation (instead of INSTANCE_OF)
+        stmt = insert(WikidataRelation).values(
+            [
+                {
+                    "parent_entity_id": "Q100",
+                    "child_entity_id": "Q200",
+                    "relation_type": RelationType.SUBCLASS_OF,
+                    "statement_id": "Q200$subclass-of-Q100",
+                }
+            ]
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
+        db_session.execute(stmt)
+        db_session.flush()
+
+        # Run cleanup
+        stats = Position.cleanup_outside_hierarchy(db_session, dry_run=False)
+
+        # Position should NOT be removed (SUBCLASS_OF is valid for membership)
+        assert stats["entities_removed"] == 0
+
+        # Position should remain
+        count = db_session.execute(text("SELECT COUNT(*) FROM positions")).scalar()
+        assert count == 1
