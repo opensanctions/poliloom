@@ -12,9 +12,16 @@ from sqlalchemy import (
     String,
     Text,
     Enum as SQLEnum,
+    and_,
+    cast,
+    delete,
+    exists,
     func,
+    literal_column,
+    or_,
     select,
     text,
+    update,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Session, declared_attr, relationship
@@ -26,46 +33,6 @@ from .base import (
     TimestampMixin,
     UpsertMixin,
 )
-
-
-def _hierarchy_cte_sql(include_ignored: bool = True) -> str:
-    """Return SQL for recursive hierarchy CTEs.
-
-    Args:
-        include_ignored: Whether to include the ignored_descendants CTE
-
-    Returns:
-        SQL string with CTEs for descendants (and optionally ignored_descendants).
-        Expects :root_ids, :relation_type, and optionally :ignore_ids parameters.
-    """
-    base_cte = """
-        WITH RECURSIVE descendants AS (
-            SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
-            FROM wikidata_entities
-            WHERE wikidata_id = ANY(:root_ids)
-            UNION
-            SELECT sr.child_entity_id AS wikidata_id
-            FROM wikidata_relations sr
-            JOIN descendants d ON sr.parent_entity_id = d.wikidata_id
-            WHERE sr.relation_type = :relation_type
-        )"""
-
-    if include_ignored:
-        return (
-            base_cte
-            + """,
-        ignored_descendants AS (
-            SELECT CAST(wikidata_id AS VARCHAR) AS wikidata_id
-            FROM wikidata_entities
-            WHERE wikidata_id = ANY(:ignore_ids)
-            UNION
-            SELECT sr.child_entity_id AS wikidata_id
-            FROM wikidata_relations sr
-            JOIN ignored_descendants id ON sr.parent_entity_id = id.wikidata_id
-            WHERE sr.relation_type = :relation_type
-        )"""
-        )
-    return base_cte
 
 
 class WikidataEntityMixin:
@@ -191,13 +158,55 @@ class WikidataEntityMixin:
     _hierarchy_ignore = None
 
     @classmethod
+    def _build_descendants_cte(
+        cls,
+        root_ids: list[str],
+        relation_type: RelationType = RelationType.SUBCLASS_OF,
+        cte_name: str = "descendants",
+    ):
+        """Build a recursive CTE for hierarchy descendants using SQLAlchemy.
+
+        Args:
+            root_ids: List of root entity QIDs to start from
+            relation_type: Type of relation to follow (defaults to SUBCLASS_OF)
+            cte_name: Name for the CTE (must be unique within a query)
+
+        Returns:
+            SQLAlchemy CTE containing all descendant wikidata_ids
+        """
+        # Import here to avoid circular imports
+        # Base case: select root entities
+        base_query = select(
+            cast(WikidataEntity.wikidata_id, String).label("wikidata_id")
+        ).where(WikidataEntity.wikidata_id.in_(root_ids))
+
+        # Create the recursive CTE
+        descendants = base_query.cte(cte_name, recursive=True)
+
+        # Recursive case: join with relations to find children
+        # Need to reference WikidataRelation after it's defined
+        from poliloom.models.wikidata import WikidataRelation
+
+        recursive_query = select(
+            WikidataRelation.child_entity_id.label("wikidata_id")
+        ).where(
+            and_(
+                WikidataRelation.parent_entity_id == descendants.c.wikidata_id,
+                WikidataRelation.relation_type == relation_type,
+            )
+        )
+
+        descendants = descendants.union(recursive_query)
+        return descendants
+
+    @classmethod
     def query_hierarchy_descendants(
         cls,
         session: Session,
         relation_type: RelationType = RelationType.SUBCLASS_OF,
     ) -> Set[str]:
         """
-        Query all descendants of this class's hierarchy from database using recursive SQL.
+        Query all descendants of this class's hierarchy from database using recursive CTE.
         Uses cls._hierarchy_roots and cls._hierarchy_ignore configuration.
 
         Args:
@@ -213,25 +222,103 @@ class WikidataEntityMixin:
         if not root_ids:
             return set()
 
-        cte_sql = _hierarchy_cte_sql(include_ignored=True)
-        sql = text(
-            f"""
-            {cte_sql}
-            SELECT DISTINCT d.wikidata_id
-            FROM descendants d
-            WHERE d.wikidata_id NOT IN (SELECT wikidata_id FROM ignored_descendants)
-        """
+        # Build descendants CTE
+        descendants = cls._build_descendants_cte(
+            root_ids, relation_type, cte_name="descendants"
         )
 
-        result = session.execute(
-            sql,
-            {
-                "root_ids": root_ids,
-                "ignore_ids": ignore_ids,
-                "relation_type": relation_type.name,
-            },
-        )
+        # Build ignored descendants CTE if needed
+        if ignore_ids:
+            ignored_descendants = cls._build_descendants_cte(
+                ignore_ids, relation_type, cte_name="ignored_descendants"
+            )
+
+            # Select descendants not in ignored set
+            query = (
+                select(descendants.c.wikidata_id)
+                .distinct()
+                .where(
+                    ~exists(
+                        select(literal_column("1")).where(
+                            ignored_descendants.c.wikidata_id
+                            == descendants.c.wikidata_id
+                        )
+                    )
+                )
+            )
+        else:
+            query = select(descendants.c.wikidata_id).distinct()
+
+        result = session.execute(query)
         return {row[0] for row in result.fetchall()}
+
+    @classmethod
+    def _build_outside_hierarchy_subquery(
+        cls,
+        root_ids: list[str],
+        ignore_ids: list[str] | None = None,
+        relation_type: RelationType = RelationType.SUBCLASS_OF,
+    ):
+        """Build a subquery for entities outside the configured hierarchy.
+
+        Args:
+            root_ids: List of root entity QIDs defining the hierarchy
+            ignore_ids: Optional list of QIDs whose descendants should be excluded
+            relation_type: Type of relation to follow (defaults to SUBCLASS_OF)
+
+        Returns:
+            SQLAlchemy subquery selecting wikidata_ids outside the hierarchy
+        """
+        from poliloom.models.wikidata import WikidataRelation
+
+        # Build descendants CTE
+        descendants = cls._build_descendants_cte(
+            root_ids, relation_type, cte_name="descendants"
+        )
+
+        # Check if entity has a relation to any descendant
+        in_hierarchy = exists(
+            select(literal_column("1"))
+            .select_from(WikidataRelation)
+            .where(
+                and_(
+                    WikidataRelation.child_entity_id == cls.wikidata_id,
+                    WikidataRelation.parent_entity_id == descendants.c.wikidata_id,
+                    WikidataRelation.relation_type.in_(
+                        [RelationType.INSTANCE_OF, RelationType.SUBCLASS_OF]
+                    ),
+                )
+            )
+        )
+
+        if ignore_ids:
+            # Build ignored descendants CTE
+            ignored_descendants = cls._build_descendants_cte(
+                ignore_ids, relation_type, cte_name="ignored_descendants"
+            )
+
+            # Check if entity is in an ignored branch
+            in_ignored = exists(
+                select(literal_column("1"))
+                .select_from(WikidataRelation)
+                .where(
+                    and_(
+                        WikidataRelation.child_entity_id == cls.wikidata_id,
+                        WikidataRelation.parent_entity_id
+                        == ignored_descendants.c.wikidata_id,
+                        WikidataRelation.relation_type.in_(
+                            [RelationType.INSTANCE_OF, RelationType.SUBCLASS_OF]
+                        ),
+                    )
+                )
+            )
+
+            # Entity is outside hierarchy if: not in hierarchy OR in ignored branch
+            outside_condition = or_(~in_hierarchy, in_ignored)
+        else:
+            outside_condition = ~in_hierarchy
+
+        return select(cls.wikidata_id).where(outside_condition).subquery()
 
     @classmethod
     def cleanup_outside_hierarchy(
@@ -256,12 +343,14 @@ class WikidataEntityMixin:
             - 'properties_evaluated': Properties with evaluations
             - 'total_entities': Total entities before cleanup
         """
-        table_name = cls.__tablename__
+        from poliloom.models import Evaluation, Property
+
         prop_type = getattr(cls, "_cleanup_property_type", None)
         root_ids = getattr(cls, "_hierarchy_roots", None)
         ignore_ids = getattr(cls, "_hierarchy_ignore", None) or []
 
-        total = session.execute(text(f"SELECT COUNT(*) FROM {table_name}")).scalar()
+        # Get total count
+        total = session.execute(select(func.count()).select_from(cls)).scalar()
 
         if not root_ids:
             return {
@@ -273,55 +362,14 @@ class WikidataEntityMixin:
                 "total_entities": total,
             }
 
-        # Build the subquery for entities outside hierarchy
-        include_ignored = bool(ignore_ids)
-        cte_sql = _hierarchy_cte_sql(include_ignored=include_ignored)
-
-        if include_ignored:
-            outside_sql = f"""
-                {cte_sql}
-                SELECT e.wikidata_id
-                FROM {table_name} e
-                WHERE (
-                    NOT EXISTS (
-                        SELECT 1 FROM wikidata_relations wr
-                        JOIN descendants d ON wr.parent_entity_id = d.wikidata_id
-                        WHERE wr.child_entity_id = e.wikidata_id
-                           AND wr.relation_type IN ('INSTANCE_OF', 'SUBCLASS_OF')
-                    )
-                    OR EXISTS (
-                        SELECT 1 FROM wikidata_relations wr
-                        JOIN ignored_descendants ib ON wr.parent_entity_id = ib.wikidata_id
-                        WHERE wr.child_entity_id = e.wikidata_id
-                           AND wr.relation_type IN ('INSTANCE_OF', 'SUBCLASS_OF')
-                    )
-                )
-            """
-            params = {
-                "root_ids": root_ids,
-                "ignore_ids": ignore_ids,
-                "relation_type": RelationType.SUBCLASS_OF.name,
-            }
-        else:
-            outside_sql = f"""
-                {cte_sql}
-                SELECT e.wikidata_id
-                FROM {table_name} e
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM wikidata_relations wr
-                    JOIN descendants d ON wr.parent_entity_id = d.wikidata_id
-                    WHERE wr.child_entity_id = e.wikidata_id
-                       AND wr.relation_type IN ('INSTANCE_OF', 'SUBCLASS_OF')
-                )
-            """
-            params = {
-                "root_ids": root_ids,
-                "relation_type": RelationType.SUBCLASS_OF.name,
-            }
+        # Build subquery for entities outside hierarchy
+        outside_subquery = cls._build_outside_hierarchy_subquery(
+            root_ids, ignore_ids if ignore_ids else None
+        )
 
         # Get count of entities to remove
         to_remove_count = session.execute(
-            text(f"SELECT COUNT(*) FROM ({outside_sql}) subq"), params
+            select(func.count()).select_from(outside_subquery)
         ).scalar()
 
         stats = {
@@ -338,23 +386,40 @@ class WikidataEntityMixin:
 
         if dry_run:
             if prop_type:
-                prop_stats = session.execute(
-                    text(f"""
-                        SELECT
-                            COUNT(*) as total,
-                            COUNT(*) FILTER (WHERE p.statement_id IS NULL) as extracted,
-                            COUNT(DISTINCT e.property_id) FILTER (WHERE p.statement_id IS NULL) as evaluated,
-                            (SELECT COUNT(*) FROM properties WHERE type = :prop_type AND deleted_at IS NULL) as all_props
-                        FROM properties p
-                        LEFT JOIN evaluations e ON e.property_id = p.id
-                        WHERE p.entity_id IN ({outside_sql})
-                          AND p.type = :prop_type
-                          AND p.deleted_at IS NULL
-                    """),
-                    {**params, "prop_type": prop_type},
-                ).fetchone()
+                # Count properties that would be deleted
+                props_to_delete = (
+                    select(
+                        func.count().label("total"),
+                        func.count()
+                        .filter(Property.statement_id.is_(None))
+                        .label("extracted"),
+                        func.count(Evaluation.property_id.distinct())
+                        .filter(Property.statement_id.is_(None))
+                        .label("evaluated"),
+                    )
+                    .select_from(Property)
+                    .outerjoin(Evaluation, Evaluation.property_id == Property.id)
+                    .where(
+                        and_(
+                            Property.entity_id.in_(select(outside_subquery)),
+                            Property.type == prop_type,
+                            Property.deleted_at.is_(None),
+                        )
+                    )
+                )
+                prop_stats = session.execute(props_to_delete).fetchone()
+
+                # Count total properties of this type
+                all_props_count = session.execute(
+                    select(func.count())
+                    .select_from(Property)
+                    .where(
+                        and_(Property.type == prop_type, Property.deleted_at.is_(None))
+                    )
+                ).scalar()
+
                 stats["properties_deleted"] = prop_stats.total
-                stats["properties_total"] = prop_stats.all_props
+                stats["properties_total"] = all_props_count
                 stats["properties_extracted"] = prop_stats.extracted
                 stats["properties_evaluated"] = prop_stats.evaluated
             return stats
@@ -362,21 +427,21 @@ class WikidataEntityMixin:
         # Soft-delete properties if this entity type has associated properties
         if prop_type:
             props_deleted = session.execute(
-                text(f"""
-                    UPDATE properties
-                    SET deleted_at = NOW()
-                    WHERE entity_id IN ({outside_sql})
-                      AND type = :prop_type
-                      AND deleted_at IS NULL
-                """),
-                {**params, "prop_type": prop_type},
+                update(Property)
+                .where(
+                    and_(
+                        Property.entity_id.in_(select(outside_subquery)),
+                        Property.type == prop_type,
+                        Property.deleted_at.is_(None),
+                    )
+                )
+                .values(deleted_at=func.now())
             ).rowcount
             stats["properties_deleted"] = props_deleted
 
         # Hard-delete entity records
         deleted = session.execute(
-            text(f"DELETE FROM {table_name} WHERE wikidata_id IN ({outside_sql})"),
-            params,
+            delete(cls).where(cls.wikidata_id.in_(select(outside_subquery)))
         ).rowcount
         stats["entities_removed"] = deleted
 
