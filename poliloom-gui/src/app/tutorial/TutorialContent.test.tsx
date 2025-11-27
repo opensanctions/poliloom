@@ -265,9 +265,9 @@ describe('Tutorial Page', () => {
         const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
         const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
 
-        // Correct answer: Accept March 15, 1975 (first) and Reject June 8, 1952 (second)
-        fireEvent.click(acceptButtons[0])
-        fireEvent.click(rejectButtons[1])
+        // Correct answer: Reject June 8, 1952 (first - mother's) and Accept March 15, 1975 (second - Jane's)
+        fireEvent.click(rejectButtons[0])
+        fireEvent.click(acceptButtons[1])
 
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
@@ -283,9 +283,9 @@ describe('Tutorial Page', () => {
         const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
         const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
 
-        // Wrong answer: Reject correct date, Accept incorrect date
-        fireEvent.click(rejectButtons[0])
-        fireEvent.click(acceptButtons[1])
+        // Wrong answer: Accept incorrect date (first), Reject correct date (second)
+        fireEvent.click(acceptButtons[0])
+        fireEvent.click(rejectButtons[1])
 
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
@@ -329,8 +329,9 @@ describe('Tutorial Page', () => {
       render(<TutorialContent initialStep={5} />)
       const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
       const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
-      fireEvent.click(acceptButtons[0])
-      fireEvent.click(rejectButtons[1])
+      // Correct: Reject first (1952 - mother's), Accept second (1975 - Jane's)
+      fireEvent.click(rejectButtons[0])
+      fireEvent.click(acceptButtons[1])
       fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
     }
 

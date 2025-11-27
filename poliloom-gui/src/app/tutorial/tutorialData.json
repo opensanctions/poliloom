@@ -65,14 +65,13 @@
         "wikidata_id": "Q955672",
         "properties": [
           {
-            "key": "tutorial-birth-date",
-            "id": "tutorial-birth-date",
+            "key": "tutorial-birth-date-incorrect",
+            "id": "tutorial-birth-date-incorrect",
             "type": "P569",
-            "value": "+1975-03-15T00:00:00Z",
+            "value": "+1952-06-08T00:00:00Z",
             "value_precision": 11,
             "supporting_quotes": [
-              "Jane Doe was born on March 15, 1975 in Springfield.",
-              "Born: March 15, 1975"
+              "Following in the footsteps of her mother Mary Doe (born June 8, 1952), she pursued a career in public service."
             ],
             "archived_page": {
               "id": "tutorial-page-1",
@@ -82,13 +81,14 @@
             }
           },
           {
-            "key": "tutorial-birth-date-incorrect",
-            "id": "tutorial-birth-date-incorrect",
+            "key": "tutorial-birth-date",
+            "id": "tutorial-birth-date",
             "type": "P569",
-            "value": "+1952-06-08T00:00:00Z",
+            "value": "+1975-03-15T00:00:00Z",
             "value_precision": 11,
             "supporting_quotes": [
-              "Following in the footsteps of her mother Mary Doe (born June 8, 1952), she pursued a career in public service."
+              "Jane Doe was born on March 15, 1975 in Springfield.",
+              "Born: March 15, 1975"
             ],
             "archived_page": {
               "id": "tutorial-page-1",
