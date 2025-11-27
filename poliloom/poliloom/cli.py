@@ -733,57 +733,40 @@ def clean_entities(dry_run):
 
     with Session(get_engine()) as session:
         try:
-            # Display hierarchy configuration from entity classes
-            click.echo("⏳ Loading hierarchy definitions from entity classes...")
-            for entity_cls in _ENTITY_CLASSES:
-                label = entity_cls.__tablename__[:-1]
-                roots = entity_cls._hierarchy_roots or []
-                ignore = entity_cls._hierarchy_ignore or []
-                click.echo(f"  • {label.capitalize()} roots: {len(roots)} IDs")
-                if ignore:
-                    click.echo(f"  • {label.capitalize()} ignore: {len(ignore)} IDs")
-
-            # Build hierarchy sets and display counts
-            click.echo("⏳ Building hierarchy trees from database...")
-            for entity_cls in _ENTITY_CLASSES:
-                label = entity_cls.__tablename__[:-1]
-                roots = entity_cls._hierarchy_roots or []
-                ignore = entity_cls._hierarchy_ignore or []
-                classes = WikidataEntity.query_hierarchy_descendants(
-                    session, roots, ignore if ignore else None
-                )
-                click.echo(f"  • Valid {label} classes: {len(classes)}")
-
             # Process each entity type
             any_removed = False
             for entity_cls in _ENTITY_CLASSES:
-                label = entity_cls.__tablename__[:-1]
-                click.echo(f"⏳ Identifying {label}s outside hierarchy...")
+                name = entity_cls.__tablename__
+                click.echo(f"⏳ Identifying {name} outside hierarchy...")
 
                 stats = entity_cls.cleanup_outside_hierarchy(session, dry_run=dry_run)
                 total = stats["total_entities"]
                 removed = stats["entities_removed"]
                 props = stats["properties_deleted"]
+                props_total = stats["properties_total"]
+                props_extracted = stats["properties_extracted"]
+                props_evaluated = stats["properties_evaluated"]
                 pct = (removed / total * 100) if total else 0
 
-                click.echo(
-                    f"  • Found {removed}/{total} {label}s to remove ({pct:.1f}%)"
-                )
+                click.echo(f"  • Found {removed}/{total} {name} to remove ({pct:.1f}%)")
 
                 if removed > 0:
                     any_removed = True
                     if dry_run:
                         if props:
+                            pct_props = (
+                                (props / props_total * 100) if props_total else 0
+                            )
                             click.echo(
-                                f"  • [DRY RUN] Would soft-delete {props} properties"
+                                f"  • [DRY RUN] Would soft-delete {props}/{props_total} properties ({pct_props:.1f}%) - {props_extracted} extracted, {props_evaluated} with evaluations"
                             )
                         click.echo(
-                            f"  • [DRY RUN] Would hard-delete {removed} {label} records"
+                            f"  • [DRY RUN] Would hard-delete {removed} {name} records"
                         )
                     else:
                         if props:
                             click.echo(f"    → Soft-deleted {props} properties")
-                        click.echo(f"    → Hard-deleted {removed} {label} records")
+                        click.echo(f"    → Hard-deleted {removed} {name} records")
 
             # Clean orphaned wikidata_entities
             if any_removed:

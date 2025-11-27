@@ -291,26 +291,10 @@ def import_entities(
     """
     # Load hierarchy descendants from database using entity class configuration
     with Session(get_engine()) as session:
-        position_classes = WikidataEntity.query_hierarchy_descendants(
-            session,
-            Position._hierarchy_roots,
-            Position._hierarchy_ignore,
-        )
-        location_classes = WikidataEntity.query_hierarchy_descendants(
-            session,
-            Location._hierarchy_roots,
-            Location._hierarchy_ignore,
-        )
-        country_classes = WikidataEntity.query_hierarchy_descendants(
-            session,
-            Country._hierarchy_roots,
-            Country._hierarchy_ignore,
-        )
-        language_classes = WikidataEntity.query_hierarchy_descendants(
-            session,
-            Language._hierarchy_roots,
-            Language._hierarchy_ignore,
-        )
+        position_classes = Position.query_hierarchy_descendants(session)
+        location_classes = Location.query_hierarchy_descendants(session)
+        country_classes = Country.query_hierarchy_descendants(session)
+        language_classes = Language.query_hierarchy_descendants(session)
 
         logger.info(
             f"Filtering for {len(position_classes)} position types, {len(location_classes)} location types, "
