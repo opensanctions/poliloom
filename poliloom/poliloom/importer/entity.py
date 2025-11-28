@@ -30,6 +30,7 @@ class EntityCollection:
 
     model_class: Type
     shared_classes: frozenset[str]
+    ignored_classes: frozenset[str] = field(default_factory=frozenset)
     entities: list[dict] = field(default_factory=list)
     relations: list[dict] = field(default_factory=list)
     count: int = 0
@@ -60,33 +61,9 @@ class EntityCollection:
 # Progress reporting frequency for chunk processing
 PROGRESS_REPORT_FREQUENCY = 50000
 
-# Define globals for workers
-shared_position_classes: frozenset[str] | None = None
-shared_location_classes: frozenset[str] | None = None
-shared_country_classes: frozenset[str] | None = None
-shared_language_classes: frozenset[str] | None = None
-shared_wikipedia_project_classes: frozenset[str] | None = None
-
-
-def init_entity_worker(
-    pos_classes: frozenset[str],
-    loc_classes: frozenset[str],
-    country_classes: frozenset[str],
-    language_classes: frozenset[str],
-    wikipedia_project_classes: frozenset[str],
-) -> None:
-    """Initializer runs in each worker process once at startup."""
-    global \
-        shared_position_classes, \
-        shared_location_classes, \
-        shared_country_classes, \
-        shared_language_classes, \
-        shared_wikipedia_project_classes
-    shared_position_classes = pos_classes
-    shared_location_classes = loc_classes
-    shared_country_classes = country_classes
-    shared_language_classes = language_classes
-    shared_wikipedia_project_classes = wikipedia_project_classes
+# Worker configuration - set in parent process before fork, shared via copy-on-write
+# Structure: {model_name: {"classes": frozenset, "ignored": frozenset}}
+worker_config: dict | None = None
 
 
 def _insert_entities_batch(collection: EntityCollection, session: Session) -> None:
@@ -155,39 +132,20 @@ def _process_supporting_entities_chunk(
     Each worker independently reads and parses its assigned chunk.
     Returns entity counts found in this chunk.
     """
-    global \
-        shared_position_classes, \
-        shared_location_classes, \
-        shared_country_classes, \
-        shared_language_classes, \
-        shared_wikipedia_project_classes
+    global worker_config
 
     # Create a fresh engine and session for this worker process
     engine = create_engine(pool_size=2, max_overflow=3)
     session = Session(engine)
 
-    # Entity collections organized by type
+    # Entity collections organized by type, built from worker_config
     entity_collections = [
         EntityCollection(
-            model_class=Position,
-            shared_classes=shared_position_classes,
-        ),
-        EntityCollection(
-            model_class=Location,
-            shared_classes=shared_location_classes,
-        ),
-        EntityCollection(
-            model_class=Country,
-            shared_classes=shared_country_classes,
-        ),
-        EntityCollection(
-            model_class=Language,
-            shared_classes=shared_language_classes,
-        ),
-        EntityCollection(
-            model_class=WikipediaProject,
-            shared_classes=shared_wikipedia_project_classes,
-        ),
+            model_class=model_class,
+            shared_classes=worker_config[model_class.__name__]["classes"],
+            ignored_classes=worker_config[model_class.__name__]["ignored"],
+        )
+        for model_class in [Position, Location, Country, Language, WikipediaProject]
     ]
     entity_count = 0
     try:
@@ -229,23 +187,32 @@ def _process_supporting_entities_chunk(
 
             # Process each entity type
             for collection in entity_collections:
-                if any(
+                # Check if entity matches hierarchy classes
+                if not any(
                     class_id in collection.shared_classes for class_id in all_class_ids
                 ):
-                    # Ask the model class if this entity should be imported
-                    additional_fields = collection.model_class.should_import(
-                        entity, instance_ids, subclass_ids
-                    )
+                    continue
 
-                    if additional_fields is not None:
-                        # Create entity data with additional fields
-                        import_data = entity_data.copy()
-                        import_data.update(additional_fields)
-                        collection.add_entity(import_data)
+                # Skip if entity matches any ignored hierarchy classes
+                if collection.ignored_classes and any(
+                    class_id in collection.ignored_classes for class_id in all_class_ids
+                ):
+                    continue
 
-                        # Extract relations for this entity
-                        entity_relations = entity.extract_all_relations()
-                        collection.add_relations(entity_relations)
+                # Ask the model class if this entity should be imported
+                additional_fields = collection.model_class.should_import(
+                    entity, instance_ids, subclass_ids
+                )
+
+                if additional_fields is not None:
+                    # Create entity data with additional fields
+                    import_data = entity_data.copy()
+                    import_data.update(additional_fields)
+                    collection.add_entity(import_data)
+
+                    # Extract relations for this entity
+                    entity_relations = entity.extract_all_relations()
+                    collection.add_relations(entity_relations)
 
             # Process batches when they reach the batch size
             for collection in entity_collections:
@@ -289,31 +256,49 @@ def import_entities(
         dump_file_path: Path to the Wikidata JSON dump file
         batch_size: Number of entities to process in each database batch
     """
-    # Load hierarchy descendants from database using entity class configuration
+    global worker_config
+
+    # Load hierarchy descendants and ignored classes from database
+    # Set global BEFORE creating Pool so workers inherit via fork copy-on-write
     with Session(get_engine()) as session:
-        position_classes = Position.query_hierarchy_descendants(session)
-        location_classes = Location.query_hierarchy_descendants(session)
-        country_classes = Country.query_hierarchy_descendants(session)
-        language_classes = Language.query_hierarchy_descendants(session)
+        worker_config = {
+            "Position": {
+                "classes": frozenset(Position.query_hierarchy_descendants(session)),
+                "ignored": frozenset(
+                    Position.query_ignored_hierarchy_descendants(session)
+                ),
+            },
+            "Location": {
+                "classes": frozenset(Location.query_hierarchy_descendants(session)),
+                "ignored": frozenset(
+                    Location.query_ignored_hierarchy_descendants(session)
+                ),
+            },
+            "Country": {
+                "classes": frozenset(Country.query_hierarchy_descendants(session)),
+                "ignored": frozenset(
+                    Country.query_ignored_hierarchy_descendants(session)
+                ),
+            },
+            "Language": {
+                "classes": frozenset(Language.query_hierarchy_descendants(session)),
+                "ignored": frozenset(
+                    Language.query_ignored_hierarchy_descendants(session)
+                ),
+            },
+            # Wikipedia projects have a flat structure - no hierarchy or ignored classes
+            "WikipediaProject": {
+                "classes": frozenset(["Q10876391"]),
+                "ignored": frozenset(),
+            },
+        }
 
+    # Log statistics
+    for name, cfg in worker_config.items():
         logger.info(
-            f"Filtering for {len(position_classes)} position types, {len(location_classes)} location types, "
-            f"{len(country_classes)} country types, and {len(language_classes)} language types"
+            f"Prepared {len(cfg['classes'])} {name} classes, "
+            f"{len(cfg['ignored'])} ignored"
         )
-
-    # Build frozensets once in parent, BEFORE starting Pool
-    position_classes = frozenset(position_classes)
-    location_classes = frozenset(location_classes)
-    country_classes = frozenset(country_classes)
-    language_classes = frozenset(language_classes)
-    # Wikipedia projects have a flat structure - just use the root ID directly
-    wikipedia_project_classes = frozenset(["Q10876391"])
-
-    logger.info(f"Prepared {len(position_classes)} position classes")
-    logger.info(f"Prepared {len(location_classes)} location classes")
-    logger.info(f"Prepared {len(country_classes)} country classes")
-    logger.info(f"Prepared {len(language_classes)} language classes")
-    logger.info(f"Prepared {len(wikipedia_project_classes)} wikipedia project classes")
 
     num_workers = mp.cpu_count()
     logger.info(f"Using parallel processing with {num_workers} workers")
@@ -326,17 +311,7 @@ def import_entities(
     # Process chunks in parallel with proper KeyboardInterrupt handling
     pool = None
     try:
-        pool = mp.Pool(
-            processes=num_workers,
-            initializer=init_entity_worker,
-            initargs=(
-                position_classes,
-                location_classes,
-                country_classes,
-                language_classes,
-                wikipedia_project_classes,
-            ),
-        )
+        pool = mp.Pool(processes=num_workers)
 
         async_result = pool.starmap_async(
             _process_supporting_entities_chunk,

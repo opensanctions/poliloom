@@ -16,14 +16,8 @@ logger = logging.getLogger(__name__)
 # Progress reporting frequency for chunk processing
 PROGRESS_REPORT_FREQUENCY = 50000
 
-# Global for workers to access target QIDs in second pass
+# Global for workers - set in parent before fork, shared via copy-on-write
 shared_target_qids: frozenset[str] | None = None
-
-
-def init_second_pass_worker(target_qids: frozenset[str]) -> None:
-    """Initializer for second pass workers."""
-    global shared_target_qids
-    shared_target_qids = target_qids
 
 
 def _process_first_pass_chunk(
@@ -262,16 +256,13 @@ def import_hierarchy_trees(
     # ========== SECOND PASS: Update names and insert relations ==========
     logger.info("Starting second pass: updating names and inserting relations...")
 
-    # Convert to frozenset for efficient sharing across workers
-    target_qids = frozenset(target_qids)
+    # Set global BEFORE creating Pool so workers inherit via fork copy-on-write
+    global shared_target_qids
+    shared_target_qids = frozenset(target_qids)
 
     pool = None
     try:
-        pool = mp.Pool(
-            processes=num_workers,
-            initializer=init_second_pass_worker,
-            initargs=(target_qids,),
-        )
+        pool = mp.Pool(processes=num_workers)
 
         async_result = pool.starmap_async(
             _process_second_pass_chunk,

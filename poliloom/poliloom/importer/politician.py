@@ -28,31 +28,13 @@ logger = logging.getLogger(__name__)
 # Progress reporting frequency for chunk processing
 PROGRESS_REPORT_FREQUENCY = 50000
 
-# Define globals for workers
+# Worker config - set in parent process before fork, shared via copy-on-write
 shared_position_qids: frozenset[str] | None = None
 shared_location_qids: frozenset[str] | None = None
 shared_country_qids: frozenset[str] | None = None
 shared_wikipedia_projects: dict[str, str] | None = (
     None  # Maps official_website prefix to wikidata_id
 )
-
-
-def init_politician_worker(
-    position_qids: frozenset[str],
-    location_qids: frozenset[str],
-    country_qids: frozenset[str],
-    wikipedia_projects: dict[str, str],
-) -> None:
-    """Initializer runs in each worker process once at startup."""
-    global \
-        shared_position_qids, \
-        shared_location_qids, \
-        shared_country_qids, \
-        shared_wikipedia_projects
-    shared_position_qids = position_qids
-    shared_location_qids = location_qids
-    shared_country_qids = country_qids
-    shared_wikipedia_projects = wikipedia_projects
 
 
 def _is_politician(
@@ -489,10 +471,13 @@ def import_politicians(
         logger.info(f"Filtering for {len(country_qids)} countries")
         logger.info(f"Loaded {len(wikipedia_projects)} wikipedia projects")
 
-    # Build frozensets once in parent, BEFORE starting Pool
-    position_qids = frozenset(position_qids)
-    location_qids = frozenset(location_qids)
-    country_qids = frozenset(country_qids)
+    # Set globals BEFORE creating Pool so workers inherit via fork copy-on-write
+    global shared_position_qids, shared_location_qids, shared_country_qids
+    global shared_wikipedia_projects
+    shared_position_qids = frozenset(position_qids)
+    shared_location_qids = frozenset(location_qids)
+    shared_country_qids = frozenset(country_qids)
+    shared_wikipedia_projects = wikipedia_projects
 
     num_workers = mp.cpu_count()
     logger.info(f"Using parallel processing with {num_workers} workers")
@@ -505,11 +490,7 @@ def import_politicians(
     # Process chunks in parallel with proper KeyboardInterrupt handling
     pool = None
     try:
-        pool = mp.Pool(
-            processes=num_workers,
-            initializer=init_politician_worker,
-            initargs=(position_qids, location_qids, country_qids, wikipedia_projects),
-        )
+        pool = mp.Pool(processes=num_workers)
 
         # Each worker processes its chunk independently
         async_result = pool.starmap_async(

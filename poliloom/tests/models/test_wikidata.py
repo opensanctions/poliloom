@@ -284,6 +284,62 @@ class TestQueryHierarchyDescendants:
         # Q4 should appear only once despite two paths
         assert descendants == {"Q1", "Q2", "Q3", "Q4"}
 
+    def test_query_ignored_hierarchy_descendants(self, db_session):
+        """Test querying ignored hierarchy descendants."""
+        # Set up hierarchy: Q1 -> Q2 -> Q3, with Q10 -> Q11 as ignored branch
+        test_classes = [
+            {"wikidata_id": "Q1", "name": "Root"},
+            {"wikidata_id": "Q2", "name": "Child"},
+            {"wikidata_id": "Q3", "name": "Grandchild"},
+            {"wikidata_id": "Q10", "name": "Ignored Root"},
+            {"wikidata_id": "Q11", "name": "Ignored Child"},
+        ]
+
+        test_relations = [
+            {
+                "parent_entity_id": "Q1",
+                "child_entity_id": "Q2",
+                "statement_id": "Q2$ignored-test-1",
+            },
+            {
+                "parent_entity_id": "Q2",
+                "child_entity_id": "Q3",
+                "statement_id": "Q3$ignored-test-1",
+            },
+            {
+                "parent_entity_id": "Q10",
+                "child_entity_id": "Q11",
+                "statement_id": "Q11$ignored-test-1",
+            },
+        ]
+
+        stmt = insert(WikidataEntity).values(test_classes)
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+
+        stmt = insert(WikidataRelation).values(test_relations)
+        stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
+        db_session.execute(stmt)
+        db_session.flush()
+
+        TestClass = self._create_test_class(["Q1"], ignore=["Q10"])
+        ignored = TestClass.query_ignored_hierarchy_descendants(db_session)
+
+        # Should return only the ignored branch
+        assert ignored == {"Q10", "Q11"}
+
+    def test_query_ignored_hierarchy_descendants_empty(self, db_session):
+        """Test querying with no ignore config returns empty set."""
+        TestClass = self._create_test_class(["Q1"], ignore=[])
+        ignored = TestClass.query_ignored_hierarchy_descendants(db_session)
+        assert ignored == set()
+
+    def test_query_ignored_hierarchy_descendants_none(self, db_session):
+        """Test querying with None ignore config returns empty set."""
+        TestClass = self._create_test_class(["Q1"], ignore=None)
+        ignored = TestClass.query_ignored_hierarchy_descendants(db_session)
+        assert ignored == set()
+
 
 class TestCleanupOutsideHierarchy:
     """Test cleanup_outside_hierarchy functionality on entity classes."""

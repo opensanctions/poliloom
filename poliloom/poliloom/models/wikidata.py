@@ -253,6 +253,37 @@ class WikidataEntityMixin:
         return {row[0] for row in result.fetchall()}
 
     @classmethod
+    def query_ignored_hierarchy_descendants(
+        cls,
+        session: Session,
+        relation_type: RelationType = RelationType.SUBCLASS_OF,
+    ) -> Set[str]:
+        """
+        Query all descendants of this class's ignored hierarchy branches.
+        Uses cls._hierarchy_ignore configuration.
+
+        Args:
+            session: Database session
+            relation_type: Type of relation to follow (defaults to SUBCLASS_OF)
+
+        Returns:
+            Set of all ignored descendant QIDs (including the ignore roots)
+        """
+        ignore_ids = cls._hierarchy_ignore or []
+
+        if not ignore_ids:
+            return set()
+
+        # Build ignored descendants CTE
+        ignored_descendants = cls._build_descendants_cte(
+            ignore_ids, relation_type, cte_name="ignored_descendants"
+        )
+
+        query = select(ignored_descendants.c.wikidata_id).distinct()
+        result = session.execute(query)
+        return {row[0] for row in result.fetchall()}
+
+    @classmethod
     def _build_outside_hierarchy_subquery(
         cls,
         root_ids: list[str],
