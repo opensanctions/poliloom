@@ -18,21 +18,27 @@ export function EvaluationActions({
   isAdvancedMode,
   onAction,
 }: EvaluationActionsProps) {
-  // Source not visible only happens for new data (with archived pages)
-  if (!isSourceVisible) {
-    return (
-      <div className="flex gap-2 items-center ml-auto">
-        <DataLabel variant="new">New data 🎉</DataLabel>
-        <span className="text-sm text-gray-500">View source to evaluate</span>
-      </div>
-    )
-  }
-
   // For existing Wikidata statements without advanced mode, just show the label
   if (isWikidataStatement && !isAdvancedMode) {
     return (
       <div className="flex gap-2 items-center ml-auto">
         <DataLabel variant="existing">Existing data</DataLabel>
+      </div>
+    )
+  }
+
+  // New data without source visible - show status label instead of buttons
+  if (!isWikidataStatement && !isSourceVisible) {
+    return (
+      <div className="flex gap-2 items-center ml-auto">
+        <DataLabel variant="new">New data 🎉</DataLabel>
+        {isAccepted === null ? (
+          <span className="text-sm text-gray-500">View source to evaluate</span>
+        ) : (
+          <span className={`text-sm font-medium ${isAccepted ? 'text-green-700' : 'text-red-700'}`}>
+            {isAccepted ? '✓ Accepted' : '× Rejected'}
+          </span>
+        )}
       </div>
     )
   }
