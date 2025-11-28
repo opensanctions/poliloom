@@ -1,40 +1,55 @@
 # PoliLoom GUI
 
-A Next.js interface for confirming politician data extracted by LLMs before submission to Wikidata.
+The web interface where users verify AI-extracted politician data before it's submitted to Wikidata.
 
-## Features
+## What users do
 
-- Review and confirm/discard extracted properties (birth dates, birthplaces) and political positions
-- MediaWiki OAuth authentication
-- Single politician at a time for focused review
-- Source verification for all extracted data
+1. **Log in** with their Wikipedia account
+2. **Configure filters** — choose languages they can read and countries they're interested in
+3. **Review politicians** one at a time, seeing extracted data alongside the original Wikipedia source
+4. **Accept or reject** each piece of extracted information
 
-## Setup
-
-1. Install dependencies:
-
-```bash
-npm install
-```
-
-2. Copy `.env.example` to `.env.local` and fill in your credentials
-
-3. Run development server:
-
-```bash
-npm run dev
-```
-
-Visit [http://localhost:3000](http://localhost:3000)
-
-## Production
-
-```bash
-npm run build
-npm start
-```
+All accepted data is submitted to Wikidata.
 
 ## Requirements
 
 - Node.js 18+
-- PoliLoom API backend running at http://localhost:8000
+- PoliLoom backend running at http://localhost:8000
+
+## Setup
+
+```bash
+npm install
+cp .env.example .env.local
+# Edit .env.local with your configuration
+npm run dev
+```
+
+Visit http://localhost:3000
+
+## Configuration
+
+Key environment variables (see `.env.example`):
+
+| Variable                                         | Description                                      |
+| ------------------------------------------------ | ------------------------------------------------ |
+| `NEXT_PUBLIC_API_URL`                            | Backend API URL (default: http://localhost:8000) |
+| `NEXTAUTH_SECRET`                                | Random string for session encryption             |
+| `MEDIAWIKI_CLIENT_ID`, `MEDIAWIKI_CLIENT_SECRET` | OAuth credentials from Meta Wiki                 |
+
+## Development
+
+```bash
+npm run dev      # Development server with hot reload
+npm run build    # Production build
+npm run test     # Run tests
+npm run lint     # Lint code
+```
+
+## Architecture
+
+- **Next.js 15** with App Router
+- **React 19** with TypeScript
+- **Tailwind CSS** for styling
+- **NextAuth.js** for MediaWiki OAuth
+- **SWR** for data fetching

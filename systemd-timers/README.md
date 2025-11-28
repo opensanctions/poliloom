@@ -1,6 +1,6 @@
 # PoliLoom Systemd Timers
 
-Systemd timer templates for automated PoliLoom operations.
+Systemd timer configurations for running PoliLoom on a production server. These handle automated backups and data pipeline updates.
 
 ## Setup
 

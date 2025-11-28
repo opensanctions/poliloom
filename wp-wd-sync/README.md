@@ -1,35 +1,5 @@
 # WP-WD-Sync
 
-A Python tool that extracts birth information from Wikipedia pages linked to Wikidata items.
+> **Note**: This was an early experiment that has been superseded by the main PoliLoom enrichment pipeline. It's kept for reference but is not actively maintained.
 
-## Features
-
-- Fetches Wikipedia pages linked to a Wikidata item
-- Parses Wikipedia page content using mwparserfromhell
-- Extracts birth date and place information from infoboxes
-- Returns structured data about the person's birth information
-
-## Installation
-
-```bash
-pip install wp-wd-sync
-```
-
-## Usage
-
-```bash
-wp-wd-sync --wikidata-id Q12345
-```
-
-## Development
-
-This project uses Hatch for development. To set up the development environment:
-
-```bash
-pip install hatch
-hatch shell
-```
-
-## License
-
-MIT 
+A standalone tool that extracts birth information from Wikipedia infoboxes. The core functionality has been integrated into the main PoliLoom backend with more sophisticated AI-based extraction. 

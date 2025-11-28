@@ -1,187 +1,118 @@
-# PoliLoom
+# PoliLoom Backend
 
-PoliLoom is a Python API and CLI tool for extracting politician metadata from Wikipedia and other web sources to enrich Wikidata. It processes Wikidata dumps to build a local database and uses Large Language Models to extract missing politician information.
+The Python backend for PoliLoom — processes Wikidata dumps, extracts politician data using AI, and serves the evaluation API.
 
-## Technology Stack
+## Requirements
 
-- **Python** with **uv** for dependency management
-- **Click** CLI framework and **FastAPI** web framework
-- **SQLAlchemy** ORM with **PostgreSQL** database
-- **OpenAI API** for structured data extraction
-- **SentenceTransformers** with **pgvector** for vector search
-- **MediaWiki OAuth 2.0** for authentication
+- Python 3.12+ with [uv](https://docs.astral.sh/uv/)
+- PostgreSQL with pgvector extension
+- Linux or macOS (Windows not supported due to multiprocessing requirements)
+- OpenAI API key
 
-## Platform Requirements
-
-**This project requires Linux or macOS. Windows is not supported.**
-
-The dump processing pipeline relies on Unix-style multiprocessing with copy-on-write memory sharing. When processing the Wikidata dump, we share large frozensets across worker processes. On Unix systems, these are efficiently shared via fork() without duplication. Windows would duplicate this data for each worker, making the memory requirements impractical.
-
-## Installation
+## Setup
 
 ```bash
-# Clone and set up the project
-git clone <repository-url>
-cd poliloom
+# Install dependencies
 uv sync
 
-# Start PostgreSQL
+# Start PostgreSQL (from project root)
 cd .. && docker compose up -d postgres
 
-# Set up database
+# Copy and configure environment
+cp .env.example .env
+# Edit .env with your credentials
+
+# Run database migrations
 uv run alembic upgrade head
 ```
 
-## Quick Start
+## Usage
 
-PoliLoom uses a three-pass strategy to process Wikidata dumps:
+### Import Wikidata
+
+PoliLoom uses a three-pass strategy to process the Wikidata dump:
 
 ```bash
-# 1. Download and extract Wikidata dump (one-time setup)
-make download-wikidata-dump  # Downloads ~100GB compressed dump
-make extract-wikidata-dump   # Extracts to ~1TB JSON file
+# Download and extract (one-time, ~100GB download → ~2TB extracted)
+make download-wikidata-dump
+make extract-wikidata-dump
 
-# 2. Import hierarchy trees (required once per dump)
-uv run poliloom import-hierarchy
+# Import in order
+uv run poliloom import-hierarchy      # Build entity relationship trees
+uv run poliloom import-entities       # Import positions, locations, countries
+uv run poliloom import-politicians    # Import politicians
 
-# 3. Import entities in order
-uv run poliloom import-entities     # Import positions, locations, countries
-uv run poliloom import-politicians  # Import politicians linking to entities
-
-# 4. Generate embeddings for vector search
+# Generate embeddings for semantic search
 uv run poliloom embed-entities
+```
 
-# 5. Enrich politician data using LLMs
-uv run poliloom enrich-wikipedia --id Q6279
+### Extract politician data
 
-# 6. Start API server
+```bash
+# Enrich 20 politicians from any country/language
+poliloom enrich-wikipedia --count 20
+
+# Enrich 10 politicians from the US (Q30) or Italy (Q38)
+poliloom enrich-wikipedia --count 10 --countries Q30 --countries Q38
+
+# Enrich 5 politicians with English (Q1860) or French (Q150) Wikipedia sources
+poliloom enrich-wikipedia --count 5 --languages Q1860 --languages Q150
+```
+
+### Run the API server
+
+```bash
 uv run uvicorn poliloom.api:app --reload
 ```
 
-## CLI Commands
+API documentation available at http://localhost:8000/docs
 
-### Dump Processing
+## CLI Reference
 
-- `poliloom import-hierarchy [--file FILE]` - Import position/location hierarchy trees
-- `poliloom import-entities [--file FILE] [--batch-size SIZE]` - Import supporting entities
-- `poliloom import-politicians [--file FILE] [--batch-size SIZE]` - Import politicians
+| Command                       | Description                                           |
+| ----------------------------- | ----------------------------------------------------- |
+| `poliloom import-hierarchy`   | Build position/location hierarchy trees from Wikidata |
+| `poliloom import-entities`    | Import positions, locations, and countries            |
+| `poliloom import-politicians` | Import politicians linking to existing entities       |
+| `poliloom embed-entities`     | Generate vector embeddings for semantic search        |
+| `poliloom enrich-wikipedia`   | Extract politician data from Wikipedia using AI       |
+| `poliloom garbage-collect`    | Remove entities deleted from Wikidata                 |
 
-### Data Management
-
-- `poliloom enrich-wikipedia --id <wikidata_id>` - Enrich politician using LLMs
-- `poliloom enrich-wikipedia --limit <N>` - Enrich politicians until N have unevaluated statements
-- `poliloom embed-entities` - Generate embeddings for all positions and locations
-- `poliloom garbage-collect` - Clean up entities missing from latest dumps using two-dump validation
-
-### Server
-
-- `uvicorn poliloom.api:app --reload` - Start FastAPI server with auto-reload
-
-## Core Features
-
-### Three-Pass Dump Processing
-
-1. **Import Hierarchy Trees** - Extract entity relationships for efficient filtering
-2. **Import Supporting Entities** - Import positions, locations, and countries first
-3. **Import Politicians** - Link politicians to existing entities to prevent deadlocks
-
-### LLM-Based Data Extraction
-
-- **Two-stage extraction** for entity-linked properties to handle large datasets
-- **Stage 1**: Free-form extraction from Wikipedia content
-- **Stage 2**: Vector similarity search + OpenAI mapping to Wikidata entities
-
-### Vector Search
-
-- **SentenceTransformers** with 'paraphrase-multilingual-MiniLM-L12-v2' model for embeddings
-- **pgvector** extension for efficient similarity search
-- Supports mapping extracted text to existing Wikidata entities
-
-## API Endpoints
-
-The FastAPI server provides endpoints for evaluation workflows:
-
-- `GET /politicians` - Get politicians with unevaluated data
-- `POST /evaluate` - Evaluate extracted data (accept/reject/deprecate)
-
-Access API documentation at `http://localhost:8000/docs` when server is running.
+Use `--help` on any command for detailed options.
 
 ## Configuration
 
-Copy `.env.example` to `.env` and set the required environment variables:
+Key environment variables (see `.env.example`):
 
-```bash
-cp .env.example .env
-```
-
-Key configuration variables:
-
-**Database (Local Development):**
-
-```bash
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=poliloom
-DB_USER=postgres
-DB_PASSWORD=postgres
-```
-
-**Database (Google Cloud SQL):**
-
-```bash
-INSTANCE_CONNECTION_NAME=project:region:instance
-DB_IAM_USER=your-iam-user
-DB_NAME=poliloom
-```
-
-**External Services:**
-
-```bash
-OPENAI_API_KEY=your_openai_api_key
-MEDIAWIKI_OAUTH_CLIENT_ID=your-client-id
-MEDIAWIKI_OAUTH_CLIENT_SECRET=your-client-secret
-GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
-```
+| Variable                                                     | Description                       |
+| ------------------------------------------------------------ | --------------------------------- |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`    | PostgreSQL connection             |
+| `OPENAI_API_KEY`                                             | Required for Wikipedia enrichment |
+| `MEDIAWIKI_OAUTH_CLIENT_ID`, `MEDIAWIKI_OAUTH_CLIENT_SECRET` | For user authentication           |
 
 ## Development
 
-### Testing
-
 ```bash
-# Start test database
-cd .. && docker compose up -d postgres_test
+# Run tests
+uv run pytest
 
-# Run tests with coverage
-uv run pytest --cov=poliloom
-```
-
-### Code Quality
-
-```bash
-# Format and lint (runs automatically via pre-commit)
+# Format and lint
 uv run ruff check --fix .
 uv run ruff format .
 
-# Install pre-commit hooks
-uv run pre-commit install
-```
-
-### Database Migrations
-
-```bash
-# Create migration after model changes
+# Create database migration
 uv run alembic revision --autogenerate -m "Description"
-
-# Apply migrations
-uv run alembic upgrade head
 ```
 
 ## Architecture
 
-**Data Pipeline**: Wikidata dump → Local database → LLM enrichment → Evaluation GUI
+**Data flow**: Wikidata dump → PostgreSQL → AI enrichment → Evaluation API → GUI
 
-**Database Schema**: Stores politicians with unified property model for all metadata (positions, birthplaces, citizenship). Properties are distinguished by type enum and support both entity relationships and string values. Includes embeddings for similarity search and evaluation workflows.
+**Key components**:
 
-**External Integrations**: Wikidata dumps, OpenAI API, Wikipedia API, MediaWiki OAuth
+- `importer/` — Wikidata dump processing
+- `enrichment.py` — AI-powered data extraction
+- `api/` — FastAPI endpoints for the evaluation interface
+- `models/` — SQLAlchemy database models
 
-For detailed specifications, see [CLAUDE.md](./CLAUDE.md).
+See [CLAUDE.md](./CLAUDE.md) for detailed specifications.

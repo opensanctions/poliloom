@@ -1,123 +1,52 @@
-# PoliLoom 🕸️
+# PoliLoom
 
-**Weaving the world's political data into a unified tapestry**
+**Help complete the world's political data**
 
-PoliLoom is a high-performance data pipeline that extracts, enriches, and validates political entity data from Wikipedia and Wikidata at scale. Built with modern Python and TypeScript, it leverages LLMs to transform unstructured web content into structured, verifiable political metadata.
+[PoliLoom](https://loom.everypolitician.org/) is a community tool for improving politician information on [Wikidata](https://www.wikidata.org/), the free knowledge base behind Wikipedia. We use AI to find missing information about politicians — birth dates, positions held, citizenship, and more — then you verify it.
 
-## 🚀 Why PoliLoom?
+## How it works
 
-The world's political data is fragmented across thousands of Wikipedia articles in hundreds of languages. PoliLoom solves this by:
+1. **We extract** — AI reads Wikipedia articles to find politician data that's missing from Wikidata
+2. **You verify** — Log in with your Wikipedia account and review extracted information, one politician at a time
+3. **Wikidata improves** — Verified data gets submitted to Wikidata, making it available to Wikipedia and thousands of other projects
 
-- **Massive Scale Processing**: Handles the entire Wikidata dump (1TB+ uncompressed) with parallel processing
-- **AI-Powered Extraction**: Uses OpenAI's structured output API to extract political positions, dates, and relationships with high accuracy
-- **Community-Driven Validation**: Every piece of extracted data goes through human verification before entering Wikidata
-- **Real-time Enrichment**: Continuously discovers and extracts new political data as it appears on the web
+## Why this matters
 
-## 🏗️ Architecture
+Journalists investigating corruption, researchers studying democratic backsliding, and civic tech projects tracking representatives all depend on structured political data. But this data is incomplete:
 
-### Backend (`/poliloom`)
+- Many politicians are missing birth dates, positions, or other basic facts
+- Information exists in Wikipedia articles but isn't structured in Wikidata
+- Manual data entry doesn't scale to 100,000+ political positions worldwide
 
-- **Tech Stack**: Python, FastAPI, PostgreSQL with pgvector, SQLAlchemy
-- **Parallel Processing**: Multi-core Wikidata dump processing with near-linear scaling
-- **Vector Search**: Semantic similarity matching for entity resolution using sentence transformers
-- **Two-Stage LLM Pipeline**: Overcomes API limitations by combining free-form extraction with vector-based mapping
+By spending a few minutes verifying data, you directly improve the world's open knowledge infrastructure.
 
-### Frontend (`/poliloom-gui`)
+## Run your own instance
 
-- **Tech Stack**: Next.js 15+, React 19+, TypeScript, Tailwind CSS
-- **OAuth Integration**: Seamless Wikipedia/MediaWiki authentication
-- **Optimized UX**: Single-task interface for efficient data validation
-- **Real-time Updates**: SWR-powered data synchronization
-
-## 🎯 Getting Started
-
-### Quick Setup
+PoliLoom is open source. To run your own instance:
 
 ```bash
-# Clone and setup
 git clone https://github.com/opensanctions/poliloom.git
-
-# Environment setup
-cp .env.example .env
-cp poliloom/.env.example poliloom/.env
-cp poliloom-gui/.env.example poliloom-gui/.env.local
-# Edit .env files with your API keys and configuration
-
-# Start development environment
-docker compose up -d  # PostgreSQL with pgvector
-
-# Backend setup
 cd poliloom
-uv sync
-uv run uvicorn poliloom.api:app --reload
-
-# Frontend setup
-cd ../poliloom-gui
-npm install
-npm run dev
+docker compose up -d
 ```
 
-### Data Pipeline
+See [poliloom/README.md](./poliloom/README.md) for backend setup and [poliloom-gui/README.md](./poliloom-gui/README.md) for frontend setup.
 
-```bash
-# Download and extract Wikidata dump (one-time setup)
-uv run poliloom dump-download --output /var/cache/wikidata/latest-all.json.bz2
-uv run poliloom dump-extract --input /var/cache/wikidata/latest-all.json.bz2 --output /var/cache/wikidata/latest-all.json
+## How it's built
 
-# Import data (run in order)
-uv run poliloom import-hierarchy --file /var/cache/wikidata/latest-all.json
-uv run poliloom import-entities --file /var/cache/wikidata/latest-all.json
-uv run poliloom import-politicians --file /var/cache/wikidata/latest-all.json
-uv run poliloom embed-entities
+PoliLoom combines large-scale data processing with AI extraction:
 
-# Enrich politician data
-uv run poliloom enrich-wikipedia --limit 10
-```
+- Processes the complete Wikidata dump (100M+ entities)
+- Uses OpenAI to extract politician data from Wikipedia articles
+- Matches extracted text to Wikidata entities using semantic search
+- All extracted data requires human verification before submission
 
-## 🤝 Contributing
+**Backend** ([poliloom/](./poliloom/)): Python, FastAPI, PostgreSQL with pgvector, SQLAlchemy
 
-We're building the future of open political data, and we need your help! Whether you're interested in:
+**Frontend** ([poliloom-gui/](./poliloom-gui/)): Next.js, React, TypeScript, Tailwind CSS
 
-- **🐍 Python Backend**: Optimize dump processing, improve LLM pipelines, add new data sources
-- **⚛️ React Frontend**: Enhance the validation interface, improve UX, add visualization features
-- **🤖 AI/ML**: Improve extraction accuracy, experiment with different models, optimize embeddings
-- **🗃️ Data Quality**: Help validate extracted data, identify edge cases, improve matching algorithms
+## About
 
-Check out our [active discussion thread](https://discuss.opensanctions.org/t/poliloom-loom-for-weaving-politicians-data/121) where development happens in real-time.
+PoliLoom is developed by [OpenSanctions](https://opensanctions.org) as part of our mission to make critical data about public figures freely available.
 
-### Key Areas for Contribution
-
-1. **Performance Optimization**: The dump processing pipeline always needs speed improvements
-2. **Language Support**: Extend extraction to non-English Wikipedia articles
-3. **Entity Resolution**: Improve the vector similarity matching for positions and locations
-4. **Data Sources**: Add support for parliamentary websites, news articles, and other sources
-5. **Validation Interface**: Make the confirmation process even more efficient and enjoyable
-
-## 🔧 Technical Highlights
-
-- **Chunk-based Parallel Processing**: Splits Wikidata dumps into byte ranges for true parallelism
-- **Hierarchical Entity Resolution**: Builds complete descendant trees for 200K+ political positions
-- **Smart Conflict Detection**: Identifies discrepancies between sources for human review
-- **Production-Ready**: Comprehensive error handling, retry logic, and monitoring hooks
-
-## 📊 Scale
-
-- Processes **100M+ Wikidata entities** in hours, not days
-- Tracks **200,000+ political positions** across all countries
-- Handles **78,000+ positions** for large countries like France
-- Scales linearly up to **32+ CPU cores**
-
-## 🌍 Vision
-
-We're not just building a data pipeline—we're creating a living, breathing repository of the world's political landscape. By making this data accessible and verifiable, we enable:
-
-- Journalists tracking political careers across borders
-- Researchers studying political trends and patterns
-- Citizens understanding their representatives better
-- Developers building the next generation of civic tools
-
-Join us in making political data truly open and accessible. Together, we can weave a complete picture of global governance.
-
----
-
-**Built with ❤️ by the open data community** | [Discuss](https://discuss.opensanctions.org/t/poliloom-loom-for-weaving-politicians-data/121) | [API Docs](http://localhost:8000/docs)
+[Join the discussion](https://discuss.opensanctions.org/t/poliloom-loom-for-weaving-politicians-data/121) | [Report an issue](https://github.com/opensanctions/poliloom/issues)
