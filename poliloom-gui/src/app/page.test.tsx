@@ -133,12 +133,12 @@ describe('Home Page (Filter Selection)', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Customize Your Evaluation Session')).toBeInTheDocument()
+      expect(screen.getByText('Configure Your Session')).toBeInTheDocument()
     })
 
     expect(
       screen.getByText(
-        "Select the countries and languages you're interested in evaluating. Leave filters empty to evaluate all available politicians.",
+        'Pick your focus, then work through a batch of politicians at your own pace.',
       ),
     ).toBeInTheDocument()
     expect(screen.getByText('What languages can you read?')).toBeInTheDocument()
@@ -180,7 +180,7 @@ describe('Home Page (Filter Selection)', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Begin Evaluation Session')).toBeInTheDocument()
+      expect(screen.getByText('Start Your Session')).toBeInTheDocument()
     })
   })
 
@@ -250,7 +250,7 @@ describe('Home Page (Filter Selection)', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Begin Evaluation Session')).toBeInTheDocument()
+      expect(screen.getByText('Start Your Session')).toBeInTheDocument()
     })
   })
 

@@ -111,7 +111,7 @@
             "id": "tutorial-position-1",
             "type": "P39",
             "entity_id": "Q1343573",
-            "entity_name": "Member of state parliament",
+            "entity_name": "Member of Springfield Parliament",
             "qualifiers": {
               "P580": [
                 { "datavalue": { "value": { "time": "+2020-01-01T00:00:00Z", "precision": 11 } } }
@@ -133,7 +133,7 @@
             "id": "tutorial-position-2",
             "type": "P39",
             "entity_id": "Q4018482",
-            "entity_name": "Education minister",
+            "entity_name": "Minister of Education",
             "qualifiers": {
               "P580": [
                 { "datavalue": { "value": { "time": "+2022-06-15T00:00:00Z", "precision": 11 } } }
@@ -164,7 +164,7 @@
             "id": "tutorial-existing-specific-position",
             "type": "P39",
             "entity_id": "Q1343573",
-            "entity_name": "Member of state parliament",
+            "entity_name": "Member of Springfield Parliament",
             "statement_id": "Q955672$existing-specific-1",
             "qualifiers": {
               "P580": [
@@ -216,7 +216,7 @@
             "id": "tutorial-new-specific-position",
             "type": "P39",
             "entity_id": "Q1343573",
-            "entity_name": "Member of state parliament",
+            "entity_name": "Member of Springfield Parliament",
             "qualifiers": {
               "P580": [
                 { "datavalue": { "value": { "time": "+2020-01-01T00:00:00Z", "precision": 11 } } }
@@ -310,7 +310,7 @@
             "id": "tutorial-new-specific-with-source",
             "type": "P39",
             "entity_id": "Q1343573",
-            "entity_name": "Member of state parliament",
+            "entity_name": "Member of Springfield Parliament",
             "qualifiers": {
               "P580": [
                 { "datavalue": { "value": { "time": "+2020-01-01T00:00:00Z", "precision": 11 } } }
