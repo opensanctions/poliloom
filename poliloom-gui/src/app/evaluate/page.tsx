@@ -15,12 +15,14 @@ export default function EvaluatePage() {
   const { completeBasicTutorial, completeAdvancedTutorial } = useTutorial()
   const { isAdvancedMode } = useUserPreferences()
 
+  // Mark tutorials complete once on mount
   useEffect(() => {
     completeBasicTutorial()
     if (isAdvancedMode) {
       completeAdvancedTutorial()
     }
-  }, [completeBasicTutorial, completeAdvancedTutorial, isAdvancedMode])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Navigate to completion page when session goal is reached
   useEffect(() => {
