@@ -1,15 +1,15 @@
 type DataLabelVariant = 'new' | 'existing'
 
-const variantStyles: Record<DataLabelVariant, string> = {
-  new: 'text-blue-600',
-  existing: 'text-gray-500',
+const variantConfig: Record<DataLabelVariant, { text: string; className: string }> = {
+  new: { text: 'New data 🎉', className: 'text-blue-600' },
+  existing: { text: 'Existing data', className: 'text-gray-500' },
 }
 
 interface DataLabelProps {
   variant: DataLabelVariant
-  children: React.ReactNode
 }
 
-export function DataLabel({ variant, children }: DataLabelProps) {
-  return <span className={`px-2 py-1 text-sm rounded ${variantStyles[variant]}`}>{children}</span>
+export function DataLabel({ variant }: DataLabelProps) {
+  const { text, className } = variantConfig[variant]
+  return <span className={`py-1 text-sm rounded ${className}`}>{text}</span>
 }

@@ -18,67 +18,56 @@ export function EvaluationActions({
   isAdvancedMode,
   onAction,
 }: EvaluationActionsProps) {
-  // For existing Wikidata statements without advanced mode, just show the label
-  if (isWikidataStatement && !isAdvancedMode) {
-    return (
-      <div className="flex gap-2 items-center ml-auto">
-        <DataLabel variant="existing">Existing data</DataLabel>
-      </div>
-    )
-  }
-
-  // New data without source visible - show status label instead of buttons
-  if (!isWikidataStatement && !isSourceVisible) {
-    return (
-      <div className="flex gap-2 items-center ml-auto">
-        <DataLabel variant="new">New data 🎉</DataLabel>
-        {isAccepted === null ? (
-          <span className="text-sm text-gray-500">View source to evaluate</span>
-        ) : (
-          <span className={`text-sm font-medium ${isAccepted ? 'text-green-700' : 'text-red-700'}`}>
-            {isAccepted ? '✓ Accepted' : '× Rejected'}
-          </span>
-        )}
-      </div>
-    )
-  }
+  const showButtons = isSourceVisible || (isWikidataStatement && isAdvancedMode)
 
   return (
-    <div className="flex gap-2 items-center ml-auto">
-      {!isWikidataStatement ? (
-        <>
-          <DataLabel variant="new">New data 🎉</DataLabel>
+    <div className="flex gap-5 items-center ml-auto">
+      <DataLabel variant={isWikidataStatement ? 'existing' : 'new'} />
+      {showButtons ? (
+        <div className="flex gap-2">
+          {!isWikidataStatement && (
+            <Button
+              size="small"
+              variant="success"
+              active={isAccepted === true}
+              onClick={() => onAction?.(statementId, 'accept')}
+              title="Mark this data as correct and submit it to Wikidata"
+            >
+              ✓ Accept
+            </Button>
+          )}
           <Button
             size="small"
-            variant="success"
-            active={isAccepted === true}
-            onClick={() => onAction?.(statementId, 'accept')}
-            title="Mark this data as correct and submit it to Wikidata"
+            variant={isWikidataStatement && isAccepted !== false ? 'secondary' : 'danger'}
+            active={isAccepted === false}
+            onClick={() => onAction?.(statementId, 'reject')}
+            className={
+              isWikidataStatement && isAccepted !== false
+                ? '!text-gray-500 !bg-gray-100 hover:!bg-gray-300'
+                : ''
+            }
+            title={
+              isWikidataStatement
+                ? 'Mark this existing Wikidata statement as deprecated (incorrect or outdated)'
+                : 'Mark this data as incorrect and prevent it from being submitted'
+            }
           >
-            ✓ Accept
+            {isWikidataStatement ? '↓ Deprecate' : '× Reject'}
           </Button>
-        </>
-      ) : (
-        <DataLabel variant="existing">Existing data</DataLabel>
-      )}
-      <Button
-        size="small"
-        variant={isWikidataStatement && isAccepted !== false ? 'secondary' : 'danger'}
-        active={isAccepted === false}
-        onClick={() => onAction?.(statementId, 'reject')}
-        className={
-          isWikidataStatement && isAccepted !== false
-            ? '!text-gray-500 !bg-gray-100 hover:!bg-gray-300'
-            : ''
-        }
-        title={
-          isWikidataStatement
-            ? 'Mark this existing Wikidata statement as deprecated (incorrect or outdated)'
-            : 'Mark this data as incorrect and prevent it from being submitted'
-        }
-      >
-        {isWikidataStatement ? '↓ Deprecate' : '× Reject'}
-      </Button>
+        </div>
+      ) : !isWikidataStatement ? (
+        <div className="flex gap-2">
+          {isAccepted === null ? (
+            <span className="text-sm text-gray-500">View source to evaluate</span>
+          ) : (
+            <span
+              className={`text-sm font-medium ${isAccepted ? 'text-green-600' : 'text-red-600'}`}
+            >
+              {isAccepted ? '✓ Accepted' : '× Rejected'}
+            </span>
+          )}
+        </div>
+      ) : null}
     </div>
   )
 }
