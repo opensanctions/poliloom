@@ -18,7 +18,7 @@ export function EvaluationActions({
   isAdvancedMode,
   onAction,
 }: EvaluationActionsProps) {
-  const showButtons = isSourceVisible || (isWikidataStatement && isAdvancedMode)
+  const showButtons = isWikidataStatement ? isAdvancedMode : isSourceVisible
 
   return (
     <div className="flex gap-5 items-center ml-auto">
