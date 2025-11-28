@@ -829,13 +829,11 @@ async def enrich_politician_from_wikipedia(
     openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     with Session(get_engine()) as db:
-        # Use shared query logic from Politician model
-        politician_ids_query = Politician.query_for_enrichment(
-            languages=languages,
-            countries=countries,
-        )
-
-        # Query for a single politician using the filtered IDs
+        # Build query for enrichment candidates
+        # All filters (including enriched_at) are in the same query that gets the lock,
+        # preventing race conditions where a politician is selected after being enriched
+        # by another concurrent process.
+        #
         # Ordering strategy:
         # 1. NULL enriched_at first (never enriched)
         # 2. Among NULL, higher QID numbers first (newer politicians)
@@ -845,7 +843,10 @@ async def enrich_politician_from_wikipedia(
         # Use FOR UPDATE SKIP LOCKED to prevent concurrent processes from
         # selecting the same politician
         query = (
-            db.query(Politician)
+            Politician.query_for_enrichment(
+                languages=languages,
+                countries=countries,
+            )
             .options(
                 # Load the politician's wikidata entity
                 selectinload(Politician.wikidata_entity),
@@ -857,8 +858,6 @@ async def enrich_politician_from_wikipedia(
                 # Load Wikipedia links
                 selectinload(Politician.wikipedia_links),
             )
-            .filter(Politician.id.in_(politician_ids_query))
-            .filter(Politician.wikidata_id.isnot(None))
             .order_by(
                 Politician.enriched_at.asc().nullsfirst(),
                 Politician.wikidata_id_numeric.desc(),
@@ -867,7 +866,7 @@ async def enrich_politician_from_wikipedia(
             .with_for_update(skip_locked=True)
         )
 
-        politician = query.first()
+        politician = db.scalars(query).first()
 
         if not politician:
             return False

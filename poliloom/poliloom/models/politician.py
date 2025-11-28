@@ -432,7 +432,7 @@ class Politician(
             countries: Optional list of country QIDs to filter by
 
         Returns:
-            SQLAlchemy select statement for politician IDs
+            SQLAlchemy select statement for Politician entities
         """
         from .wikidata import WikidataRelation
 
@@ -441,13 +441,15 @@ class Politician(
 
         # Base query: politicians with Wikipedia links and non-soft-deleted WikidataEntity
         # Exclude politicians enriched within the last 6 months to prevent rapid re-enrichment
-        politician_ids_query = (
-            select(cls.id.distinct())
+        # Returns Politician entities (not just IDs) so filters are evaluated at lock time
+        query = (
+            select(cls)
             .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
             .where(
                 and_(
                     exists(select(1).where(WikipediaLink.politician_id == cls.id)),
                     WikidataEntity.deleted_at.is_(None),
+                    cls.wikidata_id.isnot(None),
                     or_(
                         cls.enriched_at.is_(None),  # Never enriched
                         cls.enriched_at
@@ -534,9 +536,7 @@ class Politician(
                 )
             )
 
-            politician_ids_query = politician_ids_query.where(
-                cls.id.in_(top_3_languages)
-            )
+            query = query.where(cls.id.in_(top_3_languages))
 
         # Apply country filtering
         if countries:
@@ -546,11 +546,9 @@ class Politician(
                     Property.entity_id.in_(countries),
                 )
             )
-            politician_ids_query = politician_ids_query.where(
-                cls.id.in_(citizenship_subquery)
-            )
+            query = query.where(cls.id.in_(citizenship_subquery))
 
-        return politician_ids_query
+        return query
 
     # Relationships
     wikidata_entity = relationship("WikidataEntity", back_populates="politician")

@@ -572,7 +572,7 @@ class TestPoliticianQueryForEnrichment:
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 1
-        assert result[0] == sample_politician.id
+        assert result[0].id == sample_politician.id
 
     def test_query_excludes_politicians_without_wikipedia_links(
         self, db_session, sample_politician
@@ -618,7 +618,7 @@ class TestPoliticianQueryForEnrichment:
         # Should find politician because they have German citizenship
         # and German is official language of Germany
         assert len(result) == 1
-        assert result[0] == sample_politician.id
+        assert result[0].id == sample_politician.id
 
     def test_query_with_language_filter_no_citizenship_match_but_has_citizenship_link(
         self,
@@ -681,7 +681,7 @@ class TestPoliticianQueryForEnrichment:
 
         # Should find politician with US citizenship
         assert len(result) == 1
-        assert result[0] == sample_politician.id
+        assert result[0].id == sample_politician.id
 
     def test_query_with_combined_filters(
         self,
@@ -716,7 +716,7 @@ class TestPoliticianQueryForEnrichment:
 
         # Should find politician matching both filters
         assert len(result) == 1
-        assert result[0] == sample_politician.id
+        assert result[0].id == sample_politician.id
 
     def test_query_excludes_politician_not_matching_country_filter(
         self,
@@ -782,14 +782,14 @@ class TestPoliticianQueryForEnrichment:
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 1
-        assert result[0] == sample_politician.id
+        assert result[0].id == sample_politician.id
 
         # Query with French language filter - should also match via French citizenship + French link
         query = Politician.query_for_enrichment(languages=["Q150"])
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 1
-        assert result[0] == sample_politician.id
+        assert result[0].id == sample_politician.id
 
     def test_query_with_language_filter_requires_wikipedia_link(
         self,
@@ -904,19 +904,19 @@ class TestPoliticianQueryForEnrichment:
         query = Politician.query_for_enrichment(languages=["Q1860"])
         result = db_session.execute(query).scalars().all()
         assert len(result) == 1, "English (top 1) should match"
-        assert result[0] == sample_politician.id
+        assert result[0].id == sample_politician.id
 
         # Query with German (2nd most popular) - should match
         query = Politician.query_for_enrichment(languages=["Q188"])
         result = db_session.execute(query).scalars().all()
         assert len(result) == 1, "German (top 2) should match"
-        assert result[0] == sample_politician.id
+        assert result[0].id == sample_politician.id
 
         # Query with French (3rd most popular) - should match
         query = Politician.query_for_enrichment(languages=["Q150"])
         result = db_session.execute(query).scalars().all()
         assert len(result) == 1, "French (top 3) should match"
-        assert result[0] == sample_politician.id
+        assert result[0].id == sample_politician.id
 
         # Query with Spanish (4th most popular) - should NOT match
         query = Politician.query_for_enrichment(languages=["Q1321"])
@@ -932,7 +932,7 @@ class TestPoliticianQueryForEnrichment:
         query = Politician.query_for_enrichment()
         result = db_session.execute(query).scalars().all()
         assert len(result) == 1
-        assert result[0] == sample_politician.id
+        assert result[0].id == sample_politician.id
 
         # Soft-delete the WikidataEntity
         sample_politician.wikidata_entity.soft_delete()
