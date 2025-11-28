@@ -46,7 +46,7 @@
             "key": "tutorial-existing-position",
             "id": "tutorial-existing-position",
             "type": "P39",
-            "entity_id": "Q123456",
+            "entity_id": "Q486839",
             "entity_name": "Member of Parliament",
             "statement_id": "Q955672$existing-statement-1",
             "qualifiers": {
@@ -110,8 +110,8 @@
             "key": "tutorial-position-1",
             "id": "tutorial-position-1",
             "type": "P39",
-            "entity_id": "Q555555",
-            "entity_name": "Member of Springfield Parliament",
+            "entity_id": "Q1343573",
+            "entity_name": "Member of state parliament",
             "qualifiers": {
               "P580": [
                 { "datavalue": { "value": { "time": "+2020-01-01T00:00:00Z", "precision": 11 } } }
@@ -132,8 +132,8 @@
             "key": "tutorial-position-2",
             "id": "tutorial-position-2",
             "type": "P39",
-            "entity_id": "Q789012",
-            "entity_name": "Minister of Education",
+            "entity_id": "Q4018482",
+            "entity_name": "Education minister",
             "qualifiers": {
               "P580": [
                 { "datavalue": { "value": { "time": "+2022-06-15T00:00:00Z", "precision": 11 } } }
@@ -163,8 +163,8 @@
             "key": "tutorial-existing-specific-position",
             "id": "tutorial-existing-specific-position",
             "type": "P39",
-            "entity_id": "Q555555",
-            "entity_name": "Member of Springfield Parliament",
+            "entity_id": "Q1343573",
+            "entity_name": "Member of state parliament",
             "statement_id": "Q955672$existing-specific-1",
             "qualifiers": {
               "P580": [
@@ -176,7 +176,7 @@
             "key": "tutorial-generic-position",
             "id": "tutorial-generic-position",
             "type": "P39",
-            "entity_id": "Q123456",
+            "entity_id": "Q486839",
             "entity_name": "Member of Parliament",
             "qualifiers": {
               "P580": [
@@ -207,7 +207,7 @@
             "key": "tutorial-existing-generic-no-metadata",
             "id": "tutorial-existing-generic-no-metadata",
             "type": "P39",
-            "entity_id": "Q123456",
+            "entity_id": "Q486839",
             "entity_name": "Member of Parliament",
             "statement_id": "Q955672$existing-generic-1"
           },
@@ -215,8 +215,8 @@
             "key": "tutorial-new-specific-position",
             "id": "tutorial-new-specific-position",
             "type": "P39",
-            "entity_id": "Q555555",
-            "entity_name": "Member of Springfield Parliament",
+            "entity_id": "Q1343573",
+            "entity_name": "Member of state parliament",
             "qualifiers": {
               "P580": [
                 { "datavalue": { "value": { "time": "+2020-01-01T00:00:00Z", "precision": 11 } } }
@@ -246,7 +246,7 @@
             "key": "tutorial-existing-with-metadata",
             "id": "tutorial-existing-with-metadata",
             "type": "P39",
-            "entity_id": "Q123456",
+            "entity_id": "Q486839",
             "entity_name": "Member of Parliament",
             "statement_id": "Q955672$existing-with-refs-1",
             "qualifiers": {
@@ -256,14 +256,14 @@
               "P768": [
                 {
                   "datavalue": {
-                    "value": { "entity-type": "item", "id": "Q987654", "numeric-id": 987654 }
+                    "value": { "entity-type": "item", "id": "Q7580930", "numeric-id": 7580930 }
                   }
                 }
               ],
               "P2937": [
                 {
                   "datavalue": {
-                    "value": { "entity-type": "item", "id": "Q456789", "numeric-id": 456789 }
+                    "value": { "entity-type": "item", "id": "Q72127378", "numeric-id": 72127378 }
                   }
                 }
               ]
@@ -309,8 +309,8 @@
             "key": "tutorial-new-specific-with-source",
             "id": "tutorial-new-specific-with-source",
             "type": "P39",
-            "entity_id": "Q555555",
-            "entity_name": "Member of Springfield Parliament",
+            "entity_id": "Q1343573",
+            "entity_name": "Member of state parliament",
             "qualifiers": {
               "P580": [
                 { "datavalue": { "value": { "time": "+2020-01-01T00:00:00Z", "precision": 11 } } }
