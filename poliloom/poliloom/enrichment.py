@@ -586,7 +586,6 @@ async def fetch_and_archive_page(
         # Save all content files
         archived_page.save_archived_files(result.mhtml, html_content, result.markdown)
 
-        db.commit()
         return archived_page
 
 
@@ -918,9 +917,6 @@ async def enrich_politician_from_wikipedia(
                     total_citizenships += citizenship_count
                     processed_sources += 1
 
-            # Commit all changes
-            db.commit()
-
             # Final summary
             grand_total = (
                 total_dates + total_positions + total_birthplaces + total_citizenships
@@ -930,13 +926,20 @@ async def enrich_politician_from_wikipedia(
                 f"{grand_total} total items ({total_dates} dates, {total_positions} positions, {total_birthplaces} birthplaces, {total_citizenships} citizenships)"
             )
 
-        except Exception as e:
-            logger.error(f"Error enriching politician {politician.wikidata_id}: {e}")
-
-        finally:
-            # Always update enriched_at timestamp regardless of success/failure
+            # Update enriched_at and commit all changes atomically
+            # This includes: ArchivedPages, Properties, and enriched_at timestamp
+            # The FOR UPDATE lock is held until this commit
             politician.enriched_at = datetime.now(timezone.utc)
             db.commit()
+
+        except Exception as e:
+            logger.error(f"Error enriching politician {politician.wikidata_id}: {e}")
+            # Rollback failed enrichment, then set enriched_at to prevent infinite retries
+            db.rollback()
+            politician.enriched_at = datetime.now(timezone.utc)
+            db.commit()
+
+        finally:
             # Close the OpenAI client to prevent event loop cleanup errors
             await openai_client.close()
 
