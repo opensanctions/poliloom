@@ -101,7 +101,7 @@ export default function Home() {
 
           {/* CTA Section */}
           <div className="mt-12 bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to start?</h3>
                 <p className="text-gray-600">
@@ -110,7 +110,7 @@ export default function Home() {
                     : "No filters selected. You'll evaluate politicians from all languages and countries."}
                 </p>
               </div>
-              <Button href={ctaHref} size="xlarge" className="ml-6">
+              <Button href={ctaHref} size="xlarge" className="shrink-0">
                 {ctaText}
               </Button>
             </div>
