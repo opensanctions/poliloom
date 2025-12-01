@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { ContainerBox } from '@/components/ui/ContainerBox'
 import { Input } from '@/components/ui/Input'
+import { Spinner } from '@/components/ui/Spinner'
 
 export interface MultiSelectOption {
   value: string
@@ -87,7 +88,7 @@ export function MultiSelect({
   }
 
   return (
-    <ContainerBox title={title} description={description} icon={icon} loading={loading}>
+    <ContainerBox title={title} description={description} icon={icon}>
       {/* Search */}
       <div className="mb-4">
         <Input
@@ -101,7 +102,11 @@ export function MultiSelect({
       </div>
 
       {/* Options as chips */}
-      {displayOptions.length > 0 ? (
+      {loading ? (
+        <div className="flex justify-center py-2">
+          <Spinner />
+        </div>
+      ) : displayOptions.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {displayOptions.map((option) => {
             const isSelected = selected.includes(option.value)
@@ -113,7 +118,7 @@ export function MultiSelect({
                   e.preventDefault()
                   e.stopPropagation()
                 }}
-                disabled={disabled || loading}
+                disabled={disabled}
                 className={`
                     px-4 py-2 rounded-md text-sm font-medium transition-all cursor-pointer
                     border disabled:cursor-not-allowed inline-flex items-center gap-2
