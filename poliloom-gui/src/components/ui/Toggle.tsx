@@ -8,7 +8,7 @@ type ToggleProps = {
 export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
   ({ checked, onChange, className = '', ...props }, ref) => {
     return (
-      <span className={`relative inline-block w-11 h-6 ${className}`}>
+      <span className={`relative inline-block w-11 h-6 shrink-0 ${className}`}>
         <input
           ref={ref}
           type="checkbox"
