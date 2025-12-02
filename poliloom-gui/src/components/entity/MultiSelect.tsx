@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ContainerBox } from '@/components/ui/ContainerBox'
+import { HeaderedBox } from '@/components/ui/HeaderedBox'
 import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
 
@@ -88,7 +88,7 @@ export function MultiSelect({
   }
 
   return (
-    <ContainerBox title={title} description={description} icon={icon}>
+    <HeaderedBox title={title} description={description} icon={icon}>
       {/* Search */}
       <div className="mb-4">
         <Input
@@ -147,6 +147,6 @@ export function MultiSelect({
           {searchTerm ? 'No matching options found' : 'Start typing to search'}
         </div>
       )}
-    </ContainerBox>
+    </HeaderedBox>
   )
 }

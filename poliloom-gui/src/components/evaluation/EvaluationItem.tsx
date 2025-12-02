@@ -1,5 +1,5 @@
 import { ReactNode } from 'react'
-import { ContainerBox } from '@/components/ui/ContainerBox'
+import { HeaderedBox } from '@/components/ui/HeaderedBox'
 
 interface EvaluationItemProps {
   title: ReactNode
@@ -9,8 +9,8 @@ interface EvaluationItemProps {
 
 export function EvaluationItem({ title, children, onHover }: EvaluationItemProps) {
   return (
-    <ContainerBox title={title} onHover={onHover}>
+    <HeaderedBox title={title} onHover={onHover}>
       <div className="space-y-3">{children}</div>
-    </ContainerBox>
+    </HeaderedBox>
   )
 }

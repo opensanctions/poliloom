@@ -1,6 +1,7 @@
 import { ReactNode } from 'react'
+import { Box } from './Box'
 
-interface ContainerBoxProps {
+interface HeaderedBoxProps {
   title: string | ReactNode
   description?: string
   icon?: string
@@ -8,12 +9,9 @@ interface ContainerBoxProps {
   onHover?: () => void
 }
 
-export function ContainerBox({ title, description, icon, children, onHover }: ContainerBoxProps) {
+export function HeaderedBox({ title, description, icon, children, onHover }: HeaderedBoxProps) {
   return (
-    <div
-      className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden transition-all hover:shadow-md"
-      onMouseEnter={onHover}
-    >
+    <Box onHover={onHover}>
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
         <div className="flex items-center gap-3">
@@ -27,6 +25,6 @@ export function ContainerBox({ title, description, icon, children, onHover }: Co
 
       {/* Content */}
       <div className="px-6 py-5">{children}</div>
-    </div>
+    </Box>
   )
 }

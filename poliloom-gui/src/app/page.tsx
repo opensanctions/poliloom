@@ -1,6 +1,7 @@
 'use client'
 
 import { Header } from '@/components/layout/Header'
+import { Box } from '@/components/ui/Box'
 import { Button } from '@/components/ui/Button'
 import { Toggle } from '@/components/ui/Toggle'
 import { MultiSelect, MultiSelectOption } from '@/components/entity/MultiSelect'
@@ -100,7 +101,7 @@ export default function Home() {
           </div>
 
           {/* CTA Section */}
-          <div className="mt-12 bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+          <Box className="mt-12 p-8">
             <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to start?</h3>
@@ -130,7 +131,7 @@ export default function Home() {
                 </span>
               </label>
             </div>
-          </div>
+          </Box>
         </div>
       </main>
     </>
