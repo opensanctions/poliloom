@@ -70,7 +70,7 @@ export default function Home() {
       <Header />
       <main className="bg-gray-50 min-h-0 overflow-y-auto">
         {/* Filters Section */}
-        <div className="max-w-6xl mx-auto px-8 py-12">
+        <div className="max-w-6xl mx-auto px-6 py-12">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-4">Configure Your Session</h1>
             <p className="text-lg text-gray-600">
