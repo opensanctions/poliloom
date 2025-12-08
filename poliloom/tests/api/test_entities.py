@@ -131,7 +131,7 @@ class TestGetLanguages:
     def test_languages_requires_authentication(self, client):
         """Endpoint should require authentication."""
         response = client.get("/languages")
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestGetCountries:
@@ -271,7 +271,7 @@ class TestGetCountries:
     def test_countries_requires_authentication(self, client):
         """Endpoint should require authentication."""
         response = client.get("/countries")
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestCreateEntityEndpoint:
@@ -424,12 +424,12 @@ class TestCreateEntityEndpoint:
     def test_positions_requires_authentication(self, client):
         """Endpoint should require authentication."""
         response = client.get("/positions")
-        assert response.status_code == 403
+        assert response.status_code == 401
 
     def test_locations_requires_authentication(self, client):
         """Endpoint should require authentication."""
         response = client.get("/locations")
-        assert response.status_code == 403
+        assert response.status_code == 401
 
     def test_positions_limit_validation(self, client, mock_auth):
         """Should validate limit parameter (max 1000)."""

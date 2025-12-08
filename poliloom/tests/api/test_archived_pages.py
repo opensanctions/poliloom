@@ -12,7 +12,7 @@ class TestArchivedPagesAPI:
 
         # Test .html endpoint without auth
         response = client.get(f"/archived-pages/{fake_id}.html")
-        assert response.status_code == 403
+        assert response.status_code == 401
 
     def test_invalid_uuid_format_rejected(self, client, mock_auth):
         """Test that invalid UUID format is rejected."""
