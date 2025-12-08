@@ -181,6 +181,15 @@ def sample_argentina_country(db_session):
 
 
 @pytest.fixture
+def sample_spain_country(db_session):
+    """Return a created Spain country entity."""
+    country = Country.create_with_entity(db_session, "Q29", "Spain")
+    country.iso_code = "ES"
+    db_session.flush()
+    return country
+
+
+@pytest.fixture
 def sample_language(db_session):
     """Return a created language entity."""
     language = Language.create_with_entity(db_session, "Q1860", "English")

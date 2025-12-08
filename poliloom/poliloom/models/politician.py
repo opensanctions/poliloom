@@ -28,7 +28,6 @@ from sqlalchemy.engine import Row
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Session, relationship
 from sqlalchemy import event
-from sqlalchemy.orm import aliased
 
 from ..wikidata_date import WikidataDate
 from .base import (
@@ -77,110 +76,29 @@ class Politician(
 
     def get_priority_wikipedia_links(self, db: Session) -> List[Row]:
         """
-        Get top 3 most popular Wikipedia links for a politician, optionally filtered by citizenship languages.
+        Get top 3 most popular Wikipedia links for a politician.
 
-        If politician has citizenships, prefers links in official languages of those countries.
-        If no links match official languages, falls back to all available links.
-        Otherwise returns the 3 most popular languages overall for the politician.
-        Uses proper ISO codes from languages table (no fallbacks).
+        Ranking prioritizes:
+        1. Languages that are official in the politician's citizenship countries
+        2. Global popularity (count of Wikipedia links in that language)
 
         Args:
             db: Database session
 
         Returns:
-            List of Row objects containing (url, wikipedia_project_id), limited to top 3 by popularity
+            List of Row objects containing (url, wikipedia_project_id), limited to top 3
         """
-        from .wikidata import WikidataRelation
+        ranked_links = self._get_ranked_wikipedia_links_cte()
 
-        # CTE 1: politician_citizenships - get all citizenship country IDs
-        politician_citizenships = (
-            select(Property.entity_id.label("country_id"))
-            .where(
-                and_(
-                    Property.politician_id == str(self.id),
-                    Property.type == PropertyType.CITIZENSHIP,
-                    Property.entity_id.isnot(None),
-                )
-            )
-            .cte("politician_citizenships")
-        )
-
-        # CTE 2: language_popularity - count global usage of each wikipedia project
-        language_popularity = self._get_language_popularity_cte()
-
-        # Subquery for checking if politician has any citizenships
-        politician_has_citizenships = exists(
-            select(literal(1)).select_from(politician_citizenships)
-        )
-
-        # Subquery for checking if language is official language of citizenship country
-        # Join through WikipediaProject to get the language via P407 (language of work)
-        citizenship_match_exists = exists(
-            select(literal(1))
-            .select_from(WikidataRelation)
-            .join(
-                politician_citizenships,
-                WikidataRelation.child_entity_id
-                == politician_citizenships.c.country_id,
-            )
-            .where(
-                and_(
-                    WikidataRelation.parent_entity_id == Language.wikidata_id,
-                    WikidataRelation.relation_type == "OFFICIAL_LANGUAGE",
-                )
-            )
-        )
-
-        # CTE 3: links_with_citizenship_flag - join all data and compute citizenship match
-        # Join WikipediaLink -> WikipediaProject -> Language (via P407 relation)
-        links_with_citizenship_flag = (
-            select(
-                WikipediaLink.url,
-                WikipediaLink.wikipedia_project_id,
-                language_popularity.c.global_count.label("language_popularity"),
-                case(
-                    (
-                        and_(politician_has_citizenships, citizenship_match_exists),
-                        1,
-                    ),
-                    else_=0,
-                ).label("matches_citizenship"),
-            )
-            .select_from(WikipediaLink)
-            .join(
-                WikipediaProject,
-                WikipediaLink.wikipedia_project_id == WikipediaProject.wikidata_id,
-            )
-            .join(
-                WikidataRelation,
-                and_(
-                    WikidataRelation.child_entity_id == WikipediaProject.wikidata_id,
-                    WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
-                ),
-            )
-            .join(Language, WikidataRelation.parent_entity_id == Language.wikidata_id)
-            .join(
-                language_popularity,
-                language_popularity.c.wikipedia_project_id
-                == WikipediaLink.wikipedia_project_id,
-            )
-            .where(WikipediaLink.politician_id == str(self.id))
-            .distinct()
-            .cte("links_with_citizenship_flag")
-        )
-
-        # Final query: select and order by citizenship match, then popularity
         query = (
-            select(
-                links_with_citizenship_flag.c.url,
-                links_with_citizenship_flag.c.wikipedia_project_id,
+            select(ranked_links.c.url, ranked_links.c.wikipedia_project_id)
+            .where(
+                and_(
+                    ranked_links.c.politician_id == self.id,
+                    ranked_links.c.rank <= 3,
+                )
             )
-            .select_from(links_with_citizenship_flag)
-            .order_by(
-                links_with_citizenship_flag.c.matches_citizenship.desc(),
-                links_with_citizenship_flag.c.language_popularity.desc(),
-            )
-            .limit(3)
+            .order_by(ranked_links.c.rank)
         )
 
         result = db.execute(query)
@@ -311,9 +229,6 @@ class Politician(
         """
         Create CTE for global language popularity based on Wikipedia link counts.
 
-        Used by both get_priority_wikipedia_links and query_for_enrichment to ensure
-        consistent popularity calculations.
-
         Returns:
             SQLAlchemy CTE with columns: wikipedia_project_id, global_count
         """
@@ -324,6 +239,116 @@ class Politician(
             .group_by(WikipediaLink.wikipedia_project_id)
             .cte("language_popularity")
         )
+
+    @classmethod
+    def _get_ranked_wikipedia_links_cte(cls):
+        """
+        Create CTE for ranking Wikipedia links by citizenship match and global popularity.
+
+        This is the shared ranking logic used by both get_priority_wikipedia_links
+        and query_for_enrichment to ensure consistent behavior.
+
+        The ranking orders by:
+        1. Citizenship match (1 if language is official in a citizenship country, else 0)
+        2. Global popularity (count of Wikipedia links in that language across all politicians)
+
+        Returns:
+            SQLAlchemy CTE with columns: politician_id, language_qid, wikipedia_project_id,
+                                         url, matches_citizenship, language_popularity, rank
+        """
+        from .wikidata import WikidataRelation
+
+        # CTE 1: Global language popularity
+        language_popularity = cls._get_language_popularity_cte()
+
+        # CTE 2: Politician citizenships
+        politician_citizenships = (
+            select(
+                Property.politician_id.label("politician_id"),
+                Property.entity_id.label("country_id"),
+            )
+            .where(
+                and_(
+                    Property.type == PropertyType.CITIZENSHIP,
+                    Property.entity_id.isnot(None),
+                )
+            )
+            .cte("politician_citizenships")
+        )
+
+        # CTE 3: Official languages of countries
+        official_languages = (
+            select(
+                WikidataRelation.child_entity_id.label("country_id"),
+                WikidataRelation.parent_entity_id.label("language_id"),
+            )
+            .where(WikidataRelation.relation_type == RelationType.OFFICIAL_LANGUAGE)
+            .cte("official_languages")
+        )
+
+        # Subquery for citizenship match check
+        def citizenship_match_exists():
+            return exists(
+                select(literal(1))
+                .select_from(politician_citizenships)
+                .join(
+                    official_languages,
+                    politician_citizenships.c.country_id
+                    == official_languages.c.country_id,
+                )
+                .where(
+                    and_(
+                        politician_citizenships.c.politician_id == cls.id,
+                        official_languages.c.language_id == Language.wikidata_id,
+                    )
+                )
+            )
+
+        # CTE 4: Ranked Wikipedia links for all politicians
+        ranked_links = (
+            select(
+                cls.id.label("politician_id"),
+                Language.wikidata_id.label("language_qid"),
+                WikipediaLink.wikipedia_project_id,
+                WikipediaLink.url,
+                case((citizenship_match_exists(), 1), else_=0).label(
+                    "matches_citizenship"
+                ),
+                language_popularity.c.global_count.label("language_popularity"),
+                func.row_number()
+                .over(
+                    partition_by=cls.id,
+                    order_by=[
+                        case((citizenship_match_exists(), 1), else_=0).desc(),
+                        language_popularity.c.global_count.desc(),
+                    ],
+                )
+                .label("rank"),
+            )
+            .select_from(cls)
+            .join(WikipediaLink, WikipediaLink.politician_id == cls.id)
+            .join(
+                WikipediaProject,
+                WikipediaLink.wikipedia_project_id == WikipediaProject.wikidata_id,
+            )
+            .join(
+                WikidataRelation,
+                and_(
+                    WikidataRelation.child_entity_id == WikipediaProject.wikidata_id,
+                    WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
+                ),
+            )
+            .join(Language, WikidataRelation.parent_entity_id == Language.wikidata_id)
+            .join(
+                language_popularity,
+                language_popularity.c.wikipedia_project_id
+                == WikipediaLink.wikipedia_project_id,
+            )
+            .distinct()
+            .cte("ranked_wikipedia_links")
+        )
+
+        return ranked_links
 
     @classmethod
     def query_base(cls):
@@ -434,7 +459,6 @@ class Politician(
         Returns:
             SQLAlchemy select statement for Politician entities
         """
-        from .wikidata import WikidataRelation
 
         # Calculate 6-month cooldown threshold
         six_months_ago = datetime.now(timezone.utc) - timedelta(days=180)
@@ -459,80 +483,15 @@ class Politician(
             )
         )
 
-        # Apply language filtering using citizenship-based matching with top-3 popularity limit
+        # Apply language filtering using shared ranking logic
         if languages:
-            # Strategy: Match politicians where filtered language would be in top 3 selected by get_priority_wikipedia_links
-            # Mimics get_priority_wikipedia_links logic: citizenship match + global popularity, top 3
-
-            # CTE 1: Global language popularity (count of Wikipedia links per wikipedia project)
-            language_popularity = cls._get_language_popularity_cte()
-
-            # CTE 2: For each politician, their citizenship-matched languages with links, ranked by global popularity
-            # Join through WikipediaProject -> Language (via P407 relation)
-            # Use aliased WikidataRelation for country->language to avoid ambiguous joins
-            CountryLanguageRelation = aliased(WikidataRelation)
-
-            politician_language_ranks = (
-                select(
-                    cls.id.label("politician_id"),
-                    Language.wikidata_id.label("language_qid"),
-                    func.row_number()
-                    .over(
-                        partition_by=cls.id,
-                        order_by=language_popularity.c.global_count.desc(),
-                    )
-                    .label("rank"),
-                )
-                .select_from(cls)
-                .join(WikipediaLink, WikipediaLink.politician_id == cls.id)
-                .join(
-                    WikipediaProject,
-                    WikipediaLink.wikipedia_project_id == WikipediaProject.wikidata_id,
-                )
-                .join(
-                    WikidataRelation,
-                    and_(
-                        WikidataRelation.child_entity_id
-                        == WikipediaProject.wikidata_id,
-                        WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
-                    ),
-                )
-                .join(
-                    Language, WikidataRelation.parent_entity_id == Language.wikidata_id
-                )
-                .join(
-                    language_popularity,
-                    language_popularity.c.wikipedia_project_id
-                    == WikipediaLink.wikipedia_project_id,
-                )
-                .join(
-                    Property,
-                    and_(
-                        Property.politician_id == cls.id,
-                        Property.type == PropertyType.CITIZENSHIP,
-                    ),
-                )
-                .join(
-                    CountryLanguageRelation,
-                    and_(
-                        Property.entity_id == CountryLanguageRelation.child_entity_id,
-                        CountryLanguageRelation.relation_type
-                        == RelationType.OFFICIAL_LANGUAGE,
-                        CountryLanguageRelation.parent_entity_id
-                        == Language.wikidata_id,
-                    ),
-                )
-                .distinct()
-                .cte("politician_language_ranks")
-            )
+            ranked_links = cls._get_ranked_wikipedia_links_cte()
 
             # Subquery: Politicians where filtered language is in top 3 by rank
-            top_3_languages = select(
-                politician_language_ranks.c.politician_id.distinct()
-            ).where(
+            top_3_languages = select(ranked_links.c.politician_id.distinct()).where(
                 and_(
-                    politician_language_ranks.c.language_qid.in_(languages),
-                    politician_language_ranks.c.rank <= 3,
+                    ranked_links.c.language_qid.in_(languages),
+                    ranked_links.c.rank <= 3,
                 )
             )
 
