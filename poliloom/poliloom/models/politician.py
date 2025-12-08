@@ -17,7 +17,6 @@ from sqlalchemy import (
     case,
     exists,
     func,
-    literal,
     or_,
     select,
     text,
@@ -241,7 +240,7 @@ class Politician(
         )
 
     @classmethod
-    def _get_ranked_wikipedia_links_cte(cls):
+    def _get_ranked_wikipedia_links_cte(cls, countries: List[str] = None):
         """
         Create CTE for ranking Wikipedia links by citizenship match and global popularity.
 
@@ -252,6 +251,10 @@ class Politician(
         1. Citizenship match (1 if language is official in a citizenship country, else 0)
         2. Global popularity (count of Wikipedia links in that language across all politicians)
 
+        Args:
+            countries: Optional list of country QIDs to pre-filter politicians.
+                       This dramatically improves performance when filtering by country.
+
         Returns:
             SQLAlchemy CTE with columns: politician_id, language_qid, wikipedia_project_id,
                                          url, matches_citizenship, language_popularity, rank
@@ -261,11 +264,21 @@ class Politician(
         # CTE 1: Global language popularity
         language_popularity = cls._get_language_popularity_cte()
 
-        # CTE 2: Politician citizenships
-        politician_citizenships = (
+        # CTE 2: Politician-language citizenship matches
+        # Pre-compute which (politician, language) pairs have a citizenship match
+        # by joining citizenships with official languages
+        citizenship_language_matches = (
             select(
                 Property.politician_id.label("politician_id"),
-                Property.entity_id.label("country_id"),
+                WikidataRelation.parent_entity_id.label("language_id"),
+            )
+            .select_from(Property)
+            .join(
+                WikidataRelation,
+                and_(
+                    Property.entity_id == WikidataRelation.child_entity_id,
+                    WikidataRelation.relation_type == RelationType.OFFICIAL_LANGUAGE,
+                ),
             )
             .where(
                 and_(
@@ -273,53 +286,36 @@ class Politician(
                     Property.entity_id.isnot(None),
                 )
             )
-            .cte("politician_citizenships")
+            .distinct()
+            .cte("citizenship_language_matches")
         )
 
-        # CTE 3: Official languages of countries
-        official_languages = (
-            select(
-                WikidataRelation.child_entity_id.label("country_id"),
-                WikidataRelation.parent_entity_id.label("language_id"),
-            )
-            .where(WikidataRelation.relation_type == RelationType.OFFICIAL_LANGUAGE)
-            .cte("official_languages")
-        )
-
-        # Subquery for citizenship match check
-        def citizenship_match_exists():
-            return exists(
-                select(literal(1))
-                .select_from(politician_citizenships)
-                .join(
-                    official_languages,
-                    politician_citizenships.c.country_id
-                    == official_languages.c.country_id,
-                )
-                .where(
-                    and_(
-                        politician_citizenships.c.politician_id == cls.id,
-                        official_languages.c.language_id == Language.wikidata_id,
-                    )
-                )
-            )
-
-        # CTE 4: Ranked Wikipedia links for all politicians
-        ranked_links = (
+        # CTE 3: Ranked Wikipedia links
+        # Use LEFT JOIN to citizenship_language_matches to determine match flag
+        ranked_links_query = (
             select(
                 cls.id.label("politician_id"),
                 Language.wikidata_id.label("language_qid"),
                 WikipediaLink.wikipedia_project_id,
                 WikipediaLink.url,
-                case((citizenship_match_exists(), 1), else_=0).label(
-                    "matches_citizenship"
-                ),
+                case(
+                    (citizenship_language_matches.c.politician_id.isnot(None), 1),
+                    else_=0,
+                ).label("matches_citizenship"),
                 language_popularity.c.global_count.label("language_popularity"),
                 func.row_number()
                 .over(
                     partition_by=cls.id,
                     order_by=[
-                        case((citizenship_match_exists(), 1), else_=0).desc(),
+                        case(
+                            (
+                                citizenship_language_matches.c.politician_id.isnot(
+                                    None
+                                ),
+                                1,
+                            ),
+                            else_=0,
+                        ).desc(),
                         language_popularity.c.global_count.desc(),
                     ],
                 )
@@ -344,11 +340,26 @@ class Politician(
                 language_popularity.c.wikipedia_project_id
                 == WikipediaLink.wikipedia_project_id,
             )
-            .distinct()
-            .cte("ranked_wikipedia_links")
+            .outerjoin(
+                citizenship_language_matches,
+                and_(
+                    citizenship_language_matches.c.politician_id == cls.id,
+                    citizenship_language_matches.c.language_id == Language.wikidata_id,
+                ),
+            )
         )
 
-        return ranked_links
+        # Apply country filter early to reduce the number of politicians we rank
+        if countries:
+            country_filter = select(Property.politician_id).where(
+                and_(
+                    Property.type == PropertyType.CITIZENSHIP,
+                    Property.entity_id.in_(countries),
+                )
+            )
+            ranked_links_query = ranked_links_query.where(cls.id.in_(country_filter))
+
+        return ranked_links_query.distinct().cte("ranked_wikipedia_links")
 
     @classmethod
     def query_base(cls):
@@ -484,8 +495,9 @@ class Politician(
         )
 
         # Apply language filtering using shared ranking logic
+        # Pass countries to the CTE for early filtering (major performance optimization)
         if languages:
-            ranked_links = cls._get_ranked_wikipedia_links_cte()
+            ranked_links = cls._get_ranked_wikipedia_links_cte(countries=countries)
 
             # Subquery: Politicians where filtered language is in top 3 by rank
             top_3_languages = select(ranked_links.c.politician_id.distinct()).where(
@@ -497,8 +509,8 @@ class Politician(
 
             query = query.where(cls.id.in_(top_3_languages))
 
-        # Apply country filtering
-        if countries:
+        # Apply country filtering (only if not already applied via language CTE)
+        elif countries:
             citizenship_subquery = select(Property.politician_id).where(
                 and_(
                     Property.type == PropertyType.CITIZENSHIP,
