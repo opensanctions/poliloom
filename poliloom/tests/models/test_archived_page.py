@@ -129,7 +129,7 @@ class TestArchivedPage:
         assert sample_german_language.wikidata_id in language_ids
 
     def test_save_archived_files_all_formats(self, db_session):
-        """Test saving all three file formats (MHTML, HTML, markdown)."""
+        """Test saving both file formats (MHTML, HTML)."""
         archived_page = ArchivedPage(
             url="https://example.com/test",
             fetch_timestamp=datetime.now(timezone.utc),
@@ -139,24 +139,18 @@ class TestArchivedPage:
 
         mhtml_content = "MHTML content"
         html_content = "<html>HTML content</html>"
-        markdown_content = "# Markdown content"
 
         with patch.object(archive, "save_archived_content") as mock_save:
-            archived_page.save_archived_files(
-                mhtml_content, html_content, markdown_content
-            )
+            archived_page.save_archived_files(mhtml_content, html_content)
 
-            # Verify all three formats were saved
-            assert mock_save.call_count == 3
+            # Verify both formats were saved
+            assert mock_save.call_count == 2
 
             # Check MHTML call
             mock_save.assert_any_call(archived_page.path_root, "mhtml", mhtml_content)
 
             # Check HTML call
             mock_save.assert_any_call(archived_page.path_root, "html", html_content)
-
-            # Check markdown call
-            mock_save.assert_any_call(archived_page.path_root, "md", markdown_content)
 
     def test_save_archived_files_partial_formats(self, db_session):
         """Test saving only some file formats when others are None."""
@@ -171,7 +165,7 @@ class TestArchivedPage:
 
         with patch.object(archive, "save_archived_content") as mock_save:
             # Only HTML content provided
-            archived_page.save_archived_files(None, html_content, None)
+            archived_page.save_archived_files(None, html_content)
 
             # Verify only HTML was saved
             assert mock_save.call_count == 1
@@ -190,7 +184,7 @@ class TestArchivedPage:
 
         with patch.object(archive, "save_archived_content") as mock_save:
             # All None
-            archived_page.save_archived_files(None, None, None)
+            archived_page.save_archived_files(None, None)
 
             # Verify nothing was saved
             assert mock_save.call_count == 0

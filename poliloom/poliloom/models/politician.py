@@ -628,14 +628,12 @@ class ArchivedPage(Base, TimestampMixin):
         self,
         mhtml_content: Optional[str],
         html_content: Optional[str],
-        markdown_content: Optional[str],
     ) -> None:
-        """Save archived content files (MHTML, HTML, markdown) to storage.
+        """Save archived content files (MHTML, HTML) to storage.
 
         Args:
             mhtml_content: MHTML content to save
             html_content: HTML content to save
-            markdown_content: Markdown content to save
         """
         from .. import archive
         import logging
@@ -653,12 +651,6 @@ class ArchivedPage(Base, TimestampMixin):
                 self.path_root, "html", html_content
             )
             logger.info(f"Saved HTML from MHTML: {html_path}")
-
-        if markdown_content:
-            markdown_path = archive.save_archived_content(
-                self.path_root, "md", markdown_content
-            )
-            logger.info(f"Saved markdown content: {markdown_path}")
 
     def create_references_json(self) -> list:
         """Create references_json for this archived page source.

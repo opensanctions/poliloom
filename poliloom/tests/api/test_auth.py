@@ -224,7 +224,6 @@ class TestAuthIntegration:
 
         fake_id = "12345678-1234-1234-1234-123456789012"
         assert client_no_db.get(f"/archived-pages/{fake_id}.html").status_code == 403
-        assert client_no_db.get(f"/archived-pages/{fake_id}.md").status_code == 403
 
     def test_authenticated_requests_pass_auth(self, client, mock_auth):
         """Test that properly authenticated requests can access protected endpoints."""

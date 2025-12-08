@@ -11,7 +11,6 @@ from poliloom.enrichment import (
     count_politicians_with_unevaluated,
     enrich_batch,
     extract_permanent_url,
-    _convert_mhtml_to_html,
     fetch_and_archive_page,
     ExtractedProperty,
     ExtractedPosition,
@@ -688,38 +687,44 @@ class TestExtractPermanentUrl:
 
 
 class TestConvertMhtmlToHtml:
-    """Test _convert_mhtml_to_html private function."""
+    """Test convert_mhtml_to_html function from page_fetcher."""
 
     def test_convert_mhtml_to_html_success(self):
         """Test successful MHTML to HTML conversion."""
+        from poliloom.page_fetcher import convert_mhtml_to_html
+
         mhtml_content = "MHTML content here"
         expected_html = "<html>Converted content</html>"
 
-        with patch("poliloom.enrichment.MHTMLConverter") as mock_converter_class:
+        with patch("poliloom.page_fetcher.MHTMLConverter") as mock_converter_class:
             mock_converter = Mock()
             mock_converter.convert.return_value = expected_html
             mock_converter_class.return_value = mock_converter
 
-            result = _convert_mhtml_to_html(mhtml_content)
+            result = convert_mhtml_to_html(mhtml_content)
 
             assert result == expected_html
             mock_converter.convert.assert_called_once_with(mhtml_content)
 
     def test_convert_mhtml_to_html_none_input(self):
         """Test that None input returns None."""
-        result = _convert_mhtml_to_html(None)
+        from poliloom.page_fetcher import convert_mhtml_to_html
+
+        result = convert_mhtml_to_html(None)
         assert result is None
 
     def test_convert_mhtml_to_html_conversion_error(self):
         """Test that conversion errors return None."""
+        from poliloom.page_fetcher import convert_mhtml_to_html
+
         mhtml_content = "MHTML content"
 
-        with patch("poliloom.enrichment.MHTMLConverter") as mock_converter_class:
+        with patch("poliloom.page_fetcher.MHTMLConverter") as mock_converter_class:
             mock_converter = Mock()
             mock_converter.convert.side_effect = Exception("Conversion failed")
             mock_converter_class.return_value = mock_converter
 
-            result = _convert_mhtml_to_html(mhtml_content)
+            result = convert_mhtml_to_html(mhtml_content)
             assert result is None
 
 
@@ -731,119 +736,79 @@ class TestFetchAndArchivePage:
         self, db_session, sample_wikipedia_project
     ):
         """Test successful page fetch and archive with permanent URL extraction."""
+        from poliloom.page_fetcher import FetchedPage
+
         url = "https://en.wikipedia.org/wiki/Test_Page"
         permanent_url = "https://en.wikipedia.org/w/index.php?title=Test_Page&oldid=123"
 
-        # Mock crawl4ai result
-        mock_result = Mock()
-        mock_result.success = True
-        mock_result.mhtml = "MHTML content"
-        mock_result.markdown = "# Markdown content"
+        mock_fetched = FetchedPage(mhtml="MHTML content", html="<html>Converted</html>")
 
-        # Create async mock for crawler
-        mock_crawler = Mock()
+        async def mock_fetch_page(url):
+            return mock_fetched
 
-        # Mock arun as an async function
-        async def mock_arun(*args, **kwargs):
-            return mock_result
+        with patch("poliloom.enrichment.fetch_page", side_effect=mock_fetch_page):
+            with patch("poliloom.enrichment.extract_permanent_url") as mock_extract:
+                mock_extract.return_value = permanent_url
 
-        mock_crawler.arun = mock_arun
+                archived_page = await fetch_and_archive_page(
+                    url,
+                    db_session,
+                    wikipedia_project_id=sample_wikipedia_project.wikidata_id,
+                )
 
-        # Mock async context manager
-        async def mock_aenter(*args):
-            return mock_crawler
-
-        async def mock_aexit(*args):
-            return None
-
-        mock_crawler.__aenter__ = mock_aenter
-        mock_crawler.__aexit__ = mock_aexit
-
-        with patch("poliloom.enrichment.AsyncWebCrawler", return_value=mock_crawler):
-            with patch("poliloom.enrichment._convert_mhtml_to_html") as mock_convert:
-                mock_convert.return_value = "<html>Converted</html>"
-
-                with patch("poliloom.enrichment.extract_permanent_url") as mock_extract:
-                    mock_extract.return_value = permanent_url
-
-                    archived_page = await fetch_and_archive_page(
-                        url,
-                        db_session,
-                        wikipedia_project_id=sample_wikipedia_project.wikidata_id,
-                    )
-
-                    # Original URL is preserved for display
-                    assert archived_page.url == url
-                    # Permanent URL is stored separately for references
-                    assert archived_page.permanent_url == permanent_url
-                    assert (
-                        archived_page.wikipedia_project_id
-                        == sample_wikipedia_project.wikidata_id
-                    )
-                    mock_extract.assert_called_once_with("<html>Converted</html>")
+                # Original URL is preserved for display
+                assert archived_page.url == url
+                # Permanent URL is stored separately for references
+                assert archived_page.permanent_url == permanent_url
+                assert (
+                    archived_page.wikipedia_project_id
+                    == sample_wikipedia_project.wikidata_id
+                )
+                mock_extract.assert_called_once_with("<html>Converted</html>")
 
     @pytest.mark.asyncio
     async def test_fetch_and_archive_page_without_wikipedia_project(self, db_session):
         """Test fetch and archive without Wikipedia project."""
+        from poliloom.page_fetcher import FetchedPage
+
         url = "https://example.com/article"
 
-        mock_result = Mock()
-        mock_result.success = True
-        mock_result.mhtml = "MHTML content"
-        mock_result.markdown = "# Markdown content"
+        mock_fetched = FetchedPage(mhtml="MHTML content", html="<html>Converted</html>")
 
-        # Create async mock for crawler
-        mock_crawler = Mock()
+        async def mock_fetch_page(url):
+            return mock_fetched
 
-        async def mock_arun(*args, **kwargs):
-            return mock_result
+        with patch("poliloom.enrichment.fetch_page", side_effect=mock_fetch_page):
+            archived_page = await fetch_and_archive_page(url, db_session)
 
-        mock_crawler.arun = mock_arun
-
-        async def mock_aenter(*args):
-            return mock_crawler
-
-        async def mock_aexit(*args):
-            return None
-
-        mock_crawler.__aenter__ = mock_aenter
-        mock_crawler.__aexit__ = mock_aexit
-
-        with patch("poliloom.enrichment.AsyncWebCrawler", return_value=mock_crawler):
-            with patch("poliloom.enrichment._convert_mhtml_to_html") as mock_convert:
-                mock_convert.return_value = "<html>Converted</html>"
-
-                archived_page = await fetch_and_archive_page(url, db_session)
-
-                assert archived_page.url == url
-                assert archived_page.permanent_url is None
-                assert archived_page.wikipedia_project_id is None
+            assert archived_page.url == url
+            assert archived_page.permanent_url is None
+            assert archived_page.wikipedia_project_id is None
 
     @pytest.mark.asyncio
-    async def test_fetch_and_archive_page_crawl_failure(self, db_session):
-        """Test handling of crawl failure."""
+    async def test_fetch_and_archive_page_http_error(self, db_session):
+        """Test handling of HTTP error response."""
+        from poliloom.page_fetcher import PageFetchError
+
         url = "https://example.com/article"
 
-        mock_result = Mock()
-        mock_result.success = False
+        async def mock_fetch_page(url):
+            raise PageFetchError(f"HTTP 404 for {url}")
 
-        # Create async mock for crawler
-        mock_crawler = Mock()
+        with patch("poliloom.enrichment.fetch_page", side_effect=mock_fetch_page):
+            with pytest.raises(PageFetchError, match="HTTP 404"):
+                await fetch_and_archive_page(url, db_session)
 
-        async def mock_arun(*args, **kwargs):
-            return mock_result
+    @pytest.mark.asyncio
+    async def test_fetch_and_archive_page_timeout(self, db_session):
+        """Test handling of timeout."""
+        from poliloom.page_fetcher import PageFetchError
 
-        mock_crawler.arun = mock_arun
+        url = "https://example.com/slow-page"
 
-        async def mock_aenter(*args):
-            return mock_crawler
+        async def mock_fetch_page(url):
+            raise PageFetchError(f"Timeout after 60000ms: {url}")
 
-        async def mock_aexit(*args):
-            return None
-
-        mock_crawler.__aenter__ = mock_aenter
-        mock_crawler.__aexit__ = mock_aexit
-
-        with patch("poliloom.enrichment.AsyncWebCrawler", return_value=mock_crawler):
-            with pytest.raises(RuntimeError, match="Failed to crawl page"):
+        with patch("poliloom.enrichment.fetch_page", side_effect=mock_fetch_page):
+            with pytest.raises(PageFetchError, match="Timeout"):
                 await fetch_and_archive_page(url, db_session)

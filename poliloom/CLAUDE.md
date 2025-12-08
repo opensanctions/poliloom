@@ -211,6 +211,6 @@ repos:
 ## **9. Important Notes**
 
 - **Always use `uv`** for Python execution and dependency management
-- **Web Crawling**: Reference `crawl4ai_custom_context.md` for all web requests
+- **Web Crawling**: Uses playwright directly for page fetching and MHTML capture
 - **PyTorch Extras**: cpu/cu128 extras are mutually exclusive (configured in pyproject.toml)
 - **Test Database**: Uses port 5433 to avoid conflicts with main database (port 5432)

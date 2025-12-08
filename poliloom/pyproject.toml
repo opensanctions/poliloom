@@ -21,7 +21,7 @@ dependencies = [
     "cloud-sql-python-connector[pg8000]>=1.11.0",
     "pgvector>=0.2.0",
     "sentence-transformers>=2.2.0",
-    "crawl4ai>=0.4.0",
+    "playwright>=1.40.0",
     "unmhtml>=0.2.0",
     "google-cloud-storage>=2.10.0",
     "tqdm>=4.66.0",
@@ -29,6 +29,9 @@ dependencies = [
     "orjson>=3.11.3",
     "dicttoxml>=1.7.16",
 ]
+
+[project.urls]
+repository = "https://github.com/opensanctions/poliloom"
 
 [project.optional-dependencies]
 cpu = [

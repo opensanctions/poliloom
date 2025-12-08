@@ -9,11 +9,11 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, func
 from openai import AsyncOpenAI
 from pydantic import BaseModel, field_validator, create_model
-from unmhtml import MHTMLConverter
 from bs4 import BeautifulSoup
 from dicttoxml import dicttoxml
 from dataclasses import dataclass
-from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+
+from .page_fetcher import fetch_page
 
 
 from .models import (
@@ -510,19 +510,6 @@ def extract_permanent_url(html_content: str) -> Optional[str]:
         return None
 
 
-def _convert_mhtml_to_html(mhtml_content: Optional[str]) -> Optional[str]:
-    """Convert MHTML content to HTML, returning None on failure."""
-    if not mhtml_content:
-        return None
-
-    try:
-        converter = MHTMLConverter()
-        return converter.convert(mhtml_content)
-    except Exception as e:
-        logger.warning(f"Failed to convert MHTML to HTML: {e}")
-        return None
-
-
 async def fetch_and_archive_page(
     url: str,
     db: Session,
@@ -530,9 +517,8 @@ async def fetch_and_archive_page(
 ) -> ArchivedPage:
     """Fetch web page content and archive it.
 
-    Always stores HTML, MHTML, and markdown content. When a Wikipedia project ID
-    is provided, also extracts the permanent URL with oldid and links languages
-    from the project.
+    Stores HTML and MHTML content. When a Wikipedia project ID is provided,
+    also extracts the permanent URL with oldid and links languages from the project.
 
     Args:
         url: The URL to fetch and archive
@@ -541,52 +527,41 @@ async def fetch_and_archive_page(
             extracts the permanent URL with oldid and links languages from the project.
 
     Returns:
-        ArchivedPage with archived content (HTML, MHTML, markdown)
+        ArchivedPage with archived content (HTML, MHTML)
+
+    Raises:
+        PageFetchError: If the page cannot be fetched (timeout, network error, HTTP error)
     """
     now = datetime.now(timezone.utc)
 
-    # Fetch the page
-    config = CrawlerRunConfig(
-        capture_mhtml=True,
-        verbose=True,
-        word_count_threshold=0,
-        only_text=True,
+    # Fetch the page content
+    fetched = await fetch_page(url)
+
+    # Extract permanent URL for Wikipedia pages (used in references)
+    permanent_url = None
+    if wikipedia_project_id and fetched.html:
+        permanent_url = extract_permanent_url(fetched.html)
+        if permanent_url:
+            logger.info(f"Extracted permanent URL: {permanent_url}")
+
+    # Create ArchivedPage record with original URL for display
+    archived_page = ArchivedPage(
+        url=url,
+        permanent_url=permanent_url,
+        fetch_timestamp=now,
+        wikipedia_project_id=wikipedia_project_id,
     )
+    db.add(archived_page)
+    db.flush()
 
-    async with AsyncWebCrawler() as crawler:
-        result = await crawler.arun(url, config=config)
+    # Link languages from Wikipedia project
+    archived_page.link_languages_from_project(db)
+    db.flush()
 
-        if not result.success:
-            raise RuntimeError(f"Failed to crawl page: {url}")
+    # Save all content files
+    archived_page.save_archived_files(fetched.mhtml, fetched.html)
 
-        # Convert MHTML to HTML
-        html_content = _convert_mhtml_to_html(result.mhtml)
-
-        # Extract permanent URL for Wikipedia pages (used in references)
-        permanent_url = None
-        if wikipedia_project_id and html_content:
-            permanent_url = extract_permanent_url(html_content)
-            if permanent_url:
-                logger.info(f"Extracted permanent URL: {permanent_url}")
-
-        # Create ArchivedPage record with original URL for display
-        archived_page = ArchivedPage(
-            url=url,
-            permanent_url=permanent_url,
-            fetch_timestamp=now,
-            wikipedia_project_id=wikipedia_project_id,
-        )
-        db.add(archived_page)
-        db.flush()
-
-        # Link languages from Wikipedia project
-        archived_page.link_languages_from_project(db)
-        db.flush()
-
-        # Save all content files
-        archived_page.save_archived_files(result.mhtml, html_content, result.markdown)
-
-        return archived_page
+    return archived_page
 
 
 # Configuration instances for different extraction types

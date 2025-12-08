@@ -45,8 +45,8 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Create non-root user
 RUN groupadd -r poliloom && useradd -r -g poliloom poliloom
 # Create cache directories with correct ownership
-RUN mkdir -p /var/cache/wikidata /var/cache/crawl4ai /var/cache/huggingface /var/cache/playwright && \
-    chown -R poliloom:poliloom /var/cache/wikidata /var/cache/crawl4ai /var/cache/huggingface /var/cache/playwright
+RUN mkdir -p /var/cache/wikidata /var/cache/huggingface /var/cache/playwright && \
+    chown -R poliloom:poliloom /var/cache/wikidata /var/cache/huggingface /var/cache/playwright
 
 # Install Playwright browsers as root, then fix ownership
 ENV PLAYWRIGHT_BROWSERS_PATH=/var/cache/playwright
