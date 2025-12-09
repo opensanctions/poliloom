@@ -7,7 +7,6 @@ from poliloom.models import (
     ArchivedPage,
     ArchivedPageLanguage,
     Campaign,
-    CampaignSource,
     Country,
     Evaluation,
     Language,
@@ -16,10 +15,11 @@ from poliloom.models import (
     Position,
     Property,
     PropertyType,
+    RelationType,
+    Source,
     WikidataRelation,
     WikipediaProject,
     WikipediaSource,
-    RelationType,
 )
 from poliloom.wikidata_date import WikidataDate
 
@@ -881,23 +881,26 @@ class TestGetPoliticiansEndpoint:
         germany_country = Country.create_with_entity(db_session, "Q183", "Germany")
         germany_country.iso_code = "DE"
 
-        # Create campaign source (shared page mentioning multiple politicians)
+        # Create source (shared page mentioning multiple politicians)
         campaign = Campaign(name="Test Campaign")
         db_session.add(campaign)
         db_session.flush()
 
-        campaign_source = CampaignSource(
+        source = Source(
             campaign_id=campaign.id,
+            politician_id=Politician.create_with_entity(
+                db_session, "Q9999", "Dummy Politician"
+            ).id,  # Need politician_id since campaign_id alone is not enough
             url="https://example.com/campaign",
         )
-        db_session.add(campaign_source)
+        db_session.add(source)
         db_session.flush()
 
         archived_page = ArchivedPage(
             url="https://example.com/test",
             content_hash="test123",
             fetch_timestamp=datetime.now(timezone.utc),
-            campaign_source_id=campaign_source.id,
+            source_id=source.id,
         )
         db_session.add(archived_page)
         db_session.flush()
@@ -1266,23 +1269,24 @@ class TestGetPoliticiansEndpoint:
             )
         )
 
-        # Create a campaign page (no language association)
+        # Create a source page (no language association)
         campaign = Campaign(name="Test Campaign")
         db_session.add(campaign)
         db_session.flush()
 
-        campaign_source = CampaignSource(
+        source = Source(
             campaign_id=campaign.id,
+            politician_id=politician.id,
             url="https://example.com/campaign",
         )
-        db_session.add(campaign_source)
+        db_session.add(source)
         db_session.flush()
 
         no_lang_page = ArchivedPage(
             url="https://example.com/test",
             content_hash="none123",
             fetch_timestamp=datetime.now(timezone.utc),
-            campaign_source_id=campaign_source.id,
+            source_id=source.id,
         )
         db_session.add(no_lang_page)
         db_session.flush()

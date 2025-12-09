@@ -29,17 +29,17 @@ from poliloom.models import (
     ArchivedPage,
     ArchivedPageLanguage,
     Campaign,
-    CampaignSource,
     Country,
     Language,
     Location,
     Politician,
     Position,
     Property,
+    RelationType,
+    Source,
     WikidataRelation,
     WikipediaProject,
     WikipediaSource,
-    RelationType,
 )
 
 
@@ -587,8 +587,8 @@ class TestEnrichment:
         assert politician.enriched_at is None
 
     @pytest.mark.asyncio
-    async def test_enrich_politician_with_campaign_source_only(self, db_session):
-        """Test enrichment when politician has only campaign sources (no Wikipedia)."""
+    async def test_enrich_politician_with_source_only(self, db_session):
+        """Test enrichment when politician has only sources (no Wikipedia)."""
         politician = Politician.create_with_entity(
             db_session, "Q123456", "Test Politician"
         )
@@ -598,12 +598,12 @@ class TestEnrichment:
         db_session.add(campaign)
         db_session.flush()
 
-        campaign_source = CampaignSource(
+        source = Source(
             campaign_id=campaign.id,
             politician_id=politician.id,
             url="https://example.gov/politicians/test",
         )
-        db_session.add(campaign_source)
+        db_session.add(source)
         db_session.flush()
 
         with patch("poliloom.enrichment.AsyncOpenAI"):

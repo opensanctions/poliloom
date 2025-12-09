@@ -148,23 +148,23 @@ def upgrade() -> None:
         "archived_pages", sa.Column("campaign_source_id", sa.UUID(), nullable=True)
     )
 
-    # 4. Link archived_pages to wikipedia_sources
-    # Match based on wikipedia_project_id - find the wikipedia_source for the same project
-    # that belongs to a politician whose properties are linked to this archived_page
+    # 4. Link archived_pages to wikipedia_sources via URL match
     op.execute("""
         UPDATE archived_pages ap
         SET wikipedia_source_id = ws.id
         FROM wikipedia_sources ws
-        WHERE ap.wikipedia_project_id = ws.wikipedia_project_id
-        AND ap.wikipedia_project_id IS NOT NULL
-        AND EXISTS (
-            SELECT 1 FROM properties p
-            WHERE p.archived_page_id = ap.id
-            AND p.politician_id = ws.politician_id
-        )
+        WHERE ap.url = ws.url
     """)
 
-    # 5. Create indexes and foreign keys for archived_pages
+    # 5. Migrate permanent_url to url where permanent_url exists
+    # This preserves the oldid URL for Wikipedia pages
+    op.execute("""
+        UPDATE archived_pages
+        SET url = permanent_url
+        WHERE permanent_url IS NOT NULL
+    """)
+
+    # 6. Create indexes and foreign keys for archived_pages
     op.drop_index(
         op.f("ix_archived_pages_wikipedia_project_id"), table_name="archived_pages"
     )

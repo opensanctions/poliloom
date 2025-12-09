@@ -532,7 +532,7 @@ class Politician(
     wikipedia_sources = relationship(
         "WikipediaSource", back_populates="politician", cascade="all, delete-orphan"
     )
-    campaign_sources = relationship("CampaignSource", back_populates="politician")
+    sources = relationship("Source", back_populates="politician")
 
 
 class ArchivedPageLanguage(Base, TimestampMixin):
@@ -565,8 +565,8 @@ class ArchivedPage(Base, TimestampMixin):
     __tablename__ = "archived_pages"
     __table_args__ = (
         CheckConstraint(
-            "(wikipedia_source_id IS NOT NULL AND campaign_source_id IS NULL) OR "
-            "(wikipedia_source_id IS NULL AND campaign_source_id IS NOT NULL)",
+            "(wikipedia_source_id IS NOT NULL AND source_id IS NULL) OR "
+            "(wikipedia_source_id IS NULL AND source_id IS NOT NULL)",
             name="check_exactly_one_source",
         ),
     )
@@ -591,9 +591,9 @@ class ArchivedPage(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
-    campaign_source_id = Column(
+    source_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("campaign_sources.id", ondelete="SET NULL"),
+        ForeignKey("sources.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -609,7 +609,7 @@ class ArchivedPage(Base, TimestampMixin):
         "WikidataEntity", secondary="archived_page_languages", viewonly=True
     )
     wikipedia_source = relationship("WikipediaSource", back_populates="archived_pages")
-    campaign_source = relationship("CampaignSource", back_populates="archived_pages")
+    source = relationship("Source", back_populates="archived_pages")
 
     @staticmethod
     def _generate_content_hash(url: str) -> str:
@@ -816,7 +816,7 @@ class Campaign(Base, TimestampMixin):
         viewonly=True,
     )
     sources = relationship(
-        "CampaignSource", back_populates="campaign", cascade="all, delete-orphan"
+        "Source", back_populates="campaign", cascade="all, delete-orphan"
     )
 
 
@@ -838,10 +838,16 @@ class CampaignPosition(Base):
     )
 
 
-class CampaignSource(Base, TimestampMixin):
-    """Source URL belonging to a campaign (index or detail page)."""
+class Source(Base, TimestampMixin):
+    """Source URL for a politician, optionally belonging to a campaign."""
 
-    __tablename__ = "campaign_sources"
+    __tablename__ = "sources"
+    __table_args__ = (
+        CheckConstraint(
+            "NOT (politician_id IS NULL AND campaign_id IS NULL)",
+            name="check_source_has_politician_or_campaign",
+        ),
+    )
 
     id = Column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
@@ -849,11 +855,10 @@ class CampaignSource(Base, TimestampMixin):
     campaign_id = Column(
         UUID(as_uuid=True),
         ForeignKey("campaigns.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
     url = Column(String, nullable=False)
-    # NULL = index page, NOT NULL = detail page (linked to politician)
     politician_id = Column(
         UUID(as_uuid=True),
         ForeignKey("politicians.id", ondelete="SET NULL"),
@@ -863,8 +868,8 @@ class CampaignSource(Base, TimestampMixin):
 
     # Relationships
     campaign = relationship("Campaign", back_populates="sources")
-    politician = relationship("Politician", back_populates="campaign_sources")
-    archived_pages = relationship("ArchivedPage", back_populates="campaign_source")
+    politician = relationship("Politician", back_populates="sources")
+    archived_pages = relationship("ArchivedPage", back_populates="source")
 
 
 class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):

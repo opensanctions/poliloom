@@ -4,14 +4,13 @@ from datetime import datetime, timezone
 from unittest.mock import patch
 from poliloom.models import (
     ArchivedPage,
-    Campaign,
-    CampaignSource,
     Language,
     Politician,
+    RelationType,
+    Source,
     WikidataRelation,
     WikipediaProject,
     WikipediaSource,
-    RelationType,
 )
 from poliloom import archive
 
@@ -124,23 +123,22 @@ class TestArchivedPage:
             archived_page.archived_page_languages[0].language_id == language.wikidata_id
         )
 
-    def test_link_languages_from_source_campaign_source(self, db_session):
-        """Test that link_languages_from_source does nothing for campaign sources."""
-        campaign = Campaign(name="Test Campaign")
-        db_session.add(campaign)
+    def test_link_languages_from_source_source(self, db_session):
+        """Test that link_languages_from_source does nothing for non-Wikipedia sources."""
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         db_session.flush()
 
-        campaign_source = CampaignSource(
-            campaign_id=campaign.id, url="https://example.com/test"
-        )
-        db_session.add(campaign_source)
+        source = Source(politician_id=politician.id, url="https://example.com/test")
+        db_session.add(source)
         db_session.flush()
 
         archived_page = ArchivedPage(
             url="https://example.com/test",
             content_hash="test123",
             fetch_timestamp=datetime.now(timezone.utc),
-            campaign_source_id=campaign_source.id,
+            source_id=source.id,
         )
         db_session.add(archived_page)
         db_session.flush()
@@ -356,23 +354,22 @@ class TestArchivedPage:
 
             assert mock_save.call_count == 0
 
-    def test_create_references_json_with_campaign_source(self, db_session):
-        """Test that create_references_json uses P854 and P813 for campaign sources."""
-        campaign = Campaign(name="Test Campaign")
-        db_session.add(campaign)
+    def test_create_references_json_with_source(self, db_session):
+        """Test that create_references_json uses P854 and P813 for non-Wikipedia sources."""
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         db_session.flush()
 
-        campaign_source = CampaignSource(
-            campaign_id=campaign.id, url="https://example.com/test"
-        )
-        db_session.add(campaign_source)
+        source = Source(politician_id=politician.id, url="https://example.com/test")
+        db_session.add(source)
         db_session.flush()
 
         archived_page = ArchivedPage(
             url="https://example.com/article",
             content_hash="test123",
             fetch_timestamp=datetime.now(timezone.utc),
-            campaign_source_id=campaign_source.id,
+            source_id=source.id,
         )
         db_session.add(archived_page)
         db_session.flush()
@@ -391,21 +388,20 @@ class TestArchivedPage:
         """Test that P813 (retrieved date) is correctly formatted with proper Wikidata time value."""
         fetch_time = datetime(2025, 11, 24, 10, 30, 45, tzinfo=timezone.utc)
 
-        campaign = Campaign(name="Test Campaign")
-        db_session.add(campaign)
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         db_session.flush()
 
-        campaign_source = CampaignSource(
-            campaign_id=campaign.id, url="https://example.com/test"
-        )
-        db_session.add(campaign_source)
+        source = Source(politician_id=politician.id, url="https://example.com/test")
+        db_session.add(source)
         db_session.flush()
 
         archived_page = ArchivedPage(
             url="https://example.com/test",
             content_hash="test123",
             fetch_timestamp=fetch_time,
-            campaign_source_id=campaign_source.id,
+            source_id=source.id,
         )
         db_session.add(archived_page)
         db_session.flush()

@@ -147,7 +147,7 @@ def create_timestamp_triggers(engine: Engine):
             "wikidata_relations",
             "wikipedia_sources",
             "campaigns",
-            "campaign_sources",
+            "sources",
         ]
 
         # Create updated_at triggers for each table (replace if exists)

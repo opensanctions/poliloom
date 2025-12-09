@@ -36,9 +36,9 @@ from .politician import (
     ArchivedPageLanguage,
     Campaign,
     CampaignPosition,
-    CampaignSource,
     Politician,
     Property,
+    Source,
     WikipediaSource,
 )
 
@@ -74,8 +74,8 @@ __all__ = [
     "ArchivedPageLanguage",
     "Campaign",
     "CampaignPosition",
-    "CampaignSource",
     "Politician",
     "Property",
+    "Source",
     "WikipediaSource",
 ]
