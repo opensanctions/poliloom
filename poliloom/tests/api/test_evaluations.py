@@ -1,16 +1,91 @@
 """Tests for the evaluations API endpoint."""
 
+from datetime import datetime, timezone
 from unittest.mock import patch
+
+from poliloom.models import (
+    ArchivedPage,
+    Language,
+    Politician,
+    Position,
+    Property,
+    PropertyType,
+    WikidataRelation,
+    WikipediaProject,
+    WikipediaSource,
+    RelationType,
+)
+from poliloom.wikidata_date import WikidataDate
 
 
 class TestEvaluationsEndpoint:
     """Test the evaluations API endpoint."""
 
-    def test_evaluate_single_list(
-        self, client, mock_auth, politician_with_unevaluated_data
-    ):
+    def test_evaluate_single_list(self, client, mock_auth, db_session):
         """Test evaluation accepts single list format."""
-        politician, test_properties = politician_with_unevaluated_data
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        position = Position.create_with_entity(db_session, "Q30185", "Mayor")
+        language = Language.create_with_entity(db_session, "Q1860", "English")
+        language.iso_639_1 = "en"
+        language.iso_639_2 = "eng"
+        wikipedia_project = WikipediaProject.create_with_entity(
+            db_session, "Q328", "English Wikipedia"
+        )
+        wikipedia_project.official_website = "https://en.wikipedia.org"
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=language.wikidata_id,
+                child_entity_id=wikipedia_project.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q328$test-statement",
+            )
+        )
+        db_session.flush()
+
+        wikipedia_source = WikipediaSource(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test",
+            wikipedia_project_id=wikipedia_project.wikidata_id,
+        )
+        db_session.add(wikipedia_source)
+        db_session.flush()
+
+        archived_page = ArchivedPage(
+            url="https://en.wikipedia.org/w/index.php?title=Test&oldid=123",
+            content_hash="test123",
+            fetch_timestamp=datetime.now(timezone.utc),
+            wikipedia_source_id=wikipedia_source.id,
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
+        # Create extracted properties (with archived_page, no statement_id)
+        birth_prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1970-01-15T00:00:00Z",
+            value_precision=11,
+            archived_page_id=archived_page.id,
+            supporting_quotes=["Born on January 15, 1970"],
+        )
+        db_session.add(birth_prop)
+
+        position_prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            archived_page_id=archived_page.id,
+            qualifiers_json={
+                "P580": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()],
+            },
+            supporting_quotes=["Served as Mayor from 2020"],
+        )
+        db_session.add(position_prop)
+        db_session.flush()
+
+        test_properties = [birth_prop, position_prop]
 
         # Old format should NOT work
         old_format = {
@@ -64,11 +139,69 @@ class TestEvaluationsEndpoint:
 
     @patch("poliloom.api.evaluations.push_evaluation")
     def test_evaluate_mixed_valid_invalid_properties(
-        self, mock_push_evaluation, client, mock_auth, politician_with_unevaluated_data
+        self, mock_push_evaluation, client, mock_auth, db_session
     ):
         """Test evaluation with mix of valid and invalid property IDs."""
         mock_push_evaluation.return_value = True
-        politician, test_properties = politician_with_unevaluated_data
+
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        position = Position.create_with_entity(db_session, "Q30185", "Mayor")
+        language = Language.create_with_entity(db_session, "Q1860", "English")
+        language.iso_639_1 = "en"
+        language.iso_639_2 = "eng"
+        wikipedia_project = WikipediaProject.create_with_entity(
+            db_session, "Q328", "English Wikipedia"
+        )
+        wikipedia_project.official_website = "https://en.wikipedia.org"
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=language.wikidata_id,
+                child_entity_id=wikipedia_project.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q328$test-statement",
+            )
+        )
+        db_session.flush()
+
+        wikipedia_source = WikipediaSource(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test",
+            wikipedia_project_id=wikipedia_project.wikidata_id,
+        )
+        db_session.add(wikipedia_source)
+        db_session.flush()
+
+        archived_page = ArchivedPage(
+            url="https://en.wikipedia.org/w/index.php?title=Test&oldid=123",
+            content_hash="test123",
+            fetch_timestamp=datetime.now(timezone.utc),
+            wikipedia_source_id=wikipedia_source.id,
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
+        # Create extracted properties
+        birth_prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1970-01-15T00:00:00Z",
+            value_precision=11,
+            archived_page_id=archived_page.id,
+        )
+        db_session.add(birth_prop)
+
+        position_prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+            archived_page_id=archived_page.id,
+        )
+        db_session.add(position_prop)
+        db_session.flush()
+
+        test_properties = [birth_prop, position_prop]
 
         fake_uuid = "99999999-9999-9999-9999-999999999999"
         evaluation_data = {
@@ -106,14 +239,60 @@ class TestEvaluationsEndpoint:
 
     @patch("poliloom.api.evaluations.push_evaluation")
     def test_evaluate_with_wikidata_push(
-        self, mock_push_evaluation, client, mock_auth, politician_with_unevaluated_data
+        self, mock_push_evaluation, client, mock_auth, db_session
     ):
         """Test that evaluations are pushed to Wikidata when accepted."""
         mock_push_evaluation.return_value = True
-        politician, test_properties = politician_with_unevaluated_data
+
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        language = Language.create_with_entity(db_session, "Q1860", "English")
+        language.iso_639_1 = "en"
+        language.iso_639_2 = "eng"
+        wikipedia_project = WikipediaProject.create_with_entity(
+            db_session, "Q328", "English Wikipedia"
+        )
+        wikipedia_project.official_website = "https://en.wikipedia.org"
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=language.wikidata_id,
+                child_entity_id=wikipedia_project.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q328$test-statement",
+            )
+        )
+        db_session.flush()
+
+        wikipedia_source = WikipediaSource(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test",
+            wikipedia_project_id=wikipedia_project.wikidata_id,
+        )
+        db_session.add(wikipedia_source)
+        db_session.flush()
+
+        archived_page = ArchivedPage(
+            url="https://en.wikipedia.org/w/index.php?title=Test&oldid=123",
+            content_hash="test123",
+            fetch_timestamp=datetime.now(timezone.utc),
+            wikipedia_source_id=wikipedia_source.id,
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
+        birth_prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1970-01-15T00:00:00Z",
+            value_precision=11,
+            archived_page_id=archived_page.id,
+        )
+        db_session.add(birth_prop)
+        db_session.flush()
 
         evaluation_data = {
-            "evaluations": [{"id": str(test_properties[0].id), "is_accepted": True}]
+            "evaluations": [{"id": str(birth_prop.id), "is_accepted": True}]
         }
         response = client.post("/evaluations/", json=evaluation_data, headers=mock_auth)
         assert response.status_code == 200
@@ -125,14 +304,60 @@ class TestEvaluationsEndpoint:
 
     @patch("poliloom.api.evaluations.push_evaluation")
     def test_evaluate_with_wikidata_push_failure(
-        self, mock_push_evaluation, client, mock_auth, politician_with_unevaluated_data
+        self, mock_push_evaluation, client, mock_auth, db_session
     ):
         """Test handling of Wikidata push failures."""
         mock_push_evaluation.side_effect = Exception("Wikidata API error")
-        politician, test_properties = politician_with_unevaluated_data
+
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        language = Language.create_with_entity(db_session, "Q1860", "English")
+        language.iso_639_1 = "en"
+        language.iso_639_2 = "eng"
+        wikipedia_project = WikipediaProject.create_with_entity(
+            db_session, "Q328", "English Wikipedia"
+        )
+        wikipedia_project.official_website = "https://en.wikipedia.org"
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=language.wikidata_id,
+                child_entity_id=wikipedia_project.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q328$test-statement",
+            )
+        )
+        db_session.flush()
+
+        wikipedia_source = WikipediaSource(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test",
+            wikipedia_project_id=wikipedia_project.wikidata_id,
+        )
+        db_session.add(wikipedia_source)
+        db_session.flush()
+
+        archived_page = ArchivedPage(
+            url="https://en.wikipedia.org/w/index.php?title=Test&oldid=123",
+            content_hash="test123",
+            fetch_timestamp=datetime.now(timezone.utc),
+            wikipedia_source_id=wikipedia_source.id,
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
+        birth_prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1970-01-15T00:00:00Z",
+            value_precision=11,
+            archived_page_id=archived_page.id,
+        )
+        db_session.add(birth_prop)
+        db_session.flush()
 
         evaluation_data = {
-            "evaluations": [{"id": str(test_properties[0].id), "is_accepted": True}]
+            "evaluations": [{"id": str(birth_prop.id), "is_accepted": True}]
         }
         response = client.post("/evaluations/", json=evaluation_data, headers=mock_auth)
         assert response.status_code == 200  # Should still succeed locally

@@ -4,9 +4,11 @@ import pytest
 import json
 import tempfile
 import os
+from pathlib import Path
+
+import orjson
 
 from poliloom import dump_reader
-from .conftest import load_json_fixture
 
 
 class TestDumpReader:
@@ -16,7 +18,9 @@ class TestDumpReader:
     def sample_dump_content(self):
         """Create sample dump content for testing."""
         # Load entities from fixture
-        dump_data = load_json_fixture("dump_processor_entities.json")
+        fixtures_dir = Path(__file__).parent / "fixtures"
+        with open(fixtures_dir / "dump_processor_entities.json", "rb") as f:
+            dump_data = orjson.loads(f.read())
         entities = dump_data["sample_dump_entities"]
 
         # Convert to JSON lines format (Wikidata dump format)

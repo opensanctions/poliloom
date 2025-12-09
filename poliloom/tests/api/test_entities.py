@@ -1,27 +1,83 @@
 """Tests for the entities API endpoints (languages, countries, positions, locations)."""
 
+from datetime import datetime, timezone
+
+from poliloom.models import (
+    Country,
+    Language,
+    Location,
+    Politician,
+    Position,
+    Property,
+    PropertyType,
+    WikidataRelation,
+    WikipediaProject,
+    WikipediaSource,
+    RelationType,
+)
+
 
 class TestGetLanguages:
     """Test the GET /languages endpoint."""
 
-    def test_languages_with_wikipedia_sources(
-        self,
-        client,
-        mock_auth,
-        sample_language,
-        sample_german_language,
-        sample_french_language,
-        sample_politician,
-        sample_wikipedia_project,
-        sample_german_wikipedia_project,
-        sample_french_wikipedia_project,
-        create_wikipedia_source,
-        db_session,
-    ):
+    def test_languages_with_wikipedia_sources(self, client, mock_auth, db_session):
         """Languages should count Wikipedia links through WikipediaProject relations."""
-        # Create politicians with Wikipedia links in different languages
-        from poliloom.models import Politician
+        # Create languages
+        english = Language.create_with_entity(db_session, "Q1860", "English")
+        english.iso_639_1 = "en"
+        english.iso_639_2 = "eng"
+        german = Language.create_with_entity(db_session, "Q188", "German")
+        german.iso_639_1 = "de"
+        german.iso_639_2 = "deu"
+        french = Language.create_with_entity(db_session, "Q150", "French")
+        french.iso_639_1 = "fr"
+        french.iso_639_2 = "fra"
 
+        # Create Wikipedia projects
+        en_wiki = WikipediaProject.create_with_entity(
+            db_session, "Q328", "English Wikipedia"
+        )
+        en_wiki.official_website = "https://en.wikipedia.org"
+        de_wiki = WikipediaProject.create_with_entity(
+            db_session, "Q48183", "German Wikipedia"
+        )
+        de_wiki.official_website = "https://de.wikipedia.org"
+        fr_wiki = WikipediaProject.create_with_entity(
+            db_session, "Q8447", "French Wikipedia"
+        )
+        fr_wiki.official_website = "https://fr.wikipedia.org"
+
+        # Add language relations
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=english.wikidata_id,
+                child_entity_id=en_wiki.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q328$lang-en",
+            )
+        )
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=german.wikidata_id,
+                child_entity_id=de_wiki.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q48183$lang-de",
+            )
+        )
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=french.wikidata_id,
+                child_entity_id=fr_wiki.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q8447$lang-fr",
+            )
+        )
+        db_session.flush()
+
+        # Create politicians
+        politician1 = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         politician2 = Politician.create_with_entity(
             db_session, "Q999888", "Second Politician"
         )
@@ -31,16 +87,52 @@ class TestGetLanguages:
         db_session.flush()
 
         # English: 3 links
-        create_wikipedia_source(sample_politician, sample_wikipedia_project)
-        create_wikipedia_source(politician2, sample_wikipedia_project)
-        create_wikipedia_source(politician3, sample_wikipedia_project)
+        db_session.add(
+            WikipediaSource(
+                politician_id=politician1.id,
+                url="https://en.wikipedia.org/wiki/P1",
+                wikipedia_project_id=en_wiki.wikidata_id,
+            )
+        )
+        db_session.add(
+            WikipediaSource(
+                politician_id=politician2.id,
+                url="https://en.wikipedia.org/wiki/P2",
+                wikipedia_project_id=en_wiki.wikidata_id,
+            )
+        )
+        db_session.add(
+            WikipediaSource(
+                politician_id=politician3.id,
+                url="https://en.wikipedia.org/wiki/P3",
+                wikipedia_project_id=en_wiki.wikidata_id,
+            )
+        )
 
         # German: 2 links
-        create_wikipedia_source(sample_politician, sample_german_wikipedia_project)
-        create_wikipedia_source(politician2, sample_german_wikipedia_project)
+        db_session.add(
+            WikipediaSource(
+                politician_id=politician1.id,
+                url="https://de.wikipedia.org/wiki/P1",
+                wikipedia_project_id=de_wiki.wikidata_id,
+            )
+        )
+        db_session.add(
+            WikipediaSource(
+                politician_id=politician2.id,
+                url="https://de.wikipedia.org/wiki/P2",
+                wikipedia_project_id=de_wiki.wikidata_id,
+            )
+        )
 
         # French: 1 link
-        create_wikipedia_source(politician3, sample_french_wikipedia_project)
+        db_session.add(
+            WikipediaSource(
+                politician_id=politician3.id,
+                url="https://fr.wikipedia.org/wiki/P3",
+                wikipedia_project_id=fr_wiki.wikidata_id,
+            )
+        )
 
         db_session.flush()
 
@@ -59,21 +151,49 @@ class TestGetLanguages:
         assert language_counts["Q150"] == 1  # French
 
     def test_languages_ordered_by_source_count_desc(
-        self,
-        client,
-        mock_auth,
-        sample_language,
-        sample_german_language,
-        sample_politician,
-        sample_wikipedia_project,
-        sample_german_wikipedia_project,
-        create_wikipedia_source,
-        db_session,
+        self, client, mock_auth, db_session
     ):
         """Languages should be ordered by sources_count descending."""
-        # Create more German links than English
-        from poliloom.models import Politician
+        # Create languages
+        english = Language.create_with_entity(db_session, "Q1860", "English")
+        english.iso_639_1 = "en"
+        english.iso_639_2 = "eng"
+        german = Language.create_with_entity(db_session, "Q188", "German")
+        german.iso_639_1 = "de"
+        german.iso_639_2 = "deu"
 
+        # Create Wikipedia projects
+        en_wiki = WikipediaProject.create_with_entity(
+            db_session, "Q328", "English Wikipedia"
+        )
+        en_wiki.official_website = "https://en.wikipedia.org"
+        de_wiki = WikipediaProject.create_with_entity(
+            db_session, "Q48183", "German Wikipedia"
+        )
+        de_wiki.official_website = "https://de.wikipedia.org"
+
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=english.wikidata_id,
+                child_entity_id=en_wiki.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q328$lang-en",
+            )
+        )
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=german.wikidata_id,
+                child_entity_id=de_wiki.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q48183$lang-de",
+            )
+        )
+        db_session.flush()
+
+        # Create politicians
+        politician1 = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
         politician2 = Politician.create_with_entity(
             db_session, "Q999888", "Second Politician"
         )
@@ -83,12 +203,36 @@ class TestGetLanguages:
         db_session.flush()
 
         # English: 1 link
-        create_wikipedia_source(sample_politician, sample_wikipedia_project)
+        db_session.add(
+            WikipediaSource(
+                politician_id=politician1.id,
+                url="https://en.wikipedia.org/wiki/P1",
+                wikipedia_project_id=en_wiki.wikidata_id,
+            )
+        )
 
         # German: 3 links
-        create_wikipedia_source(sample_politician, sample_german_wikipedia_project)
-        create_wikipedia_source(politician2, sample_german_wikipedia_project)
-        create_wikipedia_source(politician3, sample_german_wikipedia_project)
+        db_session.add(
+            WikipediaSource(
+                politician_id=politician1.id,
+                url="https://de.wikipedia.org/wiki/P1",
+                wikipedia_project_id=de_wiki.wikidata_id,
+            )
+        )
+        db_session.add(
+            WikipediaSource(
+                politician_id=politician2.id,
+                url="https://de.wikipedia.org/wiki/P2",
+                wikipedia_project_id=de_wiki.wikidata_id,
+            )
+        )
+        db_session.add(
+            WikipediaSource(
+                politician_id=politician3.id,
+                url="https://de.wikipedia.org/wiki/P3",
+                wikipedia_project_id=de_wiki.wikidata_id,
+            )
+        )
 
         db_session.flush()
 
@@ -98,26 +242,28 @@ class TestGetLanguages:
         languages = response.json()
 
         # Find German and English in the results
-        german = next((lang for lang in languages if lang["wikidata_id"] == "Q188"))
-        english = next((lang for lang in languages if lang["wikidata_id"] == "Q1860"))
+        german_result = next(
+            (lang for lang in languages if lang["wikidata_id"] == "Q188")
+        )
+        english_result = next(
+            (lang for lang in languages if lang["wikidata_id"] == "Q1860")
+        )
 
         # German should come before English due to higher count
-        german_index = languages.index(german)
-        english_index = languages.index(english)
+        german_index = languages.index(german_result)
+        english_index = languages.index(english_result)
         assert german_index < english_index
 
-    def test_languages_filters_soft_deleted(
-        self,
-        client,
-        mock_auth,
-        sample_language,
-        db_session,
-    ):
+    def test_languages_filters_soft_deleted(self, client, mock_auth, db_session):
         """Soft-deleted languages should not appear in results."""
-        from datetime import datetime, timezone
+        language = Language.create_with_entity(db_session, "Q1860", "English")
+        language.iso_639_1 = "en"
+        language.iso_639_2 = "eng"
+        db_session.flush()
 
         # Soft delete the language's WikidataEntity
-        sample_language.wikidata_entity.deleted_at = datetime.now(timezone.utc)
+        db_session.refresh(language)
+        language.wikidata_entity.deleted_at = datetime.now(timezone.utc)
         db_session.flush()
 
         response = client.get("/languages", headers=mock_auth)
@@ -137,8 +283,12 @@ class TestGetLanguages:
 class TestGetCountries:
     """Test the GET /countries endpoint."""
 
-    def test_countries_with_no_citizenships(self, client, mock_auth, sample_country):
+    def test_countries_with_no_citizenships(self, client, mock_auth, db_session):
         """Countries with no citizenship properties should not appear in results."""
+        country = Country.create_with_entity(db_session, "Q30", "United States")
+        country.iso_code = "US"
+        db_session.flush()
+
         response = client.get("/countries", headers=mock_auth)
         assert response.status_code == 200
 
@@ -146,22 +296,19 @@ class TestGetCountries:
         # Should be empty since no countries have citizenships
         assert len(countries) == 0
 
-    def test_countries_with_citizenships(
-        self,
-        client,
-        mock_auth,
-        sample_country,
-        sample_germany_country,
-        sample_france_country,
-        create_citizenship,
-        db_session,
-    ):
+    def test_countries_with_citizenships(self, client, mock_auth, db_session):
         """Countries should count citizenship properties."""
-        from poliloom.models import Politician
+        # Create countries
+        usa = Country.create_with_entity(db_session, "Q30", "United States")
+        usa.iso_code = "US"
+        germany = Country.create_with_entity(db_session, "Q183", "Germany")
+        germany.iso_code = "DE"
+        france = Country.create_with_entity(db_session, "Q142", "France")
+        france.iso_code = "FR"
 
         # Create politicians
         politician1 = Politician.create_with_entity(
-            db_session, "Q999888", "First Politician"
+            db_session, "Q123456", "Test Politician"
         )
         politician2 = Politician.create_with_entity(
             db_session, "Q999777", "Second Politician"
@@ -172,16 +319,52 @@ class TestGetCountries:
         db_session.flush()
 
         # US: 3 citizenships
-        create_citizenship(politician1, sample_country)
-        create_citizenship(politician2, sample_country)
-        create_citizenship(politician3, sample_country)
+        db_session.add(
+            Property(
+                politician_id=politician1.id,
+                type=PropertyType.CITIZENSHIP,
+                entity_id=usa.wikidata_id,
+            )
+        )
+        db_session.add(
+            Property(
+                politician_id=politician2.id,
+                type=PropertyType.CITIZENSHIP,
+                entity_id=usa.wikidata_id,
+            )
+        )
+        db_session.add(
+            Property(
+                politician_id=politician3.id,
+                type=PropertyType.CITIZENSHIP,
+                entity_id=usa.wikidata_id,
+            )
+        )
 
         # Germany: 2 citizenships
-        create_citizenship(politician1, sample_germany_country)
-        create_citizenship(politician2, sample_germany_country)
+        db_session.add(
+            Property(
+                politician_id=politician1.id,
+                type=PropertyType.CITIZENSHIP,
+                entity_id=germany.wikidata_id,
+            )
+        )
+        db_session.add(
+            Property(
+                politician_id=politician2.id,
+                type=PropertyType.CITIZENSHIP,
+                entity_id=germany.wikidata_id,
+            )
+        )
 
         # France: 1 citizenship
-        create_citizenship(politician3, sample_france_country)
+        db_session.add(
+            Property(
+                politician_id=politician3.id,
+                type=PropertyType.CITIZENSHIP,
+                entity_id=france.wikidata_id,
+            )
+        )
 
         db_session.flush()
 
@@ -200,19 +383,18 @@ class TestGetCountries:
         assert country_counts["Q142"] == 1  # France
 
     def test_countries_ordered_by_citizenship_count_desc(
-        self,
-        client,
-        mock_auth,
-        sample_country,
-        sample_germany_country,
-        create_citizenship,
-        db_session,
+        self, client, mock_auth, db_session
     ):
         """Countries should be ordered by citizenships_count descending."""
-        from poliloom.models import Politician
+        # Create countries
+        usa = Country.create_with_entity(db_session, "Q30", "United States")
+        usa.iso_code = "US"
+        germany = Country.create_with_entity(db_session, "Q183", "Germany")
+        germany.iso_code = "DE"
 
+        # Create politicians
         politician1 = Politician.create_with_entity(
-            db_session, "Q999888", "First Politician"
+            db_session, "Q123456", "Test Politician"
         )
         politician2 = Politician.create_with_entity(
             db_session, "Q999777", "Second Politician"
@@ -223,12 +405,36 @@ class TestGetCountries:
         db_session.flush()
 
         # Germany: 3 citizenships
-        create_citizenship(politician1, sample_germany_country)
-        create_citizenship(politician2, sample_germany_country)
-        create_citizenship(politician3, sample_germany_country)
+        db_session.add(
+            Property(
+                politician_id=politician1.id,
+                type=PropertyType.CITIZENSHIP,
+                entity_id=germany.wikidata_id,
+            )
+        )
+        db_session.add(
+            Property(
+                politician_id=politician2.id,
+                type=PropertyType.CITIZENSHIP,
+                entity_id=germany.wikidata_id,
+            )
+        )
+        db_session.add(
+            Property(
+                politician_id=politician3.id,
+                type=PropertyType.CITIZENSHIP,
+                entity_id=germany.wikidata_id,
+            )
+        )
 
         # US: 1 citizenship
-        create_citizenship(politician1, sample_country)
+        db_session.add(
+            Property(
+                politician_id=politician1.id,
+                type=PropertyType.CITIZENSHIP,
+                entity_id=usa.wikidata_id,
+            )
+        )
 
         db_session.flush()
 
@@ -238,26 +444,25 @@ class TestGetCountries:
         countries = response.json()
 
         # Find Germany and US in the results
-        germany = next((ctry for ctry in countries if ctry["wikidata_id"] == "Q183"))
-        us = next((ctry for ctry in countries if ctry["wikidata_id"] == "Q30"))
+        germany_result = next(
+            (ctry for ctry in countries if ctry["wikidata_id"] == "Q183")
+        )
+        us_result = next((ctry for ctry in countries if ctry["wikidata_id"] == "Q30"))
 
         # Germany should come before US due to higher count
-        germany_index = countries.index(germany)
-        us_index = countries.index(us)
+        germany_index = countries.index(germany_result)
+        us_index = countries.index(us_result)
         assert germany_index < us_index
 
-    def test_countries_filters_soft_deleted(
-        self,
-        client,
-        mock_auth,
-        sample_country,
-        db_session,
-    ):
+    def test_countries_filters_soft_deleted(self, client, mock_auth, db_session):
         """Soft-deleted countries should not appear in results."""
-        from datetime import datetime, timezone
+        country = Country.create_with_entity(db_session, "Q30", "United States")
+        country.iso_code = "US"
+        db_session.flush()
 
         # Soft delete the country's WikidataEntity
-        sample_country.wikidata_entity.deleted_at = datetime.now(timezone.utc)
+        db_session.refresh(country)
+        country.wikidata_entity.deleted_at = datetime.now(timezone.utc)
         db_session.flush()
 
         response = client.get("/countries", headers=mock_auth)
@@ -277,24 +482,23 @@ class TestGetCountries:
 class TestCreateEntityEndpoint:
     """Test the create_entity_endpoint factory function via /positions and /locations."""
 
-    def test_positions_basic_retrieval(
-        self, client, mock_auth, sample_position, db_session
-    ):
+    def test_positions_basic_retrieval(self, client, mock_auth, db_session):
         """Should retrieve positions with basic metadata."""
+        Position.create_with_entity(db_session, "Q30185", "Test Position")
+        db_session.flush()
+
         response = client.get("/positions", headers=mock_auth)
         assert response.status_code == 200
 
         positions = response.json()
         assert len(positions) == 1
 
-        position = positions[0]
-        assert position["wikidata_id"] == "Q30185"
-        assert position["name"] == "Test Position"
+        pos = positions[0]
+        assert pos["wikidata_id"] == "Q30185"
+        assert pos["name"] == "Test Position"
 
     def test_positions_with_limit(self, client, mock_auth, db_session):
         """Should respect limit parameter."""
-        from poliloom.models import Position
-
         # Create 5 positions
         for i in range(5):
             Position.create_with_entity(db_session, f"Q{i}", f"Position {i}")
@@ -308,8 +512,6 @@ class TestCreateEntityEndpoint:
 
     def test_positions_with_offset(self, client, mock_auth, db_session):
         """Should respect offset parameter."""
-        from poliloom.models import Position
-
         # Create 5 positions
         for i in range(5):
             Position.create_with_entity(db_session, f"Q{i}", f"Position {i}")
@@ -329,8 +531,6 @@ class TestCreateEntityEndpoint:
 
     def test_positions_with_search(self, client, mock_auth, db_session):
         """Should filter positions by search query using fuzzy matching."""
-        from poliloom.models import Position
-
         # Create positions with different names and labels
         Position.create_with_entity(
             db_session,
@@ -360,15 +560,13 @@ class TestCreateEntityEndpoint:
 
     def test_positions_filters_soft_deleted(self, client, mock_auth, db_session):
         """Should filter out soft-deleted positions."""
-        from poliloom.models import Position
-        from datetime import datetime, timezone
-
         # Create two positions
         Position.create_with_entity(db_session, "Q1", "Active Position")
         pos2 = Position.create_with_entity(db_session, "Q2", "Deleted Position")
         db_session.flush()
 
         # Soft delete pos2
+        db_session.refresh(pos2)
         pos2.wikidata_entity.deleted_at = datetime.now(timezone.utc)
         db_session.flush()
 
@@ -379,24 +577,23 @@ class TestCreateEntityEndpoint:
         assert len(positions) == 1
         assert positions[0]["wikidata_id"] == "Q1"
 
-    def test_locations_basic_retrieval(
-        self, client, mock_auth, sample_location, db_session
-    ):
+    def test_locations_basic_retrieval(self, client, mock_auth, db_session):
         """Should retrieve locations with basic metadata."""
+        Location.create_with_entity(db_session, "Q28513", "Test Location")
+        db_session.flush()
+
         response = client.get("/locations", headers=mock_auth)
         assert response.status_code == 200
 
         locations = response.json()
         assert len(locations) == 1
 
-        location = locations[0]
-        assert location["wikidata_id"] == "Q28513"
-        assert location["name"] == "Test Location"
+        loc = locations[0]
+        assert loc["wikidata_id"] == "Q28513"
+        assert loc["name"] == "Test Location"
 
     def test_locations_with_search(self, client, mock_auth, db_session):
         """Should filter locations by search query using fuzzy matching."""
-        from poliloom.models import Location
-
         # Create locations with different names and labels
         Location.create_with_entity(
             db_session,

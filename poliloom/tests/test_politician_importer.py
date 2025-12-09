@@ -1,12 +1,19 @@
 """Tests for WikidataPoliticianImporter."""
 
+from datetime import datetime, timezone
 from poliloom.models import (
+    ArchivedPage,
+    Country,
+    Language,
     Politician,
     Position,
     Location,
     Property,
     PropertyType,
+    WikidataRelation,
+    WikipediaProject,
     WikipediaSource,
+    RelationType,
 )
 from poliloom.importer.politician import (
     _insert_politicians_batch,
@@ -39,7 +46,6 @@ class TestWikidataPoliticianImporter:
 
         _insert_politicians_batch(politicians, db_session)
 
-        # Verify politicians were inserted
         inserted_politicians = db_session.query(Politician).all()
         assert len(inserted_politicians) == 2
         wikidata_ids = {pol.wikidata_id for pol in inserted_politicians}
@@ -56,10 +62,8 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        # Insert first batch
         _insert_politicians_batch(politicians, db_session)
 
-        # Insert again with updated name - should update
         updated_politicians = [
             {
                 "wikidata_id": "Q1",
@@ -70,7 +74,6 @@ class TestWikidataPoliticianImporter:
         ]
         _insert_politicians_batch(updated_politicians, db_session)
 
-        # Should still have only 1 politician with updated name
         final_politicians = db_session.query(Politician).all()
         assert len(final_politicians) == 1
         assert final_politicians[0].wikidata_id == "Q1"
@@ -80,10 +83,8 @@ class TestWikidataPoliticianImporter:
         """Test inserting empty batch of politicians."""
         politicians = []
 
-        # Should handle empty batch gracefully without errors
         _insert_politicians_batch(politicians, db_session)
 
-        # Verify no politicians were inserted
         inserted_politicians = db_session.query(Politician).all()
         assert len(inserted_politicians) == 0
 
@@ -109,7 +110,6 @@ class TestWikidataPoliticianImporter:
 
         _insert_politicians_batch(politicians, db_session)
 
-        # Verify politician and property created correctly
         politician = (
             db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
         )
@@ -132,7 +132,6 @@ class TestWikidataPoliticianImporter:
 
     def test_import_position(self, db_session):
         """Test importing position from Wikidata claim."""
-        # Create position first
         Position.create_with_entity(db_session, "Q30185", "Mayor")
         db_session.flush()
 
@@ -166,7 +165,6 @@ class TestWikidataPoliticianImporter:
 
         _insert_politicians_batch(politicians, db_session)
 
-        # Verify property created correctly
         politician = (
             db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
         )
@@ -183,13 +181,11 @@ class TestWikidataPoliticianImporter:
         prop = properties[0]
         assert prop.entity_id == "Q30185"
         assert prop.value is None
-        # Check qualifiers contain start/end dates
-        assert "P580" in prop.qualifiers_json  # start date
-        assert "P582" in prop.qualifiers_json  # end date
+        assert "P580" in prop.qualifiers_json
+        assert "P582" in prop.qualifiers_json
 
     def test_import_birthplace(self, db_session):
         """Test importing birthplace from Wikidata claim."""
-        # Create location first
         Location.create_with_entity(db_session, "Q60", "New York City")
         db_session.flush()
 
@@ -227,8 +223,11 @@ class TestWikidataPoliticianImporter:
         assert len(properties) == 1
         assert properties[0].entity_id == "Q60"
 
-    def test_import_citizenship(self, db_session, sample_country):
+    def test_import_citizenship(self, db_session):
         """Test importing citizenship from Wikidata claim."""
+        country = Country.create_with_entity(db_session, "Q30", "United States")
+        country.iso_code = "US"
+        db_session.flush()
 
         politicians = [
             {
@@ -264,11 +263,13 @@ class TestWikidataPoliticianImporter:
         assert len(properties) == 1
         assert properties[0].entity_id == "Q30"
 
-    def test_import_all_properties(self, db_session, sample_country):
+    def test_import_all_properties(self, db_session):
         """Test importing all property types for a politician."""
-        # Create required entities
+        country = Country.create_with_entity(db_session, "Q30", "United States")
+        country.iso_code = "US"
         Position.create_with_entity(db_session, "Q30185", "Mayor")
         Location.create_with_entity(db_session, "Q60", "New York City")
+        db_session.flush()
 
         politicians = [
             {
@@ -327,7 +328,6 @@ class TestWikidataPoliticianImporter:
 
         _insert_politicians_batch(politicians, db_session)
 
-        # Verify all properties created
         politician = (
             db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
         )
@@ -339,7 +339,6 @@ class TestWikidataPoliticianImporter:
             .all()
         )
 
-        # Group by type
         props_by_type = {}
         for prop in all_props:
             props_by_type.setdefault(prop.type, []).append(prop)
@@ -380,13 +379,40 @@ class TestWikidataPoliticianImporter:
         assert prop.qualifiers_json == expected_qualifiers
         assert prop.references_json == expected_references
 
-    def test_insert_politicians_batch_with_wikipedia_sources(
-        self,
-        db_session,
-        sample_wikipedia_project,
-        sample_french_wikipedia_project,
-    ):
+    def test_insert_politicians_batch_with_wikipedia_sources(self, db_session):
         """Test inserting politicians with Wikipedia sources."""
+        english = Language.create_with_entity(db_session, "Q1860", "English")
+        english.iso_639_1 = "en"
+        english.iso_639_2 = "eng"
+        french = Language.create_with_entity(db_session, "Q150", "French")
+        french.iso_639_1 = "fr"
+        french.iso_639_2 = "fra"
+        en_wp = WikipediaProject.create_with_entity(
+            db_session, "Q328", "English Wikipedia"
+        )
+        en_wp.official_website = "https://en.wikipedia.org"
+        fr_wp = WikipediaProject.create_with_entity(
+            db_session, "Q8447", "French Wikipedia"
+        )
+        fr_wp.official_website = "https://fr.wikipedia.org"
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=english.wikidata_id,
+                child_entity_id=en_wp.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q328$test-statement",
+            )
+        )
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=french.wikidata_id,
+                child_entity_id=fr_wp.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q8447$test-statement",
+            )
+        )
+        db_session.flush()
+
         politicians = [
             {
                 "wikidata_id": "Q1",
@@ -395,11 +421,11 @@ class TestWikidataPoliticianImporter:
                 "wikipedia_sources": [
                     {
                         "url": "https://en.wikipedia.org/wiki/John_Doe",
-                        "wikipedia_project_id": sample_wikipedia_project.wikidata_id,
+                        "wikipedia_project_id": en_wp.wikidata_id,
                     },
                     {
                         "url": "https://fr.wikipedia.org/wiki/John_Doe",
-                        "wikipedia_project_id": sample_french_wikipedia_project.wikidata_id,
+                        "wikipedia_project_id": fr_wp.wikidata_id,
                     },
                 ],
             }
@@ -407,13 +433,11 @@ class TestWikidataPoliticianImporter:
 
         _insert_politicians_batch(politicians, db_session)
 
-        # Verify politician was created with Wikipedia sources
         politician = (
             db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
         )
         assert politician is not None
 
-        # Check Wikipedia sources
         wiki_sources = (
             db_session.query(WikipediaSource)
             .filter(WikipediaSource.politician_id == politician.id)
@@ -421,10 +445,7 @@ class TestWikidataPoliticianImporter:
         )
         assert len(wiki_sources) == 2
         wiki_projects = {w.wikipedia_project_id for w in wiki_sources}
-        assert wiki_projects == {
-            sample_wikipedia_project.wikidata_id,
-            sample_french_wikipedia_project.wikidata_id,
-        }
+        assert wiki_projects == {en_wp.wikidata_id, fr_wp.wikidata_id}
 
 
 class TestIsPolitician:
@@ -447,7 +468,7 @@ class TestIsPolitician:
                     {
                         "rank": "normal",
                         "mainsnak": {
-                            "datavalue": {"value": {"id": "Q82955"}},  # politician
+                            "datavalue": {"value": {"id": "Q82955"}},
                         },
                     }
                 ],
@@ -475,7 +496,7 @@ class TestIsPolitician:
                     {
                         "rank": "normal",
                         "mainsnak": {
-                            "datavalue": {"value": {"id": "Q40348"}},  # lawyer
+                            "datavalue": {"value": {"id": "Q40348"}},
                         },
                     }
                 ],
@@ -483,14 +504,14 @@ class TestIsPolitician:
                     {
                         "rank": "normal",
                         "mainsnak": {
-                            "datavalue": {"value": {"id": "Q30185"}},  # mayor
+                            "datavalue": {"value": {"id": "Q30185"}},
                         },
                     }
                 ],
             },
         }
         entity = WikidataEntityProcessor(entity_data)
-        relevant_positions = frozenset(["Q30185"])  # mayor is relevant
+        relevant_positions = frozenset(["Q30185"])
 
         assert _is_politician(entity, relevant_positions) is True
 
@@ -503,7 +524,7 @@ class TestIsPolitician:
                     {
                         "rank": "normal",
                         "mainsnak": {
-                            "datavalue": {"value": {"id": "Q43229"}},  # organization
+                            "datavalue": {"value": {"id": "Q43229"}},
                         },
                     }
                 ],
@@ -511,7 +532,7 @@ class TestIsPolitician:
                     {
                         "rank": "normal",
                         "mainsnak": {
-                            "datavalue": {"value": {"id": "Q82955"}},  # politician
+                            "datavalue": {"value": {"id": "Q82955"}},
                         },
                     }
                 ],
@@ -531,7 +552,7 @@ class TestIsPolitician:
                     {
                         "rank": "normal",
                         "mainsnak": {
-                            "datavalue": {"value": {"id": "Q5"}},  # human
+                            "datavalue": {"value": {"id": "Q5"}},
                         },
                     }
                 ],
@@ -539,7 +560,7 @@ class TestIsPolitician:
                     {
                         "rank": "normal",
                         "mainsnak": {
-                            "datavalue": {"value": {"id": "Q40348"}},  # lawyer
+                            "datavalue": {"value": {"id": "Q40348"}},
                         },
                     }
                 ],
@@ -547,18 +568,14 @@ class TestIsPolitician:
                     {
                         "rank": "normal",
                         "mainsnak": {
-                            "datavalue": {
-                                "value": {"id": "Q99999"}
-                            },  # irrelevant position
+                            "datavalue": {"value": {"id": "Q99999"}},
                         },
                     }
                 ],
             },
         }
         entity = WikidataEntityProcessor(entity_data)
-        relevant_positions = frozenset(
-            ["Q30185"]
-        )  # mayor is relevant, but entity doesn't have it
+        relevant_positions = frozenset(["Q30185"])
 
         assert _is_politician(entity, relevant_positions) is False
 
@@ -571,21 +588,19 @@ class TestIsPolitician:
                     {
                         "rank": "normal",
                         "mainsnak": {
-                            "datavalue": {"value": {"id": "Q5"}},  # human
+                            "datavalue": {"value": {"id": "Q5"}},
                         },
                     }
                 ],
                 "P106": [
                     {
                         "rank": "normal",
-                        "mainsnak": {
-                            # Missing datavalue - should be handled gracefully
-                        },
+                        "mainsnak": {},
                     },
                     {
                         "rank": "normal",
                         "mainsnak": {
-                            "datavalue": {"value": {"id": "Q82955"}},  # politician
+                            "datavalue": {"value": {"id": "Q82955"}},
                         },
                     },
                 ],
@@ -594,7 +609,6 @@ class TestIsPolitician:
         entity = WikidataEntityProcessor(entity_data)
         relevant_positions = frozenset(["Q30185"])
 
-        # Should still identify as politician despite malformed first claim
         assert _is_politician(entity, relevant_positions) is True
 
     def test_is_politician_empty_claims(self):
@@ -606,11 +620,10 @@ class TestIsPolitician:
                     {
                         "rank": "normal",
                         "mainsnak": {
-                            "datavalue": {"value": {"id": "Q5"}},  # human
+                            "datavalue": {"value": {"id": "Q5"}},
                         },
                     }
                 ],
-                # No P106 or P39 claims
             },
         }
         entity = WikidataEntityProcessor(entity_data)
@@ -740,7 +753,6 @@ class TestShouldImportPolitician:
 
     def test_should_not_import_bce_dates(self):
         """Test that politicians with BCE birth/death dates should not be imported."""
-        # Entity with BCE death date
         entity_data = {
             "id": "Q123",
             "claims": {
@@ -750,7 +762,7 @@ class TestShouldImportPolitician:
                         "mainsnak": {
                             "datavalue": {
                                 "value": {
-                                    "time": "-0044-03-15T00:00:00Z",  # BCE date
+                                    "time": "-0044-03-15T00:00:00Z",
                                     "timezone": 0,
                                     "before": 0,
                                     "after": 0,
@@ -779,7 +791,7 @@ class TestShouldImportPolitician:
                         "mainsnak": {
                             "datavalue": {
                                 "value": {
-                                    "time": "invalid-date",  # Malformed date
+                                    "time": "invalid-date",
                                     "timezone": 0,
                                     "before": 0,
                                     "after": 0,
@@ -795,34 +807,66 @@ class TestShouldImportPolitician:
         }
         entity = WikidataEntityProcessor(entity_data)
 
-        # Should default to including politicians when dates can't be parsed
         assert _should_import_politician(entity) is True
 
 
 class TestImportSoftDeletesExtracted:
     """Test that import soft-deletes matching extracted properties."""
 
-    def test_import_soft_deletes_matching_birth_date(
-        self, db_session, sample_politician, sample_archived_page
-    ):
+    def test_import_soft_deletes_matching_birth_date(self, db_session):
         """Test importing birth date soft-deletes matching extracted birth date."""
-        # Create extracted property (from enrichment)
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        language = Language.create_with_entity(db_session, "Q1860", "English")
+        language.iso_639_1 = "en"
+        language.iso_639_2 = "eng"
+        wp = WikipediaProject.create_with_entity(
+            db_session, "Q328", "English Wikipedia"
+        )
+        wp.official_website = "https://en.wikipedia.org"
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=language.wikidata_id,
+                child_entity_id=wp.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q328$test-statement",
+            )
+        )
+        db_session.flush()
+
+        ws = WikipediaSource(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test",
+            wikipedia_project_id=wp.wikidata_id,
+        )
+        db_session.add(ws)
+        db_session.flush()
+
+        archived_page = ArchivedPage(
+            url="https://en.wikipedia.org/w/index.php?title=Test&oldid=123",
+            content_hash="test123",
+            fetch_timestamp=datetime.now(timezone.utc),
+            wikipedia_source_id=ws.id,
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
         extracted_property = Property(
-            politician_id=sample_politician.id,
+            politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="+1950-05-15T00:00:00Z",
-            value_precision=11,  # Day precision
-            archived_page_id=sample_archived_page.id,
-            statement_id=None,  # Extracted, not from Wikidata
+            value_precision=11,
+            archived_page_id=archived_page.id,
+            statement_id=None,
         )
         db_session.add(extracted_property)
         db_session.flush()
 
-        # Import same birth date from Wikidata
         politicians = [
             {
-                "wikidata_id": sample_politician.wikidata_id,
-                "name": sample_politician.name,
+                "wikidata_id": politician.wikidata_id,
+                "name": politician.name,
                 "properties": [
                     {
                         "type": PropertyType.BIRTH_DATE,
@@ -839,43 +883,74 @@ class TestImportSoftDeletesExtracted:
 
         _insert_politicians_batch(politicians, db_session)
 
-        # Extracted property should be soft-deleted
         db_session.refresh(extracted_property)
         assert extracted_property.deleted_at is not None
 
-        # Imported property should exist
         imported = (
             db_session.query(Property).filter_by(statement_id="Q1$BIRTH_DATE").first()
         )
         assert imported is not None
         assert imported.deleted_at is None
 
-    def test_import_soft_deletes_less_precise_extracted(
-        self, db_session, sample_politician, sample_archived_page
-    ):
+    def test_import_soft_deletes_less_precise_extracted(self, db_session):
         """Test importing more precise date soft-deletes less precise extracted date."""
-        # Create extracted property with year precision
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        language = Language.create_with_entity(db_session, "Q1860", "English")
+        language.iso_639_1 = "en"
+        language.iso_639_2 = "eng"
+        wp = WikipediaProject.create_with_entity(
+            db_session, "Q328", "English Wikipedia"
+        )
+        wp.official_website = "https://en.wikipedia.org"
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=language.wikidata_id,
+                child_entity_id=wp.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q328$test-statement",
+            )
+        )
+        db_session.flush()
+
+        ws = WikipediaSource(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test",
+            wikipedia_project_id=wp.wikidata_id,
+        )
+        db_session.add(ws)
+        db_session.flush()
+
+        archived_page = ArchivedPage(
+            url="https://en.wikipedia.org/w/index.php?title=Test&oldid=123",
+            content_hash="test123",
+            fetch_timestamp=datetime.now(timezone.utc),
+            wikipedia_source_id=ws.id,
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
         extracted_property = Property(
-            politician_id=sample_politician.id,
+            politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="+1950-00-00T00:00:00Z",
-            value_precision=9,  # Year precision
-            archived_page_id=sample_archived_page.id,
+            value_precision=9,
+            archived_page_id=archived_page.id,
             statement_id=None,
         )
         db_session.add(extracted_property)
         db_session.flush()
 
-        # Import more precise date (day precision)
         politicians = [
             {
-                "wikidata_id": sample_politician.wikidata_id,
-                "name": sample_politician.name,
+                "wikidata_id": politician.wikidata_id,
+                "name": politician.name,
                 "properties": [
                     {
                         "type": PropertyType.BIRTH_DATE,
                         "value": "+1950-05-15T00:00:00Z",
-                        "value_precision": 11,  # Day precision
+                        "value_precision": 11,
                         "statement_id": "Q1$BIRTH_DATE",
                         "qualifiers_json": None,
                         "references_json": None,
@@ -887,36 +962,68 @@ class TestImportSoftDeletesExtracted:
 
         _insert_politicians_batch(politicians, db_session)
 
-        # Extracted property should be soft-deleted (imported is more precise)
         db_session.refresh(extracted_property)
         assert extracted_property.deleted_at is not None
 
-    def test_import_does_not_delete_more_precise_extracted(
-        self, db_session, sample_politician, sample_archived_page
-    ):
+    def test_import_does_not_delete_more_precise_extracted(self, db_session):
         """Test importing less precise date does NOT soft-delete more precise extracted date."""
-        # Create extracted property with day precision
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        language = Language.create_with_entity(db_session, "Q1860", "English")
+        language.iso_639_1 = "en"
+        language.iso_639_2 = "eng"
+        wp = WikipediaProject.create_with_entity(
+            db_session, "Q328", "English Wikipedia"
+        )
+        wp.official_website = "https://en.wikipedia.org"
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=language.wikidata_id,
+                child_entity_id=wp.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q328$test-statement",
+            )
+        )
+        db_session.flush()
+
+        ws = WikipediaSource(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test",
+            wikipedia_project_id=wp.wikidata_id,
+        )
+        db_session.add(ws)
+        db_session.flush()
+
+        archived_page = ArchivedPage(
+            url="https://en.wikipedia.org/w/index.php?title=Test&oldid=123",
+            content_hash="test123",
+            fetch_timestamp=datetime.now(timezone.utc),
+            wikipedia_source_id=ws.id,
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
         extracted_property = Property(
-            politician_id=sample_politician.id,
+            politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="+1950-05-15T00:00:00Z",
-            value_precision=11,  # Day precision
-            archived_page_id=sample_archived_page.id,
+            value_precision=11,
+            archived_page_id=archived_page.id,
             statement_id=None,
         )
         db_session.add(extracted_property)
         db_session.flush()
 
-        # Import less precise date (year precision)
         politicians = [
             {
-                "wikidata_id": sample_politician.wikidata_id,
-                "name": sample_politician.name,
+                "wikidata_id": politician.wikidata_id,
+                "name": politician.name,
                 "properties": [
                     {
                         "type": PropertyType.BIRTH_DATE,
                         "value": "+1950-00-00T00:00:00Z",
-                        "value_precision": 9,  # Year precision
+                        "value_precision": 9,
                         "statement_id": "Q1$BIRTH_DATE",
                         "qualifiers_json": None,
                         "references_json": None,
@@ -928,35 +1035,68 @@ class TestImportSoftDeletesExtracted:
 
         _insert_politicians_batch(politicians, db_session)
 
-        # Extracted property should NOT be soft-deleted (it's more precise)
         db_session.refresh(extracted_property)
         assert extracted_property.deleted_at is None
 
-    def test_import_soft_deletes_matching_position(
-        self, db_session, sample_politician, sample_archived_page, sample_position
-    ):
+    def test_import_soft_deletes_matching_position(self, db_session):
         """Test importing position soft-deletes matching extracted position."""
-        # Create extracted property
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        position = Position.create_with_entity(db_session, "Q30185", "Mayor")
+        language = Language.create_with_entity(db_session, "Q1860", "English")
+        language.iso_639_1 = "en"
+        language.iso_639_2 = "eng"
+        wp = WikipediaProject.create_with_entity(
+            db_session, "Q328", "English Wikipedia"
+        )
+        wp.official_website = "https://en.wikipedia.org"
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=language.wikidata_id,
+                child_entity_id=wp.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q328$test-statement",
+            )
+        )
+        db_session.flush()
+
+        ws = WikipediaSource(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test",
+            wikipedia_project_id=wp.wikidata_id,
+        )
+        db_session.add(ws)
+        db_session.flush()
+
+        archived_page = ArchivedPage(
+            url="https://en.wikipedia.org/w/index.php?title=Test&oldid=123",
+            content_hash="test123",
+            fetch_timestamp=datetime.now(timezone.utc),
+            wikipedia_source_id=ws.id,
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
         extracted_property = Property(
-            politician_id=sample_politician.id,
+            politician_id=politician.id,
             type=PropertyType.POSITION,
-            entity_id=sample_position.wikidata_id,
-            archived_page_id=sample_archived_page.id,
+            entity_id=position.wikidata_id,
+            archived_page_id=archived_page.id,
             statement_id=None,
-            qualifiers_json=None,  # No dates
+            qualifiers_json=None,
         )
         db_session.add(extracted_property)
         db_session.flush()
 
-        # Import same position with dates
         politicians = [
             {
-                "wikidata_id": sample_politician.wikidata_id,
-                "name": sample_politician.name,
+                "wikidata_id": politician.wikidata_id,
+                "name": politician.name,
                 "properties": [
                     {
                         "type": PropertyType.POSITION,
-                        "entity_id": sample_position.wikidata_id,
+                        "entity_id": position.wikidata_id,
                         "statement_id": "Q1$POSITION",
                         "qualifiers_json": {
                             "P580": [
@@ -979,34 +1119,67 @@ class TestImportSoftDeletesExtracted:
 
         _insert_politicians_batch(politicians, db_session)
 
-        # Extracted property should be soft-deleted (imported has dates)
         db_session.refresh(extracted_property)
         assert extracted_property.deleted_at is not None
 
-    def test_import_soft_deletes_matching_birthplace(
-        self, db_session, sample_politician, sample_archived_page, sample_location
-    ):
+    def test_import_soft_deletes_matching_birthplace(self, db_session):
         """Test importing birthplace soft-deletes matching extracted birthplace."""
-        # Create extracted property
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        location = Location.create_with_entity(db_session, "Q28513", "Springfield")
+        language = Language.create_with_entity(db_session, "Q1860", "English")
+        language.iso_639_1 = "en"
+        language.iso_639_2 = "eng"
+        wp = WikipediaProject.create_with_entity(
+            db_session, "Q328", "English Wikipedia"
+        )
+        wp.official_website = "https://en.wikipedia.org"
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=language.wikidata_id,
+                child_entity_id=wp.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q328$test-statement",
+            )
+        )
+        db_session.flush()
+
+        ws = WikipediaSource(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test",
+            wikipedia_project_id=wp.wikidata_id,
+        )
+        db_session.add(ws)
+        db_session.flush()
+
+        archived_page = ArchivedPage(
+            url="https://en.wikipedia.org/w/index.php?title=Test&oldid=123",
+            content_hash="test123",
+            fetch_timestamp=datetime.now(timezone.utc),
+            wikipedia_source_id=ws.id,
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
         extracted_property = Property(
-            politician_id=sample_politician.id,
+            politician_id=politician.id,
             type=PropertyType.BIRTHPLACE,
-            entity_id=sample_location.wikidata_id,
-            archived_page_id=sample_archived_page.id,
+            entity_id=location.wikidata_id,
+            archived_page_id=archived_page.id,
             statement_id=None,
         )
         db_session.add(extracted_property)
         db_session.flush()
 
-        # Import same birthplace
         politicians = [
             {
-                "wikidata_id": sample_politician.wikidata_id,
-                "name": sample_politician.name,
+                "wikidata_id": politician.wikidata_id,
+                "name": politician.name,
                 "properties": [
                     {
                         "type": PropertyType.BIRTHPLACE,
-                        "entity_id": sample_location.wikidata_id,
+                        "entity_id": location.wikidata_id,
                         "statement_id": "Q1$BIRTHPLACE",
                         "qualifiers_json": None,
                         "references_json": None,
@@ -1018,35 +1191,67 @@ class TestImportSoftDeletesExtracted:
 
         _insert_politicians_batch(politicians, db_session)
 
-        # Extracted property should be soft-deleted
         db_session.refresh(extracted_property)
         assert extracted_property.deleted_at is not None
 
-    def test_import_does_not_delete_different_value(
-        self, db_session, sample_politician, sample_archived_page
-    ):
+    def test_import_does_not_delete_different_value(self, db_session):
         """Test importing different date does NOT soft-delete extracted date."""
-        # Create extracted property
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        language = Language.create_with_entity(db_session, "Q1860", "English")
+        language.iso_639_1 = "en"
+        language.iso_639_2 = "eng"
+        wp = WikipediaProject.create_with_entity(
+            db_session, "Q328", "English Wikipedia"
+        )
+        wp.official_website = "https://en.wikipedia.org"
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=language.wikidata_id,
+                child_entity_id=wp.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q328$test-statement",
+            )
+        )
+        db_session.flush()
+
+        ws = WikipediaSource(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test",
+            wikipedia_project_id=wp.wikidata_id,
+        )
+        db_session.add(ws)
+        db_session.flush()
+
+        archived_page = ArchivedPage(
+            url="https://en.wikipedia.org/w/index.php?title=Test&oldid=123",
+            content_hash="test123",
+            fetch_timestamp=datetime.now(timezone.utc),
+            wikipedia_source_id=ws.id,
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
         extracted_property = Property(
-            politician_id=sample_politician.id,
+            politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="+1950-05-15T00:00:00Z",
             value_precision=11,
-            archived_page_id=sample_archived_page.id,
+            archived_page_id=archived_page.id,
             statement_id=None,
         )
         db_session.add(extracted_property)
         db_session.flush()
 
-        # Import different date
         politicians = [
             {
-                "wikidata_id": sample_politician.wikidata_id,
-                "name": sample_politician.name,
+                "wikidata_id": politician.wikidata_id,
+                "name": politician.name,
                 "properties": [
                     {
                         "type": PropertyType.BIRTH_DATE,
-                        "value": "+1951-05-15T00:00:00Z",  # Different year
+                        "value": "+1951-05-15T00:00:00Z",
                         "value_precision": 11,
                         "statement_id": "Q1$BIRTH_DATE",
                         "qualifiers_json": None,
@@ -1059,35 +1264,65 @@ class TestImportSoftDeletesExtracted:
 
         _insert_politicians_batch(politicians, db_session)
 
-        # Extracted property should NOT be soft-deleted (different value)
         db_session.refresh(extracted_property)
         assert extracted_property.deleted_at is None
 
-    def test_import_does_not_delete_already_deleted(
-        self, db_session, sample_politician, sample_archived_page
-    ):
+    def test_import_does_not_delete_already_deleted(self, db_session):
         """Test import does not affect already soft-deleted properties."""
-        from datetime import datetime
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        language = Language.create_with_entity(db_session, "Q1860", "English")
+        language.iso_639_1 = "en"
+        language.iso_639_2 = "eng"
+        wp = WikipediaProject.create_with_entity(
+            db_session, "Q328", "English Wikipedia"
+        )
+        wp.official_website = "https://en.wikipedia.org"
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=language.wikidata_id,
+                child_entity_id=wp.wikidata_id,
+                relation_type=RelationType.LANGUAGE_OF_WORK,
+                statement_id="Q328$test-statement",
+            )
+        )
+        db_session.flush()
 
-        # Create already soft-deleted extracted property
-        original_deleted_at = datetime(2020, 1, 1, 12, 0, 0)  # Fixed datetime
+        ws = WikipediaSource(
+            politician_id=politician.id,
+            url="https://en.wikipedia.org/wiki/Test",
+            wikipedia_project_id=wp.wikidata_id,
+        )
+        db_session.add(ws)
+        db_session.flush()
+
+        archived_page = ArchivedPage(
+            url="https://en.wikipedia.org/w/index.php?title=Test&oldid=123",
+            content_hash="test123",
+            fetch_timestamp=datetime.now(timezone.utc),
+            wikipedia_source_id=ws.id,
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
+        original_deleted_at = datetime(2020, 1, 1, 12, 0, 0)
         extracted_property = Property(
-            politician_id=sample_politician.id,
+            politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="+1950-05-15T00:00:00Z",
             value_precision=11,
-            archived_page_id=sample_archived_page.id,
+            archived_page_id=archived_page.id,
             statement_id=None,
-            deleted_at=original_deleted_at,  # Already deleted
+            deleted_at=original_deleted_at,
         )
         db_session.add(extracted_property)
         db_session.flush()
 
-        # Import same date
         politicians = [
             {
-                "wikidata_id": sample_politician.wikidata_id,
-                "name": sample_politician.name,
+                "wikidata_id": politician.wikidata_id,
+                "name": politician.name,
                 "properties": [
                     {
                         "type": PropertyType.BIRTH_DATE,
@@ -1104,31 +1339,31 @@ class TestImportSoftDeletesExtracted:
 
         _insert_politicians_batch(politicians, db_session)
 
-        # deleted_at should not have changed (property was already deleted)
         db_session.refresh(extracted_property)
         assert extracted_property.deleted_at == original_deleted_at
 
-    def test_import_does_not_delete_wikidata_properties(
-        self, db_session, sample_politician
-    ):
+    def test_import_does_not_delete_wikidata_properties(self, db_session):
         """Test import does not soft-delete properties that came from Wikidata."""
-        # Create property from Wikidata (has statement_id, no archived_page_id)
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        db_session.flush()
+
         wikidata_property = Property(
-            politician_id=sample_politician.id,
+            politician_id=politician.id,
             type=PropertyType.BIRTH_DATE,
             value="+1950-05-15T00:00:00Z",
             value_precision=11,
-            archived_page_id=None,  # From Wikidata
-            statement_id="Q1$OLD_BIRTH_DATE",  # Has statement_id
+            archived_page_id=None,
+            statement_id="Q1$OLD_BIRTH_DATE",
         )
         db_session.add(wikidata_property)
         db_session.flush()
 
-        # Import same date with different statement_id
         politicians = [
             {
-                "wikidata_id": sample_politician.wikidata_id,
-                "name": sample_politician.name,
+                "wikidata_id": politician.wikidata_id,
+                "name": politician.name,
                 "properties": [
                     {
                         "type": PropertyType.BIRTH_DATE,
@@ -1145,6 +1380,5 @@ class TestImportSoftDeletesExtracted:
 
         _insert_politicians_batch(politicians, db_session)
 
-        # Wikidata property should NOT be soft-deleted
         db_session.refresh(wikidata_property)
         assert wikidata_property.deleted_at is None

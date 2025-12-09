@@ -1,6 +1,9 @@
 """Tests for the POST /politicians/:id/properties endpoint."""
 
 from poliloom.models import (
+    Location,
+    Politician,
+    Position,
     Property,
     PropertyType,
 )
@@ -9,11 +12,13 @@ from poliloom.models import (
 class TestAddPropertiesEndpoint:
     """Test the POST /politicians/:id/properties endpoint for adding properties."""
 
-    def test_add_properties_to_existing_politician(
-        self, client, mock_auth, db_session, sample_politician
-    ):
+    def test_add_properties_to_existing_politician(self, client, mock_auth, db_session):
         """Test adding properties to an existing politician."""
-        politician_id = str(sample_politician.id)
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        db_session.flush()
+        politician_id = str(politician.id)
         payload = {
             "properties": [
                 {
@@ -49,7 +54,7 @@ class TestAddPropertiesEndpoint:
         # Verify properties were created in database
         properties = (
             db_session.query(Property)
-            .filter(Property.politician_id == sample_politician.id)
+            .filter(Property.politician_id == politician.id)
             .all()
         )
         assert len(properties) == 2
@@ -67,16 +72,20 @@ class TestAddPropertiesEndpoint:
         client,
         mock_auth,
         db_session,
-        sample_politician,
-        sample_position,
-        sample_location,
     ):
         """Test adding entity relationship properties."""
-        politician_id = str(sample_politician.id)
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        position = Position.create_with_entity(db_session, "Q30185", "Mayor")
+        location = Location.create_with_entity(db_session, "Q64", "Berlin")
+        db_session.flush()
+
+        politician_id = str(politician.id)
         payload = {
             "properties": [
-                {"type": "P19", "entity_id": sample_location.wikidata_id},
-                {"type": "P39", "entity_id": sample_position.wikidata_id},
+                {"type": "P19", "entity_id": location.wikidata_id},
+                {"type": "P39", "entity_id": position.wikidata_id},
             ]
         }
 
@@ -94,22 +103,28 @@ class TestAddPropertiesEndpoint:
         # Verify entity names are included
         for prop in data["properties"]:
             if prop["type"] == "P19":
-                assert prop["entity_id"] == sample_location.wikidata_id
+                assert prop["entity_id"] == location.wikidata_id
                 assert prop["entity_name"] is not None
             elif prop["type"] == "P39":
-                assert prop["entity_id"] == sample_position.wikidata_id
+                assert prop["entity_id"] == position.wikidata_id
                 assert prop["entity_name"] is not None
 
     def test_add_properties_with_qualifiers_and_references(
-        self, client, mock_auth, db_session, sample_politician, sample_position
+        self, client, mock_auth, db_session
     ):
         """Test adding properties with qualifiers and references."""
-        politician_id = str(sample_politician.id)
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        position = Position.create_with_entity(db_session, "Q30185", "Mayor")
+        db_session.flush()
+
+        politician_id = str(politician.id)
         payload = {
             "properties": [
                 {
                     "type": "P39",
-                    "entity_id": sample_position.wikidata_id,
+                    "entity_id": position.wikidata_id,
                     "qualifiers_json": {
                         "P580": [
                             {
@@ -157,7 +172,7 @@ class TestAddPropertiesEndpoint:
         # Verify qualifiers and references were stored
         property = (
             db_session.query(Property)
-            .filter(Property.politician_id == sample_politician.id)
+            .filter(Property.politician_id == politician.id)
             .first()
         )
         assert property.qualifiers_json is not None
@@ -215,11 +230,13 @@ class TestAddPropertiesEndpoint:
         assert "invalid" in data["message"].lower()
         assert len(data["properties"]) == 0
 
-    def test_add_properties_invalid_property_type(
-        self, client, mock_auth, sample_politician
-    ):
+    def test_add_properties_invalid_property_type(self, client, mock_auth, db_session):
         """Test that invalid property type is rejected."""
-        politician_id = str(sample_politician.id)
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        db_session.flush()
+        politician_id = str(politician.id)
         payload = {
             "properties": [
                 {
@@ -236,11 +253,13 @@ class TestAddPropertiesEndpoint:
         )
         assert response.status_code == 422  # Pydantic validation error
 
-    def test_add_properties_date_missing_value(
-        self, client, mock_auth, sample_politician
-    ):
+    def test_add_properties_date_missing_value(self, client, mock_auth, db_session):
         """Test that date properties require both value and precision."""
-        politician_id = str(sample_politician.id)
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        db_session.flush()
+        politician_id = str(politician.id)
         payload = {
             "properties": [
                 {
@@ -257,11 +276,13 @@ class TestAddPropertiesEndpoint:
         )
         assert response.status_code == 422  # Validation error
 
-    def test_add_properties_date_missing_precision(
-        self, client, mock_auth, sample_politician
-    ):
+    def test_add_properties_date_missing_precision(self, client, mock_auth, db_session):
         """Test that date properties require both value and precision."""
-        politician_id = str(sample_politician.id)
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        db_session.flush()
+        politician_id = str(politician.id)
         payload = {
             "properties": [
                 {
@@ -279,10 +300,14 @@ class TestAddPropertiesEndpoint:
         assert response.status_code == 422  # Validation error
 
     def test_add_properties_entity_missing_entity_id(
-        self, client, mock_auth, sample_politician
+        self, client, mock_auth, db_session
     ):
         """Test that entity properties require entity_id."""
-        politician_id = str(sample_politician.id)
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        db_session.flush()
+        politician_id = str(politician.id)
         payload = {
             "properties": [
                 {
@@ -300,10 +325,14 @@ class TestAddPropertiesEndpoint:
         assert response.status_code == 422  # Validation error
 
     def test_add_properties_invalid_precision_value(
-        self, client, mock_auth, sample_politician
+        self, client, mock_auth, db_session
     ):
         """Test that invalid precision values are rejected."""
-        politician_id = str(sample_politician.id)
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        db_session.flush()
+        politician_id = str(politician.id)
         payload = {
             "properties": [
                 {
@@ -321,9 +350,13 @@ class TestAddPropertiesEndpoint:
         )
         assert response.status_code == 422  # Validation error
 
-    def test_add_properties_requires_authentication(self, client, sample_politician):
+    def test_add_properties_requires_authentication(self, client, db_session):
         """Test that adding properties requires authentication."""
-        politician_id = str(sample_politician.id)
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        db_session.flush()
+        politician_id = str(politician.id)
         payload = {
             "properties": [
                 {
@@ -342,12 +375,16 @@ class TestAddPropertiesEndpoint:
         client,
         mock_auth,
         db_session,
-        sample_politician,
-        sample_position,
-        sample_location,
     ):
         """Test adding multiple properties in a single request."""
-        politician_id = str(sample_politician.id)
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        position = Position.create_with_entity(db_session, "Q30185", "Mayor")
+        location = Location.create_with_entity(db_session, "Q64", "Berlin")
+        db_session.flush()
+
+        politician_id = str(politician.id)
         payload = {
             "properties": [
                 {
@@ -357,11 +394,11 @@ class TestAddPropertiesEndpoint:
                 },
                 {
                     "type": "P19",
-                    "entity_id": sample_location.wikidata_id,
+                    "entity_id": location.wikidata_id,
                 },
                 {
                     "type": "P39",
-                    "entity_id": sample_position.wikidata_id,
+                    "entity_id": position.wikidata_id,
                 },
             ]
         }
@@ -387,7 +424,7 @@ class TestAddPropertiesEndpoint:
         # Verify all properties were created in database
         properties = (
             db_session.query(Property)
-            .filter(Property.politician_id == sample_politician.id)
+            .filter(Property.politician_id == politician.id)
             .all()
         )
         assert len(properties) == 3

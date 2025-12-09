@@ -1,18 +1,32 @@
 """Tests for evaluation models."""
 
-from poliloom.models import Evaluation
-from ..conftest import assert_model_fields
+from poliloom.models import (
+    Evaluation,
+    Location,
+    Politician,
+    Position,
+    Property,
+    PropertyType,
+)
 
 
 class TestEvaluation:
     """Test cases for the Evaluation model."""
 
-    def test_date_property_evaluation_creation(
-        self, db_session, sample_politician, create_birth_date
-    ):
+    def test_date_property_evaluation_creation(self, db_session):
         """Test creating an evaluation for a date property."""
-        # Create date property using fixture
-        prop = create_birth_date(sample_politician)
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        db_session.flush()
+
+        prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1970-01-15T00:00:00Z",
+            value_precision=11,
+        )
+        db_session.add(prop)
         db_session.flush()
         db_session.refresh(prop)
 
@@ -26,14 +40,9 @@ class TestEvaluation:
         db_session.flush()
         db_session.refresh(evaluation)
 
-        assert_model_fields(
-            evaluation,
-            {
-                "user_id": "user123",
-                "is_accepted": True,
-                "property_id": prop.id,
-            },
-        )
+        assert evaluation.user_id == "user123"
+        assert evaluation.is_accepted is True
+        assert evaluation.property_id == prop.id
 
         # Check relationships
         assert evaluation.property == prop
@@ -44,12 +53,20 @@ class TestEvaluation:
 class TestEvaluationMultiple:
     """Test cases for multiple evaluations."""
 
-    def test_multiple_evaluations_for_same_property(
-        self, db_session, sample_politician, create_birth_date
-    ):
+    def test_multiple_evaluations_for_same_property(self, db_session):
         """Test multiple evaluations for the same property."""
-        # Create property using fixture
-        prop = create_birth_date(sample_politician)
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        db_session.flush()
+
+        prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1970-01-15T00:00:00Z",
+            value_precision=11,
+        )
+        db_session.add(prop)
         db_session.flush()
         db_session.refresh(prop)
 
@@ -88,21 +105,37 @@ class TestEvaluationMultiple:
         assert confirmed_count == 2
         assert discarded_count == 1
 
-    def test_multiple_evaluations_for_different_property_types(
-        self,
-        db_session,
-        sample_politician,
-        sample_location,
-        sample_position,
-        create_birth_date,
-        create_birthplace,
-        create_position,
-    ):
+    def test_multiple_evaluations_for_different_property_types(self, db_session):
         """Test evaluations for different property types."""
-        # Create different types of properties using fixtures
-        date_prop = create_birth_date(sample_politician)
-        birthplace_prop = create_birthplace(sample_politician, sample_location)
-        position_prop = create_position(sample_politician, sample_position)
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        location = Location.create_with_entity(db_session, "Q28513", "Springfield")
+        position = Position.create_with_entity(db_session, "Q30185", "Mayor")
+        db_session.flush()
+
+        # Create different types of properties
+        date_prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1970-01-15T00:00:00Z",
+            value_precision=11,
+        )
+        db_session.add(date_prop)
+
+        birthplace_prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTHPLACE,
+            entity_id=location.wikidata_id,
+        )
+        db_session.add(birthplace_prop)
+
+        position_prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.POSITION,
+            entity_id=position.wikidata_id,
+        )
+        db_session.add(position_prop)
 
         db_session.flush()
         db_session.refresh(date_prop)
