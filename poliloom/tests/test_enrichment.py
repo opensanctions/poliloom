@@ -252,7 +252,7 @@ class TestEnrichment:
         sample_archived_page,
         sample_country,
         sample_politician,
-        sample_wikipedia_link,
+        sample_wikipedia_source,
         create_citizenship,
     ):
         """Test storing extracted properties."""
@@ -298,11 +298,11 @@ class TestEnrichment:
         sample_country,
         sample_politician,
         sample_position,
-        sample_wikipedia_link,
+        sample_wikipedia_source,
         create_citizenship,
     ):
         """Test storing extracted positions."""
-        # Add citizenship as Property (Wikipedia link created by sample_wikipedia_link fixture)
+        # Add citizenship as Property (Wikipedia link created by sample_wikipedia_source fixture)
         create_citizenship(sample_politician, sample_country)
         db_session.flush()
 
@@ -419,7 +419,7 @@ class TestEnrichment:
         assert success is False
 
     @pytest.mark.asyncio
-    async def test_enrich_politician_no_wikipedia_links(
+    async def test_enrich_politician_no_wikipedia_sources(
         self, db_session, sample_politician
     ):
         """Test enrichment when no politicians have Wikipedia links."""
@@ -522,7 +522,11 @@ class TestEnrichBatch:
     """Test enrich_batch function."""
 
     def test_enrich_batch_enriches_n_politicians(
-        self, db_session, sample_politician, sample_wikipedia_link, sample_archived_page
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_source,
+        sample_archived_page,
     ):
         """Test enriching a batch of politicians."""
         # Mock the enrichment process
@@ -567,7 +571,7 @@ class TestEnrichBatch:
         sample_politician,
         sample_country,
         sample_language,
-        sample_wikipedia_link,
+        sample_wikipedia_source,
         sample_archived_page,
         create_citizenship,
     ):

@@ -12,7 +12,7 @@ from ..models import (
     Position,
     Location,
     WikidataEntity,
-    WikipediaLink,
+    WikipediaSource,
     WikipediaProject,
     Property,
 )
@@ -123,7 +123,7 @@ async def get_languages(
     query = (
         select(
             Language,
-            func.count(WikipediaLink.id).label("sources_count"),
+            func.count(WikipediaSource.id).label("sources_count"),
         )
         .select_from(Language)
         .join(
@@ -142,12 +142,12 @@ async def get_languages(
             ),
         )
         .join(
-            WikipediaLink,
-            WikipediaLink.wikipedia_project_id == WikipediaProject.wikidata_id,
+            WikipediaSource,
+            WikipediaSource.wikipedia_project_id == WikipediaProject.wikidata_id,
         )
         .where(WikidataEntity.deleted_at.is_(None))
         .group_by(Language.wikidata_id)
-        .order_by(func.count(WikipediaLink.id).desc())
+        .order_by(func.count(WikipediaSource.id).desc())
         .options(
             selectinload(Language.wikidata_entity)
             .selectinload(WikidataEntity.parent_relations)

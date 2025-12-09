@@ -6,7 +6,7 @@ from poliloom.models import (
     Location,
     Property,
     PropertyType,
-    WikipediaLink,
+    WikipediaSource,
 )
 from poliloom.importer.politician import (
     _insert_politicians_batch,
@@ -27,13 +27,13 @@ class TestWikidataPoliticianImporter:
                 "wikidata_id": "Q1",
                 "name": "John Doe",
                 "properties": [],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             },
             {
                 "wikidata_id": "Q2",
                 "name": "Jane Smith",
                 "properties": [],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             },
         ]
 
@@ -52,7 +52,7 @@ class TestWikidataPoliticianImporter:
                 "wikidata_id": "Q1",
                 "name": "John Doe",
                 "properties": [],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             }
         ]
 
@@ -65,7 +65,7 @@ class TestWikidataPoliticianImporter:
                 "wikidata_id": "Q1",
                 "name": "John Doe Updated",
                 "properties": [],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             }
         ]
         _insert_politicians_batch(updated_politicians, db_session)
@@ -103,7 +103,7 @@ class TestWikidataPoliticianImporter:
                         "references_json": None,
                     },
                 ],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             }
         ]
 
@@ -160,7 +160,7 @@ class TestWikidataPoliticianImporter:
                         "references_json": None,
                     }
                 ],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             }
         ]
 
@@ -206,7 +206,7 @@ class TestWikidataPoliticianImporter:
                         "references_json": None,
                     }
                 ],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             }
         ]
 
@@ -243,7 +243,7 @@ class TestWikidataPoliticianImporter:
                         "references_json": None,
                     }
                 ],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             }
         ]
 
@@ -321,7 +321,7 @@ class TestWikidataPoliticianImporter:
                         "references_json": None,
                     },
                 ],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             }
         ]
 
@@ -369,7 +369,7 @@ class TestWikidataPoliticianImporter:
                         "references_json": expected_references,
                     }
                 ],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             }
         ]
 
@@ -380,19 +380,19 @@ class TestWikidataPoliticianImporter:
         assert prop.qualifiers_json == expected_qualifiers
         assert prop.references_json == expected_references
 
-    def test_insert_politicians_batch_with_wikipedia_links(
+    def test_insert_politicians_batch_with_wikipedia_sources(
         self,
         db_session,
         sample_wikipedia_project,
         sample_french_wikipedia_project,
     ):
-        """Test inserting politicians with Wikipedia links."""
+        """Test inserting politicians with Wikipedia sources."""
         politicians = [
             {
                 "wikidata_id": "Q1",
                 "name": "John Doe",
                 "properties": [],
-                "wikipedia_links": [
+                "wikipedia_sources": [
                     {
                         "url": "https://en.wikipedia.org/wiki/John_Doe",
                         "wikipedia_project_id": sample_wikipedia_project.wikidata_id,
@@ -407,20 +407,20 @@ class TestWikidataPoliticianImporter:
 
         _insert_politicians_batch(politicians, db_session)
 
-        # Verify politician was created with Wikipedia links
+        # Verify politician was created with Wikipedia sources
         politician = (
             db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
         )
         assert politician is not None
 
-        # Check Wikipedia links
-        wiki_links = (
-            db_session.query(WikipediaLink)
-            .filter(WikipediaLink.politician_id == politician.id)
+        # Check Wikipedia sources
+        wiki_sources = (
+            db_session.query(WikipediaSource)
+            .filter(WikipediaSource.politician_id == politician.id)
             .all()
         )
-        assert len(wiki_links) == 2
-        wiki_projects = {w.wikipedia_project_id for w in wiki_links}
+        assert len(wiki_sources) == 2
+        wiki_projects = {w.wikipedia_project_id for w in wiki_sources}
         assert wiki_projects == {
             sample_wikipedia_project.wikidata_id,
             sample_french_wikipedia_project.wikidata_id,
@@ -833,7 +833,7 @@ class TestImportSoftDeletesExtracted:
                         "references_json": None,
                     }
                 ],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             }
         ]
 
@@ -881,7 +881,7 @@ class TestImportSoftDeletesExtracted:
                         "references_json": None,
                     }
                 ],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             }
         ]
 
@@ -922,7 +922,7 @@ class TestImportSoftDeletesExtracted:
                         "references_json": None,
                     }
                 ],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             }
         ]
 
@@ -973,7 +973,7 @@ class TestImportSoftDeletesExtracted:
                         "references_json": None,
                     }
                 ],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             }
         ]
 
@@ -1012,7 +1012,7 @@ class TestImportSoftDeletesExtracted:
                         "references_json": None,
                     }
                 ],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             }
         ]
 
@@ -1053,7 +1053,7 @@ class TestImportSoftDeletesExtracted:
                         "references_json": None,
                     }
                 ],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             }
         ]
 
@@ -1098,7 +1098,7 @@ class TestImportSoftDeletesExtracted:
                         "references_json": None,
                     }
                 ],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             }
         ]
 
@@ -1139,7 +1139,7 @@ class TestImportSoftDeletesExtracted:
                         "references_json": None,
                     }
                 ],
-                "wikipedia_links": [],
+                "wikipedia_sources": [],
             }
         ]
 

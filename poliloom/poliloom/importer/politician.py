@@ -18,7 +18,7 @@ from ..models import (
     PropertyType,
     WikidataEntity,
     WikidataEntityLabel,
-    WikipediaLink,
+    WikipediaSource,
     WikipediaProject,
 )
 from ..wikidata_entity_processor import WikidataEntityProcessor
@@ -182,18 +182,18 @@ def _insert_politicians_batch(politicians: list[dict], session: Session) -> None
 
         # All properties (positions, citizenships, birthplaces) are now handled above in the unified property_batch
 
-        # Add Wikipedia links using batch UPSERT
+        # Add Wikipedia sources using batch UPSERT
         wikipedia_batch = [
             {
                 "politician_id": row.id,
-                "url": wiki_link["url"],
-                "wikipedia_project_id": wiki_link["wikipedia_project_id"],
+                "url": wiki_source["url"],
+                "wikipedia_project_id": wiki_source["wikipedia_project_id"],
             }
-            for wiki_link in politician_data.get("wikipedia_links", [])
+            for wiki_source in politician_data.get("wikipedia_sources", [])
         ]
 
         if wikipedia_batch:
-            WikipediaLink.upsert_batch(session, wikipedia_batch)
+            WikipediaSource.upsert_batch(session, wikipedia_batch)
 
     session.commit()
     logger.debug(f"Processed {len(politicians)} politicians (upserted)")
@@ -258,7 +258,7 @@ def _process_politicians_chunk(
                     "name": entity.get_entity_name() or wikidata_id,
                     "labels": entity_labels if entity_labels else None,
                     "properties": [],
-                    "wikipedia_links": [],
+                    "wikipedia_sources": [],
                 }
 
                 # Extract properties (birth date, death date, etc.)
@@ -368,7 +368,7 @@ def _process_politicians_chunk(
                                 }
                             )
 
-                # Extract Wikipedia links from sitelinks
+                # Extract Wikipedia sources from sitelinks
                 if entity.sitelinks:
                     for site_key, sitelink in entity.sitelinks.items():
                         if site_key.endswith("wiki") and site_key not in (
@@ -386,7 +386,7 @@ def _process_politicians_chunk(
 
                             # Only add if we have a matching wikipedia project
                             if wikipedia_project_id:
-                                politician_data["wikipedia_links"].append(
+                                politician_data["wikipedia_sources"].append(
                                     {
                                         "url": url,
                                         "wikipedia_project_id": wikipedia_project_id,

@@ -16,7 +16,7 @@ from poliloom.models import (
     Location,
     Politician,
     Position,
-    WikipediaLink,
+    WikipediaSource,
 )
 from poliloom.database import get_engine
 from sqlalchemy.orm import Session
@@ -220,12 +220,13 @@ def sample_french_language(db_session):
 
 
 @pytest.fixture
-def sample_archived_page(db_session):
-    """Return a created archived page entity."""
+def sample_archived_page(db_session, sample_wikipedia_source):
+    """Return a created archived page entity linked to a Wikipedia source."""
     archived_page = ArchivedPage(
         url="https://en.wikipedia.org/wiki/Test_Page",
         content_hash="test123",
         fetch_timestamp=datetime.now(timezone.utc),
+        wikipedia_source_id=sample_wikipedia_source.id,
     )
     db_session.add(archived_page)
     db_session.flush()
@@ -239,13 +240,21 @@ def create_archived_page(db_session):
     Returns a function that creates an ArchivedPage with optional language associations.
     """
 
-    def _create_archived_page(url, content_hash=None, languages=None):
+    def _create_archived_page(
+        url,
+        content_hash=None,
+        languages=None,
+        wikipedia_source=None,
+        campaign_source=None,
+    ):
         """Create an archived page with optional language links.
 
         Args:
             url: Page URL
             content_hash: Optional content hash (auto-generated if not provided)
             languages: Optional list of Language entities to link to this page
+            wikipedia_source: Optional WikipediaSource to link to
+            campaign_source: Optional CampaignSource to link to
 
         Returns:
             Created ArchivedPage instance
@@ -254,6 +263,8 @@ def create_archived_page(db_session):
             url=url,
             content_hash=content_hash,
             fetch_timestamp=datetime.now(timezone.utc),
+            wikipedia_source_id=wikipedia_source.id if wikipedia_source else None,
+            campaign_source_id=campaign_source.id if campaign_source else None,
         )
         db_session.add(archived_page)
         db_session.flush()
@@ -363,14 +374,14 @@ def sample_spanish_wikipedia_project(db_session, sample_spanish_language):
 
 
 @pytest.fixture
-def create_wikipedia_link(db_session):
-    """Factory fixture to create Wikipedia links easily.
+def create_wikipedia_source(db_session):
+    """Factory fixture to create Wikipedia sources easily.
 
-    Returns a function that creates a WikipediaLink given a politician and Wikipedia project.
+    Returns a function that creates a WikipediaSource given a politician and Wikipedia project.
     """
 
-    def _create_link(politician, wikipedia_project, article_title=None):
-        """Create a Wikipedia link for a politician.
+    def _create_source(politician, wikipedia_project, article_title=None):
+        """Create a Wikipedia source for a politician.
 
         Args:
             politician: Politician instance
@@ -384,28 +395,28 @@ def create_wikipedia_link(db_session):
         domain = wikipedia_project.official_website
         url = f"{domain}/wiki/{article_title}"
 
-        link = WikipediaLink(
+        source = WikipediaSource(
             politician_id=politician.id,
             url=url,
             wikipedia_project_id=wikipedia_project.wikidata_id,
         )
-        db_session.add(link)
-        return link
+        db_session.add(source)
+        return source
 
-    return _create_link
+    return _create_source
 
 
 @pytest.fixture
-def sample_wikipedia_link(db_session, sample_politician, sample_wikipedia_project):
-    """Return a created Wikipedia link entity."""
-    wikipedia_link = WikipediaLink(
+def sample_wikipedia_source(db_session, sample_politician, sample_wikipedia_project):
+    """Return a created Wikipedia source entity."""
+    wikipedia_source = WikipediaSource(
         politician_id=sample_politician.id,
         url="https://en.wikipedia.org/wiki/Test_Politician",
         wikipedia_project_id=sample_wikipedia_project.wikidata_id,
     )
-    db_session.add(wikipedia_link)
+    db_session.add(wikipedia_source)
     db_session.flush()
-    return wikipedia_link
+    return wikipedia_source
 
 
 @pytest.fixture
@@ -610,7 +621,11 @@ def create_birthplace(db_session):
 
 @pytest.fixture
 def politician_with_unevaluated_data(
-    db_session, sample_politician, sample_position, sample_location
+    db_session,
+    sample_politician,
+    sample_position,
+    sample_location,
+    sample_wikipedia_source,
 ):
     """Create a politician with various types of unevaluated extracted data.
 
@@ -627,6 +642,7 @@ def politician_with_unevaluated_data(
     archived_page = ArchivedPage(
         url="https://example.com/test",
         content_hash="test123",
+        wikipedia_source_id=sample_wikipedia_source.id,
     )
     db_session.add(archived_page)
     db_session.flush()

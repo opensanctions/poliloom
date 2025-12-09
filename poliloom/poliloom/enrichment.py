@@ -513,17 +513,18 @@ def extract_permanent_url(html_content: str) -> Optional[str]:
 async def fetch_and_archive_page(
     url: str,
     db: Session,
-    wikipedia_project_id: Optional[str] = None,
+    wikipedia_source_id: Optional[str] = None,
 ) -> ArchivedPage:
     """Fetch web page content and archive it.
 
-    Stores HTML and MHTML content. When a Wikipedia project ID is provided,
-    also extracts the permanent URL with oldid and links languages from the project.
+    Stores HTML and MHTML content. When a Wikipedia source ID is provided,
+    extracts the permanent URL with oldid and stores it as the ArchivedPage URL,
+    and links languages from the Wikipedia project.
 
     Args:
         url: The URL to fetch and archive
         db: Database session
-        wikipedia_project_id: Optional Wikipedia project Wikidata ID. When provided,
+        wikipedia_source_id: Optional Wikipedia source UUID. When provided,
             extracts the permanent URL with oldid and links languages from the project.
 
     Returns:
@@ -532,30 +533,32 @@ async def fetch_and_archive_page(
     Raises:
         PageFetchError: If the page cannot be fetched (timeout, network error, HTTP error)
     """
+
     now = datetime.now(timezone.utc)
 
     # Fetch the page content
     fetched = await fetch_page(url)
 
-    # Extract permanent URL for Wikipedia pages (used in references)
-    permanent_url = None
-    if wikipedia_project_id and fetched.html:
+    # For Wikipedia pages, extract permanent URL to store as the ArchivedPage URL
+    # For non-Wikipedia pages, use the original URL
+    archived_url = url
+    if wikipedia_source_id and fetched.html:
         permanent_url = extract_permanent_url(fetched.html)
         if permanent_url:
+            archived_url = permanent_url
             logger.info(f"Extracted permanent URL: {permanent_url}")
 
-    # Create ArchivedPage record with original URL for display
+    # Create ArchivedPage record
     archived_page = ArchivedPage(
-        url=url,
-        permanent_url=permanent_url,
+        url=archived_url,
         fetch_timestamp=now,
-        wikipedia_project_id=wikipedia_project_id,
+        wikipedia_source_id=wikipedia_source_id,
     )
     db.add(archived_page)
     db.flush()
 
-    # Link languages from Wikipedia project
-    archived_page.link_languages_from_project(db)
+    # Link languages from Wikipedia source's project
+    archived_page.link_languages_from_source(db)
     db.flush()
 
     # Save all content files
@@ -693,7 +696,7 @@ async def _fetch_and_extract_from_page(
     db: Session,
     politician: Politician,
     url: str,
-    wikipedia_project_id: str,
+    wikipedia_source_id: str,
 ) -> tuple[bool, int, int, int, int]:
     """
     Fetch a web page, archive it, and extract politician data from it.
@@ -703,7 +706,7 @@ async def _fetch_and_extract_from_page(
         db: Database session
         politician: Politician to enrich
         url: Web page URL
-        wikipedia_project_id: Wikipedia project Wikidata ID for language linking
+        wikipedia_source_id: Wikipedia source UUID for language linking
 
     Returns:
         Tuple of (success, date_count, position_count, birthplace_count, citizenship_count)
@@ -712,7 +715,7 @@ async def _fetch_and_extract_from_page(
         logger.info(f"Processing source: {url}")
 
         # Fetch and archive the page
-        archived_page = await fetch_and_archive_page(url, db, wikipedia_project_id)
+        archived_page = await fetch_and_archive_page(url, db, wikipedia_source_id)
 
         # Read content from archived page
         html_content = archive.read_archived_content(archived_page.path_root, "html")
@@ -830,8 +833,8 @@ async def enrich_politician_from_wikipedia(
                 .selectinload(Property.entity)
                 .selectinload(WikidataEntity.parent_relations)
                 .selectinload(WikidataRelation.parent_entity),
-                # Load Wikipedia links
-                selectinload(Politician.wikipedia_links),
+                # Load Wikipedia sources
+                selectinload(Politician.wikipedia_sources),
             )
             .order_by(
                 Politician.enriched_at.asc().nullsfirst(),
@@ -847,25 +850,35 @@ async def enrich_politician_from_wikipedia(
             return False
 
         try:
-            # Get priority Wikipedia links based on citizenship and language popularity
-            priority_links = politician.get_priority_wikipedia_links(db)
+            # Get priority Wikipedia sources based on citizenship and language popularity
+            priority_sources = politician.get_priority_wikipedia_sources(db)
 
-            if not priority_links:
+            if not priority_sources:
                 raise ValueError(
-                    f"No suitable Wikipedia links found for politician {politician.name}"
+                    f"No suitable Wikipedia sources found for politician {politician.name}"
                 )
 
             logger.info(
-                f"Processing {len(priority_links)} Wikipedia sources for {politician.name}: "
-                f"{[f'{wikipedia_project_id} ({url})' for url, wikipedia_project_id in priority_links]}"
+                f"Processing {len(priority_sources)} Wikipedia sources for {politician.name}: "
+                f"{[f'{wikipedia_project_id} ({url})' for url, wikipedia_project_id in priority_sources]}"
             )
+
+            # Look up WikipediaSource IDs for each URL/project combination
+            source_id_map = {
+                (ws.url, ws.wikipedia_project_id): ws.id
+                for ws in politician.wikipedia_sources
+            }
 
             # Process all pages concurrently
             page_tasks = [
                 _fetch_and_extract_from_page(
-                    openai_client, db, politician, url, wikipedia_project_id
+                    openai_client,
+                    db,
+                    politician,
+                    url,
+                    source_id_map.get((url, wikipedia_project_id)),
                 )
-                for url, wikipedia_project_id in priority_links
+                for url, wikipedia_project_id in priority_sources
             ]
 
             page_results = await asyncio.gather(*page_tasks)
@@ -896,7 +909,7 @@ async def enrich_politician_from_wikipedia(
                 total_dates + total_positions + total_birthplaces + total_citizenships
             )
             logger.info(
-                f"Successfully enriched {politician.name} ({politician.wikidata_id}) from {processed_sources}/{len(priority_links)} sources: "
+                f"Successfully enriched {politician.name} ({politician.wikidata_id}) from {processed_sources}/{len(priority_sources)} sources: "
                 f"{grand_total} total items ({total_dates} dates, {total_positions} positions, {total_birthplaces} birthplaces, {total_citizenships} citizenships)"
             )
 

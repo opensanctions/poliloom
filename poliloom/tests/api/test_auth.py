@@ -227,10 +227,11 @@ class TestAuthIntegration:
 
     def test_authenticated_requests_pass_auth(self, client, mock_auth):
         """Test that properly authenticated requests can access protected endpoints."""
-        # Test politicians endpoint with auth - returns a list
+        # Test politicians endpoint with auth - returns a dict with politicians list
         response = client.get("/politicians/", headers=mock_auth)
         assert response.status_code == 200
-        assert isinstance(response.json(), list)
+        assert isinstance(response.json(), dict)
+        assert "politicians" in response.json()
 
         # Test evaluations endpoint with auth
         response = client.post(

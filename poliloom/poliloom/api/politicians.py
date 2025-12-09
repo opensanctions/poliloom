@@ -137,7 +137,7 @@ async def get_politicians(
                     ArchivedPage.language_entities
                 ),
             ),
-            selectinload(Politician.wikipedia_links),
+            selectinload(Politician.wikipedia_sources),
         )
     else:
         # No language filter, load all properties
@@ -150,7 +150,7 @@ async def get_politicians(
                     ArchivedPage.language_entities
                 ),
             ),
-            selectinload(Politician.wikipedia_links),
+            selectinload(Politician.wikipedia_sources),
         )
 
     # Apply random ordering if not searching (search already orders by similarity)

@@ -34,9 +34,12 @@ from .user import Evaluation
 from .politician import (
     ArchivedPage,
     ArchivedPageLanguage,
+    Campaign,
+    CampaignPosition,
+    CampaignSource,
     Politician,
     Property,
-    WikipediaLink,
+    WikipediaSource,
 )
 
 __all__ = [
@@ -69,7 +72,10 @@ __all__ = [
     # Politician
     "ArchivedPage",
     "ArchivedPageLanguage",
+    "Campaign",
+    "CampaignPosition",
+    "CampaignSource",
     "Politician",
     "Property",
-    "WikipediaLink",
+    "WikipediaSource",
 ]

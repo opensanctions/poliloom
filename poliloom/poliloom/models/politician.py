@@ -73,13 +73,13 @@ class Politician(
         """Get all properties of the specified types."""
         return [prop for prop in self.properties if prop.type in property_types]
 
-    def get_priority_wikipedia_links(self, db: Session) -> List[Row]:
+    def get_priority_wikipedia_sources(self, db: Session) -> List[Row]:
         """
-        Get top 3 most popular Wikipedia links for a politician.
+        Get top 3 most popular Wikipedia sources for a politician.
 
         Ranking prioritizes:
         1. Languages that are official in the politician's citizenship countries
-        2. Global popularity (count of Wikipedia links in that language)
+        2. Global popularity (count of Wikipedia sources in that language)
 
         Args:
             db: Database session
@@ -87,17 +87,17 @@ class Politician(
         Returns:
             List of Row objects containing (url, wikipedia_project_id), limited to top 3
         """
-        ranked_links = self._get_ranked_wikipedia_links_cte()
+        ranked_sources = self._get_ranked_wikipedia_sources_cte()
 
         query = (
-            select(ranked_links.c.url, ranked_links.c.wikipedia_project_id)
+            select(ranked_sources.c.url, ranked_sources.c.wikipedia_project_id)
             .where(
                 and_(
-                    ranked_links.c.politician_id == self.id,
-                    ranked_links.c.rank <= 3,
+                    ranked_sources.c.politician_id == self.id,
+                    ranked_sources.c.rank <= 3,
                 )
             )
-            .order_by(ranked_links.c.rank)
+            .order_by(ranked_sources.c.rank)
         )
 
         result = db.execute(query)
@@ -226,30 +226,30 @@ class Politician(
     @staticmethod
     def _get_language_popularity_cte():
         """
-        Create CTE for global language popularity based on Wikipedia link counts.
+        Create CTE for global language popularity based on Wikipedia source counts.
 
         Returns:
             SQLAlchemy CTE with columns: wikipedia_project_id, global_count
         """
         return (
             select(
-                WikipediaLink.wikipedia_project_id, func.count().label("global_count")
+                WikipediaSource.wikipedia_project_id, func.count().label("global_count")
             )
-            .group_by(WikipediaLink.wikipedia_project_id)
+            .group_by(WikipediaSource.wikipedia_project_id)
             .cte("language_popularity")
         )
 
     @classmethod
-    def _get_ranked_wikipedia_links_cte(cls, countries: List[str] = None):
+    def _get_ranked_wikipedia_sources_cte(cls, countries: List[str] = None):
         """
-        Create CTE for ranking Wikipedia links by citizenship match and global popularity.
+        Create CTE for ranking Wikipedia sources by citizenship match and global popularity.
 
-        This is the shared ranking logic used by both get_priority_wikipedia_links
+        This is the shared ranking logic used by both get_priority_wikipedia_sources
         and query_for_enrichment to ensure consistent behavior.
 
         The ranking orders by:
         1. Citizenship match (1 if language is official in a citizenship country, else 0)
-        2. Global popularity (count of Wikipedia links in that language across all politicians)
+        2. Global popularity (count of Wikipedia sources in that language across all politicians)
 
         Args:
             countries: Optional list of country QIDs to pre-filter politicians.
@@ -290,14 +290,14 @@ class Politician(
             .cte("citizenship_language_matches")
         )
 
-        # CTE 3: Ranked Wikipedia links
+        # CTE 3: Ranked Wikipedia sources
         # Use LEFT JOIN to citizenship_language_matches to determine match flag
-        ranked_links_query = (
+        ranked_sources_query = (
             select(
                 cls.id.label("politician_id"),
                 Language.wikidata_id.label("language_qid"),
-                WikipediaLink.wikipedia_project_id,
-                WikipediaLink.url,
+                WikipediaSource.wikipedia_project_id,
+                WikipediaSource.url,
                 case(
                     (citizenship_language_matches.c.politician_id.isnot(None), 1),
                     else_=0,
@@ -322,10 +322,10 @@ class Politician(
                 .label("rank"),
             )
             .select_from(cls)
-            .join(WikipediaLink, WikipediaLink.politician_id == cls.id)
+            .join(WikipediaSource, WikipediaSource.politician_id == cls.id)
             .join(
                 WikipediaProject,
-                WikipediaLink.wikipedia_project_id == WikipediaProject.wikidata_id,
+                WikipediaSource.wikipedia_project_id == WikipediaProject.wikidata_id,
             )
             .join(
                 WikidataRelation,
@@ -338,7 +338,7 @@ class Politician(
             .join(
                 language_popularity,
                 language_popularity.c.wikipedia_project_id
-                == WikipediaLink.wikipedia_project_id,
+                == WikipediaSource.wikipedia_project_id,
             )
             .outerjoin(
                 citizenship_language_matches,
@@ -357,9 +357,11 @@ class Politician(
                     Property.entity_id.in_(countries),
                 )
             )
-            ranked_links_query = ranked_links_query.where(cls.id.in_(country_filter))
+            ranked_sources_query = ranked_sources_query.where(
+                cls.id.in_(country_filter)
+            )
 
-        return ranked_links_query.distinct().cte("ranked_wikipedia_links")
+        return ranked_sources_query.distinct().cte("ranked_wikipedia_sources")
 
     @classmethod
     def query_base(cls):
@@ -458,10 +460,10 @@ class Politician(
         """
         Build a query for politicians that should be enriched.
 
-        Uses citizenship-based language filtering that mirrors get_priority_wikipedia_links logic,
+        Uses citizenship-based language filtering that mirrors get_priority_wikipedia_sources logic,
         considering both citizenship matching and language popularity.
 
-        This ensures that filtered languages would actually be selected by get_priority_wikipedia_links.
+        This ensures that filtered languages would actually be selected by get_priority_wikipedia_sources.
 
         Args:
             languages: Optional list of language QIDs to filter by
@@ -474,7 +476,7 @@ class Politician(
         # Calculate 6-month cooldown threshold
         six_months_ago = datetime.now(timezone.utc) - timedelta(days=180)
 
-        # Base query: politicians with Wikipedia links and non-soft-deleted WikidataEntity
+        # Base query: politicians with Wikipedia sources and non-soft-deleted WikidataEntity
         # Exclude politicians enriched within the last 6 months to prevent rapid re-enrichment
         # Returns Politician entities (not just IDs) so filters are evaluated at lock time
         query = (
@@ -482,7 +484,7 @@ class Politician(
             .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
             .where(
                 and_(
-                    exists(select(1).where(WikipediaLink.politician_id == cls.id)),
+                    exists(select(1).where(WikipediaSource.politician_id == cls.id)),
                     WikidataEntity.deleted_at.is_(None),
                     cls.wikidata_id.isnot(None),
                     or_(
@@ -497,13 +499,13 @@ class Politician(
         # Apply language filtering using shared ranking logic
         # Pass countries to the CTE for early filtering (major performance optimization)
         if languages:
-            ranked_links = cls._get_ranked_wikipedia_links_cte(countries=countries)
+            ranked_sources = cls._get_ranked_wikipedia_sources_cte(countries=countries)
 
             # Subquery: Politicians where filtered language is in top 3 by rank
-            top_3_languages = select(ranked_links.c.politician_id.distinct()).where(
+            top_3_languages = select(ranked_sources.c.politician_id.distinct()).where(
                 and_(
-                    ranked_links.c.language_qid.in_(languages),
-                    ranked_links.c.rank <= 3,
+                    ranked_sources.c.language_qid.in_(languages),
+                    ranked_sources.c.rank <= 3,
                 )
             )
 
@@ -526,8 +528,8 @@ class Politician(
     properties = relationship(
         "Property", back_populates="politician", cascade="all, delete-orphan"
     )
-    wikipedia_links = relationship(
-        "WikipediaLink", back_populates="politician", cascade="all, delete-orphan"
+    wikipedia_sources = relationship(
+        "WikipediaSource", back_populates="politician", cascade="all, delete-orphan"
     )
 
 
@@ -559,21 +561,37 @@ class ArchivedPage(Base, TimestampMixin):
     """Archived page entity for storing fetched web page metadata."""
 
     __tablename__ = "archived_pages"
+    __table_args__ = (
+        CheckConstraint(
+            "(wikipedia_source_id IS NOT NULL AND campaign_source_id IS NULL) OR "
+            "(wikipedia_source_id IS NULL AND campaign_source_id IS NOT NULL)",
+            name="check_exactly_one_source",
+        ),
+    )
 
     id = Column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
-    url = Column(String, nullable=False)
-    permanent_url = Column(String, nullable=True)  # Wikipedia oldid URL for references
+    url = Column(
+        String, nullable=False
+    )  # Reference URL (oldid for Wikipedia, original for campaigns)
     content_hash = Column(
         String, nullable=False, index=True
     )  # SHA256 hash for deduplication
     fetch_timestamp = Column(
         DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
-    wikipedia_project_id = Column(
-        String,
-        ForeignKey("wikipedia_projects.wikidata_id", ondelete="SET NULL"),
+
+    # Source foreign keys - exactly one must be set (enforced by CHECK constraint)
+    wikipedia_source_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("wikipedia_sources.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    campaign_source_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("campaign_sources.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -588,7 +606,8 @@ class ArchivedPage(Base, TimestampMixin):
     language_entities = relationship(
         "WikidataEntity", secondary="archived_page_languages", viewonly=True
     )
-    wikipedia_project = relationship("WikipediaProject")
+    wikipedia_source = relationship("WikipediaSource", back_populates="archived_pages")
+    campaign_source = relationship("CampaignSource", back_populates="archived_pages")
 
     @staticmethod
     def _generate_content_hash(url: str) -> str:
@@ -601,20 +620,29 @@ class ArchivedPage(Base, TimestampMixin):
         date_path = f"{self.fetch_timestamp.year:04d}/{self.fetch_timestamp.month:02d}/{self.fetch_timestamp.day:02d}"
         return f"{date_path}/{self.content_hash}"
 
-    def link_languages_from_project(self, db) -> None:
-        """Link languages from Wikipedia project's LANGUAGE_OF_WORK relations.
+    def link_languages_from_source(self, db) -> None:
+        """Link languages from the source's Wikipedia project's LANGUAGE_OF_WORK relations.
+
+        For Wikipedia sources, uses the associated WikipediaProject to find language relations.
+        For campaign sources, languages will be auto-detected from HTML (future implementation).
 
         Args:
             db: Database session for querying language relations
         """
-        if not self.wikipedia_project_id:
+        # Only works for Wikipedia sources currently
+        if not self.wikipedia_source_id:
             return
 
         from sqlalchemy import select
-        from .wikidata import WikidataRelation, RelationType
+        from .wikidata import WikidataRelation
+
+        # Get wikipedia_project_id from the wikipedia_source
+        wikipedia_source = db.get(WikipediaSource, self.wikipedia_source_id)
+        if not wikipedia_source or not wikipedia_source.wikipedia_project_id:
+            return
 
         language_query = select(WikidataRelation.parent_entity_id).where(
-            WikidataRelation.child_entity_id == self.wikipedia_project_id,
+            WikidataRelation.child_entity_id == wikipedia_source.wikipedia_project_id,
             WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
         )
         language_ids = db.execute(language_query).scalars().all()
@@ -655,38 +683,43 @@ class ArchivedPage(Base, TimestampMixin):
     def create_references_json(self) -> list:
         """Create references_json for this archived page source.
 
-        For Wikipedia sources (when wikipedia_project_id exists):
-        - P4656 (Wikimedia import URL) if permanent_url exists
+        For Wikipedia sources:
+        - P4656 (Wikimedia import URL): The page URL (which stores the permanent oldid URL)
         - P143 (imported from): Wikipedia project (e.g., Q328 for English Wikipedia)
         - P813 (retrieved): Date when the page was fetched
 
-        For non-Wikipedia sources:
+        For campaign sources:
         - P854 (reference URL): The page URL
         - P813 (retrieved): Date when the page was fetched
+
+        Note: Requires wikipedia_source relationship to be loaded for Wikipedia sources.
         """
         from ..wikidata_date import WikidataDate
 
         references = []
 
-        if self.wikipedia_project_id:
-            # Wikipedia source - use permanent_url with P4656 if available
-            if self.permanent_url:
-                references.append(
-                    {
-                        "property": {"id": "P4656"},  # Wikimedia import URL
-                        "value": {"type": "value", "content": self.permanent_url},
-                    }
-                )
-
-            # Always add P143 (imported from) for Wikipedia sources
+        if self.wikipedia_source_id:
+            # Wikipedia source - url contains the permanent oldid URL
             references.append(
                 {
-                    "property": {"id": "P143"},  # Imported from
-                    "value": {"type": "value", "content": self.wikipedia_project_id},
+                    "property": {"id": "P4656"},  # Wikimedia import URL
+                    "value": {"type": "value", "content": self.url},
                 }
             )
+
+            # Get wikipedia_project_id from the loaded relationship
+            if self.wikipedia_source and self.wikipedia_source.wikipedia_project_id:
+                references.append(
+                    {
+                        "property": {"id": "P143"},  # Imported from
+                        "value": {
+                            "type": "value",
+                            "content": self.wikipedia_source.wikipedia_project_id,
+                        },
+                    }
+                )
         else:
-            # Non-Wikipedia source - use P854 (reference URL)
+            # Campaign source - use P854 (reference URL)
             references.append(
                 {
                     "property": {"id": "P854"},  # Reference URL
@@ -718,13 +751,13 @@ def generate_archived_page_content_hash(mapper, connection, target):
         target.content_hash = ArchivedPage._generate_content_hash(target.url)
 
 
-class WikipediaLink(Base, TimestampMixin, UpsertMixin):
-    """Wikipedia link entity for storing politician Wikipedia article URLs."""
+class WikipediaSource(Base, TimestampMixin, UpsertMixin):
+    """Wikipedia source entity for storing politician Wikipedia article URLs."""
 
-    __tablename__ = "wikipedia_links"
+    __tablename__ = "wikipedia_sources"
     __table_args__ = (
         Index(
-            "idx_wikipedia_links_politician_project",
+            "idx_wikipedia_sources_politician_project",
             "politician_id",
             "wikipedia_project_id",
             unique=True,
@@ -752,8 +785,84 @@ class WikipediaLink(Base, TimestampMixin, UpsertMixin):
     )
 
     # Relationships
-    politician = relationship("Politician", back_populates="wikipedia_links")
+    politician = relationship("Politician", back_populates="wikipedia_sources")
     wikipedia_project = relationship("WikipediaProject")
+    archived_pages = relationship("ArchivedPage", back_populates="wikipedia_source")
+
+
+class Campaign(Base, TimestampMixin):
+    """Campaign for grouping index sources with metadata for batch processing."""
+
+    __tablename__ = "campaigns"
+
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    name = Column(String, nullable=False)
+    country_id = Column(
+        String,
+        ForeignKey("wikidata_entities.wikidata_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # Relationships
+    country = relationship("WikidataEntity")
+    positions = relationship(
+        "Position",
+        secondary="campaign_positions",
+        viewonly=True,
+    )
+    sources = relationship(
+        "CampaignSource", back_populates="campaign", cascade="all, delete-orphan"
+    )
+
+
+class CampaignPosition(Base):
+    """Link table between campaigns and positions (many-to-many)."""
+
+    __tablename__ = "campaign_positions"
+
+    campaign_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("campaigns.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    position_id = Column(
+        String,
+        ForeignKey("positions.wikidata_id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
+
+
+class CampaignSource(Base, TimestampMixin):
+    """Source URL belonging to a campaign (index or detail page)."""
+
+    __tablename__ = "campaign_sources"
+
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    campaign_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("campaigns.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    url = Column(String, nullable=False)
+    # NULL = index page, NOT NULL = detail page (linked to politician)
+    politician_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("politicians.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # Relationships
+    campaign = relationship("Campaign", back_populates="sources")
+    politician = relationship("Politician")
+    archived_pages = relationship("ArchivedPage", back_populates="campaign_source")
 
 
 class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):

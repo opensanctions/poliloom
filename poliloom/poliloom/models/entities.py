@@ -178,7 +178,9 @@ class WikipediaProject(
     official_website = Column(String, nullable=True)  # P856 official website URL
 
     # Relationships
-    wikipedia_links = relationship("WikipediaLink", back_populates="wikipedia_project")
+    wikipedia_sources = relationship(
+        "WikipediaSource", back_populates="wikipedia_project"
+    )
 
     @classmethod
     def should_import(

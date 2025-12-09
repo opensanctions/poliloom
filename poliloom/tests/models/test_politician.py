@@ -119,29 +119,31 @@ class TestPolitician:
         )
         assert properties_by_type[PropertyType.CITIZENSHIP].value is None
 
-    def test_get_priority_wikipedia_links_no_links(self, db_session, sample_politician):
-        """Test get_priority_wikipedia_links when politician has no Wikipedia links."""
-        result = sample_politician.get_priority_wikipedia_links(db_session)
+    def test_get_priority_wikipedia_sources_no_links(
+        self, db_session, sample_politician
+    ):
+        """Test get_priority_wikipedia_sources when politician has no Wikipedia links."""
+        result = sample_politician.get_priority_wikipedia_sources(db_session)
         assert result == []
 
-    def test_get_priority_wikipedia_links_english_only(
+    def test_get_priority_wikipedia_sources_english_only(
         self,
         db_session,
         sample_politician,
-        sample_wikipedia_link,
+        sample_wikipedia_source,
         sample_language,
     ):
-        """Test get_priority_wikipedia_links when only English link available."""
-        # sample_wikipedia_link fixture creates an English link
+        """Test get_priority_wikipedia_sources when only English link available."""
+        # sample_wikipedia_source fixture creates an English link
         # sample_language fixture creates the English language with LANGUAGE_OF_WORK relation
-        result = sample_politician.get_priority_wikipedia_links(db_session)
+        result = sample_politician.get_priority_wikipedia_sources(db_session)
 
         assert len(result) == 1
         url, wikipedia_project_id = result[0]
         assert "en.wikipedia.org" in url
         assert wikipedia_project_id == "Q328"  # English Wikipedia project
 
-    def test_get_priority_wikipedia_links_citizenship_priority(
+    def test_get_priority_wikipedia_sources_citizenship_priority(
         self,
         db_session,
         sample_politician,
@@ -150,10 +152,10 @@ class TestPolitician:
         sample_germany_country,
         sample_german_wikipedia_project,
         sample_wikipedia_project,
-        create_wikipedia_link,
+        create_wikipedia_source,
         create_citizenship,
     ):
-        """Test get_priority_wikipedia_links with citizenship-based prioritization."""
+        """Test get_priority_wikipedia_sources with citizenship-based prioritization."""
         # Create official language relation: German is official language of Germany
         relation = WikidataRelation(
             parent_entity_id=sample_german_language.wikidata_id,
@@ -177,16 +179,16 @@ class TestPolitician:
                 db_session, f"Q{1000 + i}", f"Dummy {i}"
             )
             db_session.flush()
-            create_wikipedia_link(
+            create_wikipedia_source(
                 dummy_politician, sample_german_wikipedia_project, f"Dummy_{i}"
             )
 
         # Create the actual politician's links
-        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
-        create_wikipedia_link(sample_politician, sample_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_german_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_wikipedia_project)
         db_session.flush()
 
-        result = sample_politician.get_priority_wikipedia_links(db_session)
+        result = sample_politician.get_priority_wikipedia_sources(db_session)
 
         # Should get both German (from citizenship) and English, but German should be prioritized
         assert len(result) >= 1
@@ -194,7 +196,7 @@ class TestPolitician:
         url, wikipedia_project_id = result[0]
         assert "de.wikipedia.org" in url
 
-    def test_get_priority_wikipedia_links_no_citizenship(
+    def test_get_priority_wikipedia_sources_no_citizenship(
         self,
         db_session,
         sample_politician,
@@ -202,9 +204,9 @@ class TestPolitician:
         sample_french_wikipedia_project,
         sample_german_wikipedia_project,
         sample_spanish_wikipedia_project,
-        create_wikipedia_link,
+        create_wikipedia_source,
     ):
-        """Test get_priority_wikipedia_links when politician has no citizenship."""
+        """Test get_priority_wikipedia_sources when politician has no citizenship."""
         # Map ISO codes to Wikipedia projects for convenience
         wikipedia_projects = {
             "en": sample_wikipedia_project,
@@ -227,18 +229,18 @@ class TestPolitician:
                     f"Dummy {iso_code} {i}",
                 )
                 db_session.flush()
-                create_wikipedia_link(
+                create_wikipedia_source(
                     dummy_politician, wikipedia_projects[iso_code], f"Dummy_{i}"
                 )
             base_qid += count  # Increment base to avoid overlaps
 
         # Create politician's actual links
         for iso_code in ["en", "fr", "de", "es"]:
-            create_wikipedia_link(sample_politician, wikipedia_projects[iso_code])
+            create_wikipedia_source(sample_politician, wikipedia_projects[iso_code])
 
         db_session.flush()
 
-        result = sample_politician.get_priority_wikipedia_links(db_session)
+        result = sample_politician.get_priority_wikipedia_sources(db_session)
 
         # Should return exactly 3 languages (the most popular ones available)
         assert len(result) == 3, f"Expected exactly 3 results, got {len(result)}"
@@ -257,7 +259,7 @@ class TestPolitician:
             f"Expected top 3 projects {expected_top_3}, got {returned_project_ids}"
         )
 
-    def test_get_priority_wikipedia_links_multiple_citizenships(
+    def test_get_priority_wikipedia_sources_multiple_citizenships(
         self,
         db_session,
         sample_politician,
@@ -267,10 +269,10 @@ class TestPolitician:
         sample_wikipedia_project,
         sample_german_language,
         sample_german_wikipedia_project,
-        create_wikipedia_link,
+        create_wikipedia_source,
         create_citizenship,
     ):
-        """Test get_priority_wikipedia_links with multiple citizenships."""
+        """Test get_priority_wikipedia_sources with multiple citizenships."""
         # Create official language relations
         relations = [
             WikidataRelation(
@@ -294,12 +296,12 @@ class TestPolitician:
         create_citizenship(sample_politician, sample_germany_country)
 
         # Create Wikipedia links using the factory
-        create_wikipedia_link(sample_politician, sample_wikipedia_project)
-        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_german_wikipedia_project)
 
         db_session.flush()
 
-        result = sample_politician.get_priority_wikipedia_links(db_session)
+        result = sample_politician.get_priority_wikipedia_sources(db_session)
 
         # Should get languages from citizenships prioritized, up to 3 total
         assert len(result) <= 3
@@ -311,7 +313,7 @@ class TestPolitician:
             "Q328" in project_ids or "Q48183" in project_ids
         )  # At least one citizenship language (English or German Wikipedia)
 
-    def test_get_priority_wikipedia_links_citizenship_no_matching_language(
+    def test_get_priority_wikipedia_sources_citizenship_no_matching_language(
         self,
         db_session,
         sample_politician,
@@ -319,10 +321,10 @@ class TestPolitician:
         sample_spanish_language,
         sample_language,
         sample_wikipedia_project,
-        create_wikipedia_link,
+        create_wikipedia_source,
         create_citizenship,
     ):
-        """Test get_priority_wikipedia_links when politician has citizenship but Wikipedia link language doesn't match official languages."""
+        """Test get_priority_wikipedia_sources when politician has citizenship but Wikipedia link language doesn't match official languages."""
         # Create official language relation: Spanish is official language of Argentina
         relation = WikidataRelation(
             parent_entity_id=sample_spanish_language.wikidata_id,
@@ -337,12 +339,12 @@ class TestPolitician:
 
         # Create only an English Wikipedia link (not matching the official language)
         # sample_language and sample_wikipedia_project provide English language/project
-        create_wikipedia_link(
+        create_wikipedia_source(
             sample_politician, sample_wikipedia_project, "Carlos_Cánepa"
         )
         db_session.flush()
 
-        result = sample_politician.get_priority_wikipedia_links(db_session)
+        result = sample_politician.get_priority_wikipedia_sources(db_session)
 
         # Should return the English link even though it's not an official language
         # When no links match official languages, should fall back to all available links
@@ -351,7 +353,7 @@ class TestPolitician:
         assert "en.wikipedia.org" in url
         assert wikipedia_project_id == "Q328"  # English Wikipedia project
 
-    def test_get_priority_wikipedia_links_returns_all_three_with_citizenship_match(
+    def test_get_priority_wikipedia_sources_returns_all_three_with_citizenship_match(
         self,
         db_session,
         sample_politician,
@@ -361,10 +363,10 @@ class TestPolitician:
         sample_german_language,
         sample_german_wikipedia_project,
         sample_french_wikipedia_project,
-        create_wikipedia_link,
+        create_wikipedia_source,
         create_citizenship,
     ):
-        """Test get_priority_wikipedia_links returns all 3 links when one matches citizenship language."""
+        """Test get_priority_wikipedia_sources returns all 3 links when one matches citizenship language."""
         # Create official language relation: German is official language of Germany
         relation = WikidataRelation(
             parent_entity_id=sample_german_language.wikidata_id,
@@ -378,12 +380,12 @@ class TestPolitician:
         create_citizenship(sample_politician, sample_germany_country)
 
         # Create 3 Wikipedia links
-        create_wikipedia_link(sample_politician, sample_wikipedia_project)
-        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
-        create_wikipedia_link(sample_politician, sample_french_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_german_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_french_wikipedia_project)
         db_session.flush()
 
-        result = sample_politician.get_priority_wikipedia_links(db_session)
+        result = sample_politician.get_priority_wikipedia_sources(db_session)
 
         # Should return all 3 links
         assert len(result) == 3, f"Expected 3 results but got {len(result)}: {result}"
@@ -562,18 +564,18 @@ class TestPoliticianFilterByCountries:
 class TestPoliticianQueryForEnrichment:
     """Test cases for Politician.query_for_enrichment method."""
 
-    def test_query_returns_politicians_with_wikipedia_links(
-        self, db_session, sample_politician, sample_wikipedia_link
+    def test_query_returns_politicians_with_wikipedia_sources(
+        self, db_session, sample_politician, sample_wikipedia_source
     ):
         """Test that query finds politicians with Wikipedia links."""
-        # sample_wikipedia_link fixture creates a Wikipedia link for sample_politician
+        # sample_wikipedia_source fixture creates a Wikipedia link for sample_politician
         query = Politician.query_for_enrichment()
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 1
         assert result[0].id == sample_politician.id
 
-    def test_query_excludes_politicians_without_wikipedia_links(
+    def test_query_excludes_politicians_without_wikipedia_sources(
         self, db_session, sample_politician
     ):
         """Test that query excludes politicians without Wikipedia links."""
@@ -590,7 +592,7 @@ class TestPoliticianQueryForEnrichment:
         sample_germany_country,
         sample_german_language,
         sample_german_wikipedia_project,
-        create_wikipedia_link,
+        create_wikipedia_source,
         create_citizenship,
     ):
         """Test language filtering based on citizenship official languages."""
@@ -607,7 +609,7 @@ class TestPoliticianQueryForEnrichment:
         create_citizenship(sample_politician, sample_germany_country)
 
         # Create German Wikipedia link
-        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_german_wikipedia_project)
         db_session.flush()
 
         # Query with German language filter
@@ -628,7 +630,7 @@ class TestPoliticianQueryForEnrichment:
         sample_german_wikipedia_project,
         sample_french_language,
         sample_french_wikipedia_project,
-        create_wikipedia_link,
+        create_wikipedia_source,
         create_citizenship,
     ):
         """Test that politicians are found when filter language is in top 3, even if not citizenship-matched."""
@@ -645,8 +647,8 @@ class TestPoliticianQueryForEnrichment:
         create_citizenship(sample_politician, sample_france_country)
 
         # Create BOTH French (citizenship match) and German Wikipedia links
-        create_wikipedia_link(sample_politician, sample_french_wikipedia_project)
-        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_french_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_german_wikipedia_project)
         db_session.flush()
 
         # Query with German language filter
@@ -664,7 +666,7 @@ class TestPoliticianQueryForEnrichment:
         sample_politician,
         sample_country,
         sample_wikipedia_project,
-        create_wikipedia_link,
+        create_wikipedia_source,
         create_citizenship,
     ):
         """Test country filtering based on citizenship."""
@@ -672,7 +674,7 @@ class TestPoliticianQueryForEnrichment:
         create_citizenship(sample_politician, sample_country)
 
         # Create Wikipedia link
-        create_wikipedia_link(sample_politician, sample_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_wikipedia_project)
         db_session.flush()
 
         # Query with US country filter
@@ -690,7 +692,7 @@ class TestPoliticianQueryForEnrichment:
         sample_germany_country,
         sample_german_language,
         sample_german_wikipedia_project,
-        create_wikipedia_link,
+        create_wikipedia_source,
         create_citizenship,
     ):
         """Test combined language and country filtering."""
@@ -707,7 +709,7 @@ class TestPoliticianQueryForEnrichment:
         create_citizenship(sample_politician, sample_germany_country)
 
         # Create Wikipedia link
-        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_german_wikipedia_project)
         db_session.flush()
 
         # Query with both filters
@@ -724,13 +726,13 @@ class TestPoliticianQueryForEnrichment:
         sample_politician,
         sample_germany_country,
         sample_german_wikipedia_project,
-        create_wikipedia_link,
+        create_wikipedia_source,
     ):
         """Test that politicians without matching citizenship are excluded."""
         # Note: Germany exists but politician doesn't have German citizenship
 
         # Create Wikipedia link
-        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_german_wikipedia_project)
         db_session.flush()
 
         # Query with German country filter (politician has no German citizenship)
@@ -749,7 +751,7 @@ class TestPoliticianQueryForEnrichment:
         sample_german_wikipedia_project,
         sample_french_language,
         sample_french_wikipedia_project,
-        create_wikipedia_link,
+        create_wikipedia_source,
         create_citizenship,
     ):
         """Test that politicians with multiple citizenships match if any citizenship language has a link."""
@@ -773,8 +775,8 @@ class TestPoliticianQueryForEnrichment:
         create_citizenship(sample_politician, sample_france_country)
 
         # Create BOTH German and French Wikipedia links
-        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
-        create_wikipedia_link(sample_politician, sample_french_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_german_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_french_wikipedia_project)
         db_session.flush()
 
         # Query with German language filter - should match via German citizenship + German link
@@ -798,7 +800,7 @@ class TestPoliticianQueryForEnrichment:
         sample_germany_country,
         sample_german_language,
         sample_wikipedia_project,
-        create_wikipedia_link,
+        create_wikipedia_source,
         create_citizenship,
     ):
         """Test that language filtering requires Wikipedia link in that language."""
@@ -815,7 +817,7 @@ class TestPoliticianQueryForEnrichment:
         create_citizenship(sample_politician, sample_germany_country)
 
         # Create only English Wikipedia link (not German)
-        create_wikipedia_link(sample_politician, sample_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_wikipedia_project)
         db_session.flush()
 
         # Query with German language filter
@@ -837,7 +839,7 @@ class TestPoliticianQueryForEnrichment:
         sample_french_wikipedia_project,
         sample_spanish_language,
         sample_spanish_wikipedia_project,
-        create_wikipedia_link,
+        create_wikipedia_source,
     ):
         """Test that only top 3 most popular languages are considered for a politician."""
         # Set up 4 languages with different global popularity levels
@@ -870,15 +872,15 @@ class TestPoliticianQueryForEnrichment:
                     db_session, f"Q{base_qid + i}", f"Dummy {lang.iso_639_1} {i}"
                 )
                 db_session.flush()
-                create_wikipedia_link(dummy, wp)
+                create_wikipedia_source(dummy, wp)
 
             base_qid += popularity
 
         # Create Wikipedia links for all 4 languages for sample_politician
-        create_wikipedia_link(sample_politician, sample_wikipedia_project)
-        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
-        create_wikipedia_link(sample_politician, sample_french_wikipedia_project)
-        create_wikipedia_link(sample_politician, sample_spanish_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_german_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_french_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_spanish_wikipedia_project)
         db_session.flush()
 
         # Query with English (most popular) - sample_politician should be in results
@@ -909,7 +911,7 @@ class TestPoliticianQueryForEnrichment:
         )
 
     def test_query_excludes_soft_deleted_wikidata_entity(
-        self, db_session, sample_politician, sample_wikipedia_link
+        self, db_session, sample_politician, sample_wikipedia_source
     ):
         """Test that query excludes politicians with soft-deleted WikidataEntity."""
 
@@ -938,7 +940,7 @@ class TestPoliticianQueryForEnrichment:
         sample_spanish_language,
         sample_language,
         sample_wikipedia_project,
-        create_wikipedia_link,
+        create_wikipedia_source,
         create_citizenship,
     ):
         """Test that politicians with Wikipedia links in non-official languages are found."""
@@ -955,7 +957,7 @@ class TestPoliticianQueryForEnrichment:
         create_citizenship(sample_politician, sample_spain_country)
 
         # Create ONLY an English Wikipedia link (not Spanish)
-        create_wikipedia_link(sample_politician, sample_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_wikipedia_project)
         db_session.flush()
 
         # Query with English language filter

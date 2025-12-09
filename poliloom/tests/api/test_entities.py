@@ -4,7 +4,7 @@
 class TestGetLanguages:
     """Test the GET /languages endpoint."""
 
-    def test_languages_with_wikipedia_links(
+    def test_languages_with_wikipedia_sources(
         self,
         client,
         mock_auth,
@@ -15,7 +15,7 @@ class TestGetLanguages:
         sample_wikipedia_project,
         sample_german_wikipedia_project,
         sample_french_wikipedia_project,
-        create_wikipedia_link,
+        create_wikipedia_source,
         db_session,
     ):
         """Languages should count Wikipedia links through WikipediaProject relations."""
@@ -31,16 +31,16 @@ class TestGetLanguages:
         db_session.flush()
 
         # English: 3 links
-        create_wikipedia_link(sample_politician, sample_wikipedia_project)
-        create_wikipedia_link(politician2, sample_wikipedia_project)
-        create_wikipedia_link(politician3, sample_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_wikipedia_project)
+        create_wikipedia_source(politician2, sample_wikipedia_project)
+        create_wikipedia_source(politician3, sample_wikipedia_project)
 
         # German: 2 links
-        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
-        create_wikipedia_link(politician2, sample_german_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_german_wikipedia_project)
+        create_wikipedia_source(politician2, sample_german_wikipedia_project)
 
         # French: 1 link
-        create_wikipedia_link(politician3, sample_french_wikipedia_project)
+        create_wikipedia_source(politician3, sample_french_wikipedia_project)
 
         db_session.flush()
 
@@ -67,7 +67,7 @@ class TestGetLanguages:
         sample_politician,
         sample_wikipedia_project,
         sample_german_wikipedia_project,
-        create_wikipedia_link,
+        create_wikipedia_source,
         db_session,
     ):
         """Languages should be ordered by sources_count descending."""
@@ -83,12 +83,12 @@ class TestGetLanguages:
         db_session.flush()
 
         # English: 1 link
-        create_wikipedia_link(sample_politician, sample_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_wikipedia_project)
 
         # German: 3 links
-        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
-        create_wikipedia_link(politician2, sample_german_wikipedia_project)
-        create_wikipedia_link(politician3, sample_german_wikipedia_project)
+        create_wikipedia_source(sample_politician, sample_german_wikipedia_project)
+        create_wikipedia_source(politician2, sample_german_wikipedia_project)
+        create_wikipedia_source(politician3, sample_german_wikipedia_project)
 
         db_session.flush()
 
