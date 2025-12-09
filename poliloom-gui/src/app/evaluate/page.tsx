@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Header } from '@/components/layout/Header'
 import { PoliticianEvaluation } from '@/components/evaluation/PoliticianEvaluation'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
+import { Loader } from '@/components/ui/Spinner'
 import { useTutorial } from '@/contexts/TutorialContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import Link from 'next/link'
@@ -42,14 +43,13 @@ export default function EvaluatePage() {
         <main className="bg-gray-50 grid place-items-center py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
           <div className="text-center max-w-2xl">
             {loading || enrichmentMeta?.is_enriching ? (
-              <div className="flex flex-col items-center gap-3">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                <p className="text-gray-500">
-                  {enrichmentMeta?.is_enriching
+              <Loader
+                message={
+                  enrichmentMeta?.is_enriching
                     ? 'Enriching politician data...'
-                    : 'Loading politician data...'}
-                </p>
-              </div>
+                    : 'Loading politician data...'
+                }
+              />
             ) : (
               <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
                 <p className="text-gray-600">
