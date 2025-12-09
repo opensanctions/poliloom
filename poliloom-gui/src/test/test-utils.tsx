@@ -71,6 +71,7 @@ const MockEvaluationSessionProvider = ({ children }: { children: React.ReactNode
       skipPolitician: mockSkipPolitician,
       resetSession: vi.fn(),
       loadPoliticians: vi.fn(),
+      enrichmentMeta: null,
     }}
   >
     {children}

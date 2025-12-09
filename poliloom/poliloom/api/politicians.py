@@ -21,6 +21,8 @@ from ..models import (
 )
 from .schemas import (
     PoliticianResponse,
+    PoliticiansListResponse,
+    EnrichmentMetadata,
     PropertyResponse,
     ArchivedPageResponse,
     PoliticianCreateRequest,
@@ -46,7 +48,7 @@ _enrichment_executor = ThreadPoolExecutor(
 )
 
 
-@router.get("", response_model=List[PoliticianResponse])
+@router.get("", response_model=PoliticiansListResponse)
 async def get_politicians(
     limit: int = Query(
         default=2, le=100, description="Maximum number of politicians to return"
@@ -67,6 +69,10 @@ async def get_politicians(
     countries: Optional[List[str]] = Query(
         default=None,
         description="Filter by country QIDs - politicians with citizenship for these countries",
+    ),
+    exclude_ids: Optional[List[str]] = Query(
+        default=None,
+        description="Exclude politicians with these UUIDs from results (for avoiding duplicates during navigation)",
     ),
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
@@ -97,6 +103,15 @@ async def get_politicians(
 
     if countries:
         query = Politician.filter_by_countries(query, countries)
+
+    # Exclude specific politician IDs (for avoiding duplicates during navigation)
+    if exclude_ids:
+        try:
+            exclude_uuids = [UUID(id_str) for id_str in exclude_ids]
+            query = query.where(Politician.id.notin_(exclude_uuids))
+        except ValueError:
+            # Invalid UUID format - log and ignore
+            logger.warning(f"Invalid UUID format in exclude_ids: {exclude_ids}")
 
     # Load related data
     if languages:
@@ -153,6 +168,10 @@ async def get_politicians(
     # Execute query
     politicians = db.execute(query).scalars().all()
 
+    # Track enrichment status for empty state UX
+    is_enriching = False
+    current_count = 0
+
     # Trigger background enrichment if we have too few unevaluated politicians
     if has_unevaluated is True:
         min_threshold = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
@@ -169,9 +188,7 @@ async def get_politicians(
                 languages,
                 countries,
             )
-
-    if not politicians:
-        return []
+            is_enriching = True
 
     result = []
     for politician in politicians:
@@ -217,7 +234,13 @@ async def get_politicians(
             )
         )
 
-    return result
+    return PoliticiansListResponse(
+        politicians=result,
+        meta=EnrichmentMetadata(
+            is_enriching=is_enriching,
+            total_matching_filters=current_count,
+        ),
+    )
 
 
 @router.post("", response_model=PoliticianCreateResponse, status_code=201)

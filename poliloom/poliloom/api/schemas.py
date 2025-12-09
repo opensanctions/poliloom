@@ -56,6 +56,20 @@ class PoliticianResponse(UUIDBaseModel):
     properties: List[PropertyResponse]  # Single flat list
 
 
+class EnrichmentMetadata(BaseModel):
+    """Metadata about enrichment status for empty state UX."""
+
+    is_enriching: bool = False
+    total_matching_filters: int = 0
+
+
+class PoliticiansListResponse(BaseModel):
+    """Response for politicians list endpoint with enrichment metadata."""
+
+    politicians: List[PoliticianResponse]
+    meta: EnrichmentMetadata
+
+
 class EvaluationItem(UUIDBaseModel):
     """Single evaluation item."""
 

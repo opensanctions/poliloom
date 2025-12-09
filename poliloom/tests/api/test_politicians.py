@@ -124,9 +124,12 @@ class TestGetPoliticiansEndpoint:
 
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
+        assert "politicians" in data
+        assert "meta" in data
+        politicians = data["politicians"]
+        assert len(politicians) == 1
 
-        politician_data = data[0]
+        politician_data = politicians[0]
         assert politician_data["name"] == "Test Politician"
         assert politician_data["wikidata_id"] == "Q123456"
 
@@ -156,8 +159,9 @@ class TestGetPoliticiansEndpoint:
 
         assert response.status_code == 200
         data = response.json()
+        politicians = data["politicians"]
         assert (
-            len(data) == 1
+            len(politicians) == 1
         )  # Should include since evaluation failed to push to Wikidata
 
     def test_excludes_politicians_with_only_wikidata(
@@ -168,7 +172,8 @@ class TestGetPoliticiansEndpoint:
 
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 0  # Should be empty since no extracted data exists
+        politicians = data["politicians"]
+        assert len(politicians) == 0  # Should be empty since no extracted data exists
 
     def test_returns_empty_list_when_no_qualifying_politicians(self, client, mock_auth):
         """Test that endpoint returns empty list when no politicians have unevaluated data."""
@@ -176,7 +181,7 @@ class TestGetPoliticiansEndpoint:
 
         assert response.status_code == 200
         data = response.json()
-        assert data == []
+        assert data["politicians"] == []
 
     def test_extracted_data_contains_supporting_quotes_and_archive_info(
         self, client, mock_auth, politician_with_unevaluated_data
@@ -185,7 +190,7 @@ class TestGetPoliticiansEndpoint:
         response = client.get("/politicians/", headers=mock_auth)
 
         data = response.json()
-        politician_data = data[0]
+        politician_data = data["politicians"][0]
 
         # Find extracted properties (those with supporting_quotes and archived_page)
         extracted_properties = extract_properties_by_type(
@@ -220,7 +225,7 @@ class TestGetPoliticiansEndpoint:
         response = client.get("/politicians/", headers=mock_auth)
 
         data = response.json()
-        politician_data = data[0]
+        politician_data = data["politicians"][0]
 
         # Find Wikidata properties (those without supporting_quotes)
         wikidata_properties = extract_properties_by_type(
@@ -272,13 +277,13 @@ class TestGetPoliticiansEndpoint:
         response = client.get("/politicians/?limit=3", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 3
+        assert len(data["politicians"]) == 3
 
         # Test different limit value
         response = client.get("/politicians/?limit=2", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 2
+        assert len(data["politicians"]) == 2
 
     def test_mixed_evaluation_states(
         self,
@@ -332,9 +337,10 @@ class TestGetPoliticiansEndpoint:
         response = client.get("/politicians/", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
+        politicians = data["politicians"]
+        assert len(politicians) == 1
 
-        politician_data = data[0]
+        politician_data = politicians[0]
 
         # Find extracted properties (those with supporting_quotes and archived_page)
         extracted_properties = extract_properties_by_type(
@@ -371,9 +377,9 @@ class TestGetPoliticiansEndpoint:
         response = client.get("/politicians/", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
+        assert len(data["politicians"]) == 1
 
-        politician_data = data[0]
+        politician_data = data["politicians"][0]
 
         # Find extracted properties (those with supporting_quotes and archived_page)
         extracted_properties = extract_properties_by_type(
@@ -389,7 +395,7 @@ class TestGetPoliticiansEndpoint:
     ):
         """Test property response has correct fields."""
         response = client.get("/politicians/", headers=mock_auth)
-        politician = response.json()[0]
+        politician = response.json()["politicians"][0]
 
         for prop in politician["properties"]:
             assert "id" in prop
@@ -461,8 +467,8 @@ class TestGetPoliticiansEndpoint:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
-        assert data[0]["name"] == "English Politician"
+        assert len(data["politicians"]) == 1
+        assert data["politicians"][0]["name"] == "English Politician"
 
         # Test filtering by German language QID
         response = client.get(
@@ -470,8 +476,8 @@ class TestGetPoliticiansEndpoint:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
-        assert data[0]["name"] == "German Politician"
+        assert len(data["politicians"]) == 1
+        assert data["politicians"][0]["name"] == "German Politician"
 
         # Test filtering by multiple languages
         response = client.get(
@@ -480,8 +486,8 @@ class TestGetPoliticiansEndpoint:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 2
-        politician_names = {p["name"] for p in data}
+        assert len(data["politicians"]) == 2
+        politician_names = {p["name"] for p in data["politicians"]}
         assert politician_names == {"English Politician", "German Politician"}
 
         # Test filtering by non-existent language
@@ -490,7 +496,7 @@ class TestGetPoliticiansEndpoint:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 0
+        assert len(data["politicians"]) == 0
 
     def test_country_filtering(
         self,
@@ -554,8 +560,8 @@ class TestGetPoliticiansEndpoint:
         response = client.get("/politicians/?countries=Q30&limit=10", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 2
-        politician_names = {p["name"] for p in data}
+        assert len(data["politicians"]) == 2
+        politician_names = {p["name"] for p in data["politicians"]}
         assert politician_names == {"American Politician", "Dual Citizen Politician"}
 
         # Test filtering by German citizenship
@@ -564,8 +570,8 @@ class TestGetPoliticiansEndpoint:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 2
-        politician_names = {p["name"] for p in data}
+        assert len(data["politicians"]) == 2
+        politician_names = {p["name"] for p in data["politicians"]}
         assert politician_names == {"German Politician", "Dual Citizen Politician"}
 
         # Test filtering by multiple countries
@@ -574,8 +580,8 @@ class TestGetPoliticiansEndpoint:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 3
-        politician_names = {p["name"] for p in data}
+        assert len(data["politicians"]) == 3
+        politician_names = {p["name"] for p in data["politicians"]}
         assert politician_names == {
             "American Politician",
             "German Politician",
@@ -588,7 +594,7 @@ class TestGetPoliticiansEndpoint:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 0
+        assert len(data["politicians"]) == 0
 
     def test_combined_language_and_country_filtering(
         self,
@@ -661,8 +667,8 @@ class TestGetPoliticiansEndpoint:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
-        assert data[0]["name"] == "American English Speaking Politician"
+        assert len(data["politicians"]) == 1
+        assert data["politicians"][0]["name"] == "American English Speaking Politician"
 
         # Test combined filtering: English language AND German citizenship
         response = client.get(
@@ -671,8 +677,8 @@ class TestGetPoliticiansEndpoint:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
-        assert data[0]["name"] == "German English Speaking Politician"
+        assert len(data["politicians"]) == 1
+        assert data["politicians"][0]["name"] == "German English Speaking Politician"
 
         # Test that individual filters work correctly
         # English language only - should return both English speaking politicians
@@ -681,8 +687,8 @@ class TestGetPoliticiansEndpoint:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 2
-        politician_names = {p["name"] for p in data}
+        assert len(data["politicians"]) == 2
+        politician_names = {p["name"] for p in data["politicians"]}
         assert politician_names == {
             "American English Speaking Politician",
             "German English Speaking Politician",
@@ -759,9 +765,9 @@ class TestGetPoliticiansEndpoint:
         response = client.get("/politicians/?languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
+        assert len(data["politicians"]) == 1
 
-        politician_data = data[0]
+        politician_data = data["politicians"][0]
         # Extract only properties with archived_page (extracted properties)
         extracted_props = [
             p for p in politician_data["properties"] if p.get("archived_page")
@@ -778,9 +784,9 @@ class TestGetPoliticiansEndpoint:
         response = client.get("/politicians/?languages=Q188", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
+        assert len(data["politicians"]) == 1
 
-        politician_data = data[0]
+        politician_data = data["politicians"][0]
         extracted_props = [
             p for p in politician_data["properties"] if p.get("archived_page")
         ]
@@ -829,8 +835,8 @@ class TestGetPoliticiansEndpoint:
         data = response.json()
 
         # Should return the politician because they have normal_property
-        assert len(data) == 1
-        politician_data = data[0]
+        assert len(data["politicians"]) == 1
+        politician_data = data["politicians"][0]
 
         # Extract properties by type
         extracted_properties = extract_properties_by_type(
@@ -891,7 +897,7 @@ class TestGetPoliticiansEndpoint:
         data = response.json()
 
         # Should return empty because this politician has no non-deleted unevaluated properties
-        assert len(data) == 0
+        assert len(data["politicians"]) == 0
 
     def test_excludes_politicians_with_soft_deleted_wikidata_entity(
         self, client, mock_auth, db_session, sample_archived_page, create_birth_date
@@ -918,8 +924,8 @@ class TestGetPoliticiansEndpoint:
         response = client.get("/politicians/", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 1
-        assert data[0]["wikidata_id"] == "Q997766"
+        assert len(data["politicians"]) == 1
+        assert data["politicians"][0]["wikidata_id"] == "Q997766"
 
         # Soft-delete the WikidataEntity
         politician.wikidata_entity.soft_delete()
@@ -931,7 +937,7 @@ class TestGetPoliticiansEndpoint:
         data = response.json()
 
         # Should return empty because the WikidataEntity has been soft-deleted
-        assert len(data) == 0
+        assert len(data["politicians"]) == 0
 
 
 class TestCreatePoliticianEndpoint:

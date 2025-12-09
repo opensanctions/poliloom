@@ -11,7 +11,8 @@ import Link from 'next/link'
 
 export default function EvaluatePage() {
   const router = useRouter()
-  const { currentPolitician, loading, loadPoliticians, isSessionComplete } = useEvaluationSession()
+  const { currentPolitician, loading, loadPoliticians, isSessionComplete, enrichmentMeta } =
+    useEvaluationSession()
   const { completeBasicTutorial, completeAdvancedTutorial } = useTutorial()
   const { isAdvancedMode } = useUserPreferences()
 
@@ -40,13 +41,19 @@ export default function EvaluatePage() {
       ) : (
         <main className="bg-gray-50 grid place-items-center py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
           <div className="text-center max-w-2xl">
-            {loading ? (
-              <div className="text-gray-500">Loading politician data...</div>
+            {loading || enrichmentMeta?.is_enriching ? (
+              <div className="flex flex-col items-center gap-3">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                <p className="text-gray-500">
+                  {enrichmentMeta?.is_enriching
+                    ? 'Enriching politician data...'
+                    : 'Loading politician data...'}
+                </p>
+              </div>
             ) : (
               <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
                 <p className="text-gray-600">
-                  Currently no politicians available, we&apos;re enriching more. You can wait a
-                  minute, change your{' '}
+                  No politicians available for your current filters. You can change your{' '}
                   <Link href="/" className="text-gray-700 hover:text-gray-900 underline">
                     filters
                   </Link>

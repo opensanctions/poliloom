@@ -7,6 +7,8 @@ import {
   EvaluationItem,
   EvaluationRequest,
   EvaluationResponse,
+  PoliticiansListResponse,
+  EnrichmentMetadata,
 } from '@/types'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useUserPreferences } from './UserPreferencesContext'
@@ -16,6 +18,9 @@ interface EvaluationSessionContextType {
   currentPolitician: Politician | null
   nextPolitician: Politician | null
   loading: boolean
+
+  // Enrichment status
+  enrichmentMeta: EnrichmentMetadata | null
 
   // Session tracking
   completedCount: number
@@ -41,6 +46,7 @@ export function EvaluationSessionProvider({ children }: { children: React.ReactN
   const [currentPolitician, setCurrentPolitician] = useState<Politician | null>(null)
   const [nextPolitician, setNextPolitician] = useState<Politician | null>(null)
   const [loading, setLoading] = useState(false)
+  const [enrichmentMeta, setEnrichmentMeta] = useState<EnrichmentMetadata | null>(null)
 
   // Session state
   const sessionGoal = 5
@@ -65,7 +71,7 @@ export function EvaluationSessionProvider({ children }: { children: React.ReactN
   )
 
   const fetchPoliticians = useCallback(
-    async (limit: number = 1): Promise<Politician[]> => {
+    async (limit: number = 1, excludeId?: string): Promise<Politician[]> => {
       if (!session?.accessToken) return []
 
       const params = new URLSearchParams({
@@ -74,6 +80,9 @@ export function EvaluationSessionProvider({ children }: { children: React.ReactN
       })
       languageFilters.forEach((qid) => params.append('languages', qid))
       countryFilters.forEach((qid) => params.append('countries', qid))
+      if (excludeId) {
+        params.append('exclude_ids', excludeId)
+      }
 
       const response = await fetch(`/api/politicians?${params.toString()}`)
 
@@ -81,10 +90,11 @@ export function EvaluationSessionProvider({ children }: { children: React.ReactN
         throw new Error(`Failed to fetch politicians: ${response.statusText}`)
       }
 
-      const politicians: Politician[] = await response.json()
+      const data: PoliticiansListResponse = await response.json()
+      setEnrichmentMeta(data.meta)
 
       // Ensure all properties have key field set (key = id for backend properties)
-      return politicians.map((politician) => ({
+      return data.politicians.map((politician) => ({
         ...politician,
         properties: politician.properties.map((prop) => ({
           ...prop,
@@ -128,21 +138,53 @@ export function EvaluationSessionProvider({ children }: { children: React.ReactN
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, initialized, currentPolitician, loadPoliticians])
 
+  // Auto-poll when no politicians available but enrichment is running
+  useEffect(() => {
+    if (currentPolitician !== null) return
+    if (loading) return
+    if (!enrichmentMeta?.is_enriching) return
+
+    const pollInterval = setInterval(() => {
+      loadPoliticians()
+    }, 5000)
+
+    return () => clearInterval(pollInterval)
+  }, [currentPolitician, loading, enrichmentMeta?.is_enriching, loadPoliticians])
+
   const advanceToNextPolitician = useCallback(async () => {
+    const newCurrent = nextPolitician
+
+    // If no pre-fetched next politician, show loading state while we fetch
+    if (!newCurrent) {
+      setLoading(true)
+      setCurrentPolitician(null)
+      try {
+        const politicians = await fetchPoliticians(1, currentPolitician?.id)
+        if (politicians.length > 0) {
+          setCurrentPolitician(politicians[0])
+        }
+      } catch (err) {
+        console.error('Error fetching next politician:', err)
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
     // Immediately move next to current for instant UI update
-    setCurrentPolitician(nextPolitician)
+    setCurrentPolitician(newCurrent)
     setNextPolitician(null)
 
-    // Fetch new next politician in the background
+    // Fetch new next politician in the background, excluding the one we just set as current
     try {
-      const politicians = await fetchPoliticians(1)
+      const politicians = await fetchPoliticians(1, newCurrent.id)
       if (politicians.length > 0) {
         setNextPolitician(politicians[0])
       }
     } catch (err) {
       console.error('Error fetching next politician:', err)
     }
-  }, [nextPolitician, fetchPoliticians])
+  }, [nextPolitician, currentPolitician?.id, fetchPoliticians])
 
   const submitEvaluation = useCallback(
     async (evaluations: EvaluationItem[]) => {
@@ -199,6 +241,7 @@ export function EvaluationSessionProvider({ children }: { children: React.ReactN
     currentPolitician,
     nextPolitician,
     loading,
+    enrichmentMeta,
     completedCount,
     sessionGoal,
     isSessionComplete,

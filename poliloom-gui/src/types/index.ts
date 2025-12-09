@@ -53,6 +53,16 @@ export interface Politician {
   properties: Property[]
 }
 
+export interface EnrichmentMetadata {
+  is_enriching: boolean
+  total_matching_filters: number
+}
+
+export interface PoliticiansListResponse {
+  politicians: Politician[]
+  meta: EnrichmentMetadata
+}
+
 export interface EvaluationItem {
   id: string
   is_accepted: boolean
