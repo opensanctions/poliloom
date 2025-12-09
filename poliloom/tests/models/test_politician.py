@@ -169,9 +169,9 @@ class TestPolitician:
         result = politician.get_priority_wikipedia_sources(db_session)
 
         assert len(result) == 1
-        url, wikipedia_project_id = result[0]
+        source_id, url = result[0]
+        assert source_id == ws.id
         assert "en.wikipedia.org" in url
-        assert wikipedia_project_id == "Q328"
 
     def test_get_priority_wikipedia_sources_citizenship_priority(self, db_session):
         """Test get_priority_wikipedia_sources with citizenship-based prioritization."""
@@ -270,7 +270,7 @@ class TestPolitician:
         result = politician.get_priority_wikipedia_sources(db_session)
 
         assert len(result) >= 1
-        url, _ = result[0]
+        _, url = result[0]
         assert "de.wikipedia.org" in url
 
     def test_get_priority_wikipedia_sources_no_citizenship(self, db_session):
@@ -375,9 +375,14 @@ class TestPolitician:
         result = politician.get_priority_wikipedia_sources(db_session)
 
         assert len(result) == 3
-        returned_project_ids = {project_id for _, project_id in result}
-        expected_top_3 = {"Q8447", "Q48183", "Q8449"}  # French, German, Spanish
-        assert returned_project_ids == expected_top_3
+        returned_urls = {url for _, url in result}
+        # Top 3 by popularity: French (50), German (30), Spanish (20)
+        expected_top_3_urls = {
+            "https://fr.wikipedia.org/wiki/Test",
+            "https://de.wikipedia.org/wiki/Test",
+            "https://es.wikipedia.org/wiki/Test",
+        }
+        assert returned_urls == expected_top_3_urls
 
 
 class TestPoliticianQueryBase:

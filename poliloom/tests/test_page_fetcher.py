@@ -86,8 +86,10 @@ class TestFetchPage:
         with patch(
             "poliloom.page_fetcher.async_playwright", return_value=mock_playwright_cm
         ):
-            with patch("poliloom.page_fetcher.convert_mhtml_to_html") as mock_convert:
-                mock_convert.return_value = "<html>converted</html>"
+            with patch("poliloom.page_fetcher.MHTMLConverter") as mock_converter_class:
+                mock_converter = Mock()
+                mock_converter.convert.return_value = "<html>converted</html>"
+                mock_converter_class.return_value = mock_converter
 
                 result = await fetch_page(url)
 

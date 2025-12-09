@@ -514,25 +514,33 @@ async def fetch_and_archive_page(
     url: str,
     db: Session,
     wikipedia_source_id: Optional[str] = None,
+    campaign_source_id: Optional[str] = None,
 ) -> ArchivedPage:
     """Fetch web page content and archive it.
 
-    Stores HTML and MHTML content. When a Wikipedia source ID is provided,
-    extracts the permanent URL with oldid and stores it as the ArchivedPage URL,
-    and links languages from the Wikipedia project.
+    Stores HTML and MHTML content. Exactly one of wikipedia_source_id or
+    campaign_source_id must be provided.
+
+    For Wikipedia sources, extracts the permanent URL with oldid and links
+    languages from the Wikipedia project.
 
     Args:
         url: The URL to fetch and archive
         db: Database session
-        wikipedia_source_id: Optional Wikipedia source UUID. When provided,
-            extracts the permanent URL with oldid and links languages from the project.
+        wikipedia_source_id: Wikipedia source UUID (mutually exclusive with campaign_source_id)
+        campaign_source_id: Campaign source UUID (mutually exclusive with wikipedia_source_id)
 
     Returns:
         ArchivedPage with archived content (HTML, MHTML)
 
     Raises:
         PageFetchError: If the page cannot be fetched (timeout, network error, HTTP error)
+        ValueError: If neither or both source IDs are provided
     """
+    if (wikipedia_source_id is None) == (campaign_source_id is None):
+        raise ValueError(
+            "Exactly one of wikipedia_source_id or campaign_source_id must be provided"
+        )
 
     now = datetime.now(timezone.utc)
 
@@ -553,13 +561,15 @@ async def fetch_and_archive_page(
         url=archived_url,
         fetch_timestamp=now,
         wikipedia_source_id=wikipedia_source_id,
+        campaign_source_id=campaign_source_id,
     )
     db.add(archived_page)
     db.flush()
 
-    # Link languages from Wikipedia source's project
-    archived_page.link_languages_from_source(db)
-    db.flush()
+    # Link languages from Wikipedia source's project (only for Wikipedia sources)
+    if wikipedia_source_id:
+        archived_page.link_languages_from_source(db)
+        db.flush()
 
     # Save all content files
     archived_page.save_archived_files(fetched.mhtml, fetched.html)
@@ -675,7 +685,7 @@ def enrich_batch(
     for i in range(batch_size):
         # Enrich one politician - run async function in new event loop
         politician_found = asyncio.run(
-            enrich_politician_from_wikipedia(languages=languages, countries=countries)
+            enrich_politician(languages=languages, countries=countries)
         )
 
         if not politician_found:
@@ -696,7 +706,8 @@ async def _fetch_and_extract_from_page(
     db: Session,
     politician: Politician,
     url: str,
-    wikipedia_source_id: str,
+    wikipedia_source_id: Optional[str] = None,
+    campaign_source_id: Optional[str] = None,
 ) -> tuple[bool, int, int, int, int]:
     """
     Fetch a web page, archive it, and extract politician data from it.
@@ -706,7 +717,8 @@ async def _fetch_and_extract_from_page(
         db: Database session
         politician: Politician to enrich
         url: Web page URL
-        wikipedia_source_id: Wikipedia source UUID for language linking
+        wikipedia_source_id: Wikipedia source UUID (mutually exclusive with campaign_source_id)
+        campaign_source_id: Campaign source UUID (mutually exclusive with wikipedia_source_id)
 
     Returns:
         Tuple of (success, date_count, position_count, birthplace_count, citizenship_count)
@@ -715,7 +727,12 @@ async def _fetch_and_extract_from_page(
         logger.info(f"Processing source: {url}")
 
         # Fetch and archive the page
-        archived_page = await fetch_and_archive_page(url, db, wikipedia_source_id)
+        archived_page = await fetch_and_archive_page(
+            url,
+            db,
+            wikipedia_source_id=wikipedia_source_id,
+            campaign_source_id=campaign_source_id,
+        )
 
         # Read content from archived page
         html_content = archive.read_archived_content(archived_page.path_root, "html")
@@ -782,16 +799,16 @@ async def _fetch_and_extract_from_page(
         return False, 0, 0, 0, 0
 
 
-async def enrich_politician_from_wikipedia(
+async def enrich_politician(
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,
 ) -> bool:
     """
-    Enrich a single politician's data by extracting information from their Wikipedia sources.
+    Enrich a single politician's data by extracting information from their sources.
 
-    Processes multiple Wikipedia articles concurrently based on politician's
-    citizenship and official languages of their countries, prioritized by Wikipedia
-    link popularity.
+    Processes multiple sources concurrently:
+    - Top 3 Wikipedia articles based on citizenship and language popularity
+    - All campaign detail pages linked to this politician
 
     Uses FOR UPDATE SKIP LOCKED to prevent concurrent processes from enriching
     the same politician.
@@ -835,6 +852,8 @@ async def enrich_politician_from_wikipedia(
                 .selectinload(WikidataRelation.parent_entity),
                 # Load Wikipedia sources
                 selectinload(Politician.wikipedia_sources),
+                # Load campaign sources (detail pages linked to this politician)
+                selectinload(Politician.campaign_sources),
             )
             .order_by(
                 Politician.enriched_at.asc().nullsfirst(),
@@ -850,37 +869,48 @@ async def enrich_politician_from_wikipedia(
             return False
 
         try:
-            # Get priority Wikipedia sources based on citizenship and language popularity
-            priority_sources = politician.get_priority_wikipedia_sources(db)
+            # Build list of page tasks from both Wikipedia and campaign sources
+            page_tasks = []
 
-            if not priority_sources:
-                raise ValueError(
-                    f"No suitable Wikipedia sources found for politician {politician.name}"
+            # Get priority Wikipedia sources (top 3) based on citizenship and language popularity
+            wikipedia_sources = politician.get_priority_wikipedia_sources(db)
+
+            for wikipedia_source_id, url in wikipedia_sources:
+                page_tasks.append(
+                    _fetch_and_extract_from_page(
+                        openai_client,
+                        db,
+                        politician,
+                        url,
+                        wikipedia_source_id=wikipedia_source_id,
+                    )
                 )
+
+            # Get all campaign detail sources linked to this politician
+            campaign_sources = politician.campaign_sources
+
+            for cs in campaign_sources:
+                page_tasks.append(
+                    _fetch_and_extract_from_page(
+                        openai_client,
+                        db,
+                        politician,
+                        cs.url,
+                        campaign_source_id=cs.id,
+                    )
+                )
+
+            total_sources = len(wikipedia_sources) + len(campaign_sources)
+
+            if not page_tasks:
+                raise ValueError(f"No sources found for politician {politician.name}")
 
             logger.info(
-                f"Processing {len(priority_sources)} Wikipedia sources for {politician.name}: "
-                f"{[f'{wikipedia_project_id} ({url})' for url, wikipedia_project_id in priority_sources]}"
+                f"Processing {total_sources} sources for {politician.name}: "
+                f"{len(wikipedia_sources)} Wikipedia, {len(campaign_sources)} campaign"
             )
 
-            # Look up WikipediaSource IDs for each URL/project combination
-            source_id_map = {
-                (ws.url, ws.wikipedia_project_id): ws.id
-                for ws in politician.wikipedia_sources
-            }
-
             # Process all pages concurrently
-            page_tasks = [
-                _fetch_and_extract_from_page(
-                    openai_client,
-                    db,
-                    politician,
-                    url,
-                    source_id_map.get((url, wikipedia_project_id)),
-                )
-                for url, wikipedia_project_id in priority_sources
-            ]
-
             page_results = await asyncio.gather(*page_tasks)
 
             # Aggregate results from all pages
@@ -909,7 +939,7 @@ async def enrich_politician_from_wikipedia(
                 total_dates + total_positions + total_birthplaces + total_citizenships
             )
             logger.info(
-                f"Successfully enriched {politician.name} ({politician.wikidata_id}) from {processed_sources}/{len(priority_sources)} sources: "
+                f"Successfully enriched {politician.name} ({politician.wikidata_id}) from {processed_sources}/{total_sources} sources: "
                 f"{grand_total} total items ({total_dates} dates, {total_positions} positions, {total_birthplaces} birthplaces, {total_citizenships} citizenships)"
             )
 

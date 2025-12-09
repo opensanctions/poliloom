@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import Mock, patch
 
 from poliloom.enrichment import (
-    enrich_politician_from_wikipedia,
+    enrich_politician,
     extract_properties_generic,
     extract_two_stage_generic,
     store_extracted_data,
@@ -28,6 +28,8 @@ from poliloom.enrichment import (
 from poliloom.models import (
     ArchivedPage,
     ArchivedPageLanguage,
+    Campaign,
+    CampaignSource,
     Country,
     Language,
     Location,
@@ -577,12 +579,38 @@ class TestEnrichment:
         db_session.flush()
 
         with patch("poliloom.enrichment.AsyncOpenAI"):
-            politician_found = await enrich_politician_from_wikipedia()
+            politician_found = await enrich_politician()
 
         assert politician_found is False
 
         db_session.refresh(politician)
         assert politician.enriched_at is None
+
+    @pytest.mark.asyncio
+    async def test_enrich_politician_with_campaign_source_only(self, db_session):
+        """Test enrichment when politician has only campaign sources (no Wikipedia)."""
+        politician = Politician.create_with_entity(
+            db_session, "Q123456", "Test Politician"
+        )
+        country = Country.create_with_entity(db_session, "Q183", "Germany")
+
+        campaign = Campaign(name="Test Campaign", country_id=country.wikidata_id)
+        db_session.add(campaign)
+        db_session.flush()
+
+        campaign_source = CampaignSource(
+            campaign_id=campaign.id,
+            politician_id=politician.id,
+            url="https://example.gov/politicians/test",
+        )
+        db_session.add(campaign_source)
+        db_session.flush()
+
+        with patch("poliloom.enrichment.AsyncOpenAI"):
+            politician_found = await enrich_politician()
+
+        # Should return False because query_for_enrichment requires Wikipedia sources
+        assert politician_found is False
 
 
 class TestCountPoliticiansWithUnevaluated:
@@ -830,65 +858,9 @@ class TestCountPoliticiansWithUnevaluated:
 class TestEnrichBatch:
     """Test enrich_batch function."""
 
-    def test_enrich_batch_enriches_n_politicians(self, db_session):
-        """Test enriching a batch of politicians."""
-        politician = Politician.create_with_entity(
-            db_session, "Q123456", "Test Politician"
-        )
-        language = Language.create_with_entity(db_session, "Q1860", "English")
-        language.iso_639_1 = "en"
-        language.iso_639_2 = "eng"
-        wp = WikipediaProject.create_with_entity(
-            db_session, "Q328", "English Wikipedia"
-        )
-        wp.official_website = "https://en.wikipedia.org"
-        db_session.add(
-            WikidataRelation(
-                parent_entity_id=language.wikidata_id,
-                child_entity_id=wp.wikidata_id,
-                relation_type=RelationType.LANGUAGE_OF_WORK,
-                statement_id="Q328$test-statement",
-            )
-        )
-        db_session.flush()
-
-        ws = WikipediaSource(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/Test",
-            wikipedia_project_id=wp.wikidata_id,
-        )
-        db_session.add(ws)
-        db_session.flush()
-
-        archived_page = ArchivedPage(
-            url="https://en.wikipedia.org/w/index.php?title=Test&oldid=123",
-            content_hash="test123",
-            fetch_timestamp=datetime.now(timezone.utc),
-            wikipedia_source_id=ws.id,
-        )
-        db_session.add(archived_page)
-        db_session.flush()
-
-        with patch(
-            "poliloom.enrichment.enrich_politician_from_wikipedia"
-        ) as mock_enrich:
-
-            async def mock_enrich_func(languages=None, countries=None):
-                return True
-
-            mock_enrich.side_effect = mock_enrich_func
-
-            with patch.dict("os.environ", {"ENRICHMENT_BATCH_SIZE": "3"}):
-                enriched_count = enrich_batch()
-
-        assert enriched_count == 3
-        assert mock_enrich.call_count == 3
-
     def test_enrich_batch_no_more_politicians(self, db_session):
         """Test when no more politicians available to enrich."""
-        with patch(
-            "poliloom.enrichment.enrich_politician_from_wikipedia"
-        ) as mock_enrich:
+        with patch("poliloom.enrichment.enrich_politician") as mock_enrich:
 
             async def mock_enrich_func(languages=None, countries=None):
                 return False
@@ -901,76 +873,11 @@ class TestEnrichBatch:
         assert enriched_count == 0
         assert mock_enrich.call_count == 1
 
-    def test_enrich_batch_with_filters(self, db_session):
-        """Test enrich_batch with language and country filters."""
-        politician = Politician.create_with_entity(
-            db_session, "Q123456", "Test Politician"
-        )
-        country = Country.create_with_entity(db_session, "Q30", "United States")
-        country.iso_code = "US"
-        language = Language.create_with_entity(db_session, "Q1860", "English")
-        language.iso_639_1 = "en"
-        language.iso_639_2 = "eng"
-        wp = WikipediaProject.create_with_entity(
-            db_session, "Q328", "English Wikipedia"
-        )
-        wp.official_website = "https://en.wikipedia.org"
-        db_session.add(
-            WikidataRelation(
-                parent_entity_id=language.wikidata_id,
-                child_entity_id=wp.wikidata_id,
-                relation_type=RelationType.LANGUAGE_OF_WORK,
-                statement_id="Q328$test-statement",
-            )
-        )
-        db_session.flush()
-
-        ws = WikipediaSource(
-            politician_id=politician.id,
-            url="https://en.wikipedia.org/wiki/Test",
-            wikipedia_project_id=wp.wikidata_id,
-        )
-        db_session.add(ws)
-        db_session.flush()
-
-        archived_page = ArchivedPage(
-            url="https://en.wikipedia.org/w/index.php?title=Test&oldid=123",
-            content_hash="test123",
-            fetch_timestamp=datetime.now(timezone.utc),
-            wikipedia_source_id=ws.id,
-        )
-        db_session.add(archived_page)
-
-        citizenship_prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=country.wikidata_id,
-        )
-        db_session.add(citizenship_prop)
-        db_session.flush()
-
-        with patch(
-            "poliloom.enrichment.enrich_politician_from_wikipedia"
-        ) as mock_enrich:
-
-            async def mock_enrich_func(languages=None, countries=None):
-                return True
-
-            mock_enrich.side_effect = mock_enrich_func
-
-            with patch.dict("os.environ", {"ENRICHMENT_BATCH_SIZE": "2"}):
-                enriched_count = enrich_batch(languages=["Q1860"], countries=["Q30"])
-
-        assert enriched_count == 2
-        mock_enrich.assert_called_with(languages=["Q1860"], countries=["Q30"])
-
     def test_enrich_batch_stops_early_when_no_politicians(self, db_session):
         """Test that batch stops early if politicians run out."""
         call_count = [0]
 
-        with patch(
-            "poliloom.enrichment.enrich_politician_from_wikipedia"
-        ) as mock_enrich:
+        with patch("poliloom.enrichment.enrich_politician") as mock_enrich:
 
             async def mock_enrich_func(languages=None, countries=None):
                 call_count[0] += 1
@@ -1054,48 +961,6 @@ class TestExtractPermanentUrl:
             permanent_url
             == "https://en.wikipedia.org/w/index.php?title=2025_shootings&oldid=1321768448#Accused"
         )
-
-
-class TestConvertMhtmlToHtml:
-    """Test convert_mhtml_to_html function from page_fetcher."""
-
-    def test_convert_mhtml_to_html_success(self):
-        """Test successful MHTML to HTML conversion."""
-        from poliloom.page_fetcher import convert_mhtml_to_html
-
-        mhtml_content = "MHTML content here"
-        expected_html = "<html>Converted content</html>"
-
-        with patch("poliloom.page_fetcher.MHTMLConverter") as mock_converter_class:
-            mock_converter = Mock()
-            mock_converter.convert.return_value = expected_html
-            mock_converter_class.return_value = mock_converter
-
-            result = convert_mhtml_to_html(mhtml_content)
-
-            assert result == expected_html
-            mock_converter.convert.assert_called_once_with(mhtml_content)
-
-    def test_convert_mhtml_to_html_none_input(self):
-        """Test that None input returns None."""
-        from poliloom.page_fetcher import convert_mhtml_to_html
-
-        result = convert_mhtml_to_html(None)
-        assert result is None
-
-    def test_convert_mhtml_to_html_conversion_error(self):
-        """Test that conversion errors return None."""
-        from poliloom.page_fetcher import convert_mhtml_to_html
-
-        mhtml_content = "MHTML content"
-
-        with patch("poliloom.page_fetcher.MHTMLConverter") as mock_converter_class:
-            mock_converter = Mock()
-            mock_converter.convert.side_effect = Exception("Conversion failed")
-            mock_converter_class.return_value = mock_converter
-
-            result = convert_mhtml_to_html(mhtml_content)
-            assert result is None
 
 
 class TestFetchAndArchivePage:

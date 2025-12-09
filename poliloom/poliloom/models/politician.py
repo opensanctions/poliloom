@@ -85,12 +85,12 @@ class Politician(
             db: Database session
 
         Returns:
-            List of Row objects containing (url, wikipedia_project_id), limited to top 3
+            List of Row objects containing (id, url), limited to top 3
         """
         ranked_sources = self._get_ranked_wikipedia_sources_cte()
 
         query = (
-            select(ranked_sources.c.url, ranked_sources.c.wikipedia_project_id)
+            select(ranked_sources.c.id, ranked_sources.c.url)
             .where(
                 and_(
                     ranked_sources.c.politician_id == self.id,
@@ -296,6 +296,7 @@ class Politician(
             select(
                 cls.id.label("politician_id"),
                 Language.wikidata_id.label("language_qid"),
+                WikipediaSource.id,
                 WikipediaSource.wikipedia_project_id,
                 WikipediaSource.url,
                 case(
@@ -531,6 +532,7 @@ class Politician(
     wikipedia_sources = relationship(
         "WikipediaSource", back_populates="politician", cascade="all, delete-orphan"
     )
+    campaign_sources = relationship("CampaignSource", back_populates="politician")
 
 
 class ArchivedPageLanguage(Base, TimestampMixin):
@@ -861,7 +863,7 @@ class CampaignSource(Base, TimestampMixin):
 
     # Relationships
     campaign = relationship("Campaign", back_populates="sources")
-    politician = relationship("Politician")
+    politician = relationship("Politician", back_populates="campaign_sources")
     archived_pages = relationship("ArchivedPage", back_populates="campaign_source")
 
 

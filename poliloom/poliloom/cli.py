@@ -5,7 +5,7 @@ import click
 import logging
 from datetime import datetime, timezone
 import httpx
-from poliloom.enrichment import enrich_politician_from_wikipedia
+from poliloom.enrichment import enrich_politician
 from poliloom.storage import StorageFactory
 from poliloom.importer.hierarchy import import_hierarchy_trees
 from poliloom.importer.entity import import_entities
@@ -254,7 +254,7 @@ def dump_extract(input, output):
         raise SystemExit(1)
 
 
-@main.command("enrich-wikipedia")
+@main.command("enrich-politicians")
 @click.option(
     "--count",
     type=int,
@@ -271,17 +271,18 @@ def dump_extract(input, output):
     multiple=True,
     help="Filter by country QIDs (can be specified multiple times)",
 )
-def enrich_wikipedia(
+def enrich_politicians(
     count: int, languages: tuple[str, ...], countries: tuple[str, ...]
 ) -> None:
-    """Enrich a specified number of politicians from Wikipedia.
+    """Enrich a specified number of politicians from their sources.
 
-    This command enriches politicians by extracting data from their Wikipedia articles.
+    This command enriches politicians by extracting data from their Wikipedia articles
+    and campaign detail pages.
 
     Examples:
-    - poliloom enrich-wikipedia --count 20
-    - poliloom enrich-wikipedia --count 10 --countries Q30 --countries Q38
-    - poliloom enrich-wikipedia --count 5 --languages Q1860 --languages Q150
+    - poliloom enrich-politicians --count 20
+    - poliloom enrich-politicians --count 10 --countries Q30 --countries Q38
+    - poliloom enrich-politicians --count 5 --languages Q1860 --languages Q150
     """
     try:
         # Convert tuples to lists (or None if empty)
@@ -297,9 +298,7 @@ def enrich_wikipedia(
         enriched_count = 0
         for i in range(count):
             politician_found = asyncio.run(
-                enrich_politician_from_wikipedia(
-                    languages=languages_list, countries=countries_list
-                )
+                enrich_politician(languages=languages_list, countries=countries_list)
             )
 
             if not politician_found:

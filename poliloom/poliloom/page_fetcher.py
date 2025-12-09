@@ -2,7 +2,6 @@
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from playwright.async_api import async_playwright
 from unmhtml import MHTMLConverter
@@ -29,20 +28,7 @@ class FetchedPage:
     """Result of fetching a web page."""
 
     mhtml: str
-    html: Optional[str]
-
-
-def convert_mhtml_to_html(mhtml_content: Optional[str]) -> Optional[str]:
-    """Convert MHTML content to HTML, returning None on failure."""
-    if not mhtml_content:
-        return None
-
-    try:
-        converter = MHTMLConverter()
-        return converter.convert(mhtml_content)
-    except Exception as e:
-        logger.warning(f"Failed to convert MHTML to HTML: {e}")
-        return None
+    html: str
 
 
 async def fetch_page(url: str) -> FetchedPage:
@@ -90,8 +76,12 @@ async def fetch_page(url: str) -> FetchedPage:
             )
             mhtml_content = mhtml_result.get("data")
 
+            if not mhtml_content:
+                raise PageFetchError(f"No MHTML content captured: {url}")
+
             # Convert MHTML to HTML
-            html_content = convert_mhtml_to_html(mhtml_content)
+            converter = MHTMLConverter()
+            html_content = converter.convert(mhtml_content)
 
             return FetchedPage(mhtml=mhtml_content, html=html_content)
 
