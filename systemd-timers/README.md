@@ -17,7 +17,13 @@ sudo cp *.service *.timer /etc/systemd/system/
 POLILOOM_BACKUP_ROOT=gs://your-bucket-name/backup
 ```
 
-3. Reload systemd and enable timers:
+3. Set up automatic backup cleanup (deletes backups older than 14 days):
+
+```bash
+source /root/poliloom/.env && gsutil lifecycle set gcs-lifecycle.json ${POLILOOM_BACKUP_ROOT%/*}
+```
+
+4. Reload systemd and enable timers:
 
 ```bash
 sudo systemctl daemon-reload
