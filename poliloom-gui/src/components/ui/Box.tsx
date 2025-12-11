@@ -9,7 +9,7 @@ interface BoxProps {
 export function Box({ children, className = '', onHover }: BoxProps) {
   return (
     <div
-      className={`bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden transition-all hover:shadow-md ${className}`}
+      className={`bg-white rounded-lg shadow-sm border border-gray-200 transition-all hover:shadow-md ${className}`}
       onMouseEnter={onHover}
     >
       {children}

@@ -13,7 +13,7 @@ export function HeaderedBox({ title, description, icon, children, onHover }: Hea
   return (
     <Box onHover={onHover}>
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+      <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white rounded-t-lg">
         <div className="flex items-center gap-3">
           {icon && <span className="text-2xl">{icon}</span>}
           <div>

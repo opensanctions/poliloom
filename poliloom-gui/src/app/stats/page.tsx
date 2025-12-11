@@ -73,24 +73,36 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
       className="grid"
       style={{
         gridTemplateColumns: 'auto 1fr',
-        gridTemplateRows: '1fr auto',
+        gridTemplateRows: `repeat(${yAxisStepCount - 1}, 1fr) auto`,
       }}
     >
-      {/* Y axis labels and notches */}
-      <div className="flex flex-col justify-between">
-        {yAxisSteps
-          .slice()
-          .reverse()
-          .map((val) => (
-            <div key={val} className="flex items-center justify-end -my-1.5">
-              <span className="text-xs text-gray-400 tabular-nums pr-2">{val}</span>
-              <div className="w-2 h-px bg-gray-200" />
+      {/* Y axis labels and grid lines - one cell per step */}
+      {yAxisSteps
+        .slice()
+        .reverse()
+        .map((val, i) => (
+          <>
+            <div
+              key={`label-${val}`}
+              className="text-xs text-gray-400 tabular-nums pr-3 flex items-start justify-end -mt-2"
+              style={{ gridColumn: 1, gridRow: i + 1 }}
+            >
+              {val}
             </div>
-          ))}
-      </div>
+            <div
+              key={`line-${val}`}
+              className="border-t border-gray-200 -ml-2"
+              style={{ gridColumn: 2, gridRow: i + 1 }}
+            />
+          </>
+        ))}
 
-      {/* Chart area */}
-      <div className="flex items-end gap-1 aspect-[3/1] border-l border-b border-gray-200">
+      {/* Chart area - spans all Y rows */}
+      <div
+        className="border-l border-gray-200 flex items-end gap-1 aspect-[3/1]"
+        style={{ gridColumn: 2, gridRow: `1 / ${yAxisStepCount}` }}
+      >
+        {/* Bars */}
         {data.map((point) => {
           const total = point.accepted + point.rejected
           const heightPercent = (total / yAxisMax) * 100
@@ -103,20 +115,23 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
             >
               {/* Tooltip */}
               <div
-                className="absolute left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10"
+                className="absolute left-1/2 -translate-x-1/2 mb-2 px-3 py-2.5 bg-white border border-gray-200 text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
                 style={{ bottom: `${heightPercent}%` }}
               >
-                <div className="font-medium mb-1">{formatDateRange(point.date)}</div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 bg-green-500 rounded-sm" />
+                <div className="font-semibold text-gray-900 mb-1.5">
+                  {formatDateRange(point.date)}
+                </div>
+                <div className="flex items-center gap-2 text-gray-600">
+                  <span className="w-2.5 h-2.5 bg-green-500 rounded-sm" />
                   <span>{point.accepted} accepted</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 bg-red-400 rounded-sm" />
+                <div className="flex items-center gap-2 text-gray-600">
+                  <span className="w-2.5 h-2.5 bg-red-400 rounded-sm" />
                   <span>{point.rejected} rejected</span>
                 </div>
                 {/* Arrow */}
-                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-gray-200" />
+                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-[6px] border-transparent border-t-white" />
               </div>
               <div
                 className="w-full flex flex-col rounded-t-sm overflow-hidden"
@@ -130,11 +145,11 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
         })}
       </div>
 
-      {/* Empty cell for grid alignment */}
-      <div />
+      {/* Empty cell under Y labels */}
+      <div style={{ gridColumn: 1, gridRow: yAxisStepCount }} />
 
       {/* X axis labels */}
-      <div className="relative h-8">
+      <div className="relative h-8" style={{ gridColumn: 2, gridRow: yAxisStepCount }}>
         {data.map((point, index) => {
           if (!labelIndices.has(index)) return null
           const position = ((index + 0.5) / data.length) * 100
@@ -145,7 +160,7 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
               style={{ left: `${position}%` }}
             >
               <div className="w-px h-2 bg-gray-200" />
-              <span className="text-xs text-gray-400 whitespace-nowrap mt-1.5">
+              <span className="text-xs text-gray-400 whitespace-nowrap mt-1">
                 {formatDateLabel(point.date)}
               </span>
             </div>
@@ -271,7 +286,7 @@ export default function StatsPage() {
               <HeaderedBox
                 title="Evaluations Over Time"
                 description="Weekly accepted (green) and rejected (red) evaluations"
-                icon="📊"
+                icon="⏱️"
               >
                 <EvaluationsChart data={stats.evaluations_timeseries} />
               </HeaderedBox>
