@@ -99,7 +99,7 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
 
       {/* Chart area - spans all Y rows */}
       <div
-        className="border-l border-gray-200 flex items-end gap-1 aspect-[3/1]"
+        className="border-l border-gray-200 flex items-end gap-1 aspect-[3/1] group/chart"
         style={{ gridColumn: 2, gridRow: `1 / ${yAxisStepCount}` }}
       >
         {/* Bars */}
@@ -134,7 +134,7 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
                 <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-[6px] border-transparent border-t-white" />
               </div>
               <div
-                className="w-full flex flex-col rounded-t-sm overflow-hidden"
+                className="w-full flex flex-col rounded-t-sm overflow-hidden group-hover/chart:opacity-50 group-hover:!opacity-100 transition-opacity"
                 style={{ height: `${heightPercent}%` }}
               >
                 <div className="bg-red-400" style={{ height: `${rejectedPercent}%` }} />
