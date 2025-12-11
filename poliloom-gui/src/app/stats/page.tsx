@@ -84,7 +84,7 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
           <>
             <div
               key={`label-${val}`}
-              className="text-xs text-gray-400 tabular-nums pr-3 flex items-start justify-end -mt-2"
+              className="text-sm text-gray-400 pr-3 flex items-start justify-end -mt-2"
               style={{ gridColumn: 1, gridRow: i + 1 }}
             >
               {val}
@@ -160,7 +160,7 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
               style={{ left: `${position}%` }}
             >
               <div className="w-px h-2 bg-gray-200" />
-              <span className="text-xs text-gray-400 whitespace-nowrap mt-1">
+              <span className="text-sm text-gray-400 whitespace-nowrap mt-1">
                 {formatDateLabel(point.date)}
               </span>
             </div>
@@ -171,33 +171,32 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
   )
 }
 
-function CoverageBar({
-  item,
-  maxTotal,
-}: {
-  item: CountryCoverage & { name: string }
-  maxTotal: number
-}) {
-  const widthPercent = (item.total_count / maxTotal) * 100
+function CoverageBar({ item }: { item: CountryCoverage & { name: string } }) {
   const enrichedPercent = item.total_count > 0 ? (item.enriched_count / item.total_count) * 100 : 0
+  const label = `${item.enriched_count} / ${item.total_count}`
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="w-32 truncate text-sm text-gray-700" title={item.name}>
+    <div className="flex items-center gap-4">
+      <div className="w-32 truncate text-sm text-gray-900" title={item.name}>
         {item.name}
       </div>
-      <div className="flex-1 h-6 bg-gray-100 rounded overflow-hidden relative">
+      <div className="flex-1 h-6 bg-gray-100 rounded-md overflow-hidden relative">
+        {/* Gray label (behind bar) */}
+        <div className="absolute inset-0 flex items-center justify-end pr-2 text-sm text-gray-600">
+          {label}
+        </div>
+        {/* Bar with white label clipped inside */}
         <div
-          className="h-full bg-gray-300 absolute left-0 top-0"
-          style={{ width: `${widthPercent}%` }}
-        />
-        <div
-          className="h-full bg-indigo-500 absolute left-0 top-0"
-          style={{ width: `${(widthPercent * enrichedPercent) / 100}%` }}
-        />
-      </div>
-      <div className="w-24 text-right text-sm text-gray-600">
-        {item.enriched_count} / {item.total_count}
+          className="absolute inset-y-0 left-0 bg-indigo-600 rounded-md overflow-hidden"
+          style={{ width: `${enrichedPercent}%` }}
+        >
+          <div
+            className="h-full flex items-center justify-end pr-2 text-sm text-white whitespace-nowrap"
+            style={{ width: `${enrichedPercent > 0 ? (100 / enrichedPercent) * 100 : 100}%` }}
+          >
+            {label}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -212,26 +211,22 @@ function CountryCoverageList({
   statelessEnriched: number
   statelessTotal: number
 }) {
-  const allItems = [
-    ...data,
-    {
-      wikidata_id: 'stateless',
-      name: 'No citizenship',
-      enriched_count: statelessEnriched,
-      total_count: statelessTotal,
-    },
-  ]
-
-  const maxTotal = Math.max(...allItems.map((d) => d.total_count), 1)
-
   if (data.length === 0 && statelessTotal === 0) {
     return <p className="text-gray-500 text-center py-8">No coverage data yet</p>
   }
 
+  const statelessItem = {
+    wikidata_id: 'stateless',
+    name: 'No citizenship',
+    enriched_count: statelessEnriched,
+    total_count: statelessTotal,
+  }
+
   return (
-    <div className="space-y-2">
-      {allItems.map((item) => (
-        <CoverageBar key={item.wikidata_id} item={item} maxTotal={maxTotal} />
+    <div className="space-y-3">
+      <CoverageBar key={statelessItem.wikidata_id} item={statelessItem} />
+      {data.map((item) => (
+        <CoverageBar key={item.wikidata_id} item={item} />
       ))}
     </div>
   )
