@@ -454,6 +454,7 @@ class Politician(
         cls,
         languages: List[str] = None,
         countries: List[str] = None,
+        stateless: bool = False,
     ):
         """
         Build a query for politicians that should be enriched.
@@ -466,6 +467,10 @@ class Politician(
         Args:
             languages: Optional list of language QIDs to filter by
             countries: Optional list of country QIDs to filter by
+            stateless: If True, only return politicians without any citizenship property.
+                       This addresses bias where politicians without citizenship are never
+                       enriched by normal user-driven filters. Mutually exclusive with
+                       languages/countries filters.
 
         Returns:
             SQLAlchemy select statement for Politician entities
@@ -494,6 +499,21 @@ class Politician(
             )
         )
 
+        # Stateless mode: filter for politicians without citizenship
+        # Uses idx_properties_citizenship_lookup for efficient NOT EXISTS check
+        if stateless:
+            has_citizenship = exists(
+                select(1).where(
+                    and_(
+                        Property.politician_id == cls.id,
+                        Property.type == PropertyType.CITIZENSHIP,
+                        Property.deleted_at.is_(None),
+                    )
+                )
+            )
+            query = query.where(~has_citizenship)
+            return query
+
         # Apply language filtering using shared ranking logic
         # Pass countries to the CTE for early filtering (major performance optimization)
         if languages:
@@ -520,6 +540,68 @@ class Politician(
             query = query.where(cls.id.in_(citizenship_subquery))
 
         return query
+
+    @classmethod
+    def count_stateless_with_unevaluated_citizenship(cls, db: Session) -> int:
+        """
+        Count politicians without Wikidata citizenship who have unevaluated extracted citizenship.
+
+        These are politicians where:
+        1. No citizenship property exists from Wikidata (archived_page_id IS NULL)
+        2. At least one extracted citizenship exists (archived_page_id IS NOT NULL, statement_id IS NULL)
+
+        This count represents the "buffer" of stateless politicians whose extracted
+        citizenship is waiting for review. Used to throttle stateless enrichment.
+
+        Args:
+            db: Database session
+
+        Returns:
+            Count of stateless politicians with unevaluated extracted citizenship
+        """
+        # Subquery: politicians with Wikidata citizenship (should be excluded)
+        has_wikidata_citizenship = (
+            select(Property.politician_id)
+            .where(
+                and_(
+                    Property.type == PropertyType.CITIZENSHIP,
+                    Property.archived_page_id.is_(None),  # From Wikidata, not extracted
+                    Property.deleted_at.is_(None),
+                )
+            )
+            .distinct()
+        )
+
+        # Subquery: politicians with unevaluated extracted citizenship
+        has_unevaluated_extracted_citizenship = (
+            select(Property.politician_id)
+            .where(
+                and_(
+                    Property.type == PropertyType.CITIZENSHIP,
+                    Property.archived_page_id.isnot(None),  # Extracted from Wikipedia
+                    Property.statement_id.is_(None),  # Not yet evaluated/pushed
+                    Property.deleted_at.is_(None),
+                )
+            )
+            .distinct()
+        )
+
+        # Count politicians who:
+        # - Have unevaluated extracted citizenship
+        # - Don't have Wikidata citizenship
+        count_query = (
+            select(func.count())
+            .select_from(cls)
+            .where(
+                and_(
+                    cls.id.in_(has_unevaluated_extracted_citizenship),
+                    ~cls.id.in_(has_wikidata_citizenship),
+                )
+            )
+        )
+
+        result = db.execute(count_query).scalar()
+        return result or 0
 
     # Relationships
     wikidata_entity = relationship("WikidataEntity", back_populates="politician")

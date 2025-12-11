@@ -651,6 +651,7 @@ def has_enrichable_politicians(
     db: Session,
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,
+    stateless: bool = False,
 ) -> bool:
     """
     Check if there are politicians available to enrich.
@@ -662,6 +663,7 @@ def has_enrichable_politicians(
         db: Database session
         languages: Optional list of language QIDs to filter by
         countries: Optional list of country QIDs to filter by
+        stateless: If True, check for politicians without citizenship data
 
     Returns:
         True if there are politicians available to enrich, False otherwise
@@ -669,6 +671,7 @@ def has_enrichable_politicians(
     query = Politician.query_for_enrichment(
         languages=languages,
         countries=countries,
+        stateless=stateless,
     ).limit(1)
 
     result = db.execute(query).first()
@@ -678,6 +681,7 @@ def has_enrichable_politicians(
 def enrich_batch(
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,
+    stateless: bool = False,
 ) -> int:
     """
     Enrich a batch of politicians based on ENRICHMENT_BATCH_SIZE env var.
@@ -688,6 +692,7 @@ def enrich_batch(
     Args:
         languages: Optional list of language QIDs to filter by
         countries: Optional list of country QIDs to filter by
+        stateless: If True, only enrich politicians without citizenship data
 
     Returns:
         Number of politicians successfully enriched during this run
@@ -700,7 +705,9 @@ def enrich_batch(
     for i in range(batch_size):
         # Enrich one politician - run async function in new event loop
         politician_found = asyncio.run(
-            enrich_politician_from_wikipedia(languages=languages, countries=countries)
+            enrich_politician_from_wikipedia(
+                languages=languages, countries=countries, stateless=stateless
+            )
         )
 
         if not politician_found:
@@ -810,6 +817,7 @@ async def _fetch_and_extract_from_page(
 async def enrich_politician_from_wikipedia(
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,
+    stateless: bool = False,
 ) -> bool:
     """
     Enrich a single politician's data by extracting information from their Wikipedia sources.
@@ -824,6 +832,7 @@ async def enrich_politician_from_wikipedia(
     Args:
         languages: Optional list of language QIDs to filter by
         countries: Optional list of country QIDs to filter by
+        stateless: If True, only enrich politicians without citizenship data
 
     Returns:
         True if a politician was found and enriched (successfully or not), False if no politician available
@@ -849,6 +858,7 @@ async def enrich_politician_from_wikipedia(
             Politician.query_for_enrichment(
                 languages=languages,
                 countries=countries,
+                stateless=stateless,
             )
             .options(
                 # Load the politician's wikidata entity

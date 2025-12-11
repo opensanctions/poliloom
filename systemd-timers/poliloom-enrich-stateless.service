@@ -1,0 +1,13 @@
+[Unit]
+Description=PoliLoom stateless politician enrichment
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/poliloom
+EnvironmentFile=/root/poliloom/.env
+ExecStart=docker compose run --rm api poliloom enrich-wikipedia --stateless
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=3600

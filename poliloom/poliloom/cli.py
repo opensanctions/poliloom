@@ -3,6 +3,7 @@
 import asyncio
 import click
 import logging
+import os
 from datetime import datetime, timezone
 import httpx
 from poliloom.enrichment import enrich_politician_from_wikipedia
@@ -258,8 +259,8 @@ def dump_extract(input, output):
 @click.option(
     "--count",
     type=int,
-    default=5,
-    help="Number of politicians to enrich (default: 5)",
+    default=None,
+    help="Number of politicians to enrich (default: ENRICHMENT_BATCH_SIZE env var, or 5)",
 )
 @click.option(
     "--languages",
@@ -271,24 +272,76 @@ def dump_extract(input, output):
     multiple=True,
     help="Filter by country QIDs (can be specified multiple times)",
 )
+@click.option(
+    "--stateless",
+    is_flag=True,
+    help="Only enrich politicians without citizenship data (for bias prevention)",
+)
 def enrich_wikipedia(
-    count: int, languages: tuple[str, ...], countries: tuple[str, ...]
+    count: int | None,
+    languages: tuple[str, ...],
+    countries: tuple[str, ...],
+    stateless: bool,
 ) -> None:
     """Enrich a specified number of politicians from Wikipedia.
 
     This command enriches politicians by extracting data from their Wikipedia articles.
 
+    The --stateless flag addresses a systematic bias where politicians without citizenship
+    data are never enriched by normal user-driven filters (which filter by country/language).
+    Use this flag for scheduled enrichment jobs to ensure coverage of all politicians.
+
+    When using --stateless, enrichment only runs if the number of stateless politicians
+    with unevaluated extracted citizenship is below MIN_UNEVALUATED_POLITICIANS threshold
+    (default: 10). This prevents over-enrichment when reviewers haven't caught up.
+
     Examples:
     - poliloom enrich-wikipedia --count 20
     - poliloom enrich-wikipedia --count 10 --countries Q30 --countries Q38
     - poliloom enrich-wikipedia --count 5 --languages Q1860 --languages Q150
+    - poliloom enrich-wikipedia --stateless
     """
     try:
+        # Default count from env var
+        if count is None:
+            count = int(os.getenv("ENRICHMENT_BATCH_SIZE", "5"))
         # Convert tuples to lists (or None if empty)
         languages_list = list(languages) if languages else None
         countries_list = list(countries) if countries else None
 
+        # Stateless mode is mutually exclusive with language/country filters
+        if stateless and (languages_list or countries_list):
+            click.echo(
+                "❌ --stateless cannot be combined with --languages or --countries"
+            )
+            raise SystemExit(1)
+
+        # For stateless mode, check if we already have enough unevaluated citizenship
+        if stateless:
+            min_threshold = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
+            from poliloom.models import Politician
+
+            with Session(get_engine()) as db:
+                current_count = Politician.count_stateless_with_unevaluated_citizenship(
+                    db
+                )
+
+            click.echo(
+                f"   Stateless politicians with unevaluated citizenship: {current_count}"
+            )
+            if current_count >= min_threshold:
+                click.echo(
+                    f"✅ Buffer sufficient (>= {min_threshold}), skipping enrichment"
+                )
+                return
+
+            click.echo(
+                f"   Buffer below threshold ({min_threshold}), proceeding with enrichment"
+            )
+
         click.echo(f"⏳ Enriching {count} politicians...")
+        if stateless:
+            click.echo("   Mode: stateless (politicians without citizenship data)")
         if languages_list:
             click.echo(f"   Filtering by languages: {', '.join(languages_list)}")
         if countries_list:
@@ -298,7 +351,9 @@ def enrich_wikipedia(
         for i in range(count):
             politician_found = asyncio.run(
                 enrich_politician_from_wikipedia(
-                    languages=languages_list, countries=countries_list
+                    languages=languages_list,
+                    countries=countries_list,
+                    stateless=stateless,
                 )
             )
 

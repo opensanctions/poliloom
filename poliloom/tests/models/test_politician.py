@@ -965,6 +965,191 @@ class TestPoliticianQueryForEnrichment:
         assert len(result) == 1
         assert result[0].id == sample_politician.id
 
+    def test_query_stateless_finds_politicians_without_citizenship(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_link,
+    ):
+        """Test that stateless=True finds politicians without any citizenship property."""
+        # sample_politician has no citizenship by default
+        # sample_wikipedia_link ensures they have Wikipedia links
+
+        query = Politician.query_for_enrichment(stateless=True)
+        result = db_session.execute(query).scalars().all()
+
+        assert len(result) == 1
+        assert result[0].id == sample_politician.id
+
+    def test_query_stateless_excludes_politicians_with_citizenship(
+        self,
+        db_session,
+        sample_politician,
+        sample_country,
+        sample_wikipedia_link,
+        create_citizenship,
+    ):
+        """Test that stateless=True excludes politicians who have citizenship."""
+        # Add citizenship property
+        create_citizenship(sample_politician, sample_country)
+        db_session.flush()
+
+        query = Politician.query_for_enrichment(stateless=True)
+        result = db_session.execute(query).scalars().all()
+
+        assert len(result) == 0
+
+    def test_query_stateless_excludes_soft_deleted_citizenship(
+        self,
+        db_session,
+        sample_politician,
+        sample_country,
+        sample_wikipedia_link,
+    ):
+        """Test that stateless=True includes politicians whose citizenship was soft-deleted."""
+        # Add soft-deleted citizenship property
+        prop = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=sample_country.wikidata_id,
+            deleted_at=datetime.now(timezone.utc),
+        )
+        db_session.add(prop)
+        db_session.flush()
+
+        # Should find politician because the only citizenship is soft-deleted
+        query = Politician.query_for_enrichment(stateless=True)
+        result = db_session.execute(query).scalars().all()
+
+        assert len(result) == 1
+        assert result[0].id == sample_politician.id
+
+    def test_query_stateless_requires_wikipedia_links(
+        self,
+        db_session,
+        sample_politician,
+    ):
+        """Test that stateless=True still requires Wikipedia links."""
+        # sample_politician has no Wikipedia links and no citizenship
+        query = Politician.query_for_enrichment(stateless=True)
+        result = db_session.execute(query).scalars().all()
+
+        assert len(result) == 0
+
+
+class TestCountStatelessWithUnevaluatedCitizenship:
+    """Test Politician.count_stateless_with_unevaluated_citizenship method."""
+
+    def test_count_politician_with_extracted_citizenship_no_wikidata(
+        self,
+        db_session,
+        sample_politician,
+        sample_country,
+        sample_archived_page,
+    ):
+        """Test counting politician with extracted citizenship but no Wikidata citizenship."""
+        # Add extracted citizenship (from archived page, no statement_id)
+        prop = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=sample_country.wikidata_id,
+            archived_page_id=sample_archived_page.id,
+            statement_id=None,  # Unevaluated
+        )
+        db_session.add(prop)
+        db_session.flush()
+
+        count = Politician.count_stateless_with_unevaluated_citizenship(db_session)
+        assert count == 1
+
+    def test_count_excludes_politician_with_wikidata_citizenship(
+        self,
+        db_session,
+        sample_politician,
+        sample_country,
+        sample_archived_page,
+    ):
+        """Test that politicians with Wikidata citizenship are excluded."""
+        # Add Wikidata citizenship (no archived_page)
+        wikidata_prop = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=sample_country.wikidata_id,
+            archived_page_id=None,  # From Wikidata
+            statement_id="Q123$test-statement",
+        )
+        db_session.add(wikidata_prop)
+
+        # Also add extracted citizenship
+        extracted_prop = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=sample_country.wikidata_id,
+            archived_page_id=sample_archived_page.id,
+            statement_id=None,
+        )
+        db_session.add(extracted_prop)
+        db_session.flush()
+
+        # Should be 0 because politician has Wikidata citizenship
+        count = Politician.count_stateless_with_unevaluated_citizenship(db_session)
+        assert count == 0
+
+    def test_count_excludes_evaluated_extracted_citizenship(
+        self,
+        db_session,
+        sample_politician,
+        sample_country,
+        sample_archived_page,
+    ):
+        """Test that evaluated (pushed) extracted citizenship is excluded."""
+        # Add extracted citizenship that was already pushed
+        prop = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=sample_country.wikidata_id,
+            archived_page_id=sample_archived_page.id,
+            statement_id="Q123$pushed-statement",  # Already evaluated
+        )
+        db_session.add(prop)
+        db_session.flush()
+
+        count = Politician.count_stateless_with_unevaluated_citizenship(db_session)
+        assert count == 0
+
+    def test_count_excludes_soft_deleted_citizenship(
+        self,
+        db_session,
+        sample_politician,
+        sample_country,
+        sample_archived_page,
+    ):
+        """Test that soft-deleted citizenship is excluded."""
+        # Add soft-deleted extracted citizenship
+        prop = Property(
+            politician_id=sample_politician.id,
+            type=PropertyType.CITIZENSHIP,
+            entity_id=sample_country.wikidata_id,
+            archived_page_id=sample_archived_page.id,
+            statement_id=None,
+            deleted_at=datetime.now(timezone.utc),
+        )
+        db_session.add(prop)
+        db_session.flush()
+
+        count = Politician.count_stateless_with_unevaluated_citizenship(db_session)
+        assert count == 0
+
+    def test_count_zero_when_no_extracted_citizenship(
+        self,
+        db_session,
+        sample_politician,
+    ):
+        """Test count is 0 when politician has no extracted citizenship."""
+        # sample_politician has no properties
+        count = Politician.count_stateless_with_unevaluated_citizenship(db_session)
+        assert count == 0
+
 
 class TestPropertyShouldStore:
     """Test cases for the Property.should_store() method.
