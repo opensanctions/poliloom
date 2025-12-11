@@ -6,6 +6,7 @@ import { UserPreferencesProvider } from '@/contexts/UserPreferencesContext'
 import { EvaluationSessionProvider } from '@/contexts/EvaluationSessionContext'
 import { TutorialProvider } from '@/contexts/TutorialContext'
 import { FetchInterceptor } from '@/components/FetchInterceptor'
+import { MobileGuard } from '@/components/layout/MobileGuard'
 
 export const metadata: Metadata = {
   title: 'PoliLoom - Verify Political Data',
@@ -31,7 +32,9 @@ export default async function RootLayout({
           <FetchInterceptor />
           <UserPreferencesProvider>
             <EvaluationSessionProvider>
-              <TutorialProvider>{children}</TutorialProvider>
+              <TutorialProvider>
+                <MobileGuard>{children}</MobileGuard>
+              </TutorialProvider>
             </EvaluationSessionProvider>
           </UserPreferencesProvider>
         </SessionProvider>
