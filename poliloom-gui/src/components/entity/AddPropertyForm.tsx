@@ -72,20 +72,11 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
 
     let property: Property
 
-    // Build references array with source URL
+    // Build references array with source URL (REST API format)
     const references = [
       {
-        P854: [
-          {
-            datatype: 'url',
-            property: 'P854',
-            snaktype: 'value',
-            datavalue: {
-              type: 'string',
-              value: sourceUrl,
-            },
-          },
-        ],
+        property: { id: 'P854' },
+        value: { type: 'value', content: sourceUrl },
       },
     ]
 

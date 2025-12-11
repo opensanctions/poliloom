@@ -76,7 +76,6 @@ export function EvaluationSessionProvider({ children }: { children: React.ReactN
 
       const params = new URLSearchParams({
         limit: limit.toString(),
-        has_unevaluated: 'true',
       })
       languageFilters.forEach((qid) => params.append('languages', qid))
       countryFilters.forEach((qid) => params.append('countries', qid))
@@ -84,7 +83,7 @@ export function EvaluationSessionProvider({ children }: { children: React.ReactN
         params.append('exclude_ids', excludeId)
       }
 
-      const response = await fetch(`/api/politicians?${params.toString()}`)
+      const response = await fetch(`/api/evaluations/politicians?${params.toString()}`)
 
       if (!response.ok) {
         throw new Error(`Failed to fetch politicians: ${response.statusText}`)

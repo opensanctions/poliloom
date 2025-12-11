@@ -527,8 +527,8 @@ describe('CreatePage Submit Functionality', () => {
         const callArgs = vi.mocked(fetch).mock.calls[0]
         const requestInit = callArgs[1] as RequestInit
         const body = JSON.parse(requestInit.body as string)
-        expect(body[0].properties).toHaveLength(1)
-        expect(body[0].properties[0].type).toBe(PropertyType.P569)
+        expect(body.politicians[0].properties).toHaveLength(1)
+        expect(body.politicians[0].properties[0].type).toBe(PropertyType.P569)
       })
     })
 

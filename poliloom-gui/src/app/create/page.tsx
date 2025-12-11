@@ -110,12 +110,14 @@ export default function CreatePage() {
         const response = await fetch('/api/politicians', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify([
-            {
-              name: selectedPolitician.name,
-              properties: propertyPayload,
-            },
-          ]),
+          body: JSON.stringify({
+            politicians: [
+              {
+                name: selectedPolitician.name,
+                properties: propertyPayload,
+              },
+            ],
+          }),
         })
 
         if (!response.ok) {
@@ -146,7 +148,7 @@ export default function CreatePage() {
             fetch(`/api/politicians/${selectedPolitician.id}/properties`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(propertyPayload),
+              body: JSON.stringify({ properties: propertyPayload }),
             }),
           )
         }

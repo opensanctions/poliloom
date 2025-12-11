@@ -1,14 +1,12 @@
 """Politicians API endpoints."""
 
-import asyncio
 import logging
-import os
-from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, Path, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, func, and_, or_
 
 from ..database import get_db_session
 from ..models import (
@@ -16,22 +14,18 @@ from ..models import (
     Property,
     PropertyType,
     WikidataEntity,
-    ArchivedPage,
-    ArchivedPageLanguage,
+    WikidataEntityLabel,
 )
 from .schemas import (
-    PoliticianResponse,
-    PoliticiansListResponse,
-    EnrichmentMetadata,
-    PropertyResponse,
     ArchivedPageResponse,
     PoliticianCreateRequest,
     PoliticianCreateResponse,
+    PoliticianResponse,
     PropertyAddRequest,
     PropertyAddResponse,
+    PropertyResponse,
 )
 from .auth import get_current_user, User
-from ..enrichment import enrich_batch, count_politicians_with_unevaluated
 from ..wikidata_statement import (
     create_entity,
     create_statement,
@@ -42,160 +36,54 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Thread pool for background enrichment tasks (4 concurrent workers)
-_enrichment_executor = ThreadPoolExecutor(
-    max_workers=4, thread_name_prefix="enrichment"
-)
 
-
-@router.get("", response_model=PoliticiansListResponse)
+@router.get("", response_model=List[PoliticianResponse])
 async def get_politicians(
     limit: int = Query(
-        default=2, le=100, description="Maximum number of politicians to return"
+        default=50, le=100, description="Maximum number of politicians to return"
     ),
     offset: int = Query(default=0, ge=0, description="Number of politicians to skip"),
     search: Optional[str] = Query(
         default=None,
         description="Search politicians by name/label using fuzzy matching",
     ),
-    has_unevaluated: Optional[bool] = Query(
-        default=None,
-        description="Filter to only politicians with unevaluated properties. If not specified, returns all politicians.",
-    ),
-    languages: Optional[List[str]] = Query(
-        default=None,
-        description="Filter by language QIDs - politicians with properties from archived pages with matching iso_639_1, iso_639_2, or iso_639_3",
-    ),
-    countries: Optional[List[str]] = Query(
-        default=None,
-        description="Filter by country QIDs - politicians with citizenship for these countries",
-    ),
-    exclude_ids: Optional[List[str]] = Query(
-        default=None,
-        description="Exclude politicians with these UUIDs from results (for avoiding duplicates during navigation)",
-    ),
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Retrieve politicians that have unevaluated extracted data.
+    Search and list politicians.
 
-    Returns a list of politicians with their Wikidata properties, positions, birthplaces
-    and unevaluated extracted data for review and evaluation.
-
-    Automatically triggers background enrichment if the number of politicians with
-    unevaluated properties falls below MIN_UNEVALUATED_POLITICIANS (default: 10).
+    Returns a flat list of politicians with their properties.
+    Use the search parameter for fuzzy name matching.
     """
     # Build composable politician query
     query = Politician.query_base()
 
-    # Apply filters
+    # Apply search filter
     if search:
         query = Politician.search_by_label(query, search)
-
-    if has_unevaluated is True:
-        query = Politician.filter_by_unevaluated_properties(query, languages=languages)
-    elif has_unevaluated is False:
-        # Explicitly filter for politicians WITH evaluated properties
-        # (inverse of unevaluated filter) - currently not implemented
-        # For now, has_unevaluated=false returns all politicians
-        pass
-
-    if countries:
-        query = Politician.filter_by_countries(query, countries)
-
-    # Exclude specific politician IDs (for avoiding duplicates during navigation)
-    if exclude_ids:
-        try:
-            exclude_uuids = [UUID(id_str) for id_str in exclude_ids]
-            query = query.where(Politician.id.notin_(exclude_uuids))
-        except ValueError:
-            # Invalid UUID format - log and ignore
-            logger.warning(f"Invalid UUID format in exclude_ids: {exclude_ids}")
-
-    # Load related data
-    if languages:
-        # Filter properties: include Wikidata properties OR properties with matching language
-        property_filter = and_(
-            Property.deleted_at.is_(None),
-            or_(
-                # Include Wikidata properties (no archived page)
-                Property.archived_page_id.is_(None),
-                # Include properties where archived page has matching language
-                Property.archived_page_id.in_(
-                    select(ArchivedPageLanguage.archived_page_id).where(
-                        ArchivedPageLanguage.language_id.in_(languages)
-                    )
-                ),
-            ),
-        )
-
-        query = query.options(
-            selectinload(Politician.properties.and_(property_filter)).options(
-                selectinload(Property.entity),
-                selectinload(Property.archived_page).selectinload(
-                    ArchivedPage.language_entities
-                ),
-            ),
-            selectinload(Politician.wikipedia_links),
-        )
     else:
-        # No language filter, load all properties
-        query = query.options(
-            selectinload(
-                Politician.properties.and_(Property.deleted_at.is_(None))
-            ).options(
-                selectinload(Property.entity),
-                selectinload(Property.archived_page).selectinload(
-                    ArchivedPage.language_entities
-                ),
-            ),
-            selectinload(Politician.wikipedia_links),
-        )
-
-    # Apply random ordering if not searching (search already orders by similarity)
-    if not search:
+        # Random ordering when not searching
         query = query.order_by(func.random())
+
+    # Load properties with related data
+    query = query.options(
+        selectinload(Politician.properties.and_(Property.deleted_at.is_(None))).options(
+            selectinload(Property.entity),
+            selectinload(Property.archived_page),
+        ),
+    )
 
     # Apply offset and limit
     query = query.offset(offset).limit(limit)
 
-    # Apply populate_existing to ensure fresh property loads when using .and_() filters
-    # This is especially important in tests where the same session is reused across requests
-    # In production, each request gets a fresh session, so this mainly helps with test isolation
-    query = query.execution_options(populate_existing=True)
-
     # Execute query
     politicians = db.execute(query).scalars().all()
-
-    # Track enrichment status for empty state UX
-    is_enriching = False
-    current_count = 0
-
-    # Trigger background enrichment if we have too few unevaluated politicians
-    if has_unevaluated is True:
-        min_threshold = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
-        current_count = count_politicians_with_unevaluated(db, languages, countries)
-
-        if current_count < min_threshold:
-            logger.info(
-                f"Only {current_count} politicians with unevaluated properties (threshold: {min_threshold}), triggering enrichment batch"
-            )
-            loop = asyncio.get_running_loop()
-            loop.run_in_executor(
-                _enrichment_executor,
-                enrich_batch,
-                languages,
-                countries,
-            )
-            is_enriching = True
 
     result = []
     for politician in politicians:
         property_responses = []
-        # Process all properties (filtering applied in query if needed)
         for prop in politician.properties:
-            # Add entity name if applicable
             entity_name = None
             if prop.entity and prop.entity_id:
                 entity_name = prop.entity.name
@@ -234,13 +122,7 @@ async def get_politicians(
             )
         )
 
-    return PoliticiansListResponse(
-        politicians=result,
-        meta=EnrichmentMetadata(
-            is_enriching=is_enriching,
-            total_matching_filters=current_count,
-        ),
-    )
+    return result
 
 
 @router.post("", response_model=PoliticianCreateResponse, status_code=201)
@@ -341,6 +223,13 @@ async def create_politician(
             )
             db.add(wikidata_entity)
             db.flush()
+
+            # Create WikidataEntityLabel so politician can be found via search
+            label = WikidataEntityLabel(
+                entity_id=entity_id,
+                label=politician.name,
+            )
+            db.add(label)
 
             # Update politician with wikidata_id
             politician.wikidata_id = entity_id

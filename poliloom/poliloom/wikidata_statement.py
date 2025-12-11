@@ -125,14 +125,12 @@ async def create_entity(
 
     url = f"{WIKIDATA_API_ROOT}/entities/items"
 
-    # Build item data structure
-    item_data = {"item": {"labels": {"en": {"language": "en", "value": label}}}}
+    # Build item data structure - set both en and mul (multilingual) labels
+    item_data = {"item": {"labels": {"en": label, "mul": label}}}
 
     # Add description if provided
     if description:
-        item_data["item"]["descriptions"] = {
-            "en": {"language": "en", "value": description}
-        }
+        item_data["item"]["descriptions"] = {"en": description}
 
     headers = {
         "Authorization": f"Bearer {jwt_token}",
