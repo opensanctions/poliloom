@@ -18,6 +18,8 @@ from poliloom.models import (
     Country,
     CurrentImportEntity,
     CurrentImportStatement,
+    DownloadAlreadyCompleteError,
+    DownloadInProgressError,
     Language,
     Location,
     Position,
@@ -140,43 +142,38 @@ def dump_download(output, force):
                 last_modified_str, "%a, %d %b %Y %H:%M:%S %Z"
             ).replace(tzinfo=timezone.utc)
 
-        # Check if we already have this dump (completed or in-progress) unless --force is used
+        # Prepare dump record (handles stale detection, force mode, etc.)
         with Session(get_engine()) as session:
-            existing_dump = (
-                session.query(WikidataDump)
-                .filter(WikidataDump.url == url)
-                .filter(WikidataDump.last_modified == last_modified)
-                .first()
-            )
+            try:
+                new_dump = WikidataDump.prepare_for_download(
+                    session, url, last_modified, force=force
+                )
+                session.commit()
 
-            if existing_dump and not force:
-                if existing_dump.downloaded_at:
+                if force:
                     click.echo(
-                        f"❌ Dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already downloaded"
+                        f"⚠️  Forcing new download for dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC"
                     )
-                    click.echo("No new dump available. Use --force to download anyway.")
-                    raise SystemExit(1)
                 else:
                     click.echo(
-                        f"❌ Download for dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already in progress"
+                        f"📝 New dump found from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC"
                     )
-                    click.echo(
-                        "Another download process is running. Use --force to start new download."
-                    )
-                    raise SystemExit(1)
-            elif existing_dump and force:
-                click.echo(
-                    f"⚠️  Forcing new download for dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC (bypassing existing check)"
-                )
 
-            # Create new dump record
-            if not existing_dump:
+            except DownloadAlreadyCompleteError:
                 click.echo(
-                    f"📝 New dump found from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC"
+                    f"❌ Dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already downloaded"
                 )
-            new_dump = WikidataDump(url=url, last_modified=last_modified)
-            session.add(new_dump)
-            session.commit()
+                click.echo("No new dump available. Use --force to download anyway.")
+                raise SystemExit(1)
+
+            except DownloadInProgressError as e:
+                click.echo(
+                    f"❌ Download for dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC already in progress"
+                )
+                click.echo(
+                    f"   Started {e.hours_elapsed:.1f}h ago. Use --force to start new download."
+                )
+                raise SystemExit(1)
 
         # Download the file
         click.echo(f"⏳ Downloading Wikidata dump to {output}...")
@@ -184,18 +181,29 @@ def dump_download(output, force):
             "This is a large file (~100GB compressed) and may take several hours."
         )
 
-        StorageFactory.download_from_url(url, output)
+        try:
+            StorageFactory.download_from_url(url, output)
 
-        # Mark as downloaded
-        new_dump.downloaded_at = datetime.now(timezone.utc)
-        with Session(get_engine()) as session:
-            session.merge(new_dump)
-            session.commit()
+            # Mark as downloaded
+            with Session(get_engine()) as session:
+                new_dump.mark_downloaded(session)
+                session.commit()
 
-        click.echo(f"✅ Successfully downloaded dump to {output}")
+            click.echo(f"✅ Successfully downloaded dump to {output}")
 
+        except Exception as download_error:
+            # Clean up the dump record on failure to allow retries
+            click.echo(f"❌ Download failed: {download_error}")
+            click.echo("   Cleaning up dump record to allow retry...")
+            with Session(get_engine()) as session:
+                new_dump.cleanup_failed_download(session)
+                session.commit()
+            raise SystemExit(1)
+
+    except SystemExit:
+        raise
     except Exception as e:
-        click.echo(f"❌ Download failed: {e}")
+        click.echo(f"❌ Error: {e}")
         raise SystemExit(1)
 
 

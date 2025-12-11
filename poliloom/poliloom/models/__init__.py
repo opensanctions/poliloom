@@ -17,6 +17,8 @@ from .base import (
 from .wikidata import (
     CurrentImportEntity,
     CurrentImportStatement,
+    DownloadAlreadyCompleteError,
+    DownloadInProgressError,
     WikidataEntity,
     WikidataEntityLabel,
     WikidataEntityMixin,
@@ -54,6 +56,8 @@ __all__ = [
     # Wikidata
     "CurrentImportEntity",
     "CurrentImportStatement",
+    "DownloadAlreadyCompleteError",
+    "DownloadInProgressError",
     "WikidataEntity",
     "WikidataEntityLabel",
     "WikidataDump",

@@ -708,10 +708,28 @@ class WikidataRelation(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     )
 
 
+class DownloadAlreadyCompleteError(Exception):
+    """Raised when attempting to download a dump that's already been downloaded."""
+
+    pass
+
+
+class DownloadInProgressError(Exception):
+    """Raised when another download is already in progress for this dump."""
+
+    def __init__(self, message: str, hours_elapsed: float):
+        super().__init__(message)
+        self.hours_elapsed = hours_elapsed
+
+
 class WikidataDump(Base, TimestampMixin):
     """WikidataDump entity for tracking dump download and processing stages."""
 
     __tablename__ = "wikidata_dumps"
+
+    # Default stale threshold: downloads taking longer than 24 hours are considered failed
+    # (typical download time is ~10 hours)
+    STALE_THRESHOLD_HOURS = 24
 
     id = Column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
@@ -733,6 +751,101 @@ class WikidataDump(Base, TimestampMixin):
     imported_politicians_at = Column(
         DateTime, nullable=True
     )  # When politicians import completed
+
+    @classmethod
+    def prepare_for_download(
+        cls,
+        session: Session,
+        url: str,
+        last_modified: datetime,
+        force: bool = False,
+    ) -> "WikidataDump":
+        """Prepare a WikidataDump record for downloading.
+
+        Handles checking for existing downloads (completed or in-progress),
+        stale download detection, and record cleanup.
+
+        Args:
+            session: Database session
+            url: URL of the dump file
+            last_modified: Last-Modified timestamp from the server
+            force: If True, bypass existing download checks
+
+        Returns:
+            WikidataDump record ready for download
+
+        Raises:
+            DownloadAlreadyCompleteError: If dump was already downloaded (and not force)
+            DownloadInProgressError: If another download is in progress (and not force/stale)
+        """
+        from datetime import timedelta, timezone
+
+        existing_dump = (
+            session.query(cls)
+            .filter(cls.url == url)
+            .filter(cls.last_modified == last_modified)
+            .first()
+        )
+
+        if existing_dump and not force:
+            if existing_dump.downloaded_at:
+                raise DownloadAlreadyCompleteError(
+                    f"Dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC "
+                    "already downloaded"
+                )
+            else:
+                # Check if the download is stale
+                created_at_utc = existing_dump.created_at.replace(tzinfo=timezone.utc)
+                age = datetime.now(timezone.utc) - created_at_utc
+                hours_elapsed = age.total_seconds() / 3600
+
+                if age > timedelta(hours=cls.STALE_THRESHOLD_HOURS):
+                    # Stale download - clean up and allow retry
+                    session.delete(existing_dump)
+                    session.flush()
+                    existing_dump = None
+                else:
+                    raise DownloadInProgressError(
+                        f"Download for dump from {last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC "
+                        "already in progress",
+                        hours_elapsed=hours_elapsed,
+                    )
+        elif existing_dump and force:
+            # Force mode - delete existing record
+            session.delete(existing_dump)
+            session.flush()
+            existing_dump = None
+
+        # Create new dump record
+        new_dump = cls(url=url, last_modified=last_modified)
+        session.add(new_dump)
+        session.flush()
+
+        return new_dump
+
+    def mark_downloaded(self, session: Session) -> None:
+        """Mark this dump as successfully downloaded.
+
+        Args:
+            session: Database session
+        """
+        from datetime import timezone
+
+        self.downloaded_at = datetime.now(timezone.utc)
+        session.merge(self)
+        session.flush()
+
+    def cleanup_failed_download(self, session: Session) -> None:
+        """Clean up this dump record after a failed download.
+
+        Removes the record to allow future retry attempts.
+
+        Args:
+            session: Database session
+        """
+        session.merge(self)
+        session.delete(self)
+        session.flush()
 
 
 class CurrentImportEntity(Base):

@@ -12,6 +12,8 @@ from poliloom.models import (
     RelationType,
     CurrentImportEntity,
     CurrentImportStatement,
+    DownloadAlreadyCompleteError,
+    DownloadInProgressError,
     Politician,
     Position,
     Location,
@@ -841,3 +843,206 @@ class TestIntegrationWorkflow:
 
         # With two-dump validation, we only delete items missing from current dump
         # AND older than previous dump, so statements in current dump are safe
+
+
+class TestWikidataDumpDownloadManagement:
+    """Test WikidataDump download preparation and cleanup."""
+
+    def test_prepare_for_download_creates_new_record(self, db_session: Session):
+        """Test that prepare_for_download creates a new dump record."""
+        url = "https://dumps.wikimedia.org/test.json.bz2"
+        last_modified = datetime.now(timezone.utc)
+
+        dump = WikidataDump.prepare_for_download(db_session, url, last_modified)
+        db_session.flush()
+
+        assert dump is not None
+        assert dump.url == url
+        assert dump.last_modified == last_modified
+        assert dump.downloaded_at is None
+
+    def test_prepare_for_download_raises_on_completed_download(
+        self, db_session: Session
+    ):
+        """Test that prepare_for_download raises when dump already downloaded."""
+        url = "https://dumps.wikimedia.org/test.json.bz2"
+        last_modified = datetime.now(timezone.utc)
+
+        # Create a completed dump record
+        existing_dump = WikidataDump(
+            url=url,
+            last_modified=last_modified,
+            downloaded_at=datetime.now(timezone.utc),
+        )
+        db_session.add(existing_dump)
+        db_session.flush()
+
+        # Should raise DownloadAlreadyCompleteError
+        import pytest
+
+        with pytest.raises(DownloadAlreadyCompleteError):
+            WikidataDump.prepare_for_download(db_session, url, last_modified)
+
+    def test_prepare_for_download_raises_on_in_progress_download(
+        self, db_session: Session
+    ):
+        """Test that prepare_for_download raises when download in progress."""
+        url = "https://dumps.wikimedia.org/test.json.bz2"
+        last_modified = datetime.now(timezone.utc)
+
+        # Create an in-progress dump record (recent, no downloaded_at)
+        existing_dump = WikidataDump(url=url, last_modified=last_modified)
+        db_session.add(existing_dump)
+        db_session.flush()
+
+        # Should raise DownloadInProgressError
+        import pytest
+
+        with pytest.raises(DownloadInProgressError) as exc_info:
+            WikidataDump.prepare_for_download(db_session, url, last_modified)
+
+        # Check that hours_elapsed is available
+        assert exc_info.value.hours_elapsed >= 0
+
+    def test_prepare_for_download_cleans_up_stale_download(self, db_session: Session):
+        """Test that stale downloads (>24h) are cleaned up and retry allowed."""
+        url = "https://dumps.wikimedia.org/test.json.bz2"
+        last_modified = datetime.now(timezone.utc)
+
+        # Create a stale dump record (older than 24 hours)
+        stale_time = datetime.now(timezone.utc) - timedelta(hours=25)
+        db_session.execute(
+            text("""
+                INSERT INTO wikidata_dumps (id, url, last_modified, created_at, updated_at)
+                VALUES (gen_random_uuid(), :url, :last_modified, :created_at, :created_at)
+            """),
+            {
+                "url": url,
+                "last_modified": last_modified.replace(tzinfo=None),
+                "created_at": stale_time.replace(tzinfo=None),
+            },
+        )
+        db_session.flush()
+
+        # Should succeed and create a new record (stale one cleaned up)
+        dump = WikidataDump.prepare_for_download(db_session, url, last_modified)
+        db_session.flush()
+
+        assert dump is not None
+        assert dump.url == url
+        assert dump.downloaded_at is None
+
+        # Verify only one record exists
+        count = db_session.query(WikidataDump).filter(WikidataDump.url == url).count()
+        assert count == 1
+
+    def test_prepare_for_download_force_mode_replaces_completed(
+        self, db_session: Session
+    ):
+        """Test that force mode replaces a completed download."""
+        url = "https://dumps.wikimedia.org/test.json.bz2"
+        last_modified = datetime.now(timezone.utc)
+
+        # Create a completed dump record
+        existing_dump = WikidataDump(
+            url=url,
+            last_modified=last_modified,
+            downloaded_at=datetime.now(timezone.utc),
+        )
+        db_session.add(existing_dump)
+        db_session.flush()
+        old_id = existing_dump.id
+
+        # Force mode should succeed
+        dump = WikidataDump.prepare_for_download(
+            db_session, url, last_modified, force=True
+        )
+        db_session.flush()
+
+        assert dump is not None
+        assert dump.id != old_id  # New record created
+        assert dump.downloaded_at is None
+
+    def test_prepare_for_download_force_mode_replaces_in_progress(
+        self, db_session: Session
+    ):
+        """Test that force mode replaces an in-progress download."""
+        url = "https://dumps.wikimedia.org/test.json.bz2"
+        last_modified = datetime.now(timezone.utc)
+
+        # Create an in-progress dump record
+        existing_dump = WikidataDump(url=url, last_modified=last_modified)
+        db_session.add(existing_dump)
+        db_session.flush()
+        old_id = existing_dump.id
+
+        # Force mode should succeed
+        dump = WikidataDump.prepare_for_download(
+            db_session, url, last_modified, force=True
+        )
+        db_session.flush()
+
+        assert dump is not None
+        assert dump.id != old_id  # New record created
+
+    def test_mark_downloaded_sets_timestamp(self, db_session: Session):
+        """Test that mark_downloaded sets the downloaded_at timestamp."""
+        url = "https://dumps.wikimedia.org/test.json.bz2"
+        last_modified = datetime.now(timezone.utc)
+
+        dump = WikidataDump(url=url, last_modified=last_modified)
+        db_session.add(dump)
+        db_session.flush()
+
+        assert dump.downloaded_at is None
+
+        dump.mark_downloaded(db_session)
+        db_session.flush()
+
+        assert dump.downloaded_at is not None
+
+    def test_cleanup_failed_download_removes_record(self, db_session: Session):
+        """Test that cleanup_failed_download removes the dump record."""
+        url = "https://dumps.wikimedia.org/test.json.bz2"
+        last_modified = datetime.now(timezone.utc)
+
+        dump = WikidataDump(url=url, last_modified=last_modified)
+        db_session.add(dump)
+        db_session.flush()
+
+        dump_id = dump.id
+
+        dump.cleanup_failed_download(db_session)
+        db_session.flush()
+
+        # Record should be gone
+        found = (
+            db_session.query(WikidataDump).filter(WikidataDump.id == dump_id).first()
+        )
+        assert found is None
+
+    def test_different_last_modified_creates_new_record(self, db_session: Session):
+        """Test that a different last_modified creates a new record."""
+        url = "https://dumps.wikimedia.org/test.json.bz2"
+        old_last_modified = datetime.now(timezone.utc) - timedelta(days=7)
+        new_last_modified = datetime.now(timezone.utc)
+
+        # Create an existing completed dump with old last_modified
+        existing_dump = WikidataDump(
+            url=url,
+            last_modified=old_last_modified,
+            downloaded_at=datetime.now(timezone.utc),
+        )
+        db_session.add(existing_dump)
+        db_session.flush()
+
+        # Should succeed - different last_modified means different dump
+        dump = WikidataDump.prepare_for_download(db_session, url, new_last_modified)
+        db_session.flush()
+
+        assert dump is not None
+        assert dump.last_modified == new_last_modified
+
+        # Both records should exist
+        count = db_session.query(WikidataDump).filter(WikidataDump.url == url).count()
+        assert count == 2
