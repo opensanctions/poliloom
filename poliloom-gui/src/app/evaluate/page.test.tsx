@@ -51,43 +51,16 @@ describe('Evaluate Page', () => {
       render(<EvaluatePage />)
     })
 
-    expect(screen.getByText('Loading politician data...')).toBeInTheDocument()
+    expect(screen.getByText('Finding politicians...')).toBeInTheDocument()
     expect(screen.getByText('Header')).toBeInTheDocument()
   })
 
-  it('shows no politicians message when not loading and no politician available', async () => {
-    const mockLoadPoliticians = vi.fn()
+  it('shows all caught up message when no politicians and nothing to enrich', async () => {
     mockUseEvaluationSession.mockReturnValue({
       currentPolitician: null,
       nextPolitician: null,
       loading: false,
-      enrichmentMeta: { is_enriching: false, total_matching_filters: 0 },
-      completedCount: 0,
-      sessionGoal: 1,
-      isSessionComplete: false,
-      submitEvaluation: vi.fn(),
-      skipPolitician: vi.fn(),
-      resetSession: vi.fn(),
-      loadPoliticians: mockLoadPoliticians,
-    })
-
-    await act(async () => {
-      render(<EvaluatePage />)
-    })
-
-    expect(
-      screen.getByText(/No politicians available for your current filters/),
-    ).toBeInTheDocument()
-    expect(screen.getByText('filters')).toBeInTheDocument()
-    expect(screen.getByText('reload')).toBeInTheDocument()
-  })
-
-  it('shows enriching spinner when no politician but enrichment is running', async () => {
-    mockUseEvaluationSession.mockReturnValue({
-      currentPolitician: null,
-      nextPolitician: null,
-      loading: false,
-      enrichmentMeta: { is_enriching: true, total_matching_filters: 0 },
+      enrichmentMeta: { has_enrichable_politicians: false, total_matching_filters: 0 },
       completedCount: 0,
       sessionGoal: 1,
       isSessionComplete: false,
@@ -101,7 +74,30 @@ describe('Evaluate Page', () => {
       render(<EvaluatePage />)
     })
 
-    expect(screen.getByText('Enriching politician data...')).toBeInTheDocument()
+    expect(screen.getByText("You're all caught up!")).toBeInTheDocument()
+    expect(screen.getByText('Start New Session')).toBeInTheDocument()
+  })
+
+  it('shows loading state when no politician but more can be enriched', async () => {
+    mockUseEvaluationSession.mockReturnValue({
+      currentPolitician: null,
+      nextPolitician: null,
+      loading: false,
+      enrichmentMeta: { has_enrichable_politicians: true, total_matching_filters: 0 },
+      completedCount: 0,
+      sessionGoal: 1,
+      isSessionComplete: false,
+      submitEvaluation: vi.fn(),
+      skipPolitician: vi.fn(),
+      resetSession: vi.fn(),
+      loadPoliticians: vi.fn(),
+    })
+
+    await act(async () => {
+      render(<EvaluatePage />)
+    })
+
+    expect(screen.getByText('Finding politicians...')).toBeInTheDocument()
   })
 
   it('shows PoliticianEvaluation component when politician data is available', async () => {

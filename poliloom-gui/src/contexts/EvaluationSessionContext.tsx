@@ -137,18 +137,18 @@ export function EvaluationSessionProvider({ children }: { children: React.ReactN
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, initialized, currentPolitician, loadPoliticians])
 
-  // Auto-poll when no politicians available but enrichment is running
+  // Auto-poll when no politicians available but more can be enriched
   useEffect(() => {
     if (currentPolitician !== null) return
     if (loading) return
-    if (!enrichmentMeta?.is_enriching) return
+    if (!enrichmentMeta?.has_enrichable_politicians) return
 
     const pollInterval = setInterval(() => {
       loadPoliticians()
     }, 5000)
 
     return () => clearInterval(pollInterval)
-  }, [currentPolitician, loading, enrichmentMeta?.is_enriching, loadPoliticians])
+  }, [currentPolitician, loading, enrichmentMeta?.has_enrichable_politicians, loadPoliticians])
 
   const advanceToNextPolitician = useCallback(async () => {
     const newCurrent = nextPolitician

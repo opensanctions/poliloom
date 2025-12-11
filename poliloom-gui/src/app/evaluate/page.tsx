@@ -5,15 +5,15 @@ import { useRouter } from 'next/navigation'
 import { Header } from '@/components/layout/Header'
 import { PoliticianEvaluation } from '@/components/evaluation/PoliticianEvaluation'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
-import { Loader } from '@/components/ui/Spinner'
+import { CenteredCard } from '@/components/ui/CenteredCard'
+import { Button } from '@/components/ui/Button'
+import { Spinner } from '@/components/ui/Spinner'
 import { useTutorial } from '@/contexts/TutorialContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
-import Link from 'next/link'
 
 export default function EvaluatePage() {
   const router = useRouter()
-  const { currentPolitician, loading, loadPoliticians, isSessionComplete, enrichmentMeta } =
-    useEvaluationSession()
+  const { currentPolitician, loading, isSessionComplete, enrichmentMeta } = useEvaluationSession()
   const { completeBasicTutorial, completeAdvancedTutorial } = useTutorial()
   const { isAdvancedMode } = useUserPreferences()
 
@@ -33,44 +33,61 @@ export default function EvaluatePage() {
     }
   }, [isSessionComplete, router])
 
+  // Determine if we're in a loading state (fetching or waiting for enrichment)
+  const isWaitingForData =
+    loading || (enrichmentMeta?.has_enrichable_politicians !== false && !currentPolitician)
+
+  // All caught up: no politician and nothing left to enrich
+  const isAllCaughtUp =
+    !currentPolitician && !loading && enrichmentMeta?.has_enrichable_politicians === false
+
+  if (currentPolitician) {
+    return (
+      <>
+        <Header />
+        <PoliticianEvaluation key={currentPolitician.id} politician={currentPolitician} />
+      </>
+    )
+  }
+
+  if (isAllCaughtUp) {
+    return (
+      <>
+        <Header />
+        <CenteredCard emoji="🎉" title="You're all caught up!">
+          <p className="mb-6">
+            No more politicians to evaluate for your current filters. Try different filters to
+            continue contributing.
+          </p>
+          <Button href="/" size="large">
+            Start New Session
+          </Button>
+        </CenteredCard>
+      </>
+    )
+  }
+
+  if (isWaitingForData) {
+    return (
+      <>
+        <Header />
+        <CenteredCard emoji="🔍" title="Finding politicians...">
+          <div className="flex justify-center">
+            <Spinner />
+          </div>
+        </CenteredCard>
+      </>
+    )
+  }
+
   return (
     <>
       <Header />
-
-      {currentPolitician ? (
-        <PoliticianEvaluation key={currentPolitician.id} politician={currentPolitician} />
-      ) : (
-        <main className="bg-gray-50 grid place-items-center py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
-          <div className="text-center max-w-2xl">
-            {loading || enrichmentMeta?.is_enriching ? (
-              <Loader
-                message={
-                  enrichmentMeta?.is_enriching
-                    ? 'Enriching politician data...'
-                    : 'Loading politician data...'
-                }
-              />
-            ) : (
-              <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
-                <p className="text-gray-600">
-                  No politicians available for your current filters. You can change your{' '}
-                  <Link href="/" className="text-gray-700 hover:text-gray-900 underline">
-                    filters
-                  </Link>
-                  , or{' '}
-                  <button
-                    onClick={loadPoliticians}
-                    className="text-gray-700 hover:text-gray-900 underline cursor-pointer bg-transparent border-0 p-0 font-inherit"
-                  >
-                    reload
-                  </button>
-                  .
-                </p>
-              </div>
-            )}
-          </div>
-        </main>
-      )}
+      <CenteredCard emoji="🔍" title="Loading...">
+        <div className="flex justify-center">
+          <Spinner />
+        </div>
+      </CenteredCard>
     </>
   )
 }

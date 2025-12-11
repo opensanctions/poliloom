@@ -647,6 +647,34 @@ def count_politicians_with_unevaluated(
     return result or 0
 
 
+def has_enrichable_politicians(
+    db: Session,
+    languages: Optional[List[str]] = None,
+    countries: Optional[List[str]] = None,
+) -> bool:
+    """
+    Check if there are politicians available to enrich.
+
+    Uses the same query logic as enrich_politician_from_wikipedia to determine
+    if any politicians can be enriched (not enriched within last 6 months).
+
+    Args:
+        db: Database session
+        languages: Optional list of language QIDs to filter by
+        countries: Optional list of country QIDs to filter by
+
+    Returns:
+        True if there are politicians available to enrich, False otherwise
+    """
+    query = Politician.query_for_enrichment(
+        languages=languages,
+        countries=countries,
+    ).limit(1)
+
+    result = db.execute(query).first()
+    return result is not None
+
+
 def enrich_batch(
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,

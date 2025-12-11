@@ -59,7 +59,7 @@ class PoliticianResponse(UUIDBaseModel):
 class EnrichmentMetadata(BaseModel):
     """Metadata about enrichment status for empty state UX."""
 
-    is_enriching: bool = False
+    has_enrichable_politicians: bool = True
     total_matching_filters: int = 0
 
 

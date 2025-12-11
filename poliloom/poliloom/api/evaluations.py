@@ -12,7 +12,11 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db_session
-from ..enrichment import count_politicians_with_unevaluated, enrich_batch
+from ..enrichment import (
+    count_politicians_with_unevaluated,
+    enrich_batch,
+    has_enrichable_politicians,
+)
 from ..models import (
     ArchivedPage,
     ArchivedPageLanguage,
@@ -146,9 +150,11 @@ async def get_politicians_for_evaluation(
     # Track enrichment status for empty state UX
     min_threshold = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
     current_count = count_politicians_with_unevaluated(db, languages, countries)
-    is_enriching = False
 
-    if current_count < min_threshold:
+    # Check if there are politicians available to enrich (for "all caught up" state)
+    can_enrich = has_enrichable_politicians(db, languages, countries)
+
+    if current_count < min_threshold and can_enrich:
         logger.info(
             f"Only {current_count} politicians with unevaluated properties (threshold: {min_threshold}), triggering enrichment batch"
         )
@@ -159,7 +165,6 @@ async def get_politicians_for_evaluation(
             languages,
             countries,
         )
-        is_enriching = True
 
     result = []
     for politician in politicians:
@@ -206,7 +211,7 @@ async def get_politicians_for_evaluation(
     return PoliticiansListResponse(
         politicians=result,
         meta=EnrichmentMetadata(
-            is_enriching=is_enriching,
+            has_enrichable_politicians=can_enrich,
             total_matching_filters=current_count,
         ),
     )
