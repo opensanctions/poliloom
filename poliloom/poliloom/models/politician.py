@@ -1,6 +1,7 @@
 """Politician domain models: Politician, Property, WikipediaLink, ArchivedPage."""
 
 import hashlib
+import os
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
@@ -361,6 +362,31 @@ class Politician(
 
         return ranked_links_query.distinct().cte("ranked_wikipedia_links")
 
+    @staticmethod
+    def get_enrichment_cooldown_days() -> int:
+        """
+        Get the enrichment cooldown period in days.
+
+        Uses ENRICHMENT_COOLDOWN_DAYS environment variable (default: 180).
+
+        Returns:
+            int: The cooldown period in days
+        """
+        return int(os.getenv("ENRICHMENT_COOLDOWN_DAYS", "180"))
+
+    @staticmethod
+    def get_enrichment_cooldown_cutoff() -> datetime:
+        """
+        Get the cutoff datetime for enrichment cooldown period.
+
+        Uses ENRICHMENT_COOLDOWN_DAYS environment variable (default: 180).
+
+        Returns:
+            datetime: The cutoff date - politicians enriched after this are considered "recently enriched"
+        """
+        cooldown_days = Politician.get_enrichment_cooldown_days()
+        return datetime.now(timezone.utc) - timedelta(days=cooldown_days)
+
     @classmethod
     def query_base(cls):
         """
@@ -476,11 +502,11 @@ class Politician(
             SQLAlchemy select statement for Politician entities
         """
 
-        # Calculate 6-month cooldown threshold
-        six_months_ago = datetime.now(timezone.utc) - timedelta(days=180)
+        # Get cooldown cutoff from shared helper method
+        cooldown_cutoff = cls.get_enrichment_cooldown_cutoff()
 
         # Base query: politicians with Wikipedia links and non-soft-deleted WikidataEntity
-        # Exclude politicians enriched within the last 6 months to prevent rapid re-enrichment
+        # Exclude politicians enriched within the cooldown period to prevent rapid re-enrichment
         # Returns Politician entities (not just IDs) so filters are evaluated at lock time
         query = (
             select(cls)
@@ -493,7 +519,7 @@ class Politician(
                     or_(
                         cls.enriched_at.is_(None),  # Never enriched
                         cls.enriched_at
-                        < six_months_ago,  # Or enriched more than 6 months ago
+                        < cooldown_cutoff,  # Or enriched more than cooldown period ago
                     ),
                 )
             )

@@ -8,6 +8,7 @@ from .politicians import router as politicians_router
 from .archived_pages import router as archived_pages_router
 from .entities import router as entities_router
 from .evaluations import router as evaluations_router
+from .stats import router as stats_router
 
 # Configure logging
 setup_logging()
@@ -34,6 +35,7 @@ app.include_router(
 )
 app.include_router(entities_router, tags=["entities"])
 app.include_router(evaluations_router, prefix="/evaluations", tags=["evaluations"])
+app.include_router(stats_router, prefix="/stats", tags=["stats"])
 
 
 @app.get("/")

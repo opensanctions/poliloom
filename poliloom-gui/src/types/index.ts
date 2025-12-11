@@ -103,3 +103,24 @@ export interface CountryResponse extends WikidataEntity {
   iso_code?: string
   citizenships_count: number
 }
+
+export interface EvaluationTimeseriesPoint {
+  date: string
+  accepted: number
+  rejected: number
+}
+
+export interface CountryCoverage {
+  wikidata_id: string
+  name: string
+  enriched_count: number
+  total_count: number
+}
+
+export interface StatsResponse {
+  evaluations_timeseries: EvaluationTimeseriesPoint[]
+  country_coverage: CountryCoverage[]
+  stateless_enriched_count: number
+  stateless_total_count: number
+  cooldown_days: number
+}
