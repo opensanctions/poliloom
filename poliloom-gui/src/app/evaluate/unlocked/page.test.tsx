@@ -1,14 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import { render } from '@/test/test-utils'
 import UnlockedPage from './page'
-
-const mockPush = vi.fn()
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: mockPush,
-  }),
-}))
 
 const mockResetSession = vi.fn()
 vi.mock('@/contexts/EvaluationSessionContext', async (importOriginal) => {
@@ -46,39 +39,26 @@ describe('Unlocked Page', () => {
     ).toBeInTheDocument()
   })
 
-  it('calls unlockStats on mount', () => {
+  it('resets session and unlocks stats on mount', () => {
     render(<UnlockedPage />)
 
+    expect(mockResetSession).toHaveBeenCalled()
     expect(mockUnlockStats).toHaveBeenCalled()
   })
 
-  it('shows View Stats as primary action', () => {
+  it('shows View Stats linking to stats page', () => {
     render(<UnlockedPage />)
 
-    expect(screen.getByRole('button', { name: 'View Stats' })).toBeInTheDocument()
+    const link = screen.getByRole('link', { name: 'View Stats' })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute('href', '/stats')
   })
 
-  it('shows Start Another Round as secondary action', () => {
+  it('shows Start Another Round linking to evaluate page', () => {
     render(<UnlockedPage />)
 
-    expect(screen.getByRole('button', { name: 'Start Another Round' })).toBeInTheDocument()
-  })
-
-  it('navigates to stats page when clicking View Stats', () => {
-    render(<UnlockedPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'View Stats' }))
-
-    expect(mockResetSession).toHaveBeenCalled()
-    expect(mockPush).toHaveBeenCalledWith('/stats')
-  })
-
-  it('navigates to evaluate page when clicking Start Another Round', () => {
-    render(<UnlockedPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Start Another Round' }))
-
-    expect(mockResetSession).toHaveBeenCalled()
-    expect(mockPush).toHaveBeenCalledWith('/evaluate')
+    const link = screen.getByRole('link', { name: 'Start Another Round' })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute('href', '/evaluate')
   })
 })

@@ -1,14 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import { render } from '@/test/test-utils'
 import CompletePage from './page'
-
-const mockPush = vi.fn()
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: mockPush,
-  }),
-}))
 
 const mockResetSession = vi.fn()
 const mockUseEvaluationSession = vi.fn()
@@ -37,33 +30,25 @@ describe('Complete Page', () => {
     expect(screen.getByText(/reviewed 5 politicians/)).toBeInTheDocument()
   })
 
-  it('shows Start Another Round as primary action', () => {
+  it('resets session on mount', () => {
     render(<CompletePage />)
-
-    expect(screen.getByRole('button', { name: 'Start Another Round' })).toBeInTheDocument()
-  })
-
-  it('shows Return Home as secondary action', () => {
-    render(<CompletePage />)
-
-    expect(screen.getByRole('button', { name: 'Return Home' })).toBeInTheDocument()
-  })
-
-  it('navigates to evaluate page when clicking Start Another Round', () => {
-    render(<CompletePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Start Another Round' }))
 
     expect(mockResetSession).toHaveBeenCalled()
-    expect(mockPush).toHaveBeenCalledWith('/evaluate')
   })
 
-  it('navigates to home page when clicking Return Home', () => {
+  it('shows Start Another Round linking to evaluate page', () => {
     render(<CompletePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Return Home' }))
+    const link = screen.getByRole('link', { name: 'Start Another Round' })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute('href', '/evaluate')
+  })
 
-    expect(mockResetSession).toHaveBeenCalled()
-    expect(mockPush).toHaveBeenCalledWith('/')
+  it('shows Return Home linking to home page', () => {
+    render(<CompletePage />)
+
+    const link = screen.getByRole('link', { name: 'Return Home' })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute('href', '/')
   })
 })
