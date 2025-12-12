@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Header } from '@/components/layout/Header'
 import { HeaderedBox } from '@/components/ui/HeaderedBox'
+import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 import { Loader } from '@/components/ui/Spinner'
 import { StatsResponse, EvaluationTimeseriesPoint, CountryCoverage } from '@/types'
 
@@ -173,34 +175,39 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
 
 function CoverageBar({ item }: { item: CountryCoverage & { name: string } }) {
   const enrichedPercent = item.total_count > 0 ? (item.enriched_count / item.total_count) * 100 : 0
-  const label = `${item.enriched_count} / ${item.total_count}`
+  const countLabel = `${item.enriched_count} / ${item.total_count}`
 
   return (
-    <div className="flex items-center gap-4">
-      <div className="w-32 truncate text-sm text-gray-900" title={item.name}>
-        {item.name}
-      </div>
-      <div className="flex-1 h-6 bg-gray-100 rounded-md overflow-hidden relative">
-        {/* Gray label (behind bar) */}
-        <div className="absolute inset-0 flex items-center justify-end pr-2 text-sm text-gray-600">
-          {label}
+    <div className="py-[5px] group/bar group-hover/list:opacity-50 hover:!opacity-100 transition-opacity">
+      <div className="h-7 bg-gray-100 rounded-md overflow-hidden relative">
+        {/* Gray labels (behind bar) */}
+        <div className="absolute inset-0 flex items-center justify-between px-2.5 text-sm text-gray-600">
+          <span className="truncate mr-2 font-medium">{item.name}</span>
+          <span className="whitespace-nowrap">{countLabel}</span>
         </div>
-        {/* Bar with white label clipped inside */}
+        {/* Bar with white labels clipped inside */}
         <div
           className="absolute inset-y-0 left-0 bg-indigo-600 rounded-md overflow-hidden"
           style={{ width: `${enrichedPercent}%` }}
         >
           <div
-            className="h-full flex items-center justify-end pr-2 text-sm text-white whitespace-nowrap"
+            className="h-full flex items-center justify-between px-2.5 text-sm text-white"
             style={{ width: `${enrichedPercent > 0 ? (100 / enrichedPercent) * 100 : 100}%` }}
           >
-            {label}
+            <span className="truncate mr-2 font-medium">{item.name}</span>
+            <span className="whitespace-nowrap">{countLabel}</span>
           </div>
+        </div>
+        {/* Percentage on hover */}
+        <div className="absolute inset-0 flex items-center justify-center text-sm font-medium text-gray-700 opacity-0 group-hover/bar:opacity-100 transition-opacity">
+          {Math.round(enrichedPercent)}%
         </div>
       </div>
     </div>
   )
 }
+
+type SortOrder = 'name' | 'total'
 
 function CountryCoverageList({
   data,
@@ -211,9 +218,8 @@ function CountryCoverageList({
   statelessEnriched: number
   statelessTotal: number
 }) {
-  if (data.length === 0 && statelessTotal === 0) {
-    return <p className="text-gray-500 text-center py-8">No coverage data yet</p>
-  }
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('total')
 
   const statelessItem = {
     wikidata_id: 'stateless',
@@ -222,12 +228,58 @@ function CountryCoverageList({
     total_count: statelessTotal,
   }
 
+  const filteredAndSortedData = useMemo(() => {
+    const allItems = [statelessItem, ...data]
+
+    // Filter by search query
+    const filtered = searchQuery
+      ? allItems.filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      : allItems
+
+    // Sort based on selected order
+    return [...filtered].sort((a, b) => {
+      if (sortOrder === 'name') {
+        return a.name.localeCompare(b.name)
+      }
+      // Sort by total count descending
+      return b.total_count - a.total_count
+    })
+  }, [data, statelessEnriched, statelessTotal, searchQuery, sortOrder])
+
+  if (data.length === 0 && statelessTotal === 0) {
+    return <p className="text-gray-500 text-center py-8">No coverage data yet</p>
+  }
+
   return (
-    <div className="space-y-3">
-      <CoverageBar key={statelessItem.wikidata_id} item={statelessItem} />
-      {data.map((item) => (
-        <CoverageBar key={item.wikidata_id} item={item} />
-      ))}
+    <div>
+      <div className="flex gap-3 mb-4">
+        <Input
+          type="text"
+          placeholder="Search countries..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="flex-1"
+          autoComplete="off"
+        />
+        <Select
+          value={sortOrder}
+          onChange={(value) => setSortOrder(value as SortOrder)}
+          options={[
+            { value: 'total', label: 'Sort by total politicians' },
+            { value: 'name', label: 'Sort alphabetically' },
+          ]}
+        />
+      </div>
+
+      {filteredAndSortedData.length === 0 ? (
+        <p className="text-gray-500 text-center py-8">No countries match your search</p>
+      ) : (
+        <div className="group/list">
+          {filteredAndSortedData.map((item) => (
+            <CoverageBar key={item.wikidata_id} item={item} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
