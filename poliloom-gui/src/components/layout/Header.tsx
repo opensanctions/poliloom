@@ -85,7 +85,10 @@ export function Header() {
             size="small"
             className="max-md:text-lg max-md:py-4 max-md:px-6 max-md:justify-start"
           >
-            <SpinningCounter value={evaluationCount ?? 0} className="mr-2" /> Evaluations
+            <SpinningCounter
+              value={evaluationCount ?? 0}
+              title="Total accepted and rejected statements"
+            />
           </Button>
         )}
         {status === 'authenticated' ? (
