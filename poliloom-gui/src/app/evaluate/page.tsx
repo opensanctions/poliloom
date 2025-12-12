@@ -60,7 +60,8 @@ export default function EvaluatePage() {
 
   if (isWaitingForData) {
     return (
-      <CenteredCard emoji="🔍" title="Finding politicians...">
+      <CenteredCard emoji="🔍" title="Gathering data...">
+        <p className="mb-4">Our AI is reading Wikipedia so you don&apos;t have to. Hang tight!</p>
         <div className="flex justify-center">
           <Spinner />
         </div>
