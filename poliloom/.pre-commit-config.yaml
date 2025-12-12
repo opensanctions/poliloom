@@ -8,18 +8,11 @@ repos:
 
   - repo: local
     hooks:
-      - id: gui-format
-        name: GUI Prettier
-        entry: bash -c 'cd poliloom-gui && npm run format'
+      - id: gui-lint-staged
+        name: GUI lint-staged
+        entry: bash -c 'cd poliloom-gui && npx lint-staged'
         language: system
         files: ^poliloom-gui/.*\.(ts|tsx|js|jsx|json|css|md)$
-        pass_filenames: false
-
-      - id: gui-lint
-        name: GUI ESLint
-        entry: bash -c 'cd poliloom-gui && npm run lint'
-        language: system
-        files: ^poliloom-gui/.*\.(ts|tsx|js|jsx)$
         pass_filenames: false
 
       - id: gui-typecheck
