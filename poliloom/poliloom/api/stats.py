@@ -132,25 +132,24 @@ async def get_stats(
         .cte("evaluated_politicians")
     )
 
-    # CTE 1: Total politicians per country
+    # Subquery to get all country wikidata_ids for filtering
+    country_ids_subquery = select(Country.wikidata_id).scalar_subquery()
+
+    # CTE 1: Total politicians per country (optimized - aggregate first, then join)
+    # Uses idx_properties_type_entity index efficiently by filtering to country IDs
     country_totals_cte = (
         select(
-            Country.wikidata_id,
-            WikidataEntity.name,
-            func.count(func.distinct(Property.politician_id)).label("total_count"),
+            Property.entity_id.label("wikidata_id"),
+            func.count(Property.politician_id).label("total_count"),
         )
-        .select_from(Country)
-        .join(WikidataEntity, Country.wikidata_id == WikidataEntity.wikidata_id)
-        .join(
-            Property,
+        .where(
             and_(
-                Property.entity_id == Country.wikidata_id,
                 Property.type == PropertyType.CITIZENSHIP,
                 Property.deleted_at.is_(None),
-            ),
+                Property.entity_id.in_(country_ids_subquery),
+            )
         )
-        .where(WikidataEntity.deleted_at.is_(None))
-        .group_by(Country.wikidata_id, WikidataEntity.name)
+        .group_by(Property.entity_id)
         .cte("country_totals")
     )
 
@@ -159,9 +158,7 @@ async def get_stats(
     country_evaluated_cte = (
         select(
             citizenship_prop.c.entity_id.label("wikidata_id"),
-            func.count(func.distinct(citizenship_prop.c.politician_id)).label(
-                "evaluated_count"
-            ),
+            func.count(citizenship_prop.c.politician_id).label("evaluated_count"),
         )
         .select_from(citizenship_prop)
         .join(
@@ -173,23 +170,31 @@ async def get_stats(
             and_(
                 citizenship_prop.c.type == PropertyType.CITIZENSHIP,
                 citizenship_prop.c.deleted_at.is_(None),
+                citizenship_prop.c.entity_id.in_(country_ids_subquery),
             )
         )
         .group_by(citizenship_prop.c.entity_id)
         .cte("country_evaluated")
     )
 
-    # Final query: join totals with evaluated counts
+    # Final query: join totals with evaluated counts and country names
     country_stats_query = (
         select(
             country_totals_cte.c.wikidata_id,
-            country_totals_cte.c.name,
+            WikidataEntity.name,
             country_totals_cte.c.total_count,
             func.coalesce(country_evaluated_cte.c.evaluated_count, 0).label(
                 "evaluated_count"
             ),
         )
         .select_from(country_totals_cte)
+        .join(
+            WikidataEntity,
+            and_(
+                WikidataEntity.wikidata_id == country_totals_cte.c.wikidata_id,
+                WikidataEntity.deleted_at.is_(None),
+            ),
+        )
         .outerjoin(
             country_evaluated_cte,
             country_evaluated_cte.c.wikidata_id == country_totals_cte.c.wikidata_id,
