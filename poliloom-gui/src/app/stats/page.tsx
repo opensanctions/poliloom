@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { Fragment, useEffect, useState, useMemo } from 'react'
 import { Header } from '@/components/layout/Header'
 import { HeaderedBox } from '@/components/ui/HeaderedBox'
 import { Input } from '@/components/ui/Input'
@@ -83,20 +83,18 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
         .slice()
         .reverse()
         .map((val, i) => (
-          <>
+          <Fragment key={val}>
             <div
-              key={`label-${val}`}
               className="text-sm text-gray-400 pr-3 flex items-start justify-end -mt-2"
               style={{ gridColumn: 1, gridRow: i + 1 }}
             >
               {val}
             </div>
             <div
-              key={`line-${val}`}
               className="border-t border-gray-200 -ml-2"
               style={{ gridColumn: 2, gridRow: i + 1 }}
             />
-          </>
+          </Fragment>
         ))}
 
       {/* Chart area - spans all Y rows */}
