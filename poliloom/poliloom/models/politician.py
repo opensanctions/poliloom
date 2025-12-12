@@ -367,19 +367,19 @@ class Politician(
         """
         Get the enrichment cooldown period in days.
 
-        Uses ENRICHMENT_COOLDOWN_DAYS environment variable (default: 180).
+        Uses ENRICHMENT_COOLDOWN_DAYS environment variable (default: 365).
 
         Returns:
             int: The cooldown period in days
         """
-        return int(os.getenv("ENRICHMENT_COOLDOWN_DAYS", "180"))
+        return int(os.getenv("ENRICHMENT_COOLDOWN_DAYS", "365"))
 
     @staticmethod
     def get_enrichment_cooldown_cutoff() -> datetime:
         """
         Get the cutoff datetime for enrichment cooldown period.
 
-        Uses ENRICHMENT_COOLDOWN_DAYS environment variable (default: 180).
+        Uses ENRICHMENT_COOLDOWN_DAYS environment variable (default: 365).
 
         Returns:
             datetime: The cutoff date - politicians enriched after this are considered "recently enriched"

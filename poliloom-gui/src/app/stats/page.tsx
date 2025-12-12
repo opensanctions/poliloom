@@ -174,8 +174,9 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
 }
 
 function CoverageBar({ item }: { item: CountryCoverage & { name: string } }) {
-  const enrichedPercent = item.total_count > 0 ? (item.enriched_count / item.total_count) * 100 : 0
-  const countLabel = `${item.enriched_count} / ${item.total_count}`
+  const evaluatedPercent =
+    item.total_count > 0 ? (item.evaluated_count / item.total_count) * 100 : 0
+  const countLabel = `${item.evaluated_count} / ${item.total_count}`
 
   return (
     <div className="py-[5px] group/bar group-hover/list:opacity-50 hover:!opacity-100 transition-opacity">
@@ -188,11 +189,11 @@ function CoverageBar({ item }: { item: CountryCoverage & { name: string } }) {
         {/* Bar with white labels clipped inside */}
         <div
           className="absolute inset-y-0 left-0 bg-indigo-600 rounded-md overflow-hidden"
-          style={{ width: `${enrichedPercent}%` }}
+          style={{ width: `${evaluatedPercent}%` }}
         >
           <div
             className="h-full flex items-center justify-between px-2.5 text-sm text-white"
-            style={{ width: `${enrichedPercent > 0 ? (100 / enrichedPercent) * 100 : 100}%` }}
+            style={{ width: `${evaluatedPercent > 0 ? (100 / evaluatedPercent) * 100 : 100}%` }}
           >
             <span className="truncate mr-2 font-medium">{item.name}</span>
             <span className="whitespace-nowrap">{countLabel}</span>
@@ -200,7 +201,7 @@ function CoverageBar({ item }: { item: CountryCoverage & { name: string } }) {
         </div>
         {/* Percentage on hover */}
         <div className="absolute inset-0 flex items-center justify-center text-sm font-medium text-gray-700 opacity-0 group-hover/bar:opacity-100 transition-opacity">
-          {Math.round(enrichedPercent)}%
+          {Math.round(evaluatedPercent)}%
         </div>
       </div>
     </div>
@@ -211,11 +212,11 @@ type SortOrder = 'name' | 'total'
 
 function CountryCoverageList({
   data,
-  statelessEnriched,
+  statelessEvaluated,
   statelessTotal,
 }: {
   data: CountryCoverage[]
-  statelessEnriched: number
+  statelessEvaluated: number
   statelessTotal: number
 }) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -224,7 +225,7 @@ function CountryCoverageList({
   const statelessItem = {
     wikidata_id: 'stateless',
     name: 'No citizenship',
-    enriched_count: statelessEnriched,
+    evaluated_count: statelessEvaluated,
     total_count: statelessTotal,
   }
 
@@ -244,7 +245,7 @@ function CountryCoverageList({
       // Sort by total count descending
       return b.total_count - a.total_count
     })
-  }, [data, statelessEnriched, statelessTotal, searchQuery, sortOrder])
+  }, [data, statelessEvaluated, statelessTotal, searchQuery, sortOrder])
 
   if (data.length === 0 && statelessTotal === 0) {
     return <p className="text-gray-500 text-center py-8">No coverage data yet</p>
@@ -316,7 +317,7 @@ export default function StatsPage() {
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-4">Community Stats</h1>
             <p className="text-lg text-gray-600">
-              Track evaluation progress and enrichment coverage across countries.
+              Track evaluation progress and coverage across countries.
             </p>
           </div>
 
@@ -339,13 +340,13 @@ export default function StatsPage() {
               </HeaderedBox>
 
               <HeaderedBox
-                title="Enrichment Coverage by Country"
-                description={`Politicians enriched in the last ${stats.cooldown_days} days (purple) vs total (gray)`}
+                title="Evaluation Coverage by Country"
+                description={`Politicians with evaluated extractions in the last ${stats.cooldown_days} days`}
                 icon="🌍"
               >
                 <CountryCoverageList
                   data={stats.country_coverage}
-                  statelessEnriched={stats.stateless_enriched_count}
+                  statelessEvaluated={stats.stateless_evaluated_count}
                   statelessTotal={stats.stateless_total_count}
                 />
               </HeaderedBox>

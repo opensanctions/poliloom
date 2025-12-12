@@ -30,7 +30,7 @@ class CountryCoverage(BaseModel):
 
     wikidata_id: str
     name: str
-    enriched_count: int
+    evaluated_count: int
     total_count: int
 
 
@@ -39,7 +39,7 @@ class StatsResponse(BaseModel):
 
     evaluations_timeseries: List[EvaluationTimeseriesPoint]
     country_coverage: List[CountryCoverage]
-    stateless_enriched_count: int
+    stateless_evaluated_count: int
     stateless_total_count: int
     cooldown_days: int
 
@@ -54,9 +54,9 @@ async def get_stats(
 
     Returns:
     - evaluations_timeseries: Weekly counts of accepted/rejected evaluations for cooldown period
-    - country_coverage: For each country, count of recently enriched vs total politicians
-    - stateless_enriched_count: Politicians without citizenship who were recently enriched
-    - stateless_total_count: Total politicians without citizenship
+    - country_coverage: For each country, count of politicians with evaluated extractions vs total
+    - stateless_evaluated_count: Politicians with only extracted citizenships that have evaluations
+    - stateless_total_count: Total politicians without Wikidata citizenship
     - cooldown_days: The current cooldown period setting in days
     """
     cooldown_days = Politician.get_enrichment_cooldown_days()
@@ -113,7 +113,23 @@ async def get_stats(
         for week in all_weeks
     ]
 
-    # 2. Country coverage - recently enriched vs total politicians per country
+    # 2. Country coverage - politicians with evaluated extractions vs total per country
+    # A politician is "evaluated" if they have any extracted property with an evaluation
+    # created within the cooldown period
+    has_recent_evaluation = exists(
+        select(1)
+        .select_from(Property)
+        .join(Evaluation, Evaluation.property_id == Property.id)
+        .where(
+            and_(
+                Property.politician_id == Politician.id,
+                Property.archived_page_id.isnot(None),  # Extracted property
+                Property.deleted_at.is_(None),
+                Evaluation.created_at >= cooldown_cutoff,
+            )
+        )
+    )
+
     country_stats_query = (
         select(
             Country.wikidata_id,
@@ -123,13 +139,13 @@ async def get_stats(
                 func.distinct(
                     case(
                         (
-                            Politician.enriched_at >= cooldown_cutoff,
+                            has_recent_evaluation,
                             Property.politician_id,
                         ),
                         else_=None,
                     )
                 )
-            ).label("enriched_count"),
+            ).label("evaluated_count"),
         )
         .select_from(Country)
         .join(WikidataEntity, Country.wikidata_id == WikidataEntity.wikidata_id)
@@ -153,25 +169,42 @@ async def get_stats(
         CountryCoverage(
             wikidata_id=row.wikidata_id,
             name=row.name,
-            enriched_count=int(row.enriched_count or 0),
+            evaluated_count=int(row.evaluated_count or 0),
             total_count=int(row.total_count or 0),
         )
         for row in country_results
     ]
 
-    # 3. Stateless politicians (no citizenship property)
-    # Use NOT EXISTS with correlated subquery for efficiency (same pattern as enrichment logic)
-    has_citizenship = exists(
+    # 3. Stateless politicians - those without Wikidata citizenship (only extracted)
+    # has_wikidata_citizenship: politician has a citizenship from Wikidata (has statement_id)
+    has_wikidata_citizenship = exists(
         select(1).where(
             and_(
                 Property.politician_id == Politician.id,
                 Property.type == PropertyType.CITIZENSHIP,
+                Property.statement_id.isnot(None),
                 Property.deleted_at.is_(None),
             )
         )
     )
 
-    # Count total stateless
+    # has_evaluated_extracted_citizenship: politician has an extracted citizenship with evaluation
+    has_evaluated_extracted_citizenship = exists(
+        select(1)
+        .select_from(Property)
+        .join(Evaluation, Evaluation.property_id == Property.id)
+        .where(
+            and_(
+                Property.politician_id == Politician.id,
+                Property.type == PropertyType.CITIZENSHIP,
+                Property.archived_page_id.isnot(None),  # Extracted
+                Property.deleted_at.is_(None),
+                Evaluation.created_at >= cooldown_cutoff,
+            )
+        )
+    )
+
+    # Count total stateless (no Wikidata citizenship)
     stateless_total_count = (
         db.execute(
             select(func.count())
@@ -180,15 +213,15 @@ async def get_stats(
             .where(
                 and_(
                     WikidataEntity.deleted_at.is_(None),
-                    ~has_citizenship,
+                    ~has_wikidata_citizenship,
                 )
             )
         ).scalar()
         or 0
     )
 
-    # Count recently enriched stateless
-    stateless_enriched_count = (
+    # Count stateless with evaluated extracted citizenships
+    stateless_evaluated_count = (
         db.execute(
             select(func.count())
             .select_from(Politician)
@@ -196,8 +229,8 @@ async def get_stats(
             .where(
                 and_(
                     WikidataEntity.deleted_at.is_(None),
-                    ~has_citizenship,
-                    Politician.enriched_at >= cooldown_cutoff,
+                    ~has_wikidata_citizenship,
+                    has_evaluated_extracted_citizenship,
                 )
             )
         ).scalar()
@@ -207,7 +240,7 @@ async def get_stats(
     return StatsResponse(
         evaluations_timeseries=evaluations_timeseries,
         country_coverage=country_coverage,
-        stateless_enriched_count=stateless_enriched_count,
+        stateless_evaluated_count=stateless_evaluated_count,
         stateless_total_count=stateless_total_count,
         cooldown_days=cooldown_days,
     )

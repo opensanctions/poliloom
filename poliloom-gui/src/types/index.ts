@@ -113,14 +113,14 @@ export interface EvaluationTimeseriesPoint {
 export interface CountryCoverage {
   wikidata_id: string
   name: string
-  enriched_count: number
+  evaluated_count: number
   total_count: number
 }
 
 export interface StatsResponse {
   evaluations_timeseries: EvaluationTimeseriesPoint[]
   country_coverage: CountryCoverage[]
-  stateless_enriched_count: number
+  stateless_evaluated_count: number
   stateless_total_count: number
   cooldown_days: number
 }
