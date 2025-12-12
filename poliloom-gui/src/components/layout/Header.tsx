@@ -60,6 +60,14 @@ export function Header() {
           </span>
         )}
         <Button
+          href="/stats"
+          variant="secondary"
+          size="small"
+          className="max-md:text-lg max-md:py-4 max-md:px-6 max-md:justify-start"
+        >
+          Stats
+        </Button>
+        <Button
           href="https://www.opensanctions.org/impressum/"
           variant="secondary"
           size="small"

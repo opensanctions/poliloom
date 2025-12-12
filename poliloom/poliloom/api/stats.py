@@ -116,36 +116,28 @@ async def get_stats(
     # 2. Country coverage - politicians with evaluated extractions vs total per country
     # A politician is "evaluated" if they have any extracted property with an evaluation
     # created within the cooldown period
-    has_recent_evaluation = exists(
-        select(1)
-        .select_from(Property)
+
+    # Pre-compute evaluated politician IDs (CTE for reuse)
+    evaluated_politicians_cte = (
+        select(Property.politician_id)
         .join(Evaluation, Evaluation.property_id == Property.id)
         .where(
             and_(
-                Property.politician_id == Politician.id,
                 Property.archived_page_id.isnot(None),  # Extracted property
                 Property.deleted_at.is_(None),
                 Evaluation.created_at >= cooldown_cutoff,
             )
         )
+        .distinct()
+        .cte("evaluated_politicians")
     )
 
-    country_stats_query = (
+    # CTE 1: Total politicians per country
+    country_totals_cte = (
         select(
             Country.wikidata_id,
             WikidataEntity.name,
             func.count(func.distinct(Property.politician_id)).label("total_count"),
-            func.count(
-                func.distinct(
-                    case(
-                        (
-                            has_recent_evaluation,
-                            Property.politician_id,
-                        ),
-                        else_=None,
-                    )
-                )
-            ).label("evaluated_count"),
         )
         .select_from(Country)
         .join(WikidataEntity, Country.wikidata_id == WikidataEntity.wikidata_id)
@@ -157,10 +149,52 @@ async def get_stats(
                 Property.deleted_at.is_(None),
             ),
         )
-        .join(Politician, Property.politician_id == Politician.id)
         .where(WikidataEntity.deleted_at.is_(None))
         .group_by(Country.wikidata_id, WikidataEntity.name)
-        .order_by(func.count(func.distinct(Property.politician_id)).desc())
+        .cte("country_totals")
+    )
+
+    # CTE 2: Evaluated politicians per country (join citizenship with evaluated)
+    citizenship_prop = Property.__table__.alias("citizenship_prop")
+    country_evaluated_cte = (
+        select(
+            citizenship_prop.c.entity_id.label("wikidata_id"),
+            func.count(func.distinct(citizenship_prop.c.politician_id)).label(
+                "evaluated_count"
+            ),
+        )
+        .select_from(citizenship_prop)
+        .join(
+            evaluated_politicians_cte,
+            evaluated_politicians_cte.c.politician_id
+            == citizenship_prop.c.politician_id,
+        )
+        .where(
+            and_(
+                citizenship_prop.c.type == PropertyType.CITIZENSHIP,
+                citizenship_prop.c.deleted_at.is_(None),
+            )
+        )
+        .group_by(citizenship_prop.c.entity_id)
+        .cte("country_evaluated")
+    )
+
+    # Final query: join totals with evaluated counts
+    country_stats_query = (
+        select(
+            country_totals_cte.c.wikidata_id,
+            country_totals_cte.c.name,
+            country_totals_cte.c.total_count,
+            func.coalesce(country_evaluated_cte.c.evaluated_count, 0).label(
+                "evaluated_count"
+            ),
+        )
+        .select_from(country_totals_cte)
+        .outerjoin(
+            country_evaluated_cte,
+            country_evaluated_cte.c.wikidata_id == country_totals_cte.c.wikidata_id,
+        )
+        .order_by(country_totals_cte.c.total_count.desc())
     )
 
     country_results = db.execute(country_stats_query).all()

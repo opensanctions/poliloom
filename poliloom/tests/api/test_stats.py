@@ -218,7 +218,7 @@ class TestStatsEndpoint:
             id=uuid4(),
             url="https://example.com/politician",
             content_hash="test_hash",
-            fetch_timestamp=datetime.now(timezone.utc) - timedelta(days=210),
+            fetch_timestamp=datetime.now(timezone.utc) - timedelta(days=400),
         )
         db_session.add(archived_page)
 
@@ -252,7 +252,7 @@ class TestStatsEndpoint:
         db_session.add(extracted_prop)
         db_session.flush()
 
-        # Add old evaluation (outside cooldown period)
+        # Add old evaluation (outside cooldown period - default is 365 days)
         evaluation = Evaluation(
             user_id="user1",
             is_accepted=True,
@@ -261,8 +261,8 @@ class TestStatsEndpoint:
         db_session.add(evaluation)
         db_session.commit()
 
-        # Manually set evaluation created_at to be outside cooldown period
-        old_date = datetime.now(timezone.utc) - timedelta(days=210)
+        # Manually set evaluation created_at to be outside cooldown period (400 days > 365 days default)
+        old_date = datetime.now(timezone.utc) - timedelta(days=400)
         db_session.execute(
             text("UPDATE evaluations SET created_at = :created_at WHERE id = :eval_id"),
             {"created_at": old_date, "eval_id": str(evaluation.id)},

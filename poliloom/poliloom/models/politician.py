@@ -899,6 +899,23 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             "entity_id",
             postgresql_where=text("type = 'CITIZENSHIP' AND deleted_at IS NULL"),
         ),
+        # Speeds up stats query for counting evaluated extracted properties
+        Index(
+            "idx_properties_extracted",
+            "politician_id",
+            "archived_page_id",
+            postgresql_where=text(
+                "archived_page_id IS NOT NULL AND deleted_at IS NULL"
+            ),
+        ),
+        # Speeds up stateless politician queries checking for Wikidata citizenship
+        Index(
+            "idx_properties_wikidata_citizenship",
+            "politician_id",
+            postgresql_where=text(
+                "type = 'CITIZENSHIP' AND statement_id IS NOT NULL AND deleted_at IS NULL"
+            ),
+        ),
         CheckConstraint(
             "(type IN ('BIRTH_DATE', 'DEATH_DATE') AND value IS NOT NULL AND value_precision IS NOT NULL AND entity_id IS NULL) "
             "OR (type IN ('BIRTHPLACE', 'POSITION', 'CITIZENSHIP') AND entity_id IS NOT NULL AND value IS NULL)",
