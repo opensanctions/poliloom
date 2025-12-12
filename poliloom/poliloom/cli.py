@@ -14,15 +14,18 @@ from poliloom.importer.politician import import_politicians
 from poliloom.database import get_engine
 from poliloom.logging import setup_logging
 from sqlalchemy.orm import Session
+from sqlalchemy import exists
 from poliloom.models import (
     Country,
     CurrentImportEntity,
     CurrentImportStatement,
     DownloadAlreadyCompleteError,
     DownloadInProgressError,
+    Evaluation,
     Language,
     Location,
     Position,
+    Property,
     WikidataDump,
     WikidataEntity,
 )
@@ -853,6 +856,85 @@ def clean_entities(dry_run):
         except Exception as e:
             session.rollback()
             click.echo(f"\n❌ Error during cleanup: {e}")
+            raise SystemExit(1)
+
+
+@main.command("clean-properties")
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Preview what would be deleted without making changes",
+)
+def clean_properties(dry_run):
+    """Delete all unevaluated extracted properties.
+
+    This command removes properties that:
+    - Were extracted from web sources (archived_page_id IS NOT NULL)
+    - Have not been evaluated/pushed to Wikidata (statement_id IS NULL)
+    - Are not already soft-deleted (deleted_at IS NULL)
+
+    This is useful for clearing extracted data that needs to be re-extracted
+    with different extraction parameters or when changing enrichment strategies.
+    """
+    if dry_run:
+        click.echo("🔍 DRY RUN MODE - No changes will be made")
+    else:
+        click.echo(
+            "⚠️  This will permanently delete all unevaluated extracted properties"
+        )
+        if not click.confirm("Do you want to continue?"):
+            click.echo("Aborted.")
+            return
+
+    with Session(get_engine()) as session:
+        try:
+            # NOT EXISTS check for evaluations
+            has_evaluation = exists().where(Evaluation.property_id == Property.id)
+
+            # Count unevaluated extracted properties without evaluations
+            count_query = (
+                session.query(Property)
+                .filter(
+                    Property.archived_page_id.isnot(None),  # Extracted from web source
+                    Property.statement_id.is_(None),  # Not yet pushed to Wikidata
+                    Property.deleted_at.is_(None),  # Not already deleted
+                    ~has_evaluation,  # No evaluations attached
+                )
+                .count()
+            )
+
+            if count_query == 0:
+                click.echo("✅ No unevaluated extracted properties found")
+                return
+
+            click.echo(f"Found {count_query} unevaluated extracted properties")
+
+            if dry_run:
+                click.echo(
+                    f"  • [DRY RUN] Would delete {count_query} unevaluated extracted properties"
+                )
+            else:
+                # Delete properties without evaluations
+                deleted_count = (
+                    session.query(Property)
+                    .filter(
+                        Property.archived_page_id.isnot(
+                            None
+                        ),  # Extracted from web source
+                        Property.statement_id.is_(None),  # Not yet pushed to Wikidata
+                        Property.deleted_at.is_(None),  # Not already deleted
+                        ~has_evaluation,  # No evaluations attached
+                    )
+                    .delete(synchronize_session=False)
+                )
+                session.commit()
+                click.echo(
+                    f"✅ Successfully deleted {deleted_count} unevaluated extracted properties"
+                )
+
+        except Exception as e:
+            session.rollback()
+            click.echo(f"❌ Error during cleanup: {e}")
             raise SystemExit(1)
 
 
