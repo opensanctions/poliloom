@@ -207,17 +207,17 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <TwoPanel
         left={
           <CenteredCard emoji="📄" title="Source Documents">
-            <p>
-              On the right side, you&apos;ll see archived web pages from government portals,
-              Wikipedia, and other official sources.
-            </p>
-            <p className="mt-4">
-              These are the original documents where we found information about politicians. We save
-              copies so you can verify the data even if the original page changes.
-            </p>
-            <div className="mt-8">
-              <TutorialActions buttonText="Next" onNext={nextStep} />
+            <div className="mb-8 space-y-4">
+              <p>
+                On the right side, you&apos;ll see archived web pages from government portals,
+                Wikipedia, and other official sources.
+              </p>
+              <p>
+                These are the original documents where we found information about politicians. We
+                save copies so you can verify the data even if the original page changes.
+              </p>
             </div>
+            <TutorialActions buttonText="Next" onNext={nextStep} />
           </CenteredCard>
         }
         right={<ArchivedPageViewer pageId="tutorial-page-1" apiBasePath="/api/tutorial-pages" />}
@@ -249,17 +249,17 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         }
         right={
           <CenteredCard emoji="🗂️" title="Extracted Data">
-            <p>
-              On the left, you&apos;ll see data automatically extracted from those source documents,
-              alongside existing data already known.
-            </p>
-            <p className="mt-4">
-              New items show the source text that was used as evidence for the extraction, and allow
-              you to view the source document.
-            </p>
-            <div className="mt-8">
-              <TutorialActions buttonText="Next" onNext={nextStep} />
+            <div className="mb-8 space-y-4">
+              <p>
+                On the left, you&apos;ll see data automatically extracted from those source
+                documents, alongside existing data already known.
+              </p>
+              <p>
+                New items show the source text that was used as evidence for the extraction, and
+                allow you to view the source document.
+              </p>
             </div>
+            <TutorialActions buttonText="Next" onNext={nextStep} />
           </CenteredCard>
         }
       />
@@ -473,13 +473,13 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     // Advanced mode welcome
     return (
       <CenteredCard emoji="⚡" title="Advanced Mode Tutorial">
-        <p className="mb-4">
-          Welcome to advanced mode! You now have the power to deprecate existing data.
-        </p>
-        <p className="mb-8">
-          This is useful when you find more specific or accurate data that should replace
-          what&apos;s currently in Wikidata.
-        </p>
+        <div className="mb-8 space-y-4">
+          <p>Welcome to advanced mode! You now have the power to deprecate existing data.</p>
+          <p>
+            This is useful when you find more specific or accurate data that should replace
+            what&apos;s currently in Wikidata.
+          </p>
+        </div>
         <TutorialActions buttonText="Let's Advance" onNext={nextStep} />
       </CenteredCard>
     )
@@ -489,13 +489,16 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     // Chapter 1: Deprecating simple existing data
     return (
       <CenteredCard emoji="🔄" title="Replacing Generic Data">
-        <p className="mb-4">
-          Sometimes existing data is to generic and could be replaced with something more specific.
-        </p>
-        <p className="mb-8">
-          In these cases, you can deprecate the existing data and accept the more specific
-          extraction.
-        </p>
+        <div className="mb-8 space-y-4">
+          <p>
+            Sometimes existing data is to generic and could be replaced with something more
+            specific.
+          </p>
+          <p>
+            In these cases, you can deprecate the existing data and accept the more specific
+            extraction.
+          </p>
+        </div>
         <TutorialActions buttonText="Let's do it" onNext={nextStep} />
       </CenteredCard>
     )
@@ -551,14 +554,16 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     // Chapter 2: Deprecating data with qualifiers/references
     return (
       <CenteredCard emoji="⚠️" title="Data With Metadata">
-        <p className="mb-4">
-          Some existing Wikidata statements have valuable metadata: references (sources) and
-          qualifiers (like start/end dates).
-        </p>
-        <p className="mb-8">
-          When you deprecate such data, this metadata is lost. Sometimes it&apos;s better to add
-          your new data via PoliLoom, then manually edit Wikidata to preserve the metadata.
-        </p>
+        <div className="mb-8 space-y-4">
+          <p>
+            Some existing Wikidata statements have valuable metadata: references (sources) and
+            qualifiers (like start/end dates).
+          </p>
+          <p>
+            When you deprecate such data, this metadata is lost. Sometimes it&apos;s better to add
+            your new data via PoliLoom, then manually edit Wikidata to preserve the metadata.
+          </p>
+        </div>
         <TutorialActions buttonText="Let's do it" onNext={nextStep} />
       </CenteredCard>
     )

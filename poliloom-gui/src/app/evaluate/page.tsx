@@ -51,7 +51,7 @@ export default function EvaluatePage() {
   if (isAllCaughtUp) {
     return (
       <CenteredCard emoji="🎉" title="You're all caught up!">
-        <p className="mb-6">
+        <p className="mb-8">
           No more politicians to evaluate for your current filters. Try different filters to
           continue contributing.
         </p>
@@ -65,7 +65,7 @@ export default function EvaluatePage() {
   if (isWaitingForData) {
     return (
       <CenteredCard emoji="🔍" title="Gathering data...">
-        <p className="mb-4">Our AI is reading Wikipedia so you don&apos;t have to. Hang tight!</p>
+        <p className="mb-8">Our AI is reading Wikipedia so you don&apos;t have to. Hang tight!</p>
         <div className="flex justify-center">
           <Spinner />
         </div>

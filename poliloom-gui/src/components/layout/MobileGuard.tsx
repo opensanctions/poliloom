@@ -13,7 +13,7 @@ export function MobileGuard({ children }: MobileGuardProps) {
       {/* Mobile/tablet screen message - shown on small screens */}
       <div className="lg:hidden h-screen">
         <CenteredCard emoji="🖥️" title="Larger Screen Required">
-          PoliLoom displays data and sources side by side for verification.
+          <p>PoliLoom displays data and sources side by side for verification.</p>
         </CenteredCard>
       </div>
 
