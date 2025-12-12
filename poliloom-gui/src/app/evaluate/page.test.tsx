@@ -47,7 +47,7 @@ describe('Evaluate Page', () => {
       render(<EvaluatePage />)
     })
 
-    expect(screen.getByText('Finding politicians...')).toBeInTheDocument()
+    expect(screen.getByText('Gathering data...')).toBeInTheDocument()
   })
 
   it('shows all caught up message when no politicians and nothing to enrich', async () => {
@@ -92,7 +92,7 @@ describe('Evaluate Page', () => {
       render(<EvaluatePage />)
     })
 
-    expect(screen.getByText('Finding politicians...')).toBeInTheDocument()
+    expect(screen.getByText('Gathering data...')).toBeInTheDocument()
   })
 
   it('shows PoliticianEvaluation component when politician data is available', async () => {

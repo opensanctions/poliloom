@@ -12,7 +12,7 @@ import { TutorialActions } from './_components/TutorialActions'
 import { TutorialFooter } from './_components/TutorialFooter'
 import { SuccessFeedback } from './_components/SuccessFeedback'
 import { ErrorFeedback } from './_components/ErrorFeedback'
-import { useTutorial } from '@/contexts/TutorialContext'
+import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { Politician } from '@/types'
 import tutorialData from './tutorialData.json'
@@ -106,7 +106,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     hasCompletedAdvancedTutorial,
     completeBasicTutorial,
     completeAdvancedTutorial,
-  } = useTutorial()
+  } = useUserProgress()
   const { isAdvancedMode } = useUserPreferences()
 
   // Determine starting step based on completion status

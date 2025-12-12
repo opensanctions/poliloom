@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Toggle } from '@/components/ui/Toggle'
 import { MultiSelect, MultiSelectOption } from '@/components/entity/MultiSelect'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
-import { useTutorial } from '@/contexts/TutorialContext'
+import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useMemo } from 'react'
 import { PreferenceType, WikidataEntity } from '@/types'
 
@@ -20,7 +20,7 @@ export default function Home() {
     isAdvancedMode,
     setAdvancedMode,
   } = useUserPreferences()
-  const { hasCompletedBasicTutorial, hasCompletedAdvancedTutorial } = useTutorial()
+  const { hasCompletedBasicTutorial, hasCompletedAdvancedTutorial } = useUserProgress()
 
   // Determine where to route the user based on tutorial completion and advanced mode
   const { ctaHref, ctaText } = useMemo(() => {

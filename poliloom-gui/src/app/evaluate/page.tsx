@@ -7,13 +7,13 @@ import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
-import { useTutorial } from '@/contexts/TutorialContext'
+import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 
 export default function EvaluatePage() {
   const router = useRouter()
   const { currentPolitician, loading, isSessionComplete, enrichmentMeta } = useEvaluationSession()
-  const { completeBasicTutorial, completeAdvancedTutorial } = useTutorial()
+  const { completeBasicTutorial, completeAdvancedTutorial, statsUnlocked } = useUserProgress()
   const { isAdvancedMode } = useUserPreferences()
 
   // Mark tutorials complete once on mount
@@ -28,9 +28,13 @@ export default function EvaluatePage() {
   // Navigate to completion page when session goal is reached
   useEffect(() => {
     if (isSessionComplete) {
-      router.push('/evaluate/complete')
+      if (statsUnlocked) {
+        router.push('/evaluate/complete')
+      } else {
+        router.push('/evaluate/unlocked')
+      }
     }
-  }, [isSessionComplete, router])
+  }, [isSessionComplete, router, statsUnlocked])
 
   // Determine if we're in a loading state (fetching or waiting for enrichment)
   const isWaitingForData =
@@ -51,7 +55,7 @@ export default function EvaluatePage() {
           No more politicians to evaluate for your current filters. Try different filters to
           continue contributing.
         </p>
-        <Button href="/" size="large">
+        <Button href="/" size="large" fullWidth>
           Start New Session
         </Button>
       </CenteredCard>

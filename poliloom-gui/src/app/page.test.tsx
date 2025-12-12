@@ -37,12 +37,12 @@ vi.mock('next-auth/react', () => ({
   signIn: (...args: unknown[]) => mockSignIn(...args),
 }))
 
-const mockUseTutorial = vi.fn()
-vi.mock('@/contexts/TutorialContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/contexts/TutorialContext')>()
+const mockUseUserProgress = vi.fn()
+vi.mock('@/contexts/UserProgressContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/contexts/UserProgressContext')>()
   return {
     ...actual,
-    useTutorial: () => mockUseTutorial(),
+    useUserProgress: () => mockUseUserProgress(),
   }
 })
 
@@ -60,12 +60,13 @@ describe('Home Page (Filter Selection)', () => {
     vi.clearAllMocks()
 
     // Default tutorial state - not completed
-    mockUseTutorial.mockReturnValue({
+    mockUseUserProgress.mockReturnValue({
       hasCompletedBasicTutorial: false,
       hasCompletedAdvancedTutorial: false,
+      statsUnlocked: false,
       completeBasicTutorial: vi.fn(),
       completeAdvancedTutorial: vi.fn(),
-      resetTutorial: vi.fn(),
+      unlockStats: vi.fn(),
     })
 
     // Default user preferences - basic mode
@@ -162,12 +163,13 @@ describe('Home Page (Filter Selection)', () => {
       status: 'loading',
     })
 
-    mockUseTutorial.mockReturnValue({
+    mockUseUserProgress.mockReturnValue({
       hasCompletedBasicTutorial: true,
       hasCompletedAdvancedTutorial: false,
+      statsUnlocked: false,
       completeBasicTutorial: vi.fn(),
       completeAdvancedTutorial: vi.fn(),
-      resetTutorial: vi.fn(),
+      unlockStats: vi.fn(),
     })
 
     // Basic mode (default from beforeEach)
@@ -186,12 +188,13 @@ describe('Home Page (Filter Selection)', () => {
       status: 'loading',
     })
 
-    mockUseTutorial.mockReturnValue({
+    mockUseUserProgress.mockReturnValue({
       hasCompletedBasicTutorial: true,
       hasCompletedAdvancedTutorial: false,
+      statsUnlocked: false,
       completeBasicTutorial: vi.fn(),
       completeAdvancedTutorial: vi.fn(),
-      resetTutorial: vi.fn(),
+      unlockStats: vi.fn(),
     })
 
     mockUseUserPreferences.mockReturnValue({
@@ -221,12 +224,13 @@ describe('Home Page (Filter Selection)', () => {
       status: 'loading',
     })
 
-    mockUseTutorial.mockReturnValue({
+    mockUseUserProgress.mockReturnValue({
       hasCompletedBasicTutorial: true,
       hasCompletedAdvancedTutorial: true,
+      statsUnlocked: true,
       completeBasicTutorial: vi.fn(),
       completeAdvancedTutorial: vi.fn(),
-      resetTutorial: vi.fn(),
+      unlockStats: vi.fn(),
     })
 
     mockUseUserPreferences.mockReturnValue({

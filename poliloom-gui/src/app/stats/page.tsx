@@ -1,10 +1,13 @@
 'use client'
 
-import { Fragment, useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { HeaderedBox } from '@/components/ui/HeaderedBox'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Loader } from '@/components/ui/Spinner'
+import { CenteredCard } from '@/components/ui/CenteredCard'
+import { Button } from '@/components/ui/Button'
+import { useUserProgress } from '@/contexts/UserProgressContext'
 import { StatsResponse, EvaluationTimeseriesPoint, CountryCoverage } from '@/types'
 
 function formatDateLabel(dateStr: string): string {
@@ -286,11 +289,14 @@ function CountryCoverageList({
 }
 
 export default function StatsPage() {
+  const { statsUnlocked } = useUserProgress()
   const [stats, setStats] = useState<StatsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!statsUnlocked) return
+
     async function fetchStats() {
       try {
         const response = await fetch('/api/stats')
@@ -307,7 +313,20 @@ export default function StatsPage() {
     }
 
     fetchStats()
-  }, [])
+  }, [statsUnlocked])
+
+  if (!statsUnlocked) {
+    return (
+      <CenteredCard emoji="🔒" title="Stats Locked">
+        <p className="mb-8">
+          Complete your first evaluation session to unlock the community stats.
+        </p>
+        <Button href="/" size="large" fullWidth>
+          Start Evaluating
+        </Button>
+      </CenteredCard>
+    )
+  }
 
   return (
     <main className="bg-gray-50 min-h-0 overflow-y-auto">

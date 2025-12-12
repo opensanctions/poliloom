@@ -49,16 +49,16 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }))
 
-// Mock tutorial context
+// Mock user progress context
 const mockCompleteBasicTutorial = vi.fn()
 const mockCompleteAdvancedTutorial = vi.fn()
-const mockUseTutorial = vi.fn()
+const mockUseUserProgress = vi.fn()
 
-vi.mock('@/contexts/TutorialContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/contexts/TutorialContext')>()
+vi.mock('@/contexts/UserProgressContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/contexts/UserProgressContext')>()
   return {
     ...actual,
-    useTutorial: () => mockUseTutorial(),
+    useUserProgress: () => mockUseUserProgress(),
   }
 })
 
@@ -79,12 +79,13 @@ describe('Tutorial Page', () => {
     CSS.highlights.clear()
 
     // Default: basic mode, not completed
-    mockUseTutorial.mockReturnValue({
+    mockUseUserProgress.mockReturnValue({
       hasCompletedBasicTutorial: false,
       hasCompletedAdvancedTutorial: false,
+      statsUnlocked: false,
       completeBasicTutorial: mockCompleteBasicTutorial,
       completeAdvancedTutorial: mockCompleteAdvancedTutorial,
-      resetTutorial: vi.fn(),
+      unlockStats: vi.fn(),
     })
 
     mockUseUserPreferences.mockReturnValue({
@@ -946,12 +947,13 @@ describe('Tutorial Page', () => {
 
   describe('Starting from advanced tutorial when basic is completed', () => {
     it('starts at step 14 when basic is completed and advanced mode enabled', () => {
-      mockUseTutorial.mockReturnValue({
+      mockUseUserProgress.mockReturnValue({
         hasCompletedBasicTutorial: true,
         hasCompletedAdvancedTutorial: false,
+        statsUnlocked: false,
         completeBasicTutorial: mockCompleteBasicTutorial,
         completeAdvancedTutorial: mockCompleteAdvancedTutorial,
-        resetTutorial: vi.fn(),
+        unlockStats: vi.fn(),
       })
 
       mockUseUserPreferences.mockReturnValue({
@@ -999,12 +1001,13 @@ describe('Tutorial Page', () => {
   describe('Advanced mode runs both tutorials in succession', () => {
     beforeEach(() => {
       // Enable advanced mode, no tutorials completed yet
-      mockUseTutorial.mockReturnValue({
+      mockUseUserProgress.mockReturnValue({
         hasCompletedBasicTutorial: false,
         hasCompletedAdvancedTutorial: false,
+        statsUnlocked: false,
         completeBasicTutorial: mockCompleteBasicTutorial,
         completeAdvancedTutorial: mockCompleteAdvancedTutorial,
-        resetTutorial: vi.fn(),
+        unlockStats: vi.fn(),
       })
 
       mockUseUserPreferences.mockReturnValue({
@@ -1040,12 +1043,13 @@ describe('Tutorial Page', () => {
 
     it('shows completion screen after completing advanced tutorial (step 19)', () => {
       // Simulate that basic was just completed
-      mockUseTutorial.mockReturnValue({
+      mockUseUserProgress.mockReturnValue({
         hasCompletedBasicTutorial: true,
         hasCompletedAdvancedTutorial: false,
+        statsUnlocked: false,
         completeBasicTutorial: mockCompleteBasicTutorial,
         completeAdvancedTutorial: mockCompleteAdvancedTutorial,
-        resetTutorial: vi.fn(),
+        unlockStats: vi.fn(),
       })
 
       render(<TutorialContent initialStep={19} />)

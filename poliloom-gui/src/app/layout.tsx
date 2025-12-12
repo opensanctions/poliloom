@@ -5,7 +5,7 @@ import { auth } from '@/auth'
 import { SessionProvider } from '@/components/SessionProvider'
 import { UserPreferencesProvider } from '@/contexts/UserPreferencesContext'
 import { EvaluationSessionProvider } from '@/contexts/EvaluationSessionContext'
-import { TutorialProvider } from '@/contexts/TutorialContext'
+import { UserProgressProvider } from '@/contexts/UserProgressContext'
 import { FetchInterceptor } from '@/components/FetchInterceptor'
 import { MobileGuard } from '@/components/layout/MobileGuard'
 import { Header } from '@/components/layout/Header'
@@ -41,10 +41,10 @@ export default async function RootLayout({
           <FetchInterceptor />
           <UserPreferencesProvider>
             <EvaluationSessionProvider>
-              <TutorialProvider>
+              <UserProgressProvider>
                 <Header />
                 <MobileGuard>{children}</MobileGuard>
-              </TutorialProvider>
+              </UserProgressProvider>
             </EvaluationSessionProvider>
           </UserPreferencesProvider>
         </SessionProvider>

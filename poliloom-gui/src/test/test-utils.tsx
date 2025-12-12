@@ -2,7 +2,7 @@ import React, { ReactElement } from 'react'
 import { render, RenderOptions } from '@testing-library/react'
 import { vi } from 'vitest'
 import { UserPreferencesContext } from '@/contexts/UserPreferencesContext'
-import { TutorialContext } from '@/contexts/TutorialContext'
+import { UserProgressContext } from '@/contexts/UserProgressContext'
 import { EvaluationSessionContext } from '@/contexts/EvaluationSessionContext'
 
 // Mock useAuthSession to avoid next-auth SessionProvider dependency
@@ -26,18 +26,19 @@ export const mockSubmitEvaluation = vi.fn()
 export const mockSkipPolitician = vi.fn()
 
 // Mock providers with static values - no useEffects, no async side effects
-const MockTutorialProvider = ({ children }: { children: React.ReactNode }) => (
-  <TutorialContext.Provider
+const MockUserProgressProvider = ({ children }: { children: React.ReactNode }) => (
+  <UserProgressContext.Provider
     value={{
       hasCompletedBasicTutorial: true,
       hasCompletedAdvancedTutorial: true,
+      statsUnlocked: true,
       completeBasicTutorial: vi.fn(),
       completeAdvancedTutorial: vi.fn(),
-      resetTutorial: vi.fn(),
+      unlockStats: vi.fn(),
     }}
   >
     {children}
-  </TutorialContext.Provider>
+  </UserProgressContext.Provider>
 )
 
 const MockUserPreferencesProvider = ({ children }: { children: React.ReactNode }) => (
@@ -80,11 +81,11 @@ const MockEvaluationSessionProvider = ({ children }: { children: React.ReactNode
 
 const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
   return (
-    <MockTutorialProvider>
+    <MockUserProgressProvider>
       <MockUserPreferencesProvider>
         <MockEvaluationSessionProvider>{children}</MockEvaluationSessionProvider>
       </MockUserPreferencesProvider>
-    </MockTutorialProvider>
+    </MockUserProgressProvider>
   )
 }
 

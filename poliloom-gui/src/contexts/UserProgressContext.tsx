@@ -10,6 +10,7 @@ import React, {
 
 const BASIC_TUTORIAL_KEY = 'poliloom_basic_tutorial_completed'
 const ADVANCED_TUTORIAL_KEY = 'poliloom_advanced_tutorial_completed'
+const STATS_UNLOCKED_KEY = 'poliloom_stats_unlocked'
 
 function subscribe(callback: () => void): () => void {
   window.addEventListener('storage', callback)
@@ -28,18 +29,20 @@ function createLocalStorageSnapshot(key: string, serverDefault: boolean) {
 
 const basicTutorialStorage = createLocalStorageSnapshot(BASIC_TUTORIAL_KEY, true)
 const advancedTutorialStorage = createLocalStorageSnapshot(ADVANCED_TUTORIAL_KEY, true)
+const statsUnlockedStorage = createLocalStorageSnapshot(STATS_UNLOCKED_KEY, false)
 
-interface TutorialContextType {
+interface UserProgressContextType {
   hasCompletedBasicTutorial: boolean
   hasCompletedAdvancedTutorial: boolean
+  statsUnlocked: boolean
   completeBasicTutorial: () => void
   completeAdvancedTutorial: () => void
-  resetTutorial: () => void
+  unlockStats: () => void
 }
 
-export const TutorialContext = createContext<TutorialContextType | undefined>(undefined)
+export const UserProgressContext = createContext<UserProgressContextType | undefined>(undefined)
 
-export function TutorialProvider({ children }: { children: React.ReactNode }) {
+export function UserProgressProvider({ children }: { children: React.ReactNode }) {
   const hasCompletedBasicTutorial = useSyncExternalStore(
     subscribe,
     basicTutorialStorage.getSnapshot,
@@ -49,6 +52,11 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     subscribe,
     advancedTutorialStorage.getSnapshot,
     advancedTutorialStorage.getServerSnapshot,
+  )
+  const statsUnlocked = useSyncExternalStore(
+    subscribe,
+    statsUnlockedStorage.getSnapshot,
+    statsUnlockedStorage.getServerSnapshot,
   )
   const [, forceUpdate] = useState(0)
 
@@ -62,27 +70,32 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     forceUpdate((n) => n + 1)
   }, [])
 
-  const resetTutorial = useCallback(() => {
-    localStorage.removeItem(BASIC_TUTORIAL_KEY)
-    localStorage.removeItem(ADVANCED_TUTORIAL_KEY)
+  const unlockStats = useCallback(() => {
+    localStorage.setItem(STATS_UNLOCKED_KEY, 'true')
     forceUpdate((n) => n + 1)
   }, [])
 
-  const value: TutorialContextType = {
+  const value: UserProgressContextType = {
     hasCompletedBasicTutorial,
     hasCompletedAdvancedTutorial,
+    statsUnlocked,
     completeBasicTutorial,
     completeAdvancedTutorial,
-    resetTutorial,
+    unlockStats,
   }
 
-  return <TutorialContext.Provider value={value}>{children}</TutorialContext.Provider>
+  return <UserProgressContext.Provider value={value}>{children}</UserProgressContext.Provider>
 }
 
-export function useTutorial() {
-  const context = useContext(TutorialContext)
+export function useUserProgress() {
+  const context = useContext(UserProgressContext)
   if (context === undefined) {
-    throw new Error('useTutorial must be used within a TutorialProvider')
+    throw new Error('useUserProgress must be used within a UserProgressProvider')
   }
   return context
 }
+
+// Backwards compatibility aliases
+export const TutorialContext = UserProgressContext
+export const TutorialProvider = UserProgressProvider
+export const useTutorial = useUserProgress
