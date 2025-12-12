@@ -17,6 +17,24 @@ from .auth import User, get_current_user
 router = APIRouter()
 
 
+class EvaluationCountResponse(BaseModel):
+    """Response schema for total evaluation count."""
+
+    total: int
+
+
+@router.get("/count", response_model=EvaluationCountResponse)
+async def get_evaluation_count(
+    db: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get total number of evaluations.
+    """
+    total = db.execute(select(func.count()).select_from(Evaluation)).scalar() or 0
+    return EvaluationCountResponse(total=total)
+
+
 class EvaluationTimeseriesPoint(BaseModel):
     """Single point in the evaluation timeseries."""
 

@@ -10,10 +10,6 @@ vi.mock('next/navigation', () => ({
   }),
 }))
 
-vi.mock('@/components/layout/Header', () => ({
-  Header: () => <div>Header</div>,
-}))
-
 vi.mock('@/components/evaluation/PoliticianEvaluation', () => ({
   PoliticianEvaluation: () => <div>PoliticianEvaluation Component</div>,
 }))
@@ -52,7 +48,6 @@ describe('Evaluate Page', () => {
     })
 
     expect(screen.getByText('Finding politicians...')).toBeInTheDocument()
-    expect(screen.getByText('Header')).toBeInTheDocument()
   })
 
   it('shows all caught up message when no politicians and nothing to enrich', async () => {
@@ -120,6 +115,5 @@ describe('Evaluate Page', () => {
     })
 
     expect(screen.getByText('PoliticianEvaluation Component')).toBeInTheDocument()
-    expect(screen.getByText('Header')).toBeInTheDocument()
   })
 })

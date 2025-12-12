@@ -1,14 +1,37 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession, signOut, signIn } from 'next-auth/react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
+import { SpinningCounter } from '@/components/ui/SpinningCounter'
 
 export function Header() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [evaluationCount, setEvaluationCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (status !== 'authenticated') return
+
+    const fetchEvaluationCount = async () => {
+      try {
+        const response = await fetch('/api/stats/count')
+        if (response.ok) {
+          const data = await response.json()
+
+          setEvaluationCount(data.total)
+        }
+      } catch {
+        // Silently fail - counter just won't show
+      }
+    }
+
+    fetchEvaluationCount()
+    const interval = setInterval(fetchEvaluationCount, 2000)
+    return () => clearInterval(interval)
+  }, [status])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -55,27 +78,16 @@ export function Header() {
         id="main-nav"
         className={`flex items-center gap-4 max-md:fixed max-md:inset-0 max-md:top-16 max-md:flex-col max-md:items-stretch max-md:gap-0 max-md:bg-white max-md:pt-4 ${menuOpen ? '' : 'max-md:hidden'}`}
       >
-        {status === 'authenticated' && session?.user && (
-          <span className="text-sm text-gray-700 font-medium max-md:hidden">
-            Welcome, {session.user.name || session.user.email}
-          </span>
+        {status === 'authenticated' && (
+          <Button
+            href="/stats"
+            variant="secondary"
+            size="small"
+            className="max-md:text-lg max-md:py-4 max-md:px-6 max-md:justify-start"
+          >
+            <SpinningCounter value={evaluationCount ?? 0} className="mr-2" /> Evaluations
+          </Button>
         )}
-        <Button
-          href="/stats"
-          variant="secondary"
-          size="small"
-          className="max-md:text-lg max-md:py-4 max-md:px-6 max-md:justify-start"
-        >
-          Stats
-        </Button>
-        <Button
-          href="https://www.opensanctions.org/impressum/"
-          variant="secondary"
-          size="small"
-          className="max-md:text-lg max-md:py-4 max-md:px-6 max-md:justify-start"
-        >
-          Impressum
-        </Button>
         {status === 'authenticated' ? (
           <Button
             onClick={() => signOut({ callbackUrl: '/' })}

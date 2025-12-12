@@ -1,6 +1,5 @@
 'use client'
 
-import { Header } from '@/components/layout/Header'
 import { Box } from '@/components/ui/Box'
 import { Button } from '@/components/ui/Button'
 import { Toggle } from '@/components/ui/Toggle'
@@ -66,74 +65,71 @@ export default function Home() {
   const handleCountryChange = createFilterHandler(PreferenceType.COUNTRY, countries)
 
   return (
-    <>
-      <Header />
-      <main className="bg-gray-50 min-h-0 overflow-y-auto">
-        {/* Filters Section */}
-        <div className="max-w-6xl mx-auto px-6 py-12">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">Configure Your Session</h1>
-            <p className="text-lg text-gray-600">
-              Pick your focus, then work through a batch of politicians at your own pace.
-            </p>
-          </div>
-
-          <div className="space-y-6">
-            <MultiSelect
-              title="Which countries are you interested in?"
-              description="We'll show you politicians with citizenship from these countries"
-              icon="🌍"
-              options={countryOptions}
-              selected={countryFilters}
-              onChange={handleCountryChange}
-              loading={loadingCountries}
-            />
-
-            <MultiSelect
-              title="What languages can you read?"
-              description="We'll show you politicians with source documents in these languages"
-              icon="🌐"
-              options={languageOptions}
-              selected={languageFilters}
-              onChange={handleLanguageChange}
-              loading={loadingLanguages}
-            />
-          </div>
-
-          {/* CTA Section */}
-          <Box className="mt-12 p-8">
-            <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to start?</h3>
-                <p className="text-gray-600">
-                  {languageFilters.length > 0 || countryFilters.length > 0
-                    ? 'Your filters are set. Begin evaluating politicians that match your criteria.'
-                    : "No filters selected. You'll evaluate politicians from all languages and countries."}
-                </p>
-              </div>
-              <Button href={ctaHref} size="xlarge" className="shrink-0">
-                {ctaText}
-              </Button>
-            </div>
-
-            {/* Advanced Mode Toggle */}
-            <div className="mt-6 pt-6 border-t border-gray-100">
-              <label className="flex items-center gap-3 text-sm text-gray-600 cursor-pointer">
-                <Toggle
-                  checked={isAdvancedMode}
-                  onChange={(e) => setAdvancedMode(e.target.checked)}
-                />
-                <span>
-                  Advanced mode{' '}
-                  <span className="text-gray-400">
-                    — enables deprecating existing Wikidata statements
-                  </span>
-                </span>
-              </label>
-            </div>
-          </Box>
+    <main className="bg-gray-50 min-h-0 overflow-y-auto">
+      {/* Filters Section */}
+      <div className="max-w-6xl mx-auto px-6 py-12">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">Configure Your Session</h1>
+          <p className="text-lg text-gray-600">
+            Pick your focus, then work through a batch of politicians at your own pace.
+          </p>
         </div>
-      </main>
-    </>
+
+        <div className="space-y-6">
+          <MultiSelect
+            title="Which countries are you interested in?"
+            description="We'll show you politicians with citizenship from these countries"
+            icon="🌍"
+            options={countryOptions}
+            selected={countryFilters}
+            onChange={handleCountryChange}
+            loading={loadingCountries}
+          />
+
+          <MultiSelect
+            title="What languages can you read?"
+            description="We'll show you politicians with source documents in these languages"
+            icon="🌐"
+            options={languageOptions}
+            selected={languageFilters}
+            onChange={handleLanguageChange}
+            loading={loadingLanguages}
+          />
+        </div>
+
+        {/* CTA Section */}
+        <Box className="mt-12 p-8">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to start?</h3>
+              <p className="text-gray-600">
+                {languageFilters.length > 0 || countryFilters.length > 0
+                  ? 'Your filters are set. Begin evaluating politicians that match your criteria.'
+                  : "No filters selected. You'll evaluate politicians from all languages and countries."}
+              </p>
+            </div>
+            <Button href={ctaHref} size="xlarge" className="shrink-0">
+              {ctaText}
+            </Button>
+          </div>
+
+          {/* Advanced Mode Toggle */}
+          <div className="mt-6 pt-6 border-t border-gray-100">
+            <label className="flex items-center gap-3 text-sm text-gray-600 cursor-pointer">
+              <Toggle
+                checked={isAdvancedMode}
+                onChange={(e) => setAdvancedMode(e.target.checked)}
+              />
+              <span>
+                Advanced mode{' '}
+                <span className="text-gray-400">
+                  — enables deprecating existing Wikidata statements
+                </span>
+              </span>
+            </label>
+          </div>
+        </Box>
+      </div>
+    </main>
   )
 }

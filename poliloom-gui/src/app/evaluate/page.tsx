@@ -2,7 +2,6 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Header } from '@/components/layout/Header'
 import { PoliticianEvaluation } from '@/components/evaluation/PoliticianEvaluation'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { CenteredCard } from '@/components/ui/CenteredCard'
@@ -42,52 +41,38 @@ export default function EvaluatePage() {
     !currentPolitician && !loading && enrichmentMeta?.has_enrichable_politicians === false
 
   if (currentPolitician) {
-    return (
-      <>
-        <Header />
-        <PoliticianEvaluation key={currentPolitician.id} politician={currentPolitician} />
-      </>
-    )
+    return <PoliticianEvaluation key={currentPolitician.id} politician={currentPolitician} />
   }
 
   if (isAllCaughtUp) {
     return (
-      <>
-        <Header />
-        <CenteredCard emoji="🎉" title="You're all caught up!">
-          <p className="mb-6">
-            No more politicians to evaluate for your current filters. Try different filters to
-            continue contributing.
-          </p>
-          <Button href="/" size="large">
-            Start New Session
-          </Button>
-        </CenteredCard>
-      </>
+      <CenteredCard emoji="🎉" title="You're all caught up!">
+        <p className="mb-6">
+          No more politicians to evaluate for your current filters. Try different filters to
+          continue contributing.
+        </p>
+        <Button href="/" size="large">
+          Start New Session
+        </Button>
+      </CenteredCard>
     )
   }
 
   if (isWaitingForData) {
     return (
-      <>
-        <Header />
-        <CenteredCard emoji="🔍" title="Finding politicians...">
-          <div className="flex justify-center">
-            <Spinner />
-          </div>
-        </CenteredCard>
-      </>
-    )
-  }
-
-  return (
-    <>
-      <Header />
-      <CenteredCard emoji="🔍" title="Loading...">
+      <CenteredCard emoji="🔍" title="Finding politicians...">
         <div className="flex justify-center">
           <Spinner />
         </div>
       </CenteredCard>
-    </>
+    )
+  }
+
+  return (
+    <CenteredCard emoji="🔍" title="Loading...">
+      <div className="flex justify-center">
+        <Spinner />
+      </div>
+    </CenteredCard>
   )
 }

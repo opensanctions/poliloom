@@ -1,7 +1,6 @@
 'use client'
 
 import { Fragment, useEffect, useState, useMemo } from 'react'
-import { Header } from '@/components/layout/Header'
 import { HeaderedBox } from '@/components/ui/HeaderedBox'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -224,14 +223,13 @@ function CountryCoverageList({
   const [searchQuery, setSearchQuery] = useState('')
   const [sortOrder, setSortOrder] = useState<SortOrder>('total')
 
-  const statelessItem = {
-    wikidata_id: 'stateless',
-    name: 'No citizenship',
-    evaluated_count: statelessEvaluated,
-    total_count: statelessTotal,
-  }
-
   const filteredAndSortedData = useMemo(() => {
+    const statelessItem = {
+      wikidata_id: 'stateless',
+      name: 'No citizenship',
+      evaluated_count: statelessEvaluated,
+      total_count: statelessTotal,
+    }
     const allItems = [statelessItem, ...data]
 
     // Filter by search query
@@ -312,50 +310,47 @@ export default function StatsPage() {
   }, [])
 
   return (
-    <>
-      <Header />
-      <main className="bg-gray-50 min-h-0 overflow-y-auto">
-        <div className="max-w-6xl mx-auto px-6 py-12">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">Community Stats</h1>
-            <p className="text-lg text-gray-600">
-              Track evaluation progress and coverage across countries.
-            </p>
-          </div>
-
-          {loading && (
-            <div className="flex justify-center py-12">
-              <Loader message="Loading stats..." />
-            </div>
-          )}
-
-          {error && <p className="text-red-600">{error}</p>}
-
-          {stats && (
-            <div className="space-y-6">
-              <HeaderedBox
-                title="Evaluations Over Time"
-                description="Weekly accepted (green) and rejected (red) evaluations"
-                icon="⏱️"
-              >
-                <EvaluationsChart data={stats.evaluations_timeseries} />
-              </HeaderedBox>
-
-              <HeaderedBox
-                title="Evaluation Coverage by Country"
-                description={`Politicians with evaluated extractions in the last ${stats.cooldown_days} days`}
-                icon="🌍"
-              >
-                <CountryCoverageList
-                  data={stats.country_coverage}
-                  statelessEvaluated={stats.stateless_evaluated_count}
-                  statelessTotal={stats.stateless_total_count}
-                />
-              </HeaderedBox>
-            </div>
-          )}
+    <main className="bg-gray-50 min-h-0 overflow-y-auto">
+      <div className="max-w-6xl mx-auto px-6 py-12">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">Community Stats</h1>
+          <p className="text-lg text-gray-600">
+            Track evaluation progress and coverage across countries.
+          </p>
         </div>
-      </main>
-    </>
+
+        {loading && (
+          <div className="flex justify-center py-12">
+            <Loader message="Loading stats..." />
+          </div>
+        )}
+
+        {error && <p className="text-red-600">{error}</p>}
+
+        {stats && (
+          <div className="space-y-6">
+            <HeaderedBox
+              title="Evaluations Over Time"
+              description="Weekly accepted (green) and rejected (red) evaluations"
+              icon="⏱️"
+            >
+              <EvaluationsChart data={stats.evaluations_timeseries} />
+            </HeaderedBox>
+
+            <HeaderedBox
+              title="Evaluation Coverage by Country"
+              description={`Politicians with evaluated extractions in the last ${stats.cooldown_days} days`}
+              icon="🌍"
+            >
+              <CountryCoverageList
+                data={stats.country_coverage}
+                statelessEvaluated={stats.stateless_evaluated_count}
+                statelessTotal={stats.stateless_total_count}
+              />
+            </HeaderedBox>
+          </div>
+        )}
+      </div>
+    </main>
   )
 }

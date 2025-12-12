@@ -10,6 +10,55 @@ from poliloom.models.base import PropertyType
 from poliloom.models.wikidata import WikidataEntity
 
 
+class TestEvaluationCountEndpoint:
+    """Test suite for GET /stats/count endpoint."""
+
+    def test_count_requires_authentication(self, client):
+        """Count endpoint should require authentication."""
+        response = client.get("/stats/count")
+        assert response.status_code == 401
+
+    def test_count_returns_total(self, client, db_session, mock_auth):
+        """Count endpoint should return total evaluation count."""
+        # Create a politician with a property
+        entity = WikidataEntity(wikidata_id="Q123", name="Test Politician")
+        db_session.add(entity)
+
+        politician = Politician(wikidata_id="Q123", name="Test Politician")
+        db_session.add(politician)
+        db_session.flush()
+
+        prop = Property(
+            politician_id=politician.id,
+            type=PropertyType.BIRTH_DATE,
+            value="+1950-01-01T00:00:00Z",
+            value_precision=11,
+        )
+        db_session.add(prop)
+        db_session.flush()
+
+        # Create evaluations
+        eval1 = Evaluation(user_id="user1", is_accepted=True, property_id=prop.id)
+        eval2 = Evaluation(user_id="user1", is_accepted=False, property_id=prop.id)
+        eval3 = Evaluation(user_id="user2", is_accepted=True, property_id=prop.id)
+        db_session.add_all([eval1, eval2, eval3])
+        db_session.commit()
+
+        response = client.get("/stats/count", headers=mock_auth)
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["total"] == 3
+
+    def test_count_returns_zero_when_empty(self, client, db_session, mock_auth):
+        """Count endpoint should return 0 when no evaluations exist."""
+        response = client.get("/stats/count", headers=mock_auth)
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["total"] == 0
+
+
 class TestStatsEndpoint:
     """Test suite for GET /stats endpoint."""
 

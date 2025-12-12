@@ -17,10 +17,6 @@ Object.defineProperty(navigator, 'language', {
   writable: true,
 })
 
-vi.mock('@/components/layout/Header', () => ({
-  Header: () => <div>Header</div>,
-}))
-
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: vi.fn(),
@@ -280,18 +276,5 @@ describe('Home Page (Filter Selection)', () => {
     await waitFor(() => {
       expect(screen.getByText('Start Tutorial')).toBeInTheDocument()
     })
-  })
-
-  it('renders Header component', async () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: 'loading',
-    })
-
-    await act(async () => {
-      render(<Home />)
-    })
-
-    expect(screen.getByText('Header')).toBeInTheDocument()
   })
 })
