@@ -27,24 +27,28 @@ function formatDateRange(startDateStr: string): string {
 }
 
 function calculateLabelIndices(dataLength: number, maxLabels: number): number[] {
-  if (dataLength <= 2) {
-    return [] // Not enough interior bars for labels
+  const minPadding = Math.ceil(dataLength * 0.05)
+
+  if (dataLength < minPadding * 2 + maxLabels) {
+    return []
   }
 
-  // Exclude first and last bars to keep labels inside the chart
-  const interiorLength = dataLength - 2
-  const effectiveMaxLabels = Math.min(maxLabels, interiorLength)
+  // Calculate step size (bars between each label)
+  // Total span from first to last label = (maxLabels - 1) * step
+  // We want this span + padding on both sides to fit within dataLength
+  const availableForLabels = dataLength - minPadding * 2
+  const step = Math.floor(availableForLabels / (maxLabels - 1))
 
-  if (interiorLength <= effectiveMaxLabels) {
-    return Array.from({ length: interiorLength }, (_, i) => i + 1)
-  }
+  // Actual span used by labels
+  const labelSpan = (maxLabels - 1) * step
 
-  // Distribute labels evenly across interior bars
+  // Distribute leftover evenly as padding (extra goes to left side near Y-axis)
+  const totalPadding = dataLength - 1 - labelSpan
+  const startPadding = Math.ceil(totalPadding / 2)
+
   const indices: number[] = []
-  const step = (interiorLength - 1) / (effectiveMaxLabels - 1)
-
-  for (let i = 0; i < effectiveMaxLabels; i++) {
-    indices.push(Math.round(i * step) + 1)
+  for (let i = 0; i < maxLabels; i++) {
+    indices.push(startPadding + i * step)
   }
 
   return indices
@@ -72,101 +76,101 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
 
   return (
     <div
-      className="grid"
+      className="grid group/chart aspect-[3/1]"
       style={{
-        gridTemplateColumns: 'auto 1fr',
-        gridTemplateRows: `repeat(${yAxisStepCount - 1}, 1fr) auto`,
+        gridTemplateColumns: `auto repeat(${data.length}, 1fr)`,
+        gridTemplateRows: '1fr auto',
+        columnGap: '4px',
       }}
     >
-      {/* Y axis labels and grid lines - one cell per step */}
-      {yAxisSteps
-        .slice()
-        .reverse()
-        .map((val, i) => (
-          <Fragment key={val}>
-            <div
-              className="text-sm text-gray-400 pr-3 flex items-start justify-end -mt-2"
-              style={{ gridColumn: 1, gridRow: i + 1 }}
-            >
+      {/* Y axis labels */}
+      <div
+        className="flex flex-col justify-between pr-3 -mt-2 -mb-2"
+        style={{ gridColumn: 1, gridRow: 1 }}
+      >
+        {yAxisSteps
+          .slice()
+          .reverse()
+          .map((val) => (
+            <div key={val} className="text-sm text-gray-400 text-right">
               {val}
             </div>
-            <div
-              className="border-t border-gray-200 -ml-2"
-              style={{ gridColumn: 2, gridRow: i + 1 }}
-            />
-          </Fragment>
-        ))}
-
-      {/* Chart area - spans all Y rows */}
-      <div
-        className="border-l border-gray-200 flex items-end gap-1 aspect-[3/1] group/chart"
-        style={{ gridColumn: 2, gridRow: `1 / ${yAxisStepCount}` }}
-      >
-        {/* Bars */}
-        {data.map((point) => {
-          const total = point.accepted + point.rejected
-          const heightPercent = (total / yAxisMax) * 100
-          const rejectedPercent = total > 0 ? (point.rejected / total) * 100 : 0
-
-          return (
-            <div
-              key={point.date}
-              className="flex-1 self-stretch flex flex-col justify-end group relative"
-            >
-              {/* Tooltip */}
-              <div
-                className="absolute left-1/2 -translate-x-1/2 mb-2 px-3 py-2.5 bg-white border border-gray-200 text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
-                style={{ bottom: `${heightPercent}%` }}
-              >
-                <div className="font-semibold text-gray-900 mb-1.5">
-                  {formatDateRange(point.date)}
-                </div>
-                <div className="flex items-center gap-2 text-gray-600">
-                  <span className="w-2.5 h-2.5 bg-green-500 rounded-sm" />
-                  <span>{point.accepted} accepted</span>
-                </div>
-                <div className="flex items-center gap-2 text-gray-600">
-                  <span className="w-2.5 h-2.5 bg-red-400 rounded-sm" />
-                  <span>{point.rejected} rejected</span>
-                </div>
-                {/* Arrow */}
-                <div className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-gray-200" />
-                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-[6px] border-transparent border-t-white" />
-              </div>
-              <div
-                className="w-full flex flex-col rounded-t-sm overflow-hidden group-hover/chart:opacity-50 group-hover:!opacity-100 transition-opacity"
-                style={{ height: `${heightPercent}%` }}
-              >
-                <div className="bg-red-400" style={{ height: `${rejectedPercent}%` }} />
-                <div className="bg-green-500 flex-1" />
-              </div>
-            </div>
-          )
-        })}
+          ))}
       </div>
 
-      {/* Empty cell under Y labels */}
-      <div style={{ gridColumn: 1, gridRow: yAxisStepCount }} />
+      {/* Horizontal grid lines */}
+      <div
+        className="flex flex-col justify-between pointer-events-none border-l border-gray-200 ml-2"
+        style={{ gridColumn: `2 / -1`, gridRow: 1 }}
+      >
+        {yAxisSteps.map((val) => (
+          <div key={val} className="border-t border-gray-200 -ml-2" />
+        ))}
+      </div>
+
+      {/* Bars */}
+      {data.map((point, index) => {
+        const total = point.accepted + point.rejected
+        const heightPercent = (total / yAxisMax) * 100
+        const rejectedPercent = total > 0 ? (point.rejected / total) * 100 : 0
+
+        return (
+          <div
+            key={point.date}
+            className="flex flex-col justify-end group relative"
+            style={{ gridColumn: index + 2, gridRow: 1 }}
+          >
+            {/* Tooltip */}
+            <div
+              className="absolute left-1/2 -translate-x-1/2 mb-2 px-3 py-2.5 bg-white border border-gray-200 text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
+              style={{ bottom: `${heightPercent}%` }}
+            >
+              <div className="font-semibold text-gray-900 mb-1.5">
+                {formatDateRange(point.date)}
+              </div>
+              <div className="flex items-center gap-2 text-gray-600">
+                <span className="w-2.5 h-2.5 bg-green-500 rounded-sm" />
+                <span>{point.accepted} accepted</span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-600">
+                <span className="w-2.5 h-2.5 bg-red-400 rounded-sm" />
+                <span>{point.rejected} rejected</span>
+              </div>
+              {/* Arrow */}
+              <div className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-gray-200" />
+              <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-[6px] border-transparent border-t-white" />
+            </div>
+            <div
+              className="w-full flex flex-col rounded-t-sm overflow-hidden group-hover/chart:opacity-50 group-hover:!opacity-100 transition-opacity"
+              style={{ height: `${heightPercent}%` }}
+            >
+              <div className="bg-red-400" style={{ height: `${rejectedPercent}%` }} />
+              <div className="bg-green-500 flex-1" />
+            </div>
+          </div>
+        )
+      })}
 
       {/* X axis labels */}
-      <div className="relative h-8" style={{ gridColumn: 2, gridRow: yAxisStepCount }}>
-        {data.map((point, index) => {
-          if (!labelIndices.has(index)) return null
-          const position = ((index + 0.5) / data.length) * 100
-          return (
-            <div
-              key={point.date}
-              className="absolute flex flex-col items-center -translate-x-1/2"
-              style={{ left: `${position}%` }}
-            >
-              <div className="w-px h-2 bg-gray-200" />
-              <span className="text-sm text-gray-400 whitespace-nowrap mt-1">
-                {formatDateLabel(point.date)}
-              </span>
-            </div>
-          )
-        })}
-      </div>
+      <div style={{ gridColumn: 1, gridRow: 2 }} />
+      {data.map((point, index) => (
+        <div
+          key={point.date}
+          className="flex justify-center"
+          style={{ gridColumn: index + 2, gridRow: 2 }}
+        >
+          <div className="w-0 flex flex-col items-center">
+            {labelIndices.has(index) && (
+              <>
+                <div className="w-px h-2 bg-gray-200" />
+                <span className="text-sm text-gray-400 whitespace-nowrap">
+                  {formatDateLabel(point.date)}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
