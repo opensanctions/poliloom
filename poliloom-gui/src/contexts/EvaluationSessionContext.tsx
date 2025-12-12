@@ -158,9 +158,10 @@ export function EvaluationSessionProvider({ children }: { children: React.ReactN
       setLoading(true)
       setCurrentPolitician(null)
       try {
-        const politicians = await fetchPoliticians(1, currentPolitician?.id)
+        const politicians = await fetchPoliticians(2, currentPolitician?.id)
         if (politicians.length > 0) {
           setCurrentPolitician(politicians[0])
+          setNextPolitician(politicians[1] || null)
         }
       } catch (err) {
         console.error('Error fetching next politician:', err)
