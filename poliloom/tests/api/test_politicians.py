@@ -8,27 +8,84 @@ from poliloom.models import (
 
 
 class TestGetPoliticiansEndpoint:
-    """Test the GET /politicians endpoint for search and list."""
+    """Test the GET /politicians endpoint for unevaluated politicians."""
 
-    def test_returns_flat_array(
+    def test_returns_wrapped_response(
         self, client, mock_auth, politician_with_unevaluated_data
     ):
-        """Test that endpoint returns a flat array of politicians."""
+        """Test that endpoint returns a PoliticiansListResponse."""
         response = client.get("/politicians", headers=mock_auth)
 
         assert response.status_code == 200
         data = response.json()
 
-        # Should be a flat array, not wrapped in {"politicians": [...]}
-        assert isinstance(data, list)
-        assert len(data) >= 1
+        # Should be wrapped in {"politicians": [...], "meta": {...}}
+        assert "politicians" in data
+        assert "meta" in data
+        assert isinstance(data["politicians"], list)
+
+        # Meta should have expected fields
+        assert "has_enrichable_politicians" in data["meta"]
+        assert "total_matching_filters" in data["meta"]
 
         # Each politician should have expected fields
-        politician = data[0]
-        assert "id" in politician
-        assert "name" in politician
-        assert "wikidata_id" in politician
-        assert "properties" in politician
+        if len(data["politicians"]) >= 1:
+            politician = data["politicians"][0]
+            assert "id" in politician
+            assert "name" in politician
+            assert "wikidata_id" in politician
+            assert "properties" in politician
+
+    def test_pagination(self, client, mock_auth, db_session):
+        """Test pagination with limit and offset."""
+        # Create multiple politicians with unevaluated data
+        from poliloom.models import ArchivedPage
+
+        archived_page = ArchivedPage(
+            url="https://example.com/test",
+            content_hash="pagination_test_hash",
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
+        for i in range(5):
+            politician = Politician.create_with_entity(
+                db_session, f"Q{800000 + i}", f"Pagination Test {i}"
+            )
+            db_session.add(politician)
+            db_session.flush()
+
+            # Add unevaluated property
+            prop = Property(
+                politician_id=politician.id,
+                type=PropertyType.BIRTH_DATE,
+                value=f"+196{i}-00-00T00:00:00Z",
+                value_precision=9,
+                archived_page_id=archived_page.id,
+            )
+            db_session.add(prop)
+        db_session.flush()
+
+        # Test limit
+        response = client.get("/politicians?limit=2", headers=mock_auth)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["politicians"]) == 2
+
+        # Test offset
+        response = client.get("/politicians?limit=2&offset=2", headers=mock_auth)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["politicians"]) == 2
+
+    def test_requires_authentication(self, client):
+        """Test that endpoint requires authentication."""
+        response = client.get("/politicians")
+        assert response.status_code in [401, 403]
+
+
+class TestSearchPoliticiansEndpoint:
+    """Test the GET /politicians/search endpoint."""
 
     def test_search_by_name(self, client, mock_auth, db_session):
         """Test searching politicians by name."""
@@ -43,7 +100,7 @@ class TestGetPoliticiansEndpoint:
         db_session.flush()
 
         response = client.get(
-            "/politicians?search=Unique%20Search%20Test", headers=mock_auth
+            "/politicians/search?q=Unique%20Search%20Test", headers=mock_auth
         )
 
         assert response.status_code == 200
@@ -55,31 +112,14 @@ class TestGetPoliticiansEndpoint:
         names = [p["name"] for p in data]
         assert "Unique Search Test Name" in names
 
-    def test_pagination(self, client, mock_auth, db_session):
-        """Test pagination with limit and offset."""
-        # Create multiple politicians
-        for i in range(5):
-            politician = Politician.create_with_entity(
-                db_session, f"Q{800000 + i}", f"Pagination Test {i}"
-            )
-            db_session.add(politician)
-        db_session.flush()
+    def test_search_requires_query(self, client, mock_auth):
+        """Test that search endpoint requires a query parameter."""
+        response = client.get("/politicians/search", headers=mock_auth)
+        assert response.status_code == 422  # Validation error
 
-        # Test limit
-        response = client.get("/politicians?limit=2", headers=mock_auth)
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 2
-
-        # Test offset
-        response = client.get("/politicians?limit=2&offset=2", headers=mock_auth)
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 2
-
-    def test_requires_authentication(self, client):
-        """Test that endpoint requires authentication."""
-        response = client.get("/politicians")
+    def test_search_requires_authentication(self, client):
+        """Test that search endpoint requires authentication."""
+        response = client.get("/politicians/search?q=test")
         assert response.status_code in [401, 403]
 
 

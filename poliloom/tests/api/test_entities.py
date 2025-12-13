@@ -274,99 +274,50 @@ class TestGetCountries:
         assert response.status_code == 401
 
 
-class TestCreateEntityEndpoint:
-    """Test the create_entity_endpoint factory function via /positions and /locations."""
+class TestSearchEndpoints:
+    """Test the search endpoints for positions, locations, and countries."""
 
-    def test_positions_basic_retrieval(
-        self, client, mock_auth, sample_position, db_session
-    ):
-        """Should retrieve positions with basic metadata."""
-        response = client.get("/positions", headers=mock_auth)
+    def test_positions_search_with_query(self, client, mock_auth, db_session):
+        """Should search positions by name."""
+        from poliloom.models import Position
+
+        Position.create_with_entity(
+            db_session,
+            "Q1",
+            "Mayor of Springfield",
+            labels=["Mayor of Springfield", "Springfield Mayor"],
+        )
+        Position.create_with_entity(
+            db_session,
+            "Q2",
+            "Governor of California",
+            labels=["Governor of California", "CA Governor"],
+        )
+        db_session.flush()
+
+        # Search for "Springfield"
+        response = client.get("/positions/search?q=springfield", headers=mock_auth)
         assert response.status_code == 200
 
         positions = response.json()
-        assert len(positions) == 1
-
-        position = positions[0]
-        assert position["wikidata_id"] == "Q30185"
-        assert position["name"] == "Test Position"
-
-    def test_positions_with_limit(self, client, mock_auth, db_session):
-        """Should respect limit parameter."""
-        from poliloom.models import Position
-
-        # Create 5 positions
-        for i in range(5):
-            Position.create_with_entity(db_session, f"Q{i}", f"Position {i}")
-        db_session.flush()
-
-        response = client.get("/positions?limit=3", headers=mock_auth)
-        assert response.status_code == 200
-
-        positions = response.json()
-        assert len(positions) == 3
-
-    def test_positions_with_offset(self, client, mock_auth, db_session):
-        """Should respect offset parameter."""
-        from poliloom.models import Position
-
-        # Create 5 positions
-        for i in range(5):
-            Position.create_with_entity(db_session, f"Q{i}", f"Position {i}")
-        db_session.flush()
-
-        # Get all positions
-        response_all = client.get("/positions?limit=5", headers=mock_auth)
-        all_positions = response_all.json()
-
-        # Get positions with offset=2
-        response_offset = client.get("/positions?offset=2&limit=3", headers=mock_auth)
-        offset_positions = response_offset.json()
-
-        # Should skip first 2 positions
-        assert len(offset_positions) == 3
-        assert offset_positions[0]["wikidata_id"] == all_positions[2]["wikidata_id"]
-
-    def test_positions_filters_soft_deleted(self, client, mock_auth, db_session):
-        """Should filter out soft-deleted positions."""
-        from poliloom.models import Position
-        from datetime import datetime, timezone
-
-        # Create two positions
-        Position.create_with_entity(db_session, "Q1", "Active Position")
-        pos2 = Position.create_with_entity(db_session, "Q2", "Deleted Position")
-        db_session.flush()
-
-        # Soft delete pos2
-        pos2.wikidata_entity.deleted_at = datetime.now(timezone.utc)
-        db_session.flush()
-
-        response = client.get("/positions", headers=mock_auth)
-        assert response.status_code == 200
-
-        positions = response.json()
+        # Should find only Springfield position
         assert len(positions) == 1
         assert positions[0]["wikidata_id"] == "Q1"
 
-    def test_locations_basic_retrieval(
-        self, client, mock_auth, sample_location, db_session
-    ):
-        """Should retrieve locations with basic metadata."""
-        response = client.get("/locations", headers=mock_auth)
-        assert response.status_code == 200
+    def test_positions_search_requires_query(self, client, mock_auth):
+        """Should return 422 when query is missing."""
+        response = client.get("/positions/search", headers=mock_auth)
+        assert response.status_code == 422
 
-        locations = response.json()
-        assert len(locations) == 1
+    def test_positions_search_requires_authentication(self, client):
+        """Endpoint should require authentication."""
+        response = client.get("/positions/search?q=test")
+        assert response.status_code == 401
 
-        location = locations[0]
-        assert location["wikidata_id"] == "Q28513"
-        assert location["name"] == "Test Location"
-
-    def test_locations_with_search(self, client, mock_auth, db_session):
-        """Should filter locations by search query using fuzzy matching."""
+    def test_locations_search_with_query(self, client, mock_auth, db_session):
+        """Should search locations by name."""
         from poliloom.models import Location
 
-        # Create locations with different names and labels
         Location.create_with_entity(
             db_session,
             "Q1",
@@ -382,7 +333,7 @@ class TestCreateEntityEndpoint:
         db_session.flush()
 
         # Search for "springfield"
-        response = client.get("/locations?search=springfield", headers=mock_auth)
+        response = client.get("/locations/search?q=springfield", headers=mock_auth)
         assert response.status_code == 200
 
         locations = response.json()
@@ -390,22 +341,91 @@ class TestCreateEntityEndpoint:
         assert len(locations) == 1
         assert locations[0]["wikidata_id"] == "Q1"
 
-    def test_positions_requires_authentication(self, client):
+    def test_locations_search_requires_query(self, client, mock_auth):
+        """Should return 422 when query is missing."""
+        response = client.get("/locations/search", headers=mock_auth)
+        assert response.status_code == 422
+
+    def test_locations_search_requires_authentication(self, client):
         """Endpoint should require authentication."""
-        response = client.get("/positions")
+        response = client.get("/locations/search?q=test")
         assert response.status_code == 401
 
-    def test_locations_requires_authentication(self, client):
+    def test_countries_search_with_query(self, client, mock_auth, db_session):
+        """Should search countries by name."""
+        from poliloom.models import Country
+
+        Country.create_with_entity(
+            db_session,
+            "Q1",
+            "United States of America",
+            labels=["USA", "United States"],
+        )
+        Country.create_with_entity(
+            db_session,
+            "Q2",
+            "Germany",
+            labels=["Deutschland", "Federal Republic of Germany"],
+        )
+        db_session.flush()
+
+        # Search for "United"
+        response = client.get("/countries/search?q=united", headers=mock_auth)
+        assert response.status_code == 200
+
+        countries = response.json()
+        # Should find only USA
+        assert len(countries) == 1
+        assert countries[0]["wikidata_id"] == "Q1"
+
+    def test_countries_search_requires_query(self, client, mock_auth):
+        """Should return 422 when query is missing."""
+        response = client.get("/countries/search", headers=mock_auth)
+        assert response.status_code == 422
+
+    def test_countries_search_requires_authentication(self, client):
         """Endpoint should require authentication."""
-        response = client.get("/locations")
+        response = client.get("/countries/search?q=test")
         assert response.status_code == 401
 
-    def test_positions_limit_validation(self, client, mock_auth):
-        """Should validate limit parameter (max 1000)."""
-        response = client.get("/positions?limit=1001", headers=mock_auth)
-        assert response.status_code == 422  # Validation error
+    def test_search_filters_soft_deleted(self, client, mock_auth, db_session):
+        """Should filter out soft-deleted entities from search results."""
+        from poliloom.models import Position
+        from datetime import datetime, timezone
 
-    def test_positions_offset_validation(self, client, mock_auth):
-        """Should validate offset parameter (must be >= 0)."""
-        response = client.get("/positions?offset=-1", headers=mock_auth)
-        assert response.status_code == 422  # Validation error
+        # Create two positions
+        Position.create_with_entity(
+            db_session, "Q1", "Active Position", labels=["Active Position"]
+        )
+        pos2 = Position.create_with_entity(
+            db_session, "Q2", "Deleted Position", labels=["Deleted Position"]
+        )
+        db_session.flush()
+
+        # Soft delete pos2
+        pos2.wikidata_entity.deleted_at = datetime.now(timezone.utc)
+        db_session.flush()
+
+        response = client.get("/positions/search?q=position", headers=mock_auth)
+        assert response.status_code == 200
+
+        positions = response.json()
+        assert len(positions) == 1
+        assert positions[0]["wikidata_id"] == "Q1"
+
+    def test_search_respects_limit(self, client, mock_auth, db_session):
+        """Should respect limit parameter."""
+        from poliloom.models import Position
+
+        # Create 5 positions
+        for i in range(5):
+            Position.create_with_entity(
+                db_session, f"Q{i}", f"Test Position {i}", labels=[f"Test Position {i}"]
+            )
+        db_session.flush()
+
+        response = client.get("/positions/search?q=test&limit=3", headers=mock_auth)
+        assert response.status_code == 200
+
+        positions = response.json()
+        assert len(positions) == 3

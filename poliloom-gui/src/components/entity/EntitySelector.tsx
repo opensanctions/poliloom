@@ -71,7 +71,7 @@ export function EntitySelector<T extends SearchResult>({
       setIsSearching(true)
       try {
         const response = await fetch(
-          `${searchEndpoint}?search=${encodeURIComponent(searchQuery)}&limit=50`,
+          `${searchEndpoint}?q=${encodeURIComponent(searchQuery)}&limit=50`,
         )
         if (response.ok) {
           const results = await response.json()

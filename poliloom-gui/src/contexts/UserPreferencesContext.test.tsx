@@ -58,7 +58,7 @@ describe('UserPreferencesContext', () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [
-          { wikidata_id: 'Q1860', name: 'English', iso1_code: 'en', iso3_code: 'eng' },
+          { wikidata_id: 'Q1860', name: 'English', iso_639_1: 'en', iso_639_3: 'eng' },
         ],
       } as Response)
       // Second call: fetch available countries (on mount)
@@ -74,11 +74,11 @@ describe('UserPreferencesContext', () => {
     )
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/languages?limit=1000')
+      expect(fetchMock).toHaveBeenCalledWith('/api/languages')
     })
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/countries?limit=1000')
+      expect(fetchMock).toHaveBeenCalledWith('/api/countries')
     })
 
     // Wait for auto-detection to run
@@ -105,7 +105,7 @@ describe('UserPreferencesContext', () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [
-          { wikidata_id: 'Q1860', name: 'English', iso1_code: 'en', iso3_code: 'eng' },
+          { wikidata_id: 'Q1860', name: 'English', iso_639_1: 'en', iso_639_3: 'eng' },
         ],
       } as Response)
       // Second call: fetch available countries (on mount)
@@ -121,7 +121,7 @@ describe('UserPreferencesContext', () => {
     )
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/languages?limit=1000')
+      expect(fetchMock).toHaveBeenCalledWith('/api/languages')
     })
 
     // Wait for initialization
@@ -181,7 +181,7 @@ describe('UserPreferencesContext', () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [
-          { wikidata_id: 'Q1860', name: 'English', iso1_code: 'en', iso3_code: 'eng' },
+          { wikidata_id: 'Q1860', name: 'English', iso_639_1: 'en', iso_639_3: 'eng' },
         ],
       } as Response)
       .mockResolvedValueOnce({

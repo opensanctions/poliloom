@@ -135,11 +135,11 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
   const getEntitySearchEndpoint = () => {
     switch (propertyType) {
       case PropertyType.P39:
-        return '/api/positions'
+        return '/api/positions/search'
       case PropertyType.P19:
-        return '/api/locations'
+        return '/api/locations/search'
       case PropertyType.P27:
-        return '/api/countries'
+        return '/api/countries/search'
       default:
         return ''
     }

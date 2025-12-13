@@ -65,8 +65,8 @@ const detectBrowserLanguage = (availableLanguages: LanguageResponse[]): Wikidata
     for (const browserLang of iso639Codes) {
       const match = availableLanguages.find(
         (lang) =>
-          lang.iso1_code?.toLowerCase() === browserLang ||
-          lang.iso3_code?.toLowerCase() === browserLang,
+          lang.iso_639_1?.toLowerCase() === browserLang ||
+          lang.iso_639_3?.toLowerCase() === browserLang,
       )
 
       if (match && !matchedLanguages.some((l) => l.wikidata_id === match.wikidata_id)) {
@@ -113,7 +113,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
   useEffect(() => {
     const fetchLanguages = async () => {
       try {
-        const response = await fetch('/api/languages?limit=1000')
+        const response = await fetch('/api/languages')
         if (!response.ok) {
           throw new Error(`Failed to fetch languages: ${response.statusText}`)
         }
@@ -133,7 +133,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
   useEffect(() => {
     const fetchCountries = async () => {
       try {
-        const response = await fetch('/api/countries?limit=1000')
+        const response = await fetch('/api/countries')
         if (!response.ok) {
           throw new Error(`Failed to fetch countries: ${response.statusText}`)
         }

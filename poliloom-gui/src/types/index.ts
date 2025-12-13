@@ -94,13 +94,12 @@ export enum PreferenceType {
 }
 
 export interface LanguageResponse extends WikidataEntity {
-  iso1_code?: string
-  iso3_code?: string
+  iso_639_1?: string
+  iso_639_3?: string
   sources_count: number
 }
 
 export interface CountryResponse extends WikidataEntity {
-  iso_code?: string
   citizenships_count: number
 }
 

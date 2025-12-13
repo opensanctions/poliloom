@@ -164,9 +164,8 @@ class LanguageResponse(BaseModel):
 
     wikidata_id: str
     name: str
-    description: str
+    description: Optional[str] = None
     iso_639_1: Optional[str] = None
-    iso_639_2: Optional[str] = None
     iso_639_3: Optional[str] = None
     sources_count: int = 0
 
@@ -178,8 +177,7 @@ class CountryResponse(BaseModel):
 
     wikidata_id: str
     name: str
-    description: str
-    iso_code: Optional[str] = None
+    description: Optional[str] = None
     citizenships_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
@@ -190,7 +188,7 @@ class PositionResponse(BaseModel):
 
     wikidata_id: str
     name: str
-    description: str
+    description: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -200,7 +198,7 @@ class LocationResponse(BaseModel):
 
     wikidata_id: str
     name: str
-    description: str
+    description: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

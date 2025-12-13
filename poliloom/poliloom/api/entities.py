@@ -1,9 +1,9 @@
 """API endpoints for entities like languages and countries."""
 
-from typing import List, Optional, Type, Callable
+from typing import List, Type, Callable
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, case
 
 from ..database import get_db_session
 from ..search import SearchService, get_search_service
@@ -30,116 +30,27 @@ from .auth import get_current_user, User
 router = APIRouter()
 
 
-def create_entity_endpoint(
-    model_class: Type,
-    response_mapper: Callable,
-):
-    """
-    Factory function to create a generic entity endpoint with search, limit, and offset support.
-
-    Args:
-        model_class: The SQLAlchemy model class (e.g., Country, Position)
-        response_mapper: Function to map model instance to response schema
-    """
-    entity_name = model_class.__tablename__
-
-    async def endpoint(
-        limit: int = Query(
-            default=100,
-            le=1000,
-            description=f"Maximum number of {entity_name} to return",
-        ),
-        offset: int = Query(
-            default=0, ge=0, description=f"Number of {entity_name} to skip"
-        ),
-        search: Optional[str] = Query(
-            default=None,
-            description=f"Search {entity_name} by name/label",
-        ),
-        db: Session = Depends(get_db_session),
-        search_service: SearchService = Depends(get_search_service),
-        current_user: User = Depends(get_current_user),
-    ):
-        f"""
-        Retrieve {entity_name} with optional search filtering.
-
-        Returns a list of {entity_name} with their metadata.
-        """
-        from sqlalchemy import case
-
-        # Build base query filtering out soft-deleted entities
-        query = (
-            select(model_class)
-            .join(
-                WikidataEntity,
-                model_class.wikidata_id == WikidataEntity.wikidata_id,
-            )
-            .where(WikidataEntity.deleted_at.is_(None))
-        )
-
-        # Add eager loading for wikidata_entity with parent_relations and their parent entities
-        query = query.options(
-            selectinload(model_class.wikidata_entity)
-            .selectinload(WikidataEntity.parent_relations)
-            .selectinload(WikidataRelation.parent_entity)
-        )
-
-        # Apply search filter if provided
-        if search:
-            entity_ids = model_class.find_similar(
-                search, db, search_service, limit=limit
-            )
-            if not entity_ids:
-                return []
-            # Preserve search ranking order
-            ordering = case(
-                {eid: idx for idx, eid in enumerate(entity_ids)},
-                value=model_class.wikidata_id,
-            )
-            query = query.where(model_class.wikidata_id.in_(entity_ids)).order_by(
-                ordering
-            )
-
-        # Apply offset and limit
-        query = query.offset(offset).limit(limit)
-
-        # Execute query
-        entities = db.execute(query).scalars().all()
-
-        return [response_mapper(entity) for entity in entities]
-
-    return endpoint
+# =============================================================================
+# List Endpoints - Fast, flat data for filter dropdowns
+# =============================================================================
 
 
-# Simple endpoints for reference data (languages and countries)
 @router.get("/languages", response_model=List[LanguageResponse])
 async def get_languages(
-    limit: int = Query(
-        default=100,
-        le=1000,
-        description="Maximum number of languages to return",
-    ),
-    offset: int = Query(default=0, ge=0, description="Number of languages to skip"),
-    search: Optional[str] = Query(
-        default=None,
-        description="Search languages by name/label",
-    ),
     db: Session = Depends(get_db_session),
-    search_service: SearchService = Depends(get_search_service),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Retrieve all languages with source counts.
+    Retrieve all languages with source counts for filter dropdowns.
 
-    Returns a list of all languages with their metadata and the count of
-    sources (currently Wikipedia links) using each language via Wikipedia projects.
+    Returns a flat list of languages ordered by number of sources.
     """
-    from sqlalchemy import case
-
-    # Direct query with grouping - no subquery needed
     query = (
         select(
-            Language,
+            Language.wikidata_id,
+            WikidataEntity.name,
+            Language.iso_639_1,
+            Language.iso_639_3,
             func.count(WikipediaLink.id).label("sources_count"),
         )
         .select_from(Language)
@@ -163,73 +74,44 @@ async def get_languages(
             WikipediaLink.wikipedia_project_id == WikipediaProject.wikidata_id,
         )
         .where(WikidataEntity.deleted_at.is_(None))
-        .group_by(Language.wikidata_id)
+        .group_by(
+            Language.wikidata_id,
+            WikidataEntity.name,
+            Language.iso_639_1,
+            Language.iso_639_3,
+        )
         .order_by(func.count(WikipediaLink.id).desc())
-        .options(
-            selectinload(Language.wikidata_entity)
-            .selectinload(WikidataEntity.parent_relations)
-            .selectinload(WikidataRelation.parent_entity)
-        )
     )
-
-    # Apply search filter if provided
-    if search:
-        entity_ids = Language.find_similar(search, db, search_service, limit=limit)
-        if not entity_ids:
-            return []
-        ordering = case(
-            {eid: idx for idx, eid in enumerate(entity_ids)},
-            value=Language.wikidata_id,
-        )
-        query = query.where(Language.wikidata_id.in_(entity_ids)).order_by(ordering)
-
-    # Apply offset and limit
-    query = query.offset(offset).limit(limit)
 
     results = db.execute(query).all()
 
     return [
         LanguageResponse(
-            wikidata_id=lang.wikidata_id,
-            name=lang.name,
-            description=lang.description,
-            iso_639_1=lang.iso_639_1,
-            iso_639_2=lang.iso_639_2,
-            iso_639_3=lang.iso_639_3,
-            sources_count=count,
+            wikidata_id=row.wikidata_id,
+            name=row.name,
+            iso_639_1=row.iso_639_1,
+            iso_639_3=row.iso_639_3,
+            sources_count=row.sources_count,
         )
-        for lang, count in results
+        for row in results
     ]
 
 
 @router.get("/countries", response_model=List[CountryResponse])
 async def get_countries(
-    limit: int = Query(
-        default=100,
-        le=1000,
-        description="Maximum number of countries to return",
-    ),
-    offset: int = Query(default=0, ge=0, description="Number of countries to skip"),
-    search: Optional[str] = Query(
-        default=None,
-        description="Search countries by name/label",
-    ),
     db: Session = Depends(get_db_session),
-    search_service: SearchService = Depends(get_search_service),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Retrieve countries that have politicians with citizenship.
+    Retrieve all countries with citizenship counts for filter dropdowns.
 
-    Returns a list of countries with their metadata and the count of
-    politicians who have citizenship in each country.
+    Returns a flat list of countries ordered by number of citizenships.
+    For searching countries, use /countries/search.
     """
-    from sqlalchemy import case
-
-    # Direct query with grouping - no subquery needed
     query = (
         select(
-            Country,
+            Country.wikidata_id,
+            WikidataEntity.name,
             func.count(Property.id).label("citizenships_count"),
         )
         .select_from(Country)
@@ -246,45 +128,111 @@ async def get_countries(
             ),
         )
         .where(WikidataEntity.deleted_at.is_(None))
-        .group_by(Country.wikidata_id)
+        .group_by(Country.wikidata_id, WikidataEntity.name)
         .order_by(func.count(Property.id).desc())
-        .options(
-            selectinload(Country.wikidata_entity)
-            .selectinload(WikidataEntity.parent_relations)
-            .selectinload(WikidataRelation.parent_entity)
-        )
     )
-
-    # Apply search filter if provided
-    if search:
-        entity_ids = Country.find_similar(search, db, search_service, limit=limit)
-        if not entity_ids:
-            return []
-        ordering = case(
-            {eid: idx for idx, eid in enumerate(entity_ids)},
-            value=Country.wikidata_id,
-        )
-        query = query.where(Country.wikidata_id.in_(entity_ids)).order_by(ordering)
-
-    # Apply offset and limit
-    query = query.offset(offset).limit(limit)
 
     results = db.execute(query).all()
 
     return [
         CountryResponse(
+            wikidata_id=row.wikidata_id,
+            name=row.name,
+            citizenships_count=row.citizenships_count,
+        )
+        for row in results
+    ]
+
+
+# =============================================================================
+# Search Endpoints - With hierarchy/descriptions for entity selection
+# =============================================================================
+
+
+def create_search_endpoint(
+    model_class: Type,
+    response_mapper: Callable,
+):
+    """
+    Factory function to create a search endpoint with required q parameter.
+
+    Args:
+        model_class: The SQLAlchemy model class (e.g., Country, Position)
+        response_mapper: Function to map model instance to response schema
+    """
+    entity_name = model_class.__tablename__
+
+    async def endpoint(
+        q: str = Query(
+            ...,
+            min_length=1,
+            description=f"Search query for {entity_name}",
+        ),
+        limit: int = Query(
+            default=50,
+            le=100,
+            description=f"Maximum number of {entity_name} to return",
+        ),
+        db: Session = Depends(get_db_session),
+        search_service: SearchService = Depends(get_search_service),
+        current_user: User = Depends(get_current_user),
+    ):
+        f"""
+        Search {entity_name} by name/label using semantic similarity.
+
+        Returns matching {entity_name} ranked by relevance with hierarchy data.
+        """
+        entity_ids = model_class.find_similar(q, db, search_service, limit=limit)
+        if not entity_ids:
+            return []
+
+        # Preserve search ranking order
+        ordering = case(
+            {eid: idx for idx, eid in enumerate(entity_ids)},
+            value=model_class.wikidata_id,
+        )
+
+        query = (
+            select(model_class)
+            .join(
+                WikidataEntity,
+                model_class.wikidata_id == WikidataEntity.wikidata_id,
+            )
+            .where(WikidataEntity.deleted_at.is_(None))
+            .where(model_class.wikidata_id.in_(entity_ids))
+            .order_by(ordering)
+            .options(
+                selectinload(model_class.wikidata_entity)
+                .selectinload(WikidataEntity.parent_relations)
+                .selectinload(WikidataRelation.parent_entity)
+            )
+        )
+
+        entities = db.execute(query).scalars().all()
+        return [response_mapper(entity) for entity in entities]
+
+    return endpoint
+
+
+search_countries = router.get(
+    "/countries/search", response_model=List[CountryResponse]
+)(
+    create_search_endpoint(
+        model_class=Country,
+        response_mapper=lambda country: CountryResponse(
             wikidata_id=country.wikidata_id,
             name=country.name,
             description=country.description,
             iso_code=country.iso_code,
-            citizenships_count=count,
-        )
-        for country, count in results
-    ]
+            citizenships_count=0,
+        ),
+    )
+)
 
-
-get_positions = router.get("/positions", response_model=List[PositionResponse])(
-    create_entity_endpoint(
+search_positions = router.get(
+    "/positions/search", response_model=List[PositionResponse]
+)(
+    create_search_endpoint(
         model_class=Position,
         response_mapper=lambda position: PositionResponse(
             wikidata_id=position.wikidata_id,
@@ -294,8 +242,10 @@ get_positions = router.get("/positions", response_model=List[PositionResponse])(
     )
 )
 
-get_locations = router.get("/locations", response_model=List[LocationResponse])(
-    create_entity_endpoint(
+search_locations = router.get(
+    "/locations/search", response_model=List[LocationResponse]
+)(
+    create_search_endpoint(
         model_class=Location,
         response_mapper=lambda location: LocationResponse(
             wikidata_id=location.wikidata_id,
