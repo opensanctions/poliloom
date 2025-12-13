@@ -350,15 +350,15 @@ export default function StatsPage() {
           <div className="space-y-6">
             <HeaderedBox
               title="Evaluations Over Time"
-              description="Weekly accepted (green) and rejected (red) evaluations"
+              description="Weekly accepted (green) and rejected (red) statements"
               icon="⏱️"
             >
               <EvaluationsChart data={stats.evaluations_timeseries} />
             </HeaderedBox>
 
             <HeaderedBox
-              title="Evaluation Coverage by Country"
-              description={`Politicians with evaluated extractions in the last ${stats.cooldown_days} days`}
+              title="Coverage by Country"
+              description={`Politicians that were evaluated in the last ${stats.cooldown_days} days`}
               icon="🌍"
             >
               <CountryCoverageList
