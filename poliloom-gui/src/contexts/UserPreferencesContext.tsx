@@ -194,19 +194,19 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
     loadFromStorage()
   }, [])
 
-  // Auto-detect browser language on first visit
+  // Auto-detect browser language on first visit (only if preferences were never set)
   useEffect(() => {
     if (!initialized || loadingLanguages || languages.length === 0) return
 
-    const hasLanguageFilter = filters.some((p) => p.preference_type === PreferenceType.LANGUAGE)
+    // Only auto-detect if localStorage has never been set
+    const hasStoredPreferences = localStorage.getItem(FILTERS_STORAGE_KEY) !== null
+    if (hasStoredPreferences) return
 
-    if (!hasLanguageFilter) {
-      const detectedLanguages = detectBrowserLanguage(languages)
-      if (detectedLanguages.length > 0) {
-        updateFilters(PreferenceType.LANGUAGE, detectedLanguages)
-      }
+    const detectedLanguages = detectBrowserLanguage(languages)
+    if (detectedLanguages.length > 0) {
+      updateFilters(PreferenceType.LANGUAGE, detectedLanguages)
     }
-  }, [initialized, loadingLanguages, languages, filters, updateFilters])
+  }, [initialized, loadingLanguages, languages, updateFilters])
 
   const value: UserPreferencesContextType = {
     filters,
