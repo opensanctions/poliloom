@@ -454,7 +454,7 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     )  # Entity description from Wikidata descriptions (can be None)
 
     # Relationships
-    labels_collection = relationship(
+    labels = relationship(
         "WikidataEntityLabel",
         back_populates="entity",
         cascade="all, delete-orphan",
@@ -610,7 +610,7 @@ class WikidataEntityLabel(Base, TimestampMixin, UpsertMixin):
     label = Column(Text, nullable=False)
 
     # Relationships
-    entity = relationship("WikidataEntity", back_populates="labels_collection")
+    entity = relationship("WikidataEntity", back_populates="labels")
 
 
 class WikidataRelation(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):

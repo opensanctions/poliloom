@@ -5,7 +5,6 @@ Provides a single interface for searching entities:
 - locations, countries, languages, politicians: Meilisearch text search
 """
 
-import hashlib
 import logging
 import os
 from typing import Optional, Type
@@ -59,93 +58,67 @@ class SearchService:
         self.api_key = api_key or os.getenv("MEILI_MASTER_KEY")
         self.client = meilisearch.Client(self.url, self.api_key)
 
-    def ensure_indexes(self) -> None:
-        """Create all indexes with proper settings if they don't exist."""
-        for model in MEILISEARCH_MODELS:
-            self._ensure_index(model.__tablename__)
+    def create_index(self, index_name: str) -> None:
+        """Create an index with proper settings.
 
-    def _ensure_index(self, index_name: str) -> None:
-        """Create a single index with proper settings if it doesn't exist."""
-        try:
-            self.client.get_index(index_name)
-            logger.debug(f"Index '{index_name}' already exists")
-        except meilisearch.errors.MeilisearchApiError as e:
-            if "index_not_found" in str(e):
-                logger.info(f"Creating index '{index_name}'")
-                task = self.client.create_index(index_name, {"primaryKey": "id"})
-                self.client.wait_for_task(task.task_uid)
-            else:
-                raise
+        Args:
+            index_name: Name of the index to create
+        """
+        logger.info(f"Creating index '{index_name}'")
+        task = self.client.create_index(index_name, {"primaryKey": "id"})
+        self.client.wait_for_task(task.task_uid)
 
         # Configure index settings
         index = self.client.index(index_name)
         task = index.update_settings(
             {
-                "searchableAttributes": ["label"],
-                "displayedAttributes": ["entity_id", "label"],
-                "distinctAttribute": "entity_id",
-                # Typo tolerance enabled by default in Meilisearch
+                "searchableAttributes": ["labels"],
+                "displayedAttributes": ["id", "labels"],
             }
         )
         self.client.wait_for_task(task.task_uid)
 
-    def index_labels(
-        self, index_name: str, labels: list[dict], batch_size: int = 1000
-    ) -> int:
-        """Index labels for an entity type.
+    def delete_index(self, index_name: str) -> None:
+        """Delete an index if it exists.
 
         Args:
-            index_name: Name of the index (e.g., 'locations', 'politicians')
-            labels: List of dicts with 'entity_id' and 'label' keys
-            batch_size: Number of documents per batch
-
-        Returns:
-            Number of documents indexed
-        """
-        self._ensure_index(index_name)
-        index = self.client.index(index_name)
-
-        # Transform labels to documents with unique IDs
-        documents = []
-        for label_data in labels:
-            entity_id = label_data["entity_id"]
-            label = label_data["label"]
-            # Create unique ID from entity_id + label hash
-            label_hash = hashlib.md5(label.encode()).hexdigest()[:8]
-            doc_id = f"{entity_id}_{label_hash}"
-            documents.append(
-                {
-                    "id": doc_id,
-                    "entity_id": entity_id,
-                    "label": label,
-                }
-            )
-
-        # Batch insert
-        total_indexed = 0
-        for i in range(0, len(documents), batch_size):
-            batch = documents[i : i + batch_size]
-            task = index.add_documents(batch)
-            self.client.wait_for_task(task.task_uid)
-            total_indexed += len(batch)
-            logger.debug(f"Indexed {total_indexed}/{len(documents)} documents")
-
-        return total_indexed
-
-    def clear_index(self, index_name: str) -> None:
-        """Delete all documents from an index.
-
-        Args:
-            index_name: Name of the index to clear
+            index_name: Name of the index to delete
         """
         try:
-            index = self.client.index(index_name)
-            task = index.delete_all_documents()
+            logger.info(f"Deleting index '{index_name}'")
+            task = self.client.delete_index(index_name)
             self.client.wait_for_task(task.task_uid)
-            logger.info(f"Cleared index '{index_name}'")
         except meilisearch.errors.MeilisearchApiError as e:
             if "index_not_found" not in str(e):
                 raise
+            logger.debug(f"Index '{index_name}' does not exist, nothing to delete")
+
+    def index_entities(self, index_name: str, entities: list) -> int:
+        """Index entities with their labels.
+
+        Args:
+            index_name: Name of the index (e.g., 'locations', 'politicians')
+            entities: List of entity model instances with wikidata_entity.labels loaded
+
+        Returns:
+            Number of entities indexed
+        """
+        index = self.client.index(index_name)
+
+        # Transform entities to documents
+        documents = [
+            {
+                "id": entity.wikidata_id,
+                "labels": [label.label for label in entity.wikidata_entity.labels],
+            }
+            for entity in entities
+        ]
+
+        # Add documents and wait for completion
+        task = index.add_documents(documents)
+        self.client.wait_for_task(task.task_uid, timeout_in_ms=60000)
+
+        return len(documents)
 
     def search_entities(
         self,
@@ -176,7 +149,7 @@ class SearchService:
 
         if model_class in MEILISEARCH_MODELS:
             results = self._search_meilisearch(model_class.__tablename__, query, limit)
-            return [r["entity_id"] for r in results]
+            return [r["id"] for r in results]
         else:
             return self._search_embeddings(model_class, query, session, limit)
 
@@ -191,7 +164,7 @@ class SearchService:
             limit: Maximum number of results
 
         Returns:
-            List of dicts with 'entity_id' and 'label' keys, ordered by relevance
+            List of dicts with 'id' and 'labels' keys, ordered by relevance
         """
         try:
             index = self.client.index(index_name)
@@ -261,24 +234,26 @@ class SearchService:
         self,
         session,
         model_class: Type[DeclarativeBase],
-        clear: bool = False,
-        batch_size: int = 1000,
+        batch_size: int = 10000,
     ) -> int:
         """Build Meilisearch index for an entity type from database.
+
+        Deletes and recreates the index, then populates it from the database.
 
         Args:
             session: SQLAlchemy database session
             model_class: Model class to build index for
-            clear: If True, clear existing index before building
-            batch_size: Number of labels to index per batch
+            batch_size: Number of entities to index per batch
 
         Returns:
-            Number of labels indexed
+            Number of entities indexed
 
         Raises:
             ValueError: If model_class is not a Meilisearch model
         """
-        from poliloom.models import WikidataEntityLabel
+        from sqlalchemy.orm import selectinload
+
+        from poliloom.models import WikidataEntity
 
         if model_class not in MEILISEARCH_MODELS:
             raise ValueError(
@@ -288,59 +263,56 @@ class SearchService:
 
         index_name = model_class.__tablename__
 
-        if clear:
-            self.clear_index(index_name)
+        # Delete and recreate index
+        self.delete_index(index_name)
+        self.create_index(index_name)
 
-        # Query labels for this entity type
-        query = session.query(
-            WikidataEntityLabel.entity_id,
-            WikidataEntityLabel.label,
-        ).join(
-            model_class,
-            WikidataEntityLabel.entity_id == model_class.wikidata_id,
+        # Query entities with labels eagerly loaded
+        query = session.query(model_class).options(
+            selectinload(model_class.wikidata_entity).selectinload(
+                WikidataEntity.labels
+            )
         )
 
-        # Collect and index labels in batches
-        labels = []
+        # Index entities in batches
         indexed_count = 0
+        entities_batch = []
 
-        for entity_id, label in query.yield_per(batch_size):
-            labels.append({"entity_id": entity_id, "label": label})
+        for entity in query.yield_per(batch_size):
+            entities_batch.append(entity)
 
-            if len(labels) >= batch_size:
-                self.index_labels(index_name, labels, batch_size)
-                indexed_count += len(labels)
-                logger.info(f"Indexed {indexed_count} {index_name} labels")
-                labels = []
+            if len(entities_batch) >= batch_size:
+                self.index_entities(index_name, entities_batch)
+                indexed_count += len(entities_batch)
+                logger.info(f"Indexed {indexed_count} {index_name} entities")
+                entities_batch = []
 
-        # Index remaining labels
-        if labels:
-            self.index_labels(index_name, labels, batch_size)
-            indexed_count += len(labels)
+        # Index remaining entities
+        if entities_batch:
+            self.index_entities(index_name, entities_batch)
+            indexed_count += len(entities_batch)
 
         return indexed_count
 
     def build_all_indexes(
         self,
         session,
-        clear: bool = False,
-        batch_size: int = 1000,
+        batch_size: int = 10000,
     ) -> dict[str, int]:
         """Build all Meilisearch indexes from database.
 
         Args:
             session: SQLAlchemy database session
-            clear: If True, clear existing indexes before building
-            batch_size: Number of labels to index per batch
+            batch_size: Number of entities to index per batch
 
         Returns:
-            Dict mapping table name to number of labels indexed
+            Dict mapping table name to number of entities indexed
         """
         results = {}
         for model_class in MEILISEARCH_MODELS:
-            count = self.build_index(session, model_class, clear, batch_size)
+            count = self.build_index(session, model_class, batch_size)
             results[model_class.__tablename__] = count
-            logger.info(f"Indexed {count} labels for {model_class.__tablename__}")
+            logger.info(f"Indexed {count} entities for {model_class.__tablename__}")
         return results
 
 

@@ -62,10 +62,8 @@ class TestEntityCreationMixin:
         db_session.flush()
 
         # Verify labels were created
-        assert len(entity.wikidata_entity.labels_collection) == 3
-        label_texts = [
-            label.label for label in entity.wikidata_entity.labels_collection
-        ]
+        assert len(entity.wikidata_entity.labels) == 3
+        label_texts = [label.label for label in entity.wikidata_entity.labels]
         assert "Label 1" in label_texts
         assert "Label 2" in label_texts
         assert "Alias 1" in label_texts

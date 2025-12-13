@@ -461,20 +461,19 @@ def embed_entities(batch_size, encode_batch_size):
         raise SystemExit(1)
 
 
-@main.command("index-labels")
+@main.command("index-entities")
 @click.option(
     "--batch-size",
     type=int,
-    default=1000,
-    help="Number of labels to index per batch (default: 1000)",
+    default=10000,
+    help="Number of entities to index per batch (default: 10000)",
 )
-@click.option(
-    "--clear",
-    is_flag=True,
-    help="Clear existing index before indexing",
-)
-def index_labels(batch_size, clear):
-    """Sync entity labels to Meilisearch for text search."""
+def index_entities(batch_size):
+    """Sync entity labels to Meilisearch for text search.
+
+    This command deletes and recreates all indexes, then populates them
+    from the database.
+    """
     from poliloom.search import SearchService
 
     try:
@@ -487,14 +486,14 @@ def index_labels(batch_size, clear):
         click.echo(f"✅ Connected to Meilisearch at {search_service.url}")
 
         with Session(get_engine()) as session:
-            results = search_service.build_all_indexes(session, clear, batch_size)
+            results = search_service.build_all_indexes(session, batch_size)
             for name, count in results.items():
-                click.echo(f"  ✅ Indexed {count} labels for {name}")
+                click.echo(f"  ✅ Indexed {count} entities for {name}")
 
-        click.echo("\n✅ Label indexing complete")
+        click.echo("\n✅ Entity indexing complete")
 
     except Exception as e:
-        click.echo(f"❌ Error indexing labels: {e}")
+        click.echo(f"❌ Error indexing entities: {e}")
         raise SystemExit(1)
 
 
