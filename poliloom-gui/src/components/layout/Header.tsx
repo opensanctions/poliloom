@@ -1,37 +1,17 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useSession, signOut, signIn } from 'next-auth/react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 import { SpinningCounter } from '@/components/ui/SpinningCounter'
+import { useEvaluationCount } from '@/contexts/EvaluationCountContext'
 
 export function Header() {
   const { status } = useSession()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [evaluationCount, setEvaluationCount] = useState<number | null>(null)
-
-  useEffect(() => {
-    if (status !== 'authenticated') return
-
-    const fetchEvaluationCount = async () => {
-      try {
-        const response = await fetch('/api/stats/count')
-        if (response.ok) {
-          const data = await response.json()
-
-          setEvaluationCount(data.total)
-        }
-      } catch {
-        // Silently fail - counter just won't show
-      }
-    }
-
-    fetchEvaluationCount()
-    const interval = setInterval(fetchEvaluationCount, 2000)
-    return () => clearInterval(interval)
-  }, [status])
+  const { evaluationCount } = useEvaluationCount()
 
   useEffect(() => {
     if (!menuOpen) return

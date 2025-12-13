@@ -7,25 +7,26 @@ interface SpinningCounterProps {
   title?: string
 }
 
-const DIGIT_HEIGHT = 22
+// Height in em units - scales with font size
+const DIGIT_HEIGHT_EM = 1.8
 
 function DigitWheel({ digit }: { digit: number }) {
   return (
     <div
-      className="relative w-4 overflow-hidden bg-gray-50 border-x border-gray-100 first:border-l-0 first:rounded-l last:border-r-0 last:rounded-r"
-      style={{ height: DIGIT_HEIGHT }}
+      className="relative overflow-hidden bg-gray-50 border-x border-gray-100 first:border-l-0 first:rounded-l last:border-r-0 last:rounded-r"
+      style={{ height: `${DIGIT_HEIGHT_EM}em`, width: '1.1em' }}
     >
       <div
         className="absolute w-full transition-transform duration-500 ease-out"
         style={{
-          transform: `translateY(-${digit * DIGIT_HEIGHT}px)`,
+          transform: `translateY(-${digit * DIGIT_HEIGHT_EM}em)`,
         }}
       >
         {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
           <div
             key={n}
-            className="flex items-center justify-center text-gray-700 font-semibold text-sm leading-none tabular-nums"
-            style={{ height: DIGIT_HEIGHT }}
+            className="flex items-center justify-center text-gray-700 font-semibold leading-none tabular-nums"
+            style={{ height: `${DIGIT_HEIGHT_EM}em` }}
           >
             {n}
           </div>

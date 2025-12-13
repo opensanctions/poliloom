@@ -6,6 +6,7 @@ import { SessionProvider } from '@/components/SessionProvider'
 import { UserPreferencesProvider } from '@/contexts/UserPreferencesContext'
 import { EvaluationSessionProvider } from '@/contexts/EvaluationSessionContext'
 import { UserProgressProvider } from '@/contexts/UserProgressContext'
+import { EvaluationCountProvider } from '@/contexts/EvaluationCountContext'
 import { FetchInterceptor } from '@/components/FetchInterceptor'
 import { MobileGuard } from '@/components/layout/MobileGuard'
 import { Header } from '@/components/layout/Header'
@@ -42,8 +43,12 @@ export default async function RootLayout({
           <UserPreferencesProvider>
             <EvaluationSessionProvider>
               <UserProgressProvider>
-                <Header />
-                <MobileGuard>{children}</MobileGuard>
+                <EvaluationCountProvider>
+                  <MobileGuard>
+                    <Header />
+                    {children}
+                  </MobileGuard>
+                </EvaluationCountProvider>
               </UserProgressProvider>
             </EvaluationSessionProvider>
           </UserPreferencesProvider>

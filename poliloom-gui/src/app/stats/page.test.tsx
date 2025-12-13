@@ -106,7 +106,7 @@ describe('Stats Page', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Evaluations Over Time')).toBeInTheDocument()
-        expect(screen.getByText('Evaluation Coverage by Country')).toBeInTheDocument()
+        expect(screen.getByText('Coverage by Country')).toBeInTheDocument()
       })
     })
 
