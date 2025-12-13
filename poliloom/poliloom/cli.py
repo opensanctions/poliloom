@@ -463,12 +463,6 @@ def embed_entities(batch_size, encode_batch_size):
 
 @main.command("index-labels")
 @click.option(
-    "--entity-type",
-    type=click.Choice(["all", "locations", "countries", "languages", "politicians"]),
-    default="all",
-    help="Entity type to index (default: all)",
-)
-@click.option(
     "--batch-size",
     type=int,
     default=1000,
@@ -479,7 +473,7 @@ def embed_entities(batch_size, encode_batch_size):
     is_flag=True,
     help="Clear existing index before indexing",
 )
-def index_labels(entity_type, batch_size, clear):
+def index_labels(batch_size, clear):
     """Sync entity labels to Meilisearch for text search."""
     from poliloom.search import SearchService
 
@@ -493,15 +487,9 @@ def index_labels(entity_type, batch_size, clear):
         click.echo(f"✅ Connected to Meilisearch at {search_service.url}")
 
         with Session(get_engine()) as session:
-            if entity_type == "all":
-                results = search_service.build_all_indexes(session, clear, batch_size)
-                for name, count in results.items():
-                    click.echo(f"  ✅ Indexed {count} labels for {name}")
-            else:
-                count = search_service.build_index(
-                    session, entity_type, clear, batch_size
-                )
-                click.echo(f"  ✅ Indexed {count} labels for {entity_type}")
+            results = search_service.build_all_indexes(session, clear, batch_size)
+            for name, count in results.items():
+                click.echo(f"  ✅ Indexed {count} labels for {name}")
 
         click.echo("\n✅ Label indexing complete")
 

@@ -33,7 +33,6 @@ router = APIRouter()
 def create_entity_endpoint(
     model_class: Type,
     response_mapper: Callable,
-    entity_name: str,
 ):
     """
     Factory function to create a generic entity endpoint with search, limit, and offset support.
@@ -41,8 +40,8 @@ def create_entity_endpoint(
     Args:
         model_class: The SQLAlchemy model class (e.g., Country, Position)
         response_mapper: Function to map model instance to response schema
-        entity_name: Name of the entity (plural) for documentation
     """
+    entity_name = model_class.__tablename__
 
     async def endpoint(
         limit: int = Query(
@@ -88,7 +87,7 @@ def create_entity_endpoint(
         # Apply search filter if provided
         if search:
             entity_ids = search_service.search_entities(
-                entity_name, search, db, limit=limit
+                model_class, search, db, limit=limit
             )
             if not entity_ids:
                 return []
@@ -175,9 +174,7 @@ async def get_languages(
 
     # Apply search filter if provided
     if search:
-        entity_ids = search_service.search_entities(
-            "languages", search, db, limit=limit
-        )
+        entity_ids = search_service.search_entities(Language, search, db, limit=limit)
         if not entity_ids:
             return []
         ordering = case(
@@ -260,9 +257,7 @@ async def get_countries(
 
     # Apply search filter if provided
     if search:
-        entity_ids = search_service.search_entities(
-            "countries", search, db, limit=limit
-        )
+        entity_ids = search_service.search_entities(Country, search, db, limit=limit)
         if not entity_ids:
             return []
         ordering = case(
@@ -296,7 +291,6 @@ get_positions = router.get("/positions", response_model=List[PositionResponse])(
             name=position.name,
             description=position.description,
         ),
-        entity_name="positions",
     )
 )
 
@@ -308,6 +302,5 @@ get_locations = router.get("/locations", response_model=List[LocationResponse])(
             name=location.name,
             description=location.description,
         ),
-        entity_name="locations",
     )
 )

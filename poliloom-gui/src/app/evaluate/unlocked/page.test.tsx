@@ -34,9 +34,7 @@ describe('Unlocked Page', () => {
     render(<UnlockedPage />)
 
     expect(screen.getByText('Stats Unlocked!')).toBeInTheDocument()
-    expect(
-      screen.getByText(/completed your first session and unlocked the community stats page/),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/you've completed your first session/i)).toBeInTheDocument()
   })
 
   it('resets session and unlocks stats on mount', () => {

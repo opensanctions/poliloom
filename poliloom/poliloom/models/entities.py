@@ -1,6 +1,6 @@
 """Supporting entity models: Country, Language, Location, Position."""
 
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 
 from sqlalchemy import Column, String
 from sqlalchemy.orm import relationship
@@ -319,22 +319,3 @@ class Position(
         """
         # Positions have no special filtering - import all that match hierarchy
         return {}
-
-    @classmethod
-    def search_by_embedding(cls, query, query_embedding: List[float]):
-        """Apply embedding similarity filter to a position query using vector search.
-
-        Filters positions with embeddings and orders by cosine similarity.
-
-        Args:
-            query: Existing select statement for Position entities
-            query_embedding: Pre-generated embedding vector to search for
-
-        Returns:
-            Modified query filtered and ordered by embedding similarity
-        """
-        query = query.filter(cls.embedding.isnot(None)).order_by(
-            cls.embedding.cosine_distance(query_embedding)
-        )
-
-        return query

@@ -8,23 +8,32 @@ Provides a single interface for searching entities:
 import hashlib
 import logging
 import os
-from typing import Optional
+from typing import Optional, Type
 
 import meilisearch
 from dotenv import load_dotenv
+from sqlalchemy.orm import DeclarativeBase
+
+from poliloom.models import Country, Language, Location, Position
+from poliloom.models.politician import Politician
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Entity types that use Meilisearch for label search
-MEILISEARCH_ENTITY_TYPES = ["locations", "countries", "languages", "politicians"]
+# Entity models that use Meilisearch for label search
+MEILISEARCH_MODELS: list[Type[DeclarativeBase]] = [
+    Location,
+    Country,
+    Language,
+    Politician,
+]
 
-# Entity types that use embedding search
-EMBEDDING_ENTITY_TYPES = ["positions"]
+# Entity models that use embedding search
+EMBEDDING_MODELS: list[Type[DeclarativeBase]] = [Position]
 
-# All searchable entity types
-ALL_ENTITY_TYPES = MEILISEARCH_ENTITY_TYPES + EMBEDDING_ENTITY_TYPES
+# All searchable entity models
+ALL_MODELS = MEILISEARCH_MODELS + EMBEDDING_MODELS
 
 # Global instance for lazy initialization
 _search_service: Optional["SearchService"] = None
@@ -52,8 +61,8 @@ class SearchService:
 
     def ensure_indexes(self) -> None:
         """Create all indexes with proper settings if they don't exist."""
-        for index_name in MEILISEARCH_ENTITY_TYPES:
-            self._ensure_index(index_name)
+        for model in MEILISEARCH_MODELS:
+            self._ensure_index(model.__tablename__)
 
     def _ensure_index(self, index_name: str) -> None:
         """Create a single index with proper settings if it doesn't exist."""
@@ -140,19 +149,19 @@ class SearchService:
 
     def search_entities(
         self,
-        entity_type: str,
+        model_class: Type[DeclarativeBase],
         query: str,
         session,
         limit: int = 100,
     ) -> list[str]:
         """Search for entities by query text.
 
-        Routes to the appropriate search backend based on entity type:
-        - positions: pgvector embedding similarity search
+        Routes to the appropriate search backend based on model class:
+        - Position: pgvector embedding similarity search
         - others: Meilisearch text search
 
         Args:
-            entity_type: One of 'locations', 'countries', 'languages', 'politicians', 'positions'
+            model_class: Model class to search (e.g., Location, Position)
             query: Search query text
             session: SQLAlchemy session
             limit: Maximum number of results
@@ -160,16 +169,16 @@ class SearchService:
         Returns:
             List of entity_ids (wikidata_ids) ordered by relevance
         """
-        if entity_type in MEILISEARCH_ENTITY_TYPES:
-            results = self._search_meilisearch(entity_type, query, limit)
-            return [r["entity_id"] for r in results]
-        elif entity_type in EMBEDDING_ENTITY_TYPES:
-            return self._search_embeddings(entity_type, query, session, limit)
-        else:
+        if model_class not in ALL_MODELS:
             raise ValueError(
-                f"Unknown entity_type: {entity_type}. "
-                f"Must be one of: {ALL_ENTITY_TYPES}"
+                f"Unknown model_class: {model_class}. Must be one of: {ALL_MODELS}"
             )
+
+        if model_class in MEILISEARCH_MODELS:
+            results = self._search_meilisearch(model_class.__tablename__, query, limit)
+            return [r["entity_id"] for r in results]
+        else:
+            return self._search_embeddings(model_class, query, session, limit)
 
     def _search_meilisearch(
         self, index_name: str, query: str, limit: int = 100
@@ -198,7 +207,7 @@ class SearchService:
 
     def _search_embeddings(
         self,
-        entity_type: str,
+        model_class: Type[DeclarativeBase],
         query: str,
         session,
         limit: int = 100,
@@ -206,7 +215,7 @@ class SearchService:
         """Search using pgvector embedding similarity.
 
         Args:
-            entity_type: Entity type (currently only 'positions')
+            model_class: Model class with embedding column (currently only Position)
             query: Search query text to embed
             session: SQLAlchemy session
             limit: Maximum number of results
@@ -215,10 +224,11 @@ class SearchService:
             List of entity_ids ordered by similarity
         """
         from poliloom.embeddings import get_embedding_model
-        from poliloom.models import Position
 
-        if entity_type != "positions":
-            raise ValueError(f"Embedding search not supported for {entity_type}")
+        if model_class != Position:
+            raise ValueError(
+                f"Embedding search not supported for {model_class.__tablename__}"
+            )
 
         # Generate query embedding
         model = get_embedding_model()
@@ -250,7 +260,7 @@ class SearchService:
     def build_index(
         self,
         session,
-        entity_type: str,
+        model_class: Type[DeclarativeBase],
         clear: bool = False,
         batch_size: int = 1000,
     ) -> int:
@@ -258,7 +268,7 @@ class SearchService:
 
         Args:
             session: SQLAlchemy database session
-            entity_type: One of 'locations', 'countries', 'languages', 'politicians'
+            model_class: Model class to build index for
             clear: If True, clear existing index before building
             batch_size: Number of labels to index per batch
 
@@ -266,31 +276,16 @@ class SearchService:
             Number of labels indexed
 
         Raises:
-            ValueError: If entity_type is not valid
+            ValueError: If model_class is not a Meilisearch model
         """
-        from poliloom.models import (
-            Location,
-            Country,
-            Language,
-            WikidataEntityLabel,
-        )
-        from poliloom.models.politician import Politician
+        from poliloom.models import WikidataEntityLabel
 
-        # Map entity types to their model classes
-        entity_models = {
-            "locations": Location,
-            "countries": Country,
-            "languages": Language,
-            "politicians": Politician,
-        }
-
-        if entity_type not in entity_models:
+        if model_class not in MEILISEARCH_MODELS:
             raise ValueError(
-                f"Invalid entity_type: {entity_type}. "
-                f"Must be one of: {list(entity_models.keys())}"
+                f"Invalid model_class: {model_class.__tablename__}. "
+                f"Must be one of: {[m.__tablename__ for m in MEILISEARCH_MODELS]}"
             )
 
-        model_class = entity_models[entity_type]
         index_name = model_class.__tablename__
 
         if clear:
@@ -315,7 +310,7 @@ class SearchService:
             if len(labels) >= batch_size:
                 self.index_labels(index_name, labels, batch_size)
                 indexed_count += len(labels)
-                logger.info(f"Indexed {indexed_count} {entity_type} labels")
+                logger.info(f"Indexed {indexed_count} {index_name} labels")
                 labels = []
 
         # Index remaining labels
@@ -339,13 +334,13 @@ class SearchService:
             batch_size: Number of labels to index per batch
 
         Returns:
-            Dict mapping entity_type to number of labels indexed
+            Dict mapping table name to number of labels indexed
         """
         results = {}
-        for entity_type in MEILISEARCH_ENTITY_TYPES:
-            count = self.build_index(session, entity_type, clear, batch_size)
-            results[entity_type] = count
-            logger.info(f"Indexed {count} labels for {entity_type}")
+        for model_class in MEILISEARCH_MODELS:
+            count = self.build_index(session, model_class, clear, batch_size)
+            results[model_class.__tablename__] = count
+            logger.info(f"Indexed {count} labels for {model_class.__tablename__}")
         return results
 
 

@@ -252,12 +252,9 @@ async def _map_single_item(
         search_service: SearchService for entity lookup
     """
     try:
-        # Get entity type name (table name) for search service
-        entity_type = config.entity_class.__tablename__
-
         # SearchService handles routing to appropriate backend (Meilisearch or embeddings)
         entity_ids = search_service.search_entities(
-            entity_type, free_item.name, session=db, limit=config.search_limit
+            config.entity_class, free_item.name, session=db, limit=config.search_limit
         )
 
         if not entity_ids:

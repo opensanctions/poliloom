@@ -35,17 +35,8 @@ from poliloom.models import (
 class MockSearchService:
     """Mock search service for enrichment tests."""
 
-    def search_entities(self, entity_type, query, session, limit=100):
+    def search_entities(self, model_class, query, session, limit=100):
         """Search entities by looking up labels in the test database."""
-        entity_models = {
-            "locations": Location,
-            "positions": Position,
-        }
-
-        if entity_type not in entity_models:
-            return []
-
-        model_class = entity_models[entity_type]
         query_lower = query.lower()
 
         # Query labels that contain the search term

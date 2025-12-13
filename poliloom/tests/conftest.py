@@ -723,29 +723,10 @@ def client(db_session):
     class MockSearchService:
         """Mock search service that queries the test database directly."""
 
-        def search_entities(self, entity_type, query, session, limit=100):
+        def search_entities(self, model_class, query, session, limit=100):
             """Search entities by looking up labels in the test database."""
-            from poliloom.models import (
-                WikidataEntityLabel,
-                Location,
-                Country,
-                Language,
-                Position,
-            )
-            from poliloom.models.politician import Politician
+            from poliloom.models import WikidataEntityLabel
 
-            entity_models = {
-                "locations": Location,
-                "countries": Country,
-                "languages": Language,
-                "politicians": Politician,
-                "positions": Position,
-            }
-
-            if entity_type not in entity_models:
-                return []
-
-            model_class = entity_models[entity_type]
             query_lower = query.lower()
 
             # Query labels that contain the search term (use provided session)
