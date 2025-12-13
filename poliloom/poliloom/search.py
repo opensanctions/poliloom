@@ -51,12 +51,12 @@ class SearchService:
         """Initialize SearchService with Meilisearch connection.
 
         Args:
-            url: Meilisearch server URL. Defaults to MEILISEARCH_URL env var
+            url: Meilisearch server URL. Defaults to MEILI_URL env var
                  or http://localhost:7700.
-            api_key: Meilisearch API key. Defaults to MEILISEARCH_MASTER_KEY env var.
+            api_key: Meilisearch API key. Defaults to MEILI_MASTER_KEY env var.
         """
-        self.url = url or os.getenv("MEILISEARCH_URL", "http://localhost:7700")
-        self.api_key = api_key or os.getenv("MEILISEARCH_MASTER_KEY")
+        self.url = url or os.getenv("MEILI_URL", "http://localhost:7700")
+        self.api_key = api_key or os.getenv("MEILI_MASTER_KEY")
         self.client = meilisearch.Client(self.url, self.api_key)
 
     def ensure_indexes(self) -> None:
