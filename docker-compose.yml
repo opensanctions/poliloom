@@ -1,4 +1,18 @@
 services:
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    ports:
+      - "127.0.0.1:7700:7700"
+    volumes:
+      - meilisearch_data:/meili_data
+    environment:
+      - MEILI_NO_ANALYTICS=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   postgres:
     image: pgvector/pgvector:pg15
     environment:
@@ -89,6 +103,7 @@ services:
       - production
 
 volumes:
+  meilisearch_data:
   postgres_data:
   postgres_test_data:
   huggingface_cache:

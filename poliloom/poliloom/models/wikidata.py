@@ -110,49 +110,6 @@ class WikidataEntityMixin:
 
         return ", ".join(description_parts) if description_parts else ""
 
-    @classmethod
-    def search_by_label(cls, query, search_text: str):
-        """Apply label search filter to an entity query using fuzzy text matching.
-
-        Uses DISTINCT ON with word_similarity to efficiently find matches.
-        word_similarity is more selective than similarity for short queries,
-        reducing the number of candidates that need similarity calculation.
-
-        Args:
-            query: Existing select statement for entities
-            search_text: Text to search for using fuzzy matching
-
-        Returns:
-            Modified query with CTE joined and ordered by similarity (desc = most similar first)
-        """
-        # Use word_similarity for better matching on short strings
-        # Then calculate full similarity for ordering
-        # DISTINCT ON avoids expensive GROUP BY aggregation
-        best_match = (
-            select(
-                WikidataEntityLabel.entity_id,
-                func.similarity(WikidataEntityLabel.label, search_text).label(
-                    "similarity"
-                ),
-            )
-            # Use word_similarity operator which is stricter than % for short strings
-            # %%> is escaped for pg8000 (becomes %> in SQL)
-            .where(WikidataEntityLabel.label.op("%%>")(search_text))
-            .distinct(WikidataEntityLabel.entity_id)
-            .order_by(
-                WikidataEntityLabel.entity_id,
-                func.similarity(WikidataEntityLabel.label, search_text).desc(),
-            )
-            .cte("best_match")
-        )
-
-        # Join the CTE to filter entities by search match and order by similarity
-        query = query.join(
-            best_match, cls.wikidata_id == best_match.c.entity_id
-        ).order_by(best_match.c.similarity.desc())
-
-        return query
-
     # Default hierarchy configuration - override in subclasses
     _hierarchy_roots = None
     _hierarchy_ignore = None
@@ -634,12 +591,6 @@ class WikidataEntityLabel(Base, TimestampMixin, UpsertMixin):
             "entity_id",
             "label",
             unique=True,
-        ),
-        Index(
-            "idx_wikidata_entity_labels_label_gin",
-            "label",
-            postgresql_using="gin",
-            postgresql_ops={"label": "gin_trgm_ops"},
         ),
         Index("idx_wikidata_entity_labels_entity_id", "entity_id"),
     )

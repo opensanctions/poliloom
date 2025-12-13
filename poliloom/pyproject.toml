@@ -28,6 +28,7 @@ dependencies = [
     "indexed-bzip2>=1.5.0",
     "orjson>=3.11.3",
     "dicttoxml>=1.7.16",
+    "meilisearch>=0.33.0",
 ]
 
 [project.urls]

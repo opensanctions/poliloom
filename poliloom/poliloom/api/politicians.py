@@ -5,10 +5,11 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db_session
+from ..search import SearchService, get_search_service
 from ..models import (
     Politician,
     Property,
@@ -45,23 +46,33 @@ async def get_politicians(
     offset: int = Query(default=0, ge=0, description="Number of politicians to skip"),
     search: Optional[str] = Query(
         default=None,
-        description="Search politicians by name/label using fuzzy matching",
+        description="Search politicians by name/label",
     ),
     db: Session = Depends(get_db_session),
+    search_service: SearchService = Depends(get_search_service),
     current_user: User = Depends(get_current_user),
 ):
     """
     Search and list politicians.
 
     Returns a flat list of politicians with their properties.
-    Use the search parameter for fuzzy name matching.
+    Use the search parameter for name matching.
     """
     # Build composable politician query
     query = Politician.query_base()
 
     # Apply search filter
     if search:
-        query = Politician.search_by_label(query, search)
+        entity_ids = search_service.search_entities(
+            "politicians", search, db, limit=limit
+        )
+        if not entity_ids:
+            return []
+        ordering = case(
+            {eid: idx for idx, eid in enumerate(entity_ids)},
+            value=Politician.wikidata_id,
+        )
+        query = query.where(Politician.wikidata_id.in_(entity_ids)).order_by(ordering)
     else:
         # Random ordering when not searching
         query = query.order_by(func.random())

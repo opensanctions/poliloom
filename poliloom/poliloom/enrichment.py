@@ -30,6 +30,7 @@ from .models import (
 from . import archive
 from .database import get_engine
 from .embeddings import generate_embeddings_batch
+from .search import SearchService, get_search_service
 from .wikidata_date import WikidataDate
 from . import prompts
 
@@ -238,6 +239,7 @@ async def _map_single_item(
     free_item: Any,
     politician: Politician,
     config: TwoStageExtractionConfig,
+    search_service: SearchService,
 ) -> Optional[Any]:
     """Helper function to map a single free-form item to Wikidata entity.
 
@@ -247,37 +249,39 @@ async def _map_single_item(
         free_item: Free-form extracted item (may have .embedding attribute for Positions)
         politician: Politician being enriched
         config: Extraction configuration
+        search_service: SearchService for entity lookup
     """
     try:
-        # Build base query for the entity type
-        base_query = (
+        # Get entity type name (table name) for search service
+        entity_type = config.entity_class.__tablename__
+
+        # SearchService handles routing to appropriate backend (Meilisearch or embeddings)
+        entity_ids = search_service.search_entities(
+            entity_type, free_item.name, session=db, limit=config.search_limit
+        )
+
+        if not entity_ids:
+            logger.debug(
+                f"No similar {config.entity_class.MAPPING_ENTITY_NAME}s found for '{free_item.name}'"
+            )
+            return None
+
+        # Query the entities with full data
+        similar_entities = (
             db.query(config.entity_class)
             .join(
                 WikidataEntity,
                 config.entity_class.wikidata_id == WikidataEntity.wikidata_id,
             )
+            .filter(config.entity_class.wikidata_id.in_(entity_ids))
             .filter(WikidataEntity.deleted_at.is_(None))
             .options(
                 selectinload(config.entity_class.wikidata_entity)
                 .selectinload(WikidataEntity.parent_relations)
                 .selectinload(WikidataRelation.parent_entity)
             )
+            .all()
         )
-
-        # Apply appropriate search strategy
-        if config.entity_class.MAPPING_ENTITY_NAME == "position":
-            # Use pre-generated embedding from free_item for position similarity search
-            search_query = config.entity_class.search_by_embedding(
-                base_query, query_embedding=free_item.embedding
-            )
-        else:
-            # Use text-based fuzzy search for locations and countries
-            search_query = config.entity_class.search_by_label(
-                base_query, search_text=free_item.name
-            )
-
-        # Execute query with configured limit
-        similar_entities = search_query.limit(config.search_limit).all()
 
         if not similar_entities:
             logger.debug(
@@ -348,8 +352,22 @@ async def extract_two_stage_generic(
     content: str,
     politician: Politician,
     config: TwoStageExtractionConfig,
+    search_service: Optional[SearchService] = None,
 ) -> Optional[List[Any]]:
-    """Generic two-stage extraction (free-form -> mapping)."""
+    """Generic two-stage extraction (free-form -> mapping).
+
+    Args:
+        openai_client: Async OpenAI client
+        db: Database session
+        content: Text content to extract from
+        politician: Politician being enriched
+        config: Extraction configuration
+        search_service: SearchService for entity lookup (defaults to global instance)
+    """
+    # Use provided search service or get global instance
+    if search_service is None:
+        search_service = get_search_service()
+
     try:
         # Stage 1: Free-form extraction
         free_form_results = await extract_properties_generic(
@@ -382,6 +400,7 @@ async def extract_two_stage_generic(
                 free_item,
                 politician,
                 config,
+                search_service,
             )
             for free_item in free_form_results
         ]

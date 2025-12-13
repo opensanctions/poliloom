@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, func, and_
 
 from ..database import get_db_session
+from ..search import SearchService, get_search_service
 from ..models import (
     Language,
     Country,
@@ -54,17 +55,19 @@ def create_entity_endpoint(
         ),
         search: Optional[str] = Query(
             default=None,
-            description=f"Search {entity_name} by name/label using fuzzy matching",
+            description=f"Search {entity_name} by name/label",
         ),
         db: Session = Depends(get_db_session),
+        search_service: SearchService = Depends(get_search_service),
         current_user: User = Depends(get_current_user),
     ):
         f"""
         Retrieve {entity_name} with optional search filtering.
 
         Returns a list of {entity_name} with their metadata.
-        Supports fuzzy text search on labels.
         """
+        from sqlalchemy import case
+
         # Build base query filtering out soft-deleted entities
         query = (
             select(model_class)
@@ -84,7 +87,19 @@ def create_entity_endpoint(
 
         # Apply search filter if provided
         if search:
-            query = model_class.search_by_label(query, search)
+            entity_ids = search_service.search_entities(
+                entity_name, search, db, limit=limit
+            )
+            if not entity_ids:
+                return []
+            # Preserve search ranking order
+            ordering = case(
+                {eid: idx for idx, eid in enumerate(entity_ids)},
+                value=model_class.wikidata_id,
+            )
+            query = query.where(model_class.wikidata_id.in_(entity_ids)).order_by(
+                ordering
+            )
 
         # Apply offset and limit
         query = query.offset(offset).limit(limit)
@@ -108,9 +123,10 @@ async def get_languages(
     offset: int = Query(default=0, ge=0, description="Number of languages to skip"),
     search: Optional[str] = Query(
         default=None,
-        description="Search languages by name/label using fuzzy matching",
+        description="Search languages by name/label",
     ),
     db: Session = Depends(get_db_session),
+    search_service: SearchService = Depends(get_search_service),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -119,6 +135,8 @@ async def get_languages(
     Returns a list of all languages with their metadata and the count of
     sources (currently Wikipedia links) using each language via Wikipedia projects.
     """
+    from sqlalchemy import case
+
     # Direct query with grouping - no subquery needed
     query = (
         select(
@@ -157,7 +175,16 @@ async def get_languages(
 
     # Apply search filter if provided
     if search:
-        query = Language.search_by_label(query, search)
+        entity_ids = search_service.search_entities(
+            "languages", search, db, limit=limit
+        )
+        if not entity_ids:
+            return []
+        ordering = case(
+            {eid: idx for idx, eid in enumerate(entity_ids)},
+            value=Language.wikidata_id,
+        )
+        query = query.where(Language.wikidata_id.in_(entity_ids)).order_by(ordering)
 
     # Apply offset and limit
     query = query.offset(offset).limit(limit)
@@ -188,9 +215,10 @@ async def get_countries(
     offset: int = Query(default=0, ge=0, description="Number of countries to skip"),
     search: Optional[str] = Query(
         default=None,
-        description="Search countries by name/label using fuzzy matching",
+        description="Search countries by name/label",
     ),
     db: Session = Depends(get_db_session),
+    search_service: SearchService = Depends(get_search_service),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -199,6 +227,8 @@ async def get_countries(
     Returns a list of countries with their metadata and the count of
     politicians who have citizenship in each country.
     """
+    from sqlalchemy import case
+
     # Direct query with grouping - no subquery needed
     query = (
         select(
@@ -230,7 +260,16 @@ async def get_countries(
 
     # Apply search filter if provided
     if search:
-        query = Country.search_by_label(query, search)
+        entity_ids = search_service.search_entities(
+            "countries", search, db, limit=limit
+        )
+        if not entity_ids:
+            return []
+        ordering = case(
+            {eid: idx for idx, eid in enumerate(entity_ids)},
+            value=Country.wikidata_id,
+        )
+        query = query.where(Country.wikidata_id.in_(entity_ids)).order_by(ordering)
 
     # Apply offset and limit
     query = query.offset(offset).limit(limit)

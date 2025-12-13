@@ -28,7 +28,37 @@ from poliloom.models import (
     Location,
     Position,
     Property,
+    WikidataEntityLabel,
 )
+
+
+class MockSearchService:
+    """Mock search service for enrichment tests."""
+
+    def search_entities(self, entity_type, query, session, limit=100):
+        """Search entities by looking up labels in the test database."""
+        entity_models = {
+            "locations": Location,
+            "positions": Position,
+        }
+
+        if entity_type not in entity_models:
+            return []
+
+        model_class = entity_models[entity_type]
+        query_lower = query.lower()
+
+        # Query labels that contain the search term
+        results = (
+            session.query(WikidataEntityLabel.entity_id)
+            .join(model_class, WikidataEntityLabel.entity_id == model_class.wikidata_id)
+            .filter(WikidataEntityLabel.label.ilike(f"%{query_lower}%"))
+            .distinct()
+            .limit(limit)
+            .all()
+        )
+
+        return [r[0] for r in results]
 
 
 class TestEnrichment:
@@ -233,13 +263,16 @@ class TestEnrichment:
 
         mock_openai_client.responses.parse = mock_parse
 
-        # No embedding mock needed - locations use pg_trgm fuzzy search
+        # Create mock search service for the test
+        mock_search_service = MockSearchService()
+
         birthplaces = await extract_two_stage_generic(
             mock_openai_client,
             db_session,
             "test content",
             sample_politician,
             BIRTHPLACES_CONFIG,
+            search_service=mock_search_service,
         )
 
         assert birthplaces is not None

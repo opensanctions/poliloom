@@ -706,7 +706,7 @@ def politician_with_unevaluated_data(
 
 @pytest.fixture
 def client(db_session):
-    """Create a FastAPI test client with overridden database session.
+    """Create a FastAPI test client with overridden database session and search service.
 
     Uses dependency_overrides to inject the transaction-based test session
     into all API endpoints, ensuring test isolation.
@@ -714,14 +714,65 @@ def client(db_session):
     from fastapi.testclient import TestClient
     from poliloom.api import app
     from poliloom.database import get_db_session
+    from poliloom.search import get_search_service
 
     def override_get_db():
         """Override database session to use the test transaction."""
         yield db_session
 
-    # Override the dependency: when endpoints call Depends(get_db_session),
-    # FastAPI will call override_get_db() instead, which yields our test session
+    class MockSearchService:
+        """Mock search service that queries the test database directly."""
+
+        def search_entities(self, entity_type, query, session, limit=100):
+            """Search entities by looking up labels in the test database."""
+            from poliloom.models import (
+                WikidataEntityLabel,
+                Location,
+                Country,
+                Language,
+                Position,
+            )
+            from poliloom.models.politician import Politician
+
+            entity_models = {
+                "locations": Location,
+                "countries": Country,
+                "languages": Language,
+                "politicians": Politician,
+                "positions": Position,
+            }
+
+            if entity_type not in entity_models:
+                return []
+
+            model_class = entity_models[entity_type]
+            query_lower = query.lower()
+
+            # Query labels that contain the search term (use provided session)
+            results = (
+                session.query(WikidataEntityLabel.entity_id)
+                .join(
+                    model_class,
+                    WikidataEntityLabel.entity_id == model_class.wikidata_id,
+                )
+                .filter(WikidataEntityLabel.label.ilike(f"%{query_lower}%"))
+                .distinct()
+                .limit(limit)
+                .all()
+            )
+
+            return [r[0] for r in results]
+
+        def health_check(self):
+            return True
+
+    def override_get_search_service():
+        """Override search service to use mock implementation."""
+        return MockSearchService()
+
+    # Override the dependencies
     app.dependency_overrides[get_db_session] = override_get_db
+    app.dependency_overrides[get_search_service] = override_get_search_service
 
     yield TestClient(app)
 

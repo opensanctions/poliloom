@@ -461,6 +461,55 @@ def embed_entities(batch_size, encode_batch_size):
         raise SystemExit(1)
 
 
+@main.command("index-labels")
+@click.option(
+    "--entity-type",
+    type=click.Choice(["all", "locations", "countries", "languages", "politicians"]),
+    default="all",
+    help="Entity type to index (default: all)",
+)
+@click.option(
+    "--batch-size",
+    type=int,
+    default=1000,
+    help="Number of labels to index per batch (default: 1000)",
+)
+@click.option(
+    "--clear",
+    is_flag=True,
+    help="Clear existing index before indexing",
+)
+def index_labels(entity_type, batch_size, clear):
+    """Sync entity labels to Meilisearch for text search."""
+    from poliloom.search import SearchService
+
+    try:
+        search_service = SearchService()
+
+        if not search_service.health_check():
+            click.echo("❌ Meilisearch is not available. Make sure it's running.")
+            raise SystemExit(1)
+
+        click.echo(f"✅ Connected to Meilisearch at {search_service.url}")
+
+        with Session(get_engine()) as session:
+            if entity_type == "all":
+                results = search_service.build_all_indexes(session, clear, batch_size)
+                for name, count in results.items():
+                    click.echo(f"  ✅ Indexed {count} labels for {name}")
+            else:
+                count = search_service.build_index(
+                    session, entity_type, clear, batch_size
+                )
+                click.echo(f"  ✅ Indexed {count} labels for {entity_type}")
+
+        click.echo("\n✅ Label indexing complete")
+
+    except Exception as e:
+        click.echo(f"❌ Error indexing labels: {e}")
+        raise SystemExit(1)
+
+
 @main.command("import-hierarchy")
 @click.option(
     "--file",
