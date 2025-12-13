@@ -14,10 +14,10 @@
     "test:ui": "vitest --ui"
   },
   "dependencies": {
-    "next": "16.0.7",
+    "next": "16.0.10",
     "next-auth": "^5.0.0-beta.30",
-    "react": "^19.2.1",
-    "react-dom": "^19.2.1"
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
@@ -35,13 +35,13 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
     "@types/jsdom": "^27.0.0",
-    "@types/node": "^24",
+    "@types/node": "^25",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^5.1.1",
+    "@vitejs/plugin-react": "^5.1.2",
     "eslint": "^9",
-    "eslint-config-next": "16.0.7",
-    "jsdom": "^27.2.0",
+    "eslint-config-next": "16.0.10",
+    "jsdom": "^27.3.0",
     "lint-staged": "^16.2.7",
     "prettier": "^3.7.4",
     "tailwindcss": "^4",
