@@ -14,7 +14,7 @@ from poliloom.importer.politician import import_politicians
 from poliloom.database import get_engine
 from poliloom.logging import setup_logging
 from sqlalchemy.orm import Session
-from sqlalchemy import exists
+from sqlalchemy import exists, func
 from poliloom.models import (
     Country,
     CurrentImportEntity,
@@ -28,6 +28,7 @@ from poliloom.models import (
     Property,
     WikidataDump,
     WikidataEntity,
+    WikidataEntityLabel,
 )
 
 # Configure logging
@@ -1018,17 +1019,19 @@ def index_delete(confirm):
 @main.command("index-rebuild")
 @click.option(
     "--batch-size",
-    default=1000,
-    help="Number of documents to index per batch",
+    default=50000,
+    help="Number of documents to index per batch (10k-50k recommended)",
 )
 def index_rebuild(batch_size):
     """Rebuild Meilisearch index from database.
 
     Deletes existing index, recreates it, and reindexes all documents
     from Location, Country, Language, and Politician tables.
+
+    Uses async batching to leverage Meilisearch's auto-batching feature,
+    which combines consecutive requests for faster indexing.
     """
-    from poliloom.search import SearchService, INDEX_NAME
-    from poliloom.models import WikidataEntity
+    from poliloom.search import SearchService, INDEX_NAME, SearchDocument
 
     click.echo("⏳ Rebuilding Meilisearch index...")
 
@@ -1042,6 +1045,7 @@ def index_rebuild(batch_size):
     # Reindex all documents from each model type
     models = _get_meilisearch_models()
     total_indexed = 0
+    task_uids = []
 
     with Session(get_engine()) as session:
         for model in models:
@@ -1064,31 +1068,51 @@ def index_rebuild(batch_size):
             offset = 0
 
             while offset < total:
-                # Fetch batch with labels
-                entities = (
-                    session.query(model)
+                # Fetch only wikidata_id and labels (no ORM objects, no timestamps)
+                rows = (
+                    session.query(
+                        model.wikidata_id,
+                        func.array_agg(WikidataEntityLabel.label),
+                    )
                     .join(
                         WikidataEntity, model.wikidata_id == WikidataEntity.wikidata_id
                     )
+                    .outerjoin(
+                        WikidataEntityLabel,
+                        WikidataEntity.wikidata_id == WikidataEntityLabel.entity_id,
+                    )
                     .filter(WikidataEntity.deleted_at.is_(None))
+                    .group_by(model.wikidata_id)
                     .offset(offset)
                     .limit(batch_size)
                     .all()
                 )
 
-                if not entities:
+                if not rows:
                     break
 
-                # Build search documents (includes type field)
-                documents = [entity.to_search_document() for entity in entities]
+                # Build search documents directly from rows
+                documents = [
+                    SearchDocument(id=wikidata_id, type=entity_type, labels=labels)
+                    for wikidata_id, labels in rows
+                ]
 
-                search_service.index_documents(documents)
+                # Send batch without waiting (enables Meilisearch auto-batching)
+                task_uid = search_service.index_documents(documents)
+                if task_uid is not None:
+                    task_uids.append(task_uid)
+
                 indexed += len(documents)
                 offset += batch_size
 
-                click.echo(f"   Progress: {indexed}/{total}")
+                click.echo(f"   Sent: {indexed}/{total}")
 
             total_indexed += indexed
+
+    # Wait for all indexing tasks to complete
+    if task_uids:
+        click.echo(f"⏳ Waiting for {len(task_uids)} indexing tasks to complete...")
+        search_service.wait_for_tasks(task_uids)
 
     click.echo(f"✅ Successfully rebuilt index ({total_indexed} documents)")
 

@@ -78,26 +78,34 @@ class SearchService:
                 raise
             logger.debug(f"Index '{INDEX_NAME}' does not exist, nothing to delete")
 
-    def index_documents(self, documents: list[SearchDocument]) -> int:
+    def index_documents(self, documents: list[SearchDocument]) -> Optional[int]:
         """Index documents to Meilisearch.
 
-        Meilisearch handles upserts automatically - documents with existing IDs
-        are updated, new IDs are inserted.
+        Returns immediately without waiting, allowing Meilisearch's
+        auto-batching to combine consecutive requests for faster indexing.
 
         Args:
             documents: List of SearchDocument dicts with 'id', 'type', and 'labels'
 
         Returns:
-            Number of documents indexed
+            Task UID for tracking, or None if no documents
         """
         if not documents:
-            return 0
+            return None
 
         index = self.client.index(INDEX_NAME)
         task = index.add_documents(documents)
-        self.client.wait_for_task(task.task_uid, timeout_in_ms=60000)
+        return task.task_uid
 
-        return len(documents)
+    def wait_for_tasks(self, task_uids: list[int], timeout_in_ms: int = 300000) -> None:
+        """Wait for multiple tasks to complete.
+
+        Args:
+            task_uids: List of task UIDs to wait for
+            timeout_in_ms: Timeout for each task (default 5 minutes)
+        """
+        for task_uid in task_uids:
+            self.client.wait_for_task(task_uid, timeout_in_ms=timeout_in_ms)
 
     def delete_documents(self, document_ids: list[str]) -> int:
         """Delete documents from Meilisearch by ID.

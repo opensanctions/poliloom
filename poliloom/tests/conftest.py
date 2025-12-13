@@ -99,7 +99,8 @@ def mock_search_service():
     Returns a mock that tracks index_documents calls but doesn't connect to Meilisearch.
     """
     service = SyncMock()
-    service.index_documents.return_value = 0
+    service.index_documents.return_value = 1  # Returns task_uid
+    service.wait_for_tasks.return_value = None
     return service
 
 
