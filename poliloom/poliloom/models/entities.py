@@ -10,7 +10,7 @@ from .base import (
     Base,
     EntityCreationMixin,
     LanguageCodeMixin,
-    MeilisearchIndexedMixin,
+    SearchIndexedMixin,
     TimestampMixin,
     UpsertMixin,
 )
@@ -26,7 +26,7 @@ class Country(
     UpsertMixin,
     WikidataEntityMixin,
     EntityCreationMixin,
-    MeilisearchIndexedMixin,
+    SearchIndexedMixin,
 ):
     """Country entity for storing country information."""
 
@@ -88,7 +88,7 @@ class Language(
     UpsertMixin,
     WikidataEntityMixin,
     EntityCreationMixin,
-    MeilisearchIndexedMixin,
+    SearchIndexedMixin,
 ):
     """Language entity for storing language information."""
 
@@ -235,7 +235,7 @@ class Location(
     UpsertMixin,
     WikidataEntityMixin,
     EntityCreationMixin,
-    MeilisearchIndexedMixin,
+    SearchIndexedMixin,
 ):
     """Location entity for geographic locations."""
 

@@ -947,22 +947,22 @@ def clean_properties(dry_run):
             raise SystemExit(1)
 
 
-def _get_meilisearch_models():
-    """Get all models that use MeilisearchIndexedMixin."""
-    from poliloom.models import MeilisearchIndexedMixin
+def _get_search_indexed_models():
+    """Get all models that use SearchIndexedMixin."""
+    from poliloom.models import SearchIndexedMixin
     import poliloom.models as models_module
 
-    meilisearch_models = []
+    search_indexed_models = []
     for name in dir(models_module):
         obj = getattr(models_module, name)
         if (
             isinstance(obj, type)
-            and issubclass(obj, MeilisearchIndexedMixin)
-            and obj is not MeilisearchIndexedMixin
+            and issubclass(obj, SearchIndexedMixin)
+            and obj is not SearchIndexedMixin
             and hasattr(obj, "__tablename__")
         ):
-            meilisearch_models.append(obj)
-    return meilisearch_models
+            search_indexed_models.append(obj)
+    return search_indexed_models
 
 
 @main.command("index-create")
@@ -1043,7 +1043,7 @@ def index_rebuild(batch_size):
     click.echo(f"   Recreated index '{INDEX_NAME}'")
 
     # Reindex all documents from each model type
-    models = _get_meilisearch_models()
+    models = _get_search_indexed_models()
     total_indexed = 0
     task_uids = []
 

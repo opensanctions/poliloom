@@ -42,17 +42,17 @@ class Searchable(Protocol):
         ...
 
 
-class MeilisearchIndexedMixin:
-    """Mixin for models that should be indexed in Meilisearch.
+class SearchIndexedMixin:
+    """Mixin for models that should be indexed in the search service.
 
     Models inheriting from this mixin will be automatically indexed
-    during import and can be searched via Meilisearch.
+    during import and can be searched via the search service.
 
     Implements the Searchable protocol.
     """
 
     def to_search_document(self) -> SearchDocument:
-        """Transform this entity to a SearchDocument for Meilisearch indexing."""
+        """Transform this entity to a SearchDocument for indexing."""
         return SearchDocument(
             id=self.wikidata_id,
             type=self.__tablename__,
@@ -67,7 +67,7 @@ class MeilisearchIndexedMixin:
         search_service: "SearchService",
         limit: int = 100,
     ) -> list[str]:
-        """Find similar entities by searching Meilisearch.
+        """Find similar entities by searching the search index.
 
         Args:
             query: Search query text

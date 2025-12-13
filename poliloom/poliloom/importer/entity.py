@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from .. import dump_reader
 from ..database import create_engine, get_engine
 from ..models import (
-    MeilisearchIndexedMixin,
+    SearchIndexedMixin,
     Position,
     Location,
     Country,
@@ -75,14 +75,14 @@ def _insert_entities_batch(
 ) -> None:
     """Insert a batch of entities and their relations into the database.
 
-    Also indexes to Meilisearch if the model has MeilisearchIndexedMixin.
+    Also indexes to search service if the model has SearchIndexedMixin.
     """
     if not collection.has_entities():
         return
 
     # Build search documents BEFORE modifying entities (labels get popped later)
     search_documents: list[SearchDocument] = []
-    if issubclass(collection.model_class, MeilisearchIndexedMixin):
+    if issubclass(collection.model_class, SearchIndexedMixin):
         entity_type = collection.model_class.__tablename__
         search_documents = [
             SearchDocument(
@@ -280,7 +280,7 @@ def import_entities(
     Import supporting entities from the Wikidata dump using parallel processing.
     Uses frozensets to efficiently share descendant QIDs across workers with O(1) lookups.
 
-    Entities with MeilisearchIndexedMixin are indexed to Meilisearch during import.
+    Entities with SearchIndexedMixin are indexed to the search service during import.
 
     Args:
         dump_file_path: Path to the Wikidata JSON dump file
