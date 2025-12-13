@@ -333,29 +333,9 @@ export default function StatsPage() {
       <div className="max-w-6xl mx-auto px-6 py-12">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Community Stats</h1>
-          <div className="flex items-baseline justify-between gap-4">
-            <p className="text-lg text-gray-600">
-              Track evaluation progress and coverage across countries.
-            </p>
-            {process.env.NEXT_PUBLIC_WIKIDATA_CONTRIBUTIONS_URL && (
-              <a
-                href={process.env.NEXT_PUBLIC_WIKIDATA_CONTRIBUTIONS_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-indigo-600 hover:underline whitespace-nowrap inline-flex items-center gap-1"
-              >
-                View Wikidata contributions
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                  />
-                </svg>
-              </a>
-            )}
-          </div>
+          <p className="text-lg text-gray-600">
+            Track evaluation progress and coverage across countries.
+          </p>
         </div>
 
         {loading && (
@@ -390,10 +370,27 @@ export default function StatsPage() {
           </div>
         )}
 
-        <div className="text-center pt-8 pb-4">
+        <div className="flex justify-center gap-3 pt-8 pb-4">
           <Button href="https://www.opensanctions.org/impressum/" variant="secondary" size="small">
             Impressum
           </Button>
+          {process.env.NEXT_PUBLIC_WIKIDATA_CONTRIBUTIONS_URL && (
+            <Button
+              href={process.env.NEXT_PUBLIC_WIKIDATA_CONTRIBUTIONS_URL}
+              variant="secondary"
+              size="small"
+            >
+              View Wikidata contributions
+              <svg className="w-4 h-4 ml-1 stroke-indigo-600" fill="none" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                />
+              </svg>
+            </Button>
+          )}
         </div>
       </div>
     </main>
