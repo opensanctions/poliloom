@@ -2,6 +2,7 @@
 
 import { Box } from '@/components/ui/Box'
 import { Button } from '@/components/ui/Button'
+import { Footer } from '@/components/ui/Footer'
 import { Toggle } from '@/components/ui/Toggle'
 import { MultiSelect, MultiSelectOption } from '@/components/entity/MultiSelect'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
@@ -65,9 +66,9 @@ export default function Home() {
   const handleCountryChange = createFilterHandler(PreferenceType.COUNTRY, countries)
 
   return (
-    <main className="bg-gray-50 min-h-0 overflow-y-auto">
+    <main className="bg-gray-50 min-h-0 overflow-y-auto flex flex-col">
       {/* Filters Section */}
-      <div className="max-w-6xl mx-auto px-6 py-12">
+      <div className="flex-1 max-w-6xl mx-auto px-6 pt-12 w-full">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Configure Your Session</h1>
           <p className="text-lg text-gray-600">
@@ -130,6 +131,8 @@ export default function Home() {
           </div>
         </Box>
       </div>
+
+      <Footer />
     </main>
   )
 }

@@ -7,6 +7,7 @@ import { Select } from '@/components/ui/Select'
 import { Loader } from '@/components/ui/Spinner'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { Button } from '@/components/ui/Button'
+import { Footer } from '@/components/ui/Footer'
 import { useUserProgress } from '@/contexts/UserProgressContext'
 import { StatsResponse, EvaluationTimeseriesPoint, CountryCoverage } from '@/types'
 
@@ -329,8 +330,8 @@ export default function StatsPage() {
   }
 
   return (
-    <main className="bg-gray-50 min-h-0 overflow-y-auto">
-      <div className="max-w-6xl mx-auto px-6 py-12">
+    <main className="bg-gray-50 min-h-0 overflow-y-auto flex flex-col">
+      <div className="flex-1 max-w-6xl mx-auto px-6 pt-12 w-full">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Community Stats</h1>
           <p className="text-lg text-gray-600">
@@ -369,30 +370,9 @@ export default function StatsPage() {
             </HeaderedBox>
           </div>
         )}
-
-        <div className="flex justify-center gap-3 pt-8 pb-4">
-          <Button href="https://www.opensanctions.org/impressum/" variant="secondary" size="small">
-            Impressum
-          </Button>
-          {process.env.NEXT_PUBLIC_WIKIDATA_CONTRIBUTIONS_URL && (
-            <Button
-              href={process.env.NEXT_PUBLIC_WIKIDATA_CONTRIBUTIONS_URL}
-              variant="secondary"
-              size="small"
-            >
-              View Wikidata contributions
-              <svg className="w-4 h-4 ml-1 stroke-indigo-600" fill="none" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                />
-              </svg>
-            </Button>
-          )}
-        </div>
       </div>
+
+      <Footer />
     </main>
   )
 }
