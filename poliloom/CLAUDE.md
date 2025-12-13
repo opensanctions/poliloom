@@ -189,6 +189,7 @@ uv run poliloom garbage-collect
 - **Database**: PostgreSQL test database (port 5433)
 - **Mocking**: External APIs (OpenAI, sentence-transformers) mocked in `conftest.py`
 - **Coverage Focus**: Entity classes, database models, core data pipeline
+- **Approach**: Minimal, behavior-focused testing. Test business logic and data transformations, not language mechanics (inheritance, type checking). Avoid over-engineering tests.
 
 ### **Key Patterns**
 
