@@ -46,11 +46,6 @@ class EntityCollection:
         """Add relations for the last added entity."""
         self.relations.extend(relations)
 
-    def clear_batch(self) -> None:
-        """Clear entities and relations for batch processing."""
-        self.entities = []
-        self.relations = []
-
     def has_entities(self) -> bool:
         """Check if collection has entities."""
         return len(self.entities) > 0
@@ -59,6 +54,84 @@ class EntityCollection:
         """Get current batch size."""
         return len(self.entities)
 
+    def insert(self, session: Session, search_service: SearchService) -> None:
+        """Insert entities and relations into database, then index to search.
+
+        Commits the transaction and indexes to search service after successful commit.
+        Clears the batch after completion.
+        """
+        if not self.has_entities():
+            return
+
+        # Build search documents BEFORE modifying entities (labels get popped later)
+        search_documents: list[SearchDocument] = []
+        if issubclass(self.model_class, SearchIndexedMixin):
+            entity_type = self.model_class.__tablename__
+            search_documents = [
+                SearchDocument(
+                    id=entity["wikidata_id"],
+                    type=entity_type,
+                    labels=entity.get("labels") or [],
+                )
+                for entity in self.entities
+            ]
+
+        # Insert WikidataEntity records first (without labels)
+        entity_data = [
+            {
+                "wikidata_id": entity["wikidata_id"],
+                "name": entity["name"],
+                "description": entity["description"],
+            }
+            for entity in self.entities
+        ]
+
+        WikidataEntity.upsert_batch(session, entity_data)
+
+        # Insert labels into separate table
+        label_data = []
+        for entity in self.entities:
+            labels = entity.get("labels")
+            if labels:
+                for label in labels:
+                    label_data.append(
+                        {
+                            "entity_id": entity["wikidata_id"],
+                            "label": label,
+                        }
+                    )
+
+        if label_data:
+            WikidataEntityLabel.upsert_batch(session, label_data)
+
+        # Insert entities referencing the WikidataEntity records
+        # Remove 'name', 'description', and 'labels' keys since they're now stored separately
+        for entity in self.entities:
+            entity.pop("name", None)
+            entity.pop("description", None)
+            entity.pop("labels", None)
+
+        self.model_class.upsert_batch(session, self.entities)
+
+        # Insert relations for these entities
+        if self.relations:
+            WikidataRelation.upsert_batch(session, self.relations)
+
+        session.commit()
+
+        # Index to search after successful commit
+        if search_documents:
+            search_service.index_documents(search_documents)
+
+        logger.debug(
+            f"Processed {len(self.entities)} {self.model_class.__name__.lower()}s "
+            f"with {len(self.relations)} relations"
+        )
+
+        # Clear batch after successful insert
+        self.entities = []
+        self.relations = []
+
 
 # Progress reporting frequency for chunk processing
 PROGRESS_REPORT_FREQUENCY = 50000
@@ -66,83 +139,6 @@ PROGRESS_REPORT_FREQUENCY = 50000
 # Worker configuration - set in parent process before fork, shared via copy-on-write
 # Structure: {model_name: {"classes": frozenset, "ignored": frozenset}}
 worker_config: dict | None = None
-
-
-def _insert_entities_batch(
-    collection: EntityCollection,
-    session: Session,
-    search_service: SearchService,
-) -> None:
-    """Insert a batch of entities and their relations into the database.
-
-    Also indexes to search service if the model has SearchIndexedMixin.
-    """
-    if not collection.has_entities():
-        return
-
-    # Build search documents BEFORE modifying entities (labels get popped later)
-    search_documents: list[SearchDocument] = []
-    if issubclass(collection.model_class, SearchIndexedMixin):
-        entity_type = collection.model_class.__tablename__
-        search_documents = [
-            SearchDocument(
-                id=entity["wikidata_id"],
-                type=entity_type,
-                labels=entity.get("labels") or [],
-            )
-            for entity in collection.entities
-        ]
-
-    # Insert WikidataEntity records first (without labels)
-    entity_data = [
-        {
-            "wikidata_id": entity["wikidata_id"],
-            "name": entity["name"],
-            "description": entity["description"],
-        }
-        for entity in collection.entities
-    ]
-
-    WikidataEntity.upsert_batch(session, entity_data)
-
-    # Insert labels into separate table
-    label_data = []
-    for entity in collection.entities:
-        labels = entity.get("labels")
-        if labels:
-            for label in labels:
-                label_data.append(
-                    {
-                        "entity_id": entity["wikidata_id"],
-                        "label": label,
-                    }
-                )
-
-    if label_data:
-        WikidataEntityLabel.upsert_batch(session, label_data)
-
-    # Insert entities referencing the WikidataEntity records
-    # Remove 'name', 'description', and 'labels' keys since they're now stored separately
-    for entity in collection.entities:
-        entity.pop("name", None)
-        entity.pop("description", None)
-        entity.pop("labels", None)
-
-    collection.model_class.upsert_batch(session, collection.entities)
-
-    # Insert relations for these entities
-    if collection.relations:
-        WikidataRelation.upsert_batch(session, collection.relations)
-
-    session.flush()
-
-    # Index to Meilisearch after successful DB insert
-    if search_documents:
-        search_service.index_documents(search_documents)
-
-    logger.debug(
-        f"Processed {len(collection.entities)} {collection.model_class.__name__.lower()}s with {len(collection.relations)} relations"
-    )
 
 
 def _process_supporting_entities_chunk(
@@ -245,9 +241,7 @@ def _process_supporting_entities_chunk(
             # Process batches when they reach the batch size
             for collection in entity_collections:
                 if collection.batch_size() >= batch_size:
-                    _insert_entities_batch(collection, session, search_service)
-                    session.commit()
-                    collection.clear_batch()
+                    collection.insert(session, search_service)
 
     except Exception as e:
         logger.error(f"Worker {worker_id}: error processing chunk: {e}")
@@ -258,8 +252,7 @@ def _process_supporting_entities_chunk(
     # Process remaining entities in final batches on successful completion
     for collection in entity_collections:
         if collection.has_entities():
-            _insert_entities_batch(collection, session, search_service)
-            session.commit()
+            collection.insert(session, search_service)
 
     session.close()
     logger.info(f"Worker {worker_id}: finished processing {entity_count} entities")

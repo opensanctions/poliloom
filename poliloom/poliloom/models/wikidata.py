@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session, declared_attr, relationship
 from .base import (
     Base,
     RelationType,
+    SearchIndexedMixin,
     SoftDeleteMixin,
     TimestampMixin,
     UpsertMixin,
@@ -310,13 +311,14 @@ class WikidataEntityMixin:
 
     @classmethod
     def cleanup_outside_hierarchy(
-        cls, session: Session, dry_run: bool = False
+        cls,
+        session: Session,
+        dry_run: bool = False,
     ) -> dict[str, int]:
         """Remove entities outside the configured hierarchy.
 
         Soft-deletes properties referencing these entities (if applicable),
-        then hard-deletes the entity records. Uses subqueries to avoid
-        materializing large ID lists.
+        then hard-deletes the entity records and removes them from search index.
 
         Args:
             session: Database session
@@ -332,6 +334,7 @@ class WikidataEntityMixin:
             - 'total_entities': Total entities before cleanup
         """
         from poliloom.models import Evaluation, Property
+        from poliloom.search import SearchService
 
         prop_type = getattr(cls, "_cleanup_property_type", None)
         root_ids = getattr(cls, "_hierarchy_roots", None)
@@ -427,11 +430,20 @@ class WikidataEntityMixin:
             ).rowcount
             stats["properties_deleted"] = props_deleted
 
-        # Hard-delete entity records
-        deleted = session.execute(
-            delete(cls).where(cls.wikidata_id.in_(select(outside_subquery)))
-        ).rowcount
-        stats["entities_removed"] = deleted
+        # Hard-delete entity records and get deleted IDs via RETURNING
+        delete_stmt = (
+            delete(cls)
+            .where(cls.wikidata_id.in_(select(outside_subquery)))
+            .returning(cls.wikidata_id)
+        )
+        deleted_rows = session.execute(delete_stmt).fetchall()
+        deleted_ids = [row[0] for row in deleted_rows]
+        stats["entities_removed"] = len(deleted_ids)
+
+        # Clean up search index for entities with SearchIndexedMixin
+        if deleted_ids and issubclass(cls, SearchIndexedMixin):
+            search_service = SearchService()
+            search_service.delete_documents(deleted_ids)
 
         return stats
 

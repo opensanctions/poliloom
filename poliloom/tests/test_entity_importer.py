@@ -9,10 +9,7 @@ from poliloom.models import (
     Language,
     WikipediaProject,
 )
-from poliloom.importer.entity import (
-    _insert_entities_batch,
-    EntityCollection,
-)
+from poliloom.importer.entity import EntityCollection
 
 
 class TestWikidataEntityImporter:
@@ -37,7 +34,7 @@ class TestWikidataEntityImporter:
         for pos in positions:
             collection.add_entity(pos)
 
-        _insert_entities_batch(collection, db_session, mock_search_service)
+        collection.insert(db_session, mock_search_service)
 
         # Verify positions were inserted
         inserted_positions = db_session.query(Position).all()
@@ -65,7 +62,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Position, shared_classes=frozenset())
         for pos in initial_positions:
             collection.add_entity(pos)
-        _insert_entities_batch(collection, db_session, mock_search_service)
+        collection.insert(db_session, mock_search_service)
 
         # Insert batch with some duplicates and new items
         positions_with_duplicates = [
@@ -88,7 +85,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Position, shared_classes=frozenset())
         for pos in positions_with_duplicates:
             collection.add_entity(pos)
-        _insert_entities_batch(collection, db_session, mock_search_service)
+        collection.insert(db_session, mock_search_service)
 
         # Verify all positions exist with correct data
         inserted_positions = db_session.query(Position).all()
@@ -107,7 +104,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Position, shared_classes=frozenset())
 
         # Should handle empty batch gracefully without errors
-        _insert_entities_batch(collection, db_session, mock_search_service)
+        collection.insert(db_session, mock_search_service)
 
         # Verify no positions were inserted
         inserted_positions = db_session.query(Position).all()
@@ -132,7 +129,7 @@ class TestWikidataEntityImporter:
         for loc in locations:
             collection.add_entity(loc)
 
-        _insert_entities_batch(collection, db_session, mock_search_service)
+        collection.insert(db_session, mock_search_service)
 
         # Verify locations were inserted
         inserted_locations = db_session.query(Location).all()
@@ -165,7 +162,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Location, shared_classes=frozenset())
         for loc in locations:
             collection.add_entity(loc)
-        _insert_entities_batch(collection, db_session, mock_search_service)
+        collection.insert(db_session, mock_search_service)
 
         # Insert again with some duplicates - should handle gracefully
         locations_with_duplicates = [
@@ -183,7 +180,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Location, shared_classes=frozenset())
         for loc in locations_with_duplicates:
             collection.add_entity(loc)
-        _insert_entities_batch(collection, db_session, mock_search_service)
+        collection.insert(db_session, mock_search_service)
 
         # Should now have 4 total locations
         all_locations = db_session.query(Location).all()
@@ -212,7 +209,7 @@ class TestWikidataEntityImporter:
         for country in countries:
             collection.add_entity(country)
 
-        _insert_entities_batch(collection, db_session, mock_search_service)
+        collection.insert(db_session, mock_search_service)
 
         # Verify countries were inserted
         inserted_countries = db_session.query(Country).all()
@@ -242,7 +239,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Country, shared_classes=frozenset())
         for country in countries:
             collection.add_entity(country)
-        _insert_entities_batch(collection, db_session, mock_search_service)
+        collection.insert(db_session, mock_search_service)
 
         # Insert again with updated name - should update
         updated_countries = [
@@ -256,7 +253,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Country, shared_classes=frozenset())
         for country in updated_countries:
             collection.add_entity(country)
-        _insert_entities_batch(collection, db_session, mock_search_service)
+        collection.insert(db_session, mock_search_service)
 
         # Should still have only one country but with updated name
         final_countries = db_session.query(Country).all()
@@ -286,7 +283,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Language, shared_classes=frozenset())
         for lang in languages:
             collection.add_entity(lang)
-        _insert_entities_batch(collection, db_session, mock_search_service)
+        collection.insert(db_session, mock_search_service)
 
         # Verify languages were inserted
         inserted_languages = db_session.query(Language).all()
@@ -316,7 +313,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Language, shared_classes=frozenset())
         for lang in languages:
             collection.add_entity(lang)
-        _insert_entities_batch(collection, db_session, mock_search_service)
+        collection.insert(db_session, mock_search_service)
 
         # Insert again with updated name - should update
         updated_languages = [
@@ -331,7 +328,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Language, shared_classes=frozenset())
         for lang in updated_languages:
             collection.add_entity(lang)
-        _insert_entities_batch(collection, db_session, mock_search_service)
+        collection.insert(db_session, mock_search_service)
 
         # Should still have only one language but with updated name
         final_languages = db_session.query(Language).all()
@@ -364,7 +361,7 @@ class TestWikidataEntityImporter:
         for project in wikipedia_projects:
             collection.add_entity(project)
 
-        _insert_entities_batch(collection, db_session, mock_search_service)
+        collection.insert(db_session, mock_search_service)
 
         # Verify Wikipedia projects were inserted
         inserted_projects = db_session.query(WikipediaProject).all()
@@ -405,7 +402,7 @@ class TestWikidataEntityImporter:
         )
         for project in wikipedia_projects:
             collection.add_entity(project)
-        _insert_entities_batch(collection, db_session, mock_search_service)
+        collection.insert(db_session, mock_search_service)
 
         # Insert again with same wikidata_id - should skip (do nothing)
         updated_projects = [
@@ -420,7 +417,7 @@ class TestWikidataEntityImporter:
         )
         for project in updated_projects:
             collection.add_entity(project)
-        _insert_entities_batch(collection, db_session, mock_search_service)
+        collection.insert(db_session, mock_search_service)
 
         # Should still have only one project, but WikidataEntity name/description are updated
         final_projects = db_session.query(WikipediaProject).all()
