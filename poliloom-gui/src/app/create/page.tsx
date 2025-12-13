@@ -221,7 +221,7 @@ export default function CreatePage() {
               {/* Politician Search/Create */}
               <div className="space-y-6">
                 <EntitySelector<Politician>
-                  searchEndpoint="/api/politicians"
+                  searchEndpoint="/api/politicians/search"
                   placeholder="Search for politicians or enter a new name..."
                   selectedEntity={
                     selectedPolitician
