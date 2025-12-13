@@ -76,6 +76,7 @@ services:
       - PYTHONPATH=/app
       - PORT=8000
       - HF_HOME=/var/cache/huggingface
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
     volumes:
       - huggingface_cache:/var/cache/huggingface
       - wikidata_cache:/var/cache/wikidata
