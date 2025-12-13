@@ -1,5 +1,7 @@
 """Tests for WikidataEntity model."""
 
+from unittest.mock import patch, Mock
+
 from sqlalchemy.dialects.postgresql import insert
 
 from poliloom.models import WikidataEntity, WikidataRelation, RelationType
@@ -856,3 +858,151 @@ class TestCleanupOutsideHierarchy:
         # Position should remain
         count = db_session.execute(text("SELECT COUNT(*) FROM positions")).scalar()
         assert count == 1
+
+
+class TestCleanupOutsideHierarchySearchService:
+    """Test that cleanup_outside_hierarchy calls search service for deletion.
+
+    Uses Location because it has SearchIndexedMixin (Position does not).
+    """
+
+    def _create_hierarchy(self, db_session, root_id, child_ids):
+        """Helper to create a hierarchy with root and children."""
+        # Create wikidata entities
+        entities = [{"wikidata_id": root_id, "name": f"Root {root_id}"}]
+        for child_id in child_ids:
+            entities.append({"wikidata_id": child_id, "name": f"Child {child_id}"})
+
+        stmt = insert(WikidataEntity).values(entities)
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+
+        # Create subclass relations
+        relations = []
+        for child_id in child_ids:
+            relations.append(
+                {
+                    "parent_entity_id": root_id,
+                    "child_entity_id": child_id,
+                    "relation_type": RelationType.SUBCLASS_OF,
+                    "statement_id": f"{child_id}$subclass-of-{root_id}",
+                }
+            )
+
+        if relations:
+            stmt = insert(WikidataRelation).values(relations)
+            stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
+            db_session.execute(stmt)
+
+        db_session.flush()
+
+    def _create_location_in_hierarchy(self, db_session, location_id, class_id):
+        """Helper to create a location that is an instance of a hierarchy class."""
+        from poliloom.models import Location
+
+        # Create wikidata entity for the location
+        stmt = insert(WikidataEntity).values(
+            [{"wikidata_id": location_id, "name": f"Location {location_id}"}]
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+
+        # Create location record
+        stmt = insert(Location.__table__).values([{"wikidata_id": location_id}])
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+
+        # Create instance_of relation to the class
+        stmt = insert(WikidataRelation).values(
+            [
+                {
+                    "parent_entity_id": class_id,
+                    "child_entity_id": location_id,
+                    "relation_type": RelationType.INSTANCE_OF,
+                    "statement_id": f"{location_id}$instance-of-{class_id}",
+                }
+            ]
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
+        db_session.execute(stmt)
+        db_session.flush()
+
+    def _create_orphan_location(self, db_session, location_id):
+        """Helper to create a location with no hierarchy relations."""
+        from poliloom.models import Location
+
+        # Create wikidata entity
+        stmt = insert(WikidataEntity).values(
+            [{"wikidata_id": location_id, "name": f"Orphan Location {location_id}"}]
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+
+        # Create location record (no relations)
+        stmt = insert(Location.__table__).values([{"wikidata_id": location_id}])
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+        db_session.flush()
+
+    def test_cleanup_calls_delete_documents(self, db_session):
+        """Test that cleanup_outside_hierarchy calls delete_documents on search service."""
+        from poliloom.models import Location
+
+        # Create hierarchy (Q486972 is "human settlement" in Location._hierarchy_roots)
+        self._create_hierarchy(db_session, "Q486972", ["Q100"])
+
+        # Create a valid location
+        self._create_location_in_hierarchy(db_session, "Q200", "Q100")
+
+        # Create orphan locations that will be deleted
+        self._create_orphan_location(db_session, "Q300")
+        self._create_orphan_location(db_session, "Q301")
+
+        # Mock the SearchService (imported locally in cleanup_outside_hierarchy)
+        mock_search_service = Mock()
+        with patch("poliloom.search.SearchService", return_value=mock_search_service):
+            stats = Location.cleanup_outside_hierarchy(db_session, dry_run=False)
+
+        # Verify delete_documents was called with the orphan IDs
+        assert stats["entities_removed"] == 2
+        mock_search_service.delete_documents.assert_called_once()
+        deleted_ids = mock_search_service.delete_documents.call_args[0][0]
+        assert set(deleted_ids) == {"Q300", "Q301"}
+
+    def test_cleanup_does_not_call_delete_when_nothing_removed(self, db_session):
+        """Test that delete_documents is not called when no entities are removed."""
+        from poliloom.models import Location
+
+        # Create hierarchy
+        self._create_hierarchy(db_session, "Q486972", ["Q100"])
+
+        # Create only valid locations (no orphans)
+        self._create_location_in_hierarchy(db_session, "Q200", "Q100")
+
+        # Mock the SearchService
+        mock_search_service = Mock()
+        with patch("poliloom.search.SearchService", return_value=mock_search_service):
+            stats = Location.cleanup_outside_hierarchy(db_session, dry_run=False)
+
+        # No entities removed, so delete_documents should not be called
+        assert stats["entities_removed"] == 0
+        mock_search_service.delete_documents.assert_not_called()
+
+    def test_dry_run_does_not_call_delete_documents(self, db_session):
+        """Test that dry_run=True does not call delete_documents."""
+        from poliloom.models import Location
+
+        # Create hierarchy
+        self._create_hierarchy(db_session, "Q486972", ["Q100"])
+
+        # Create orphan location
+        self._create_orphan_location(db_session, "Q300")
+
+        # Mock the SearchService
+        mock_search_service = Mock()
+        with patch("poliloom.search.SearchService", return_value=mock_search_service):
+            stats = Location.cleanup_outside_hierarchy(db_session, dry_run=True)
+
+        # Dry run reports what would be removed but doesn't call delete_documents
+        assert stats["entities_removed"] == 1
+        mock_search_service.delete_documents.assert_not_called()

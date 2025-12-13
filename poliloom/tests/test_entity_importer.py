@@ -427,6 +427,139 @@ class TestWikidataEntityImporter:
         assert final_projects[0].name == "English Wikipedia Updated"
 
 
+class TestSearchServiceIndexing:
+    """Test that entity importing calls search service for label indexing.
+
+    Note: Only entities with SearchIndexedMixin are indexed (Country, Language, Location).
+    Position uses embedding-based search instead.
+    """
+
+    def test_insert_multiple_locations_indexes_labels(
+        self, db_session, mock_search_service
+    ):
+        """Test that inserting multiple locations calls index_documents with correct data."""
+        locations = [
+            {
+                "wikidata_id": "Q60",
+                "name": "New York City",
+                "description": "City in USA",
+                "labels": ["New York City", "NYC", "New York"],
+            },
+            {
+                "wikidata_id": "Q84",
+                "name": "London",
+                "description": "Capital of UK",
+                "labels": ["London", "Greater London"],
+            },
+        ]
+
+        collection = EntityCollection(model_class=Location, shared_classes=frozenset())
+        for loc in locations:
+            collection.add_entity(loc)
+
+        collection.insert(db_session, mock_search_service)
+
+        # Verify index_documents was called
+        mock_search_service.index_documents.assert_called_once()
+
+        # Verify the documents passed to index_documents
+        call_args = mock_search_service.index_documents.call_args[0][0]
+        assert len(call_args) == 2
+
+        # Check first document
+        doc1 = next(d for d in call_args if d["id"] == "Q60")
+        assert doc1["type"] == "locations"
+        assert set(doc1["labels"]) == {"New York City", "NYC", "New York"}
+
+        # Check second document
+        doc2 = next(d for d in call_args if d["id"] == "Q84")
+        assert doc2["type"] == "locations"
+        assert set(doc2["labels"]) == {"London", "Greater London"}
+
+    def test_insert_locations_indexes_labels(self, db_session, mock_search_service):
+        """Test that inserting locations calls index_documents with correct data."""
+        locations = [
+            {
+                "wikidata_id": "Q60",
+                "name": "New York City",
+                "description": "City in USA",
+                "labels": ["New York City", "NYC", "New York"],
+            },
+        ]
+
+        collection = EntityCollection(model_class=Location, shared_classes=frozenset())
+        for loc in locations:
+            collection.add_entity(loc)
+
+        collection.insert(db_session, mock_search_service)
+
+        # Verify index_documents was called with correct data
+        mock_search_service.index_documents.assert_called_once()
+        call_args = mock_search_service.index_documents.call_args[0][0]
+        assert len(call_args) == 1
+        assert call_args[0]["id"] == "Q60"
+        assert call_args[0]["type"] == "locations"
+        assert set(call_args[0]["labels"]) == {"New York City", "NYC", "New York"}
+
+    def test_insert_countries_indexes_labels(self, db_session, mock_search_service):
+        """Test that inserting countries calls index_documents with correct data."""
+        countries = [
+            {
+                "wikidata_id": "Q30",
+                "name": "United States",
+                "description": "Country",
+                "iso_code": "US",
+                "labels": ["United States", "USA", "America"],
+            },
+        ]
+
+        collection = EntityCollection(model_class=Country, shared_classes=frozenset())
+        for country in countries:
+            collection.add_entity(country)
+
+        collection.insert(db_session, mock_search_service)
+
+        # Verify index_documents was called
+        mock_search_service.index_documents.assert_called_once()
+        call_args = mock_search_service.index_documents.call_args[0][0]
+        assert call_args[0]["id"] == "Q30"
+        assert call_args[0]["type"] == "countries"
+
+    def test_insert_empty_batch_does_not_call_index(
+        self, db_session, mock_search_service
+    ):
+        """Test that empty batch does not call index_documents."""
+        collection = EntityCollection(model_class=Location, shared_classes=frozenset())
+        collection.insert(db_session, mock_search_service)
+
+        # index_documents should not be called for empty batch
+        mock_search_service.index_documents.assert_not_called()
+
+    def test_insert_entities_without_labels_indexes_empty_labels(
+        self, db_session, mock_search_service
+    ):
+        """Test that entities without labels are indexed with empty labels list."""
+        locations = [
+            {
+                "wikidata_id": "Q1",
+                "name": "Some Location",
+                "description": "No labels",
+                # No labels key
+            },
+        ]
+
+        collection = EntityCollection(model_class=Location, shared_classes=frozenset())
+        for loc in locations:
+            collection.add_entity(loc)
+
+        collection.insert(db_session, mock_search_service)
+
+        # Should still call index_documents
+        mock_search_service.index_documents.assert_called_once()
+        call_args = mock_search_service.index_documents.call_args[0][0]
+        assert call_args[0]["labels"] == []
+
+
 class TestWikipediaProjectFiltering:
     """Test Wikipedia project filtering logic in should_import method."""
 

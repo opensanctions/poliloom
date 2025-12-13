@@ -824,20 +824,26 @@ class CurrentImportEntity(Base):
 
     @classmethod
     def cleanup_missing(
-        cls, session: Session, previous_dump_timestamp: datetime
-    ) -> list[str]:
+        cls,
+        session: Session,
+        previous_dump_timestamp: datetime,
+    ) -> int:
         """
         Soft-delete entities using two-dump validation strategy.
         Only deletes entities missing from current dump AND older than previous dump.
         This prevents race conditions from incorrectly deleting recently added entities.
+
+        Also removes deleted entities from the search index.
 
         Args:
             session: Database session
             previous_dump_timestamp: Last modified timestamp of the previous dump.
 
         Returns:
-            List of wikidata_ids that were soft-deleted
+            Number of entities that were soft-deleted
         """
+        from poliloom.search import SearchService
+
         # Only delete if: NOT in current dump AND older than previous dump
         # Convert timezone-aware timestamp to naive for database comparison
         previous_dump_naive = previous_dump_timestamp.replace(tzinfo=None)
@@ -855,7 +861,14 @@ class CurrentImportEntity(Base):
             {"previous_dump_timestamp": previous_dump_naive},
         )
 
-        return [row[0] for row in deleted_result.fetchall()]
+        deleted_ids = [row[0] for row in deleted_result.fetchall()]
+
+        # Remove deleted entities from search index
+        if deleted_ids:
+            search_service = SearchService()
+            search_service.delete_documents(deleted_ids)
+
+        return len(deleted_ids)
 
     @classmethod
     def clear_tracking_table(cls, session: Session) -> None:

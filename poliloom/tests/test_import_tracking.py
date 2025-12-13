@@ -1,6 +1,8 @@
 """Tests for import tracking functionality."""
 
 from datetime import datetime, timezone, timedelta
+from unittest.mock import patch, Mock
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -320,13 +322,14 @@ class TestCleanupFunctionality:
         # entities seen in the current dump would have recent timestamps
 
         # Run cleanup with first dump timestamp (entities older than this will be deleted)
-        deleted_ids = CurrentImportEntity.cleanup_missing(
-            db_session, first_dump_timestamp
-        )
+        with patch("poliloom.search.SearchService"):
+            deleted_count = CurrentImportEntity.cleanup_missing(
+                db_session, first_dump_timestamp
+            )
         db_session.flush()
 
         # Check results - only entities older than first dump should be deleted
-        assert len(deleted_ids) == 2  # entity2 and entity3
+        assert deleted_count == 2  # entity2 and entity3
 
         # Verify soft-deletion
         entity1_fresh = (
@@ -366,13 +369,14 @@ class TestCleanupFunctionality:
 
         # Run cleanup with very old cutoff (all entities are newer than this)
         very_old_timestamp = datetime.now(timezone.utc) - timedelta(days=365)
-        deleted_ids = CurrentImportEntity.cleanup_missing(
-            db_session, very_old_timestamp
-        )
+        with patch("poliloom.search.SearchService"):
+            deleted_count = CurrentImportEntity.cleanup_missing(
+                db_session, very_old_timestamp
+            )
         db_session.flush()
 
         # Should delete nothing since entities are newer than cutoff
-        assert len(deleted_ids) == 0
+        assert deleted_count == 0
 
         # Verify no entities were deleted
         entity1_fresh = (
@@ -384,6 +388,65 @@ class TestCleanupFunctionality:
 
         assert entity1_fresh.deleted_at is None
         assert entity2_fresh.deleted_at is None
+
+    def test_cleanup_missing_calls_delete_documents(self, db_session: Session):
+        """Test that cleanup_missing calls delete_documents on search service."""
+        # Create entities with old timestamps
+        entity1 = WikidataEntity(wikidata_id="Q100", name="Entity 1")
+        entity2 = WikidataEntity(wikidata_id="Q200", name="Entity 2")
+        db_session.add_all([entity1, entity2])
+        db_session.flush()
+
+        # Make entities old
+        old_timestamp = datetime.now(timezone.utc) - timedelta(days=30)
+        db_session.execute(
+            text("UPDATE wikidata_entities SET updated_at = :ts"),
+            {"ts": old_timestamp.replace(tzinfo=None)},
+        )
+        db_session.flush()
+
+        # Clear tracking table (simulating entities not seen in import)
+        CurrentImportEntity.clear_tracking_table(db_session)
+        db_session.flush()
+
+        # Run cleanup with mock search service
+        mock_search_service = Mock()
+        with patch("poliloom.search.SearchService", return_value=mock_search_service):
+            cutoff_timestamp = datetime.now(timezone.utc)
+            deleted_count = CurrentImportEntity.cleanup_missing(
+                db_session, cutoff_timestamp
+            )
+
+        # Verify delete_documents was called with the deleted IDs
+        assert deleted_count == 2
+        mock_search_service.delete_documents.assert_called_once()
+        deleted_ids = mock_search_service.delete_documents.call_args[0][0]
+        assert set(deleted_ids) == {"Q100", "Q200"}
+
+    def test_cleanup_missing_does_not_call_delete_when_nothing_deleted(
+        self, db_session: Session
+    ):
+        """Test that delete_documents is not called when no entities are deleted."""
+        # Create entities with recent timestamps
+        entity1 = WikidataEntity(wikidata_id="Q100", name="Entity 1")
+        db_session.add(entity1)
+        db_session.flush()
+
+        # Clear tracking table
+        CurrentImportEntity.clear_tracking_table(db_session)
+        db_session.flush()
+
+        # Run cleanup with very old cutoff (nothing should be deleted)
+        mock_search_service = Mock()
+        with patch("poliloom.search.SearchService", return_value=mock_search_service):
+            very_old_timestamp = datetime.now(timezone.utc) - timedelta(days=365)
+            deleted_count = CurrentImportEntity.cleanup_missing(
+                db_session, very_old_timestamp
+            )
+
+        # Verify delete_documents was NOT called
+        assert deleted_count == 0
+        mock_search_service.delete_documents.assert_not_called()
 
     def test_cleanup_missing_statements_two_dump_validation(self, db_session: Session):
         """Test that statement cleanup logic uses two-dump validation (simplified test)."""
@@ -504,11 +567,14 @@ class TestCleanupFunctionality:
         # Don't track it (simulating it wasn't in import)
         # Run cleanup with a future timestamp (should not delete already deleted entities)
         cutoff_timestamp = datetime.now(timezone.utc)
-        deleted_ids = CurrentImportEntity.cleanup_missing(db_session, cutoff_timestamp)
+        with patch("poliloom.search.SearchService"):
+            deleted_count = CurrentImportEntity.cleanup_missing(
+                db_session, cutoff_timestamp
+            )
         db_session.flush()
 
         # Should report 0 deletions since entity was already soft-deleted
-        assert len(deleted_ids) == 0
+        assert deleted_count == 0
 
 
 class TestIntegrationWorkflow:
@@ -626,9 +692,10 @@ class TestIntegrationWorkflow:
         db_session.flush()
 
         # Step 5: Cleanup missing entities and statements using two-dump validation
-        deleted_entity_ids = CurrentImportEntity.cleanup_missing(
-            db_session, first_dump_timestamp
-        )
+        with patch("poliloom.search.SearchService"):
+            deleted_entity_count = CurrentImportEntity.cleanup_missing(
+                db_session, first_dump_timestamp
+            )
         statement_results = CurrentImportStatement.cleanup_missing(
             db_session, first_dump_timestamp
         )
@@ -637,7 +704,7 @@ class TestIntegrationWorkflow:
         # Step 6: Verify results structure (actual deletion depends on timestamps being correct)
         # The key thing is that the two-dump validation is working and returns the expected structure
 
-        assert isinstance(deleted_entity_ids, list)
+        assert isinstance(deleted_entity_count, int)
         assert "properties_marked_deleted" in statement_results
         assert "relations_marked_deleted" in statement_results
         assert isinstance(statement_results["properties_marked_deleted"], int)

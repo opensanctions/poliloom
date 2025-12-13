@@ -716,22 +716,12 @@ def garbage_collect():
                 f"📋 Previous dump timestamp: {previous_dump.last_modified.strftime('%Y-%m-%d %H:%M:%S')} UTC"
             )
 
-            # Clean up missing entities
+            # Clean up missing entities (also removes from search index)
             click.echo("⏳ Cleaning up entities using two-dump validation...")
-            deleted_entity_ids = CurrentImportEntity.cleanup_missing(
+            deleted_entity_count = CurrentImportEntity.cleanup_missing(
                 session, previous_dump.last_modified
             )
-            click.echo(f"  • Soft-deleted {len(deleted_entity_ids)} entities")
-
-            # Remove deleted entities from search index
-            if deleted_entity_ids:
-                from poliloom.search import SearchService
-
-                search_service = SearchService()
-                search_service.delete_documents(deleted_entity_ids)
-                click.echo(
-                    f"  • Removed {len(deleted_entity_ids)} entities from search index"
-                )
+            click.echo(f"  • Soft-deleted {deleted_entity_count} entities")
 
             # Clean up missing statements
             click.echo("⏳ Cleaning up statements using two-dump validation...")
@@ -746,7 +736,7 @@ def garbage_collect():
             )
 
             total_deleted = (
-                len(deleted_entity_ids)
+                deleted_entity_count
                 + statement_counts["properties_marked_deleted"]
                 + statement_counts["relations_marked_deleted"]
             )

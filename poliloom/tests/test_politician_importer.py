@@ -432,6 +432,80 @@ class TestWikidataPoliticianImporter:
         }
 
 
+class TestSearchServiceIndexing:
+    """Test that politician importing calls search service for label indexing."""
+
+    def test_insert_politicians_indexes_labels(self, db_session, mock_search_service):
+        """Test that inserting politicians calls index_documents with correct data."""
+        politicians = [
+            {
+                "wikidata_id": "Q1",
+                "name": "John Doe",
+                "labels": ["John Doe", "J. Doe", "Senator Doe"],
+                "properties": [],
+                "wikipedia_links": [],
+            },
+            {
+                "wikidata_id": "Q2",
+                "name": "Jane Smith",
+                "labels": ["Jane Smith", "Rep. Smith"],
+                "properties": [],
+                "wikipedia_links": [],
+            },
+        ]
+
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
+
+        # Verify index_documents was called
+        mock_search_service.index_documents.assert_called_once()
+
+        # Verify the documents passed to index_documents
+        call_args = mock_search_service.index_documents.call_args[0][0]
+        assert len(call_args) == 2
+
+        # Check first document
+        doc1 = next(d for d in call_args if d["id"] == "Q1")
+        assert doc1["type"] == "politicians"
+        assert set(doc1["labels"]) == {"John Doe", "J. Doe", "Senator Doe"}
+
+        # Check second document
+        doc2 = next(d for d in call_args if d["id"] == "Q2")
+        assert doc2["type"] == "politicians"
+        assert set(doc2["labels"]) == {"Jane Smith", "Rep. Smith"}
+
+    def test_insert_politicians_empty_batch_does_not_call_index(
+        self, db_session, mock_search_service
+    ):
+        """Test that empty politician batch does not call index_documents."""
+        _insert_politicians_batch([], db_session, mock_search_service)
+
+        # index_documents should not be called for empty batch
+        mock_search_service.index_documents.assert_not_called()
+
+    def test_insert_politicians_without_labels_indexes_empty_labels(
+        self, db_session, mock_search_service
+    ):
+        """Test that politicians without labels are indexed with empty labels list."""
+        politicians = [
+            {
+                "wikidata_id": "Q1",
+                "name": "John Doe",
+                # No labels key
+                "properties": [],
+                "wikipedia_links": [],
+            },
+        ]
+
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
+
+        # Should still call index_documents
+        mock_search_service.index_documents.assert_called_once()
+        call_args = mock_search_service.index_documents.call_args[0][0]
+        assert call_args[0]["id"] == "Q1"
+        assert call_args[0]["type"] == "politicians"
+        assert call_args[0]["labels"] == []
+
+
 class TestIsPolitician:
     """Test the _is_politician helper function."""
 
