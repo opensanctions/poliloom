@@ -1,19 +1,23 @@
 """Supporting entity models: Country, Language, Location, Position."""
 
-from typing import Optional, Dict, Any
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from sqlalchemy import Column, String
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Session, relationship
 from pgvector.sqlalchemy import Vector
 
 from .base import (
     Base,
     EntityCreationMixin,
     LanguageCodeMixin,
+    MeilisearchIndexedMixin,
     TimestampMixin,
     UpsertMixin,
 )
 from .wikidata import WikidataEntityMixin
+
+if TYPE_CHECKING:
+    from poliloom.search import SearchService
 
 
 class Country(
@@ -22,6 +26,7 @@ class Country(
     UpsertMixin,
     WikidataEntityMixin,
     EntityCreationMixin,
+    MeilisearchIndexedMixin,
 ):
     """Country entity for storing country information."""
 
@@ -83,6 +88,7 @@ class Language(
     UpsertMixin,
     WikidataEntityMixin,
     EntityCreationMixin,
+    MeilisearchIndexedMixin,
 ):
     """Language entity for storing language information."""
 
@@ -229,6 +235,7 @@ class Location(
     UpsertMixin,
     WikidataEntityMixin,
     EntityCreationMixin,
+    MeilisearchIndexedMixin,
 ):
     """Location entity for geographic locations."""
 
@@ -319,3 +326,39 @@ class Position(
         """
         # Positions have no special filtering - import all that match hierarchy
         return {}
+
+    @classmethod
+    def find_similar(
+        cls,
+        query: str,
+        session: Session,
+        search_service: "SearchService",
+        limit: int = 100,
+    ) -> list[str]:
+        """Find similar positions using embedding similarity search.
+
+        Implements the Searchable protocol using pgvector embeddings.
+
+        Args:
+            query: Search query text to embed
+            session: SQLAlchemy session
+            search_service: SearchService instance (unused, for protocol compatibility)
+            limit: Maximum number of results
+
+        Returns:
+            List of wikidata_ids ordered by similarity
+        """
+        from poliloom.embeddings import get_embedding_model
+
+        model = get_embedding_model()
+        query_embedding = model.encode(query, convert_to_tensor=False)
+
+        results = (
+            session.query(cls.wikidata_id)
+            .filter(cls.embedding.isnot(None))
+            .order_by(cls.embedding.cosine_distance(query_embedding))
+            .limit(limit)
+            .all()
+        )
+
+        return [r[0] for r in results]

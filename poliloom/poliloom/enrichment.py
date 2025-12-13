@@ -252,9 +252,9 @@ async def _map_single_item(
         search_service: SearchService for entity lookup
     """
     try:
-        # SearchService handles routing to appropriate backend (Meilisearch or embeddings)
-        entity_ids = search_service.search_entities(
-            config.entity_class, free_item.name, session=db, limit=config.search_limit
+        # Entity class handles routing to appropriate backend via find_similar
+        entity_ids = config.entity_class.find_similar(
+            free_item.name, db, search_service, limit=config.search_limit
         )
 
         if not entity_ids:

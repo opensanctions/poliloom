@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from .. import dump_reader
 from ..database import create_engine, get_engine
 from ..models import (
+    MeilisearchIndexedMixin,
     Position,
     Location,
     Country,
@@ -19,6 +20,7 @@ from ..models import (
     WikidataEntityLabel,
     WikidataRelation,
 )
+from ..search import SearchDocument, SearchService
 from ..wikidata_entity_processor import WikidataEntityProcessor
 
 logger = logging.getLogger(__name__)
@@ -66,10 +68,30 @@ PROGRESS_REPORT_FREQUENCY = 50000
 worker_config: dict | None = None
 
 
-def _insert_entities_batch(collection: EntityCollection, session: Session) -> None:
-    """Insert a batch of entities and their relations into the database."""
+def _insert_entities_batch(
+    collection: EntityCollection,
+    session: Session,
+    search_service: SearchService,
+) -> None:
+    """Insert a batch of entities and their relations into the database.
+
+    Also indexes to Meilisearch if the model has MeilisearchIndexedMixin.
+    """
     if not collection.has_entities():
         return
+
+    # Build search documents BEFORE modifying entities (labels get popped later)
+    search_documents: list[SearchDocument] = []
+    if issubclass(collection.model_class, MeilisearchIndexedMixin):
+        entity_type = collection.model_class.__tablename__
+        search_documents = [
+            SearchDocument(
+                id=entity["wikidata_id"],
+                type=entity_type,
+                labels=entity.get("labels") or [],
+            )
+            for entity in collection.entities
+        ]
 
     # Insert WikidataEntity records first (without labels)
     entity_data = [
@@ -113,6 +135,11 @@ def _insert_entities_batch(collection: EntityCollection, session: Session) -> No
         WikidataRelation.upsert_batch(session, collection.relations)
 
     session.flush()
+
+    # Index to Meilisearch after successful DB insert
+    if search_documents:
+        search_service.index_documents(search_documents)
+
     logger.debug(
         f"Processed {len(collection.entities)} {collection.model_class.__name__.lower()}s with {len(collection.relations)} relations"
     )
@@ -134,9 +161,10 @@ def _process_supporting_entities_chunk(
     """
     global worker_config
 
-    # Create a fresh engine and session for this worker process
+    # Create fresh connections for this worker process
     engine = create_engine(pool_size=2, max_overflow=3)
     session = Session(engine)
+    search_service = SearchService()
 
     # Entity collections organized by type, built from worker_config
     entity_collections = [
@@ -217,7 +245,7 @@ def _process_supporting_entities_chunk(
             # Process batches when they reach the batch size
             for collection in entity_collections:
                 if collection.batch_size() >= batch_size:
-                    _insert_entities_batch(collection, session)
+                    _insert_entities_batch(collection, session, search_service)
                     session.commit()
                     collection.clear_batch()
 
@@ -230,7 +258,7 @@ def _process_supporting_entities_chunk(
     # Process remaining entities in final batches on successful completion
     for collection in entity_collections:
         if collection.has_entities():
-            _insert_entities_batch(collection, session)
+            _insert_entities_batch(collection, session, search_service)
             session.commit()
 
     session.close()
@@ -251,6 +279,8 @@ def import_entities(
     """
     Import supporting entities from the Wikidata dump using parallel processing.
     Uses frozensets to efficiently share descendant QIDs across workers with O(1) lookups.
+
+    Entities with MeilisearchIndexedMixin are indexed to Meilisearch during import.
 
     Args:
         dump_file_path: Path to the Wikidata JSON dump file

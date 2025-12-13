@@ -86,8 +86,8 @@ def create_entity_endpoint(
 
         # Apply search filter if provided
         if search:
-            entity_ids = search_service.search_entities(
-                model_class, search, db, limit=limit
+            entity_ids = model_class.find_similar(
+                search, db, search_service, limit=limit
             )
             if not entity_ids:
                 return []
@@ -174,7 +174,7 @@ async def get_languages(
 
     # Apply search filter if provided
     if search:
-        entity_ids = search_service.search_entities(Language, search, db, limit=limit)
+        entity_ids = Language.find_similar(search, db, search_service, limit=limit)
         if not entity_ids:
             return []
         ordering = case(
@@ -257,7 +257,7 @@ async def get_countries(
 
     # Apply search filter if provided
     if search:
-        entity_ids = search_service.search_entities(Country, search, db, limit=limit)
+        entity_ids = Country.find_similar(search, db, search_service, limit=limit)
         if not entity_ids:
             return []
         ordering = case(

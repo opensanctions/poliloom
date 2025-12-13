@@ -18,7 +18,7 @@ from poliloom.importer.entity import (
 class TestWikidataEntityImporter:
     """Test entity importing functionality."""
 
-    def test_insert_positions_batch(self, db_session):
+    def test_insert_positions_batch(self, db_session, mock_search_service):
         """Test inserting a batch of positions."""
         positions = [
             {
@@ -37,7 +37,7 @@ class TestWikidataEntityImporter:
         for pos in positions:
             collection.add_entity(pos)
 
-        _insert_entities_batch(collection, db_session)
+        _insert_entities_batch(collection, db_session, mock_search_service)
 
         # Verify positions were inserted
         inserted_positions = db_session.query(Position).all()
@@ -45,7 +45,9 @@ class TestWikidataEntityImporter:
         wikidata_ids = {pos.wikidata_id for pos in inserted_positions}
         assert wikidata_ids == {"Q1", "Q2"}
 
-    def test_insert_positions_batch_with_duplicates(self, db_session):
+    def test_insert_positions_batch_with_duplicates(
+        self, db_session, mock_search_service
+    ):
         """Test inserting positions with some duplicates."""
         # Insert initial batch
         initial_positions = [
@@ -63,7 +65,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Position, shared_classes=frozenset())
         for pos in initial_positions:
             collection.add_entity(pos)
-        _insert_entities_batch(collection, db_session)
+        _insert_entities_batch(collection, db_session, mock_search_service)
 
         # Insert batch with some duplicates and new items
         positions_with_duplicates = [
@@ -86,7 +88,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Position, shared_classes=frozenset())
         for pos in positions_with_duplicates:
             collection.add_entity(pos)
-        _insert_entities_batch(collection, db_session)
+        _insert_entities_batch(collection, db_session, mock_search_service)
 
         # Verify all positions exist with correct data
         inserted_positions = db_session.query(Position).all()
@@ -100,18 +102,18 @@ class TestWikidataEntityImporter:
         )
         assert q1_position.wikidata_entity.name == "Position 1 Updated"
 
-    def test_insert_positions_batch_empty(self, db_session):
+    def test_insert_positions_batch_empty(self, db_session, mock_search_service):
         """Test inserting empty batch of positions."""
         collection = EntityCollection(model_class=Position, shared_classes=frozenset())
 
         # Should handle empty batch gracefully without errors
-        _insert_entities_batch(collection, db_session)
+        _insert_entities_batch(collection, db_session, mock_search_service)
 
         # Verify no positions were inserted
         inserted_positions = db_session.query(Position).all()
         assert len(inserted_positions) == 0
 
-    def test_insert_locations_batch(self, db_session):
+    def test_insert_locations_batch(self, db_session, mock_search_service):
         """Test inserting a batch of locations."""
         locations = [
             {
@@ -130,7 +132,7 @@ class TestWikidataEntityImporter:
         for loc in locations:
             collection.add_entity(loc)
 
-        _insert_entities_batch(collection, db_session)
+        _insert_entities_batch(collection, db_session, mock_search_service)
 
         # Verify locations were inserted
         inserted_locations = db_session.query(Location).all()
@@ -138,7 +140,9 @@ class TestWikidataEntityImporter:
         wikidata_ids = {loc.wikidata_id for loc in inserted_locations}
         assert wikidata_ids == {"Q1", "Q2"}
 
-    def test_insert_locations_batch_with_duplicates(self, db_session):
+    def test_insert_locations_batch_with_duplicates(
+        self, db_session, mock_search_service
+    ):
         """Test inserting locations with some duplicates."""
         locations = [
             {
@@ -161,7 +165,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Location, shared_classes=frozenset())
         for loc in locations:
             collection.add_entity(loc)
-        _insert_entities_batch(collection, db_session)
+        _insert_entities_batch(collection, db_session, mock_search_service)
 
         # Insert again with some duplicates - should handle gracefully
         locations_with_duplicates = [
@@ -179,7 +183,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Location, shared_classes=frozenset())
         for loc in locations_with_duplicates:
             collection.add_entity(loc)
-        _insert_entities_batch(collection, db_session)
+        _insert_entities_batch(collection, db_session, mock_search_service)
 
         # Should now have 4 total locations
         all_locations = db_session.query(Location).all()
@@ -187,7 +191,7 @@ class TestWikidataEntityImporter:
         wikidata_ids = {loc.wikidata_id for loc in all_locations}
         assert wikidata_ids == {"Q1", "Q2", "Q3", "Q4"}
 
-    def test_insert_countries_batch(self, db_session):
+    def test_insert_countries_batch(self, db_session, mock_search_service):
         """Test inserting a batch of countries."""
         countries = [
             {
@@ -208,7 +212,7 @@ class TestWikidataEntityImporter:
         for country in countries:
             collection.add_entity(country)
 
-        _insert_entities_batch(collection, db_session)
+        _insert_entities_batch(collection, db_session, mock_search_service)
 
         # Verify countries were inserted
         inserted_countries = db_session.query(Country).all()
@@ -221,7 +225,9 @@ class TestWikidataEntityImporter:
         assert country1.name == "Country 1"
         assert country1.iso_code == "C1"
 
-    def test_insert_countries_batch_with_duplicates_handling(self, db_session):
+    def test_insert_countries_batch_with_duplicates_handling(
+        self, db_session, mock_search_service
+    ):
         """Test that countries batch uses ON CONFLICT DO UPDATE."""
         countries = [
             {
@@ -236,7 +242,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Country, shared_classes=frozenset())
         for country in countries:
             collection.add_entity(country)
-        _insert_entities_batch(collection, db_session)
+        _insert_entities_batch(collection, db_session, mock_search_service)
 
         # Insert again with updated name - should update
         updated_countries = [
@@ -250,7 +256,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Country, shared_classes=frozenset())
         for country in updated_countries:
             collection.add_entity(country)
-        _insert_entities_batch(collection, db_session)
+        _insert_entities_batch(collection, db_session, mock_search_service)
 
         # Should still have only one country but with updated name
         final_countries = db_session.query(Country).all()
@@ -258,7 +264,7 @@ class TestWikidataEntityImporter:
         assert final_countries[0].wikidata_id == "Q1"
         assert final_countries[0].name == "Country 1 Updated"
 
-    def test_insert_languages_batch(self, db_session):
+    def test_insert_languages_batch(self, db_session, mock_search_service):
         """Test inserting a batch of languages."""
         languages = [
             {
@@ -280,7 +286,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Language, shared_classes=frozenset())
         for lang in languages:
             collection.add_entity(lang)
-        _insert_entities_batch(collection, db_session)
+        _insert_entities_batch(collection, db_session, mock_search_service)
 
         # Verify languages were inserted
         inserted_languages = db_session.query(Language).all()
@@ -292,7 +298,9 @@ class TestWikidataEntityImporter:
         assert iso_639_1s == {"en", "es"}
         assert iso_639_2s == {"eng", "spa"}
 
-    def test_insert_languages_batch_with_duplicates_handling(self, db_session):
+    def test_insert_languages_batch_with_duplicates_handling(
+        self, db_session, mock_search_service
+    ):
         """Test that languages batch uses ON CONFLICT DO UPDATE."""
         languages = [
             {
@@ -308,7 +316,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Language, shared_classes=frozenset())
         for lang in languages:
             collection.add_entity(lang)
-        _insert_entities_batch(collection, db_session)
+        _insert_entities_batch(collection, db_session, mock_search_service)
 
         # Insert again with updated name - should update
         updated_languages = [
@@ -323,7 +331,7 @@ class TestWikidataEntityImporter:
         collection = EntityCollection(model_class=Language, shared_classes=frozenset())
         for lang in updated_languages:
             collection.add_entity(lang)
-        _insert_entities_batch(collection, db_session)
+        _insert_entities_batch(collection, db_session, mock_search_service)
 
         # Should still have only one language but with updated name
         final_languages = db_session.query(Language).all()
@@ -332,7 +340,9 @@ class TestWikidataEntityImporter:
         assert final_languages[0].name == "English Language"
         assert final_languages[0].iso_639_1 == "en"
 
-    def test_insert_wikipedia_projects_batch(self, db_session, sample_language):
+    def test_insert_wikipedia_projects_batch(
+        self, db_session, sample_language, mock_search_service
+    ):
         """Test inserting a batch of Wikipedia projects."""
 
         wikipedia_projects = [
@@ -354,7 +364,7 @@ class TestWikidataEntityImporter:
         for project in wikipedia_projects:
             collection.add_entity(project)
 
-        _insert_entities_batch(collection, db_session)
+        _insert_entities_batch(collection, db_session, mock_search_service)
 
         # Verify Wikipedia projects were inserted
         inserted_projects = db_session.query(WikipediaProject).all()
@@ -377,7 +387,9 @@ class TestWikidataEntityImporter:
         )
         assert project2.name == "Simple English Wikipedia"
 
-    def test_insert_wikipedia_projects_batch_with_duplicates_handling(self, db_session):
+    def test_insert_wikipedia_projects_batch_with_duplicates_handling(
+        self, db_session, mock_search_service
+    ):
         """Test that Wikipedia projects batch uses ON CONFLICT DO NOTHING."""
         wikipedia_projects = [
             {
@@ -393,7 +405,7 @@ class TestWikidataEntityImporter:
         )
         for project in wikipedia_projects:
             collection.add_entity(project)
-        _insert_entities_batch(collection, db_session)
+        _insert_entities_batch(collection, db_session, mock_search_service)
 
         # Insert again with same wikidata_id - should skip (do nothing)
         updated_projects = [
@@ -408,7 +420,7 @@ class TestWikidataEntityImporter:
         )
         for project in updated_projects:
             collection.add_entity(project)
-        _insert_entities_batch(collection, db_session)
+        _insert_entities_batch(collection, db_session, mock_search_service)
 
         # Should still have only one project, but WikidataEntity name/description are updated
         final_projects = db_session.query(WikipediaProject).all()

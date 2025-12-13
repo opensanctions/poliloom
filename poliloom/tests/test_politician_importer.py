@@ -20,7 +20,7 @@ from poliloom.wikidata_date import WikidataDate
 class TestWikidataPoliticianImporter:
     """Test politician importing functionality."""
 
-    def test_insert_politicians_batch_basic(self, db_session):
+    def test_insert_politicians_batch_basic(self, db_session, mock_search_service):
         """Test inserting a batch of politicians with basic data."""
         politicians = [
             {
@@ -37,7 +37,7 @@ class TestWikidataPoliticianImporter:
             },
         ]
 
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         # Verify politicians were inserted
         inserted_politicians = db_session.query(Politician).all()
@@ -45,7 +45,9 @@ class TestWikidataPoliticianImporter:
         wikidata_ids = {pol.wikidata_id for pol in inserted_politicians}
         assert wikidata_ids == {"Q1", "Q2"}
 
-    def test_insert_politicians_batch_with_duplicates(self, db_session):
+    def test_insert_politicians_batch_with_duplicates(
+        self, db_session, mock_search_service
+    ):
         """Test inserting politicians with some duplicates."""
         politicians = [
             {
@@ -57,7 +59,7 @@ class TestWikidataPoliticianImporter:
         ]
 
         # Insert first batch
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         # Insert again with updated name - should update
         updated_politicians = [
@@ -68,7 +70,7 @@ class TestWikidataPoliticianImporter:
                 "wikipedia_links": [],
             }
         ]
-        _insert_politicians_batch(updated_politicians, db_session)
+        _insert_politicians_batch(updated_politicians, db_session, mock_search_service)
 
         # Should still have only 1 politician with updated name
         final_politicians = db_session.query(Politician).all()
@@ -76,18 +78,18 @@ class TestWikidataPoliticianImporter:
         assert final_politicians[0].wikidata_id == "Q1"
         assert final_politicians[0].name == "John Doe Updated"
 
-    def test_insert_politicians_batch_empty(self, db_session):
+    def test_insert_politicians_batch_empty(self, db_session, mock_search_service):
         """Test inserting empty batch of politicians."""
         politicians = []
 
         # Should handle empty batch gracefully without errors
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         # Verify no politicians were inserted
         inserted_politicians = db_session.query(Politician).all()
         assert len(inserted_politicians) == 0
 
-    def test_import_birth_date(self, db_session):
+    def test_import_birth_date(self, db_session, mock_search_service):
         """Test importing birth date from Wikidata claim."""
         politicians = [
             {
@@ -107,7 +109,7 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         # Verify politician and property created correctly
         politician = (
@@ -130,7 +132,7 @@ class TestWikidataPoliticianImporter:
         assert prop.entity_id is None
         assert prop.statement_id == "Q1$F1C74569-C9D8-4C53-9F2E-7E16F7BC4C8A"
 
-    def test_import_position(self, db_session):
+    def test_import_position(self, db_session, mock_search_service):
         """Test importing position from Wikidata claim."""
         # Create position first
         Position.create_with_entity(db_session, "Q30185", "Mayor")
@@ -164,7 +166,7 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         # Verify property created correctly
         politician = (
@@ -187,7 +189,7 @@ class TestWikidataPoliticianImporter:
         assert "P580" in prop.qualifiers_json  # start date
         assert "P582" in prop.qualifiers_json  # end date
 
-    def test_import_birthplace(self, db_session):
+    def test_import_birthplace(self, db_session, mock_search_service):
         """Test importing birthplace from Wikidata claim."""
         # Create location first
         Location.create_with_entity(db_session, "Q60", "New York City")
@@ -210,7 +212,7 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         politician = (
             db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
@@ -227,7 +229,7 @@ class TestWikidataPoliticianImporter:
         assert len(properties) == 1
         assert properties[0].entity_id == "Q60"
 
-    def test_import_citizenship(self, db_session, sample_country):
+    def test_import_citizenship(self, db_session, sample_country, mock_search_service):
         """Test importing citizenship from Wikidata claim."""
 
         politicians = [
@@ -247,7 +249,7 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         politician = (
             db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
@@ -264,7 +266,9 @@ class TestWikidataPoliticianImporter:
         assert len(properties) == 1
         assert properties[0].entity_id == "Q30"
 
-    def test_import_all_properties(self, db_session, sample_country):
+    def test_import_all_properties(
+        self, db_session, sample_country, mock_search_service
+    ):
         """Test importing all property types for a politician."""
         # Create required entities
         Position.create_with_entity(db_session, "Q30185", "Mayor")
@@ -325,7 +329,7 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         # Verify all properties created
         politician = (
@@ -350,7 +354,7 @@ class TestWikidataPoliticianImporter:
         assert PropertyType.BIRTHPLACE in props_by_type
         assert PropertyType.CITIZENSHIP in props_by_type
 
-    def test_preserve_statement_metadata(self, db_session):
+    def test_preserve_statement_metadata(self, db_session, mock_search_service):
         """Test that statement_id, qualifiers, and references are preserved."""
         expected_qualifiers = {"P580": [{"test": "qualifier"}]}
         expected_references = {"test": "reference"}
@@ -373,7 +377,7 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         prop = db_session.query(Property).first()
         assert prop.statement_id == "Q1$TEST_STATEMENT"
@@ -385,6 +389,7 @@ class TestWikidataPoliticianImporter:
         db_session,
         sample_wikipedia_project,
         sample_french_wikipedia_project,
+        mock_search_service,
     ):
         """Test inserting politicians with Wikipedia links."""
         politicians = [
@@ -405,7 +410,7 @@ class TestWikidataPoliticianImporter:
             }
         ]
 
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         # Verify politician was created with Wikipedia links
         politician = (
@@ -803,7 +808,7 @@ class TestImportSoftDeletesExtracted:
     """Test that import soft-deletes matching extracted properties."""
 
     def test_import_soft_deletes_matching_birth_date(
-        self, db_session, sample_politician, sample_archived_page
+        self, db_session, sample_politician, sample_archived_page, mock_search_service
     ):
         """Test importing birth date soft-deletes matching extracted birth date."""
         # Create extracted property (from enrichment)
@@ -837,7 +842,7 @@ class TestImportSoftDeletesExtracted:
             }
         ]
 
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         # Extracted property should be soft-deleted
         db_session.refresh(extracted_property)
@@ -851,7 +856,7 @@ class TestImportSoftDeletesExtracted:
         assert imported.deleted_at is None
 
     def test_import_soft_deletes_less_precise_extracted(
-        self, db_session, sample_politician, sample_archived_page
+        self, db_session, sample_politician, sample_archived_page, mock_search_service
     ):
         """Test importing more precise date soft-deletes less precise extracted date."""
         # Create extracted property with year precision
@@ -885,14 +890,14 @@ class TestImportSoftDeletesExtracted:
             }
         ]
 
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         # Extracted property should be soft-deleted (imported is more precise)
         db_session.refresh(extracted_property)
         assert extracted_property.deleted_at is not None
 
     def test_import_does_not_delete_more_precise_extracted(
-        self, db_session, sample_politician, sample_archived_page
+        self, db_session, sample_politician, sample_archived_page, mock_search_service
     ):
         """Test importing less precise date does NOT soft-delete more precise extracted date."""
         # Create extracted property with day precision
@@ -926,14 +931,19 @@ class TestImportSoftDeletesExtracted:
             }
         ]
 
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         # Extracted property should NOT be soft-deleted (it's more precise)
         db_session.refresh(extracted_property)
         assert extracted_property.deleted_at is None
 
     def test_import_soft_deletes_matching_position(
-        self, db_session, sample_politician, sample_archived_page, sample_position
+        self,
+        db_session,
+        sample_politician,
+        sample_archived_page,
+        sample_position,
+        mock_search_service,
     ):
         """Test importing position soft-deletes matching extracted position."""
         # Create extracted property
@@ -977,14 +987,19 @@ class TestImportSoftDeletesExtracted:
             }
         ]
 
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         # Extracted property should be soft-deleted (imported has dates)
         db_session.refresh(extracted_property)
         assert extracted_property.deleted_at is not None
 
     def test_import_soft_deletes_matching_birthplace(
-        self, db_session, sample_politician, sample_archived_page, sample_location
+        self,
+        db_session,
+        sample_politician,
+        sample_archived_page,
+        sample_location,
+        mock_search_service,
     ):
         """Test importing birthplace soft-deletes matching extracted birthplace."""
         # Create extracted property
@@ -1016,14 +1031,14 @@ class TestImportSoftDeletesExtracted:
             }
         ]
 
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         # Extracted property should be soft-deleted
         db_session.refresh(extracted_property)
         assert extracted_property.deleted_at is not None
 
     def test_import_does_not_delete_different_value(
-        self, db_session, sample_politician, sample_archived_page
+        self, db_session, sample_politician, sample_archived_page, mock_search_service
     ):
         """Test importing different date does NOT soft-delete extracted date."""
         # Create extracted property
@@ -1057,14 +1072,14 @@ class TestImportSoftDeletesExtracted:
             }
         ]
 
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         # Extracted property should NOT be soft-deleted (different value)
         db_session.refresh(extracted_property)
         assert extracted_property.deleted_at is None
 
     def test_import_does_not_delete_already_deleted(
-        self, db_session, sample_politician, sample_archived_page
+        self, db_session, sample_politician, sample_archived_page, mock_search_service
     ):
         """Test import does not affect already soft-deleted properties."""
         from datetime import datetime
@@ -1102,14 +1117,14 @@ class TestImportSoftDeletesExtracted:
             }
         ]
 
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         # deleted_at should not have changed (property was already deleted)
         db_session.refresh(extracted_property)
         assert extracted_property.deleted_at == original_deleted_at
 
     def test_import_does_not_delete_wikidata_properties(
-        self, db_session, sample_politician
+        self, db_session, sample_politician, mock_search_service
     ):
         """Test import does not soft-delete properties that came from Wikidata."""
         # Create property from Wikidata (has statement_id, no archived_page_id)
@@ -1143,7 +1158,7 @@ class TestImportSoftDeletesExtracted:
             }
         ]
 
-        _insert_politicians_batch(politicians, db_session)
+        _insert_politicians_batch(politicians, db_session, mock_search_service)
 
         # Wikidata property should NOT be soft-deleted
         db_session.refresh(wikidata_property)

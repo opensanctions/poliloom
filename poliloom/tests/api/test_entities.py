@@ -327,37 +327,6 @@ class TestCreateEntityEndpoint:
         assert len(offset_positions) == 3
         assert offset_positions[0]["wikidata_id"] == all_positions[2]["wikidata_id"]
 
-    def test_positions_with_search(self, client, mock_auth, db_session):
-        """Should filter positions by search query using fuzzy matching."""
-        from poliloom.models import Position
-
-        # Create positions with different names and labels
-        Position.create_with_entity(
-            db_session,
-            "Q1",
-            "Mayor of Springfield",
-            labels=["Mayor", "Springfield Mayor"],
-        )
-        Position.create_with_entity(
-            db_session,
-            "Q2",
-            "Governor of California",
-            labels=["Governor", "CA Governor"],
-        )
-        Position.create_with_entity(
-            db_session, "Q3", "President", labels=["POTUS", "President of USA"]
-        )
-        db_session.flush()
-
-        # Search for "mayor"
-        response = client.get("/positions?search=mayor", headers=mock_auth)
-        assert response.status_code == 200
-
-        positions = response.json()
-        # Should find only the mayor position
-        assert len(positions) == 1
-        assert positions[0]["wikidata_id"] == "Q1"
-
     def test_positions_filters_soft_deleted(self, client, mock_auth, db_session):
         """Should filter out soft-deleted positions."""
         from poliloom.models import Position

@@ -813,7 +813,7 @@ class CurrentImportEntity(Base):
     @classmethod
     def cleanup_missing(
         cls, session: Session, previous_dump_timestamp: datetime
-    ) -> dict:
+    ) -> list[str]:
         """
         Soft-delete entities using two-dump validation strategy.
         Only deletes entities missing from current dump AND older than previous dump.
@@ -824,7 +824,7 @@ class CurrentImportEntity(Base):
             previous_dump_timestamp: Last modified timestamp of the previous dump.
 
         Returns:
-            dict: Count of entities that were soft-deleted
+            List of wikidata_ids that were soft-deleted
         """
         # Only delete if: NOT in current dump AND older than previous dump
         # Convert timezone-aware timestamp to naive for database comparison
@@ -837,14 +837,13 @@ class CurrentImportEntity(Base):
             WHERE wikidata_id NOT IN (SELECT entity_id FROM current_import_entities)
             AND updated_at <= :previous_dump_timestamp
             AND deleted_at IS NULL
+            RETURNING wikidata_id
         """
             ),
             {"previous_dump_timestamp": previous_dump_naive},
         )
 
-        return {
-            "entities_marked_deleted": deleted_result.rowcount,
-        }
+        return [row[0] for row in deleted_result.fetchall()]
 
     @classmethod
     def clear_tracking_table(cls, session: Session) -> None:

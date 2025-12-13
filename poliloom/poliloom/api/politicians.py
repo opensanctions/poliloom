@@ -63,7 +63,7 @@ async def get_politicians(
 
     # Apply search filter
     if search:
-        entity_ids = search_service.search_entities(Politician, search, db, limit=limit)
+        entity_ids = Politician.find_similar(search, db, search_service, limit=limit)
         if not entity_ids:
             return []
         ordering = case(

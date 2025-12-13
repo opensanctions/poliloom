@@ -461,42 +461,6 @@ def embed_entities(batch_size, encode_batch_size):
         raise SystemExit(1)
 
 
-@main.command("index-entities")
-@click.option(
-    "--batch-size",
-    type=int,
-    default=10000,
-    help="Number of entities to index per batch (default: 10000)",
-)
-def index_entities(batch_size):
-    """Sync entity labels to Meilisearch for text search.
-
-    This command deletes and recreates all indexes, then populates them
-    from the database.
-    """
-    from poliloom.search import SearchService
-
-    try:
-        search_service = SearchService()
-
-        if not search_service.health_check():
-            click.echo("❌ Meilisearch is not available. Make sure it's running.")
-            raise SystemExit(1)
-
-        click.echo(f"✅ Connected to Meilisearch at {search_service.url}")
-
-        with Session(get_engine()) as session:
-            results = search_service.build_all_indexes(session, batch_size)
-            for name, count in results.items():
-                click.echo(f"  ✅ Indexed {count} entities for {name}")
-
-        click.echo("\n✅ Entity indexing complete")
-
-    except Exception as e:
-        click.echo(f"❌ Error indexing entities: {e}")
-        raise SystemExit(1)
-
-
 @main.command("import-hierarchy")
 @click.option(
     "--file",
@@ -602,7 +566,7 @@ def dump_import_entities(file, batch_size):
         click.echo("This may take a while for the full dump...")
         click.echo("Press Ctrl+C to interrupt...")
 
-        # Import supporting entities only
+        # Import supporting entities with Meilisearch indexing
         import_entities(file, batch_size=batch_size)
 
         # Mark as imported
@@ -753,12 +717,21 @@ def garbage_collect():
 
             # Clean up missing entities
             click.echo("⏳ Cleaning up entities using two-dump validation...")
-            entity_counts = CurrentImportEntity.cleanup_missing(
+            deleted_entity_ids = CurrentImportEntity.cleanup_missing(
                 session, previous_dump.last_modified
             )
-            click.echo(
-                f"  • Soft-deleted {entity_counts['entities_marked_deleted']} entities"
-            )
+            click.echo(f"  • Soft-deleted {len(deleted_entity_ids)} entities")
+
+            # Remove deleted entities from search index
+            if deleted_entity_ids:
+                from poliloom.search import SearchService
+
+                search_service = SearchService()
+                if search_service.health_check():
+                    search_service.delete_documents(deleted_entity_ids)
+                    click.echo(
+                        f"  • Removed {len(deleted_entity_ids)} entities from search index"
+                    )
 
             # Clean up missing statements
             click.echo("⏳ Cleaning up statements using two-dump validation...")
@@ -773,7 +746,7 @@ def garbage_collect():
             )
 
             total_deleted = (
-                entity_counts["entities_marked_deleted"]
+                len(deleted_entity_ids)
                 + statement_counts["properties_marked_deleted"]
                 + statement_counts["relations_marked_deleted"]
             )
@@ -972,6 +945,172 @@ def clean_properties(dry_run):
             session.rollback()
             click.echo(f"❌ Error during cleanup: {e}")
             raise SystemExit(1)
+
+
+def _get_meilisearch_models():
+    """Get all models that use MeilisearchIndexedMixin."""
+    from poliloom.models import MeilisearchIndexedMixin
+    import poliloom.models as models_module
+
+    meilisearch_models = []
+    for name in dir(models_module):
+        obj = getattr(models_module, name)
+        if (
+            isinstance(obj, type)
+            and issubclass(obj, MeilisearchIndexedMixin)
+            and obj is not MeilisearchIndexedMixin
+            and hasattr(obj, "__tablename__")
+        ):
+            meilisearch_models.append(obj)
+    return meilisearch_models
+
+
+@main.command("index-create")
+def index_create():
+    """Create the Meilisearch entities index.
+
+    Creates a single index with type-based filtering for all searchable entities.
+    Safe to run multiple times - Meilisearch handles existing indexes gracefully.
+    """
+    from poliloom.search import SearchService, INDEX_NAME
+
+    click.echo("🔍 Creating Meilisearch index...")
+
+    search_service = SearchService()
+
+    if not search_service.health_check():
+        click.echo("❌ Meilisearch is not available. Please start Meilisearch first.")
+        raise SystemExit(1)
+
+    try:
+        search_service.create_index()
+        click.echo(f"  ✓ Created '{INDEX_NAME}'")
+    except Exception as e:
+        if "index_already_exists" in str(e):
+            click.echo(f"  ⏭ Index '{INDEX_NAME}' already exists")
+        else:
+            click.echo(f"  ❌ Error creating index: {e}")
+            raise SystemExit(1)
+
+    click.echo("✅ Index creation completed")
+
+
+@main.command("index-delete")
+@click.option(
+    "--confirm",
+    is_flag=True,
+    help="Confirm deletion without prompting",
+)
+def index_delete(confirm):
+    """Delete the Meilisearch entities index.
+
+    Removes the single entities index containing all searchable data.
+    Use --confirm to skip the confirmation prompt.
+    """
+    from poliloom.search import SearchService, INDEX_NAME
+
+    if not confirm:
+        click.echo("⚠️  This will delete the Meilisearch index!")
+        if not click.confirm("Are you sure you want to continue?"):
+            click.echo("Aborted.")
+            return
+
+    click.echo("🗑️  Deleting Meilisearch index...")
+
+    search_service = SearchService()
+
+    if not search_service.health_check():
+        click.echo("❌ Meilisearch is not available. Please start Meilisearch first.")
+        raise SystemExit(1)
+
+    search_service.delete_index()
+    click.echo(f"  ✓ Deleted '{INDEX_NAME}'")
+
+    click.echo("✅ Index deletion completed")
+
+
+@main.command("index-rebuild")
+@click.option(
+    "--batch-size",
+    default=1000,
+    help="Number of documents to index per batch",
+)
+def index_rebuild(batch_size):
+    """Rebuild Meilisearch index from database.
+
+    Deletes existing index, recreates it, and reindexes all documents
+    from Location, Country, Language, and Politician tables.
+    """
+    from poliloom.search import SearchService, INDEX_NAME
+    from poliloom.models import WikidataEntity
+
+    click.echo("🔄 Rebuilding Meilisearch index...")
+
+    search_service = SearchService()
+
+    if not search_service.health_check():
+        click.echo("❌ Meilisearch is not available. Please start Meilisearch first.")
+        raise SystemExit(1)
+
+    # Delete and recreate index
+    click.echo(f"  • Recreating index '{INDEX_NAME}'...")
+    search_service.delete_index()
+    search_service.create_index()
+    click.echo("  ✓ Index recreated")
+
+    # Reindex all documents from each model type
+    models = _get_meilisearch_models()
+    total_indexed = 0
+
+    with Session(get_engine()) as session:
+        for model in models:
+            entity_type = model.__tablename__
+            click.echo(f"  • Indexing {entity_type}...")
+
+            # Count total
+            total = (
+                session.query(model)
+                .join(WikidataEntity, model.wikidata_id == WikidataEntity.wikidata_id)
+                .filter(WikidataEntity.deleted_at.is_(None))
+                .count()
+            )
+
+            if total == 0:
+                click.echo(f"    ⏭ No {entity_type} to index")
+                continue
+
+            indexed = 0
+            offset = 0
+
+            while offset < total:
+                # Fetch batch with labels
+                entities = (
+                    session.query(model)
+                    .join(
+                        WikidataEntity, model.wikidata_id == WikidataEntity.wikidata_id
+                    )
+                    .filter(WikidataEntity.deleted_at.is_(None))
+                    .offset(offset)
+                    .limit(batch_size)
+                    .all()
+                )
+
+                if not entities:
+                    break
+
+                # Build search documents (includes type field)
+                documents = [entity.to_search_document() for entity in entities]
+
+                search_service.index_documents(documents)
+                indexed += len(documents)
+                offset += batch_size
+
+                click.echo(f"    → Indexed {indexed}/{total}")
+
+            click.echo(f"    ✓ Indexed {indexed} {entity_type}")
+            total_indexed += indexed
+
+    click.echo(f"✅ Index rebuild completed ({total_indexed} documents)")
 
 
 if __name__ == "__main__":

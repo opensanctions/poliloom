@@ -28,28 +28,7 @@ from poliloom.models import (
     Location,
     Position,
     Property,
-    WikidataEntityLabel,
 )
-
-
-class MockSearchService:
-    """Mock search service for enrichment tests."""
-
-    def search_entities(self, model_class, query, session, limit=100):
-        """Search entities by looking up labels in the test database."""
-        query_lower = query.lower()
-
-        # Query labels that contain the search term
-        results = (
-            session.query(WikidataEntityLabel.entity_id)
-            .join(model_class, WikidataEntityLabel.entity_id == model_class.wikidata_id)
-            .filter(WikidataEntityLabel.label.ilike(f"%{query_lower}%"))
-            .distinct()
-            .limit(limit)
-            .all()
-        )
-
-        return [r[0] for r in results]
 
 
 class TestEnrichment:
@@ -137,9 +116,13 @@ class TestEnrichment:
         self, mock_openai_client, db_session, sample_politician
     ):
         """Test successful position extraction and mapping."""
-        # Create position in database
-        position = Position.create_with_entity(db_session, "Q30185", "Test Position")
-        position.embedding = [0.1] * 384
+        # Create position in database with labels matching the search query
+        Position.create_with_entity(
+            db_session,
+            "Q30185",
+            "Mayor of Springfield",
+            labels=["Mayor", "Mayor of Springfield"],
+        )
         db_session.flush()
 
         # Mock Stage 1: Free-form extraction (using actual model from enrichment)
@@ -254,8 +237,8 @@ class TestEnrichment:
 
         mock_openai_client.responses.parse = mock_parse
 
-        # Create mock search service for the test
-        mock_search_service = MockSearchService()
+        # Search service is passed but find_similar is mocked globally
+        mock_search_service = Mock()
 
         birthplaces = await extract_two_stage_generic(
             mock_openai_client,

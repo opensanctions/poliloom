@@ -320,11 +320,13 @@ class TestCleanupFunctionality:
         # entities seen in the current dump would have recent timestamps
 
         # Run cleanup with first dump timestamp (entities older than this will be deleted)
-        result = CurrentImportEntity.cleanup_missing(db_session, first_dump_timestamp)
+        deleted_ids = CurrentImportEntity.cleanup_missing(
+            db_session, first_dump_timestamp
+        )
         db_session.flush()
 
         # Check results - only entities older than first dump should be deleted
-        assert result["entities_marked_deleted"] == 2  # entity2 and entity3
+        assert len(deleted_ids) == 2  # entity2 and entity3
 
         # Verify soft-deletion
         entity1_fresh = (
@@ -364,11 +366,13 @@ class TestCleanupFunctionality:
 
         # Run cleanup with very old cutoff (all entities are newer than this)
         very_old_timestamp = datetime.now(timezone.utc) - timedelta(days=365)
-        result = CurrentImportEntity.cleanup_missing(db_session, very_old_timestamp)
+        deleted_ids = CurrentImportEntity.cleanup_missing(
+            db_session, very_old_timestamp
+        )
         db_session.flush()
 
         # Should delete nothing since entities are newer than cutoff
-        assert result["entities_marked_deleted"] == 0
+        assert len(deleted_ids) == 0
 
         # Verify no entities were deleted
         entity1_fresh = (
@@ -500,11 +504,11 @@ class TestCleanupFunctionality:
         # Don't track it (simulating it wasn't in import)
         # Run cleanup with a future timestamp (should not delete already deleted entities)
         cutoff_timestamp = datetime.now(timezone.utc)
-        result = CurrentImportEntity.cleanup_missing(db_session, cutoff_timestamp)
+        deleted_ids = CurrentImportEntity.cleanup_missing(db_session, cutoff_timestamp)
         db_session.flush()
 
         # Should report 0 deletions since entity was already soft-deleted
-        assert result["entities_marked_deleted"] == 0
+        assert len(deleted_ids) == 0
 
 
 class TestIntegrationWorkflow:
@@ -622,7 +626,7 @@ class TestIntegrationWorkflow:
         db_session.flush()
 
         # Step 5: Cleanup missing entities and statements using two-dump validation
-        entity_results = CurrentImportEntity.cleanup_missing(
+        deleted_entity_ids = CurrentImportEntity.cleanup_missing(
             db_session, first_dump_timestamp
         )
         statement_results = CurrentImportStatement.cleanup_missing(
@@ -633,10 +637,9 @@ class TestIntegrationWorkflow:
         # Step 6: Verify results structure (actual deletion depends on timestamps being correct)
         # The key thing is that the two-dump validation is working and returns the expected structure
 
-        assert "entities_marked_deleted" in entity_results
+        assert isinstance(deleted_entity_ids, list)
         assert "properties_marked_deleted" in statement_results
         assert "relations_marked_deleted" in statement_results
-        assert isinstance(entity_results["entities_marked_deleted"], int)
         assert isinstance(statement_results["properties_marked_deleted"], int)
         assert isinstance(statement_results["relations_marked_deleted"], int)
 
