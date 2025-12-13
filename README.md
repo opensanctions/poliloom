@@ -2,7 +2,7 @@
 
 **Help build the world's largest open database of politicians.**
 
-[PoliLoom](https://loom.everypolitician.org/) is a community tool for improving politician information on [Wikidata](https://www.wikidata.org/), the free knowledge base behind Wikipedia. We use AI to find missing information about politicians — birth dates, positions held, citizenship, and more — then you verify it.
+[PoliLoom](https://loom.everypolitician.org/) is a community tool for improving politician information on [Wikidata](https://www.wikidata.org/), the free knowledge base behind Wikipedia. We use AI to find missing information about politicians — birth dates, positions held, citizenship, and more.
 
 ## How it works
 
