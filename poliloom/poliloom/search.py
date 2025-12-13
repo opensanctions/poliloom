@@ -137,18 +137,6 @@ class SearchService:
         results = index.search(query, search_params)
         return [hit["id"] for hit in results["hits"]]
 
-    def health_check(self) -> bool:
-        """Check if Meilisearch is healthy.
-
-        Returns:
-            True if healthy, False otherwise
-        """
-        try:
-            health = self.client.health()
-            return health.get("status") == "available"
-        except Exception:
-            return False
-
 
 def get_search_service() -> SearchService:
     """Get or create the global SearchService instance.

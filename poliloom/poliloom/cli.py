@@ -727,11 +727,10 @@ def garbage_collect():
                 from poliloom.search import SearchService
 
                 search_service = SearchService()
-                if search_service.health_check():
-                    search_service.delete_documents(deleted_entity_ids)
-                    click.echo(
-                        f"  • Removed {len(deleted_entity_ids)} entities from search index"
-                    )
+                search_service.delete_documents(deleted_entity_ids)
+                click.echo(
+                    f"  • Removed {len(deleted_entity_ids)} entities from search index"
+                )
 
             # Clean up missing statements
             click.echo("⏳ Cleaning up statements using two-dump validation...")
@@ -974,25 +973,19 @@ def index_create():
     """
     from poliloom.search import SearchService, INDEX_NAME
 
-    click.echo("🔍 Creating Meilisearch index...")
+    click.echo("⏳ Creating Meilisearch index...")
 
     search_service = SearchService()
 
-    if not search_service.health_check():
-        click.echo("❌ Meilisearch is not available. Please start Meilisearch first.")
-        raise SystemExit(1)
-
     try:
         search_service.create_index()
-        click.echo(f"  ✓ Created '{INDEX_NAME}'")
+        click.echo(f"✅ Successfully created index '{INDEX_NAME}'")
     except Exception as e:
         if "index_already_exists" in str(e):
-            click.echo(f"  ⏭ Index '{INDEX_NAME}' already exists")
+            click.echo(f"⚠️  Index '{INDEX_NAME}' already exists")
         else:
-            click.echo(f"  ❌ Error creating index: {e}")
+            click.echo(f"❌ Error creating index: {e}")
             raise SystemExit(1)
-
-    click.echo("✅ Index creation completed")
 
 
 @main.command("index-delete")
@@ -1015,18 +1008,11 @@ def index_delete(confirm):
             click.echo("Aborted.")
             return
 
-    click.echo("🗑️  Deleting Meilisearch index...")
+    click.echo("⏳ Deleting Meilisearch index...")
 
     search_service = SearchService()
-
-    if not search_service.health_check():
-        click.echo("❌ Meilisearch is not available. Please start Meilisearch first.")
-        raise SystemExit(1)
-
     search_service.delete_index()
-    click.echo(f"  ✓ Deleted '{INDEX_NAME}'")
-
-    click.echo("✅ Index deletion completed")
+    click.echo(f"✅ Successfully deleted index '{INDEX_NAME}'")
 
 
 @main.command("index-rebuild")
@@ -1044,19 +1030,14 @@ def index_rebuild(batch_size):
     from poliloom.search import SearchService, INDEX_NAME
     from poliloom.models import WikidataEntity
 
-    click.echo("🔄 Rebuilding Meilisearch index...")
+    click.echo("⏳ Rebuilding Meilisearch index...")
 
     search_service = SearchService()
 
-    if not search_service.health_check():
-        click.echo("❌ Meilisearch is not available. Please start Meilisearch first.")
-        raise SystemExit(1)
-
     # Delete and recreate index
-    click.echo(f"  • Recreating index '{INDEX_NAME}'...")
     search_service.delete_index()
     search_service.create_index()
-    click.echo("  ✓ Index recreated")
+    click.echo(f"   Recreated index '{INDEX_NAME}'")
 
     # Reindex all documents from each model type
     models = _get_meilisearch_models()
@@ -1065,7 +1046,7 @@ def index_rebuild(batch_size):
     with Session(get_engine()) as session:
         for model in models:
             entity_type = model.__tablename__
-            click.echo(f"  • Indexing {entity_type}...")
+            click.echo(f"⏳ Indexing {entity_type}...")
 
             # Count total
             total = (
@@ -1076,7 +1057,7 @@ def index_rebuild(batch_size):
             )
 
             if total == 0:
-                click.echo(f"    ⏭ No {entity_type} to index")
+                click.echo(f"   No {entity_type} to index")
                 continue
 
             indexed = 0
@@ -1105,12 +1086,11 @@ def index_rebuild(batch_size):
                 indexed += len(documents)
                 offset += batch_size
 
-                click.echo(f"    → Indexed {indexed}/{total}")
+                click.echo(f"   Progress: {indexed}/{total}")
 
-            click.echo(f"    ✓ Indexed {indexed} {entity_type}")
             total_indexed += indexed
 
-    click.echo(f"✅ Index rebuild completed ({total_indexed} documents)")
+    click.echo(f"✅ Successfully rebuilt index ({total_indexed} documents)")
 
 
 if __name__ == "__main__":
