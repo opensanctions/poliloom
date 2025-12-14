@@ -835,7 +835,38 @@ def clean_properties(dry_run):
                 click.echo(
                     f"  • [DRY RUN] Would delete {count_query} unevaluated extracted properties"
                 )
+                # Count affected politicians
+                affected_politicians = (
+                    session.query(Property.politician_id)
+                    .filter(
+                        Property.archived_page_id.isnot(None),
+                        Property.statement_id.is_(None),
+                        Property.deleted_at.is_(None),
+                        ~has_evaluation,
+                    )
+                    .distinct()
+                    .count()
+                )
+                click.echo(
+                    f"  • [DRY RUN] Would clear enriched_at for {affected_politicians} politicians"
+                )
             else:
+                from poliloom.models import Politician
+
+                # Get affected politician IDs before deleting properties
+                affected_politician_ids = [
+                    row[0]
+                    for row in session.query(Property.politician_id)
+                    .filter(
+                        Property.archived_page_id.isnot(None),
+                        Property.statement_id.is_(None),
+                        Property.deleted_at.is_(None),
+                        ~has_evaluation,
+                    )
+                    .distinct()
+                    .all()
+                ]
+
                 # Delete properties without evaluations
                 deleted_count = (
                     session.query(Property)
@@ -849,10 +880,19 @@ def clean_properties(dry_run):
                     )
                     .delete(synchronize_session=False)
                 )
+
+                # Clear enriched_at for affected politicians
+                cleared_count = (
+                    session.query(Politician)
+                    .filter(Politician.id.in_(affected_politician_ids))
+                    .update({Politician.enriched_at: None}, synchronize_session=False)
+                )
+
                 session.commit()
                 click.echo(
                     f"✅ Successfully deleted {deleted_count} unevaluated extracted properties"
                 )
+                click.echo(f"✅ Cleared enriched_at for {cleared_count} politicians")
 
         except Exception as e:
             session.rollback()
