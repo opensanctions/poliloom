@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { Footer } from '@/components/ui/Footer'
+import { HeaderedBox } from '@/components/ui/HeaderedBox'
 import { Property, Politician } from '@/types'
 import { PropertiesEvaluation } from '@/components/evaluation/PropertiesEvaluation'
 import { AddPropertyForm } from '@/components/entity/AddPropertyForm'
@@ -206,87 +208,87 @@ export default function CreatePage() {
   }
 
   return (
-    <main className="bg-surface-muted py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-surface shadow rounded-lg">
-          <div className="px-6 py-4 border-b border-border">
-            <h1 className="text-xl font-semibold text-foreground">Add Politician Data</h1>
-            <p className="mt-1 text-sm text-foreground-tertiary">
-              Search for an existing politician to edit, or create a new one from scratch.
-            </p>
-          </div>
+    <main className="bg-surface-muted min-h-0 overflow-y-auto flex flex-col">
+      <div className="flex-1 max-w-6xl mx-auto px-6 pt-12 w-full">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-foreground mb-4">Add Politician Data</h1>
+          <p className="text-lg text-foreground-tertiary">
+            Search for an existing politician to edit, or create a new one from scratch.
+          </p>
+        </div>
 
-          <div>
-            <div className="px-6 py-6 space-y-8">
-              {/* Politician Search/Create */}
-              <div className="space-y-6">
-                <EntitySelector<Politician>
-                  searchEndpoint="/api/politicians/search"
-                  placeholder="Search for politicians or enter a new name..."
-                  selectedEntity={
-                    selectedPolitician
-                      ? {
-                          name: selectedPolitician.name,
-                          id: selectedPolitician.wikidata_id || 'new',
-                        }
-                      : null
-                  }
-                  onSelect={handleSelectPolitician}
-                  onClear={handleClearPolitician}
-                  allowCreate={true}
-                  onCreateNew={handleCreateNew}
-                />
-              </div>
+        <HeaderedBox
+          title="Politician Details"
+          description="Search or create a politician and add their properties"
+          icon="👤"
+        >
+          <div className="space-y-8">
+            {/* Politician Search/Create */}
+            <EntitySelector<Politician>
+              searchEndpoint="/api/politicians/search"
+              placeholder="Search for politicians or enter a new name..."
+              selectedEntity={
+                selectedPolitician
+                  ? {
+                      name: selectedPolitician.name,
+                      id: selectedPolitician.wikidata_id || 'new',
+                    }
+                  : null
+              }
+              onSelect={handleSelectPolitician}
+              onClear={handleClearPolitician}
+              allowCreate={true}
+              onCreateNew={handleCreateNew}
+            />
 
-              {/* Properties - only show when a politician is selected */}
-              {selectedPolitician && (
-                <div className="space-y-6">
-                  <h2 className="text-lg font-medium text-foreground">Properties</h2>
-
-                  {/* Add Property Form */}
-                  <AddPropertyForm
-                    onAddProperty={(property) => {
-                      setProperties([...properties, property])
-                      // Auto-confirm newly added properties since user is manually adding them
-                      setEvaluations((prev) => {
-                        const newMap = new Map(prev)
-                        newMap.set(property.key, true)
-                        return newMap
-                      })
-                    }}
-                  />
-
-                  {/* Display existing properties */}
-                  {properties.length > 0 && (
-                    <div className="mt-6">
-                      <PropertiesEvaluation
-                        properties={properties}
-                        evaluations={evaluations}
-                        onAction={handleEvaluate}
-                        onShowArchived={() => {}}
-                        onHover={() => {}}
-                        activeArchivedPageId={null}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Footer Actions */}
+            {/* Properties - only show when a politician is selected */}
             {selectedPolitician && (
-              <div className="px-6 py-4 border-t border-border flex justify-between">
-                <Button type="button" variant="secondary" onClick={() => window.history.back()}>
-                  Cancel
-                </Button>
-                <Button type="button" onClick={handleSubmit} size="large">
-                  {selectedPolitician.id ? 'Update Politician' : 'Create Politician'}
-                </Button>
+              <div className="space-y-6">
+                <h2 className="text-lg font-medium text-foreground">Properties</h2>
+
+                {/* Add Property Form */}
+                <AddPropertyForm
+                  onAddProperty={(property) => {
+                    setProperties([...properties, property])
+                    // Auto-confirm newly added properties since user is manually adding them
+                    setEvaluations((prev) => {
+                      const newMap = new Map(prev)
+                      newMap.set(property.key, true)
+                      return newMap
+                    })
+                  }}
+                />
+
+                {/* Display existing properties */}
+                {properties.length > 0 && (
+                  <div className="mt-6">
+                    <PropertiesEvaluation
+                      properties={properties}
+                      evaluations={evaluations}
+                      onAction={handleEvaluate}
+                      onShowArchived={() => {}}
+                      onHover={() => {}}
+                      activeArchivedPageId={null}
+                    />
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="pt-4 border-t border-border-muted flex justify-between">
+                  <Button type="button" variant="secondary" onClick={() => window.history.back()}>
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={handleSubmit} size="large">
+                    {selectedPolitician.id ? 'Update Politician' : 'Create Politician'}
+                  </Button>
+                </div>
               </div>
             )}
           </div>
-        </div>
+        </HeaderedBox>
       </div>
+
+      <Footer />
     </main>
   )
 }
