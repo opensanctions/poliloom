@@ -75,8 +75,6 @@ class TestStatsEndpoint:
         data = response.json()
         assert "evaluations_timeseries" in data
         assert "country_coverage" in data
-        assert "stateless_evaluated_count" in data
-        assert "stateless_total_count" in data
         assert "cooldown_days" in data
         # Timeseries should have all weeks in cooldown period, even if empty
         assert len(data["evaluations_timeseries"]) == data["cooldown_days"] // 7
@@ -130,7 +128,7 @@ class TestStatsEndpoint:
         assert weeks_with_data[0]["rejected"] == 1
 
     def test_stats_country_coverage(self, client, db_session, mock_auth):
-        """Stats endpoint should return country coverage based on evaluated extractions."""
+        """Stats endpoint should return country coverage based on enriched politicians."""
         # Create country
         country_entity = WikidataEntity(
             wikidata_id="Q30", name="United States", description="Country"
@@ -148,12 +146,13 @@ class TestStatsEndpoint:
         )
         db_session.add(archived_page)
 
-        # Create politician with citizenship
+        # Create politician with citizenship (enriched recently)
         politician_entity = WikidataEntity(wikidata_id="Q123", name="Test Politician")
         db_session.add(politician_entity)
         politician = Politician(
             wikidata_id="Q123",
             name="Test Politician",
+            enriched_at=datetime.now(timezone.utc),  # Enriched within cooldown
         )
         db_session.add(politician)
         db_session.flush()
@@ -198,7 +197,7 @@ class TestStatsEndpoint:
         assert data["country_coverage"][0]["evaluated_count"] == 1
 
     def test_stats_stateless_politicians(self, client, db_session, mock_auth):
-        """Stats endpoint should count politicians without Wikidata citizenship."""
+        """Stats endpoint should include stateless politicians in country_coverage with wikidata_id=None."""
         # Create archived page for extraction
         archived_page = ArchivedPage(
             id=uuid4(),
@@ -216,12 +215,13 @@ class TestStatsEndpoint:
         country = Country(wikidata_id="Q30")
         db_session.add(country)
 
-        # Create politician without Wikidata citizenship
+        # Create politician without Wikidata citizenship (enriched recently)
         entity = WikidataEntity(wikidata_id="Q123", name="Stateless Politician")
         db_session.add(entity)
         politician = Politician(
             wikidata_id="Q123",
             name="Stateless Politician",
+            enriched_at=datetime.now(timezone.utc),  # Enriched within cooldown
         )
         db_session.add(politician)
         db_session.flush()
@@ -249,11 +249,17 @@ class TestStatsEndpoint:
         assert response.status_code == 200
 
         data = response.json()
-        assert data["stateless_total_count"] == 1
-        assert data["stateless_evaluated_count"] == 1
+        # Stateless politicians appear with wikidata_id=None in country_coverage
+        stateless_entry = next(
+            (c for c in data["country_coverage"] if c["wikidata_id"] is None), None
+        )
+        assert stateless_entry is not None
+        assert stateless_entry["name"] == "No citizenship"
+        assert stateless_entry["total_count"] == 1
+        assert stateless_entry["evaluated_count"] == 1
 
     def test_stats_old_evaluation_not_counted(self, client, db_session, mock_auth):
-        """Politicians with evaluations outside cooldown period should not be counted."""
+        """Enriched politicians with evaluations outside cooldown period should have evaluated_count=0."""
         # Create country
         country_entity = WikidataEntity(
             wikidata_id="Q30", name="United States", description="Country"
@@ -271,12 +277,13 @@ class TestStatsEndpoint:
         )
         db_session.add(archived_page)
 
-        # Create politician
+        # Create politician (enriched recently, but has old evaluation)
         politician_entity = WikidataEntity(wikidata_id="Q123", name="Old Politician")
         db_session.add(politician_entity)
         politician = Politician(
             wikidata_id="Q123",
             name="Old Politician",
+            enriched_at=datetime.now(timezone.utc),  # Enriched within cooldown
         )
         db_session.add(politician)
         db_session.flush()
@@ -329,7 +336,7 @@ class TestStatsEndpoint:
     def test_stats_unevaluated_politician_not_counted(
         self, client, db_session, mock_auth
     ):
-        """Politicians without evaluated extractions should not be counted as evaluated."""
+        """Enriched politicians without evaluated extractions should have evaluated_count=0."""
         # Create country
         country_entity = WikidataEntity(
             wikidata_id="Q30", name="United States", description="Country"
@@ -347,12 +354,13 @@ class TestStatsEndpoint:
         )
         db_session.add(archived_page)
 
-        # Create politician
+        # Create politician (enriched recently)
         politician_entity = WikidataEntity(wikidata_id="Q123", name="Test Politician")
         db_session.add(politician_entity)
         politician = Politician(
             wikidata_id="Q123",
             name="Test Politician",
+            enriched_at=datetime.now(timezone.utc),  # Enriched within cooldown
         )
         db_session.add(politician)
         db_session.flush()

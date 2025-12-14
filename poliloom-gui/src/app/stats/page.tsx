@@ -178,36 +178,57 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
   )
 }
 
-function CoverageBar({ item }: { item: CountryCoverage & { name: string } }) {
+function CoverageBar({ item }: { item: CountryCoverage }) {
   const evaluatedPercent =
     item.total_count > 0 ? (item.evaluated_count / item.total_count) * 100 : 0
-  const countLabel = `${item.evaluated_count} / ${item.total_count}`
+  const enrichedNotEvaluated = item.enriched_count - item.evaluated_count
+  const enrichedNotEvaluatedPercent =
+    item.total_count > 0 ? (enrichedNotEvaluated / item.total_count) * 100 : 0
+  const barWidth = evaluatedPercent + enrichedNotEvaluatedPercent
+  const countLabel = `${item.enriched_count} / ${item.total_count}`
+  const percentLabel = `${item.evaluated_count} evaluated (${Math.round(evaluatedPercent)}%), ${enrichedNotEvaluated} processed (${Math.round(enrichedNotEvaluatedPercent)}%)`
+
+  const labels = (
+    <>
+      <span className="truncate mr-2 font-medium">{item.name}</span>
+      <span className="absolute inset-0 flex items-center justify-center font-medium opacity-0 group-hover/bar:opacity-100 transition-opacity">
+        {percentLabel}
+      </span>
+      <span className="whitespace-nowrap">{countLabel}</span>
+    </>
+  )
 
   return (
     <div className="py-[5px] group/bar group-hover/list:opacity-50 hover:!opacity-100 transition-opacity">
-      <div className="h-7 bg-gray-100 rounded-md overflow-hidden relative">
+      <div className="h-7 bg-gray-100 rounded-md relative">
         {/* Gray labels (behind bar) */}
-        <div className="absolute inset-0 flex items-center justify-between px-2.5 text-sm text-gray-600">
-          <span className="truncate mr-2 font-medium">{item.name}</span>
-          <span className="whitespace-nowrap">{countLabel}</span>
+        <div className="absolute inset-0 flex items-center justify-between px-2.5 text-sm text-gray-700">
+          {labels}
         </div>
-        {/* Bar with white labels clipped inside */}
-        <div
-          className="absolute inset-y-0 left-0 bg-indigo-600 rounded-md overflow-hidden"
-          style={{ width: `${evaluatedPercent}%` }}
-        >
+
+        {/* Bar container (clips white labels) */}
+        {barWidth > 0 && (
           <div
-            className="h-full flex items-center justify-between px-2.5 text-sm text-white"
-            style={{ width: `${evaluatedPercent > 0 ? (100 / evaluatedPercent) * 100 : 100}%` }}
+            className={`absolute inset-y-0 left-0 flex overflow-hidden ${barWidth >= 100 ? 'rounded-md' : 'rounded-l-md'}`}
+            style={{ width: `${barWidth}%` }}
           >
-            <span className="truncate mr-2 font-medium">{item.name}</span>
-            <span className="whitespace-nowrap">{countLabel}</span>
+            {/* Evaluated segment (indigo) */}
+            <div
+              className="bg-indigo-600 h-full shrink-0"
+              style={{ width: `${(evaluatedPercent / barWidth) * 100}%` }}
+            />
+            {/* Processed segment (light indigo) */}
+            <div className="bg-indigo-300 h-full flex-1" />
+
+            {/* White labels (sized to parent width, clipped by bar) */}
+            <div
+              className="absolute inset-y-0 left-0 flex items-center justify-between px-2.5 text-sm text-white"
+              style={{ width: `${(100 / barWidth) * 100}%` }}
+            >
+              {labels}
+            </div>
           </div>
-        </div>
-        {/* Percentage on hover */}
-        <div className="absolute inset-0 flex items-center justify-center text-sm font-medium text-gray-700 opacity-0 group-hover/bar:opacity-100 transition-opacity">
-          {Math.round(evaluatedPercent)}%
-        </div>
+        )}
       </div>
     </div>
   )
@@ -215,31 +236,15 @@ function CoverageBar({ item }: { item: CountryCoverage & { name: string } }) {
 
 type SortOrder = 'name' | 'total'
 
-function CountryCoverageList({
-  data,
-  statelessEvaluated,
-  statelessTotal,
-}: {
-  data: CountryCoverage[]
-  statelessEvaluated: number
-  statelessTotal: number
-}) {
+function CountryCoverageList({ data }: { data: CountryCoverage[] }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortOrder, setSortOrder] = useState<SortOrder>('total')
 
   const filteredAndSortedData = useMemo(() => {
-    const statelessItem = {
-      wikidata_id: 'stateless',
-      name: 'No citizenship',
-      evaluated_count: statelessEvaluated,
-      total_count: statelessTotal,
-    }
-    const allItems = [statelessItem, ...data]
-
     // Filter by search query
     const filtered = searchQuery
-      ? allItems.filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
-      : allItems
+      ? data.filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      : data
 
     // Sort based on selected order
     return [...filtered].sort((a, b) => {
@@ -249,9 +254,9 @@ function CountryCoverageList({
       // Sort by total count descending
       return b.total_count - a.total_count
     })
-  }, [data, statelessEvaluated, statelessTotal, searchQuery, sortOrder])
+  }, [data, searchQuery, sortOrder])
 
-  if (data.length === 0 && statelessTotal === 0) {
+  if (data.length === 0) {
     return <p className="text-gray-500 text-center py-8">No coverage data yet</p>
   }
 
@@ -281,7 +286,7 @@ function CountryCoverageList({
       ) : (
         <div className="group/list">
           {filteredAndSortedData.map((item) => (
-            <CoverageBar key={item.wikidata_id} item={item} />
+            <CoverageBar key={item.wikidata_id ?? 'stateless'} item={item} />
           ))}
         </div>
       )}
@@ -351,8 +356,12 @@ export default function StatsPage() {
           <div className="space-y-6">
             <HeaderedBox
               title="Evaluations Over Time"
-              description="Weekly accepted (green) and rejected (red) statements"
+              description="Community contributions by week"
               icon="⏱️"
+              legend={[
+                { color: 'bg-green-500', label: 'Accepted' },
+                { color: 'bg-red-400', label: 'Rejected' },
+              ]}
             >
               <EvaluationsChart data={stats.evaluations_timeseries} />
             </HeaderedBox>
@@ -361,12 +370,12 @@ export default function StatsPage() {
               title="Coverage by Country"
               description={`Politicians that were evaluated in the last ${stats.cooldown_days} days`}
               icon="🌍"
+              legend={[
+                { color: 'bg-indigo-600', label: 'Evaluated' },
+                { color: 'bg-indigo-300', label: 'Processed' },
+              ]}
             >
-              <CountryCoverageList
-                data={stats.country_coverage}
-                statelessEvaluated={stats.stateless_evaluated_count}
-                statelessTotal={stats.stateless_total_count}
-              />
+              <CountryCoverageList data={stats.country_coverage} />
             </HeaderedBox>
           </div>
         )}

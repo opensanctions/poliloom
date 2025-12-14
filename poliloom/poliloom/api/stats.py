@@ -1,15 +1,15 @@
 """API endpoint for community statistics."""
 
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import and_, case, exists, func, literal_column, select
+from sqlalchemy import and_, case, func, literal, literal_column, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db_session
-from ..models import Country, Evaluation, Politician, Property
+from ..models import Evaluation, Politician, Property
 from ..models.base import PropertyType
 from ..models.wikidata import WikidataEntity
 from .auth import User, get_current_user
@@ -44,21 +44,20 @@ class EvaluationTimeseriesPoint(BaseModel):
 
 
 class CountryCoverage(BaseModel):
-    """Coverage statistics for a single country."""
+    """Coverage statistics for a single country (or stateless if wikidata_id is None)."""
 
-    wikidata_id: str
+    wikidata_id: Optional[str]  # None for stateless politicians
     name: str
-    evaluated_count: int
-    total_count: int
+    evaluated_count: int  # Enriched politicians with evaluated extracted properties
+    enriched_count: int  # Politicians enriched within cooldown period
+    total_count: int  # Total politicians (all, regardless of enrichment)
 
 
 class StatsResponse(BaseModel):
     """Response schema for stats endpoint."""
 
     evaluations_timeseries: List[EvaluationTimeseriesPoint]
-    country_coverage: List[CountryCoverage]
-    stateless_evaluated_count: int
-    stateless_total_count: int
+    country_coverage: List[CountryCoverage]  # Includes stateless as wikidata_id=None
     cooldown_days: int
 
 
@@ -72,9 +71,7 @@ async def get_stats(
 
     Returns:
     - evaluations_timeseries: Weekly counts of accepted/rejected evaluations for cooldown period
-    - country_coverage: For each country, count of politicians with evaluated extractions vs total
-    - stateless_evaluated_count: Politicians with only extracted citizenships that have evaluations
-    - stateless_total_count: Total politicians without Wikidata citizenship
+    - country_coverage: For each country (+ stateless), enriched politicians and evaluation counts
     - cooldown_days: The current cooldown period setting in days
     """
     cooldown_days = Politician.get_enrichment_cooldown_days()
@@ -131,11 +128,10 @@ async def get_stats(
         for week in all_weeks
     ]
 
-    # 2. Country coverage - politicians with evaluated extractions vs total per country
-    # A politician is "evaluated" if they have any extracted property with an evaluation
-    # created within the cooldown period
+    # 2. Country coverage - all politicians grouped by citizenship
+    # Shows total, enriched (within cooldown), and evaluated counts
 
-    # Pre-compute evaluated politician IDs (CTE for reuse)
+    # CTE: Politicians with evaluated extracted properties (within cooldown)
     evaluated_politicians_cte = (
         select(Property.politician_id)
         .join(Evaluation, Evaluation.property_id == Property.id)
@@ -150,154 +146,85 @@ async def get_stats(
         .cte("evaluated_politicians")
     )
 
-    # Subquery to get all country wikidata_ids for filtering
-    country_ids_subquery = select(Country.wikidata_id).scalar_subquery()
+    # Alias for country WikidataEntity (to avoid conflict with politician's entity)
+    country_entity = WikidataEntity.__table__.alias("country_entity")
 
-    # CTE 1: Total politicians per country (optimized - aggregate first, then join)
-    # Uses idx_properties_type_entity index efficiently by filtering to country IDs
-    country_totals_cte = (
+    # Main query: Start from ALL politicians, LEFT JOIN to citizenship
+    # Use conditional counting for enriched and evaluated
+    coverage_query = (
         select(
             Property.entity_id.label("wikidata_id"),
-            func.count(Property.politician_id).label("total_count"),
-        )
-        .where(
-            and_(
-                Property.type == PropertyType.CITIZENSHIP,
-                Property.deleted_at.is_(None),
-                Property.entity_id.in_(country_ids_subquery),
-            )
-        )
-        .group_by(Property.entity_id)
-        .cte("country_totals")
-    )
-
-    # CTE 2: Evaluated politicians per country (join citizenship with evaluated)
-    citizenship_prop = Property.__table__.alias("citizenship_prop")
-    country_evaluated_cte = (
-        select(
-            citizenship_prop.c.entity_id.label("wikidata_id"),
-            func.count(citizenship_prop.c.politician_id).label("evaluated_count"),
-        )
-        .select_from(citizenship_prop)
-        .join(
-            evaluated_politicians_cte,
-            evaluated_politicians_cte.c.politician_id
-            == citizenship_prop.c.politician_id,
-        )
-        .where(
-            and_(
-                citizenship_prop.c.type == PropertyType.CITIZENSHIP,
-                citizenship_prop.c.deleted_at.is_(None),
-                citizenship_prop.c.entity_id.in_(country_ids_subquery),
-            )
-        )
-        .group_by(citizenship_prop.c.entity_id)
-        .cte("country_evaluated")
-    )
-
-    # Final query: join totals with evaluated counts and country names
-    country_stats_query = (
-        select(
-            country_totals_cte.c.wikidata_id,
-            WikidataEntity.name,
-            country_totals_cte.c.total_count,
-            func.coalesce(country_evaluated_cte.c.evaluated_count, 0).label(
-                "evaluated_count"
+            func.coalesce(country_entity.c.name, literal("No citizenship")).label(
+                "name"
             ),
+            func.count(func.distinct(Politician.id)).label("total_count"),
+            func.count(
+                func.distinct(
+                    case((Politician.enriched_at >= cooldown_cutoff, Politician.id))
+                )
+            ).label("enriched_count"),
+            func.count(
+                func.distinct(
+                    case(
+                        (
+                            evaluated_politicians_cte.c.politician_id.isnot(None),
+                            Politician.id,
+                        )
+                    )
+                )
+            ).label("evaluated_count"),
         )
-        .select_from(country_totals_cte)
+        .select_from(Politician)
+        # Join to non-deleted WikidataEntity for the politician
         .join(
             WikidataEntity,
             and_(
-                WikidataEntity.wikidata_id == country_totals_cte.c.wikidata_id,
+                WikidataEntity.wikidata_id == Politician.wikidata_id,
                 WikidataEntity.deleted_at.is_(None),
             ),
         )
+        # LEFT JOIN to Wikidata citizenship properties
         .outerjoin(
-            country_evaluated_cte,
-            country_evaluated_cte.c.wikidata_id == country_totals_cte.c.wikidata_id,
+            Property,
+            and_(
+                Property.politician_id == Politician.id,
+                Property.type == PropertyType.CITIZENSHIP,
+                Property.statement_id.isnot(None),  # Wikidata citizenship only
+                Property.deleted_at.is_(None),
+            ),
         )
-        .order_by(country_totals_cte.c.total_count.desc())
+        # LEFT JOIN to get country name (NULL for stateless)
+        .outerjoin(
+            country_entity,
+            and_(
+                country_entity.c.wikidata_id == Property.entity_id,
+                country_entity.c.deleted_at.is_(None),
+            ),
+        )
+        # LEFT JOIN to evaluated politicians CTE
+        .outerjoin(
+            evaluated_politicians_cte,
+            evaluated_politicians_cte.c.politician_id == Politician.id,
+        )
+        .group_by(Property.entity_id, country_entity.c.name)
+        .order_by(func.count(func.distinct(Politician.id)).desc())
     )
 
-    country_results = db.execute(country_stats_query).all()
+    country_results = db.execute(coverage_query).all()
 
     country_coverage = [
         CountryCoverage(
             wikidata_id=row.wikidata_id,
             name=row.name,
             evaluated_count=int(row.evaluated_count or 0),
+            enriched_count=int(row.enriched_count or 0),
             total_count=int(row.total_count or 0),
         )
         for row in country_results
     ]
 
-    # 3. Stateless politicians - those without Wikidata citizenship (only extracted)
-    # has_wikidata_citizenship: politician has a citizenship from Wikidata (has statement_id)
-    has_wikidata_citizenship = exists(
-        select(1).where(
-            and_(
-                Property.politician_id == Politician.id,
-                Property.type == PropertyType.CITIZENSHIP,
-                Property.statement_id.isnot(None),
-                Property.deleted_at.is_(None),
-            )
-        )
-    )
-
-    # has_evaluated_extracted_citizenship: politician has an extracted citizenship with evaluation
-    has_evaluated_extracted_citizenship = exists(
-        select(1)
-        .select_from(Property)
-        .join(Evaluation, Evaluation.property_id == Property.id)
-        .where(
-            and_(
-                Property.politician_id == Politician.id,
-                Property.type == PropertyType.CITIZENSHIP,
-                Property.archived_page_id.isnot(None),  # Extracted
-                Property.deleted_at.is_(None),
-                Evaluation.created_at >= cooldown_cutoff,
-            )
-        )
-    )
-
-    # Count total stateless (no Wikidata citizenship)
-    stateless_total_count = (
-        db.execute(
-            select(func.count())
-            .select_from(Politician)
-            .join(WikidataEntity, Politician.wikidata_id == WikidataEntity.wikidata_id)
-            .where(
-                and_(
-                    WikidataEntity.deleted_at.is_(None),
-                    ~has_wikidata_citizenship,
-                )
-            )
-        ).scalar()
-        or 0
-    )
-
-    # Count stateless with evaluated extracted citizenships
-    stateless_evaluated_count = (
-        db.execute(
-            select(func.count())
-            .select_from(Politician)
-            .join(WikidataEntity, Politician.wikidata_id == WikidataEntity.wikidata_id)
-            .where(
-                and_(
-                    WikidataEntity.deleted_at.is_(None),
-                    ~has_wikidata_citizenship,
-                    has_evaluated_extracted_citizenship,
-                )
-            )
-        ).scalar()
-        or 0
-    )
-
     return StatsResponse(
         evaluations_timeseries=evaluations_timeseries,
         country_coverage=country_coverage,
-        stateless_evaluated_count=stateless_evaluated_count,
-        stateless_total_count=stateless_total_count,
         cooldown_days=cooldown_days,
     )
