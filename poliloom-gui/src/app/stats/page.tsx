@@ -234,7 +234,7 @@ function CoverageBar({ item }: { item: CountryCoverage }) {
   )
 }
 
-type SortOrder = 'name' | 'total'
+type SortOrder = 'name' | 'total' | 'processed' | 'evaluated'
 
 function CountryCoverageList({ data }: { data: CountryCoverage[] }) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -248,11 +248,17 @@ function CountryCoverageList({ data }: { data: CountryCoverage[] }) {
 
     // Sort based on selected order
     return [...filtered].sort((a, b) => {
-      if (sortOrder === 'name') {
-        return a.name.localeCompare(b.name)
+      switch (sortOrder) {
+        case 'name':
+          return a.name.localeCompare(b.name)
+        case 'processed':
+          return b.enriched_count - a.enriched_count
+        case 'evaluated':
+          return b.evaluated_count - a.evaluated_count
+        case 'total':
+        default:
+          return b.total_count - a.total_count
       }
-      // Sort by total count descending
-      return b.total_count - a.total_count
     })
   }, [data, searchQuery, sortOrder])
 
@@ -276,6 +282,8 @@ function CountryCoverageList({ data }: { data: CountryCoverage[] }) {
           onChange={(value) => setSortOrder(value as SortOrder)}
           options={[
             { value: 'total', label: 'Sort by total politicians' },
+            { value: 'processed', label: 'Sort by processed' },
+            { value: 'evaluated', label: 'Sort by evaluated' },
             { value: 'name', label: 'Sort alphabetically' },
           ]}
         />
