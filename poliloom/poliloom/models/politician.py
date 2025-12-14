@@ -33,7 +33,6 @@ from ..wikidata_date import WikidataDate
 from .base import (
     Base,
     EntityCreationMixin,
-    SearchIndexedMixin,
     PropertyComparisonResult,
     PropertyType,
     RelationType,
@@ -51,7 +50,6 @@ class Politician(
     UpsertMixin,
     WikidataEntityMixin,
     EntityCreationMixin,
-    SearchIndexedMixin,
 ):
     """Politician entity."""
 

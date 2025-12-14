@@ -2,6 +2,7 @@
 
 Provides a thin wrapper around Meilisearch for indexing and searching entities.
 Uses a single 'entities' index with a 'type' field for filtering.
+Supports hybrid search (keyword + semantic) using OpenAI embeddings.
 """
 
 import logging
@@ -15,6 +16,13 @@ from dotenv import load_dotenv
 # Single index for all searchable entities
 INDEX_NAME = "entities"
 
+# Embedder name for hybrid search
+EMBEDDER_NAME = "openai"
+
+# OpenAI embedding model configuration
+EMBEDDING_MODEL = "text-embedding-3-small"
+EMBEDDING_DIMENSIONS = 1536
+
 
 class SearchDocument(TypedDict):
     """Document format for Meilisearch indexing."""
@@ -27,9 +35,6 @@ class SearchDocument(TypedDict):
 load_dotenv()
 
 logger = logging.getLogger(__name__)
-
-# Global instance for lazy initialization
-_search_service: Optional["SearchService"] = None
 
 
 class SearchService:
@@ -51,7 +56,7 @@ class SearchService:
         self.client = meilisearch.Client(self.url, self.api_key)
 
     def create_index(self) -> None:
-        """Create the entities index with proper settings."""
+        """Create the entities index with proper settings and OpenAI embedder."""
         logger.info(f"Creating index '{INDEX_NAME}'")
         task = self.client.create_index(INDEX_NAME, {"primaryKey": "id"})
         self.client.wait_for_task(task.task_uid)
@@ -66,6 +71,26 @@ class SearchService:
             }
         )
         self.client.wait_for_task(task.task_uid)
+
+        # Configure OpenAI embedder for hybrid search
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is required")
+
+        logger.info(f"Configuring OpenAI embedder '{EMBEDDER_NAME}'")
+        task = index.update_embedders(
+            {
+                EMBEDDER_NAME: {
+                    "source": "openAi",
+                    "apiKey": openai_api_key,
+                    "model": EMBEDDING_MODEL,
+                    "dimensions": EMBEDDING_DIMENSIONS,
+                    "documentTemplate": "{{doc.labels | join: ', '}}",
+                }
+            }
+        )
+        self.client.wait_for_task(task.task_uid)
+        logger.info("OpenAI embedder configured successfully")
 
     def delete_index(self) -> None:
         """Delete the entities index if it exists."""
@@ -126,44 +151,38 @@ class SearchService:
         return len(document_ids)
 
     def search(
-        self, query: str, entity_type: Optional[str] = None, limit: int = 100
+        self,
+        query: str,
+        entity_type: Optional[str] = None,
+        limit: int = 100,
+        semantic_ratio: float = 0.0,
     ) -> list[str]:
         """Search Meilisearch for entities by label.
+
+        Supports hybrid search combining keyword matching and semantic similarity.
 
         Args:
             query: Search query text
             entity_type: Optional type filter (e.g., 'locations', 'politicians')
             limit: Maximum number of results
+            semantic_ratio: Balance between keyword (0.0) and semantic (1.0) search.
+                           Default 0.0 uses pure keyword search for backward compatibility.
+                           Use 0.5 for balanced hybrid search.
 
         Returns:
             List of document IDs (wikidata_ids) ordered by relevance
         """
         index = self.client.index(INDEX_NAME)
-        search_params = {"limit": limit}
+        search_params: dict = {"limit": limit}
         if entity_type:
             search_params["filter"] = f"type = '{entity_type}'"
+
+        # Use hybrid search when semantic_ratio > 0
+        if semantic_ratio > 0:
+            search_params["hybrid"] = {
+                "semanticRatio": semantic_ratio,
+                "embedder": EMBEDDER_NAME,
+            }
+
         results = index.search(query, search_params)
         return [hit["id"] for hit in results["hits"]]
-
-
-def get_search_service() -> SearchService:
-    """Get or create the global SearchService instance.
-
-    This is used as a FastAPI dependency.
-
-    Returns:
-        SearchService instance
-    """
-    global _search_service
-    if _search_service is None:
-        _search_service = SearchService()
-    return _search_service
-
-
-def reset_search_service() -> None:
-    """Reset the global SearchService instance.
-
-    Used for testing to allow injecting mock services.
-    """
-    global _search_service
-    _search_service = None

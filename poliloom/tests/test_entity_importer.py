@@ -430,8 +430,7 @@ class TestWikidataEntityImporter:
 class TestSearchServiceIndexing:
     """Test that entity importing calls search service for label indexing.
 
-    Note: Only entities with SearchIndexedMixin are indexed (Country, Language, Location).
-    Position uses embedding-based search instead.
+    All entities with WikidataEntityMixin are indexed to Meilisearch.
     """
 
     def test_insert_multiple_locations_indexes_labels(

@@ -386,82 +386,6 @@ def enrich_wikipedia(
         raise SystemExit(1)
 
 
-@main.command("embed-entities")
-@click.option(
-    "--batch-size",
-    default=8192,
-    help="Number of entities to read from DB per batch",
-)
-@click.option(
-    "--encode-batch-size",
-    default=2048,
-    help="Number of texts to encode at once (CPU or GPU)",
-)
-def embed_entities(batch_size, encode_batch_size):
-    """Generate embeddings for all positions missing embeddings."""
-    import torch
-    from poliloom.embeddings import get_embedding_model
-    from poliloom.models import Position
-
-    logger = logging.getLogger(__name__)
-
-    try:
-        # Use GPU if available
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        logger.info(f"Using device for encoding: {device}")
-
-        model = get_embedding_model()
-
-        with Session(get_engine()) as session:
-            # Get total count
-            total_count = (
-                session.query(Position).filter(Position.embedding.is_(None)).count()
-            )
-
-            if total_count == 0:
-                click.echo("✅ All positions already have embeddings")
-                return
-
-            logger.info(f"Found {total_count} positions without embeddings")
-            processed = 0
-
-            # Process positions in batches
-            while True:
-                # Query full ORM objects to use the name property
-                batch = (
-                    session.query(Position)
-                    .filter(Position.embedding.is_(None))
-                    .limit(batch_size)
-                    .all()
-                )
-
-                if not batch:
-                    break
-
-                # Use the name property from ORM objects
-                names = [position.name for position in batch]
-
-                # Generate embeddings
-                embeddings = model.encode(
-                    names, convert_to_tensor=False, batch_size=encode_batch_size
-                )
-
-                # Update embeddings on the ORM objects
-                for position, embedding in zip(batch, embeddings):
-                    position.embedding = embedding
-
-                session.commit()
-
-                processed += len(batch)
-                logger.info(f"Processed {processed}/{total_count} positions")
-
-            click.echo(f"✅ Generated embeddings for {processed} positions")
-
-    except Exception as e:
-        click.echo(f"❌ Error generating embeddings: {e}")
-        raise SystemExit(1)
-
-
 @main.command("import-hierarchy")
 @click.option(
     "--file",
@@ -588,7 +512,6 @@ def dump_import_entities(file, batch_size):
         click.echo()
         click.echo("💡 Next steps:")
         click.echo("  • Run 'poliloom import-politicians' to import politicians")
-        click.echo("  • Run 'poliloom embed-entities' to generate embeddings")
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
         click.echo("❌ Supporting entities import was cancelled.")
@@ -938,8 +861,8 @@ def clean_properties(dry_run):
 
 
 def _get_search_indexed_models():
-    """Get all models that use SearchIndexedMixin."""
-    from poliloom.models import SearchIndexedMixin
+    """Get all models that use WikidataEntityMixin (which provides search indexing)."""
+    from poliloom.models.wikidata import WikidataEntityMixin
     import poliloom.models as models_module
 
     search_indexed_models = []
@@ -947,8 +870,8 @@ def _get_search_indexed_models():
         obj = getattr(models_module, name)
         if (
             isinstance(obj, type)
-            and issubclass(obj, SearchIndexedMixin)
-            and obj is not SearchIndexedMixin
+            and issubclass(obj, WikidataEntityMixin)
+            and obj is not WikidataEntityMixin
             and hasattr(obj, "__tablename__")
         ):
             search_indexed_models.append(obj)
@@ -1067,7 +990,7 @@ def index_rebuild(batch_size):
                     .join(
                         WikidataEntity, model.wikidata_id == WikidataEntity.wikidata_id
                     )
-                    .outerjoin(
+                    .join(
                         WikidataEntityLabel,
                         WikidataEntity.wikidata_id == WikidataEntityLabel.entity_id,
                     )
@@ -1099,12 +1022,98 @@ def index_rebuild(batch_size):
 
             total_indexed += indexed
 
-    # Wait for all indexing tasks to complete
-    if task_uids:
-        click.echo(f"⏳ Waiting for {len(task_uids)} indexing tasks to complete...")
-        search_service.wait_for_tasks(task_uids)
+    click.echo(
+        f"✅ Sent {total_indexed} documents for indexing ({len(task_uids)} tasks)"
+    )
+    click.echo(
+        "   Indexing continues in the background. Use 'poliloom index-stats' to check progress."
+    )
 
-    click.echo(f"✅ Successfully rebuilt index ({total_indexed} documents)")
+
+@main.command("index-stats")
+def index_stats():
+    """Show Meilisearch index status and task progress.
+
+    Displays document counts, indexing progress, and any failed tasks.
+    Useful for monitoring background indexing after index-rebuild.
+    """
+
+    from poliloom.search import INDEX_NAME, SearchService
+
+    search_service = SearchService()
+
+    # Check server health
+    try:
+        health = search_service.client.health()
+        click.echo(f"🟢 Meilisearch: {health['status']}")
+    except Exception as e:
+        click.echo(f"🔴 Meilisearch: unavailable ({e})")
+        return
+
+    # Get index stats
+    try:
+        index = search_service.client.index(INDEX_NAME)
+        stats = index.get_stats()
+        click.echo(f"\n📊 Index '{INDEX_NAME}':")
+        click.echo(f"   Documents: {stats.number_of_documents:,}")
+        click.echo(f"   Indexing: {'yes' if stats.is_indexing else 'no'}")
+    except Exception as e:
+        click.echo(f"\n📊 Index '{INDEX_NAME}': not found or error ({e})")
+
+    # Get batch counts by status
+    click.echo("\n📋 Batches:")
+    icons = {"succeeded": "✅", "processing": "⏳", "enqueued": "📥", "failed": "❌"}
+    for status in ["processing", "enqueued", "succeeded", "failed"]:
+        try:
+            batches = search_service.client.get_batches(
+                {"statuses": [status], "limit": 10}
+            )
+        except Exception:
+            continue
+
+        count = batches.total
+        if count == 0 or count is None:
+            continue
+
+        click.echo(f"   {icons.get(status, '•')} {status}: {count}")
+
+        # Show details for processing batch
+        if status == "processing" and batches.results:
+            batch = batches.results[0]
+            progress = batch.progress or {}
+            pct = progress.get("percentage", 0)
+            details = batch.details or {}
+            docs = details.get("receivedDocuments", 0)
+            click.echo(
+                f"      └─ Batch {batch.uid}: {docs:,} docs, {pct:.1f}% complete"
+            )
+
+            # Show current step
+            steps = progress.get("steps", [])
+            if steps:
+                step = steps[-1]
+                name = step.get("currentStep", "?")
+                finished = step.get("finished", 0)
+                total = step.get("total", 0)
+                click.echo(f"      └─ {name}: {finished:,}/{total:,}")
+
+            # Show embedder stats
+            stats = batch.stats or {}
+            embedder = stats.get("embedderRequests", {})
+            if embedder and embedder.get("total", 0) > 0:
+                click.echo(
+                    f"      └─ Embedder: {embedder['total']:,} requests "
+                    f"({embedder.get('failed', 0)} failed)"
+                )
+
+        # Show failed batch errors
+        if status == "failed" and batches.results:
+            for batch in batches.results[:3]:
+                stats = batch.stats or {}
+                types = list(stats.get("types", {}).keys())
+                click.echo(
+                    f"      └─ Batch {batch.uid}: {', '.join(types) or 'unknown'}"
+                )
 
 
 if __name__ == "__main__":

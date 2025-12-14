@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from .. import dump_reader
 from ..database import create_engine, get_engine
 from ..models import (
-    SearchIndexedMixin,
     Position,
     Location,
     Country,
@@ -64,17 +63,16 @@ class EntityCollection:
             return
 
         # Build search documents BEFORE modifying entities (labels get popped later)
-        search_documents: list[SearchDocument] = []
-        if issubclass(self.model_class, SearchIndexedMixin):
-            entity_type = self.model_class.__tablename__
-            search_documents = [
-                SearchDocument(
-                    id=entity["wikidata_id"],
-                    type=entity_type,
-                    labels=entity.get("labels") or [],
-                )
-                for entity in self.entities
-            ]
+        entity_type = self.model_class.__tablename__
+        search_documents = [
+            SearchDocument(
+                id=entity["wikidata_id"],
+                type=entity_type,
+                labels=entity["labels"],
+            )
+            for entity in self.entities
+            if entity.get("labels")
+        ]
 
         # Insert WikidataEntity records first (without labels)
         entity_data = [
@@ -190,7 +188,7 @@ def _process_supporting_entities_chunk(
             # Create shared entity data
             entity_name = entity.get_entity_name()
             if not entity_name:
-                continue  # Skip entities without names - needed for embeddings in enrichment
+                continue  # Skip entities without names - needed for search indexing
 
             entity_description = entity.get_entity_description()
             entity_labels = (
@@ -273,7 +271,7 @@ def import_entities(
     Import supporting entities from the Wikidata dump using parallel processing.
     Uses frozensets to efficiently share descendant QIDs across workers with O(1) lookups.
 
-    Entities with SearchIndexedMixin are indexed to the search service during import.
+    Entities with WikidataEntityMixin are indexed to the search service during import.
 
     Args:
         dump_file_path: Path to the Wikidata JSON dump file

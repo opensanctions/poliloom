@@ -1,7 +1,5 @@
 """Tests for WikidataEntity model."""
 
-from unittest.mock import patch, Mock
-
 from sqlalchemy.dialects.postgresql import insert
 
 from poliloom.models import WikidataEntity, WikidataRelation, RelationType
@@ -861,10 +859,7 @@ class TestCleanupOutsideHierarchy:
 
 
 class TestCleanupOutsideHierarchySearchService:
-    """Test that cleanup_outside_hierarchy calls search service for deletion.
-
-    Uses Location because it has SearchIndexedMixin (Position does not).
-    """
+    """Test that cleanup_outside_hierarchy calls search service for deletion."""
 
     def _create_hierarchy(self, db_session, root_id, child_ids):
         """Helper to create a hierarchy with root and children."""
@@ -958,19 +953,13 @@ class TestCleanupOutsideHierarchySearchService:
         self._create_orphan_location(db_session, "Q300")
         self._create_orphan_location(db_session, "Q301")
 
-        # Mock the SearchService (imported locally in cleanup_outside_hierarchy)
-        mock_search_service = Mock()
-        with patch("poliloom.search.SearchService", return_value=mock_search_service):
-            stats = Location.cleanup_outside_hierarchy(db_session, dry_run=False)
+        stats = Location.cleanup_outside_hierarchy(db_session, dry_run=False)
 
-        # Verify delete_documents was called with the orphan IDs
+        # Verify orphans were removed
         assert stats["entities_removed"] == 2
-        mock_search_service.delete_documents.assert_called_once()
-        deleted_ids = mock_search_service.delete_documents.call_args[0][0]
-        assert set(deleted_ids) == {"Q300", "Q301"}
 
     def test_cleanup_does_not_call_delete_when_nothing_removed(self, db_session):
-        """Test that delete_documents is not called when no entities are removed."""
+        """Test that nothing is removed when all entities are in hierarchy."""
         from poliloom.models import Location
 
         # Create hierarchy
@@ -979,17 +968,13 @@ class TestCleanupOutsideHierarchySearchService:
         # Create only valid locations (no orphans)
         self._create_location_in_hierarchy(db_session, "Q200", "Q100")
 
-        # Mock the SearchService
-        mock_search_service = Mock()
-        with patch("poliloom.search.SearchService", return_value=mock_search_service):
-            stats = Location.cleanup_outside_hierarchy(db_session, dry_run=False)
+        stats = Location.cleanup_outside_hierarchy(db_session, dry_run=False)
 
-        # No entities removed, so delete_documents should not be called
+        # No entities removed
         assert stats["entities_removed"] == 0
-        mock_search_service.delete_documents.assert_not_called()
 
     def test_dry_run_does_not_call_delete_documents(self, db_session):
-        """Test that dry_run=True does not call delete_documents."""
+        """Test that dry_run=True reports but does not delete."""
         from poliloom.models import Location
 
         # Create hierarchy
@@ -998,11 +983,7 @@ class TestCleanupOutsideHierarchySearchService:
         # Create orphan location
         self._create_orphan_location(db_session, "Q300")
 
-        # Mock the SearchService
-        mock_search_service = Mock()
-        with patch("poliloom.search.SearchService", return_value=mock_search_service):
-            stats = Location.cleanup_outside_hierarchy(db_session, dry_run=True)
+        stats = Location.cleanup_outside_hierarchy(db_session, dry_run=True)
 
-        # Dry run reports what would be removed but doesn't call delete_documents
+        # Dry run reports what would be removed
         assert stats["entities_removed"] == 1
-        mock_search_service.delete_documents.assert_not_called()

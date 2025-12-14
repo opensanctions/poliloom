@@ -17,7 +17,7 @@ from ..enrichment import (
     enrich_batch,
     has_enrichable_politicians,
 )
-from ..search import SearchService, get_search_service
+from ..search import SearchService
 from ..models import (
     ArchivedPage,
     ArchivedPageLanguage,
@@ -250,7 +250,6 @@ async def search_politicians(
         default=50, le=100, description="Maximum number of politicians to return"
     ),
     db: Session = Depends(get_db_session),
-    search_service: SearchService = Depends(get_search_service),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -258,7 +257,8 @@ async def search_politicians(
 
     Returns matching politicians ranked by relevance with their properties.
     """
-    entity_ids = Politician.find_similar(q, db, search_service, limit=limit)
+    search_service = SearchService()
+    entity_ids = Politician.find_similar(q, search_service, limit=limit)
     if not entity_ids:
         return []
 

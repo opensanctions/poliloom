@@ -5,7 +5,8 @@ The Python backend for PoliLoom — processes Wikidata dumps, extracts politicia
 ## Requirements
 
 - Python 3.12+ with [uv](https://docs.astral.sh/uv/)
-- PostgreSQL with pgvector extension
+- PostgreSQL
+- Meilisearch
 - Linux or macOS (Windows not supported due to multiprocessing requirements)
 - OpenAI API key
 
@@ -41,9 +42,6 @@ make extract-wikidata-dump
 uv run poliloom import-hierarchy      # Build entity relationship trees
 uv run poliloom import-entities       # Import positions, locations, countries
 uv run poliloom import-politicians    # Import politicians
-
-# Generate embeddings for semantic search
-uv run poliloom embed-entities
 ```
 
 ### Extract politician data
@@ -74,7 +72,6 @@ API documentation available at http://localhost:8000/docs
 | `poliloom import-hierarchy`   | Build position/location hierarchy trees from Wikidata |
 | `poliloom import-entities`    | Import positions, locations, and countries            |
 | `poliloom import-politicians` | Import politicians linking to existing entities       |
-| `poliloom embed-entities`     | Generate vector embeddings for semantic search        |
 | `poliloom enrich-wikipedia`   | Extract politician data from Wikipedia using AI       |
 | `poliloom garbage-collect`    | Remove entities deleted from Wikidata                 |
 

@@ -67,15 +67,3 @@ class TestEntityCreationMixin:
         assert "Label 1" in label_texts
         assert "Label 2" in label_texts
         assert "Alias 1" in label_texts
-
-
-class TestSearchIndexedMixin:
-    """Test cases for the SearchIndexedMixin."""
-
-    def test_to_search_document_builds_correct_structure(self, sample_location):
-        """Test that to_search_document creates SearchDocument with correct fields."""
-        doc = sample_location.to_search_document()
-
-        assert doc["id"] == sample_location.wikidata_id
-        assert doc["type"] == "locations"
-        assert doc["labels"] == ["Test Location", "Test Loc"]

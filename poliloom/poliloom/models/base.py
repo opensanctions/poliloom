@@ -2,83 +2,13 @@
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import TYPE_CHECKING, List, Protocol, runtime_checkable
+from typing import List
 
 from sqlalchemy import Column, DateTime, String, func
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, declarative_base
 
-from poliloom.search import SearchDocument
-
-if TYPE_CHECKING:
-    from poliloom.search import SearchService
-
 Base = declarative_base()
-
-
-@runtime_checkable
-class Searchable(Protocol):
-    """Protocol for entities that support similarity search."""
-
-    @classmethod
-    def find_similar(
-        cls,
-        query: str,
-        session: Session,
-        search_service: "SearchService",
-        limit: int = 100,
-    ) -> list[str]:
-        """Find similar entities by query.
-
-        Args:
-            query: Search query text
-            session: Database session (needed for embedding search)
-            search_service: SearchService instance (needed for Meilisearch)
-            limit: Maximum number of results
-
-        Returns:
-            List of wikidata_ids ordered by relevance
-        """
-        ...
-
-
-class SearchIndexedMixin:
-    """Mixin for models that should be indexed in the search service.
-
-    Models inheriting from this mixin will be automatically indexed
-    during import and can be searched via the search service.
-
-    Implements the Searchable protocol.
-    """
-
-    def to_search_document(self) -> SearchDocument:
-        """Transform this entity to a SearchDocument for indexing."""
-        return SearchDocument(
-            id=self.wikidata_id,
-            type=self.__tablename__,
-            labels=[label.label for label in self.wikidata_entity.labels],
-        )
-
-    @classmethod
-    def find_similar(
-        cls,
-        query: str,
-        session: Session,
-        search_service: "SearchService",
-        limit: int = 100,
-    ) -> list[str]:
-        """Find similar entities by searching the search index.
-
-        Args:
-            query: Search query text
-            session: Database session (unused, for protocol compatibility)
-            search_service: SearchService instance
-            limit: Maximum number of results
-
-        Returns:
-            List of wikidata_ids ordered by relevance
-        """
-        return search_service.search(query, entity_type=cls.__tablename__, limit=limit)
 
 
 class PropertyType(str, Enum):

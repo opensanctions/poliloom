@@ -1,8 +1,8 @@
 """Test configuration and fixtures for PoliLoom tests."""
 
+import hashlib
 import orjson
 import pytest
-import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock as SyncMock, patch
@@ -27,7 +27,7 @@ from poliloom.database import create_timestamp_triggers, create_import_tracking_
 def mock_find_similar(db_session):
     """Mock find_similar on all searchable models to use label-based search.
 
-    This avoids needing Meilisearch or embeddings in tests.
+    This avoids needing Meilisearch in tests.
     Applied automatically to all tests.
     """
     from poliloom.models import WikidataEntityLabel
@@ -36,10 +36,10 @@ def mock_find_similar(db_session):
         """Create a mock find_similar that searches by labels."""
 
         @classmethod
-        def mock_find_similar(cls, query, session, search_service, limit=100):
+        def mock_find_similar(cls, query, search_service, limit=100):
             query_lower = query.lower()
             results = (
-                session.query(WikidataEntityLabel.entity_id)
+                db_session.query(WikidataEntityLabel.entity_id)
                 .join(
                     model_class,
                     WikidataEntityLabel.entity_id == model_class.wikidata_id,
@@ -65,31 +65,18 @@ def mock_find_similar(db_session):
 
 
 @pytest.fixture(autouse=True)
-def mock_embeddings_batch():
-    """Mock generate_embeddings_batch to avoid loading transformer models in tests.
+def mock_search_service_globally():
+    """Mock SearchService globally to avoid connecting to Meilisearch in tests.
 
     Applied automatically to all tests.
     """
-
-    def mock_batch(texts):
-        """Generate deterministic embeddings for a batch of texts."""
-        embeddings = []
-        for text in texts:
-            text_hash = hashlib.md5(text.encode()).digest()
-            dummy_embedding = []
-            for i in range(384):
-                byte_val = text_hash[i % len(text_hash)]
-                val = (byte_val / 127.5) - 1.0
-                dummy_embedding.append(val)
-            embeddings.append(dummy_embedding)
-        return embeddings
-
-    # Patch both the source module and where it's imported
-    with (
-        patch("poliloom.embeddings.generate_embeddings_batch", side_effect=mock_batch),
-        patch("poliloom.enrichment.generate_embeddings_batch", side_effect=mock_batch),
-    ):
-        yield
+    with patch("poliloom.search.SearchService") as mock_class:
+        mock_instance = SyncMock()
+        mock_instance.index_documents.return_value = 1
+        mock_instance.delete_documents.return_value = 0
+        mock_instance.search.return_value = []
+        mock_class.return_value = mock_instance
+        yield mock_instance
 
 
 @pytest.fixture
@@ -176,10 +163,8 @@ def sample_politician(db_session):
 
 @pytest.fixture
 def sample_position(db_session):
-    """Return a created position entity with embedding."""
+    """Return a created position entity."""
     position = Position.create_with_entity(db_session, "Q30185", "Test Position")
-    # Set embedding for tests that require it
-    position.embedding = [0.1] * 384
     db_session.flush()
     return position
 
@@ -764,13 +749,11 @@ def client(db_session):
     Uses dependency_overrides to inject the transaction-based test session
     into all API endpoints, ensuring test isolation.
 
-    Note: find_similar is mocked globally via mock_find_similar fixture,
-    so SearchService just needs to be a mock to satisfy dependency injection.
+    Note: find_similar is mocked globally via mock_find_similar fixture.
     """
     from fastapi.testclient import TestClient
     from poliloom.api import app
     from poliloom.database import get_db_session
-    from poliloom.search import get_search_service
 
     def override_get_db():
         """Override database session to use the test transaction."""
@@ -778,7 +761,6 @@ def client(db_session):
 
     # Override the dependencies
     app.dependency_overrides[get_db_session] = override_get_db
-    app.dependency_overrides[get_search_service] = lambda: SyncMock()
 
     yield TestClient(app)
 

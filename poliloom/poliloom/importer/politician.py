@@ -121,9 +121,10 @@ def _insert_politicians_batch(
         SearchDocument(
             id=p["wikidata_id"],
             type=Politician.__tablename__,
-            labels=p.get("labels") or [],
+            labels=p["labels"],
         )
         for p in politicians
+        if p.get("labels")
     ]
 
     # First, ensure WikidataEntity records exist for all politicians (without labels)

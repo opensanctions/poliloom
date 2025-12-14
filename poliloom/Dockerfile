@@ -10,11 +10,11 @@ ENV UV_COMPILE_BYTECODE=1 \
 # Set working directory
 WORKDIR /app
 
-# Install all dependencies first with CPU-only PyTorch
+# Install all dependencies first
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     --mount=type=bind,source=uv.lock,target=uv.lock \
-    uv sync --frozen --no-install-project --no-dev --extra cpu
+    uv sync --frozen --no-install-project --no-dev
 
 # Copy package source and setup files
 COPY pyproject.toml ./
@@ -45,8 +45,8 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Create non-root user
 RUN groupadd -r poliloom && useradd -r -g poliloom poliloom
 # Create cache directories with correct ownership
-RUN mkdir -p /var/cache/wikidata /var/cache/huggingface /var/cache/playwright && \
-    chown -R poliloom:poliloom /var/cache/wikidata /var/cache/huggingface /var/cache/playwright
+RUN mkdir -p /var/cache/wikidata /var/cache/playwright && \
+    chown -R poliloom:poliloom /var/cache/wikidata /var/cache/playwright
 
 # Install Playwright browsers as root, then fix ownership
 ENV PLAYWRIGHT_BROWSERS_PATH=/var/cache/playwright

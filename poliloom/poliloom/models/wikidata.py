@@ -4,6 +4,8 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Set
 
+from poliloom.search import SearchService
+
 from sqlalchemy import (
     Column,
     DateTime,
@@ -29,7 +31,6 @@ from sqlalchemy.orm import Session, declared_attr, relationship
 from .base import (
     Base,
     RelationType,
-    SearchIndexedMixin,
     SoftDeleteMixin,
     TimestampMixin,
     UpsertMixin,
@@ -110,6 +111,36 @@ class WikidataEntityMixin:
             description_parts.append(f"country {', '.join(countries)}")
 
         return ", ".join(description_parts) if description_parts else ""
+
+    # Search configuration - override in subclasses to enable hybrid search
+    # Balance between keyword (0.0) and semantic (1.0) search
+    _search_semantic_ratio: float = 0.0
+
+    @classmethod
+    def find_similar(
+        cls,
+        query: str,
+        search_service: SearchService,
+        limit: int = 100,
+    ) -> list[str]:
+        """Find similar entities by searching the search index.
+
+        Uses hybrid search (keyword + semantic) when _search_semantic_ratio > 0.
+
+        Args:
+            query: Search query text
+            search_service: SearchService instance
+            limit: Maximum number of results
+
+        Returns:
+            List of wikidata_ids ordered by relevance
+        """
+        return search_service.search(
+            query,
+            entity_type=cls.__tablename__,
+            limit=limit,
+            semantic_ratio=cls._search_semantic_ratio,
+        )
 
     # Default hierarchy configuration - override in subclasses
     _hierarchy_roots = None
@@ -440,8 +471,8 @@ class WikidataEntityMixin:
         deleted_ids = [row[0] for row in deleted_rows]
         stats["entities_removed"] = len(deleted_ids)
 
-        # Clean up search index for entities with SearchIndexedMixin
-        if deleted_ids and issubclass(cls, SearchIndexedMixin):
+        # Clean up search index
+        if deleted_ids:
             search_service = SearchService()
             search_service.delete_documents(deleted_ids)
 

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, func, and_, case
 
 from ..database import get_db_session
-from ..search import SearchService, get_search_service
+from ..search import SearchService
 from ..models import (
     Language,
     Country,
@@ -174,7 +174,6 @@ def create_search_endpoint(
             description=f"Maximum number of {entity_name} to return",
         ),
         db: Session = Depends(get_db_session),
-        search_service: SearchService = Depends(get_search_service),
         current_user: User = Depends(get_current_user),
     ):
         f"""
@@ -182,7 +181,8 @@ def create_search_endpoint(
 
         Returns matching {entity_name} ranked by relevance with hierarchy data.
         """
-        entity_ids = model_class.find_similar(q, db, search_service, limit=limit)
+        search_service = SearchService()
+        entity_ids = model_class.find_similar(q, search_service, limit=limit)
         if not entity_ids:
             return []
 

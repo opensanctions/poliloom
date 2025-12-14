@@ -97,7 +97,7 @@ def get_engine() -> Engine:
 
 
 def create_timestamp_triggers(engine: Engine):
-    """Create PostgreSQL triggers for timestamp and embedding management."""
+    """Create PostgreSQL triggers for timestamp management."""
     with engine.connect() as conn:
         # Create the updated_at trigger function
         conn.execute(
@@ -107,25 +107,6 @@ def create_timestamp_triggers(engine: Engine):
             RETURNS TRIGGER AS $$
             BEGIN
                 NEW.updated_at = CURRENT_TIMESTAMP;
-                RETURN NEW;
-            END;
-            $$ LANGUAGE plpgsql;
-        """
-            )
-        )
-
-        # Create the embedding reset trigger function
-        conn.execute(
-            text(
-                """
-            CREATE OR REPLACE FUNCTION reset_embedding_on_name_change()
-            RETURNS TRIGGER AS $$
-            BEGIN
-                IF OLD.name IS DISTINCT FROM NEW.name THEN
-                    -- Reset embedding for positions if the entity exists
-                    -- (locations and countries use fuzzy text search, no embeddings)
-                    UPDATE positions SET embedding = NULL WHERE wikidata_id = NEW.wikidata_id;
-                END IF;
                 RETURN NEW;
             END;
             $$ LANGUAGE plpgsql;
@@ -160,18 +141,6 @@ def create_timestamp_triggers(engine: Engine):
             """
                 )
             )
-
-        # Create the embedding reset trigger on wikidata_entities table
-        conn.execute(
-            text(
-                """
-            CREATE OR REPLACE TRIGGER wikidata_entity_name_change_trigger
-                AFTER UPDATE ON wikidata_entities
-                FOR EACH ROW
-                EXECUTE FUNCTION reset_embedding_on_name_change();
-        """
-            )
-        )
 
         conn.commit()
 

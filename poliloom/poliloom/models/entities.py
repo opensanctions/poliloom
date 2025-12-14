@@ -1,23 +1,18 @@
 """Supporting entity models: Country, Language, Location, Position."""
 
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import Any, Dict, Optional
 
 from sqlalchemy import Column, String
-from sqlalchemy.orm import Session, relationship
-from pgvector.sqlalchemy import Vector
+from sqlalchemy.orm import relationship
 
 from .base import (
     Base,
     EntityCreationMixin,
     LanguageCodeMixin,
-    SearchIndexedMixin,
     TimestampMixin,
     UpsertMixin,
 )
 from .wikidata import WikidataEntityMixin
-
-if TYPE_CHECKING:
-    from poliloom.search import SearchService
 
 
 class Country(
@@ -26,11 +21,13 @@ class Country(
     UpsertMixin,
     WikidataEntityMixin,
     EntityCreationMixin,
-    SearchIndexedMixin,
 ):
     """Country entity for storing country information."""
 
     __tablename__ = "countries"
+
+    # Use hybrid search for demonyms and abbreviations (American → United States)
+    _search_semantic_ratio = 0.4
 
     # UpsertMixin configuration
     _upsert_update_columns = ["iso_code"]
@@ -88,7 +85,6 @@ class Language(
     UpsertMixin,
     WikidataEntityMixin,
     EntityCreationMixin,
-    SearchIndexedMixin,
 ):
     """Language entity for storing language information."""
 
@@ -235,11 +231,13 @@ class Location(
     UpsertMixin,
     WikidataEntityMixin,
     EntityCreationMixin,
-    SearchIndexedMixin,
 ):
     """Location entity for geographic locations."""
 
     __tablename__ = "locations"
+
+    # Use hybrid search for transliterations and historical names
+    _search_semantic_ratio = 0.3
 
     # Hierarchy configuration for import filtering and cleanup
     _hierarchy_roots = [
@@ -276,13 +274,18 @@ class Location(
 
 
 class Position(
-    Base, TimestampMixin, UpsertMixin, WikidataEntityMixin, EntityCreationMixin
+    Base,
+    TimestampMixin,
+    UpsertMixin,
+    WikidataEntityMixin,
+    EntityCreationMixin,
 ):
     """Position entity for political positions."""
 
     __tablename__ = "positions"
 
-    embedding = Column(Vector(384), nullable=True)
+    # Use hybrid search with strong semantic bias for position matching
+    _search_semantic_ratio = 0.8
 
     # Hierarchy configuration for import filtering and cleanup
     _hierarchy_roots = [
@@ -326,39 +329,3 @@ class Position(
         """
         # Positions have no special filtering - import all that match hierarchy
         return {}
-
-    @classmethod
-    def find_similar(
-        cls,
-        query: str,
-        session: Session,
-        search_service: "SearchService",
-        limit: int = 100,
-    ) -> list[str]:
-        """Find similar positions using embedding similarity search.
-
-        Implements the Searchable protocol using pgvector embeddings.
-
-        Args:
-            query: Search query text to embed
-            session: SQLAlchemy session
-            search_service: SearchService instance (unused, for protocol compatibility)
-            limit: Maximum number of results
-
-        Returns:
-            List of wikidata_ids ordered by similarity
-        """
-        from poliloom.embeddings import get_embedding_model
-
-        model = get_embedding_model()
-        query_embedding = model.encode(query, convert_to_tensor=False)
-
-        results = (
-            session.query(cls.wikidata_id)
-            .filter(cls.embedding.isnot(None))
-            .order_by(cls.embedding.cosine_distance(query_embedding))
-            .limit(limit)
-            .all()
-        )
-
-        return [r[0] for r in results]

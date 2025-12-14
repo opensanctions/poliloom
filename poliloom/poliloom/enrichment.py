@@ -29,8 +29,7 @@ from .models import (
 )
 from . import archive
 from .database import get_engine
-from .embeddings import generate_embeddings_batch
-from .search import SearchService, get_search_service
+from .search import SearchService
 from .wikidata_date import WikidataDate
 from . import prompts
 
@@ -110,9 +109,6 @@ class FreeFormPosition(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     supporting_quotes: List[str]
-    embedding: Optional[List[float]] = (
-        None  # Populated after extraction for similarity search
-    )
 
     @field_validator("start_date", "end_date")
     @classmethod
@@ -246,7 +242,7 @@ async def _map_single_item(
     Args:
         openai_client: Async OpenAI client
         db: Database session
-        free_item: Free-form extracted item (may have .embedding attribute for Positions)
+        free_item: Free-form extracted item
         politician: Politician being enriched
         config: Extraction configuration
         search_service: SearchService for entity lookup
@@ -254,7 +250,7 @@ async def _map_single_item(
     try:
         # Entity class handles routing to appropriate backend via find_similar
         entity_ids = config.entity_class.find_similar(
-            free_item.name, db, search_service, limit=config.search_limit
+            free_item.name, search_service, limit=config.search_limit
         )
 
         if not entity_ids:
@@ -359,11 +355,11 @@ async def extract_two_stage_generic(
         content: Text content to extract from
         politician: Politician being enriched
         config: Extraction configuration
-        search_service: SearchService for entity lookup (defaults to global instance)
+        search_service: SearchService for entity lookup (creates new instance if not provided)
     """
-    # Use provided search service or get global instance
+    # Use provided search service or create new instance
     if search_service is None:
-        search_service = get_search_service()
+        search_service = SearchService()
 
     try:
         # Stage 1: Free-form extraction
@@ -380,14 +376,6 @@ async def extract_two_stage_generic(
         logger.info(
             f"Stage 1: Extracted {len(free_form_results)} free-form {config.entity_class.MAPPING_ENTITY_NAME}s for {politician.name}"
         )
-
-        # Generate embeddings in batch if we're working with positions
-        if config.entity_class.MAPPING_ENTITY_NAME == "position":
-            texts = [free_item.name for free_item in free_form_results]
-            embeddings = generate_embeddings_batch(texts)
-            # Store embeddings on the free_item objects
-            for free_item, embedding in zip(free_form_results, embeddings):
-                free_item.embedding = embedding
 
         # Stage 2: Map to Wikidata entities in parallel
         mapping_tasks = [
@@ -625,7 +613,7 @@ CITIZENSHIPS_CONFIG = TwoStageExtractionConfig(
     entity_class=Country,
     mapping_system_prompt=prompts.COUNTRY_MAPPING_SYSTEM_PROMPT,
     final_model=ExtractedCitizenship,
-    search_limit=10,
+    search_limit=25,
 )
 
 
