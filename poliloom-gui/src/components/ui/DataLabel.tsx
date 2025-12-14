@@ -2,7 +2,7 @@ type DataLabelVariant = 'new' | 'existing'
 
 const variantConfig: Record<DataLabelVariant, { text: string; className: string }> = {
   new: { text: 'New data 🎉', className: 'text-blue-600' },
-  existing: { text: 'Existing data', className: 'text-gray-500' },
+  existing: { text: 'Existing data', className: 'text-foreground-muted' },
 }
 
 interface DataLabelProps {

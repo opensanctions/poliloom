@@ -59,7 +59,7 @@ function calculateLabelIndices(dataLength: number, maxLabels: number): number[] 
 
 function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
   if (data.length === 0) {
-    return <p className="text-gray-500 text-center py-8">No evaluation data yet</p>
+    return <p className="text-foreground-muted text-center py-8">No evaluation data yet</p>
   }
 
   const maxTotal = Math.max(...data.map((d) => d.accepted + d.rejected), 1)
@@ -95,7 +95,7 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
           .slice()
           .reverse()
           .map((val) => (
-            <div key={val} className="text-sm text-gray-400 text-right">
+            <div key={val} className="text-sm text-foreground-subtle text-right">
               {val}
             </div>
           ))}
@@ -103,11 +103,11 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
 
       {/* Horizontal grid lines */}
       <div
-        className="flex flex-col justify-between pointer-events-none border-l border-gray-200 ml-2"
+        className="flex flex-col justify-between pointer-events-none border-l border-border ml-2"
         style={{ gridColumn: `2 / -1`, gridRow: 1 }}
       >
         {yAxisSteps.map((val) => (
-          <div key={val} className="border-t border-gray-200 -ml-2" />
+          <div key={val} className="border-t border-border -ml-2" />
         ))}
       </div>
 
@@ -125,23 +125,23 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
           >
             {/* Tooltip */}
             <div
-              className="absolute left-1/2 -translate-x-1/2 mb-2 px-3 py-2.5 bg-white border border-gray-200 text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
+              className="absolute left-1/2 -translate-x-1/2 mb-2 px-3 py-2.5 bg-surface border border-border text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
               style={{ bottom: `${heightPercent}%` }}
             >
-              <div className="font-semibold text-gray-900 mb-1.5">
+              <div className="font-semibold text-foreground mb-1.5">
                 {formatDateRange(point.date)}
               </div>
-              <div className="flex items-center gap-2 text-gray-600">
+              <div className="flex items-center gap-2 text-foreground-tertiary">
                 <span className="w-2.5 h-2.5 bg-green-500 rounded-sm" />
                 <span>{point.accepted} accepted</span>
               </div>
-              <div className="flex items-center gap-2 text-gray-600">
+              <div className="flex items-center gap-2 text-foreground-tertiary">
                 <span className="w-2.5 h-2.5 bg-red-400 rounded-sm" />
                 <span>{point.rejected} rejected</span>
               </div>
               {/* Arrow */}
-              <div className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-gray-200" />
-              <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-[6px] border-transparent border-t-white" />
+              <div className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-border" />
+              <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-[6px] border-transparent border-t-surface" />
             </div>
             <div
               className="w-full flex flex-col rounded-t-sm overflow-hidden group-hover/chart:opacity-50 group-hover:!opacity-100 transition-opacity"
@@ -165,8 +165,8 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
           <div className="w-0 flex flex-col items-center">
             {labelIndices.has(index) && (
               <>
-                <div className="w-px h-2 bg-gray-200" />
-                <span className="text-sm text-gray-400 whitespace-nowrap">
+                <div className="w-px h-2 bg-border" />
+                <span className="text-sm text-foreground-subtle whitespace-nowrap">
                   {formatDateLabel(point.date)}
                 </span>
               </>
@@ -200,9 +200,9 @@ function CoverageBar({ item }: { item: CountryCoverage }) {
 
   return (
     <div className="py-[5px] group/bar group-hover/list:opacity-50 hover:!opacity-100 transition-opacity">
-      <div className="h-7 bg-gray-100 rounded-md relative">
+      <div className="h-7 bg-surface-hover rounded-md relative">
         {/* Gray labels (behind bar) */}
-        <div className="absolute inset-0 flex items-center justify-between px-2.5 text-sm text-gray-700">
+        <div className="absolute inset-0 flex items-center justify-between px-2.5 text-sm text-foreground-secondary">
           {labels}
         </div>
 
@@ -263,7 +263,7 @@ function CountryCoverageList({ data }: { data: CountryCoverage[] }) {
   }, [data, searchQuery, sortOrder])
 
   if (data.length === 0) {
-    return <p className="text-gray-500 text-center py-8">No coverage data yet</p>
+    return <p className="text-foreground-muted text-center py-8">No coverage data yet</p>
   }
 
   return (
@@ -290,7 +290,7 @@ function CountryCoverageList({ data }: { data: CountryCoverage[] }) {
       </div>
 
       {filteredAndSortedData.length === 0 ? (
-        <p className="text-gray-500 text-center py-8">No countries match your search</p>
+        <p className="text-foreground-muted text-center py-8">No countries match your search</p>
       ) : (
         <div className="group/list">
           {filteredAndSortedData.map((item) => (
@@ -343,11 +343,11 @@ export default function StatsPage() {
   }
 
   return (
-    <main className="bg-gray-50 min-h-0 overflow-y-auto flex flex-col">
+    <main className="bg-surface-muted min-h-0 overflow-y-auto flex flex-col">
       <div className="flex-1 max-w-6xl mx-auto px-6 pt-12 w-full">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Community Stats</h1>
-          <p className="text-lg text-gray-600">
+          <h1 className="text-3xl font-bold text-foreground mb-4">Community Stats</h1>
+          <p className="text-lg text-foreground-tertiary">
             Track evaluation progress and coverage across countries.
           </p>
         </div>

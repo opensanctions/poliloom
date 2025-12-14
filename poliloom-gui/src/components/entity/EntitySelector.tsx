@@ -109,11 +109,15 @@ export function EntitySelector<T extends SearchResult>({
   if (selectedEntity) {
     return (
       <div>
-        {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
-        <div className="p-3 bg-white border border-gray-300 rounded-md flex justify-between items-center">
+        {label && (
+          <label className="block text-sm font-medium text-foreground-secondary mb-1">
+            {label}
+          </label>
+        )}
+        <div className="p-3 bg-surface border border-border-strong rounded-md flex justify-between items-center">
           <div>
-            <div className="font-medium text-gray-900">{selectedEntity.name}</div>
-            <div className="text-sm text-gray-500">{selectedEntity.id}</div>
+            <div className="font-medium text-foreground">{selectedEntity.name}</div>
+            <div className="text-sm text-foreground-muted">{selectedEntity.id}</div>
           </div>
           <Button
             type="button"
@@ -132,7 +136,9 @@ export function EntitySelector<T extends SearchResult>({
   // Otherwise, show the search input
   return (
     <div ref={dropdownRef}>
-      {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
+      {label && (
+        <label className="block text-sm font-medium text-foreground-secondary mb-1">{label}</label>
+      )}
       <div className="relative">
         <div className="relative">
           <Input
@@ -150,7 +156,7 @@ export function EntitySelector<T extends SearchResult>({
         </div>
 
         {showDropdown && (
-          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+          <div className="absolute z-10 w-full mt-1 bg-surface border border-border-strong rounded-md shadow-lg max-h-60 overflow-auto">
             {searchResults.length > 0 ? (
               <div>
                 <ul>
@@ -161,11 +167,11 @@ export function EntitySelector<T extends SearchResult>({
                         <button
                           type="button"
                           onClick={() => handleSelect(result)}
-                          className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none"
+                          className="w-full px-4 py-3 text-left hover:bg-surface-hover focus:bg-surface-hover focus:outline-none"
                         >
-                          <div className="font-medium text-gray-900">{result.name}</div>
+                          <div className="font-medium text-foreground">{result.name}</div>
                           {(result.description || resultId) && (
-                            <div className="text-sm text-gray-500">
+                            <div className="text-sm text-foreground-muted">
                               {result.description && `${result.description} `}
                               {resultId && `(${resultId})`}
                             </div>
@@ -183,18 +189,18 @@ export function EntitySelector<T extends SearchResult>({
                       setShowDropdown(false)
                       setSearchQuery('')
                     }}
-                    className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none border-t border-gray-200"
+                    className="w-full px-4 py-3 text-left hover:bg-surface-hover focus:bg-surface-hover focus:outline-none border-t border-border"
                   >
                     <div className="font-medium text-blue-600">
                       Create new: &quot;{searchQuery.trim()}&quot;
                     </div>
-                    <div className="text-sm text-gray-500">Add as a new politician</div>
+                    <div className="text-sm text-foreground-muted">Add as a new politician</div>
                   </button>
                 )}
               </div>
             ) : (
               <div>
-                <div className="px-4 py-3 text-sm text-gray-500">No results found</div>
+                <div className="px-4 py-3 text-sm text-foreground-muted">No results found</div>
                 {allowCreate && onCreateNew && searchQuery.trim() && (
                   <button
                     type="button"
@@ -203,12 +209,12 @@ export function EntitySelector<T extends SearchResult>({
                       setShowDropdown(false)
                       setSearchQuery('')
                     }}
-                    className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none border-t border-gray-200"
+                    className="w-full px-4 py-3 text-left hover:bg-surface-hover focus:bg-surface-hover focus:outline-none border-t border-border"
                   >
                     <div className="font-medium text-blue-600">
                       Create new: &quot;{searchQuery.trim()}&quot;
                     </div>
-                    <div className="text-sm text-gray-500">Add as a new politician</div>
+                    <div className="text-sm text-foreground-muted">Add as a new politician</div>
                   </button>
                 )}
               </div>

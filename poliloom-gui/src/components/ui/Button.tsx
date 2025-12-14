@@ -37,8 +37,8 @@ const variantClasses: Record<ButtonVariant, { base: string; active: string }> = 
     active: 'bg-indigo-700 text-white font-medium',
   },
   secondary: {
-    base: 'text-gray-600 font-medium hover:text-gray-800',
-    active: 'bg-gray-200 text-gray-900 font-medium',
+    base: 'text-foreground-tertiary font-medium hover:text-foreground-secondary',
+    active: 'bg-surface-active text-foreground font-medium',
   },
   success: {
     base: 'bg-green-100 text-green-700 font-medium hover:bg-green-200',

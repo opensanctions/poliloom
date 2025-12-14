@@ -187,7 +187,7 @@ export function PropertiesEvaluation({
     <div className="space-y-8">
       {sections.map((section) => (
         <div key={section.title} className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">{section.title}</h2>
+          <h2 className="text-xl font-semibold text-foreground mb-4">{section.title}</h2>
           <div className="space-y-4">
             {section.items.map((item) => {
               return (
@@ -205,7 +205,7 @@ export function PropertiesEvaluation({
                 >
                   {item.properties.map((property, index) => (
                     <Fragment key={property.key}>
-                      {index > 0 && <hr className="border-gray-100 my-3" />}
+                      {index > 0 && <hr className="border-border-muted my-3" />}
                       <PropertyDisplay
                         property={property}
                         evaluations={evaluations}

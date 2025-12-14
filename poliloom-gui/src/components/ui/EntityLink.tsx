@@ -11,7 +11,7 @@ export function EntityLink({ entityId, entityName }: EntityLinkProps) {
       rel="noopener noreferrer"
       className="hover:underline font-bold capitalize"
     >
-      {entityName} <span className="text-gray-500 font-normal">({entityId})</span>
+      {entityName} <span className="text-foreground-muted font-normal">({entityId})</span>
     </a>
   )
 }

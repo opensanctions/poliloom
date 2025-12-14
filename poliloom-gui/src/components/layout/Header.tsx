@@ -23,8 +23,8 @@ export function Header() {
   }, [menuOpen])
 
   return (
-    <header className="flex justify-between items-center h-16 px-6 bg-white shadow-sm border-b sticky top-0 z-10">
-      <Link href="/" className="flex items-center gap-2 text-xl font-bold text-gray-900">
+    <header className="flex justify-between items-center h-16 px-6 bg-surface shadow-sm border-b border-border sticky top-0 z-10">
+      <Link href="/" className="flex items-center gap-2 text-xl font-bold text-foreground">
         <Image
           src="https://assets.opensanctions.org/images/ep/logo-icon-color.svg"
           alt="European Parliament"
@@ -44,19 +44,19 @@ export function Header() {
         aria-label={menuOpen ? 'Close menu' : 'Open menu'}
       >
         <span
-          className={`block w-6 h-0.5 bg-gray-600 transition-transform duration-300 ${menuOpen ? 'translate-y-[7px] rotate-45' : ''}`}
+          className={`block w-6 h-0.5 bg-foreground-muted transition-transform duration-300 ${menuOpen ? 'translate-y-[7px] rotate-45' : ''}`}
         />
         <span
-          className={`block w-6 h-0.5 bg-gray-600 transition-opacity duration-300 ${menuOpen ? 'opacity-0' : ''}`}
+          className={`block w-6 h-0.5 bg-foreground-muted transition-opacity duration-300 ${menuOpen ? 'opacity-0' : ''}`}
         />
         <span
-          className={`block w-6 h-0.5 bg-gray-600 transition-transform duration-300 ${menuOpen ? '-translate-y-[7px] -rotate-45' : ''}`}
+          className={`block w-6 h-0.5 bg-foreground-muted transition-transform duration-300 ${menuOpen ? '-translate-y-[7px] -rotate-45' : ''}`}
         />
       </button>
 
       <nav
         id="main-nav"
-        className={`flex items-center gap-4 max-md:fixed max-md:inset-0 max-md:top-16 max-md:flex-col max-md:items-stretch max-md:gap-0 max-md:bg-white max-md:pt-4 ${menuOpen ? '' : 'max-md:hidden'}`}
+        className={`flex items-center gap-4 max-md:fixed max-md:inset-0 max-md:top-16 max-md:flex-col max-md:items-stretch max-md:gap-0 max-md:bg-surface max-md:pt-4 ${menuOpen ? '' : 'max-md:hidden'}`}
       >
         {status === 'authenticated' && (
           <Button

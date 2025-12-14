@@ -53,7 +53,7 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
       politician={politician}
       footer={(evaluations) => (
         <div className="flex justify-between items-center">
-          <div className="text-base text-gray-900">
+          <div className="text-base text-foreground">
             Progress:{' '}
             <strong>
               {completedCount} / {sessionGoal}

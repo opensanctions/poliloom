@@ -69,9 +69,9 @@ export function PropertyDisplay({
         // Date properties
         if (property.value && property.value_precision) {
           const parsed = parseWikidataDate(property.value, property.value_precision)
-          return <span className="text-gray-700 flex-1">{parsed.display}</span>
+          return <span className="text-foreground-muted flex-1">{parsed.display}</span>
         }
-        return <span className="text-gray-700 flex-1">{property.value || 'Unknown'}</span>
+        return <span className="text-foreground-muted flex-1">{property.value || 'Unknown'}</span>
 
       case PropertyType.P39:
         // Position properties - show only date range since position name is in title
@@ -81,18 +81,20 @@ export function PropertyDisplay({
         const dateRange = formatPositionDates(dates)
 
         if (dates.startDate === null && dates.endDate === null) {
-          return <span className="flex-1 text-gray-400 italic">No timeframe specified</span>
+          return (
+            <span className="flex-1 text-foreground-subtle italic">No timeframe specified</span>
+          )
         }
-        return <span className="flex-1 text-gray-700">{dateRange}</span>
+        return <span className="flex-1 text-foreground-muted">{dateRange}</span>
 
       case PropertyType.P19:
       case PropertyType.P27:
         // Place/citizenship properties - no content needed as entity name is shown in title
-        return <span className="text-gray-700 flex-1"></span>
+        return <span className="text-foreground-muted flex-1"></span>
 
       default:
         return (
-          <span className="text-gray-700 flex-1">
+          <span className="text-foreground-muted flex-1">
             {property.value || property.entity_name || 'Unknown'}
           </span>
         )

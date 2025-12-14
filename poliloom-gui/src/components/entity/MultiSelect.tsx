@@ -125,7 +125,7 @@ export function MultiSelect({
                     ${
                       isSelected
                         ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700 hover:border-indigo-700'
-                        : 'bg-white border-gray-300 text-gray-700 hover:border-indigo-300 hover:bg-indigo-50'
+                        : 'bg-surface border-border-strong text-foreground-secondary hover:border-indigo-300 hover:bg-indigo-50'
                     }
                     ${disabled ? 'opacity-50' : ''}
                   `}
@@ -133,7 +133,7 @@ export function MultiSelect({
                 <span>{option.label}</span>
                 {option.count !== undefined && option.count > 0 && (
                   <span
-                    className={`text-xs font-semibold ${isSelected ? 'text-indigo-200' : 'text-gray-500'}`}
+                    className={`text-xs font-semibold ${isSelected ? 'text-indigo-200' : 'text-foreground-muted'}`}
                   >
                     {option.count.toLocaleString()}
                   </span>
@@ -143,7 +143,7 @@ export function MultiSelect({
           })}
         </div>
       ) : (
-        <div className="text-sm text-gray-500 text-center py-4">
+        <div className="text-sm text-foreground-muted text-center py-4">
           {searchTerm ? 'No matching options found' : 'Start typing to search'}
         </div>
       )}

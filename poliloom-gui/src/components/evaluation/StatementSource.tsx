@@ -46,7 +46,7 @@ export function StatementSource({
       {supportingQuotes && supportingQuotes.length > 0 && (
         <ol className="list-decimal list-outside ml-4 space-y-1 py-2">
           {supportingQuotes.map((quote, index) => (
-            <li key={index} className="text-sm text-gray-600 italic">
+            <li key={index} className="text-sm text-foreground-muted italic">
               &quot;{quote}&quot;
             </li>
           ))}

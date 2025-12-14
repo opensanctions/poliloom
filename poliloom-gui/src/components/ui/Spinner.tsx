@@ -12,7 +12,7 @@ export function Loader({ message }: LoaderProps) {
   return (
     <div className="flex flex-col items-center gap-3">
       <Spinner />
-      {message && <p className="text-gray-500">{message}</p>}
+      {message && <p className="text-foreground-muted">{message}</p>}
     </div>
   )
 }

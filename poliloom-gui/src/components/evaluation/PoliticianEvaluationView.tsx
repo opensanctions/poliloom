@@ -112,7 +112,7 @@ export function PoliticianEvaluationView({
         </div>
       </div>
 
-      <div className="p-6 border-t border-gray-200">{footer(evaluations)}</div>
+      <div className="p-6 border-t border-border">{footer(evaluations)}</div>
     </div>
   )
 

@@ -43,7 +43,7 @@ export function EvaluationActions({
             onClick={() => onAction?.(statementId, 'reject')}
             className={
               isWikidataStatement && isAccepted !== false
-                ? '!text-gray-500 !bg-gray-100 hover:!bg-gray-300'
+                ? '!text-foreground-muted !bg-surface-hover hover:!bg-surface-active'
                 : ''
             }
             title={
@@ -58,7 +58,7 @@ export function EvaluationActions({
       ) : !isWikidataStatement ? (
         <div className="flex gap-2">
           {isAccepted === null ? (
-            <span className="text-sm text-gray-500">View source to evaluate</span>
+            <span className="text-sm text-foreground-muted">View source to evaluate</span>
           ) : (
             <span
               className={`text-sm font-medium ${isAccepted ? 'text-green-600' : 'text-red-600'}`}

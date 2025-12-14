@@ -26,13 +26,13 @@ export function HeaderedBox({
   return (
     <Box onHover={onHover}>
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white rounded-t-lg">
+      <div className="px-6 py-4 border-b border-border-muted bg-gradient-to-r from-surface-muted to-surface rounded-t-lg">
         <div className="flex items-center gap-3">
           {icon && <span className="text-2xl">{icon}</span>}
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+            <h3 className="text-lg font-semibold text-foreground">{title}</h3>
             {(description || legend) && (
-              <div className="flex items-center justify-between mt-0.5 text-sm text-gray-600">
+              <div className="flex items-center justify-between mt-0.5 text-sm text-foreground-muted">
                 {description && <p>{description}</p>}
                 {legend && (
                   <div className="flex items-center gap-4">

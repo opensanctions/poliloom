@@ -17,8 +17,26 @@
 }
 
 :root {
+  /* Backgrounds */
   --background: #ffffff;
+  --surface: #ffffff;
+  --surface-muted: #f9fafb; /* gray-50 */
+  --surface-hover: #f3f4f6; /* gray-100 */
+  --surface-active: #e5e7eb; /* gray-200 */
+
+  /* Text */
   --foreground: #171717;
+  --foreground-secondary: #374151; /* gray-700 */
+  --foreground-tertiary: #4b5563; /* gray-600 */
+  --foreground-muted: #6b7280; /* gray-500 */
+  --foreground-subtle: #9ca3af; /* gray-400 */
+
+  /* Borders */
+  --border-muted: #f3f4f6; /* gray-100 */
+  --border: #e5e7eb; /* gray-200 */
+  --border-strong: #d1d5db; /* gray-300 */
+
+  /* Fonts */
   --font-mona-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-monaspace:
     'MonaspaceArgon', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
@@ -27,14 +45,41 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-active: var(--surface-active);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-tertiary: var(--foreground-tertiary);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-subtle: var(--foreground-subtle);
+  --color-border-muted: var(--border-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --font-sans: var(--font-mona-sans);
   --font-mono: var(--font-monaspace);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
+    /* Backgrounds */
     --background: #0a0a0a;
+    --surface: #18181b; /* zinc-900 */
+    --surface-muted: #1f1f23;
+    --surface-hover: #27272a; /* zinc-800 */
+    --surface-active: #3f3f46; /* zinc-700 */
+
+    /* Text */
     --foreground: #ededed;
+    --foreground-secondary: #d4d4d8; /* zinc-300 */
+    --foreground-tertiary: #a1a1aa; /* zinc-400 */
+    --foreground-muted: #71717a; /* zinc-500 */
+    --foreground-subtle: #52525b; /* zinc-600 */
+
+    /* Borders */
+    --border-muted: #27272a; /* zinc-800 */
+    --border: #3f3f46; /* zinc-700 */
+    --border-strong: #52525b; /* zinc-600 */
   }
 }
 

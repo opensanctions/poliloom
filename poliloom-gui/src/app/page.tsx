@@ -66,12 +66,12 @@ export default function Home() {
   const handleCountryChange = createFilterHandler(PreferenceType.COUNTRY, countries)
 
   return (
-    <main className="bg-gray-50 min-h-0 overflow-y-auto flex flex-col">
+    <main className="bg-surface-muted min-h-0 overflow-y-auto flex flex-col">
       {/* Filters Section */}
       <div className="flex-1 max-w-6xl mx-auto px-6 pt-12 w-full">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Configure Your Session</h1>
-          <p className="text-lg text-gray-600">
+          <h1 className="text-3xl font-bold text-foreground mb-4">Configure Your Session</h1>
+          <p className="text-lg text-foreground-tertiary">
             Pick your focus, then work through a batch of politicians at your own pace.
           </p>
         </div>
@@ -102,8 +102,8 @@ export default function Home() {
         <Box className="mt-12 p-8">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to start?</h3>
-              <p className="text-gray-600">
+              <h3 className="text-lg font-semibold text-foreground mb-2">Ready to start?</h3>
+              <p className="text-foreground-tertiary">
                 {languageFilters.length > 0 || countryFilters.length > 0
                   ? 'Your filters are set. Begin evaluating politicians that match your criteria.'
                   : "No filters selected. You'll evaluate politicians from all languages and countries."}
@@ -115,15 +115,15 @@ export default function Home() {
           </div>
 
           {/* Advanced Mode Toggle */}
-          <div className="mt-6 pt-6 border-t border-gray-100">
-            <label className="flex items-center gap-3 text-sm text-gray-600 cursor-pointer">
+          <div className="mt-6 pt-6 border-t border-border-muted">
+            <label className="flex items-center gap-3 text-sm text-foreground-tertiary cursor-pointer">
               <Toggle
                 checked={isAdvancedMode}
                 onChange={(e) => setAdvancedMode(e.target.checked)}
               />
               <span>
                 Advanced mode{' '}
-                <span className="text-gray-400">
+                <span className="text-foreground-subtle">
                   — enables deprecating existing Wikidata statements
                 </span>
               </span>

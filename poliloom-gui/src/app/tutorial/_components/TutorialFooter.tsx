@@ -18,7 +18,10 @@ export function TutorialFooter({
 
   return (
     <div className="flex justify-between items-center">
-      <Link href="/evaluate" className="text-gray-600 hover:text-gray-800 font-medium">
+      <Link
+        href="/evaluate"
+        className="text-foreground-tertiary hover:text-foreground-secondary font-medium"
+      >
         Skip Tutorial
       </Link>
       <div className="flex gap-3">

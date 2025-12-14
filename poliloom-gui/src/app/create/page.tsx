@@ -206,12 +206,12 @@ export default function CreatePage() {
   }
 
   return (
-    <main className="bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
+    <main className="bg-surface-muted py-12 px-4 sm:px-6 lg:px-8 min-h-0 overflow-y-auto">
       <div className="max-w-4xl mx-auto">
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h1 className="text-xl font-semibold text-gray-900">Add Politician Data</h1>
-            <p className="mt-1 text-sm text-gray-600">
+        <div className="bg-surface shadow rounded-lg">
+          <div className="px-6 py-4 border-b border-border">
+            <h1 className="text-xl font-semibold text-foreground">Add Politician Data</h1>
+            <p className="mt-1 text-sm text-foreground-tertiary">
               Search for an existing politician to edit, or create a new one from scratch.
             </p>
           </div>
@@ -241,7 +241,7 @@ export default function CreatePage() {
               {/* Properties - only show when a politician is selected */}
               {selectedPolitician && (
                 <div className="space-y-6">
-                  <h2 className="text-lg font-medium text-gray-900">Properties</h2>
+                  <h2 className="text-lg font-medium text-foreground">Properties</h2>
 
                   {/* Add Property Form */}
                   <AddPropertyForm
@@ -275,7 +275,7 @@ export default function CreatePage() {
 
             {/* Footer Actions */}
             {selectedPolitician && (
-              <div className="px-6 py-4 border-t border-gray-200 flex justify-between">
+              <div className="px-6 py-4 border-t border-border flex justify-between">
                 <Button type="button" variant="secondary" onClick={() => window.history.back()}>
                   Cancel
                 </Button>

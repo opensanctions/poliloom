@@ -179,13 +179,16 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-4 p-4 border border-gray-300 rounded-md bg-gray-50"
+      className="space-y-4 p-4 border border-border-strong rounded-md bg-surface-muted"
     >
-      <h3 className="text-md font-medium text-gray-900">Add Property</h3>
+      <h3 className="text-md font-medium text-foreground">Add Property</h3>
 
       {/* Source URL */}
       <div>
-        <label htmlFor="sourceUrl" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="sourceUrl"
+          className="block text-sm font-medium text-foreground-secondary mb-1"
+        >
           Source URL <span className="text-red-500">*</span>
         </label>
         <Input
@@ -196,14 +199,17 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
           placeholder="https://example.com/politician-page"
           required
         />
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-foreground-muted">
           This URL will be used as a reference for all properties you add
         </p>
       </div>
 
       {/* Property Type Selector */}
       <div>
-        <label htmlFor="propertyType" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="propertyType"
+          className="block text-sm font-medium text-foreground-secondary mb-1"
+        >
           Property Type
         </label>
         <select
@@ -217,7 +223,7 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
             setStartDate('')
             setEndDate('')
           }}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900"
+          className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-surface text-foreground"
           required
         >
           <option value="">Select a property type...</option>
@@ -232,7 +238,10 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
       {/* Date input for birth/death dates */}
       {(propertyType === PropertyType.P569 || propertyType === PropertyType.P570) && (
         <div>
-          <label htmlFor="dateValue" className="block text-sm font-medium text-gray-700 mb-1">
+          <label
+            htmlFor="dateValue"
+            className="block text-sm font-medium text-foreground-secondary mb-1"
+          >
             Date
           </label>
           <div className="flex gap-2">
@@ -247,7 +256,7 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
             <select
               value={datePrecision}
               onChange={(e) => setDatePrecision(Number(e.target.value))}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900"
+              className="px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-surface text-foreground"
             >
               <option value={11}>Day</option>
               <option value={10}>Month</option>
@@ -291,12 +300,17 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
 
       {/* Date qualifiers for positions */}
       {propertyType === PropertyType.P39 && selectedEntity && (
-        <div className="space-y-3 pt-3 border-t border-gray-300">
-          <h4 className="text-sm font-medium text-gray-700">Position Dates (Optional)</h4>
+        <div className="space-y-3 pt-3 border-t border-border-strong">
+          <h4 className="text-sm font-medium text-foreground-secondary">
+            Position Dates (Optional)
+          </h4>
 
           {/* Start Date */}
           <div>
-            <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="startDate"
+              className="block text-sm font-medium text-foreground-secondary mb-1"
+            >
               Start Date
             </label>
             <div className="flex gap-2">
@@ -310,7 +324,7 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
               <select
                 value={startDatePrecision}
                 onChange={(e) => setStartDatePrecision(Number(e.target.value))}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900"
+                className="px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-surface text-foreground"
                 disabled={!startDate}
               >
                 <option value={11}>Day</option>
@@ -322,7 +336,10 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
 
           {/* End Date */}
           <div>
-            <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="endDate"
+              className="block text-sm font-medium text-foreground-secondary mb-1"
+            >
               End Date
             </label>
             <div className="flex gap-2">
@@ -336,7 +353,7 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
               <select
                 value={endDatePrecision}
                 onChange={(e) => setEndDatePrecision(Number(e.target.value))}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900"
+                className="px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-surface text-foreground"
                 disabled={!endDate}
               >
                 <option value={11}>Day</option>

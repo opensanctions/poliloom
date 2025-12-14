@@ -13,7 +13,7 @@ const DIGIT_HEIGHT_EM = 1.8
 function DigitWheel({ digit }: { digit: number }) {
   return (
     <div
-      className="relative overflow-hidden bg-gray-50 border-x border-gray-100 first:border-l-0 first:rounded-l last:border-r-0 last:rounded-r"
+      className="relative overflow-hidden bg-surface-muted border-x border-border-muted first:border-l-0 first:rounded-l last:border-r-0 last:rounded-r"
       style={{ height: `${DIGIT_HEIGHT_EM}em`, width: '1.1em' }}
     >
       <div
@@ -25,7 +25,7 @@ function DigitWheel({ digit }: { digit: number }) {
         {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
           <div
             key={n}
-            className="flex items-center justify-center text-gray-700 font-semibold leading-none tabular-nums"
+            className="flex items-center justify-center text-foreground-secondary font-semibold leading-none tabular-nums"
             style={{ height: `${DIGIT_HEIGHT_EM}em` }}
           >
             {n}
@@ -49,7 +49,7 @@ export function SpinningCounter({
 
   return (
     <div
-      className={`inline-flex items-center bg-white border border-gray-200 rounded-md overflow-hidden ${className}`}
+      className={`inline-flex items-center bg-surface border border-border rounded-md overflow-hidden ${className}`}
       title={title}
     >
       {digits.map((digit, index) => (
