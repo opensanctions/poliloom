@@ -3,17 +3,6 @@ import { screen } from '@testing-library/react'
 import { render } from '@/test/test-utils'
 import UnlockedPage from './page'
 
-const mockResetSession = vi.fn()
-vi.mock('@/contexts/EvaluationSessionContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/contexts/EvaluationSessionContext')>()
-  return {
-    ...actual,
-    useEvaluationSession: () => ({
-      resetSession: mockResetSession,
-    }),
-  }
-})
-
 const mockUnlockStats = vi.fn()
 vi.mock('@/contexts/UserProgressContext', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/contexts/UserProgressContext')>()
@@ -37,10 +26,9 @@ describe('Unlocked Page', () => {
     expect(screen.getByText(/you've completed your first session/i)).toBeInTheDocument()
   })
 
-  it('resets session and unlocks stats on mount', () => {
+  it('unlocks stats on mount', () => {
     render(<UnlockedPage />)
 
-    expect(mockResetSession).toHaveBeenCalled()
     expect(mockUnlockStats).toHaveBeenCalled()
   })
 

@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Politician, EvaluationItem } from '@/types'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
+import { useUserProgress } from '@/contexts/UserProgressContext'
 import { Button } from '@/components/ui/Button'
 import { PoliticianEvaluationView } from './PoliticianEvaluationView'
 
@@ -11,7 +13,9 @@ interface PoliticianEvaluationProps {
 }
 
 export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) {
+  const router = useRouter()
   const { completedCount, sessionGoal, submitEvaluation, skipPolitician } = useEvaluationSession()
+  const { statsUnlocked } = useUserProgress()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (evaluations: Map<string, boolean>) => {
@@ -31,8 +35,11 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
     )
 
     try {
-      // Submit evaluation - context handles all errors, incrementing, advancing, and navigation
-      await submitEvaluation(evaluationItems)
+      const { sessionComplete } = await submitEvaluation(evaluationItems)
+
+      if (sessionComplete) {
+        router.push(statsUnlocked ? '/evaluate/complete' : '/evaluate/unlocked')
+      }
     } catch (error) {
       // Error already handled by context - just preserve evaluation state
       console.error('Submission failed:', error)

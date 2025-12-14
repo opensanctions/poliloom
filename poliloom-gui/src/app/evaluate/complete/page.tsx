@@ -1,17 +1,11 @@
 'use client'
 
-import { useEffect } from 'react'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { Button } from '@/components/ui/Button'
 
 export default function CompletePage() {
-  const { sessionGoal, resetSession } = useEvaluationSession()
-
-  // Reset session on mount so navigating away (e.g., via logo) starts fresh
-  useEffect(() => {
-    resetSession()
-  }, [resetSession])
+  const { sessionGoal } = useEvaluationSession()
 
   return (
     <CenteredCard emoji="🎉" title="Session Complete!">

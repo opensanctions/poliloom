@@ -28,7 +28,7 @@ interface EvaluationSessionContextType {
   isSessionComplete: boolean
 
   // Actions
-  submitEvaluation: (evaluations: EvaluationItem[]) => Promise<void>
+  submitEvaluation: (evaluations: EvaluationItem[]) => Promise<{ sessionComplete: boolean }>
   skipPolitician: () => void
   resetSession: () => void
   loadPoliticians: () => Promise<void>
@@ -187,8 +187,8 @@ export function EvaluationSessionProvider({ children }: { children: React.ReactN
   }, [nextPolitician, currentPolitician?.id, fetchPoliticians])
 
   const submitEvaluation = useCallback(
-    async (evaluations: EvaluationItem[]) => {
-      if (isSubmitting) return
+    async (evaluations: EvaluationItem[]): Promise<{ sessionComplete: boolean }> => {
+      if (isSubmitting) return { sessionComplete: false }
 
       setIsSubmitting(true)
       try {
@@ -210,22 +210,29 @@ export function EvaluationSessionProvider({ children }: { children: React.ReactN
         if (!result.success) {
           console.error('Evaluation errors:', result.errors)
           alert(`Error submitting evaluations: ${result.message}`)
-          return
+          return { sessionComplete: false }
         }
 
         // Increment session count (this politician counts as reviewed)
-        setCompletedCount((prev) => Math.min(prev + 1, sessionGoal))
+        const newCount = completedCount + 1
+        const sessionComplete = newCount >= sessionGoal
+        setCompletedCount(Math.min(newCount, sessionGoal))
 
-        // Move to next politician (consuming component handles navigation when session is complete)
-        await advanceToNextPolitician()
+        // Only advance if session isn't complete - avoids flash before redirect
+        if (!sessionComplete) {
+          await advanceToNextPolitician()
+        }
+
+        return { sessionComplete }
       } catch (error) {
         console.error('Error submitting evaluations:', error)
         alert('Error submitting evaluations. Please try again.')
+        return { sessionComplete: false }
       } finally {
         setIsSubmitting(false)
       }
     },
-    [isSubmitting, sessionGoal, advanceToNextPolitician],
+    [isSubmitting, completedCount, sessionGoal, advanceToNextPolitician],
   )
 
   const skipPolitician = useCallback(async () => {

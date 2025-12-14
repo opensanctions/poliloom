@@ -1,20 +1,17 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useUserProgress } from '@/contexts/UserProgressContext'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { Button } from '@/components/ui/Button'
 
 export default function UnlockedPage() {
-  const { resetSession } = useEvaluationSession()
   const { unlockStats } = useUserProgress()
 
-  // Reset session and unlock stats on mount
+  // Unlock stats on mount
   useEffect(() => {
-    resetSession()
     unlockStats()
-  }, [resetSession, unlockStats])
+  }, [unlockStats])
 
   return (
     <CenteredCard emoji="🎉" title="Stats Unlocked!">

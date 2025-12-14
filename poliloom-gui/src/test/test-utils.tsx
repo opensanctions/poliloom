@@ -14,6 +14,16 @@ vi.mock('@/hooks/useAuthSession', () => ({
   }),
 }))
 
+// Mock Next.js router
+export const mockRouterPush = vi.fn()
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockRouterPush,
+    replace: vi.fn(),
+    back: vi.fn(),
+  }),
+}))
+
 // Mock fetch for tests that need to verify API calls
 export const mockFetch = vi.fn().mockResolvedValue({
   ok: true,
@@ -22,7 +32,7 @@ export const mockFetch = vi.fn().mockResolvedValue({
 global.fetch = mockFetch as unknown as typeof fetch
 
 // Mock functions exported for test assertions
-export const mockSubmitEvaluation = vi.fn()
+export const mockSubmitEvaluation = vi.fn().mockResolvedValue({ sessionComplete: false })
 export const mockSkipPolitician = vi.fn()
 
 // Mock providers with static values - no useEffects, no async side effects

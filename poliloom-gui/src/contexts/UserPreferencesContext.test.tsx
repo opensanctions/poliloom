@@ -139,6 +139,47 @@ describe('UserPreferencesContext', () => {
     expect(filterUpdateCalls.length).toBe(0)
   })
 
+  it('does NOT detect browser language when user has explicitly deselected all languages', async () => {
+    // Pre-populate localStorage with empty array (user explicitly cleared all preferences)
+    localStorageMock['poliloom_evaluation_filters'] = JSON.stringify([])
+
+    // Mock API responses
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { wikidata_id: 'Q1860', name: 'English', iso_639_1: 'en', iso_639_3: 'eng' },
+        ],
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      } as Response)
+
+    render(
+      <UserPreferencesProvider>
+        <TestComponent />
+      </UserPreferencesProvider>,
+    )
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/languages')
+    })
+
+    // Wait for initialization
+    await waitFor(() => {
+      const testElement = document.querySelector('[data-testid="initialized"]')
+      expect(testElement?.textContent).toBe('true')
+    })
+
+    // Should NOT update filters - the key exists so browser detection should not run
+    const setItemCalls = vi.mocked(global.localStorage.setItem).mock.calls
+    const filterUpdateCalls = setItemCalls.filter(
+      (call) => call[0] === 'poliloom_evaluation_filters',
+    )
+    expect(filterUpdateCalls.length).toBe(0)
+  })
+
   it('loads filters from localStorage on mount', async () => {
     // Pre-populate localStorage with filters
     const existingFilters = [

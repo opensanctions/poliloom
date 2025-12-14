@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, fireEvent, waitFor, render, mockSubmitEvaluation } from '@/test/test-utils'
+import {
+  screen,
+  fireEvent,
+  waitFor,
+  render,
+  mockSubmitEvaluation,
+  mockRouterPush,
+} from '@/test/test-utils'
 import { PoliticianEvaluation } from './PoliticianEvaluation'
 import { PropertyType } from '@/types'
 import {
@@ -50,6 +57,7 @@ describe('PoliticianEvaluation', () => {
   beforeEach(() => {
     CSS.highlights.clear()
     mockSubmitEvaluation.mockClear()
+    mockRouterPush.mockClear()
   })
 
   it('renders politician name and wikidata id', () => {
@@ -470,6 +478,71 @@ describe('PoliticianEvaluation', () => {
           screen.getByText(/Click.*View.*on any item to see the source page/),
         ).toBeInTheDocument()
       })
+    })
+  })
+
+  describe('session completion redirects', () => {
+    it('redirects to /evaluate/complete when session completes and stats are unlocked', async () => {
+      mockSubmitEvaluation.mockResolvedValueOnce({ sessionComplete: true })
+
+      render(<PoliticianEvaluation {...defaultProps} />)
+
+      const acceptButtons = screen.getAllByText('✓ Accept')
+      fireEvent.click(acceptButtons[0])
+
+      const submitButton = screen.getByText('Submit Evaluations & Next')
+      fireEvent.click(submitButton)
+
+      await waitFor(() => {
+        expect(mockRouterPush).toHaveBeenCalledWith('/evaluate/complete')
+      })
+    })
+
+    it('redirects to /evaluate/unlocked when session completes and stats are not unlocked', async () => {
+      mockSubmitEvaluation.mockResolvedValueOnce({ sessionComplete: true })
+
+      // Mock statsUnlocked to be false for this test
+      const useUserProgress = await import('@/contexts/UserProgressContext')
+      vi.spyOn(useUserProgress, 'useUserProgress').mockReturnValue({
+        hasCompletedBasicTutorial: true,
+        hasCompletedAdvancedTutorial: true,
+        statsUnlocked: false,
+        completeBasicTutorial: vi.fn(),
+        completeAdvancedTutorial: vi.fn(),
+        unlockStats: vi.fn(),
+      })
+
+      render(<PoliticianEvaluation {...defaultProps} />)
+
+      const acceptButtons = screen.getAllByText('✓ Accept')
+      fireEvent.click(acceptButtons[0])
+
+      const submitButton = screen.getByText('Submit Evaluations & Next')
+      fireEvent.click(submitButton)
+
+      await waitFor(() => {
+        expect(mockRouterPush).toHaveBeenCalledWith('/evaluate/unlocked')
+      })
+
+      vi.restoreAllMocks()
+    })
+
+    it('does not redirect when session is not complete', async () => {
+      mockSubmitEvaluation.mockResolvedValueOnce({ sessionComplete: false })
+
+      render(<PoliticianEvaluation {...defaultProps} />)
+
+      const acceptButtons = screen.getAllByText('✓ Accept')
+      fireEvent.click(acceptButtons[0])
+
+      const submitButton = screen.getByText('Submit Evaluations & Next')
+      fireEvent.click(submitButton)
+
+      await waitFor(() => {
+        expect(mockSubmitEvaluation).toHaveBeenCalled()
+      })
+
+      expect(mockRouterPush).not.toHaveBeenCalled()
     })
   })
 })

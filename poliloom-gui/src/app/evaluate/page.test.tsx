@@ -116,4 +116,35 @@ describe('Evaluate Page', () => {
 
     expect(screen.getByText('PoliticianEvaluation Component')).toBeInTheDocument()
   })
+
+  it('resets session on unmount', async () => {
+    const mockResetSession = vi.fn()
+    mockUseEvaluationSession.mockReturnValue({
+      currentPolitician: mockPolitician,
+      nextPolitician: null,
+      loading: false,
+      enrichmentMeta: null,
+      completedCount: 0,
+      sessionGoal: 1,
+      isSessionComplete: false,
+      submitEvaluation: vi.fn(),
+      skipPolitician: vi.fn(),
+      resetSession: mockResetSession,
+      loadPoliticians: vi.fn(),
+    })
+
+    let unmount: () => void
+    await act(async () => {
+      const result = render(<EvaluatePage />)
+      unmount = result.unmount
+    })
+
+    expect(mockResetSession).not.toHaveBeenCalled()
+
+    act(() => {
+      unmount()
+    })
+
+    expect(mockResetSession).toHaveBeenCalled()
+  })
 })

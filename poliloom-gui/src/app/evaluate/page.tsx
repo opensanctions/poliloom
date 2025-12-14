@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { PoliticianEvaluation } from '@/components/evaluation/PoliticianEvaluation'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { CenteredCard } from '@/components/ui/CenteredCard'
@@ -11,30 +10,22 @@ import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 
 export default function EvaluatePage() {
-  const router = useRouter()
-  const { currentPolitician, loading, isSessionComplete, enrichmentMeta } = useEvaluationSession()
-  const { completeBasicTutorial, completeAdvancedTutorial, statsUnlocked } = useUserProgress()
+  const { currentPolitician, loading, enrichmentMeta, resetSession } = useEvaluationSession()
+  const { completeBasicTutorial, completeAdvancedTutorial } = useUserProgress()
   const { isAdvancedMode } = useUserPreferences()
 
-  // Mark tutorials complete once on mount
+  // Mark tutorials complete once on mount, reset session on unmount
   useEffect(() => {
     completeBasicTutorial()
     if (isAdvancedMode) {
       completeAdvancedTutorial()
     }
+
+    return () => {
+      resetSession()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // Navigate to completion page when session goal is reached
-  useEffect(() => {
-    if (isSessionComplete) {
-      if (statsUnlocked) {
-        router.push('/evaluate/complete')
-      } else {
-        router.push('/evaluate/unlocked')
-      }
-    }
-  }, [isSessionComplete, router, statsUnlocked])
 
   // Determine if we're in a loading state (fetching or waiting for enrichment)
   const isWaitingForData =
