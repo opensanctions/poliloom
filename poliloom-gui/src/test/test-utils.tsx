@@ -63,6 +63,8 @@ const MockUserPreferencesProvider = ({ children }: { children: React.ReactNode }
       updateFilters: vi.fn(),
       isAdvancedMode: false,
       setAdvancedMode: vi.fn(),
+      theme: undefined,
+      setTheme: vi.fn(),
     }}
   >
     {children}

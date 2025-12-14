@@ -16,6 +16,8 @@ import {
   WikidataEntity,
 } from '@/types'
 
+export type Theme = 'light' | 'dark' | undefined
+
 interface UserPreferencesContextType {
   filters: PreferenceResponse[]
   languages: LanguageResponse[]
@@ -26,6 +28,8 @@ interface UserPreferencesContextType {
   updateFilters: (type: PreferenceType, items: WikidataEntity[]) => void
   isAdvancedMode: boolean
   setAdvancedMode: (enabled: boolean) => void
+  theme: Theme
+  setTheme: (theme: 'light' | 'dark') => void
 }
 
 export const UserPreferencesContext = createContext<UserPreferencesContextType | undefined>(
@@ -34,6 +38,7 @@ export const UserPreferencesContext = createContext<UserPreferencesContextType |
 
 const FILTERS_STORAGE_KEY = 'poliloom_evaluation_filters'
 const ADVANCED_MODE_KEY = 'poliloom_advanced_mode'
+const THEME_COOKIE_NAME = 'poliloom_theme'
 
 // Advanced mode uses useSyncExternalStore for SSR safety
 function getAdvancedModeSnapshot(): boolean {
@@ -48,6 +53,33 @@ function getAdvancedModeServerSnapshot(): boolean {
 function subscribeToAdvancedMode(callback: () => void): () => void {
   window.addEventListener('storage', callback)
   return () => window.removeEventListener('storage', callback)
+}
+
+// Theme helpers
+function getThemeCookie(): Theme {
+  if (typeof document === 'undefined') return undefined
+  const match = document.cookie.match(new RegExp(`${THEME_COOKIE_NAME}=([^;]+)`))
+  const value = match?.[1]
+  if (value === 'light' || value === 'dark') return value
+  return undefined
+}
+
+function subscribeToTheme(callback: () => void): () => void {
+  window.addEventListener('storage', callback)
+  return () => window.removeEventListener('storage', callback)
+}
+
+function applyThemeToDocument(theme: 'light' | 'dark') {
+  if (typeof document === 'undefined') return
+  const root = document.documentElement
+  root.classList.remove('light', 'dark')
+  root.classList.add(theme)
+}
+
+function setThemeCookie(theme: 'light' | 'dark') {
+  if (typeof document === 'undefined') return
+  const maxAge = 365 * 24 * 60 * 60 // 1 year
+  document.cookie = `${THEME_COOKIE_NAME}=${theme}; path=/; max-age=${maxAge}; SameSite=Lax`
 }
 
 // Helper function to detect browser language and match with available languages
@@ -106,6 +138,15 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
     } else {
       localStorage.removeItem(ADVANCED_MODE_KEY)
     }
+    forceUpdate((n) => n + 1)
+  }, [])
+
+  // Theme state
+  const theme = useSyncExternalStore(subscribeToTheme, getThemeCookie, () => undefined)
+
+  const setTheme = useCallback((newTheme: 'light' | 'dark') => {
+    setThemeCookie(newTheme)
+    applyThemeToDocument(newTheme)
     forceUpdate((n) => n + 1)
   }, [])
 
@@ -218,6 +259,8 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
     updateFilters,
     isAdvancedMode,
     setAdvancedMode,
+    theme,
+    setTheme,
   }
 
   return <UserPreferencesContext.Provider value={value}>{children}</UserPreferencesContext.Provider>

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Script from 'next/script'
+import { cookies } from 'next/headers'
 import './globals.css'
 import { auth } from '@/auth'
 import { SessionProvider } from '@/components/SessionProvider'
@@ -27,9 +28,12 @@ export default async function RootLayout({
   children: React.ReactNode
 }>) {
   const session = await auth()
+  const cookieStore = await cookies()
+  const themeCookie = cookieStore.get('poliloom_theme')?.value
+  const themeClass = themeCookie === 'light' || themeCookie === 'dark' ? themeCookie : ''
 
   return (
-    <html lang="en">
+    <html lang="en" className={themeClass}>
       <head>
         <Script
           src="https://cloud.umami.is/script.js"
