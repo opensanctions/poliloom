@@ -212,7 +212,8 @@ def _insert_politicians_batch(
     session.commit()
 
     # Index to Meilisearch after successful DB commit
-    search_service.index_documents(search_documents)
+    if search_documents:
+        search_service.index_documents(search_documents)
 
     logger.debug(f"Processed {len(politicians)} politicians (upserted)")
 

@@ -345,7 +345,6 @@ async def extract_two_stage_generic(
     content: str,
     politician: Politician,
     config: TwoStageExtractionConfig,
-    search_service: Optional[SearchService] = None,
 ) -> Optional[List[Any]]:
     """Generic two-stage extraction (free-form -> mapping).
 
@@ -355,11 +354,8 @@ async def extract_two_stage_generic(
         content: Text content to extract from
         politician: Politician being enriched
         config: Extraction configuration
-        search_service: SearchService for entity lookup (creates new instance if not provided)
     """
-    # Use provided search service or create new instance
-    if search_service is None:
-        search_service = SearchService()
+    search_service = SearchService()
 
     try:
         # Stage 1: Free-form extraction

@@ -237,16 +237,12 @@ class TestEnrichment:
 
         mock_openai_client.responses.parse = mock_parse
 
-        # Search service is passed but find_similar is mocked globally
-        mock_search_service = Mock()
-
         birthplaces = await extract_two_stage_generic(
             mock_openai_client,
             db_session,
             "test content",
             sample_politician,
             BIRTHPLACES_CONFIG,
-            search_service=mock_search_service,
         )
 
         assert birthplaces is not None

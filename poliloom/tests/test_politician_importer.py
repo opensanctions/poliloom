@@ -482,10 +482,10 @@ class TestSearchServiceIndexing:
         # index_documents should not be called for empty batch
         mock_search_service.index_documents.assert_not_called()
 
-    def test_insert_politicians_without_labels_indexes_empty_labels(
+    def test_insert_politicians_without_labels_does_not_index(
         self, db_session, mock_search_service
     ):
-        """Test that politicians without labels are indexed with empty labels list."""
+        """Test that politicians without labels are not indexed."""
         politicians = [
             {
                 "wikidata_id": "Q1",
@@ -498,12 +498,8 @@ class TestSearchServiceIndexing:
 
         _insert_politicians_batch(politicians, db_session, mock_search_service)
 
-        # Should still call index_documents
-        mock_search_service.index_documents.assert_called_once()
-        call_args = mock_search_service.index_documents.call_args[0][0]
-        assert call_args[0]["id"] == "Q1"
-        assert call_args[0]["type"] == "politicians"
-        assert call_args[0]["labels"] == []
+        # index_documents should not be called when no entities have labels
+        mock_search_service.index_documents.assert_not_called()
 
 
 class TestIsPolitician:
