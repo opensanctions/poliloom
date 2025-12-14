@@ -1,4 +1,4 @@
-import { ReactNode, Fragment } from 'react'
+import { ReactNode, Fragment, useEffect, useMemo } from 'react'
 import { Property, PropertyType } from '@/types'
 import { EvaluationItem } from './EvaluationItem'
 import { PropertyDisplay } from './PropertyDisplay'
@@ -23,10 +23,6 @@ export function PropertiesEvaluation({
   onHover,
   activeArchivedPageId,
 }: PropertiesEvaluationProps) {
-  if (properties.length === 0) {
-    return null
-  }
-
   const getPropertyTitle = (property: Property): ReactNode => {
     switch (property.type) {
       case PropertyType.P569:
@@ -42,8 +38,21 @@ export function PropertiesEvaluation({
     }
   }
 
-  const getGroupedProperties = () => {
-    const sections: Array<{
+  const getSectionTitle = (propertyType: PropertyType): string => {
+    switch (propertyType) {
+      case PropertyType.P39:
+        return 'Political Positions'
+      case PropertyType.P19:
+        return 'Birthplaces'
+      case PropertyType.P27:
+        return 'Citizenships'
+      default:
+        return 'Other Properties'
+    }
+  }
+
+  const sections = useMemo(() => {
+    const result: Array<{
       title: string
       items: Array<{
         title: ReactNode
@@ -124,7 +133,7 @@ export function PropertiesEvaluation({
         properties: props,
         key: type,
       }))
-      sections.push({ title: 'Properties', items })
+      result.push({ title: 'Properties', items })
     }
 
     // Process entity-based properties in fixed order (positions, birthplaces, citizenships)
@@ -155,26 +164,24 @@ export function PropertiesEvaluation({
         }))
         .sort((a, b) => compareByStartDate(a.properties[0], b.properties[0]))
 
-      sections.push({ title: getSectionTitle(propertyType), items })
+      result.push({ title: getSectionTitle(propertyType), items })
     })
 
-    return sections
-  }
+    return result
+  }, [properties])
 
-  const getSectionTitle = (propertyType: PropertyType): string => {
-    switch (propertyType) {
-      case PropertyType.P39:
-        return 'Political Positions'
-      case PropertyType.P19:
-        return 'Birthplaces'
-      case PropertyType.P27:
-        return 'Citizenships'
-      default:
-        return 'Other Properties'
+  // Select the first property with an archived page when properties change
+  useEffect(() => {
+    for (const section of sections) {
+      for (const item of section.items) {
+        const firstWithArchive = item.properties.find((p) => p.archived_page && !p.statement_id)
+        if (firstWithArchive) {
+          onShowArchived(firstWithArchive)
+          return
+        }
+      }
     }
-  }
-
-  const sections = getGroupedProperties()
+  }, [sections, onShowArchived])
 
   return (
     <div className="space-y-8">

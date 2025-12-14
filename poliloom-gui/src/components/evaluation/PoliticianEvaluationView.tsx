@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, ReactNode } from 'react'
+import { useState, useRef, useEffect, useCallback, ReactNode } from 'react'
 import { Politician, Property, ArchivedPageResponse } from '@/types'
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting'
 import { highlightTextInScope } from '@/lib/textHighlighter'
@@ -9,12 +9,6 @@ import { CenteredCard } from '@/components/ui/CenteredCard'
 import { PropertiesEvaluation } from './PropertiesEvaluation'
 import { PoliticianHeader } from './PoliticianHeader'
 import { ArchivedPageViewer } from './ArchivedPageViewer'
-
-// Helper function to find first new property with archived page
-// Only new properties (without statement_id) show the View button
-function findFirstPropertyWithArchive(properties: Property[]) {
-  return properties.find((p) => p.archived_page && !p.statement_id)
-}
 
 interface PoliticianEvaluationViewProps {
   politician: Politician
@@ -33,17 +27,11 @@ export function PoliticianEvaluationView({
     () => initialEvaluations ?? new Map(),
   )
 
-  // Initialize with first archived page found (component should be keyed by politician.id)
+  // Initial selection is handled by PropertiesEvaluation calling onShowArchived on mount
   const [selectedArchivedPage, setSelectedArchivedPage] = useState<ArchivedPageResponse | null>(
-    () => {
-      const first = findFirstPropertyWithArchive(politician.properties)
-      return first?.archived_page ?? null
-    },
+    null,
   )
-  const [selectedQuotes, setSelectedQuotes] = useState<string[] | null>(() => {
-    const first = findFirstPropertyWithArchive(politician.properties)
-    return first?.supporting_quotes ?? null
-  })
+  const [selectedQuotes, setSelectedQuotes] = useState<string[] | null>(null)
 
   // Refs and hooks for highlighting
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
@@ -81,6 +69,14 @@ export function PoliticianEvaluationView({
     })
   }
 
+  // Handler for showing archived page (used by View button and initial selection)
+  const handleShowArchived = useCallback((property: Property) => {
+    if (property.archived_page) {
+      setSelectedArchivedPage(property.archived_page)
+      setSelectedQuotes(property.supporting_quotes || null)
+    }
+  }, [])
+
   // Unified hover handler for all property types
   const handlePropertyHover = (property: Property) => {
     // Only update quotes (which triggers highlighting) if we're viewing this property's archived page
@@ -109,12 +105,7 @@ export function PoliticianEvaluationView({
             properties={politician.properties}
             evaluations={evaluations}
             onAction={handleEvaluate}
-            onShowArchived={(property) => {
-              if (property.archived_page) {
-                setSelectedArchivedPage(property.archived_page)
-                setSelectedQuotes(property.supporting_quotes || null)
-              }
-            }}
+            onShowArchived={handleShowArchived}
             onHover={handlePropertyHover}
             activeArchivedPageId={selectedArchivedPage?.id || null}
           />
