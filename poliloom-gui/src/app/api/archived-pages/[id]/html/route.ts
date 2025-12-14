@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { fetchWithAuth } from '@/lib/api-auth'
 
 // CSS styles injected into archived pages for highlighting functionality
+// Using semi-transparent amber with dark text for readability on any background
 const HIGHLIGHT_STYLES = `<style data-poliloom-highlight="true">
-::highlight(poliloom) { background-color: yellow; }
+::highlight(poliloom) { background-color: rgba(251, 191, 36, 0.5); color: #000; }
 </style>`
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

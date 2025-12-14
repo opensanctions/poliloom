@@ -36,6 +36,43 @@
   --border: #e5e7eb; /* gray-200 */
   --border-strong: #d1d5db; /* gray-300 */
 
+  /* Primary/Accent (Indigo) */
+  --accent: var(--color-indigo-600);
+  --accent-hover: var(--color-indigo-700);
+  --accent-foreground: var(--color-indigo-600);
+  --accent-foreground-hover: var(--color-indigo-700);
+  --accent-muted: var(--color-indigo-50);
+  --accent-muted-hover: var(--color-indigo-100);
+  --accent-light: var(--color-indigo-300);
+  --accent-border-hover: var(--color-indigo-300);
+  --accent-on-muted: var(--color-indigo-900);
+  --accent-on-solid: #ffffff;
+  --accent-on-solid-muted: var(--color-indigo-200);
+
+  /* Success (Green) */
+  --success: var(--color-green-600);
+  --success-bright: var(--color-green-500);
+  --success-muted: var(--color-green-100);
+  --success-muted-hover: var(--color-green-200);
+  --success-foreground: var(--color-green-700);
+
+  /* Danger (Red) */
+  --danger: var(--color-red-600);
+  --danger-bright: var(--color-red-400);
+  --danger-muted: var(--color-red-100);
+  --danger-muted-hover: var(--color-red-200);
+  --danger-foreground: var(--color-red-700);
+  --danger-foreground-hover: var(--color-red-800);
+  --danger-subtle: var(--color-red-500);
+  --danger-deep: var(--color-red-900);
+
+  /* Info (Blue) */
+  --info: var(--color-blue-700);
+  --info-hover: var(--color-blue-800);
+  --info-muted: var(--color-blue-100);
+  --info-muted-hover: var(--color-blue-200);
+  --info-foreground: var(--color-blue-600);
+
   /* Fonts */
   --font-mona-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-monaspace:
@@ -56,6 +93,41 @@
   --color-border-muted: var(--border-muted);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
+
+  /* Accent colors */
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-foreground-hover: var(--accent-foreground-hover);
+  --color-accent-muted: var(--accent-muted);
+  --color-accent-muted-hover: var(--accent-muted-hover);
+  --color-accent-light: var(--accent-light);
+  --color-accent-border-hover: var(--accent-border-hover);
+  --color-accent-on-muted: var(--accent-on-muted);
+  --color-accent-on-solid: var(--accent-on-solid);
+  --color-accent-on-solid-muted: var(--accent-on-solid-muted);
+
+  --color-success: var(--success);
+  --color-success-bright: var(--success-bright);
+  --color-success-muted: var(--success-muted);
+  --color-success-muted-hover: var(--success-muted-hover);
+  --color-success-foreground: var(--success-foreground);
+
+  --color-danger: var(--danger);
+  --color-danger-bright: var(--danger-bright);
+  --color-danger-muted: var(--danger-muted);
+  --color-danger-muted-hover: var(--danger-muted-hover);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-foreground-hover: var(--danger-foreground-hover);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-danger-deep: var(--danger-deep);
+
+  --color-info: var(--info);
+  --color-info-hover: var(--info-hover);
+  --color-info-muted: var(--info-muted);
+  --color-info-muted-hover: var(--info-muted-hover);
+  --color-info-foreground: var(--info-foreground);
+
   --font-sans: var(--font-mona-sans);
   --font-mono: var(--font-monaspace);
 }
@@ -80,6 +152,43 @@
     --border-muted: #27272a; /* zinc-800 */
     --border: #3f3f46; /* zinc-700 */
     --border-strong: #52525b; /* zinc-600 */
+
+    /* Primary/Accent (Indigo) */
+    --accent: #6366f1; /* indigo-500 */
+    --accent-hover: #818cf8; /* indigo-400 */
+    --accent-foreground: #a5b4fc; /* indigo-300 */
+    --accent-foreground-hover: #c7d2fe; /* indigo-200 */
+    --accent-muted: rgba(99, 102, 241, 0.15);
+    --accent-muted-hover: rgba(99, 102, 241, 0.25);
+    --accent-light: #4f46e5; /* indigo-600 */
+    --accent-border-hover: #6366f1; /* indigo-500 */
+    --accent-on-muted: #c7d2fe; /* indigo-200 */
+    --accent-on-solid: #ffffff;
+    --accent-on-solid-muted: #a5b4fc; /* indigo-300 - dimmed text on solid */
+
+    /* Success (Green) */
+    --success: #22c55e; /* green-500 */
+    --success-bright: #22c55e; /* green-500 */
+    --success-muted: rgba(34, 197, 94, 0.15);
+    --success-muted-hover: rgba(34, 197, 94, 0.25);
+    --success-foreground: #86efac; /* green-300 */
+
+    /* Danger (Red) */
+    --danger: #ef4444; /* red-500 */
+    --danger-bright: #f87171; /* red-400 */
+    --danger-muted: rgba(239, 68, 68, 0.15);
+    --danger-muted-hover: rgba(239, 68, 68, 0.25);
+    --danger-foreground: #fca5a5; /* red-300 */
+    --danger-foreground-hover: #fecaca; /* red-200 */
+    --danger-subtle: #fca5a5; /* red-300 */
+    --danger-deep: rgba(127, 29, 29, 0.8);
+
+    /* Info (Blue) */
+    --info: #3b82f6; /* blue-500 */
+    --info-hover: #60a5fa; /* blue-400 */
+    --info-muted: rgba(59, 130, 246, 0.15);
+    --info-muted-hover: rgba(59, 130, 246, 0.25);
+    --info-foreground: #93c5fd; /* blue-300 */
   }
 }
 
@@ -93,5 +202,6 @@ body {
 /* The actual highlighting is handled by the browser's CSS Custom Highlight API */
 
 ::highlight(poliloom) {
-  background-color: yellow;
+  background-color: rgba(251, 191, 36, 0.5);
+  color: #000;
 }

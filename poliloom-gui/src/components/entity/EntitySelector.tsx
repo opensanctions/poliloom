@@ -191,7 +191,7 @@ export function EntitySelector<T extends SearchResult>({
                     }}
                     className="w-full px-4 py-3 text-left hover:bg-surface-hover focus:bg-surface-hover focus:outline-none border-t border-border"
                   >
-                    <div className="font-medium text-blue-600">
+                    <div className="font-medium text-info-foreground">
                       Create new: &quot;{searchQuery.trim()}&quot;
                     </div>
                     <div className="text-sm text-foreground-muted">Add as a new politician</div>
@@ -211,7 +211,7 @@ export function EntitySelector<T extends SearchResult>({
                     }}
                     className="w-full px-4 py-3 text-left hover:bg-surface-hover focus:bg-surface-hover focus:outline-none border-t border-border"
                   >
-                    <div className="font-medium text-blue-600">
+                    <div className="font-medium text-info-foreground">
                       Create new: &quot;{searchQuery.trim()}&quot;
                     </div>
                     <div className="text-sm text-foreground-muted">Add as a new politician</div>

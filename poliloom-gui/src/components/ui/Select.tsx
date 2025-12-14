@@ -45,9 +45,9 @@ export function Select({
   }, [])
 
   const baseClasses =
-    'w-full px-3 py-2 pr-4 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-foreground bg-surface text-left flex items-center justify-between gap-3'
+    'w-full px-3 py-2 pr-4 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-surface text-left flex items-center justify-between gap-3'
 
-  const errorClasses = error ? 'border-red-500 focus:ring-red-500' : ''
+  const errorClasses = error ? 'border-danger-subtle focus:ring-danger-subtle' : ''
   const disabledClasses = disabled
     ? 'bg-surface-hover text-foreground-muted cursor-not-allowed opacity-60'
     : ''
@@ -57,7 +57,7 @@ export function Select({
       {label && (
         <label className="block text-sm font-medium text-foreground-secondary mb-2">
           {label}
-          {required && <span className="text-red-500"> *</span>}
+          {required && <span className="text-danger-subtle"> *</span>}
         </label>
       )}
       <div className="relative">
@@ -97,8 +97,8 @@ export function Select({
                   onChange(option.value)
                   setIsOpen(false)
                 }}
-                className={`w-full px-3 py-2 text-left text-foreground hover:bg-indigo-50 ${
-                  option.value === value ? 'bg-indigo-50 font-medium' : ''
+                className={`w-full px-3 py-2 text-left text-foreground hover:bg-accent-muted ${
+                  option.value === value ? 'bg-accent-muted font-medium' : ''
                 }`}
               >
                 {option.label}
@@ -107,7 +107,7 @@ export function Select({
           </div>
         )}
       </div>
-      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-1 text-sm text-danger-foreground">{error}</p>}
     </div>
   )
 }

@@ -124,8 +124,8 @@ export function MultiSelect({
                     border disabled:cursor-not-allowed inline-flex items-center gap-2
                     ${
                       isSelected
-                        ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700 hover:border-indigo-700'
-                        : 'bg-surface border-border-strong text-foreground-secondary hover:border-indigo-300 hover:bg-indigo-50'
+                        ? 'bg-accent border-accent text-accent-on-solid hover:bg-accent-hover hover:border-accent-hover'
+                        : 'bg-surface border-border-strong text-foreground-secondary hover:border-accent-border-hover hover:bg-accent-muted'
                     }
                     ${disabled ? 'opacity-50' : ''}
                   `}
@@ -133,7 +133,7 @@ export function MultiSelect({
                 <span>{option.label}</span>
                 {option.count !== undefined && option.count > 0 && (
                   <span
-                    className={`text-xs font-semibold ${isSelected ? 'text-indigo-200' : 'text-foreground-muted'}`}
+                    className={`text-xs font-semibold ${isSelected ? 'text-accent-on-solid-muted' : 'text-foreground-muted'}`}
                   >
                     {option.count.toLocaleString()}
                   </span>

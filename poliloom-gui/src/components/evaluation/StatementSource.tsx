@@ -36,7 +36,7 @@ export function StatementSource({
             href={archivedPage.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-blue-600 hover:underline truncate min-w-0"
+            className="text-sm text-info-foreground hover:underline truncate min-w-0"
             title={archivedPage.url}
           >
             {archivedPage.url}
@@ -46,7 +46,7 @@ export function StatementSource({
       {supportingQuotes && supportingQuotes.length > 0 && (
         <ol className="list-decimal list-outside ml-4 space-y-1 py-2">
           {supportingQuotes.map((quote, index) => (
-            <li key={index} className="text-sm text-foreground-muted italic">
+            <li key={index} className="text-sm text-foreground-tertiary italic">
               &quot;{quote}&quot;
             </li>
           ))}

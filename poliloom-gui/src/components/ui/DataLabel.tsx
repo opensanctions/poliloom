@@ -1,7 +1,7 @@
 type DataLabelVariant = 'new' | 'existing'
 
 const variantConfig: Record<DataLabelVariant, { text: string; className: string }> = {
-  new: { text: 'New data 🎉', className: 'text-blue-600' },
+  new: { text: 'New data 🎉', className: 'text-info-foreground' },
   existing: { text: 'Existing data', className: 'text-foreground-muted' },
 }
 

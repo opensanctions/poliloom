@@ -11,7 +11,7 @@ function MetadataSectionButton({
 }) {
   return (
     <button
-      className="font-medium cursor-pointer flex items-center gap-1 text-red-600 hover:text-red-700"
+      className="font-medium cursor-pointer flex items-center gap-1 text-danger-foreground hover:text-danger-foreground-hover"
       onClick={() => onToggle(sectionKey)}
     >
       <span className={`transition-transform ${isOpen ? '' : '-rotate-90'}`}>▼</span>
@@ -76,7 +76,7 @@ export function WikidataMetadataPanel({
   if (openSection === null) return null
 
   const renderPanel = (data: Record<string, unknown> | Array<Record<string, unknown>>) => (
-    <div className="relative p-2 rounded bg-red-900">
+    <div className="relative p-2 rounded bg-danger-deep">
       <div className="absolute top-2 right-2 text-white text-xs">Metadata will be lost ⚠️</div>
       <pre className="text-white text-xs overflow-x-auto">
         <code>{JSON.stringify(data, null, 2)}</code>

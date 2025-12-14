@@ -24,8 +24,8 @@ export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
           className="
             absolute inset-0 rounded-full bg-border-strong cursor-pointer
             transition-colors duration-200 ease-in-out
-            peer-checked:bg-indigo-600
-            peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-2
+            peer-checked:bg-accent
+            peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-2
           "
         />
         <span

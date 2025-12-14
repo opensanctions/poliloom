@@ -14,7 +14,7 @@ export function Footer() {
         href={WIKIDATA_CONTRIBUTIONS_URL}
         variant="secondary"
         size="small"
-        className="text-indigo-600 hover:text-indigo-700"
+        className="text-accent-foreground hover:text-accent-foreground-hover"
       >
         View Wikidata contributions
         <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

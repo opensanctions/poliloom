@@ -110,11 +110,11 @@ describe('PoliticianEvaluation', () => {
 
     // User can accept an item - button should provide visual feedback
     fireEvent.click(acceptButton)
-    expect(acceptButton).toHaveAttribute('class', expect.stringContaining('green'))
+    expect(acceptButton).toHaveAttribute('class', expect.stringContaining('bg-success'))
 
     // User can change their mind and reject instead
     fireEvent.click(rejectButton)
-    expect(rejectButton).toHaveAttribute('class', expect.stringContaining('red'))
+    expect(rejectButton).toHaveAttribute('class', expect.stringContaining('bg-danger'))
   })
 
   it('shows "Skip Politician" when no evaluations are set, and "Submit Evaluations & Next" when evaluations exist', () => {
@@ -145,9 +145,9 @@ describe('PoliticianEvaluation', () => {
     if (acceptButtons[1]) fireEvent.click(acceptButtons[1])
     if (rejectButtons[0]) fireEvent.click(rejectButtons[0])
 
-    expect(rejectButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-red-600'))
+    expect(rejectButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-danger'))
     if (acceptButtons[1]) {
-      expect(acceptButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-green-600'))
+      expect(acceptButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-success'))
     }
 
     const submitButton = screen.getByText('Submit Evaluations & Next')
@@ -177,9 +177,9 @@ describe('PoliticianEvaluation', () => {
     if (rejectButtons[1]) fireEvent.click(rejectButtons[1])
 
     // Verify buttons show selected state before submission
-    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600'))
+    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-success'))
     if (rejectButtons[1]) {
-      expect(rejectButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-red-600'))
+      expect(rejectButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-danger'))
     }
 
     const submitButton = screen.getByText('Submit Evaluations & Next')
@@ -190,9 +190,9 @@ describe('PoliticianEvaluation', () => {
     })
 
     // Verify evaluation state is PRESERVED after failed submission
-    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600'))
+    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-success'))
     if (rejectButtons[1]) {
-      expect(rejectButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-red-600'))
+      expect(rejectButtons[1]).toHaveAttribute('class', expect.stringContaining('bg-danger'))
     }
   })
 
@@ -206,7 +206,7 @@ describe('PoliticianEvaluation', () => {
 
     // Make an evaluation
     fireEvent.click(acceptButtons[0])
-    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600'))
+    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-success'))
 
     const submitButton = screen.getByText('Submit Evaluations & Next')
     fireEvent.click(submitButton)
@@ -216,7 +216,7 @@ describe('PoliticianEvaluation', () => {
     })
 
     // Verify evaluation state is PRESERVED after network failure
-    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-green-600'))
+    expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-success'))
   })
 
   it('does not render sections when politician has no unevaluated data', () => {
@@ -427,7 +427,7 @@ describe('PoliticianEvaluation', () => {
         expect(rejectButtons.length).toBeGreaterThan(0)
 
         fireEvent.click(acceptButtons[0])
-        expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('green'))
+        expect(acceptButtons[0]).toHaveAttribute('class', expect.stringContaining('bg-success'))
       })
     })
 

@@ -32,7 +32,7 @@ export function HeaderedBox({
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-foreground">{title}</h3>
             {(description || legend) && (
-              <div className="flex items-center justify-between mt-0.5 text-sm text-foreground-muted">
+              <div className="flex items-center justify-between mt-0.5 text-sm text-foreground-tertiary">
                 {description && <p>{description}</p>}
                 {legend && (
                   <div className="flex items-center gap-4">

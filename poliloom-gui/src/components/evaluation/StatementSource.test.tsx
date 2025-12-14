@@ -130,8 +130,8 @@ describe('StatementSource', () => {
       )
 
       const viewButton = screen.getByRole('button', { name: /Viewing/ })
-      // The Button component with active=true and variant=info gets 'bg-blue-700' class
-      expect(viewButton).toHaveAttribute('class', expect.stringContaining('bg-blue-700'))
+      // The Button component with active=true and variant=info gets 'bg-info' class
+      expect(viewButton).toHaveAttribute('class', expect.stringContaining('bg-info'))
     })
   })
 

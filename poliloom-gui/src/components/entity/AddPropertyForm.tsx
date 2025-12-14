@@ -189,7 +189,7 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
           htmlFor="sourceUrl"
           className="block text-sm font-medium text-foreground-secondary mb-1"
         >
-          Source URL <span className="text-red-500">*</span>
+          Source URL <span className="text-danger-subtle">*</span>
         </label>
         <Input
           id="sourceUrl"
@@ -223,7 +223,7 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
             setStartDate('')
             setEndDate('')
           }}
-          className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-surface text-foreground"
+          className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent bg-surface text-foreground"
           required
         >
           <option value="">Select a property type...</option>
@@ -324,7 +324,7 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
               <select
                 value={startDatePrecision}
                 onChange={(e) => setStartDatePrecision(Number(e.target.value))}
-                className="px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-surface text-foreground"
+                className="px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent bg-surface text-foreground"
                 disabled={!startDate}
               >
                 <option value={11}>Day</option>
@@ -353,7 +353,7 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
               <select
                 value={endDatePrecision}
                 onChange={(e) => setEndDatePrecision(Number(e.target.value))}
-                className="px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-surface text-foreground"
+                className="px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent bg-surface text-foreground"
                 disabled={!endDate}
               >
                 <option value={11}>Day</option>

@@ -160,7 +160,7 @@ describe('WikidataMetadataButtons', () => {
     )
 
     const button = screen.getByText('Qualifiers').closest('button')
-    expect(button).toHaveClass('text-red-600')
+    expect(button).toHaveClass('text-danger-foreground')
   })
 })
 
@@ -198,7 +198,7 @@ describe('WikidataMetadataPanel', () => {
       <WikidataMetadataPanel qualifiers={qualifiers} openSection="qualifiers" />,
     )
 
-    const panel = container.querySelector('.bg-red-900')
+    const panel = container.querySelector('.bg-danger-deep')
     expect(panel).toBeInTheDocument()
   })
 

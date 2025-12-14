@@ -61,7 +61,7 @@ export function EvaluationActions({
             <span className="text-sm text-foreground-muted">View source to evaluate</span>
           ) : (
             <span
-              className={`text-sm font-medium ${isAccepted ? 'text-green-600' : 'text-red-600'}`}
+              className={`text-sm font-medium ${isAccepted ? 'text-success-foreground' : 'text-danger-foreground'}`}
             >
               {isAccepted ? '✓ Accepted' : '× Rejected'}
             </span>

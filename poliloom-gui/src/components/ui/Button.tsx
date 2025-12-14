@@ -33,24 +33,24 @@ const sizeClasses: Record<ButtonSize, string> = {
 
 const variantClasses: Record<ButtonVariant, { base: string; active: string }> = {
   primary: {
-    base: 'bg-indigo-600 text-white font-medium hover:bg-indigo-700',
-    active: 'bg-indigo-700 text-white font-medium',
+    base: 'bg-accent text-accent-on-solid font-medium hover:bg-accent-hover',
+    active: 'bg-accent-hover text-accent-on-solid font-medium',
   },
   secondary: {
     base: 'text-foreground-tertiary font-medium hover:text-foreground-secondary',
     active: 'bg-surface-active text-foreground font-medium',
   },
   success: {
-    base: 'bg-green-100 text-green-700 font-medium hover:bg-green-200',
-    active: 'bg-green-600 text-white font-medium',
+    base: 'bg-success-muted text-success-foreground font-medium hover:bg-success-muted-hover',
+    active: 'bg-success text-accent-on-solid font-medium',
   },
   danger: {
-    base: 'bg-red-100 text-red-700 font-medium hover:bg-red-200',
-    active: 'bg-red-600 text-white font-medium',
+    base: 'bg-danger-muted text-danger-foreground font-medium hover:bg-danger-muted-hover',
+    active: 'bg-danger text-accent-on-solid font-medium',
   },
   info: {
-    base: 'bg-blue-100 text-blue-700 font-medium hover:bg-blue-200',
-    active: 'bg-blue-700 text-white font-medium hover:bg-blue-800',
+    base: 'bg-info-muted text-info-foreground font-medium hover:bg-info-muted-hover',
+    active: 'bg-info text-accent-on-solid font-medium hover:bg-info-hover',
   },
 }
 

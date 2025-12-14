@@ -132,11 +132,11 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
                 {formatDateRange(point.date)}
               </div>
               <div className="flex items-center gap-2 text-foreground-tertiary">
-                <span className="w-2.5 h-2.5 bg-green-500 rounded-sm" />
+                <span className="w-2.5 h-2.5 bg-success-bright rounded-sm" />
                 <span>{point.accepted} accepted</span>
               </div>
               <div className="flex items-center gap-2 text-foreground-tertiary">
-                <span className="w-2.5 h-2.5 bg-red-400 rounded-sm" />
+                <span className="w-2.5 h-2.5 bg-danger-bright rounded-sm" />
                 <span>{point.rejected} rejected</span>
               </div>
               {/* Arrow */}
@@ -147,8 +147,8 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
               className="w-full flex flex-col rounded-t-sm overflow-hidden group-hover/chart:opacity-50 group-hover:!opacity-100 transition-opacity"
               style={{ height: `${heightPercent}%` }}
             >
-              <div className="bg-red-400" style={{ height: `${rejectedPercent}%` }} />
-              <div className="bg-green-500 flex-1" />
+              <div className="bg-danger-bright" style={{ height: `${rejectedPercent}%` }} />
+              <div className="bg-success-bright flex-1" />
             </div>
           </div>
         )
@@ -214,11 +214,11 @@ function CoverageBar({ item }: { item: CountryCoverage }) {
           >
             {/* Evaluated segment (indigo) */}
             <div
-              className="bg-indigo-600 h-full shrink-0"
+              className="bg-accent h-full shrink-0"
               style={{ width: `${(evaluatedPercent / barWidth) * 100}%` }}
             />
             {/* Processed segment (light indigo) */}
-            <div className="bg-indigo-300 h-full flex-1" />
+            <div className="bg-accent-light h-full flex-1" />
 
             {/* White labels (sized to parent width, clipped by bar) */}
             <div
@@ -358,7 +358,7 @@ export default function StatsPage() {
           </div>
         )}
 
-        {error && <p className="text-red-600">{error}</p>}
+        {error && <p className="text-danger-foreground">{error}</p>}
 
         {stats && (
           <div className="space-y-6">
@@ -367,8 +367,8 @@ export default function StatsPage() {
               description="Community contributions by week"
               icon="⏱️"
               legend={[
-                { color: 'bg-green-500', label: 'Accepted' },
-                { color: 'bg-red-400', label: 'Rejected' },
+                { color: 'bg-success-bright', label: 'Accepted' },
+                { color: 'bg-danger-bright', label: 'Rejected' },
               ]}
             >
               <EvaluationsChart data={stats.evaluations_timeseries} />
@@ -379,8 +379,8 @@ export default function StatsPage() {
               description={`Politicians that were evaluated in the last ${stats.cooldown_days} days`}
               icon="🌍"
               legend={[
-                { color: 'bg-indigo-600', label: 'Evaluated' },
-                { color: 'bg-indigo-300', label: 'Processed' },
+                { color: 'bg-accent', label: 'Evaluated' },
+                { color: 'bg-accent-light', label: 'Processed' },
               ]}
             >
               <CountryCoverageList data={stats.country_coverage} />
