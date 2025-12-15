@@ -3,9 +3,9 @@ import { readFile } from 'fs/promises'
 import { join } from 'path'
 
 // CSS styles injected into tutorial pages for highlighting functionality
-// Using semi-transparent amber with dark text for readability on any background
+// Using semi-transparent yellow with dark text for readability on any background
 const HIGHLIGHT_STYLES = `<style data-poliloom-highlight="true">
-::highlight(poliloom) { background-color: rgba(251, 191, 36, 0.5); color: #000; }
+::highlight(poliloom) { background-color: rgba(253, 224, 71, 0.7); color: #000; }
 </style>`
 
 const VALID_TUTORIAL_PAGES = ['tutorial-page-1', 'tutorial-page-2']
