@@ -103,6 +103,22 @@ class SearchService:
                 raise
             logger.debug(f"Index '{INDEX_NAME}' does not exist, nothing to delete")
 
+    def ensure_index(self) -> bool:
+        """Create the index if it doesn't exist.
+
+        Returns:
+            True if index was created, False if it already existed.
+        """
+        try:
+            self.client.get_index(INDEX_NAME)
+            logger.debug(f"Index '{INDEX_NAME}' already exists")
+            return False
+        except meilisearch.errors.MeilisearchApiError as e:
+            if "index_not_found" not in str(e):
+                raise
+            self.create_index()
+            return True
+
     def index_documents(self, documents: list[SearchDocument]) -> Optional[int]:
         """Index documents to Meilisearch.
 

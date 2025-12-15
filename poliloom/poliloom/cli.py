@@ -978,7 +978,7 @@ def index_delete(confirm):
 @click.option(
     "--rebuild",
     is_flag=True,
-    help="Delete and recreate index before indexing (required for first run)",
+    help="Delete and recreate index before indexing",
 )
 def index_build(batch_size, rebuild):
     """Build Meilisearch index from database.
@@ -986,7 +986,7 @@ def index_build(batch_size, rebuild):
     Indexes all documents from Location, Country, Language, and Politician tables.
     Uses upsert semantics - unchanged documents won't be re-embedded.
 
-    Use --rebuild to delete and recreate the index (required for first run).
+    Use --rebuild to delete and recreate the index from scratch.
     """
     from poliloom.search import INDEX_NAME, SearchDocument, SearchService
 
@@ -999,6 +999,8 @@ def index_build(batch_size, rebuild):
         click.echo(f"   Recreated index '{INDEX_NAME}'")
     else:
         click.echo("⏳ Building Meilisearch index...")
+        if search_service.ensure_index():
+            click.echo(f"   Created index '{INDEX_NAME}'")
 
     # Reindex all documents from each model type
     models = _get_search_indexed_models()

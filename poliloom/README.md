@@ -74,7 +74,7 @@ API documentation available at http://localhost:8000/docs
 | `poliloom import-politicians` | Import politicians linking to existing entities       |
 | `poliloom enrich-wikipedia`   | Extract politician data from Wikipedia using AI       |
 | `poliloom garbage-collect`    | Remove entities deleted from Wikidata                 |
-| `poliloom index-build`        | Build Meilisearch index (use `--rebuild` for first run) |
+| `poliloom index-build`        | Build Meilisearch index (`--rebuild` to start fresh)    |
 | `poliloom index-delete`       | Delete the Meilisearch index                          |
 | `poliloom index-stats`        | Show index status and task progress                   |
 
