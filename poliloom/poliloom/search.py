@@ -28,7 +28,7 @@ class SearchDocument(TypedDict):
     """Document format for Meilisearch indexing."""
 
     id: str
-    type: str  # Entity type (e.g., 'locations', 'politicians')
+    types: list[str]  # Entity types (e.g., ['Location', 'Country'])
     labels: list[str]
 
 
@@ -66,8 +66,8 @@ class SearchService:
         task = index.update_settings(
             {
                 "searchableAttributes": ["labels"],
-                "filterableAttributes": ["type"],
-                "displayedAttributes": ["id", "type", "labels"],
+                "filterableAttributes": ["types"],
+                "displayedAttributes": ["id", "types", "labels"],
             }
         )
         self.client.wait_for_task(task.task_uid)
@@ -179,7 +179,7 @@ class SearchService:
 
         Args:
             query: Search query text
-            entity_type: Optional type filter (e.g., 'locations', 'politicians')
+            entity_type: Optional type filter (e.g., 'Location', 'Politician')
             limit: Maximum number of results
             semantic_ratio: Balance between keyword (0.0) and semantic (1.0) search.
                            Default 0.0 uses pure keyword search for backward compatibility.
@@ -191,7 +191,7 @@ class SearchService:
         index = self.client.index(INDEX_NAME)
         search_params: dict = {"limit": limit}
         if entity_type:
-            search_params["filter"] = f"type = '{entity_type}'"
+            search_params["filter"] = f"types = '{entity_type}'"
 
         # Use hybrid search when semantic_ratio > 0
         if semantic_ratio > 0:

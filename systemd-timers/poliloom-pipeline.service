@@ -1,5 +1,5 @@
 [Unit]
-Description=PoliLoom download, import and garbage collection pipeline
+Description=PoliLoom download, import, garbage collection and search index pipeline
 After=postgresql.service
 Requires=postgresql.service
 
@@ -13,6 +13,7 @@ ExecStart=docker compose run --rm api poliloom import-hierarchy --file ${WIKIDAT
 ExecStart=docker compose run --rm api poliloom import-entities --file ${WIKIDATA_DUMP_EXTRACTED}
 ExecStart=docker compose run --rm api poliloom import-politicians --file ${WIKIDATA_DUMP_EXTRACTED}
 ExecStart=docker compose run --rm api poliloom garbage-collect
+ExecStart=docker compose run --rm api poliloom index-build
 StandardOutput=journal
 StandardError=journal
 TimeoutStartSec=259200

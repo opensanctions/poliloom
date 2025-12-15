@@ -14,7 +14,7 @@ from poliloom.importer.politician import import_politicians
 from poliloom.database import get_engine
 from poliloom.logging import setup_logging
 from sqlalchemy.orm import Session
-from sqlalchemy import exists, func
+from sqlalchemy import exists, text
 from poliloom.models import (
     Country,
     CurrentImportEntity,
@@ -28,7 +28,6 @@ from poliloom.models import (
     Property,
     WikidataDump,
     WikidataEntity,
-    WikidataEntityLabel,
 )
 
 # Configure logging
@@ -983,8 +982,8 @@ def index_delete(confirm):
 def index_build(batch_size, rebuild):
     """Build Meilisearch index from database.
 
-    Indexes all documents from Location, Country, Language, and Politician tables.
-    Uses upsert semantics - unchanged documents won't be re-embedded.
+    Indexes all searchable entities with aggregated types. Each entity appears
+    once with all its types (e.g., an entity can be both Location and Country).
 
     Use --rebuild to delete and recreate the index from scratch.
     """
@@ -1002,75 +1001,87 @@ def index_build(batch_size, rebuild):
         if search_service.ensure_index():
             click.echo(f"   Created index '{INDEX_NAME}'")
 
-    # Reindex all documents from each model type
+    # Get all searchable models
     models = _get_search_indexed_models()
+    click.echo(f"   Types: {', '.join(m.__name__ for m in models)}")
+
+    # Build dynamic SQL query
+    # LEFT JOIN each model table and build types array from which ones match
+    left_joins = []
+    case_statements = []
+    group_by_columns = ["we.wikidata_id"]
+
+    for model in models:
+        table_name = model.__tablename__
+        left_joins.append(
+            f"LEFT JOIN {table_name} ON we.wikidata_id = {table_name}.wikidata_id"
+        )
+        case_statements.append(
+            f"CASE WHEN {table_name}.wikidata_id IS NOT NULL THEN '{model.__name__}' END"
+        )
+        group_by_columns.append(f"{table_name}.wikidata_id")
+
+    array_expr = f"array_remove(ARRAY[{', '.join(case_statements)}], NULL)"
+
+    base_sql = f"""
+        SELECT
+            we.wikidata_id,
+            array_agg(DISTINCT wel.label) as labels,
+            {array_expr} as types
+        FROM wikidata_entities we
+        JOIN wikidata_entity_labels wel ON we.wikidata_id = wel.entity_id
+        {chr(10).join(left_joins)}
+        WHERE we.deleted_at IS NULL
+        GROUP BY {", ".join(group_by_columns)}
+        HAVING array_length({array_expr}, 1) > 0
+    """
+
     total_indexed = 0
     task_uids = []
 
     with Session(get_engine()) as session:
-        for model in models:
-            entity_type = model.__tablename__
-            click.echo(f"⏳ Indexing {entity_type}...")
+        # Count total
+        count_result = session.execute(text(f"SELECT COUNT(*) FROM ({base_sql}) subq"))
+        total = count_result.scalar()
 
-            # Count total
-            total = (
-                session.query(model)
-                .join(WikidataEntity, model.wikidata_id == WikidataEntity.wikidata_id)
-                .filter(WikidataEntity.deleted_at.is_(None))
-                .count()
-            )
+        if total == 0:
+            click.echo("   No entities to index")
+            return
 
-            if total == 0:
-                click.echo(f"   No {entity_type} to index")
-                continue
+        click.echo(f"   Found {total:,} entities to index")
 
-            indexed = 0
-            offset = 0
+        # Process in batches
+        offset_val = 0
+        while offset_val < total:
+            paginated_sql = f"{base_sql} OFFSET :offset LIMIT :limit"
+            rows = session.execute(
+                text(paginated_sql),
+                {"offset": offset_val, "limit": batch_size},
+            ).fetchall()
 
-            while offset < total:
-                # Fetch only wikidata_id and labels (no ORM objects, no timestamps)
-                rows = (
-                    session.query(
-                        model.wikidata_id,
-                        func.array_agg(WikidataEntityLabel.label),
-                    )
-                    .join(
-                        WikidataEntity, model.wikidata_id == WikidataEntity.wikidata_id
-                    )
-                    .join(
-                        WikidataEntityLabel,
-                        WikidataEntity.wikidata_id == WikidataEntityLabel.entity_id,
-                    )
-                    .filter(WikidataEntity.deleted_at.is_(None))
-                    .group_by(model.wikidata_id)
-                    .offset(offset)
-                    .limit(batch_size)
-                    .all()
+            if not rows:
+                break
+
+            # Build search documents
+            documents = [
+                SearchDocument(
+                    id=row.wikidata_id, types=list(row.types), labels=list(row.labels)
                 )
+                for row in rows
+            ]
 
-                if not rows:
-                    break
+            # Send batch without waiting (enables Meilisearch auto-batching)
+            task_uid = search_service.index_documents(documents)
+            if task_uid is not None:
+                task_uids.append(task_uid)
 
-                # Build search documents directly from rows
-                documents = [
-                    SearchDocument(id=wikidata_id, type=entity_type, labels=labels)
-                    for wikidata_id, labels in rows
-                ]
+            total_indexed += len(documents)
+            offset_val += batch_size
 
-                # Send batch without waiting (enables Meilisearch auto-batching)
-                task_uid = search_service.index_documents(documents)
-                if task_uid is not None:
-                    task_uids.append(task_uid)
-
-                indexed += len(documents)
-                offset += batch_size
-
-                click.echo(f"   Sent: {indexed}/{total}")
-
-            total_indexed += indexed
+            click.echo(f"   Sent: {total_indexed:,}/{total:,}")
 
     click.echo(
-        f"✅ Sent {total_indexed} documents for indexing ({len(task_uids)} tasks)"
+        f"✅ Sent {total_indexed:,} documents for indexing ({len(task_uids)} tasks)"
     )
     click.echo(
         "   Indexing continues in the background. Use 'poliloom index-stats' to check progress."

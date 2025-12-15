@@ -137,7 +137,7 @@ class WikidataEntityMixin:
         """
         return search_service.search(
             query,
-            entity_type=cls.__tablename__,
+            entity_type=cls.__name__,
             limit=limit,
             semantic_ratio=cls._search_semantic_ratio,
         )

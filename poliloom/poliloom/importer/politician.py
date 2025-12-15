@@ -21,7 +21,6 @@ from ..models import (
     WikipediaLink,
     WikipediaProject,
 )
-from ..search import SearchDocument, SearchService
 from ..wikidata_entity_processor import WikidataEntityProcessor
 
 logger = logging.getLogger(__name__)
@@ -109,23 +108,13 @@ def _should_import_politician(entity: WikidataEntityProcessor) -> bool:
     return True
 
 
-def _insert_politicians_batch(
-    politicians: list[dict], session: Session, search_service: SearchService
-) -> None:
-    """Insert a batch of politicians into the database and index to Meilisearch."""
+def _insert_politicians_batch(politicians: list[dict], session: Session) -> None:
+    """Insert a batch of politicians into the database.
+
+    Search indexing is handled separately by the index-build command.
+    """
     if not politicians:
         return
-
-    # Build search documents BEFORE modifying politicians (labels get used later)
-    search_documents: list[SearchDocument] = [
-        SearchDocument(
-            id=p["wikidata_id"],
-            type=Politician.__tablename__,
-            labels=p["labels"],
-        )
-        for p in politicians
-        if p.get("labels")
-    ]
 
     # First, ensure WikidataEntity records exist for all politicians (without labels)
     wikidata_data = [
@@ -211,10 +200,6 @@ def _insert_politicians_batch(
 
     session.commit()
 
-    # Index to Meilisearch after successful DB commit
-    if search_documents:
-        search_service.index_documents(search_documents)
-
     logger.debug(f"Processed {len(politicians)} politicians (upserted)")
 
 
@@ -233,7 +218,6 @@ def _process_politicians_chunk(
     """
     # Create fresh connections for this worker process
     engine = create_engine(pool_size=2, max_overflow=3)
-    search_service = SearchService()
 
     politicians = []
     politician_count = 0
@@ -419,7 +403,7 @@ def _process_politicians_chunk(
             # Process batches when they reach the batch size
             if len(politicians) >= batch_size:
                 with Session(engine) as session:
-                    _insert_politicians_batch(politicians, session, search_service)
+                    _insert_politicians_batch(politicians, session)
                 politicians = []
 
     except Exception as e:
@@ -429,7 +413,7 @@ def _process_politicians_chunk(
     # Process remaining entities in final batch on successful completion
     if politicians:
         with Session(engine) as session:
-            _insert_politicians_batch(politicians, session, search_service)
+            _insert_politicians_batch(politicians, session)
 
     logger.info(f"Worker {worker_id}: finished processing {entity_count} entities")
 
