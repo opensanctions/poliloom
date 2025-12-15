@@ -1,5 +1,7 @@
 @import 'tailwindcss';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @font-face {
   font-family: 'Mona Sans';
   src: url('https://assets.opensanctions.org/fonts/Mona-Sans.woff2') format('woff2');
@@ -132,68 +134,7 @@
   --font-mono: var(--font-monaspace);
 }
 
-/* Dark mode: apply when .dark class is set, or when system prefers dark and no override */
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    /* Backgrounds */
-    --background: #0a0a0a;
-    --surface: #18181b; /* zinc-900 */
-    --surface-muted: #1f1f23;
-    --surface-hover: #27272a; /* zinc-800 */
-    --surface-active: #3f3f46; /* zinc-700 */
-
-    /* Text */
-    --foreground: #ededed;
-    --foreground-secondary: #d4d4d8; /* zinc-300 */
-    --foreground-tertiary: #a1a1aa; /* zinc-400 */
-    --foreground-muted: #71717a; /* zinc-500 */
-    --foreground-subtle: #52525b; /* zinc-600 */
-
-    /* Borders */
-    --border-muted: #27272a; /* zinc-800 */
-    --border: #3f3f46; /* zinc-700 */
-    --border-strong: #52525b; /* zinc-600 */
-
-    /* Primary/Accent (Indigo) */
-    --accent: #6366f1; /* indigo-500 */
-    --accent-hover: #818cf8; /* indigo-400 */
-    --accent-foreground: #a5b4fc; /* indigo-300 */
-    --accent-foreground-hover: #c7d2fe; /* indigo-200 */
-    --accent-muted: rgba(99, 102, 241, 0.15);
-    --accent-muted-hover: rgba(99, 102, 241, 0.25);
-    --accent-light: #4f46e5; /* indigo-600 */
-    --accent-border-hover: #6366f1; /* indigo-500 */
-    --accent-on-muted: #c7d2fe; /* indigo-200 */
-    --accent-on-solid: #ffffff;
-    --accent-on-solid-muted: #a5b4fc; /* indigo-300 - dimmed text on solid */
-
-    /* Success (Green) */
-    --success: #22c55e; /* green-500 */
-    --success-bright: #22c55e; /* green-500 */
-    --success-muted: rgba(34, 197, 94, 0.15);
-    --success-muted-hover: rgba(34, 197, 94, 0.25);
-    --success-foreground: #86efac; /* green-300 */
-
-    /* Danger (Red) */
-    --danger: #ef4444; /* red-500 */
-    --danger-bright: #f87171; /* red-400 */
-    --danger-muted: rgba(239, 68, 68, 0.15);
-    --danger-muted-hover: rgba(239, 68, 68, 0.25);
-    --danger-foreground: #fca5a5; /* red-300 */
-    --danger-foreground-hover: #fecaca; /* red-200 */
-    --danger-subtle: #fca5a5; /* red-300 */
-    --danger-deep: rgba(127, 29, 29, 0.8);
-
-    /* Info (Blue) */
-    --info: #3b82f6; /* blue-500 */
-    --info-hover: #60a5fa; /* blue-400 */
-    --info-muted: rgba(59, 130, 246, 0.15);
-    --info-muted-hover: rgba(59, 130, 246, 0.25);
-    --info-foreground: #93c5fd; /* blue-300 */
-  }
-}
-
-/* Manual dark mode override */
+/* Dark mode */
 :root.dark {
   /* Backgrounds */
   --background: #0a0a0a;

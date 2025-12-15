@@ -33,8 +33,19 @@ export default async function RootLayout({
   const themeClass = themeCookie === 'light' || themeCookie === 'dark' ? themeCookie : ''
 
   return (
-    <html lang="en" className={themeClass}>
+    <html lang="en" className={themeClass} suppressHydrationWarning>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (!document.documentElement.classList.contains('light') && !document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.add(
+                  window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+                );
+              }
+            `,
+          }}
+        />
         <Script
           src="https://cloud.umami.is/script.js"
           data-website-id="0d1eaae6-470d-4087-9908-ec65448c2490"

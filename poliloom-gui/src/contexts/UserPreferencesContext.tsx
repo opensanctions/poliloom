@@ -16,8 +16,6 @@ import {
   WikidataEntity,
 } from '@/types'
 
-export type Theme = 'light' | 'dark' | undefined
-
 interface UserPreferencesContextType {
   filters: PreferenceResponse[]
   languages: LanguageResponse[]
@@ -28,7 +26,6 @@ interface UserPreferencesContextType {
   updateFilters: (type: PreferenceType, items: WikidataEntity[]) => void
   isAdvancedMode: boolean
   setAdvancedMode: (enabled: boolean) => void
-  theme: Theme
   setTheme: (theme: 'light' | 'dark') => void
 }
 
@@ -51,20 +48,6 @@ function getAdvancedModeServerSnapshot(): boolean {
 }
 
 function subscribeToAdvancedMode(callback: () => void): () => void {
-  window.addEventListener('storage', callback)
-  return () => window.removeEventListener('storage', callback)
-}
-
-// Theme helpers
-function getThemeCookie(): Theme {
-  if (typeof document === 'undefined') return undefined
-  const match = document.cookie.match(new RegExp(`${THEME_COOKIE_NAME}=([^;]+)`))
-  const value = match?.[1]
-  if (value === 'light' || value === 'dark') return value
-  return undefined
-}
-
-function subscribeToTheme(callback: () => void): () => void {
   window.addEventListener('storage', callback)
   return () => window.removeEventListener('storage', callback)
 }
@@ -141,13 +124,21 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
     forceUpdate((n) => n + 1)
   }, [])
 
-  // Theme state
-  const theme = useSyncExternalStore(subscribeToTheme, getThemeCookie, () => undefined)
-
   const setTheme = useCallback((newTheme: 'light' | 'dark') => {
     setThemeCookie(newTheme)
     applyThemeToDocument(newTheme)
-    forceUpdate((n) => n + 1)
+  }, [])
+
+  // Follow system preference when no cookie is set
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const handleChange = (e: MediaQueryListEvent) => {
+      if (!document.cookie.includes(THEME_COOKIE_NAME)) {
+        applyThemeToDocument(e.matches ? 'dark' : 'light')
+      }
+    }
+    mq.addEventListener('change', handleChange)
+    return () => mq.removeEventListener('change', handleChange)
   }, [])
 
   // Fetch available languages
@@ -259,7 +250,6 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
     updateFilters,
     isAdvancedMode,
     setAdvancedMode,
-    theme,
     setTheme,
   }
 
