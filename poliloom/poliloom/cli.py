@@ -969,31 +969,36 @@ def index_delete(confirm):
     click.echo(f"✅ Successfully deleted index '{INDEX_NAME}'")
 
 
-@main.command("index-rebuild")
+@main.command("index-build")
 @click.option(
     "--batch-size",
     default=50000,
     help="Number of documents to index per batch (10k-50k recommended)",
 )
-def index_rebuild(batch_size):
-    """Rebuild Meilisearch index from database.
+@click.option(
+    "--rebuild",
+    is_flag=True,
+    help="Delete and recreate index before indexing (required for first run)",
+)
+def index_build(batch_size, rebuild):
+    """Build Meilisearch index from database.
 
-    Deletes existing index, recreates it, and reindexes all documents
-    from Location, Country, Language, and Politician tables.
+    Indexes all documents from Location, Country, Language, and Politician tables.
+    Uses upsert semantics - unchanged documents won't be re-embedded.
 
-    Uses async batching to leverage Meilisearch's auto-batching feature,
-    which combines consecutive requests for faster indexing.
+    Use --rebuild to delete and recreate the index (required for first run).
     """
-    from poliloom.search import SearchService, INDEX_NAME, SearchDocument
-
-    click.echo("⏳ Rebuilding Meilisearch index...")
+    from poliloom.search import INDEX_NAME, SearchDocument, SearchService
 
     search_service = SearchService()
 
-    # Delete and recreate index
-    search_service.delete_index()
-    search_service.create_index()
-    click.echo(f"   Recreated index '{INDEX_NAME}'")
+    if rebuild:
+        click.echo("⏳ Rebuilding Meilisearch index...")
+        search_service.delete_index()
+        search_service.create_index()
+        click.echo(f"   Recreated index '{INDEX_NAME}'")
+    else:
+        click.echo("⏳ Building Meilisearch index...")
 
     # Reindex all documents from each model type
     models = _get_search_indexed_models()
@@ -1075,7 +1080,7 @@ def index_stats():
     """Show Meilisearch index status and task progress.
 
     Displays document counts, indexing progress, and any failed tasks.
-    Useful for monitoring background indexing after index-rebuild.
+    Useful for monitoring background indexing after index-build.
     """
 
     from poliloom.search import INDEX_NAME, SearchService
