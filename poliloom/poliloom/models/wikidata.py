@@ -19,10 +19,12 @@ from sqlalchemy import (
     delete,
     exists,
     func,
+    literal,
     literal_column,
     or_,
     select,
     text,
+    union_all,
     update,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -622,6 +624,51 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         session.execute(text("DROP TABLE entities_to_keep"))
 
         return result.rowcount
+
+    @classmethod
+    def search_index_query(cls):
+        """Build query for search index documents.
+
+        Creates a query that returns all searchable entities with their
+        aggregated types and labels. Only includes non-deleted entities.
+
+        Returns:
+            SQLAlchemy select query with columns: wikidata_id, types, labels
+        """
+        models = WikidataEntityMixin.__subclasses__()
+
+        # Build UNION of all model tables with their type names
+        entity_unions = union_all(
+            *[
+                select(
+                    model.wikidata_id.label("wikidata_id"),
+                    literal(model.__name__).label("type"),
+                )
+                for model in models
+            ]
+        ).subquery("entity_types")
+
+        # Main query: aggregate types and labels per entity
+        return (
+            select(
+                entity_unions.c.wikidata_id,
+                func.array_agg(func.distinct(entity_unions.c.type)).label("types"),
+                func.array_agg(func.distinct(WikidataEntityLabel.label)).label(
+                    "labels"
+                ),
+            )
+            .select_from(entity_unions)
+            .join(
+                WikidataEntityLabel,
+                entity_unions.c.wikidata_id == WikidataEntityLabel.entity_id,
+            )
+            .join(
+                cls,
+                entity_unions.c.wikidata_id == cls.wikidata_id,
+            )
+            .where(cls.deleted_at.is_(None))
+            .group_by(entity_unions.c.wikidata_id)
+        )
 
 
 class WikidataEntityLabel(Base, TimestampMixin, UpsertMixin):

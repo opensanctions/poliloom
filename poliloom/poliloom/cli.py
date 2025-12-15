@@ -14,7 +14,7 @@ from poliloom.importer.politician import import_politicians
 from poliloom.database import get_engine
 from poliloom.logging import setup_logging
 from sqlalchemy.orm import Session
-from sqlalchemy import exists, text
+from sqlalchemy import exists, func, select
 from poliloom.models import (
     Country,
     CurrentImportEntity,
@@ -899,24 +899,6 @@ def clean_properties(dry_run):
             raise SystemExit(1)
 
 
-def _get_search_indexed_models():
-    """Get all models that use WikidataEntityMixin (which provides search indexing)."""
-    from poliloom.models.wikidata import WikidataEntityMixin
-    import poliloom.models as models_module
-
-    search_indexed_models = []
-    for name in dir(models_module):
-        obj = getattr(models_module, name)
-        if (
-            isinstance(obj, type)
-            and issubclass(obj, WikidataEntityMixin)
-            and obj is not WikidataEntityMixin
-            and hasattr(obj, "__tablename__")
-        ):
-            search_indexed_models.append(obj)
-    return search_indexed_models
-
-
 @main.command("index-create")
 def index_create():
     """Create the Meilisearch entities index.
@@ -1001,48 +983,16 @@ def index_build(batch_size, rebuild):
         if search_service.ensure_index():
             click.echo(f"   Created index '{INDEX_NAME}'")
 
-    # Get all searchable models
-    models = _get_search_indexed_models()
-    click.echo(f"   Types: {', '.join(m.__name__ for m in models)}")
-
-    # Build dynamic SQL query
-    # LEFT JOIN each model table and build types array from which ones match
-    left_joins = []
-    case_statements = []
-    group_by_columns = ["we.wikidata_id"]
-
-    for model in models:
-        table_name = model.__tablename__
-        left_joins.append(
-            f"LEFT JOIN {table_name} ON we.wikidata_id = {table_name}.wikidata_id"
-        )
-        case_statements.append(
-            f"CASE WHEN {table_name}.wikidata_id IS NOT NULL THEN '{model.__name__}' END"
-        )
-        group_by_columns.append(f"{table_name}.wikidata_id")
-
-    array_expr = f"array_remove(ARRAY[{', '.join(case_statements)}], NULL)"
-
-    base_sql = f"""
-        SELECT
-            we.wikidata_id,
-            array_agg(DISTINCT wel.label) as labels,
-            {array_expr} as types
-        FROM wikidata_entities we
-        JOIN wikidata_entity_labels wel ON we.wikidata_id = wel.entity_id
-        {chr(10).join(left_joins)}
-        WHERE we.deleted_at IS NULL
-        GROUP BY {", ".join(group_by_columns)}
-        HAVING array_length({array_expr}, 1) > 0
-    """
+    # Build query for search index documents
+    query = WikidataEntity.search_index_query()
 
     total_indexed = 0
     task_uids = []
 
     with Session(get_engine()) as session:
         # Count total
-        count_result = session.execute(text(f"SELECT COUNT(*) FROM ({base_sql}) subq"))
-        total = count_result.scalar()
+        count_query = select(func.count()).select_from(query.subquery())
+        total = session.execute(count_query).scalar()
 
         if total == 0:
             click.echo("   No entities to index")
@@ -1053,11 +1003,8 @@ def index_build(batch_size, rebuild):
         # Process in batches
         offset_val = 0
         while offset_val < total:
-            paginated_sql = f"{base_sql} OFFSET :offset LIMIT :limit"
-            rows = session.execute(
-                text(paginated_sql),
-                {"offset": offset_val, "limit": batch_size},
-            ).fetchall()
+            paginated_query = query.offset(offset_val).limit(batch_size)
+            rows = session.execute(paginated_query).fetchall()
 
             if not rows:
                 break

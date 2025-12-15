@@ -987,3 +987,175 @@ class TestCleanupOutsideHierarchySearchService:
 
         # Dry run reports what would be removed
         assert stats["entities_removed"] == 1
+
+
+class TestSearchIndexQuery:
+    """Test WikidataEntity.search_index_query functionality."""
+
+    def _create_entity_with_labels(self, db_session, wikidata_id, name, labels):
+        """Helper to create a WikidataEntity with labels."""
+        from poliloom.models import WikidataEntityLabel
+
+        stmt = insert(WikidataEntity).values(
+            [{"wikidata_id": wikidata_id, "name": name}]
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+
+        for label in labels:
+            stmt = insert(WikidataEntityLabel).values(
+                [{"entity_id": wikidata_id, "label": label}]
+            )
+            stmt = stmt.on_conflict_do_nothing(index_elements=["entity_id", "label"])
+            db_session.execute(stmt)
+
+        db_session.flush()
+
+    def _create_location(self, db_session, wikidata_id, name, labels):
+        """Helper to create a Location entity with labels."""
+        from poliloom.models import Location
+
+        self._create_entity_with_labels(db_session, wikidata_id, name, labels)
+
+        stmt = insert(Location.__table__).values([{"wikidata_id": wikidata_id}])
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+        db_session.flush()
+
+    def _create_country(self, db_session, wikidata_id, name, labels):
+        """Helper to create a Country entity with labels."""
+        from poliloom.models import Country
+
+        self._create_entity_with_labels(db_session, wikidata_id, name, labels)
+
+        stmt = insert(Country.__table__).values([{"wikidata_id": wikidata_id}])
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+        db_session.flush()
+
+    def _create_position(self, db_session, wikidata_id, name, labels):
+        """Helper to create a Position entity with labels."""
+        from poliloom.models import Position
+
+        self._create_entity_with_labels(db_session, wikidata_id, name, labels)
+
+        stmt = insert(Position.__table__).values([{"wikidata_id": wikidata_id}])
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+        db_session.flush()
+
+    def test_returns_entity_with_single_type(self, db_session):
+        """Test query returns entity with single type."""
+        self._create_location(db_session, "Q60", "New York City", ["New York", "NYC"])
+
+        query = WikidataEntity.search_index_query()
+        results = db_session.execute(query).fetchall()
+
+        assert len(results) == 1
+        row = results[0]
+        assert row.wikidata_id == "Q60"
+        assert "Location" in row.types
+        assert set(row.labels) == {"New York", "NYC"}
+
+    def test_returns_entity_with_multiple_types(self, db_session):
+        """Test query aggregates multiple types for same entity."""
+        from poliloom.models import Location, Country
+
+        # Germany is both a Location and a Country
+        self._create_entity_with_labels(
+            db_session, "Q183", "Germany", ["Germany", "Deutschland"]
+        )
+
+        # Add to both tables
+        stmt = insert(Location.__table__).values([{"wikidata_id": "Q183"}])
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+
+        stmt = insert(Country.__table__).values([{"wikidata_id": "Q183"}])
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+        db_session.flush()
+
+        query = WikidataEntity.search_index_query()
+        results = db_session.execute(query).fetchall()
+
+        assert len(results) == 1
+        row = results[0]
+        assert row.wikidata_id == "Q183"
+        assert "Location" in row.types
+        assert "Country" in row.types
+        assert set(row.labels) == {"Germany", "Deutschland"}
+
+    def test_returns_multiple_entities(self, db_session):
+        """Test query returns multiple entities."""
+        self._create_location(db_session, "Q60", "New York City", ["NYC"])
+        self._create_position(db_session, "Q30185", "Mayor", ["Mayor", "Bürgermeister"])
+
+        query = WikidataEntity.search_index_query()
+        results = db_session.execute(query).fetchall()
+
+        assert len(results) == 2
+        results_by_id = {r.wikidata_id: r for r in results}
+
+        assert "Location" in results_by_id["Q60"].types
+        assert set(results_by_id["Q60"].labels) == {"NYC"}
+
+        assert "Position" in results_by_id["Q30185"].types
+        assert set(results_by_id["Q30185"].labels) == {"Mayor", "Bürgermeister"}
+
+    def test_excludes_soft_deleted_entities(self, db_session):
+        """Test query excludes soft-deleted entities."""
+        from datetime import datetime, timezone
+
+        self._create_location(db_session, "Q60", "New York City", ["NYC"])
+        self._create_location(db_session, "Q84", "London", ["London"])
+
+        # Soft-delete London
+        db_session.execute(
+            WikidataEntity.__table__.update()
+            .where(WikidataEntity.wikidata_id == "Q84")
+            .values(deleted_at=datetime.now(timezone.utc))
+        )
+        db_session.flush()
+
+        query = WikidataEntity.search_index_query()
+        results = db_session.execute(query).fetchall()
+
+        assert len(results) == 1
+        assert results[0].wikidata_id == "Q60"
+
+    def test_excludes_entities_not_in_model_tables(self, db_session):
+        """Test query only returns entities that exist in model tables."""
+        # Create entity with labels but NOT in any model table
+        self._create_entity_with_labels(db_session, "Q999", "Orphan Entity", ["Orphan"])
+
+        # Create proper location
+        self._create_location(db_session, "Q60", "New York City", ["NYC"])
+
+        query = WikidataEntity.search_index_query()
+        results = db_session.execute(query).fetchall()
+
+        # Only the location should be returned
+        assert len(results) == 1
+        assert results[0].wikidata_id == "Q60"
+
+    def test_pagination_with_offset_and_limit(self, db_session):
+        """Test query supports pagination with offset and limit."""
+        # Create multiple locations
+        for i in range(5):
+            self._create_location(db_session, f"Q{i}", f"Location {i}", [f"Label {i}"])
+
+        query = WikidataEntity.search_index_query()
+
+        # Get first 2
+        results_page1 = db_session.execute(query.limit(2)).fetchall()
+        assert len(results_page1) == 2
+
+        # Get next 2
+        results_page2 = db_session.execute(query.offset(2).limit(2)).fetchall()
+        assert len(results_page2) == 2
+
+        # Verify no overlap
+        page1_ids = {r.wikidata_id for r in results_page1}
+        page2_ids = {r.wikidata_id for r in results_page2}
+        assert page1_ids.isdisjoint(page2_ids)
