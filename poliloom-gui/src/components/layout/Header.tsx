@@ -106,7 +106,7 @@ export function Header() {
         </Button>
         {status === 'authenticated' ? (
           <Button
-            onClick={() => signOut({ callbackUrl: '/' })}
+            onClick={() => signOut({ callbackUrl: '/login' })}
             variant="secondary"
             size="small"
             className="max-md:text-lg max-md:py-4 max-md:px-6 max-md:justify-start"

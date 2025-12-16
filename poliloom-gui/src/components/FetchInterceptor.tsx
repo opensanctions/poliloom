@@ -14,9 +14,7 @@ export function FetchInterceptor() {
 
       // Check for 401 responses and sign out to clear invalid session
       if (response.status === 401) {
-        // Sign out to clear the invalid session
-        // This will show the logged-out home page where users can manually sign in again
-        await signOut({ redirect: false })
+        await signOut({ callbackUrl: '/login' })
       }
 
       return response

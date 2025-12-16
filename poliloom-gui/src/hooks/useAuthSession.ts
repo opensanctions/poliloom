@@ -6,8 +6,8 @@ export function useAuthSession() {
 
   useEffect(() => {
     if (session?.error === 'RefreshAccessTokenError') {
-      // Redirect to home page when refresh token is expired or missing
-      signOut({ callbackUrl: '/' })
+      // Redirect to login page when refresh token is expired or missing
+      signOut({ callbackUrl: '/login' })
     }
   }, [session])
 
