@@ -5,10 +5,12 @@ services:
       - "127.0.0.1:7700:7700"
     volumes:
       - meilisearch_data:/meili_data
+      - ./dumps:/dumps
     environment:
       - MEILI_NO_ANALYTICS=true
       - MEILI_ENV=production
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+      - MEILI_DUMP_DIR=/dumps
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
       interval: 10s
@@ -26,6 +28,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
       - ./init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./dumps:/dumps
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s

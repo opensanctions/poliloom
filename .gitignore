@@ -1,3 +1,4 @@
 poliloom_db_dump.sql
 /.env
 docker-compose.override.yml
+dumps/

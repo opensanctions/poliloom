@@ -1,4 +1,4 @@
-.PHONY: pgadmin-start pgadmin-stop download-wikidata-dump extract-wikidata-dump db-truncate db-dump db-restore run-download-pipeline run-import-pipeline export-positions-csv export-locations-csv
+.PHONY: pgadmin-start pgadmin-stop download-wikidata-dump extract-wikidata-dump db-truncate db-dump db-restore run-download-pipeline run-import-pipeline export-positions-csv export-locations-csv index-dump index-restore
 
 # Start pgAdmin4 container for database inspection
 pgadmin-start:
@@ -37,21 +37,22 @@ db-truncate:
 
 # Dump database to local file
 db-dump:
-	@echo "Dumping database to poliloom_db_dump.sql..."
-	@docker compose exec -T postgres pg_dump -U postgres -d poliloom > poliloom_db_dump.sql
-	@echo "Database dumped successfully to poliloom_db_dump.sql"
+	@mkdir -p dumps
+	@echo "Dumping database to dumps/postgres.sql..."
+	@docker compose exec -T postgres pg_dump -U postgres -d poliloom -f /dumps/postgres.sql
+	@echo "Database dumped successfully to dumps/postgres.sql"
 
 # Restore database from local file
 db-restore:
-	@echo "Restoring database from poliloom_db_dump.sql..."
-	@if [ ! -f poliloom_db_dump.sql ]; then \
-		echo "Error: poliloom_db_dump.sql not found. Run 'make db-dump' first or ensure the file exists."; \
+	@echo "Restoring database from dumps/postgres.sql..."
+	@if [ ! -f dumps/postgres.sql ]; then \
+		echo "Error: dumps/postgres.sql not found. Run 'make db-dump' first."; \
 		exit 1; \
 	fi
 	@docker compose exec -T postgres psql -U postgres -d poliloom -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-	@docker compose exec -T postgres psql -U postgres -d poliloom < init-db.sql
-	@docker compose exec -T postgres psql -U postgres -d poliloom < poliloom_db_dump.sql
-	@echo "Database restored successfully from poliloom_db_dump.sql"
+	@docker compose exec -T postgres psql -U postgres -d poliloom -f /docker-entrypoint-initdb.d/01-init.sql
+	@docker compose exec -T postgres psql -U postgres -d poliloom -f /dumps/postgres.sql
+	@echo "Database restored successfully from dumps/postgres.sql"
 
 
 # Download and extract wikidata dump
@@ -88,3 +89,45 @@ export-positions-csv:
 # Export all locations to CSV file
 export-locations-csv:
 	@docker compose exec -T postgres psql -U postgres -d poliloom -c "\COPY (SELECT wikidata_id, name FROM locations ORDER BY wikidata_id) TO STDOUT WITH CSV HEADER"
+
+# Dump search index to local file
+index-dump:
+	@mkdir -p dumps
+	@echo "Dumping Meilisearch to dumps/meilisearch.dump..."
+	@. ./.env && \
+	TASK_UID=$$(curl -s -X POST "http://localhost:7700/dumps" \
+		-H "Authorization: Bearer $$MEILI_MASTER_KEY" | jq -r '.taskUid') && \
+	trap 'echo "Cancelling dump task..."; curl -s -X POST "http://localhost:7700/tasks/cancel?uids=$$TASK_UID" -H "Authorization: Bearer $$MEILI_MASTER_KEY" > /dev/null; exit 1' INT && \
+	echo "Dump task started (taskUid: $$TASK_UID). Waiting for completion..." && \
+	while true; do \
+		STATUS=$$(curl -s "http://localhost:7700/tasks/$$TASK_UID" \
+			-H "Authorization: Bearer $$MEILI_MASTER_KEY" | jq -r '.status'); \
+		if [ "$$STATUS" = "succeeded" ]; then \
+			DUMP_UID=$$(curl -s "http://localhost:7700/tasks/$$TASK_UID" \
+				-H "Authorization: Bearer $$MEILI_MASTER_KEY" | jq -r '.details.dumpUid'); \
+			mv dumps/$$DUMP_UID.dump dumps/meilisearch.dump; \
+			echo "Meilisearch dumped successfully to dumps/meilisearch.dump"; \
+			break; \
+		elif [ "$$STATUS" = "failed" ]; then \
+			echo "Dump failed!"; \
+			exit 1; \
+		fi; \
+		sleep 1; \
+	done
+
+# Restore search index from local file
+index-restore:
+	@echo "Restoring Meilisearch from dumps/meilisearch.dump..."
+	@if [ ! -f dumps/meilisearch.dump ]; then \
+		echo "Error: dumps/meilisearch.dump not found. Run 'make index-dump' first."; \
+		exit 1; \
+	fi
+	@docker compose stop meilisearch
+	@. ./.env && docker run --rm \
+		-v poliloom_meilisearch_data:/meili_data \
+		-v $(PWD)/dumps:/dumps \
+		-e MEILI_MASTER_KEY=$$MEILI_MASTER_KEY \
+		getmeili/meilisearch:v1.29 \
+		meilisearch --import-dump /dumps/meilisearch.dump
+	@docker compose up -d meilisearch
+	@echo "Meilisearch restored successfully from dumps/meilisearch.dump"
