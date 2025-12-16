@@ -343,7 +343,7 @@ export default function StatsPage() {
   }
 
   return (
-    <main className="bg-surface-muted min-h-0 overflow-y-auto flex flex-col">
+    <main className="min-h-0 overflow-y-auto flex flex-col">
       <div className="flex-1 max-w-6xl mx-auto px-6 pt-12 w-full">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-4">Community Stats</h1>

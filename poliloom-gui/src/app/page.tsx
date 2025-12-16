@@ -66,7 +66,7 @@ export default function Home() {
   const handleCountryChange = createFilterHandler(PreferenceType.COUNTRY, countries)
 
   return (
-    <main className="bg-surface-muted min-h-0 overflow-y-auto flex flex-col">
+    <main className="min-h-0 overflow-y-auto flex flex-col">
       {/* Filters Section */}
       <div className="flex-1 max-w-6xl mx-auto px-6 pt-12 w-full">
         <div className="mb-8">
