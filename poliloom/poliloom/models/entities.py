@@ -305,6 +305,7 @@ class Position(
         "Q63187345",  # religious occupation
         "Q29982545",  # function in the Evangelical Church of Czech Brethren
         "Q12737077",  # occupation
+        "Q4504549",  # religious figure
     ]
 
     # Cleanup configuration: property type to soft-delete when cleaning hierarchy
