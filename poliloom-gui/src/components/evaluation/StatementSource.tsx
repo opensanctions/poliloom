@@ -36,7 +36,7 @@ export function StatementSource({
             href={archivedPage.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-info-foreground hover:underline truncate min-w-0"
+            className="text-sm text-accent-foreground hover:underline truncate min-w-0"
             title={archivedPage.url}
           >
             {archivedPage.url}

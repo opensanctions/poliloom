@@ -25,7 +25,7 @@ type ButtonAsLink = CommonProps & {
 type ButtonProps = ButtonAsButton | ButtonAsLink
 
 const sizeClasses: Record<ButtonSize, string> = {
-  small: 'px-2 py-1 text-sm',
+  small: 'px-3 py-1.5 text-sm',
   medium: 'px-4 py-2',
   large: 'px-6 py-3',
   xlarge: 'px-8 py-4',
@@ -49,8 +49,8 @@ const variantClasses: Record<ButtonVariant, { base: string; active: string }> = 
     active: 'bg-danger text-accent-on-solid font-medium',
   },
   info: {
-    base: 'bg-info-muted text-info-foreground font-medium hover:bg-info-muted-hover',
-    active: 'bg-info text-accent-on-solid font-medium hover:bg-info-hover',
+    base: 'bg-accent-muted text-accent-foreground font-medium hover:bg-accent-muted-hover',
+    active: 'bg-accent text-accent-on-solid font-medium hover:bg-accent-hover',
   },
 }
 

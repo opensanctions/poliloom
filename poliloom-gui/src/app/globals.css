@@ -38,18 +38,18 @@
   --border: var(--color-gray-200);
   --border-strong: var(--color-gray-300);
 
-  /* Primary/Accent (Indigo) */
-  --accent: var(--color-indigo-600);
-  --accent-hover: var(--color-indigo-700);
-  --accent-foreground: var(--color-indigo-600);
-  --accent-foreground-hover: var(--color-indigo-700);
-  --accent-muted: var(--color-indigo-50);
-  --accent-muted-hover: var(--color-indigo-100);
-  --accent-light: var(--color-indigo-300);
-  --accent-border-hover: var(--color-indigo-300);
-  --accent-on-muted: var(--color-indigo-900);
+  /* Primary/Accent (Blue) */
+  --accent: var(--color-blue-700);
+  --accent-hover: var(--color-blue-800);
+  --accent-foreground: var(--color-blue-600);
+  --accent-foreground-hover: var(--color-blue-700);
+  --accent-muted: var(--color-blue-100);
+  --accent-muted-hover: var(--color-blue-200);
+  --accent-light: var(--color-blue-300);
+  --accent-border-hover: var(--color-blue-300);
+  --accent-on-muted: var(--color-blue-900);
   --accent-on-solid: var(--color-white);
-  --accent-on-solid-muted: var(--color-indigo-200);
+  --accent-on-solid-muted: var(--color-blue-200);
 
   /* Success (Green) */
   --success: var(--color-green-600);
@@ -67,13 +67,6 @@
   --danger-foreground-hover: var(--color-red-800);
   --danger-subtle: var(--color-red-500);
   --danger-deep: var(--color-red-900);
-
-  /* Info (Blue) */
-  --info: var(--color-blue-700);
-  --info-hover: var(--color-blue-800);
-  --info-muted: var(--color-blue-100);
-  --info-muted-hover: var(--color-blue-200);
-  --info-foreground: var(--color-blue-600);
 
   /* Fonts */
   --font-mona-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -124,12 +117,6 @@
   --color-danger-subtle: var(--danger-subtle);
   --color-danger-deep: var(--danger-deep);
 
-  --color-info: var(--info);
-  --color-info-hover: var(--info-hover);
-  --color-info-muted: var(--info-muted);
-  --color-info-muted-hover: var(--info-muted-hover);
-  --color-info-foreground: var(--info-foreground);
-
   --font-sans: var(--font-mona-sans);
   --font-mono: var(--font-monaspace);
 }
@@ -155,18 +142,18 @@
   --border: var(--color-zinc-700);
   --border-strong: var(--color-zinc-600);
 
-  /* Primary/Accent (Indigo) - brighter for better pop */
-  --accent: var(--color-indigo-500);
-  --accent-hover: var(--color-indigo-400);
-  --accent-foreground: var(--color-indigo-400);
-  --accent-foreground-hover: var(--color-indigo-300);
-  --accent-muted: color-mix(in srgb, var(--color-indigo-500) 15%, transparent);
-  --accent-muted-hover: color-mix(in srgb, var(--color-indigo-500) 25%, transparent);
-  --accent-light: var(--color-indigo-600);
-  --accent-border-hover: var(--color-indigo-400);
-  --accent-on-muted: var(--color-indigo-200);
+  /* Primary/Accent (Blue) - brighter for better pop */
+  --accent: var(--color-blue-600);
+  --accent-hover: var(--color-blue-500);
+  --accent-foreground: var(--color-blue-400);
+  --accent-foreground-hover: var(--color-blue-300);
+  --accent-muted: color-mix(in srgb, var(--color-blue-500) 15%, transparent);
+  --accent-muted-hover: color-mix(in srgb, var(--color-blue-500) 25%, transparent);
+  --accent-light: var(--color-blue-600);
+  --accent-border-hover: var(--color-blue-400);
+  --accent-on-muted: var(--color-blue-200);
   --accent-on-solid: var(--color-white);
-  --accent-on-solid-muted: var(--color-indigo-200);
+  --accent-on-solid-muted: var(--color-blue-200);
 
   /* Success (Green) - slightly brighter */
   --success: var(--color-green-500);
@@ -184,13 +171,6 @@
   --danger-foreground-hover: var(--color-red-300);
   --danger-subtle: var(--color-red-400);
   --danger-deep: color-mix(in srgb, var(--color-red-950) 80%, transparent);
-
-  /* Info (Blue) */
-  --info: var(--color-blue-500);
-  --info-hover: var(--color-blue-400);
-  --info-muted: color-mix(in srgb, var(--color-blue-500) 15%, transparent);
-  --info-muted-hover: color-mix(in srgb, var(--color-blue-500) 25%, transparent);
-  --info-foreground: var(--color-blue-400);
 }
 
 body {
