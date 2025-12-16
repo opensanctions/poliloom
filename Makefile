@@ -122,12 +122,9 @@ index-dump-restore:
 		echo "Error: dumps/meilisearch.dump not found. Run 'make index-dump' first."; \
 		exit 1; \
 	fi
-	@docker compose stop meilisearch
-	@. ./.env && docker run --rm \
-		-v poliloom_meilisearch_data:/meili_data \
-		-v $(PWD)/dumps:/dumps \
-		-e MEILI_MASTER_KEY=$$MEILI_MASTER_KEY \
-		getmeili/meilisearch:v1.29 \
+	@docker compose rm -sf meilisearch
+	@docker volume rm poliloom_meilisearch_data || true
+	@docker compose run --rm -v $(PWD)/dumps:/dumps meilisearch \
 		meilisearch --import-dump /dumps/meilisearch.dump
 	@docker compose up -d meilisearch
 	@echo "Meilisearch restored successfully from dumps/meilisearch.dump"
@@ -166,14 +163,10 @@ index-snapshot-restore:
 		exit 1; \
 	fi; \
 	echo "Using snapshot: $$SNAPSHOT"
-	@docker compose stop meilisearch
+	@docker compose rm -sf meilisearch
 	@docker volume rm poliloom_meilisearch_data || true
 	@SNAPSHOT=$$(ls -t dumps/*.snapshot 2>/dev/null | head -1) && \
-	. ./.env && docker run --rm \
-		-v poliloom_meilisearch_data:/meili_data \
-		-v $(PWD)/dumps:/dumps \
-		-e MEILI_MASTER_KEY=$$MEILI_MASTER_KEY \
-		getmeili/meilisearch:v1.29 \
+	docker compose run --rm -v $(PWD)/dumps:/dumps meilisearch \
 		meilisearch --import-snapshot /dumps/$$(basename $$SNAPSHOT)
 	@docker compose up -d meilisearch
 	@echo "Meilisearch restored successfully from snapshot"
