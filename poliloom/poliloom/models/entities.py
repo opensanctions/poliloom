@@ -247,7 +247,9 @@ class Location(
         "Q3257686",  # locality
         "Q48907157",  # section of populated place
     ]
-    _hierarchy_ignore = []
+    _hierarchy_ignore = [
+        "Q51041800",  # religious administrative entity (dioceses, parishes, abbeys, etc.)
+    ]
 
     # Cleanup configuration: property type to soft-delete when cleaning hierarchy
     _cleanup_property_type = "BIRTHPLACE"
