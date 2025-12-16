@@ -4,7 +4,23 @@ import { useState } from 'react'
 import { Property, PropertyType } from '@/types'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
+import { Select } from '@/components/ui/Select'
 import { EntitySelector } from './EntitySelector'
+
+const precisionOptions = [
+  { value: '11', label: 'Day' },
+  { value: '10', label: 'Month' },
+  { value: '9', label: 'Year' },
+]
+
+const propertyTypeOptions = [
+  { value: '', label: 'Select a property type...' },
+  { value: PropertyType.P569, label: 'Birth Date (P569)' },
+  { value: PropertyType.P570, label: 'Death Date (P570)' },
+  { value: PropertyType.P39, label: 'Position Held (P39)' },
+  { value: PropertyType.P19, label: 'Place of Birth (P19)' },
+  { value: PropertyType.P27, label: 'Country of Citizenship (P27)' },
+]
 
 interface AddPropertyFormProps {
   onAddProperty: (property: Property) => void
@@ -205,35 +221,20 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
       </div>
 
       {/* Property Type Selector */}
-      <div>
-        <label
-          htmlFor="propertyType"
-          className="block text-sm font-medium text-foreground-secondary mb-1"
-        >
-          Property Type
-        </label>
-        <select
-          id="propertyType"
-          value={propertyType}
-          onChange={(e) => {
-            setPropertyType(e.target.value as PropertyType)
-            // Reset form fields when type changes
-            setDateValue('')
-            setSelectedEntity(null)
-            setStartDate('')
-            setEndDate('')
-          }}
-          className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent bg-surface text-foreground"
-          required
-        >
-          <option value="">Select a property type...</option>
-          <option value={PropertyType.P569}>Birth Date (P569)</option>
-          <option value={PropertyType.P570}>Death Date (P570)</option>
-          <option value={PropertyType.P39}>Position Held (P39)</option>
-          <option value={PropertyType.P19}>Place of Birth (P19)</option>
-          <option value={PropertyType.P27}>Country of Citizenship (P27)</option>
-        </select>
-      </div>
+      <Select
+        label="Property Type"
+        options={propertyTypeOptions}
+        value={propertyType}
+        onChange={(value) => {
+          setPropertyType(value as PropertyType)
+          // Reset form fields when type changes
+          setDateValue('')
+          setSelectedEntity(null)
+          setStartDate('')
+          setEndDate('')
+        }}
+        required
+      />
 
       {/* Date input for birth/death dates */}
       {(propertyType === PropertyType.P569 || propertyType === PropertyType.P570) && (
@@ -253,15 +254,11 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
               className="flex-1"
               required
             />
-            <select
-              value={datePrecision}
-              onChange={(e) => setDatePrecision(Number(e.target.value))}
-              className="px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-surface text-foreground"
-            >
-              <option value={11}>Day</option>
-              <option value={10}>Month</option>
-              <option value={9}>Year</option>
-            </select>
+            <Select
+              options={precisionOptions}
+              value={String(datePrecision)}
+              onChange={(value) => setDatePrecision(Number(value))}
+            />
           </div>
         </div>
       )}
@@ -321,16 +318,12 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
                 onChange={(e) => setStartDate(e.target.value)}
                 className="flex-1"
               />
-              <select
-                value={startDatePrecision}
-                onChange={(e) => setStartDatePrecision(Number(e.target.value))}
-                className="px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent bg-surface text-foreground"
+              <Select
+                options={precisionOptions}
+                value={String(startDatePrecision)}
+                onChange={(value) => setStartDatePrecision(Number(value))}
                 disabled={!startDate}
-              >
-                <option value={11}>Day</option>
-                <option value={10}>Month</option>
-                <option value={9}>Year</option>
-              </select>
+              />
             </div>
           </div>
 
@@ -350,16 +343,12 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
                 onChange={(e) => setEndDate(e.target.value)}
                 className="flex-1"
               />
-              <select
-                value={endDatePrecision}
-                onChange={(e) => setEndDatePrecision(Number(e.target.value))}
-                className="px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent bg-surface text-foreground"
+              <Select
+                options={precisionOptions}
+                value={String(endDatePrecision)}
+                onChange={(value) => setEndDatePrecision(Number(value))}
                 disabled={!endDate}
-              >
-                <option value={11}>Day</option>
-                <option value={10}>Month</option>
-                <option value={9}>Year</option>
-              </select>
+              />
             </div>
           </div>
         </div>

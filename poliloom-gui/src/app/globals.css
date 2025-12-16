@@ -45,7 +45,7 @@
   --accent-foreground-hover: var(--color-blue-700);
   --accent-muted: var(--color-blue-100);
   --accent-muted-hover: var(--color-blue-200);
-  --accent-light: var(--color-blue-300);
+  --accent-light: var(--color-blue-400);
   --accent-border-hover: var(--color-blue-300);
   --accent-on-muted: var(--color-blue-900);
   --accent-on-solid: var(--color-white);
@@ -149,7 +149,7 @@
   --accent-foreground-hover: var(--color-blue-300);
   --accent-muted: color-mix(in srgb, var(--color-blue-500) 15%, transparent);
   --accent-muted-hover: color-mix(in srgb, var(--color-blue-500) 25%, transparent);
-  --accent-light: var(--color-blue-600);
+  --accent-light: var(--color-blue-800);
   --accent-border-hover: var(--color-blue-400);
   --accent-on-muted: var(--color-blue-200);
   --accent-on-solid: var(--color-white);

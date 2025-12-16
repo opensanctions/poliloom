@@ -1,4 +1,4 @@
-.PHONY: pgadmin-start pgadmin-stop download-wikidata-dump extract-wikidata-dump db-truncate db-dump db-restore run-download-pipeline run-import-pipeline export-positions-csv export-locations-csv index-dump index-restore
+.PHONY: pgadmin-start pgadmin-stop download-wikidata-dump extract-wikidata-dump db-truncate db-dump db-restore run-download-pipeline run-import-pipeline export-positions-csv export-locations-csv index-dump index-dump-restore index-snapshot index-snapshot-restore
 
 # Start pgAdmin4 container for database inspection
 pgadmin-start:
@@ -116,7 +116,7 @@ index-dump:
 	done
 
 # Restore search index from local file
-index-restore:
+index-dump-restore:
 	@echo "Restoring Meilisearch from dumps/meilisearch.dump..."
 	@if [ ! -f dumps/meilisearch.dump ]; then \
 		echo "Error: dumps/meilisearch.dump not found. Run 'make index-dump' first."; \
@@ -131,3 +131,49 @@ index-restore:
 		meilisearch --import-dump /dumps/meilisearch.dump
 	@docker compose up -d meilisearch
 	@echo "Meilisearch restored successfully from dumps/meilisearch.dump"
+
+# Create search index snapshot (faster than dump, same version only)
+index-snapshot:
+	@mkdir -p dumps
+	@echo "Creating Meilisearch snapshot in dumps/..."
+	@. ./.env && \
+	TASK_UID=$$(curl -s -X POST "http://localhost:7700/snapshots" \
+		-H "Authorization: Bearer $$MEILI_MASTER_KEY" | jq -r '.taskUid') && \
+	trap 'echo "Cancelling snapshot task..."; curl -s -X POST "http://localhost:7700/tasks/cancel?uids=$$TASK_UID" -H "Authorization: Bearer $$MEILI_MASTER_KEY" > /dev/null; exit 1' INT && \
+	echo "Snapshot task started (taskUid: $$TASK_UID). Waiting for completion..." && \
+	while true; do \
+		STATUS=$$(curl -s "http://localhost:7700/tasks/$$TASK_UID" \
+			-H "Authorization: Bearer $$MEILI_MASTER_KEY" | jq -r '.status'); \
+		if [ "$$STATUS" = "succeeded" ]; then \
+			echo "Snapshot created successfully in dumps/"; \
+			ls -lh dumps/*.snapshot 2>/dev/null || echo "Snapshot file created"; \
+			break; \
+		elif [ "$$STATUS" = "failed" ]; then \
+			echo "Snapshot failed!"; \
+			curl -s "http://localhost:7700/tasks/$$TASK_UID" \
+				-H "Authorization: Bearer $$MEILI_MASTER_KEY" | jq '.error'; \
+			exit 1; \
+		fi; \
+		sleep 1; \
+	done
+
+# Restore search index from snapshot (same version only)
+index-snapshot-restore:
+	@echo "Restoring Meilisearch from snapshot..."
+	@SNAPSHOT=$$(ls -t dumps/*.snapshot 2>/dev/null | head -1); \
+	if [ -z "$$SNAPSHOT" ]; then \
+		echo "Error: No snapshot found in dumps/. Run 'make index-snapshot' first."; \
+		exit 1; \
+	fi; \
+	echo "Using snapshot: $$SNAPSHOT"
+	@docker compose stop meilisearch
+	@docker volume rm poliloom_meilisearch_data || true
+	@SNAPSHOT=$$(ls -t dumps/*.snapshot 2>/dev/null | head -1) && \
+	. ./.env && docker run --rm \
+		-v poliloom_meilisearch_data:/meili_data \
+		-v $(PWD)/dumps:/dumps \
+		-e MEILI_MASTER_KEY=$$MEILI_MASTER_KEY \
+		getmeili/meilisearch:v1.29 \
+		meilisearch --import-snapshot /dumps/$$(basename $$SNAPSHOT)
+	@docker compose up -d meilisearch
+	@echo "Meilisearch restored successfully from snapshot"

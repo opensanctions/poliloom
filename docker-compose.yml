@@ -11,6 +11,7 @@ services:
       - MEILI_ENV=production
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
       - MEILI_DUMP_DIR=/dumps
+      - MEILI_SNAPSHOT_DIR=/dumps
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
       interval: 10s
