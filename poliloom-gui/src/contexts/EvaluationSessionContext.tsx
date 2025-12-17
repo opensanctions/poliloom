@@ -242,7 +242,8 @@ export function EvaluationSessionProvider({ children }: { children: React.ReactN
 
   const resetSession = useCallback(() => {
     setCompletedCount(0)
-  }, [])
+    advanceToNextPolitician()
+  }, [advanceToNextPolitician])
 
   const value: EvaluationSessionContextType = {
     currentPolitician,

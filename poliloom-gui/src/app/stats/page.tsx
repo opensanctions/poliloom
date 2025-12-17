@@ -181,12 +181,10 @@ function EvaluationsChart({ data }: { data: EvaluationTimeseriesPoint[] }) {
 function CoverageBar({ item }: { item: CountryCoverage }) {
   const evaluatedPercent =
     item.total_count > 0 ? (item.evaluated_count / item.total_count) * 100 : 0
-  const enrichedNotEvaluated = item.enriched_count - item.evaluated_count
-  const enrichedNotEvaluatedPercent =
-    item.total_count > 0 ? (enrichedNotEvaluated / item.total_count) * 100 : 0
-  const barWidth = evaluatedPercent + enrichedNotEvaluatedPercent
+  const enrichedPercent = item.total_count > 0 ? (item.enriched_count / item.total_count) * 100 : 0
+  const barWidth = enrichedPercent
   const countLabel = `${item.enriched_count} / ${item.total_count}`
-  const percentLabel = `${item.evaluated_count} evaluated (${Math.round(evaluatedPercent)}%), ${enrichedNotEvaluated} processed (${Math.round(enrichedNotEvaluatedPercent)}%)`
+  const percentLabel = `${item.evaluated_count} evaluated (${Math.round(evaluatedPercent)}%), ${item.enriched_count} processed (${Math.round(enrichedPercent)}%)`
 
   const labels = (
     <>

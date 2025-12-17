@@ -11,6 +11,13 @@ export function Footer() {
         Impressum
       </Button>
       <Button
+        href="https://github.com/opensanctions/poliloom/issues"
+        variant="secondary"
+        size="small"
+      >
+        Issues
+      </Button>
+      <Button
         href={WIKIDATA_CONTRIBUTIONS_URL}
         variant="secondary"
         size="small"
