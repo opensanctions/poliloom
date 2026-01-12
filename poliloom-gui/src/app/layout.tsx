@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import Script from 'next/script'
 import { cookies } from 'next/headers'
 import './globals.css'
 import { auth } from '@/auth'
@@ -45,11 +44,6 @@ export default async function RootLayout({
               }
             `,
           }}
-        />
-        <Script
-          src="https://cloud.umami.is/script.js"
-          data-website-id="0d1eaae6-470d-4087-9908-ec65448c2490"
-          strategy="beforeInteractive"
         />
       </head>
       <body className="font-sans antialiased grid grid-rows-[auto_1fr] h-screen">
