@@ -35,7 +35,7 @@ export default function LoginPage() {
 
         {status === 'unauthenticated' && (
           <Button onClick={handleSignIn} size="large">
-            Sign in with MediaWiki
+            Sign in with Wikimedia
           </Button>
         )}
 
