@@ -23,7 +23,7 @@ Dev servers for both backend (port 8000) and frontend (port 3000) are always run
 ```bash
 # Backend
 cd poliloom
-uv sync --extra cpu              # Install deps
+uv sync                          # Install deps
 uv run alembic upgrade head      # Run migrations
 uv run pytest                    # Run tests
 
