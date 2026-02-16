@@ -145,8 +145,8 @@
   /* Primary/Accent (Blue) - brighter for better pop */
   --accent: var(--color-blue-600);
   --accent-hover: var(--color-blue-500);
-  --accent-foreground: var(--color-blue-400);
-  --accent-foreground-hover: var(--color-blue-300);
+  --accent-foreground: var(--color-blue-500);
+  --accent-foreground-hover: var(--color-blue-400);
   --accent-muted: color-mix(in srgb, var(--color-blue-500) 15%, transparent);
   --accent-muted-hover: color-mix(in srgb, var(--color-blue-500) 25%, transparent);
   --accent-light: var(--color-blue-800);

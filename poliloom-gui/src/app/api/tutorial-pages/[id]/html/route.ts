@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     // Read the HTML file from the tutorial pages directory
-    const filePath = join(process.cwd(), 'src/app/tutorial/pages', `${pageId}.html`)
+    const filePath = join(process.cwd(), 'src/app/(app)/tutorial/pages', `${pageId}.html`)
     const htmlContent = await readFile(filePath, 'utf-8')
 
     // Inject highlight styles
