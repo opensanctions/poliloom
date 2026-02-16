@@ -4,6 +4,7 @@ declare module 'next-auth' {
   interface Session {
     accessToken?: string
     error?: string
+    hasWikidataAccount?: boolean
   }
 
   interface JWT {
@@ -11,5 +12,6 @@ declare module 'next-auth' {
     refresh_token?: string
     expires_at?: number
     error?: string
+    hasWikidataAccount?: boolean
   }
 }

@@ -13,6 +13,16 @@ export default auth((req) => {
     const newUrl = new URL('/login', req.nextUrl.origin)
     return Response.redirect(newUrl)
   }
+
+  // Redirect authenticated users without a Wikidata account to setup
+  if (
+    isAuthenticated &&
+    !req.auth?.hasWikidataAccount &&
+    pathname !== '/setup' &&
+    !pathname.startsWith('/api/')
+  ) {
+    return Response.redirect(new URL('/setup', req.nextUrl.origin))
+  }
 })
 
 export const config = {

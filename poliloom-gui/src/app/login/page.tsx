@@ -34,9 +34,18 @@ export default function LoginPage() {
         )}
 
         {status === 'unauthenticated' && (
-          <Button onClick={handleSignIn} size="large">
-            Sign in with Wikimedia
-          </Button>
+          <div className="flex flex-col items-center gap-5">
+            <Button onClick={handleSignIn} size="large">
+              Sign in with Wikidata
+            </Button>
+            <Button
+              href="https://www.wikidata.org/wiki/Special:CreateAccount"
+              variant="secondary"
+              size="small"
+            >
+              Create Wikidata account
+            </Button>
+          </div>
         )}
 
         {isAuthenticated && <div className="text-foreground-muted">Redirecting...</div>}
