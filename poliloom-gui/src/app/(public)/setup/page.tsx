@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function SetupPage() {
   const { data: session, update } = useSession()
@@ -20,8 +20,13 @@ export default function SetupPage() {
     }
   }
 
+  useEffect(() => {
+    if (session?.hasWikidataAccount) {
+      router.push('/')
+    }
+  }, [session?.hasWikidataAccount, router])
+
   if (session?.hasWikidataAccount) {
-    router.push('/')
     return null
   }
 
