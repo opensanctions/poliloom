@@ -11,6 +11,12 @@ export default function SetupPage() {
   const router = useRouter()
   const [checking, setChecking] = useState(false)
 
+  useEffect(() => {
+    if (session?.hasWikidataAccount) {
+      router.push('/')
+    }
+  }, [session?.hasWikidataAccount, router])
+
   const handleCheckAgain = async () => {
     setChecking(true)
     try {
@@ -18,16 +24,6 @@ export default function SetupPage() {
     } finally {
       setChecking(false)
     }
-  }
-
-  useEffect(() => {
-    if (session?.hasWikidataAccount) {
-      router.push('/')
-    }
-  }, [session?.hasWikidataAccount, router])
-
-  if (session?.hasWikidataAccount) {
-    return null
   }
 
   return (
