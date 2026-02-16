@@ -4,23 +4,13 @@ export default auth((req) => {
   const isAuthenticated = !!req.auth && !req.auth.error
   const pathname = req.nextUrl.pathname
 
-  // Public routes that don't require authentication
-  const publicRoutes = ['/login']
-  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route))
-
-  // Redirect unauthenticated users on protected routes to login
-  if (!isAuthenticated && !isPublicRoute) {
-    const newUrl = new URL('/login', req.nextUrl.origin)
-    return Response.redirect(newUrl)
+  // Redirect unauthenticated users to login
+  if (!isAuthenticated && pathname !== '/login') {
+    return Response.redirect(new URL('/login', req.nextUrl.origin))
   }
 
   // Redirect authenticated users without a Wikidata account to setup
-  if (
-    isAuthenticated &&
-    !req.auth?.hasWikidataAccount &&
-    pathname !== '/setup' &&
-    !pathname.startsWith('/api/')
-  ) {
+  if (isAuthenticated && !req.auth?.hasWikidataAccount && pathname !== '/setup') {
     return Response.redirect(new URL('/setup', req.nextUrl.origin))
   }
 })

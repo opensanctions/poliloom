@@ -3,13 +3,9 @@ import { cookies } from 'next/headers'
 import './globals.css'
 import { auth } from '@/auth'
 import { SessionProvider } from '@/components/SessionProvider'
-import { UserPreferencesProvider } from '@/contexts/UserPreferencesContext'
-import { EvaluationSessionProvider } from '@/contexts/EvaluationSessionContext'
-import { UserProgressProvider } from '@/contexts/UserProgressContext'
-import { EvaluationCountProvider } from '@/contexts/EvaluationCountContext'
+import { ThemeProvider } from '@/contexts/ThemeContext'
 import { FetchInterceptor } from '@/components/FetchInterceptor'
 import { MobileGuard } from '@/components/layout/MobileGuard'
-import { Header } from '@/components/layout/Header'
 
 export const metadata: Metadata = {
   title: 'PoliLoom - Verify Political Data',
@@ -49,18 +45,9 @@ export default async function RootLayout({
       <body className="font-sans antialiased grid grid-rows-[auto_1fr] h-screen">
         <SessionProvider session={session}>
           <FetchInterceptor />
-          <UserPreferencesProvider>
-            <EvaluationSessionProvider>
-              <UserProgressProvider>
-                <EvaluationCountProvider>
-                  <MobileGuard>
-                    <Header />
-                    {children}
-                  </MobileGuard>
-                </EvaluationCountProvider>
-              </UserProgressProvider>
-            </EvaluationSessionProvider>
-          </UserPreferencesProvider>
+          <ThemeProvider>
+            <MobileGuard>{children}</MobileGuard>
+          </ThemeProvider>
         </SessionProvider>
       </body>
     </html>

@@ -26,7 +26,6 @@ interface UserPreferencesContextType {
   updateFilters: (type: PreferenceType, items: WikidataEntity[]) => void
   isAdvancedMode: boolean
   setAdvancedMode: (enabled: boolean) => void
-  setTheme: (theme: 'light' | 'dark') => void
 }
 
 export const UserPreferencesContext = createContext<UserPreferencesContextType | undefined>(
@@ -35,7 +34,6 @@ export const UserPreferencesContext = createContext<UserPreferencesContextType |
 
 const FILTERS_STORAGE_KEY = 'poliloom_evaluation_filters'
 const ADVANCED_MODE_KEY = 'poliloom_advanced_mode'
-const THEME_COOKIE_NAME = 'poliloom_theme'
 
 // Advanced mode uses useSyncExternalStore for SSR safety
 function getAdvancedModeSnapshot(): boolean {
@@ -50,19 +48,6 @@ function getAdvancedModeServerSnapshot(): boolean {
 function subscribeToAdvancedMode(callback: () => void): () => void {
   window.addEventListener('storage', callback)
   return () => window.removeEventListener('storage', callback)
-}
-
-function applyThemeToDocument(theme: 'light' | 'dark') {
-  if (typeof document === 'undefined') return
-  const root = document.documentElement
-  root.classList.remove('light', 'dark')
-  root.classList.add(theme)
-}
-
-function setThemeCookie(theme: 'light' | 'dark') {
-  if (typeof document === 'undefined') return
-  const maxAge = 365 * 24 * 60 * 60 // 1 year
-  document.cookie = `${THEME_COOKIE_NAME}=${theme}; path=/; max-age=${maxAge}; SameSite=Lax`
 }
 
 // Helper function to detect browser language and match with available languages
@@ -122,23 +107,6 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
       localStorage.removeItem(ADVANCED_MODE_KEY)
     }
     forceUpdate((n) => n + 1)
-  }, [])
-
-  const setTheme = useCallback((newTheme: 'light' | 'dark') => {
-    setThemeCookie(newTheme)
-    applyThemeToDocument(newTheme)
-  }, [])
-
-  // Follow system preference when no cookie is set
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const handleChange = (e: MediaQueryListEvent) => {
-      if (!document.cookie.includes(THEME_COOKIE_NAME)) {
-        applyThemeToDocument(e.matches ? 'dark' : 'light')
-      }
-    }
-    mq.addEventListener('change', handleChange)
-    return () => mq.removeEventListener('change', handleChange)
   }, [])
 
   // Fetch available languages
@@ -250,7 +218,6 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
     updateFilters,
     isAdvancedMode,
     setAdvancedMode,
-    setTheme,
   }
 
   return <UserPreferencesContext.Provider value={value}>{children}</UserPreferencesContext.Provider>
