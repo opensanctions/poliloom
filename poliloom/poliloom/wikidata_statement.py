@@ -16,9 +16,9 @@ from .wikidata_date import WikidataDate
 logger = logging.getLogger(__name__)
 
 
-# Get API root from environment variable, default to test site for safety
+# Get API root from environment variable
 WIKIDATA_API_ROOT = os.getenv(
-    "WIKIDATA_API_ROOT", "https://test.wikidata.org/w/rest.php/wikibase/v1"
+    "WIKIDATA_API_ROOT", "https://www.wikidata.org/w/rest.php/wikibase/v1"
 )
 USER_AGENT = "PoliLoom API/0.1.0"
 
