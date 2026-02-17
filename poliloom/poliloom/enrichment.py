@@ -514,6 +514,7 @@ async def fetch_and_archive_page(
     url: str,
     db: Session,
     wikipedia_project_id: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> ArchivedPage:
     """Fetch web page content and archive it.
 
@@ -549,6 +550,7 @@ async def fetch_and_archive_page(
         url=url,
         permanent_url=permanent_url,
         fetch_timestamp=now,
+        user_id=user_id,
         wikipedia_project_id=wikipedia_project_id,
     )
     db.add(archived_page)

@@ -788,6 +788,7 @@ class TestFetchAndArchivePage:
                     == sample_wikipedia_project.wikidata_id
                 )
                 mock_extract.assert_called_once_with("<html>Converted</html>")
+                assert archived_page.user_id is None
 
     @pytest.mark.asyncio
     async def test_fetch_and_archive_page_without_wikipedia_project(self, db_session):
@@ -807,6 +808,27 @@ class TestFetchAndArchivePage:
             assert archived_page.url == url
             assert archived_page.permanent_url is None
             assert archived_page.wikipedia_project_id is None
+            assert archived_page.user_id is None
+
+    @pytest.mark.asyncio
+    async def test_fetch_and_archive_page_with_user_id(self, db_session):
+        """Test that user_id is stored when provided."""
+        from poliloom.page_fetcher import FetchedPage
+
+        url = "https://example.com/article"
+
+        mock_fetched = FetchedPage(mhtml="MHTML content", html="<html>Converted</html>")
+
+        async def mock_fetch_page(url):
+            return mock_fetched
+
+        with patch("poliloom.enrichment.fetch_page", side_effect=mock_fetch_page):
+            archived_page = await fetch_and_archive_page(
+                url, db_session, user_id="12345"
+            )
+
+            assert archived_page.url == url
+            assert archived_page.user_id == "12345"
 
     @pytest.mark.asyncio
     async def test_fetch_and_archive_page_http_error(self, db_session):

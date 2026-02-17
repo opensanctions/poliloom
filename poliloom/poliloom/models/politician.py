@@ -683,6 +683,9 @@ class ArchivedPage(Base, TimestampMixin):
     fetch_timestamp = Column(
         DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
+    user_id = Column(
+        String, nullable=True, index=True
+    )  # MediaWiki user ID, null = system
     wikipedia_project_id = Column(
         String,
         ForeignKey("wikipedia_projects.wikidata_id", ondelete="SET NULL"),
