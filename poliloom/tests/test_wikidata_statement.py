@@ -535,8 +535,12 @@ class TestCreateStatement:
             ]
             references = [
                 {
-                    "property": {"id": "P854"},
-                    "value": {"type": "value", "content": "http://example.com"},
+                    "parts": [
+                        {
+                            "property": {"id": "P854"},
+                            "value": {"type": "value", "content": "http://example.com"},
+                        }
+                    ]
                 }
             ]
 
@@ -652,16 +656,27 @@ class TestPushEvaluation:
 
         # Set up property_references
         if has_property_references:
-            mock_archived_page = Mock()
-            mock_archived_page.create_references_json.return_value = [
+            mock_archived_page_1 = Mock()
+            mock_archived_page_1.create_references_json.return_value = [
                 {
                     "property": {"id": "P854"},
                     "value": {"type": "value", "content": "https://example.com"},
                 }
             ]
-            mock_ref = Mock()
-            mock_ref.archived_page = mock_archived_page
-            property_mock.property_references = [mock_ref]
+            mock_ref_1 = Mock()
+            mock_ref_1.archived_page = mock_archived_page_1
+
+            mock_archived_page_2 = Mock()
+            mock_archived_page_2.create_references_json.return_value = [
+                {
+                    "property": {"id": "P854"},
+                    "value": {"type": "value", "content": "https://other-source.com"},
+                }
+            ]
+            mock_ref_2 = Mock()
+            mock_ref_2.archived_page = mock_archived_page_2
+
+            property_mock.property_references = [mock_ref_1, mock_ref_2]
         else:
             property_mock.property_references = []
 
@@ -713,6 +728,17 @@ class TestPushEvaluation:
                 "type": "value",
                 "content": "Q67890",
             }  # entity_id
+
+            # Verify both references were passed
+            references = call_args.kwargs["references"]
+            assert len(references) == 2
+            assert (
+                references[0]["parts"][0]["value"]["content"] == "https://example.com"
+            )
+            assert (
+                references[1]["parts"][0]["value"]["content"]
+                == "https://other-source.com"
+            )
 
             # Verify property was updated with statement ID
             assert evaluation.property.statement_id == "Q12345$new-statement-id"

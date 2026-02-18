@@ -76,7 +76,7 @@ describe('EvaluationSessionContext', () => {
     expect(result.current.completedCount).toBe(0)
 
     // Reset the session (simulating "Start new round" on unmount)
-    act(() => {
+    await act(async () => {
       result.current.resetSession()
     })
 

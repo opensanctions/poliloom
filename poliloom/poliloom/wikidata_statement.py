@@ -270,9 +270,8 @@ async def create_statement(
     if qualifiers:
         statement_data["statement"]["qualifiers"] = qualifiers
 
-    # Add references if provided
     if references:
-        statement_data["statement"]["references"] = [{"parts": references}]
+        statement_data["statement"]["references"] = references
 
     headers = {
         "Authorization": f"Bearer {jwt_token}",
@@ -390,12 +389,11 @@ async def push_evaluation(
                 evaluation.property
             )
 
-            # Aggregate references from PropertyReferences
-            references = None
-            if evaluation.property.property_references:
-                # Use the first PropertyReference's archived page to generate references
-                first_ref = evaluation.property.property_references[0]
-                references = first_ref.archived_page.create_references_json()
+            # Build reference blocks from all PropertyReferences
+            references = [
+                {"parts": ref.archived_page.create_references_json()}
+                for ref in evaluation.property.property_references
+            ] or None
 
             # Create statement using property type as Wikidata property ID
             statement_id = await create_statement(
