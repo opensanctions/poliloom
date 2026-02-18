@@ -26,6 +26,14 @@ class ArchivedPageResponse(UUIDBaseModel):
     fetch_timestamp: datetime
 
 
+class PropertyReferenceResponse(UUIDBaseModel):
+    """Schema for a property reference (evidence source)."""
+
+    id: UUID
+    archived_page: ArchivedPageResponse
+    supporting_quotes: Optional[List[str]] = None
+
+
 class PropertyResponse(UUIDBaseModel):
     """Unified property response."""
 
@@ -35,11 +43,10 @@ class PropertyResponse(UUIDBaseModel):
     value_precision: Optional[int] = None
     entity_id: Optional[str] = None
     entity_name: Optional[str] = None  # Add for frontend convenience
-    supporting_quotes: Optional[List[str]] = None
     statement_id: Optional[str] = None
     qualifiers: Optional[Dict[str, Any]] = None
     references: Optional[List[Dict[str, Any]]] = None
-    archived_page: Optional[ArchivedPageResponse] = None
+    sources: List[PropertyReferenceResponse] = []
 
     @field_serializer("type")
     def serialize_property_type(self, value: PropertyType) -> str:
@@ -366,11 +373,10 @@ class PoliticianCreateResponse(UUIDBaseModel):
                                 "value_precision": 9,
                                 "entity_id": None,
                                 "entity_name": None,
-                                "supporting_quotes": None,
                                 "statement_id": None,
                                 "qualifiers": None,
                                 "references": None,
-                                "archived_page": None,
+                                "sources": [],
                             }
                         ],
                     }

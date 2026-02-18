@@ -329,10 +329,8 @@ async def push_evaluation(
     # Access politician relationship while entity is bound to session
     politician_wikidata_id = evaluation.property.politician.wikidata_id
 
-    # Check if this is existing Wikidata data (has statement_id but no archived_page_id)
-    is_existing_statement = (
-        evaluation.property.statement_id and not evaluation.property.archived_page_id
-    )
+    # Check if this is existing Wikidata data (has statement_id)
+    is_existing_statement = bool(evaluation.property.statement_id)
 
     try:
         if not evaluation.is_accepted and is_existing_statement:
@@ -392,12 +390,19 @@ async def push_evaluation(
                 evaluation.property
             )
 
+            # Aggregate references from PropertyReferences
+            references = None
+            if evaluation.property.property_references:
+                # Use the first PropertyReference's archived page to generate references
+                first_ref = evaluation.property.property_references[0]
+                references = first_ref.archived_page.create_references_json()
+
             # Create statement using property type as Wikidata property ID
             statement_id = await create_statement(
                 politician_wikidata_id,
                 evaluation.property.type.value,  # PropertyType enum values are the Wikidata property IDs
                 wikidata_value,
-                references=evaluation.property.references_json,
+                references=references,
                 qualifiers=qualifiers,
                 jwt_token=jwt_token,
             )

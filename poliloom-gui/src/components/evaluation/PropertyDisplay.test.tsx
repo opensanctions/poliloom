@@ -7,11 +7,19 @@ const mockOnAction = vi.fn()
 const mockOnShowArchived = vi.fn()
 const mockOnHover = vi.fn()
 
+const mockArchivedPage = {
+  id: 'archived-1',
+  url: 'https://en.wikipedia.org/wiki/Test_Politician',
+  content_hash: 'abc123',
+  fetch_timestamp: '2024-01-01T00:00:00Z',
+}
+
 const baseProperty = {
   key: 'test-1',
   id: 'test-1',
   type: PropertyType.P569,
   statement_id: null,
+  sources: [],
 }
 
 describe('PropertyDisplay', () => {
@@ -133,7 +141,13 @@ describe('PropertyDisplay', () => {
     const property = {
       ...baseProperty,
       statement_id: null,
-      supporting_quotes: ['Test proof line'],
+      sources: [
+        {
+          id: 'ref-1',
+          archived_page: mockArchivedPage,
+          supporting_quotes: ['Test proof line'],
+        },
+      ],
     }
 
     render(
@@ -155,6 +169,7 @@ describe('PropertyDisplay', () => {
       ...baseProperty,
       statement_id: 'Q123$abc-def',
       references: [{ url: 'https://example.com', title: 'Reference' }],
+      sources: [],
     }
 
     // Initially, metadata is not shown
@@ -178,6 +193,7 @@ describe('PropertyDisplay', () => {
       ...baseProperty,
       statement_id: 'Q123$abc-def',
       references: [{ url: 'https://example.com', title: 'Reference' }],
+      sources: [],
     }
 
     // When isDiscarding is true (evaluation is false), metadata should show

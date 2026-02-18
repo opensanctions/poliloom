@@ -14,6 +14,7 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    UniqueConstraint,
     and_,
     case,
     exists,
@@ -433,12 +434,19 @@ class Politician(
             )
         )
 
-        # Apply language filtering via archived pages if specified
+        # Apply language filtering via PropertyReference → ArchivedPage if specified
         if languages:
             unevaluated_exists = exists(
                 select(1)
                 .select_from(Property)
-                .join(ArchivedPage, Property.archived_page_id == ArchivedPage.id)
+                .join(
+                    PropertyReference,
+                    PropertyReference.property_id == Property.id,
+                )
+                .join(
+                    ArchivedPage,
+                    PropertyReference.archived_page_id == ArchivedPage.id,
+                )
                 .join(
                     ArchivedPageLanguage,
                     ArchivedPageLanguage.archived_page_id == ArchivedPage.id,
@@ -590,12 +598,15 @@ class Politician(
             Count of stateless politicians with unevaluated extracted citizenship
         """
         # Subquery: politicians with Wikidata citizenship (should be excluded)
+        # Wikidata properties have no PropertyReferences
         has_wikidata_citizenship = (
             select(Property.politician_id)
             .where(
                 and_(
                     Property.type == PropertyType.CITIZENSHIP,
-                    Property.archived_page_id.is_(None),  # From Wikidata, not extracted
+                    ~exists(
+                        select(1).where(PropertyReference.property_id == Property.id)
+                    ),
                     Property.deleted_at.is_(None),
                 )
             )
@@ -603,12 +614,15 @@ class Politician(
         )
 
         # Subquery: politicians with unevaluated extracted citizenship
+        # Extracted properties have PropertyReferences
         has_unevaluated_extracted_citizenship = (
             select(Property.politician_id)
             .where(
                 and_(
                     Property.type == PropertyType.CITIZENSHIP,
-                    Property.archived_page_id.isnot(None),  # Extracted from Wikipedia
+                    exists(
+                        select(1).where(PropertyReference.property_id == Property.id)
+                    ),
                     Property.statement_id.is_(None),  # Not yet evaluated/pushed
                     Property.deleted_at.is_(None),
                 )
@@ -694,7 +708,9 @@ class ArchivedPage(Base, TimestampMixin):
     )
 
     # Relationships
-    properties = relationship("Property", back_populates="archived_page")
+    property_references = relationship(
+        "PropertyReference", back_populates="archived_page"
+    )
     archived_page_languages = relationship(
         "ArchivedPageLanguage",
         back_populates="archived_page",
@@ -876,7 +892,9 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
 
     statement_id = Column(String, nullable=True)
     qualifiers_json = Column(JSONB, nullable=True)  # Store all qualifiers as JSON
-    references_json = Column(JSONB, nullable=True)  # Store all references as JSON
+    references_json = Column(
+        JSONB, nullable=True
+    )  # Wikidata state only — from import/re-import
 
     __tablename__ = "properties"
     __table_args__ = (
@@ -890,7 +908,6 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         Index(
             "idx_properties_unevaluated",
             "politician_id",
-            "archived_page_id",
             postgresql_where=text("statement_id IS NULL AND deleted_at IS NULL"),
         ),
         Index(
@@ -905,15 +922,6 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             "type",
             "entity_id",
             postgresql_where=text("type = 'CITIZENSHIP' AND deleted_at IS NULL"),
-        ),
-        # Speeds up stats query for counting evaluated extracted properties
-        Index(
-            "idx_properties_extracted",
-            "politician_id",
-            "archived_page_id",
-            postgresql_where=text(
-                "archived_page_id IS NOT NULL AND deleted_at IS NULL"
-            ),
         ),
         # Speeds up stateless politician queries checking for Wikidata citizenship
         Index(
@@ -958,26 +966,24 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     entity_id = Column(
         String, ForeignKey("wikidata_entities.wikidata_id"), nullable=True, index=True
     )  # For entity relationships (birthplace, position, citizenship)
-    archived_page_id = Column(
-        UUID(as_uuid=True), ForeignKey("archived_pages.id"), nullable=True
-    )  # NULL for Wikidata imports, set for extracted data
-    supporting_quotes = Column(
-        ARRAY(String), nullable=True
-    )  # NULL for Wikidata imports, set for extracted data
 
     @hybrid_property
     def is_extracted(self) -> bool:
-        """Check if this property was extracted from a web source."""
-        return self.archived_page_id is not None
+        """Check if this property was extracted from a web source (has PropertyReferences)."""
+        return len(self.property_references) > 0
 
     @is_extracted.expression
     def is_extracted(cls):
         """SQL expression for is_extracted."""
-        return cls.archived_page_id.isnot(None)
+        return exists(select(1).where(PropertyReference.property_id == cls.id))
 
     # Relationships
     politician = relationship("Politician", back_populates="properties")
-    archived_page = relationship("ArchivedPage", back_populates="properties")
+    property_references = relationship(
+        "PropertyReference",
+        back_populates="property",
+        cascade="all, delete-orphan",
+    )
     entity = relationship("WikidataEntity")
     evaluations = relationship(
         "Evaluation", back_populates="property", cascade="all, delete-orphan"
@@ -1150,44 +1156,8 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
                 return PropertyComparisonResult.NO_MATCH
             return PropertyComparisonResult.EQUAL
 
-    def should_store(self, db: Session) -> bool:
-        """Check if this property should be stored based on existing data.
-
-        Uses _compare_to() to check against existing properties. Only stores if:
-        - No matching property exists, OR
-        - This property is more precise than the existing match
-
-        Returns False if an existing property matches and is same or more precise.
-        """
-        # Query for potential matching properties
-        query = db.query(Property).filter_by(
-            politician_id=self.politician_id,
-            type=self.type,
-        )
-
-        # For entity-linked properties, also filter by entity_id
-        if self.type not in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
-            query = query.filter_by(entity_id=self.entity_id)
-
-        existing_properties = query.all()
-
-        if not existing_properties:
-            return True
-
-        # Check against each existing property
-        for existing in existing_properties:
-            comparison = self._compare_to(existing)
-            # If properties match and existing is same or more precise, don't store
-            if comparison in [
-                PropertyComparisonResult.OTHER_MORE_PRECISE,
-                PropertyComparisonResult.EQUAL,
-            ]:
-                return False
-
-        return True  # No match found, or this property is more precise
-
     @classmethod
-    def soft_delete_matching_extracted(
+    def find_matching(
         cls,
         db: Session,
         politician_id,
@@ -1196,14 +1166,12 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         value_precision: int | None = None,
         entity_id: str | None = None,
         qualifiers_json: dict | None = None,
-    ) -> int:
-        """Soft-delete extracted properties that match the given Wikidata statement.
+    ) -> Optional["Property"]:
+        """Find an existing property that matches the given parameters.
 
-        This method is called during import to remove unevaluated extracted properties
-        that match an incoming Wikidata statement, preventing duplicates.
-
-        Only soft-deletes if the imported statement is same or more precise than the
-        extracted property.
+        Uses _compare_to() to check against existing properties.
+        Returns the matching Property if one exists with equal or greater precision,
+        or None if no match (meaning a new property should be created).
 
         Args:
             db: Database session
@@ -1212,13 +1180,13 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             value: Value for date properties
             value_precision: Precision for date properties
             entity_id: Entity ID for entity-linked properties
-            qualifiers_json: Qualifiers for position properties (contains P580/P582 dates)
+            qualifiers_json: Qualifiers for position properties
 
         Returns:
-            Number of properties soft-deleted
+            Matching Property instance or None
         """
         # Create a temporary Property object to use _compare_to
-        imported_property = cls(
+        candidate = cls(
             politician_id=politician_id,
             type=property_type,
             value=value,
@@ -1227,32 +1195,109 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             qualifiers_json=qualifiers_json,
         )
 
-        # Find extracted properties (statement_id IS NULL, archived_page_id IS NOT NULL)
-        # that are not already deleted
+        # Query for potential matching properties
         query = db.query(cls).filter(
             cls.politician_id == politician_id,
             cls.type == property_type,
-            cls.statement_id.is_(None),  # Extracted (not from Wikidata)
-            cls.archived_page_id.isnot(None),  # Has source
-            cls.deleted_at.is_(None),  # Not already deleted
+            cls.deleted_at.is_(None),
         )
 
         # For entity-linked properties, also filter by entity_id
         if property_type not in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
             query = query.filter(cls.entity_id == entity_id)
 
-        candidates = query.all()
+        existing_properties = query.all()
 
-        # Soft-delete matching properties where imported is same or more precise
-        deleted_count = 0
-        for candidate in candidates:
-            comparison = imported_property._compare_to(candidate)
-            # Soft-delete if imported is more precise or equal
+        # Check against each existing property
+        for existing in existing_properties:
+            comparison = candidate._compare_to(existing)
             if comparison in [
-                PropertyComparisonResult.SELF_MORE_PRECISE,
+                PropertyComparisonResult.OTHER_MORE_PRECISE,
                 PropertyComparisonResult.EQUAL,
             ]:
-                candidate.soft_delete()
-                deleted_count += 1
+                return existing
 
-        return deleted_count
+        return None
+
+    def add_reference(
+        self,
+        db: Session,
+        archived_page: "ArchivedPage",
+        supporting_quotes: list | None = None,
+    ) -> "PropertyReference":
+        """Add a PropertyReference linking this property to an archived page source.
+
+        Creates a new PropertyReference, or updates quotes if same archived_page
+        is already linked. Uses the unique constraint for idempotency.
+
+        Args:
+            db: Database session
+            archived_page: The archived page source
+            supporting_quotes: Optional list of supporting quote strings
+
+        Returns:
+            The created or updated PropertyReference
+        """
+        # Check if reference already exists for this property + archived_page
+        existing_ref = (
+            db.query(PropertyReference)
+            .filter(
+                PropertyReference.property_id == self.id,
+                PropertyReference.archived_page_id == archived_page.id,
+            )
+            .first()
+        )
+
+        if existing_ref:
+            # Update quotes if provided
+            if supporting_quotes:
+                existing_ref.supporting_quotes = supporting_quotes
+            return existing_ref
+
+        # Create new reference
+        ref = PropertyReference(
+            property_id=self.id,
+            archived_page_id=archived_page.id,
+            supporting_quotes=supporting_quotes,
+        )
+        db.add(ref)
+        return ref
+
+
+class PropertyReference(Base, TimestampMixin):
+    """Evidence linking a Property to an ArchivedPage source.
+
+    Each PropertyReference represents one independent source corroborating a fact.
+    Multiple PropertyReferences can exist per Property (multiple sources for the same fact).
+    """
+
+    __tablename__ = "property_references"
+    __table_args__ = (
+        UniqueConstraint(
+            "property_id",
+            "archived_page_id",
+            name="uq_property_ref_property_page",
+        ),
+        Index("idx_property_references_property_id", "property_id"),
+    )
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    property_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("properties.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    archived_page_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("archived_pages.id"),
+        nullable=False,
+    )
+    supporting_quotes = Column(ARRAY(String), nullable=True)
+
+    # Relationships
+    property = relationship("Property", back_populates="property_references")
+    archived_page = relationship("ArchivedPage", back_populates="property_references")

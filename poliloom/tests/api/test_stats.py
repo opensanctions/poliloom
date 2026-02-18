@@ -5,7 +5,14 @@ from uuid import uuid4
 
 from sqlalchemy import text
 
-from poliloom.models import ArchivedPage, Country, Evaluation, Politician, Property
+from poliloom.models import (
+    ArchivedPage,
+    Country,
+    Evaluation,
+    Politician,
+    Property,
+    PropertyReference,
+)
 from poliloom.models.base import PropertyType
 from poliloom.models.wikidata import WikidataEntity
 
@@ -172,9 +179,15 @@ class TestStatsEndpoint:
             type=PropertyType.BIRTH_DATE,
             value="+1950-01-01T00:00:00Z",
             value_precision=11,
-            archived_page_id=archived_page.id,
         )
         db_session.add(extracted_prop)
+        db_session.flush()
+        db_session.add(
+            PropertyReference(
+                property_id=extracted_prop.id,
+                archived_page_id=archived_page.id,
+            )
+        )
         db_session.flush()
 
         # Add evaluation for the extracted property
@@ -226,14 +239,20 @@ class TestStatsEndpoint:
         db_session.add(politician)
         db_session.flush()
 
-        # Add extracted citizenship (no statement_id, has archived_page_id)
+        # Add extracted citizenship (no statement_id, has PropertyReference)
         extracted_citizenship = Property(
             politician_id=politician.id,
             type=PropertyType.CITIZENSHIP,
             entity_id="Q30",
-            archived_page_id=archived_page.id,
         )
         db_session.add(extracted_citizenship)
+        db_session.flush()
+        db_session.add(
+            PropertyReference(
+                property_id=extracted_citizenship.id,
+                archived_page_id=archived_page.id,
+            )
+        )
         db_session.flush()
 
         # Add evaluation for the extracted citizenship
@@ -303,9 +322,15 @@ class TestStatsEndpoint:
             type=PropertyType.BIRTH_DATE,
             value="+1950-01-01T00:00:00Z",
             value_precision=11,
-            archived_page_id=archived_page.id,
         )
         db_session.add(extracted_prop)
+        db_session.flush()
+        db_session.add(
+            PropertyReference(
+                property_id=extracted_prop.id,
+                archived_page_id=archived_page.id,
+            )
+        )
         db_session.flush()
 
         # Add old evaluation (outside cooldown period - default is 365 days)
@@ -380,9 +405,15 @@ class TestStatsEndpoint:
             type=PropertyType.BIRTH_DATE,
             value="+1950-01-01T00:00:00Z",
             value_precision=11,
-            archived_page_id=archived_page.id,
         )
         db_session.add(extracted_prop)
+        db_session.flush()
+        db_session.add(
+            PropertyReference(
+                property_id=extracted_prop.id,
+                archived_page_id=archived_page.id,
+            )
+        )
         db_session.commit()
 
         response = client.get("/stats", headers=mock_auth)

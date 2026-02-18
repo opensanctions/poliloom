@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, ReactNode } from 'react'
-import { Politician, Property, ArchivedPageResponse } from '@/types'
+import { Politician, Property, PropertyReference, ArchivedPageResponse } from '@/types'
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting'
 import { highlightTextInScope } from '@/lib/textHighlighter'
 import { TwoPanel } from '@/components/layout/TwoPanel'
@@ -70,23 +70,19 @@ export function PoliticianEvaluationView({
   }
 
   // Handler for showing archived page (used by View button and initial selection)
-  const handleShowArchived = useCallback((property: Property) => {
-    if (property.archived_page) {
-      setSelectedArchivedPage(property.archived_page)
-      setSelectedQuotes(property.supporting_quotes || null)
-    }
+  const handleShowArchived = useCallback((ref: PropertyReference) => {
+    setSelectedArchivedPage(ref.archived_page)
+    setSelectedQuotes(ref.supporting_quotes || null)
   }, [])
 
   // Unified hover handler for all property types
   const handlePropertyHover = (property: Property) => {
     // Only update quotes (which triggers highlighting) if we're viewing this property's archived page
-    if (
-      property.archived_page &&
-      selectedArchivedPage?.id === property.archived_page.id &&
-      property.supporting_quotes &&
-      property.supporting_quotes.length > 0
-    ) {
-      setSelectedQuotes(property.supporting_quotes)
+    const matchingRef = property.sources.find(
+      (s) => selectedArchivedPage?.id === s.archived_page.id,
+    )
+    if (matchingRef?.supporting_quotes && matchingRef.supporting_quotes.length > 0) {
+      setSelectedQuotes(matchingRef.supporting_quotes)
     }
   }
 

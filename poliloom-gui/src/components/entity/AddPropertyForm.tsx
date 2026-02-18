@@ -106,6 +106,7 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
         value: htmlDateToWikidata(dateValue),
         value_precision: datePrecision,
         references,
+        sources: [],
       }
     }
     // Entity-based properties (positions, birthplaces, citizenships)
@@ -122,6 +123,7 @@ export function AddPropertyForm({ onAddProperty }: AddPropertyFormProps) {
         entity_id: selectedEntity.wikidata_id,
         entity_name: selectedEntity.name,
         references,
+        sources: [],
       }
 
       // Add qualifiers for positions

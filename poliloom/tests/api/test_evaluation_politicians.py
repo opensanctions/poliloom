@@ -20,7 +20,7 @@ def extract_properties_by_type(
 
     Args:
         politician_data: The politician response data
-        extracted: If True, return extracted properties (with archived_page), else Wikidata properties (without archived_page)
+        extracted: If True, return extracted properties (with sources), else Wikidata properties (without sources)
 
     Returns:
         Dictionary with keys by property type containing lists of matching properties
@@ -35,7 +35,8 @@ def extract_properties_by_type(
 
     # Extract properties by type
     for prop in politician_data.get("properties", []):
-        if bool(prop.get("archived_page")) == extracted:
+        has_sources = len(prop.get("sources", [])) > 0
+        if has_sources == extracted:
             prop_type = prop.get("type")
             if prop_type in result:
                 result[prop_type].append(prop)
@@ -198,23 +199,28 @@ class TestGetPoliticiansForEvaluationEndpoint:
         # Check extracted property
         assert len(extracted_properties["P569"]) == 1  # BIRTH_DATE
         extracted_prop = extracted_properties["P569"][0]
-        assert extracted_prop["supporting_quotes"] == ["Born on January 15, 1970"]
-        assert extracted_prop["archived_page"] is not None
-        assert "url" in extracted_prop["archived_page"]
+        assert len(extracted_prop["sources"]) == 1
+        assert extracted_prop["sources"][0]["supporting_quotes"] == [
+            "Born on January 15, 1970"
+        ]
+        assert extracted_prop["sources"][0]["archived_page"] is not None
+        assert "url" in extracted_prop["sources"][0]["archived_page"]
 
         # Check extracted position
         assert len(extracted_properties["P39"]) == 1  # POSITION
         extracted_pos = extracted_properties["P39"][0]
-        assert extracted_pos["supporting_quotes"] == [
+        assert len(extracted_pos["sources"]) == 1
+        assert extracted_pos["sources"][0]["supporting_quotes"] == [
             "Served as Mayor from 2020 to 2024"
         ]
-        assert extracted_pos["archived_page"] is not None
 
         # Check extracted birthplace
         assert len(extracted_properties["P19"]) == 1  # BIRTHPLACE
         extracted_bp = extracted_properties["P19"][0]
-        assert extracted_bp["supporting_quotes"] == ["Born in Springfield"]
-        assert extracted_bp["archived_page"] is not None
+        assert len(extracted_bp["sources"]) == 1
+        assert extracted_bp["sources"][0]["supporting_quotes"] == [
+            "Born in Springfield"
+        ]
 
     def test_wikidata_data_excludes_extraction_fields(
         self, client, mock_auth, politician_with_unevaluated_data
@@ -230,11 +236,10 @@ class TestGetPoliticiansForEvaluationEndpoint:
             politician_data, extracted=False
         )
 
-        # Wikidata properties should not have supporting_quotes or archived_page
+        # Wikidata properties should have empty sources
         assert len(wikidata_properties["P570"]) >= 1  # DEATH_DATE
         wikidata_prop = wikidata_properties["P570"][0]
-        assert wikidata_prop.get("supporting_quotes") is None
-        assert wikidata_prop.get("archived_page") is None
+        assert wikidata_prop.get("sources") == []
 
         # But they should have precision fields
         assert "value_precision" in wikidata_prop
@@ -757,17 +762,22 @@ class TestGetPoliticiansForEvaluationEndpoint:
         assert len(data["politicians"]) == 1
 
         politician_data = data["politicians"][0]
-        # Extract only properties with archived_page (extracted properties)
+        # Extract only properties with sources (extracted properties)
         extracted_props = [
-            p for p in politician_data["properties"] if p.get("archived_page")
+            p for p in politician_data["properties"] if len(p.get("sources", [])) > 0
         ]
 
         # Should only have the English property, not German or no-language ones
         assert len(extracted_props) == 1
         english_prop = extracted_props[0]
         assert english_prop["value"] == "1970-01-01"
-        assert english_prop["supporting_quotes"] == ["Born on January 1, 1970"]
-        assert english_prop["archived_page"]["url"] == "https://en.wikipedia.org/test"
+        assert english_prop["sources"][0]["supporting_quotes"] == [
+            "Born on January 1, 1970"
+        ]
+        assert (
+            english_prop["sources"][0]["archived_page"]["url"]
+            == "https://en.wikipedia.org/test"
+        )
 
         # Test filtering by German - should only return German property
         response = client.get("/politicians?languages=Q188", headers=mock_auth)
@@ -777,15 +787,20 @@ class TestGetPoliticiansForEvaluationEndpoint:
 
         politician_data = data["politicians"][0]
         extracted_props = [
-            p for p in politician_data["properties"] if p.get("archived_page")
+            p for p in politician_data["properties"] if len(p.get("sources", [])) > 0
         ]
 
         # Should only have the German property
         assert len(extracted_props) == 1
         german_prop = extracted_props[0]
         assert german_prop["value"] == "1970-01-02"
-        assert german_prop["supporting_quotes"] == ["Geboren am 2. Januar 1970"]
-        assert german_prop["archived_page"]["url"] == "https://de.wikipedia.org/test"
+        assert german_prop["sources"][0]["supporting_quotes"] == [
+            "Geboren am 2. Januar 1970"
+        ]
+        assert (
+            german_prop["sources"][0]["archived_page"]["url"]
+            == "https://de.wikipedia.org/test"
+        )
 
     def test_excludes_soft_deleted_properties(
         self,
@@ -841,7 +856,9 @@ class TestGetPoliticiansForEvaluationEndpoint:
         # Verify the returned property is the correct one
         birth_prop = extracted_properties["P569"][0]
         assert birth_prop["value"] == "1980-01-01"
-        assert birth_prop["supporting_quotes"] == ["Born on January 1, 1980"]
+        assert birth_prop["sources"][0]["supporting_quotes"] == [
+            "Born on January 1, 1980"
+        ]
 
     def test_excludes_politicians_with_only_soft_deleted_properties(
         self,

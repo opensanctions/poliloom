@@ -8,7 +8,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db_session
@@ -23,6 +23,7 @@ from ..models import (
     ArchivedPageLanguage,
     Politician,
     Property,
+    PropertyReference,
     PropertyType,
     WikidataEntity,
     WikidataEntityLabel,
@@ -36,6 +37,7 @@ from .schemas import (
     PoliticiansListResponse,
     PropertyAddRequest,
     PropertyAddResponse,
+    PropertyReferenceResponse,
     PropertyResponse,
 )
 from .auth import get_current_user, User
@@ -68,6 +70,22 @@ def build_property_responses(properties) -> List[PropertyResponse]:
         if prop.entity and prop.entity_id:
             entity_name = prop.entity.name
 
+        # Build sources from PropertyReferences
+        sources = []
+        for ref in prop.property_references:
+            sources.append(
+                PropertyReferenceResponse(
+                    id=ref.id,
+                    archived_page=ArchivedPageResponse(
+                        id=ref.archived_page.id,
+                        url=ref.archived_page.url,
+                        content_hash=ref.archived_page.content_hash,
+                        fetch_timestamp=ref.archived_page.fetch_timestamp,
+                    ),
+                    supporting_quotes=ref.supporting_quotes,
+                )
+            )
+
         responses.append(
             PropertyResponse(
                 id=prop.id,
@@ -76,20 +94,10 @@ def build_property_responses(properties) -> List[PropertyResponse]:
                 value_precision=prop.value_precision,
                 entity_id=prop.entity_id,
                 entity_name=entity_name,
-                supporting_quotes=prop.supporting_quotes,
                 statement_id=prop.statement_id,
                 qualifiers=prop.qualifiers_json,
                 references=prop.references_json,
-                archived_page=(
-                    ArchivedPageResponse(
-                        id=prop.archived_page.id,
-                        url=prop.archived_page.url,
-                        content_hash=prop.archived_page.content_hash,
-                        fetch_timestamp=prop.archived_page.fetch_timestamp,
-                    )
-                    if prop.archived_page
-                    else None
-                ),
+                sources=sources,
             )
         )
     return responses
@@ -154,12 +162,20 @@ async def get_politicians(
         property_filter = and_(
             Property.deleted_at.is_(None),
             or_(
-                # Include Wikidata properties (no archived page)
-                Property.archived_page_id.is_(None),
-                # Include properties where archived page has matching language
-                Property.archived_page_id.in_(
-                    select(ArchivedPageLanguage.archived_page_id).where(
-                        ArchivedPageLanguage.language_id.in_(languages)
+                # Include Wikidata properties (no PropertyReferences)
+                ~exists(select(1).where(PropertyReference.property_id == Property.id)),
+                # Include properties where any PropertyReference's archived page has matching language
+                exists(
+                    select(1)
+                    .select_from(PropertyReference)
+                    .join(
+                        ArchivedPageLanguage,
+                        ArchivedPageLanguage.archived_page_id
+                        == PropertyReference.archived_page_id,
+                    )
+                    .where(
+                        PropertyReference.property_id == Property.id,
+                        ArchivedPageLanguage.language_id.in_(languages),
                     )
                 ),
             ),
@@ -168,9 +184,9 @@ async def get_politicians(
         query = query.options(
             selectinload(Politician.properties.and_(property_filter)).options(
                 selectinload(Property.entity),
-                selectinload(Property.archived_page).selectinload(
-                    ArchivedPage.language_entities
-                ),
+                selectinload(Property.property_references)
+                .selectinload(PropertyReference.archived_page)
+                .selectinload(ArchivedPage.language_entities),
             ),
             selectinload(Politician.wikipedia_links),
         )
@@ -181,9 +197,9 @@ async def get_politicians(
                 Politician.properties.and_(Property.deleted_at.is_(None))
             ).options(
                 selectinload(Property.entity),
-                selectinload(Property.archived_page).selectinload(
-                    ArchivedPage.language_entities
-                ),
+                selectinload(Property.property_references)
+                .selectinload(PropertyReference.archived_page)
+                .selectinload(ArchivedPage.language_entities),
             ),
             selectinload(Politician.wikipedia_links),
         )
@@ -277,7 +293,9 @@ async def search_politicians(
                 Politician.properties.and_(Property.deleted_at.is_(None))
             ).options(
                 selectinload(Property.entity),
-                selectinload(Property.archived_page),
+                selectinload(Property.property_references).selectinload(
+                    PropertyReference.archived_page
+                ),
             ),
         )
     )
@@ -492,35 +510,12 @@ async def create_politician(
             .all()
         )
 
-        property_responses = []
-        for prop in properties:
-            # Add entity name if applicable
-            entity_name = None
-            if prop.entity and prop.entity_id:
-                entity_name = prop.entity.name
-
-            property_responses.append(
-                PropertyResponse(
-                    id=prop.id,
-                    type=prop.type,
-                    value=prop.value,
-                    value_precision=prop.value_precision,
-                    entity_id=prop.entity_id,
-                    entity_name=entity_name,
-                    supporting_quotes=prop.supporting_quotes,
-                    statement_id=prop.statement_id,
-                    qualifiers=prop.qualifiers_json,
-                    references=prop.references_json,
-                    archived_page=None,  # New properties don't have archived pages
-                )
-            )
-
         result.append(
             PoliticianResponse(
                 id=politician.id,
                 name=politician.name,
                 wikidata_id=politician.wikidata_id,
-                properties=property_responses,
+                properties=build_property_responses(properties),
             )
         )
 
@@ -673,28 +668,7 @@ async def add_properties(
         )
 
     # Build response with full property data
-    property_responses = []
-    for prop in properties:
-        # Add entity name if applicable
-        entity_name = None
-        if prop.entity and prop.entity_id:
-            entity_name = prop.entity.name
-
-        property_responses.append(
-            PropertyResponse(
-                id=prop.id,
-                type=prop.type,
-                value=prop.value,
-                value_precision=prop.value_precision,
-                entity_id=prop.entity_id,
-                entity_name=entity_name,
-                supporting_quotes=prop.supporting_quotes,
-                statement_id=prop.statement_id,
-                qualifiers=prop.qualifiers_json,
-                references=prop.references_json,
-                archived_page=None,  # New properties don't have archived pages
-            )
-        )
+    property_responses = build_property_responses(properties)
 
     return PropertyAddResponse(
         success=True,

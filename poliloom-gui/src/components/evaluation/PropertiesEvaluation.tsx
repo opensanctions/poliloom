@@ -1,5 +1,5 @@
 import { ReactNode, Fragment, useEffect, useMemo } from 'react'
-import { Property, PropertyType } from '@/types'
+import { Property, PropertyType, PropertyReference } from '@/types'
 import { EvaluationItem } from './EvaluationItem'
 import { PropertyDisplay } from './PropertyDisplay'
 import { EntityLink } from '@/components/ui/EntityLink'
@@ -10,7 +10,7 @@ interface PropertiesEvaluationProps {
   properties: Property[]
   evaluations: Map<string, boolean>
   onAction: (propertyId: string, action: 'accept' | 'reject') => void
-  onShowArchived: (property: Property) => void
+  onShowArchived: (ref: PropertyReference) => void
   onHover: (property: Property) => void
   activeArchivedPageId: string | null
 }
@@ -170,13 +170,13 @@ export function PropertiesEvaluation({
     return result
   }, [properties])
 
-  // Select the first property with an archived page when properties change
+  // Select the first property with sources when properties change
   useEffect(() => {
     for (const section of sections) {
       for (const item of section.items) {
-        const firstWithArchive = item.properties.find((p) => p.archived_page && !p.statement_id)
-        if (firstWithArchive) {
-          onShowArchived(firstWithArchive)
+        const firstWithSource = item.properties.find((p) => p.sources.length > 0 && !p.statement_id)
+        if (firstWithSource) {
+          onShowArchived(firstWithSource.sources[0])
           return
         }
       }
@@ -195,11 +195,11 @@ export function PropertiesEvaluation({
                   key={item.key}
                   title={item.title}
                   onHover={() => {
-                    const firstWithArchive = item.properties.find(
-                      (p) => p.archived_page && !p.statement_id,
+                    const firstWithSource = item.properties.find(
+                      (p) => p.sources.length > 0 && !p.statement_id,
                     )
-                    if (firstWithArchive) {
-                      onHover(firstWithArchive)
+                    if (firstWithSource) {
+                      onHover(firstWithSource)
                     }
                   }}
                 >

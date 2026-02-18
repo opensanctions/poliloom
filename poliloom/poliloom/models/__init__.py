@@ -38,6 +38,7 @@ from .politician import (
     ArchivedPageLanguage,
     Politician,
     Property,
+    PropertyReference,
     WikipediaLink,
 )
 
@@ -75,5 +76,6 @@ __all__ = [
     "ArchivedPageLanguage",
     "Politician",
     "Property",
+    "PropertyReference",
     "WikipediaLink",
 ]

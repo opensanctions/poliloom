@@ -249,7 +249,18 @@ describe('PoliticianEvaluation', () => {
             entity_id: 'Q142',
             entity_name: 'France',
             statement_id: null,
-            supporting_quotes: ['French politician'],
+            sources: [
+              {
+                id: 'ref-c',
+                archived_page: {
+                  id: 'a-1',
+                  url: 'https://example.com',
+                  content_hash: 'x',
+                  fetch_timestamp: '',
+                },
+                supporting_quotes: ['French politician'],
+              },
+            ],
           },
           {
             key: 'birth-1',
@@ -258,7 +269,18 @@ describe('PoliticianEvaluation', () => {
             entity_id: 'Q123456',
             entity_name: 'Test City',
             statement_id: null,
-            supporting_quotes: ['was born in Test City'],
+            sources: [
+              {
+                id: 'ref-b',
+                archived_page: {
+                  id: 'a-1',
+                  url: 'https://example.com',
+                  content_hash: 'x',
+                  fetch_timestamp: '',
+                },
+                supporting_quotes: ['was born in Test City'],
+              },
+            ],
           },
           {
             key: 'pos-1',
@@ -271,7 +293,18 @@ describe('PoliticianEvaluation', () => {
               P580: [{ datavalue: { value: { time: '+2020-01-01T00:00:00Z', precision: 11 } } }],
               P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }],
             },
-            supporting_quotes: ['served as mayor from 2020 to 2024'],
+            sources: [
+              {
+                id: 'ref-p',
+                archived_page: {
+                  id: 'a-1',
+                  url: 'https://example.com',
+                  content_hash: 'x',
+                  fetch_timestamp: '',
+                },
+                supporting_quotes: ['served as mayor from 2020 to 2024'],
+              },
+            ],
           },
           {
             key: 'prop-birth',
@@ -280,7 +313,18 @@ describe('PoliticianEvaluation', () => {
             value: '+1970-01-01T00:00:00Z',
             value_precision: 11,
             statement_id: null,
-            supporting_quotes: ['born on January 1, 1970'],
+            sources: [
+              {
+                id: 'ref-bd',
+                archived_page: {
+                  id: 'a-1',
+                  url: 'https://example.com',
+                  content_hash: 'x',
+                  fetch_timestamp: '',
+                },
+                supporting_quotes: ['born on January 1, 1970'],
+              },
+            ],
           },
         ],
       }
@@ -332,6 +376,7 @@ describe('PoliticianEvaluation', () => {
               P580: [{ datavalue: { value: { time: '+2020-01-01T00:00:00Z', precision: 11 } } }],
               P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }],
             },
+            sources: [],
           },
           {
             key: 'pos-2',
@@ -344,13 +389,18 @@ describe('PoliticianEvaluation', () => {
               P580: [{ datavalue: { value: { time: '+2022-01-01T00:00:00Z', precision: 11 } } }],
               P582: [{ datavalue: { value: { time: '+2026-01-01T00:00:00Z', precision: 11 } } }],
             },
-            supporting_quotes: ['served as mayor from 2022 to 2026'],
-            archived_page: {
-              id: 'archived-1',
-              url: 'https://example.com',
-              content_hash: 'abc123',
-              fetch_timestamp: '2024-01-01T00:00:00Z',
-            },
+            sources: [
+              {
+                id: 'ref-pos2',
+                archived_page: {
+                  id: 'archived-1',
+                  url: 'https://example.com',
+                  content_hash: 'abc123',
+                  fetch_timestamp: '2024-01-01T00:00:00Z',
+                },
+                supporting_quotes: ['served as mayor from 2022 to 2026'],
+              },
+            ],
           },
         ],
       }

@@ -634,7 +634,7 @@ class TestPushEvaluation:
         is_accepted=True,
         property_type=PropertyType.POSITION,
         has_statement_id=False,
-        has_archived_page_id=False,
+        has_property_references=False,
     ):
         """Helper to create mock evaluation objects."""
         # Create mock politician
@@ -645,13 +645,25 @@ class TestPushEvaluation:
         property_mock = Mock(spec=Property)
         property_mock.type = property_type
         property_mock.statement_id = "Q12345$statement-id" if has_statement_id else None
-        property_mock.archived_page_id = (
-            "archived-page-id" if has_archived_page_id else None
-        )
         property_mock.politician = politician
         property_mock.qualifiers_json = None
         property_mock.references_json = None
         property_mock.deleted_at = None  # Initialize as None for testing
+
+        # Set up property_references
+        if has_property_references:
+            mock_archived_page = Mock()
+            mock_archived_page.create_references_json.return_value = [
+                {
+                    "property": {"id": "P854"},
+                    "value": {"type": "value", "content": "https://example.com"},
+                }
+            ]
+            mock_ref = Mock()
+            mock_ref.archived_page = mock_archived_page
+            property_mock.property_references = [mock_ref]
+        else:
+            property_mock.property_references = []
 
         # Set appropriate values based on property type
         if property_type in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
@@ -678,7 +690,7 @@ class TestPushEvaluation:
             is_accepted=True,
             property_type=PropertyType.POSITION,
             has_statement_id=False,  # No statement_id = extracted data
-            has_archived_page_id=True,  # Has archived_page_id = extracted data
+            has_property_references=True,  # Has property references = extracted data
         )
 
         mock_db = Mock()
@@ -713,7 +725,7 @@ class TestPushEvaluation:
             is_accepted=False,
             property_type=PropertyType.POSITION,
             has_statement_id=True,  # Has statement_id = existing statement
-            has_archived_page_id=False,  # No archived_page_id = existing statement
+            has_property_references=False,  # No property references = existing statement
         )
 
         mock_db = Mock()
@@ -739,7 +751,7 @@ class TestPushEvaluation:
             is_accepted=False,
             property_type=PropertyType.POSITION,
             has_statement_id=False,  # No statement_id = extracted data
-            has_archived_page_id=True,  # Has archived_page_id = extracted data
+            has_property_references=True,  # Has property references = extracted data
         )
 
         mock_db = Mock()
@@ -759,7 +771,7 @@ class TestPushEvaluation:
             is_accepted=True,
             property_type=PropertyType.POSITION,
             has_statement_id=True,  # Has statement_id = existing statement
-            has_archived_page_id=False,  # No archived_page_id = existing statement
+            has_property_references=False,  # No property references = existing statement
         )
 
         mock_db = Mock()
@@ -777,7 +789,7 @@ class TestPushEvaluation:
             is_accepted=True,
             property_type=PropertyType.BIRTH_DATE,
             has_statement_id=False,
-            has_archived_page_id=True,
+            has_property_references=True,
         )
 
         mock_db = Mock()
@@ -813,7 +825,7 @@ class TestPushEvaluation:
             is_accepted=False,
             property_type=PropertyType.POSITION,
             has_statement_id=True,
-            has_archived_page_id=False,
+            has_property_references=False,
         )
 
         mock_db = Mock()
@@ -838,7 +850,7 @@ class TestPushEvaluation:
             is_accepted=True,
             property_type=PropertyType.POSITION,
             has_statement_id=False,
-            has_archived_page_id=True,
+            has_property_references=True,
         )
 
         mock_db = Mock()
@@ -859,7 +871,7 @@ class TestPushEvaluation:
             is_accepted=True,
             property_type=PropertyType.POSITION,
             has_statement_id=False,
-            has_archived_page_id=True,
+            has_property_references=True,
         )
 
         # Add qualifiers in Action API format

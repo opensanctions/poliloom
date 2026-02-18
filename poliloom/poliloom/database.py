@@ -123,6 +123,7 @@ def create_timestamp_triggers(engine: Engine):
             "politicians",
             "positions",
             "properties",
+            "property_references",
             "wikidata_dumps",
             "wikidata_entities",
             "wikidata_relations",

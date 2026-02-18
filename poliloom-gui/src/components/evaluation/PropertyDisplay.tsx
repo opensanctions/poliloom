@@ -1,5 +1,5 @@
 import { useState, useLayoutEffect } from 'react'
-import { Property, PropertyType } from '@/types'
+import { Property, PropertyType, PropertyReference } from '@/types'
 import { parseWikidataDate } from '@/lib/wikidata/dateParser'
 import { parsePositionQualifiers, formatPositionDates } from '@/lib/wikidata/qualifierParser'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
@@ -11,7 +11,7 @@ interface PropertyDisplayProps {
   property: Property
   evaluations: Map<string, boolean>
   onAction?: (propertyId: string, action: 'accept' | 'reject') => void
-  onShowArchived?: (property: Property) => void
+  onShowArchived?: (ref: PropertyReference) => void
   onHover?: (property: Property) => void
   activeArchivedPageId?: string | null
   shouldAutoOpen?: boolean
@@ -115,11 +115,10 @@ export function PropertyDisplay({
       )}
       {!property.statement_id && (
         <StatementSource
-          supportingQuotes={property.supporting_quotes || null}
-          archivedPage={property.archived_page || null}
+          sources={property.sources}
           isWikidataStatement={!!property.statement_id}
-          isActive={activeArchivedPageId === property.archived_page?.id}
-          onShowArchived={() => onShowArchived?.(property)}
+          activeArchivedPageId={activeArchivedPageId}
+          onShowArchived={(ref) => onShowArchived?.(ref)}
           onHover={() => onHover?.(property)}
         />
       )}
@@ -137,7 +136,8 @@ export function PropertyDisplay({
           isWikidataStatement={!!property.statement_id}
           isAccepted={evaluations.get(property.key) ?? null}
           isSourceVisible={
-            !property.archived_page || activeArchivedPageId === property.archived_page.id
+            property.sources.length === 0 ||
+            property.sources.some((s) => activeArchivedPageId === s.archived_page.id)
           }
           isAdvancedMode={isAdvancedMode}
           onAction={onAction}

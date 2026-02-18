@@ -31,6 +31,12 @@ export interface PropertyQualifiers {
   [key: string]: WikidataQualifierValue[] | undefined
 }
 
+export interface PropertyReference {
+  id: string
+  archived_page: ArchivedPageResponse
+  supporting_quotes?: string[]
+}
+
 export interface Property {
   key: string // Used for React keys and Map lookups
   id?: string // Optional: Present for backend properties, absent for manually added properties
@@ -39,11 +45,10 @@ export interface Property {
   value_precision?: number
   entity_id?: string
   entity_name?: string
-  supporting_quotes?: string[]
   statement_id?: string | null
   qualifiers?: PropertyQualifiers
   references?: Array<Record<string, unknown>>
-  archived_page?: ArchivedPageResponse
+  sources: PropertyReference[]
 }
 
 export interface Politician {

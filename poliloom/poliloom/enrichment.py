@@ -977,20 +977,35 @@ def store_extracted_data(
                 # Convert date string to WikidataDate and store the time_string
                 wikidata_date = WikidataDate.from_date_string(property_data.value)
 
-                new_property = Property(
+                existing = Property.find_matching(
+                    db,
                     politician_id=politician.id,
-                    type=property_data.type,
+                    property_type=property_data.type,
                     value=wikidata_date.time_string,
                     value_precision=wikidata_date.precision,
-                    qualifiers_json=None,  # For extracted dates, no qualifiers initially
-                    references_json=archived_page.create_references_json(),
-                    archived_page_id=archived_page.id,
-                    supporting_quotes=property_data.supporting_quotes,
                 )
 
-                if new_property.should_store(db):
+                if existing:
+                    existing.add_reference(
+                        db, archived_page, property_data.supporting_quotes
+                    )
+                    logger.info(
+                        f"Added reference to existing property: {property_data.type} = '{property_data.value}' for {politician.name}"
+                    )
+                else:
+                    new_property = Property(
+                        politician_id=politician.id,
+                        type=property_data.type,
+                        value=wikidata_date.time_string,
+                        value_precision=wikidata_date.precision,
+                        qualifiers_json=None,
+                        references_json=None,
+                    )
                     db.add(new_property)
                     db.flush()
+                    new_property.add_reference(
+                        db, archived_page, property_data.supporting_quotes
+                    )
                     logger.info(
                         f"Added new property: {property_data.type} = '{property_data.value}' for {politician.name}"
                     )
@@ -1020,19 +1035,34 @@ def store_extracted_data(
                                 getattr(item_data, "end_date", None),
                             )
 
-                        new_property = Property(
+                        existing = Property.find_matching(
+                            db,
                             politician_id=politician.id,
-                            type=property_type,
+                            property_type=property_type,
                             entity_id=entity.wikidata_id,
                             qualifiers_json=qualifiers_json,
-                            references_json=archived_page.create_references_json(),
-                            archived_page_id=archived_page.id,
-                            supporting_quotes=item_data.supporting_quotes,
                         )
 
-                        if new_property.should_store(db):
+                        if existing:
+                            existing.add_reference(
+                                db, archived_page, item_data.supporting_quotes
+                            )
+                            logger.info(
+                                f"Added reference to existing {entity_name}: '{entity.name}' ({entity.wikidata_id}) for {politician.name}"
+                            )
+                        else:
+                            new_property = Property(
+                                politician_id=politician.id,
+                                type=property_type,
+                                entity_id=entity.wikidata_id,
+                                qualifiers_json=qualifiers_json,
+                                references_json=None,
+                            )
                             db.add(new_property)
                             db.flush()
+                            new_property.add_reference(
+                                db, archived_page, item_data.supporting_quotes
+                            )
                             logger.info(
                                 f"Added new {entity_name}: '{entity.name}' ({entity.wikidata_id}) for {politician.name}"
                             )

@@ -16,6 +16,7 @@ from poliloom.models import (
     Location,
     Politician,
     Position,
+    PropertyReference,
     WikipediaLink,
 )
 from poliloom.database import get_engine
@@ -460,7 +461,7 @@ def create_citizenship(db_session):
         Args:
             politician: Politician instance
             country: Country instance
-            archived_page: Optional ArchivedPage instance
+            archived_page: Optional ArchivedPage instance (creates a PropertyReference)
 
         Returns:
             Created Property instance
@@ -469,9 +470,15 @@ def create_citizenship(db_session):
             politician_id=politician.id,
             type=PropertyType.CITIZENSHIP,
             entity_id=country.wikidata_id,
-            archived_page_id=archived_page.id if archived_page else None,
         )
         db_session.add(prop)
+        db_session.flush()
+        if archived_page:
+            ref = PropertyReference(
+                property_id=prop.id,
+                archived_page_id=archived_page.id,
+            )
+            db_session.add(ref)
         return prop
 
     return _create_citizenship
@@ -497,7 +504,7 @@ def create_birth_date(db_session):
         Args:
             politician: Politician instance
             value: Date string (default: "1980-01-01")
-            archived_page: Optional ArchivedPage instance (makes it "extracted")
+            archived_page: Optional ArchivedPage instance (creates a PropertyReference)
             statement_id: Optional statement ID (makes it "from Wikidata")
             supporting_quotes: Optional list of supporting quotes
 
@@ -509,11 +516,17 @@ def create_birth_date(db_session):
             type=PropertyType.BIRTH_DATE,
             value=value,
             value_precision=11,
-            archived_page_id=archived_page.id if archived_page else None,
             statement_id=statement_id,
-            supporting_quotes=supporting_quotes,
         )
         db_session.add(prop)
+        db_session.flush()
+        if archived_page:
+            ref = PropertyReference(
+                property_id=prop.id,
+                archived_page_id=archived_page.id,
+                supporting_quotes=supporting_quotes,
+            )
+            db_session.add(ref)
         return prop
 
     return _create_birth_date
@@ -539,7 +552,7 @@ def create_death_date(db_session):
         Args:
             politician: Politician instance
             value: Date string (default: "2020-01-01")
-            archived_page: Optional ArchivedPage instance (makes it "extracted")
+            archived_page: Optional ArchivedPage instance (creates a PropertyReference)
             statement_id: Optional statement ID (makes it "from Wikidata")
             supporting_quotes: Optional list of supporting quotes
 
@@ -551,11 +564,17 @@ def create_death_date(db_session):
             type=PropertyType.DEATH_DATE,
             value=value,
             value_precision=11,
-            archived_page_id=archived_page.id if archived_page else None,
             statement_id=statement_id,
-            supporting_quotes=supporting_quotes,
         )
         db_session.add(prop)
+        db_session.flush()
+        if archived_page:
+            ref = PropertyReference(
+                property_id=prop.id,
+                archived_page_id=archived_page.id,
+                supporting_quotes=supporting_quotes,
+            )
+            db_session.add(ref)
         return prop
 
     return _create_death_date
@@ -582,7 +601,7 @@ def create_position(db_session):
         Args:
             politician: Politician instance
             position: Position instance
-            archived_page: Optional ArchivedPage instance (makes it "extracted")
+            archived_page: Optional ArchivedPage instance (creates a PropertyReference)
             qualifiers_json: Optional qualifiers dict (e.g., P580/P582 for dates)
             statement_id: Optional statement ID (makes it "from Wikidata")
             supporting_quotes: Optional list of supporting quotes
@@ -594,12 +613,18 @@ def create_position(db_session):
             politician_id=politician.id,
             type=PropertyType.POSITION,
             entity_id=position.wikidata_id,
-            archived_page_id=archived_page.id if archived_page else None,
             qualifiers_json=qualifiers_json,
             statement_id=statement_id,
-            supporting_quotes=supporting_quotes,
         )
         db_session.add(prop)
+        db_session.flush()
+        if archived_page:
+            ref = PropertyReference(
+                property_id=prop.id,
+                archived_page_id=archived_page.id,
+                supporting_quotes=supporting_quotes,
+            )
+            db_session.add(ref)
         return prop
 
     return _create_position
@@ -625,7 +650,7 @@ def create_birthplace(db_session):
         Args:
             politician: Politician instance
             location: Location instance
-            archived_page: Optional ArchivedPage instance (makes it "extracted")
+            archived_page: Optional ArchivedPage instance (creates a PropertyReference)
             statement_id: Optional statement ID (makes it "from Wikidata")
             supporting_quotes: Optional list of supporting quotes
 
@@ -636,11 +661,17 @@ def create_birthplace(db_session):
             politician_id=politician.id,
             type=PropertyType.BIRTHPLACE,
             entity_id=location.wikidata_id,
-            archived_page_id=archived_page.id if archived_page else None,
             statement_id=statement_id,
-            supporting_quotes=supporting_quotes,
         )
         db_session.add(prop)
+        db_session.flush()
+        if archived_page:
+            ref = PropertyReference(
+                property_id=prop.id,
+                archived_page_id=archived_page.id,
+                supporting_quotes=supporting_quotes,
+            )
+            db_session.add(ref)
         return prop
 
     return _create_birthplace
@@ -679,8 +710,6 @@ def politician_with_unevaluated_data(
         type=PropertyType.BIRTH_DATE,
         value="1970-01-15",
         value_precision=11,
-        archived_page_id=archived_page.id,
-        supporting_quotes=["Born on January 15, 1970"],
     )
 
     extracted_position = Property(
@@ -691,16 +720,12 @@ def politician_with_unevaluated_data(
             "P580": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()],
             "P582": [WikidataDate.from_date_string("2024").to_wikidata_qualifier()],
         },
-        archived_page_id=archived_page.id,
-        supporting_quotes=["Served as Mayor from 2020 to 2024"],
     )
 
     extracted_birthplace = Property(
         politician_id=politician.id,
         type=PropertyType.BIRTHPLACE,
         entity_id=location.wikidata_id,
-        archived_page_id=archived_page.id,
-        supporting_quotes=["Born in Springfield"],
     )
 
     # Add Wikidata (non-extracted) data
@@ -709,7 +734,6 @@ def politician_with_unevaluated_data(
         type=PropertyType.DEATH_DATE,
         value="2024-01-01",
         value_precision=11,
-        archived_page_id=None,
     )
 
     wikidata_position = Property(
@@ -720,20 +744,39 @@ def politician_with_unevaluated_data(
             "P580": [WikidataDate.from_date_string("2018").to_wikidata_qualifier()],
             "P582": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()],
         },
-        archived_page_id=None,
     )
 
     wikidata_birthplace = Property(
         politician_id=politician.id,
         type=PropertyType.BIRTHPLACE,
         entity_id=location.wikidata_id,
-        archived_page_id=None,
     )
 
     extracted_properties = [extracted_birth, extracted_position, extracted_birthplace]
     wikidata_properties = [wikidata_death, wikidata_position, wikidata_birthplace]
 
     db_session.add_all(extracted_properties + wikidata_properties)
+    db_session.flush()
+
+    # Create PropertyReferences for extracted properties
+    refs = [
+        PropertyReference(
+            property_id=extracted_birth.id,
+            archived_page_id=archived_page.id,
+            supporting_quotes=["Born on January 15, 1970"],
+        ),
+        PropertyReference(
+            property_id=extracted_position.id,
+            archived_page_id=archived_page.id,
+            supporting_quotes=["Served as Mayor from 2020 to 2024"],
+        ),
+        PropertyReference(
+            property_id=extracted_birthplace.id,
+            archived_page_id=archived_page.id,
+            supporting_quotes=["Born in Springfield"],
+        ),
+    ]
+    db_session.add_all(refs)
     db_session.flush()
 
     return politician, extracted_properties

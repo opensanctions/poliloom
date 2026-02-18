@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from poliloom.models import (
     Politician,
     Property,
+    PropertyReference,
     PropertyType,
     WikidataRelation,
     RelationType,
@@ -471,10 +472,16 @@ class TestPoliticianFilterByUnevaluated:
             type=PropertyType.BIRTH_DATE,
             value="1980-01-01",
             value_precision=11,
-            archived_page_id=sample_archived_page.id,
             deleted_at=datetime.now(timezone.utc),
         )
         db_session.add(prop)
+        db_session.flush()
+        db_session.add(
+            PropertyReference(
+                property_id=prop.id,
+                archived_page_id=sample_archived_page.id,
+            )
+        )
         db_session.flush()
 
         # Execute query with filter
@@ -1048,15 +1055,21 @@ class TestCountStatelessWithUnevaluatedCitizenship:
         sample_archived_page,
     ):
         """Test counting politician with extracted citizenship but no Wikidata citizenship."""
-        # Add extracted citizenship (from archived page, no statement_id)
+        # Add extracted citizenship (has PropertyReference, no statement_id)
         prop = Property(
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
             entity_id=sample_country.wikidata_id,
-            archived_page_id=sample_archived_page.id,
             statement_id=None,  # Unevaluated
         )
         db_session.add(prop)
+        db_session.flush()
+        db_session.add(
+            PropertyReference(
+                property_id=prop.id,
+                archived_page_id=sample_archived_page.id,
+            )
+        )
         db_session.flush()
 
         count = Politician.count_stateless_with_unevaluated_citizenship(db_session)
@@ -1070,12 +1083,11 @@ class TestCountStatelessWithUnevaluatedCitizenship:
         sample_archived_page,
     ):
         """Test that politicians with Wikidata citizenship are excluded."""
-        # Add Wikidata citizenship (no archived_page)
+        # Add Wikidata citizenship (no PropertyReference)
         wikidata_prop = Property(
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
             entity_id=sample_country.wikidata_id,
-            archived_page_id=None,  # From Wikidata
             statement_id="Q123$test-statement",
         )
         db_session.add(wikidata_prop)
@@ -1085,10 +1097,16 @@ class TestCountStatelessWithUnevaluatedCitizenship:
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
             entity_id=sample_country.wikidata_id,
-            archived_page_id=sample_archived_page.id,
             statement_id=None,
         )
         db_session.add(extracted_prop)
+        db_session.flush()
+        db_session.add(
+            PropertyReference(
+                property_id=extracted_prop.id,
+                archived_page_id=sample_archived_page.id,
+            )
+        )
         db_session.flush()
 
         # Should be 0 because politician has Wikidata citizenship
@@ -1108,10 +1126,16 @@ class TestCountStatelessWithUnevaluatedCitizenship:
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
             entity_id=sample_country.wikidata_id,
-            archived_page_id=sample_archived_page.id,
             statement_id="Q123$pushed-statement",  # Already evaluated
         )
         db_session.add(prop)
+        db_session.flush()
+        db_session.add(
+            PropertyReference(
+                property_id=prop.id,
+                archived_page_id=sample_archived_page.id,
+            )
+        )
         db_session.flush()
 
         count = Politician.count_stateless_with_unevaluated_citizenship(db_session)
@@ -1130,11 +1154,17 @@ class TestCountStatelessWithUnevaluatedCitizenship:
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
             entity_id=sample_country.wikidata_id,
-            archived_page_id=sample_archived_page.id,
             statement_id=None,
             deleted_at=datetime.now(timezone.utc),
         )
         db_session.add(prop)
+        db_session.flush()
+        db_session.add(
+            PropertyReference(
+                property_id=prop.id,
+                archived_page_id=sample_archived_page.id,
+            )
+        )
         db_session.flush()
 
         count = Politician.count_stateless_with_unevaluated_citizenship(db_session)
@@ -1151,37 +1181,34 @@ class TestCountStatelessWithUnevaluatedCitizenship:
         assert count == 0
 
 
-class TestPropertyShouldStore:
-    """Test cases for the Property.should_store() method.
+class TestPropertyFindMatching:
+    """Test cases for the Property.find_matching() class method.
 
     Note: Comparison logic is tested in TestPropertyCompareTo.
     These tests focus on the DB integration (no existing property case).
     """
 
-    def test_should_store_birth_date_no_existing(self, db_session, sample_politician):
-        """Test storing birth date when no existing date exists."""
-        politician = sample_politician
-
-        new_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
+    def test_find_matching_birth_date_no_existing(self, db_session, sample_politician):
+        """Test find_matching returns None when no existing date exists."""
+        result = Property.find_matching(
+            db_session,
+            sample_politician.id,
+            PropertyType.BIRTH_DATE,
             value="+1990-01-01T00:00:00Z",
             value_precision=11,
         )
 
-        assert new_property.should_store(db_session) is True
+        assert result is None
 
-    def test_should_store_position_no_existing(
+    def test_find_matching_position_no_existing(
         self, db_session, sample_politician, sample_position
     ):
-        """Test storing position when no existing position exists."""
-        politician = sample_politician
-        position = sample_position
-
-        new_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
+        """Test find_matching returns None when no existing position exists."""
+        result = Property.find_matching(
+            db_session,
+            sample_politician.id,
+            PropertyType.POSITION,
+            entity_id=sample_position.wikidata_id,
             qualifiers_json={
                 "P580": [
                     {
@@ -1193,37 +1220,33 @@ class TestPropertyShouldStore:
             },
         )
 
-        assert new_property.should_store(db_session) is True
+        assert result is None
 
-    def test_should_store_birthplace_no_existing(
+    def test_find_matching_birthplace_no_existing(
         self, db_session, sample_politician, sample_location
     ):
-        """Test storing birthplace when no existing birthplace exists."""
-        politician = sample_politician
-        location = sample_location
-
-        new_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTHPLACE,
-            entity_id=location.wikidata_id,
+        """Test find_matching returns None when no existing birthplace exists."""
+        result = Property.find_matching(
+            db_session,
+            sample_politician.id,
+            PropertyType.BIRTHPLACE,
+            entity_id=sample_location.wikidata_id,
         )
 
-        assert new_property.should_store(db_session) is True
+        assert result is None
 
-    def test_should_store_citizenship_no_existing(
+    def test_find_matching_citizenship_no_existing(
         self, db_session, sample_politician, sample_country
     ):
-        """Test storing citizenship when no existing citizenship exists."""
-        politician = sample_politician
-        country = sample_country
-
-        new_property = Property(
-            politician_id=politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=country.wikidata_id,
+        """Test find_matching returns None when no existing citizenship exists."""
+        result = Property.find_matching(
+            db_session,
+            sample_politician.id,
+            PropertyType.CITIZENSHIP,
+            entity_id=sample_country.wikidata_id,
         )
 
-        assert new_property.should_store(db_session) is True
+        assert result is None
 
 
 class TestPropertyExtractTimeframe:

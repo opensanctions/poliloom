@@ -33,8 +33,13 @@ export const mockPolitician: Politician = {
       value: '+1970-01-01T00:00:00Z',
       value_precision: 11,
       statement_id: null,
-      supporting_quotes: ['born on January 1, 1970'],
-      archived_page: mockArchivedPage,
+      sources: [
+        {
+          id: 'ref-1',
+          archived_page: mockArchivedPage,
+          supporting_quotes: ['born on January 1, 1970'],
+        },
+      ],
     },
     {
       key: 'pos-1',
@@ -47,8 +52,13 @@ export const mockPolitician: Politician = {
         P580: [{ datavalue: { value: { time: '+2020-01-01T00:00:00Z', precision: 11 } } }],
         P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }],
       },
-      supporting_quotes: ['served as mayor from 2020 to 2024'],
-      archived_page: mockArchivedPage,
+      sources: [
+        {
+          id: 'ref-2',
+          archived_page: mockArchivedPage,
+          supporting_quotes: ['served as mayor from 2020 to 2024'],
+        },
+      ],
     },
     {
       key: 'birth-1',
@@ -57,8 +67,13 @@ export const mockPolitician: Politician = {
       entity_id: 'Q123456',
       entity_name: 'Test City',
       statement_id: null,
-      supporting_quotes: ['was born in Test City'],
-      archived_page: mockArchivedPage,
+      sources: [
+        {
+          id: 'ref-3',
+          archived_page: mockArchivedPage,
+          supporting_quotes: ['was born in Test City'],
+        },
+      ],
     },
   ],
 }
@@ -83,8 +98,13 @@ export const mockPoliticianWithConflicts: Politician = {
       value: '+1970-01-02T00:00:00Z',
       value_precision: 11,
       statement_id: null,
-      supporting_quotes: ['born on January 2, 1970'],
-      archived_page: mockArchivedPage,
+      sources: [
+        {
+          id: 'ref-conflicted',
+          archived_page: mockArchivedPage,
+          supporting_quotes: ['born on January 2, 1970'],
+        },
+      ],
     },
     // Citizenship (extracted-only)
     {
@@ -94,8 +114,13 @@ export const mockPoliticianWithConflicts: Politician = {
       entity_id: 'Q142',
       entity_name: 'France',
       statement_id: null,
-      supporting_quotes: ['French politician'],
-      archived_page: mockArchivedPage,
+      sources: [
+        {
+          id: 'ref-extracted',
+          archived_page: mockArchivedPage,
+          supporting_quotes: ['French politician'],
+        },
+      ],
     },
     // Position (conflicted)
     {
@@ -109,8 +134,13 @@ export const mockPoliticianWithConflicts: Politician = {
         P580: [{ datavalue: { value: { time: '+2020-01-01T00:00:00Z', precision: 11 } } }],
         P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }],
       },
-      supporting_quotes: ['served as mayor from 2020 to 2024'],
-      archived_page: mockArchivedPage,
+      sources: [
+        {
+          id: 'ref-pos-conflicted',
+          archived_page: mockArchivedPage,
+          supporting_quotes: ['served as mayor from 2020 to 2024'],
+        },
+      ],
     },
     // Position (extracted-only)
     {
@@ -123,8 +153,13 @@ export const mockPoliticianWithConflicts: Politician = {
       qualifiers: {
         P580: [{ datavalue: { value: { time: '+2018-01-01T00:00:00Z', precision: 11 } } }],
       },
-      supporting_quotes: ['council member since 2018'],
-      archived_page: mockArchivedPage,
+      sources: [
+        {
+          id: 'ref-pos-extracted',
+          archived_page: mockArchivedPage,
+          supporting_quotes: ['council member since 2018'],
+        },
+      ],
     },
     // Birthplace (conflicted)
     {
@@ -134,8 +169,13 @@ export const mockPoliticianWithConflicts: Politician = {
       entity_id: 'Q123456',
       entity_name: 'Test City',
       statement_id: null,
-      supporting_quotes: ['was born in Test City'],
-      archived_page: mockArchivedPage,
+      sources: [
+        {
+          id: 'ref-birth-conflicted',
+          archived_page: mockArchivedPage,
+          supporting_quotes: ['was born in Test City'],
+        },
+      ],
     },
     // Birthplace (extracted-only)
     {
@@ -145,8 +185,13 @@ export const mockPoliticianWithConflicts: Politician = {
       entity_id: 'Q999000',
       entity_name: 'New City',
       statement_id: null,
-      supporting_quotes: ['was born in New City'],
-      archived_page: mockArchivedPage,
+      sources: [
+        {
+          id: 'ref-birth-extracted',
+          archived_page: mockArchivedPage,
+          supporting_quotes: ['was born in New City'],
+        },
+      ],
     },
   ],
 }
@@ -163,8 +208,13 @@ export const mockPoliticianExtractedOnly: Politician = {
       value: '+1980-05-15T00:00:00Z',
       value_precision: 11,
       statement_id: null,
-      supporting_quotes: ['born on May 15, 1980'],
-      archived_page: mockArchivedPage,
+      sources: [
+        {
+          id: 'ref-eo-1',
+          archived_page: mockArchivedPage,
+          supporting_quotes: ['born on May 15, 1980'],
+        },
+      ],
     },
     {
       key: 'prop-extracted-only-2',
@@ -173,8 +223,13 @@ export const mockPoliticianExtractedOnly: Politician = {
       entity_id: 'Q183',
       entity_name: 'Germany',
       statement_id: null,
-      supporting_quotes: ['German citizen'],
-      archived_page: mockArchivedPage,
+      sources: [
+        {
+          id: 'ref-eo-2',
+          archived_page: mockArchivedPage,
+          supporting_quotes: ['German citizen'],
+        },
+      ],
     },
     {
       key: 'pos-extracted-only-1',
@@ -187,8 +242,13 @@ export const mockPoliticianExtractedOnly: Politician = {
         P580: [{ datavalue: { value: { time: '+2019-01-01T00:00:00Z', precision: 11 } } }],
         P582: [{ datavalue: { value: { time: '+2023-01-01T00:00:00Z', precision: 11 } } }],
       },
-      supporting_quotes: ['served as minister from 2019 to 2023'],
-      archived_page: mockArchivedPage,
+      sources: [
+        {
+          id: 'ref-eo-3',
+          archived_page: mockArchivedPage,
+          supporting_quotes: ['served as minister from 2019 to 2023'],
+        },
+      ],
     },
     {
       key: 'birth-extracted-only-1',
@@ -197,8 +257,13 @@ export const mockPoliticianExtractedOnly: Politician = {
       entity_id: 'Q64',
       entity_name: 'Berlin',
       statement_id: null,
-      supporting_quotes: ['was born in Berlin'],
-      archived_page: mockArchivedPage,
+      sources: [
+        {
+          id: 'ref-eo-4',
+          archived_page: mockArchivedPage,
+          supporting_quotes: ['was born in Berlin'],
+        },
+      ],
     },
   ],
 }
@@ -223,8 +288,13 @@ export const mockPoliticianWithEdgeCases: Politician = {
       value: '+1980-01-01T00:00:00Z',
       value_precision: 11,
       statement_id: 'Q777888$12345678-1234-1234-1234-123456789012',
-      supporting_quotes: ['born on January 1, 1980'],
-      archived_page: mockArchivedPage, // Should be hidden because statement_id exists
+      sources: [
+        {
+          id: 'ref-edge-1',
+          archived_page: mockArchivedPage,
+          supporting_quotes: ['born on January 1, 1980'],
+        },
+      ],
     },
     // Regular extracted statement
     {
@@ -234,8 +304,13 @@ export const mockPoliticianWithEdgeCases: Politician = {
       value: '+1980-01-02T00:00:00Z',
       value_precision: 11,
       statement_id: null,
-      supporting_quotes: ['born on January 2, 1980'],
-      archived_page: mockArchivedPage,
+      sources: [
+        {
+          id: 'ref-edge-2',
+          archived_page: mockArchivedPage,
+          supporting_quotes: ['born on January 2, 1980'],
+        },
+      ],
     },
     // Wikidata position statement
     {
@@ -249,8 +324,7 @@ export const mockPoliticianWithEdgeCases: Politician = {
         P580: [{ datavalue: { value: { time: '+2020-01-01T00:00:00Z', precision: 11 } } }],
         P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }],
       },
-      supporting_quotes: ['served as mayor from 2020 to 2024'],
-      archived_page: mockArchivedPage, // Should be hidden
+      sources: [],
     },
     // Wikidata birthplace statement
     {
@@ -260,8 +334,7 @@ export const mockPoliticianWithEdgeCases: Politician = {
       entity_id: 'Q987654',
       entity_name: 'Test City',
       statement_id: 'Q987654$11111111-2222-3333-4444-555555555555',
-      supporting_quotes: ['was born in Test City'],
-      archived_page: mockArchivedPage, // Should be hidden
+      sources: [],
     },
   ],
 }
@@ -279,8 +352,13 @@ export const mockPoliticianWithDifferentSources: Politician = {
       value: '+1975-06-15T00:00:00Z',
       value_precision: 11,
       statement_id: null,
-      supporting_quotes: ['born on June 15, 1975'],
-      archived_page: mockArchivedPage, // archived-1
+      sources: [
+        {
+          id: 'ref-src-1',
+          archived_page: mockArchivedPage, // archived-1
+          supporting_quotes: ['born on June 15, 1975'],
+        },
+      ],
     },
     {
       key: 'pos-source-2',
@@ -292,8 +370,13 @@ export const mockPoliticianWithDifferentSources: Politician = {
       qualifiers: {
         P580: [{ datavalue: { value: { time: '+2018-01-01T00:00:00Z', precision: 11 } } }],
       },
-      supporting_quotes: ['elected governor in 2018'],
-      archived_page: mockArchivedPage2, // archived-2
+      sources: [
+        {
+          id: 'ref-src-2',
+          archived_page: mockArchivedPage2, // archived-2
+          supporting_quotes: ['elected governor in 2018'],
+        },
+      ],
     },
     {
       key: 'birth-source-3',
@@ -302,8 +385,13 @@ export const mockPoliticianWithDifferentSources: Politician = {
       entity_id: 'Q666777',
       entity_name: 'Capital City',
       statement_id: null,
-      supporting_quotes: ['was born in Capital City'],
-      archived_page: mockArchivedPage3, // archived-3
+      sources: [
+        {
+          id: 'ref-src-3',
+          archived_page: mockArchivedPage3, // archived-3
+          supporting_quotes: ['was born in Capital City'],
+        },
+      ],
     },
   ],
 }

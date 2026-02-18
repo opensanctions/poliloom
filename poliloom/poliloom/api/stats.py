@@ -5,11 +5,11 @@ from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import and_, case, func, literal, literal_column, select
+from sqlalchemy import and_, case, exists, func, literal, literal_column, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db_session
-from ..models import Evaluation, Politician, Property
+from ..models import Evaluation, Politician, Property, PropertyReference
 from ..models.base import PropertyType
 from ..models.wikidata import WikidataEntity
 from .auth import User, get_current_user
@@ -137,7 +137,7 @@ async def get_stats(
         .join(Evaluation, Evaluation.property_id == Property.id)
         .where(
             and_(
-                Property.archived_page_id.isnot(None),  # Extracted property
+                exists(select(1).where(PropertyReference.property_id == Property.id)),
                 Property.deleted_at.is_(None),
                 Evaluation.created_at >= cooldown_cutoff,
             )

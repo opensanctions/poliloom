@@ -28,6 +28,7 @@ from poliloom.models import (
     Location,
     Position,
     Property,
+    PropertyReference,
 )
 
 
@@ -292,7 +293,14 @@ class TestEnrichment:
         assert property_obj is not None
         assert property_obj.value == "+1970-01-15T00:00:00Z"
         assert property_obj.value_precision == 11  # Day precision
-        assert property_obj.archived_page_id == sample_archived_page.id
+        # Verify PropertyReference was created linking to archived page
+        ref = (
+            db_session.query(PropertyReference)
+            .filter_by(property_id=property_obj.id)
+            .first()
+        )
+        assert ref is not None
+        assert ref.archived_page_id == sample_archived_page.id
 
     def test_store_extracted_data_positions(
         self,
@@ -388,7 +396,14 @@ class TestEnrichment:
             .first()
         )
         assert birthplace_property is not None
-        assert birthplace_property.archived_page_id == sample_archived_page.id
+        # Verify PropertyReference was created linking to archived page
+        ref = (
+            db_session.query(PropertyReference)
+            .filter_by(property_id=birthplace_property.id)
+            .first()
+        )
+        assert ref is not None
+        assert ref.archived_page_id == sample_archived_page.id
 
     def test_store_extracted_data_error_handling(
         self,

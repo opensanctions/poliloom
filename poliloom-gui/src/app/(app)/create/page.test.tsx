@@ -68,6 +68,7 @@ vi.mock('@/components/entity/AddPropertyForm', () => ({
             value: '+1980-01-01T00:00:00Z',
             value_precision: 11,
             references: [{ P854: [{ datavalue: { value: 'https://example.com' } }] }],
+            sources: [],
           })
         }
       >
