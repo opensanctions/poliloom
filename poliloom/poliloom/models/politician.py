@@ -26,7 +26,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.engine import Row
-from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Session, relationship
 from sqlalchemy import event
 
@@ -598,15 +597,12 @@ class Politician(
             Count of stateless politicians with unevaluated extracted citizenship
         """
         # Subquery: politicians with Wikidata citizenship (should be excluded)
-        # Wikidata properties have no PropertyReferences
         has_wikidata_citizenship = (
             select(Property.politician_id)
             .where(
                 and_(
                     Property.type == PropertyType.CITIZENSHIP,
-                    ~exists(
-                        select(1).where(PropertyReference.property_id == Property.id)
-                    ),
+                    Property.statement_id.isnot(None),
                     Property.deleted_at.is_(None),
                 )
             )
@@ -614,16 +610,12 @@ class Politician(
         )
 
         # Subquery: politicians with unevaluated extracted citizenship
-        # Extracted properties have PropertyReferences
         has_unevaluated_extracted_citizenship = (
             select(Property.politician_id)
             .where(
                 and_(
                     Property.type == PropertyType.CITIZENSHIP,
-                    exists(
-                        select(1).where(PropertyReference.property_id == Property.id)
-                    ),
-                    Property.statement_id.is_(None),  # Not yet evaluated/pushed
+                    Property.statement_id.is_(None),
                     Property.deleted_at.is_(None),
                 )
             )
@@ -966,16 +958,6 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     entity_id = Column(
         String, ForeignKey("wikidata_entities.wikidata_id"), nullable=True, index=True
     )  # For entity relationships (birthplace, position, citizenship)
-
-    @hybrid_property
-    def is_extracted(self) -> bool:
-        """Check if this property was extracted from a web source (has PropertyReferences)."""
-        return len(self.property_references) > 0
-
-    @is_extracted.expression
-    def is_extracted(cls):
-        """SQL expression for is_extracted."""
-        return exists(select(1).where(PropertyReference.property_id == cls.id))
 
     # Relationships
     politician = relationship("Politician", back_populates="properties")

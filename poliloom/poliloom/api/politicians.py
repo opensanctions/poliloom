@@ -162,8 +162,8 @@ async def get_politicians(
         property_filter = and_(
             Property.deleted_at.is_(None),
             or_(
-                # Include Wikidata properties (no PropertyReferences)
-                ~exists(select(1).where(PropertyReference.property_id == Property.id)),
+                # Include Wikidata properties (have statement_id)
+                Property.statement_id.isnot(None),
                 # Include properties where any PropertyReference's archived page has matching language
                 exists(
                     select(1)

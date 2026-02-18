@@ -26,7 +26,6 @@ from poliloom.models import (
     Location,
     Position,
     Property,
-    PropertyReference,
     WikidataDump,
     WikidataEntity,
 )
@@ -817,10 +816,7 @@ def clean_properties(dry_run):
             count_query = (
                 session.query(Property)
                 .filter(
-                    Property.id.in_(
-                        select(PropertyReference.property_id).distinct()
-                    ),  # Extracted from web source
-                    Property.statement_id.is_(None),  # Not yet pushed to Wikidata
+                    Property.statement_id.is_(None),  # Extracted (not on Wikidata)
                     Property.deleted_at.is_(None),  # Not already deleted
                     ~has_evaluation,  # No evaluations attached
                 )
@@ -841,9 +837,6 @@ def clean_properties(dry_run):
                 affected_politicians = (
                     session.query(Property.politician_id)
                     .filter(
-                        Property.id.in_(
-                            select(PropertyReference.property_id).distinct()
-                        ),
                         Property.statement_id.is_(None),
                         Property.deleted_at.is_(None),
                         ~has_evaluation,
@@ -862,9 +855,6 @@ def clean_properties(dry_run):
                     row[0]
                     for row in session.query(Property.politician_id)
                     .filter(
-                        Property.id.in_(
-                            select(PropertyReference.property_id).distinct()
-                        ),
                         Property.statement_id.is_(None),
                         Property.deleted_at.is_(None),
                         ~has_evaluation,
@@ -877,10 +867,7 @@ def clean_properties(dry_run):
                 deleted_count = (
                     session.query(Property)
                     .filter(
-                        Property.id.in_(
-                            select(PropertyReference.property_id).distinct()
-                        ),  # Extracted from web source
-                        Property.statement_id.is_(None),  # Not yet pushed to Wikidata
+                        Property.statement_id.is_(None),  # Extracted (not on Wikidata)
                         Property.deleted_at.is_(None),  # Not already deleted
                         ~has_evaluation,  # No evaluations attached
                     )

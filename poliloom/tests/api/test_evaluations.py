@@ -10,7 +10,11 @@ class TestEvaluationsEndpoint:
         self, client, mock_auth, politician_with_unevaluated_data
     ):
         """Test evaluation accepts single list format."""
-        politician, test_properties = politician_with_unevaluated_data
+        test_properties = [
+            p
+            for p in politician_with_unevaluated_data.properties
+            if p.statement_id is None
+        ]
 
         # Old format should NOT work
         old_format = {
@@ -68,7 +72,11 @@ class TestEvaluationsEndpoint:
     ):
         """Test evaluation with mix of valid and invalid property IDs."""
         mock_push_evaluation.return_value = True
-        politician, test_properties = politician_with_unevaluated_data
+        test_properties = [
+            p
+            for p in politician_with_unevaluated_data.properties
+            if p.statement_id is None
+        ]
 
         fake_uuid = "99999999-9999-9999-9999-999999999999"
         evaluation_data = {
@@ -110,7 +118,11 @@ class TestEvaluationsEndpoint:
     ):
         """Test that evaluations are pushed to Wikidata when accepted."""
         mock_push_evaluation.return_value = True
-        politician, test_properties = politician_with_unevaluated_data
+        test_properties = [
+            p
+            for p in politician_with_unevaluated_data.properties
+            if p.statement_id is None
+        ]
 
         evaluation_data = {
             "evaluations": [{"id": str(test_properties[0].id), "is_accepted": True}]
@@ -129,7 +141,11 @@ class TestEvaluationsEndpoint:
     ):
         """Test handling of Wikidata push failures."""
         mock_push_evaluation.side_effect = Exception("Wikidata API error")
-        politician, test_properties = politician_with_unevaluated_data
+        test_properties = [
+            p
+            for p in politician_with_unevaluated_data.properties
+            if p.statement_id is None
+        ]
 
         evaluation_data = {
             "evaluations": [{"id": str(test_properties[0].id), "is_accepted": True}]

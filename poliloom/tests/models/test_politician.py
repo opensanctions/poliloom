@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from poliloom.models import (
     Politician,
     Property,
-    PropertyReference,
     PropertyType,
     WikidataRelation,
     RelationType,
@@ -463,10 +462,10 @@ class TestPoliticianFilterByUnevaluated:
         assert len(result) == 0
 
     def test_filter_excludes_soft_deleted_properties(
-        self, db_session, sample_politician, sample_archived_page
+        self, db_session, sample_politician
     ):
         """Test that filter excludes soft-deleted properties."""
-        # Add soft-deleted unevaluated property
+        # Add soft-deleted unevaluated property (no statement_id, but deleted)
         prop = Property(
             politician_id=sample_politician.id,
             type=PropertyType.BIRTH_DATE,
@@ -475,13 +474,6 @@ class TestPoliticianFilterByUnevaluated:
             deleted_at=datetime.now(timezone.utc),
         )
         db_session.add(prop)
-        db_session.flush()
-        db_session.add(
-            PropertyReference(
-                property_id=prop.id,
-                archived_page_id=sample_archived_page.id,
-            )
-        )
         db_session.flush()
 
         # Execute query with filter
@@ -1052,24 +1044,16 @@ class TestCountStatelessWithUnevaluatedCitizenship:
         db_session,
         sample_politician,
         sample_country,
-        sample_archived_page,
     ):
         """Test counting politician with extracted citizenship but no Wikidata citizenship."""
-        # Add extracted citizenship (has PropertyReference, no statement_id)
+        # Add extracted citizenship (no statement_id)
         prop = Property(
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
             entity_id=sample_country.wikidata_id,
-            statement_id=None,  # Unevaluated
+            statement_id=None,
         )
         db_session.add(prop)
-        db_session.flush()
-        db_session.add(
-            PropertyReference(
-                property_id=prop.id,
-                archived_page_id=sample_archived_page.id,
-            )
-        )
         db_session.flush()
 
         count = Politician.count_stateless_with_unevaluated_citizenship(db_session)
@@ -1080,10 +1064,9 @@ class TestCountStatelessWithUnevaluatedCitizenship:
         db_session,
         sample_politician,
         sample_country,
-        sample_archived_page,
     ):
         """Test that politicians with Wikidata citizenship are excluded."""
-        # Add Wikidata citizenship (no PropertyReference)
+        # Add Wikidata citizenship (has statement_id)
         wikidata_prop = Property(
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
@@ -1092,7 +1075,7 @@ class TestCountStatelessWithUnevaluatedCitizenship:
         )
         db_session.add(wikidata_prop)
 
-        # Also add extracted citizenship
+        # Also add extracted citizenship (no statement_id)
         extracted_prop = Property(
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
@@ -1100,13 +1083,6 @@ class TestCountStatelessWithUnevaluatedCitizenship:
             statement_id=None,
         )
         db_session.add(extracted_prop)
-        db_session.flush()
-        db_session.add(
-            PropertyReference(
-                property_id=extracted_prop.id,
-                archived_page_id=sample_archived_page.id,
-            )
-        )
         db_session.flush()
 
         # Should be 0 because politician has Wikidata citizenship
@@ -1118,24 +1094,16 @@ class TestCountStatelessWithUnevaluatedCitizenship:
         db_session,
         sample_politician,
         sample_country,
-        sample_archived_page,
     ):
         """Test that evaluated (pushed) extracted citizenship is excluded."""
-        # Add extracted citizenship that was already pushed
+        # Add extracted citizenship that was already pushed (has statement_id)
         prop = Property(
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
             entity_id=sample_country.wikidata_id,
-            statement_id="Q123$pushed-statement",  # Already evaluated
+            statement_id="Q123$pushed-statement",
         )
         db_session.add(prop)
-        db_session.flush()
-        db_session.add(
-            PropertyReference(
-                property_id=prop.id,
-                archived_page_id=sample_archived_page.id,
-            )
-        )
         db_session.flush()
 
         count = Politician.count_stateless_with_unevaluated_citizenship(db_session)
@@ -1146,10 +1114,9 @@ class TestCountStatelessWithUnevaluatedCitizenship:
         db_session,
         sample_politician,
         sample_country,
-        sample_archived_page,
     ):
         """Test that soft-deleted citizenship is excluded."""
-        # Add soft-deleted extracted citizenship
+        # Add soft-deleted extracted citizenship (no statement_id, but deleted)
         prop = Property(
             politician_id=sample_politician.id,
             type=PropertyType.CITIZENSHIP,
@@ -1158,13 +1125,6 @@ class TestCountStatelessWithUnevaluatedCitizenship:
             deleted_at=datetime.now(timezone.utc),
         )
         db_session.add(prop)
-        db_session.flush()
-        db_session.add(
-            PropertyReference(
-                property_id=prop.id,
-                archived_page_id=sample_archived_page.id,
-            )
-        )
         db_session.flush()
 
         count = Politician.count_stateless_with_unevaluated_citizenship(db_session)

@@ -38,16 +38,7 @@ class TestGetPoliticiansEndpoint:
 
     def test_pagination(self, client, mock_auth, db_session):
         """Test pagination with limit and offset."""
-        # Create multiple politicians with unevaluated data
-        from poliloom.models import ArchivedPage, PropertyReference
-
-        archived_page = ArchivedPage(
-            url="https://example.com/test",
-            content_hash="pagination_test_hash",
-        )
-        db_session.add(archived_page)
-        db_session.flush()
-
+        # Create multiple politicians with unevaluated extracted properties
         for i in range(5):
             politician = Politician.create_with_entity(
                 db_session, f"Q{800000 + i}", f"Pagination Test {i}"
@@ -55,7 +46,7 @@ class TestGetPoliticiansEndpoint:
             db_session.add(politician)
             db_session.flush()
 
-            # Add unevaluated property
+            # Add unevaluated property (no statement_id = extracted)
             prop = Property(
                 politician_id=politician.id,
                 type=PropertyType.BIRTH_DATE,
@@ -63,14 +54,6 @@ class TestGetPoliticiansEndpoint:
                 value_precision=9,
             )
             db_session.add(prop)
-            db_session.flush()
-
-            # Link to archived page via PropertyReference
-            ref = PropertyReference(
-                property_id=prop.id,
-                archived_page_id=archived_page.id,
-            )
-            db_session.add(ref)
         db_session.flush()
 
         # Test limit

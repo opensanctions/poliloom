@@ -2,7 +2,6 @@
 
 import pytest
 from datetime import datetime, timezone
-from typing import List, Dict, Any
 
 from poliloom.models import (
     Politician,
@@ -10,38 +9,6 @@ from poliloom.models import (
     Evaluation,
 )
 from poliloom.wikidata_date import WikidataDate
-
-
-def extract_properties_by_type(
-    politician_data: Dict[str, Any], extracted: bool = True
-) -> Dict[str, List[Dict[str, Any]]]:
-    """
-    Extract properties from politician data based on whether they are extracted or Wikidata.
-
-    Args:
-        politician_data: The politician response data
-        extracted: If True, return extracted properties (with sources), else Wikidata properties (without sources)
-
-    Returns:
-        Dictionary with keys by property type containing lists of matching properties
-    """
-    result = {
-        "P569": [],  # BIRTH_DATE
-        "P570": [],  # DEATH_DATE
-        "P39": [],  # POSITION
-        "P19": [],  # BIRTHPLACE
-        "P27": [],  # CITIZENSHIP
-    }
-
-    # Extract properties by type
-    for prop in politician_data.get("properties", []):
-        has_sources = len(prop.get("sources", [])) > 0
-        if has_sources == extracted:
-            prop_type = prop.get("type")
-            if prop_type in result:
-                result[prop_type].append(prop)
-
-    return result
 
 
 @pytest.fixture
@@ -183,42 +150,69 @@ class TestGetPoliticiansForEvaluationEndpoint:
         assert data["politicians"] == []
 
     def test_extracted_data_contains_supporting_quotes_and_archive_info(
-        self, client, mock_auth, politician_with_unevaluated_data
+        self, client, mock_auth, db_session, politician_with_unevaluated_data
     ):
         """Test that extracted data includes supporting_quotes and archived_page info."""
+        from poliloom.models import ArchivedPage, PropertyReference
+
+        extracted_properties = [
+            p
+            for p in politician_with_unevaluated_data.properties
+            if p.statement_id is None
+        ]
+        archived_page = ArchivedPage(
+            url="https://example.com/test",
+            content_hash="test123",
+        )
+        db_session.add(archived_page)
+        db_session.flush()
+
+        quotes = {
+            0: ["Born on January 15, 1970"],
+            1: ["Served as Mayor from 2020 to 2024"],
+            2: ["Born in Springfield"],
+        }
+        for i, prop in enumerate(extracted_properties):
+            db_session.add(
+                PropertyReference(
+                    property_id=prop.id,
+                    archived_page_id=archived_page.id,
+                    supporting_quotes=quotes[i],
+                )
+            )
+        db_session.flush()
+
         response = client.get("/politicians", headers=mock_auth)
 
         data = response.json()
         politician_data = data["politicians"][0]
 
-        # Find extracted properties (those with supporting_quotes and archived_page)
-        extracted_properties = extract_properties_by_type(
-            politician_data, extracted=True
-        )
+        props = politician_data["properties"]
+        extracted = [p for p in props if p["statement_id"] is None]
 
-        # Check extracted property
-        assert len(extracted_properties["P569"]) == 1  # BIRTH_DATE
-        extracted_prop = extracted_properties["P569"][0]
-        assert len(extracted_prop["sources"]) == 1
-        assert extracted_prop["sources"][0]["supporting_quotes"] == [
+        # Check extracted birth date
+        birth_dates = [p for p in extracted if p["type"] == "P569"]
+        assert len(birth_dates) == 1
+        assert len(birth_dates[0]["sources"]) == 1
+        assert birth_dates[0]["sources"][0]["supporting_quotes"] == [
             "Born on January 15, 1970"
         ]
-        assert extracted_prop["sources"][0]["archived_page"] is not None
-        assert "url" in extracted_prop["sources"][0]["archived_page"]
+        assert birth_dates[0]["sources"][0]["archived_page"] is not None
+        assert "url" in birth_dates[0]["sources"][0]["archived_page"]
 
         # Check extracted position
-        assert len(extracted_properties["P39"]) == 1  # POSITION
-        extracted_pos = extracted_properties["P39"][0]
-        assert len(extracted_pos["sources"]) == 1
-        assert extracted_pos["sources"][0]["supporting_quotes"] == [
+        positions = [p for p in extracted if p["type"] == "P39"]
+        assert len(positions) == 1
+        assert len(positions[0]["sources"]) == 1
+        assert positions[0]["sources"][0]["supporting_quotes"] == [
             "Served as Mayor from 2020 to 2024"
         ]
 
         # Check extracted birthplace
-        assert len(extracted_properties["P19"]) == 1  # BIRTHPLACE
-        extracted_bp = extracted_properties["P19"][0]
-        assert len(extracted_bp["sources"]) == 1
-        assert extracted_bp["sources"][0]["supporting_quotes"] == [
+        birthplaces = [p for p in extracted if p["type"] == "P19"]
+        assert len(birthplaces) == 1
+        assert len(birthplaces[0]["sources"]) == 1
+        assert birthplaces[0]["sources"][0]["supporting_quotes"] == [
             "Born in Springfield"
         ]
 
@@ -231,18 +225,16 @@ class TestGetPoliticiansForEvaluationEndpoint:
         data = response.json()
         politician_data = data["politicians"][0]
 
-        # Find Wikidata properties (those without supporting_quotes)
-        wikidata_properties = extract_properties_by_type(
-            politician_data, extracted=False
-        )
-
         # Wikidata properties should have empty sources
-        assert len(wikidata_properties["P570"]) >= 1  # DEATH_DATE
-        wikidata_prop = wikidata_properties["P570"][0]
-        assert wikidata_prop.get("sources") == []
+        wikidata = [
+            p for p in politician_data["properties"] if p["statement_id"] is not None
+        ]
+        death_dates = [p for p in wikidata if p["type"] == "P570"]
+        assert len(death_dates) >= 1
+        assert death_dates[0].get("sources") == []
 
         # But they should have precision fields
-        assert "value_precision" in wikidata_prop
+        assert "value_precision" in death_dates[0]
 
     def test_pagination_limits_results(
         self, client, mock_auth, db_session, create_archived_page, create_birth_date
@@ -344,18 +336,14 @@ class TestGetPoliticiansForEvaluationEndpoint:
         assert len(politicians) == 1
 
         politician_data = politicians[0]
+        extracted = [
+            p for p in politician_data["properties"] if p["statement_id"] is None
+        ]
 
-        # Find extracted properties (those with supporting_quotes and archived_page)
-        extracted_properties = extract_properties_by_type(
-            politician_data, extracted=True
-        )
-
-        assert (
-            len(extracted_properties["P569"]) == 1  # BIRTH_DATE
-        )  # Evaluated but no statement_id, so still returned for re-evaluation
-        assert (
-            len(extracted_properties["P39"]) == 1
-        )  # POSITION - Unevaluated, so returned
+        # Evaluated but no statement_id, so still returned for re-evaluation
+        assert len([p for p in extracted if p["type"] == "P569"]) == 1
+        # Unevaluated, so returned
+        assert len([p for p in extracted if p["type"] == "P39"]) == 1
 
     def test_politician_with_partial_unevaluated_data_types(
         self, client, mock_auth, db_session, sample_location, create_birthplace
@@ -382,16 +370,13 @@ class TestGetPoliticiansForEvaluationEndpoint:
         data = response.json()
         assert len(data["politicians"]) == 1
 
-        politician_data = data["politicians"][0]
+        extracted = data["politicians"][0][
+            "properties"
+        ]  # all extracted (no statement_id)
 
-        # Find extracted properties (those with supporting_quotes and archived_page)
-        extracted_properties = extract_properties_by_type(
-            politician_data, extracted=True
-        )
-
-        assert len(extracted_properties["P569"]) == 0  # BIRTH_DATE
-        assert len(extracted_properties["P39"]) == 0  # POSITION
-        assert len(extracted_properties["P19"]) == 1  # BIRTHPLACE
+        assert len([p for p in extracted if p["type"] == "P569"]) == 0
+        assert len([p for p in extracted if p["type"] == "P39"]) == 0
+        assert len([p for p in extracted if p["type"] == "P19"]) == 1
 
     def test_property_response_structure(
         self, client, mock_auth, politician_with_unevaluated_data
@@ -842,21 +827,15 @@ class TestGetPoliticiansForEvaluationEndpoint:
         assert len(data["politicians"]) == 1
         politician_data = data["politicians"][0]
 
-        # Extract properties by type
-        extracted_properties = extract_properties_by_type(
-            politician_data, extracted=True
-        )
-
         # Should have birth date property but NOT the soft-deleted position
-        assert len(extracted_properties["P569"]) == 1  # BIRTH_DATE (normal)
-        assert (
-            len(extracted_properties["P39"]) == 0
-        )  # POSITION (soft-deleted, excluded)
+        props = politician_data["properties"]
+        birth_dates = [p for p in props if p["type"] == "P569"]
+        assert len(birth_dates) == 1
+        assert len([p for p in props if p["type"] == "P39"]) == 0
 
         # Verify the returned property is the correct one
-        birth_prop = extracted_properties["P569"][0]
-        assert birth_prop["value"] == "1980-01-01"
-        assert birth_prop["sources"][0]["supporting_quotes"] == [
+        assert birth_dates[0]["value"] == "1980-01-01"
+        assert birth_dates[0]["sources"][0]["supporting_quotes"] == [
             "Born on January 1, 1980"
         ]
 

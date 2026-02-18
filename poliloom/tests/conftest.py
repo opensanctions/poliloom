@@ -688,17 +688,10 @@ def politician_with_unevaluated_data(
     - Wikidata properties: death date, position, birthplace
 
     Returns:
-        Tuple of (politician, list of extracted properties)
+        The politician with properties attached
     """
     from poliloom.models import Property, PropertyType
     from poliloom.wikidata_date import WikidataDate
-
-    archived_page = ArchivedPage(
-        url="https://example.com/test",
-        content_hash="test123",
-    )
-    db_session.add(archived_page)
-    db_session.flush()
 
     politician = sample_politician
     position = sample_position
@@ -728,18 +721,20 @@ def politician_with_unevaluated_data(
         entity_id=location.wikidata_id,
     )
 
-    # Add Wikidata (non-extracted) data
+    # Add Wikidata (non-extracted) data — has statement_id
     wikidata_death = Property(
         politician_id=politician.id,
         type=PropertyType.DEATH_DATE,
         value="2024-01-01",
         value_precision=11,
+        statement_id="Q123456$death-1",
     )
 
     wikidata_position = Property(
         politician_id=politician.id,
         type=PropertyType.POSITION,
         entity_id=position.wikidata_id,
+        statement_id="Q123456$position-1",
         qualifiers_json={
             "P580": [WikidataDate.from_date_string("2018").to_wikidata_qualifier()],
             "P582": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()],
@@ -750,36 +745,22 @@ def politician_with_unevaluated_data(
         politician_id=politician.id,
         type=PropertyType.BIRTHPLACE,
         entity_id=location.wikidata_id,
+        statement_id="Q123456$birthplace-1",
     )
 
-    extracted_properties = [extracted_birth, extracted_position, extracted_birthplace]
-    wikidata_properties = [wikidata_death, wikidata_position, wikidata_birthplace]
-
-    db_session.add_all(extracted_properties + wikidata_properties)
+    db_session.add_all(
+        [
+            extracted_birth,
+            extracted_position,
+            extracted_birthplace,
+            wikidata_death,
+            wikidata_position,
+            wikidata_birthplace,
+        ]
+    )
     db_session.flush()
 
-    # Create PropertyReferences for extracted properties
-    refs = [
-        PropertyReference(
-            property_id=extracted_birth.id,
-            archived_page_id=archived_page.id,
-            supporting_quotes=["Born on January 15, 1970"],
-        ),
-        PropertyReference(
-            property_id=extracted_position.id,
-            archived_page_id=archived_page.id,
-            supporting_quotes=["Served as Mayor from 2020 to 2024"],
-        ),
-        PropertyReference(
-            property_id=extracted_birthplace.id,
-            archived_page_id=archived_page.id,
-            supporting_quotes=["Born in Springfield"],
-        ),
-    ]
-    db_session.add_all(refs)
-    db_session.flush()
-
-    return politician, extracted_properties
+    return politician
 
 
 # API Test Fixtures
