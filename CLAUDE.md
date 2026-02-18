@@ -5,9 +5,20 @@ Open-source tool to build the world's largest open database of politicians. Extr
 ## Project Structure
 
 ```
-poliloom/           # Python backend (FastAPI + PostgreSQL)
-poliloom-gui/       # Next.js frontend (React + TypeScript)
-docker-compose.yml  # Services: postgres, api, gui
+poliloom/                        # Backend project root (pyproject.toml, Dockerfile)
+  poliloom/                      # Python package (source code lives here)
+    api/                         # FastAPI endpoints
+    models/                      # SQLAlchemy models
+    importer/                    # Wikidata dump processing
+    cli.py, enrichment.py, ...
+  alembic/                       # DB migrations
+  tests/
+poliloom-gui/                    # Frontend project root
+  src/
+    app/                         # Next.js App Router pages
+    components/                  # Reusable React components
+    types/                       # TypeScript definitions
+docker-compose.yml               # Services: postgres, api, gui
 ```
 
 ## Tech Stack
@@ -41,19 +52,19 @@ npm run test                     # Run tests
 
 ## Key Backend Files
 
-- `poliloom/cli.py` - CLI commands (import, enrich, embed)
-- `poliloom/api/` - FastAPI endpoints
-- `poliloom/models/` - SQLAlchemy models (Politician, Property, Position, etc.)
-- `poliloom/importer/` - Wikidata dump processing
-- `poliloom/enrichment.py` - AI-powered data extraction
+- `poliloom/poliloom/cli.py` - CLI commands (import, enrich, embed)
+- `poliloom/poliloom/api/` - FastAPI endpoints
+- `poliloom/poliloom/models/` - SQLAlchemy models (Politician, Property, Position, etc.)
+- `poliloom/poliloom/importer/` - Wikidata dump processing
+- `poliloom/poliloom/enrichment.py` - AI-powered data extraction
 
 ## Key Frontend Files
 
-- `src/app/` - Next.js App Router pages
-- `src/app/evaluate/` - Main evaluation interface
-- `src/app/create/` - New politician creation
-- `src/components/` - Reusable React components
-- `src/types/` - TypeScript definitions
+- `poliloom-gui/src/app/` - Next.js App Router pages
+- `poliloom-gui/src/app/evaluate/` - Main evaluation interface
+- `poliloom-gui/src/app/create/` - New politician creation
+- `poliloom-gui/src/components/` - Reusable React components
+- `poliloom-gui/src/types/` - TypeScript definitions
 
 ## Data Pipeline
 
