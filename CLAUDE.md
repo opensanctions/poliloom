@@ -62,7 +62,6 @@ npm run test                     # Run tests
 
 - `poliloom-gui/src/app/` - Next.js App Router pages
 - `poliloom-gui/src/app/evaluate/` - Main evaluation interface
-- `poliloom-gui/src/app/create/` - New politician creation
 - `poliloom-gui/src/components/` - Reusable React components
 - `poliloom-gui/src/types/` - TypeScript definitions
 

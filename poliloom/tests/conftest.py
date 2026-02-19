@@ -816,9 +816,7 @@ def mock_wikidata_api():
     This fixture automatically mocks all Wikidata API interactions
     to avoid real API calls during testing. Applied to all tests automatically.
 
-    Mocks functions in both:
-    - poliloom.api.politicians (used by create/add politician endpoints)
-    - poliloom.wikidata_statement (used by push_evaluation)
+    Mocks functions in poliloom.wikidata_statement (used by push_evaluation).
     """
     import uuid
 
@@ -838,19 +836,10 @@ def mock_wikidata_api():
         return None
 
     with (
-        # Mock imports in politicians module
-        patch(
-            "poliloom.api.politicians.create_entity", side_effect=mock_create_entity_fn
-        ) as mock_create_entity,
-        patch(
-            "poliloom.api.politicians.create_statement",
-            side_effect=mock_create_statement_fn,
-        ) as mock_create_statement,
-        # Mock functions in wikidata_statement module (used by push_evaluation)
         patch(
             "poliloom.wikidata_statement.create_statement",
             side_effect=mock_create_statement_fn,
-        ),
+        ) as mock_create_statement,
         patch(
             "poliloom.wikidata_statement.deprecate_statement",
             side_effect=mock_deprecate_statement_fn,
@@ -858,7 +847,7 @@ def mock_wikidata_api():
         patch(
             "poliloom.wikidata_statement.create_entity",
             side_effect=mock_create_entity_fn,
-        ),
+        ) as mock_create_entity,
     ):
         yield {
             "create_entity": mock_create_entity,
