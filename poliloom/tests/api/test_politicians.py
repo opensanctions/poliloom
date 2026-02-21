@@ -1,76 +1,103 @@
-"""Tests for the /politicians endpoint (search/list)."""
+"""Tests for the /politicians endpoint (search/list/get)."""
 
 from poliloom.models import (
     Politician,
-    Property,
-    PropertyType,
 )
 
 
-class TestGetPoliticiansEndpoint:
-    """Test the GET /politicians endpoint for unevaluated politicians."""
+class TestGetNextPoliticianEndpoint:
+    """Test the GET /politicians/next endpoint."""
 
-    def test_returns_wrapped_response(
+    def test_returns_next_politician_qid(
         self, client, mock_auth, politician_with_unevaluated_data
     ):
-        """Test that endpoint returns a PoliticiansListResponse."""
-        response = client.get("/politicians", headers=mock_auth)
+        """Test that endpoint returns the next unevaluated politician's QID."""
+        response = client.get("/politicians/next", headers=mock_auth)
 
         assert response.status_code == 200
         data = response.json()
 
-        # Should be wrapped in {"politicians": [...], "meta": {...}}
-        assert "politicians" in data
+        assert "wikidata_id" in data
         assert "meta" in data
-        assert isinstance(data["politicians"], list)
+        assert data["wikidata_id"] == "Q123456"
 
-        # Meta should have expected fields
-        assert "has_enrichable_politicians" in data["meta"]
-        assert "total_matching_filters" in data["meta"]
+    def test_returns_null_when_no_politicians(self, client, mock_auth):
+        """Test that endpoint returns null when no politicians available."""
+        response = client.get("/politicians/next", headers=mock_auth)
 
-        # Each politician should have expected fields
-        if len(data["politicians"]) >= 1:
-            politician = data["politicians"][0]
-            assert "id" in politician
-            assert "name" in politician
-            assert "wikidata_id" in politician
-            assert "properties" in politician
-
-    def test_pagination(self, client, mock_auth, db_session):
-        """Test pagination with limit and offset."""
-        # Create multiple politicians with unevaluated extracted properties
-        for i in range(5):
-            politician = Politician.create_with_entity(
-                db_session, f"Q{800000 + i}", f"Pagination Test {i}"
-            )
-            db_session.add(politician)
-            db_session.flush()
-
-            # Add unevaluated property (no statement_id = extracted)
-            prop = Property(
-                politician_id=politician.id,
-                type=PropertyType.BIRTH_DATE,
-                value=f"+196{i}-00-00T00:00:00Z",
-                value_precision=9,
-            )
-            db_session.add(prop)
-        db_session.flush()
-
-        # Test limit
-        response = client.get("/politicians?limit=2", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
-        assert len(data["politicians"]) == 2
 
-        # Test offset
-        response = client.get("/politicians?limit=2&offset=2", headers=mock_auth)
+        assert data["wikidata_id"] is None
+        assert "meta" in data
+
+    def test_excludes_by_qid(self, client, mock_auth, politician_with_unevaluated_data):
+        """Test excluding politicians by Wikidata QID."""
+        response = client.get(
+            "/politicians/next?exclude_ids=Q123456", headers=mock_auth
+        )
+
         assert response.status_code == 200
         data = response.json()
-        assert len(data["politicians"]) == 2
+        assert data["wikidata_id"] is None
 
     def test_requires_authentication(self, client):
         """Test that endpoint requires authentication."""
-        response = client.get("/politicians")
+        response = client.get("/politicians/next")
+        assert response.status_code in [401, 403]
+
+    def test_meta_has_expected_fields(
+        self, client, mock_auth, politician_with_unevaluated_data
+    ):
+        """Test that meta includes enrichment status fields."""
+        response = client.get("/politicians/next", headers=mock_auth)
+        data = response.json()
+
+        assert "has_enrichable_politicians" in data["meta"]
+        assert "total_matching_filters" in data["meta"]
+
+
+class TestGetPoliticianByQidEndpoint:
+    """Test the GET /politicians/{qid} endpoint."""
+
+    def test_returns_politician(
+        self, client, mock_auth, politician_with_unevaluated_data
+    ):
+        """Test fetching a politician by QID."""
+        response = client.get("/politicians/Q123456", headers=mock_auth)
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["name"] == "Test Politician"
+        assert data["wikidata_id"] == "Q123456"
+        assert "properties" in data
+        assert isinstance(data["properties"], list)
+
+    def test_returns_404_for_unknown_qid(self, client, mock_auth):
+        """Test that 404 is returned for unknown QID."""
+        response = client.get("/politicians/Q999999999", headers=mock_auth)
+        assert response.status_code == 404
+
+    def test_returns_all_properties(
+        self, client, mock_auth, politician_with_unevaluated_data
+    ):
+        """Test that all non-deleted properties are returned."""
+        response = client.get("/politicians/Q123456", headers=mock_auth)
+        data = response.json()
+
+        # Should have 6 properties (3 extracted + 3 wikidata)
+        assert len(data["properties"]) == 6
+
+        property_types = [p["type"] for p in data["properties"]]
+        assert "P569" in property_types  # BIRTH_DATE
+        assert "P570" in property_types  # DEATH_DATE
+        assert "P39" in property_types  # POSITION
+        assert "P19" in property_types  # BIRTHPLACE
+
+    def test_requires_authentication(self, client):
+        """Test that endpoint requires authentication."""
+        response = client.get("/politicians/Q123456")
         assert response.status_code in [401, 403]
 
 

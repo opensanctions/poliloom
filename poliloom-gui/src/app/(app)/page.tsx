@@ -1,13 +1,16 @@
 'use client'
 
+import { useMemo } from 'react'
 import { Box } from '@/components/ui/Box'
 import { Button } from '@/components/ui/Button'
 import { Footer } from '@/components/ui/Footer'
 import { Toggle } from '@/components/ui/Toggle'
+import { Spinner } from '@/components/ui/Spinner'
 import { MultiSelect, MultiSelectOption } from '@/components/entity/MultiSelect'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useUserProgress } from '@/contexts/UserProgressContext'
-import { useMemo } from 'react'
+import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
+import { useNextPolitician } from '@/hooks/useNextPolitician'
 import { PreferenceType, WikidataEntity } from '@/types'
 
 export default function Home() {
@@ -22,17 +25,8 @@ export default function Home() {
     setAdvancedMode,
   } = useUserPreferences()
   const { hasCompletedBasicTutorial, hasCompletedAdvancedTutorial } = useUserProgress()
-
-  // Determine where to route the user based on tutorial completion and advanced mode
-  const { ctaHref, ctaText } = useMemo(() => {
-    if (!hasCompletedBasicTutorial) {
-      return { ctaHref: '/tutorial', ctaText: 'Start Tutorial' }
-    }
-    if (isAdvancedMode && !hasCompletedAdvancedTutorial) {
-      return { ctaHref: '/tutorial', ctaText: 'Start Advanced Tutorial' }
-    }
-    return { ctaHref: '/evaluate', ctaText: 'Start Your Session' }
-  }, [hasCompletedBasicTutorial, hasCompletedAdvancedTutorial, isAdvancedMode])
+  const { startSession } = useEvaluationSession()
+  const { nextHref, loading: loadingNext, enrichmentMeta } = useNextPolitician()
 
   const languageFilters = filters
     .filter((p) => p.preference_type === PreferenceType.LANGUAGE)
@@ -41,6 +35,27 @@ export default function Home() {
   const countryFilters = filters
     .filter((p) => p.preference_type === PreferenceType.COUNTRY)
     .map((p) => p.wikidata_id)
+
+  // Determine CTA state
+  const needsTutorial = !hasCompletedBasicTutorial
+  const needsAdvancedTutorial = isAdvancedMode && !hasCompletedAdvancedTutorial
+
+  const { ctaHref, ctaText, shouldStartSession } = useMemo(() => {
+    if (needsTutorial) {
+      return { ctaHref: '/tutorial', ctaText: 'Start Tutorial', shouldStartSession: false }
+    }
+    if (needsAdvancedTutorial) {
+      return { ctaHref: '/tutorial', ctaText: 'Start Advanced Tutorial', shouldStartSession: false }
+    }
+    if (nextHref) {
+      return { ctaHref: nextHref, ctaText: 'Start Your Session', shouldStartSession: true }
+    }
+    return { ctaHref: null, ctaText: 'Start Your Session', shouldStartSession: false }
+  }, [needsTutorial, needsAdvancedTutorial, nextHref])
+
+  const isWaitingForEnrichment = !nextHref && enrichmentMeta?.has_enrichable_politicians === true
+  const isAllCaughtUp =
+    !nextHref && !loadingNext && enrichmentMeta?.has_enrichable_politicians === false
 
   // Convert to MultiSelectOption format with counts
   const languageOptions: MultiSelectOption[] = languages.map((lang) => ({
@@ -104,14 +119,31 @@ export default function Home() {
             <div>
               <h3 className="text-lg font-semibold text-foreground mb-2">Ready to start?</h3>
               <p className="text-foreground-tertiary">
-                {languageFilters.length > 0 || countryFilters.length > 0
-                  ? 'Your filters are set. Begin evaluating politicians that match your criteria.'
-                  : "No filters selected. You'll evaluate politicians from all languages and countries."}
+                {isAllCaughtUp
+                  ? 'No more politicians to evaluate for your current filters. Try different filters to continue contributing.'
+                  : isWaitingForEnrichment
+                    ? "Our AI is reading Wikipedia so you don't have to. Hang tight!"
+                    : languageFilters.length > 0 || countryFilters.length > 0
+                      ? 'Your filters are set. Begin evaluating politicians that match your criteria.'
+                      : "No filters selected. You'll evaluate politicians from all languages and countries."}
               </p>
             </div>
-            <Button href={ctaHref} size="xlarge" className="shrink-0">
-              {ctaText}
-            </Button>
+            {isWaitingForEnrichment ? (
+              <div className="shrink-0 flex items-center gap-3">
+                <Spinner />
+                <span className="text-foreground-tertiary text-sm">Gathering data...</span>
+              </div>
+            ) : (
+              <Button
+                href={ctaHref ?? undefined}
+                disabled={!ctaHref}
+                size="xlarge"
+                className="shrink-0"
+                onClick={shouldStartSession ? () => startSession() : undefined}
+              >
+                {ctaText}
+              </Button>
+            )}
           </div>
 
           {/* Advanced Mode Toggle */}

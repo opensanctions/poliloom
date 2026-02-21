@@ -16,11 +16,13 @@ vi.mock('@/hooks/useAuthSession', () => ({
 
 // Mock Next.js router
 export const mockRouterPush = vi.fn()
+export const mockRouterPrefetch = vi.fn()
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockRouterPush,
     replace: vi.fn(),
     back: vi.fn(),
+    prefetch: mockRouterPrefetch,
   }),
 }))
 
@@ -32,8 +34,9 @@ export const mockFetch = vi.fn().mockResolvedValue({
 global.fetch = mockFetch as unknown as typeof fetch
 
 // Mock functions exported for test assertions
-export const mockSubmitEvaluation = vi.fn().mockResolvedValue({ sessionComplete: false })
-export const mockSkipPolitician = vi.fn()
+export const mockSubmitAndAdvance = vi.fn().mockReturnValue({ sessionComplete: false })
+export const mockStartSession = vi.fn()
+export const mockEndSession = vi.fn()
 
 // Mock providers with static values - no useEffects, no async side effects
 const MockUserProgressProvider = ({ children }: { children: React.ReactNode }) => (
@@ -72,17 +75,12 @@ const MockUserPreferencesProvider = ({ children }: { children: React.ReactNode }
 const MockEvaluationSessionProvider = ({ children }: { children: React.ReactNode }) => (
   <EvaluationSessionContext.Provider
     value={{
-      currentPolitician: null,
-      nextPolitician: null,
-      loading: false,
+      isSessionActive: true,
       completedCount: 0,
       sessionGoal: 5,
-      isSessionComplete: false,
-      submitEvaluation: mockSubmitEvaluation,
-      skipPolitician: mockSkipPolitician,
-      resetSession: vi.fn(),
-      loadPoliticians: vi.fn(),
-      enrichmentMeta: null,
+      startSession: mockStartSession,
+      submitAndAdvance: mockSubmitAndAdvance,
+      endSession: mockEndSession,
     }}
   >
     {children}

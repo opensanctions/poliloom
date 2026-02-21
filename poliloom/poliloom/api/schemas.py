@@ -70,10 +70,10 @@ class EnrichmentMetadata(BaseModel):
     total_matching_filters: int = 0
 
 
-class PoliticiansListResponse(BaseModel):
-    """Response for politicians list endpoint with enrichment metadata."""
+class NextPoliticianResponse(BaseModel):
+    """Response for next politician endpoint - lightweight, returns only QID."""
 
-    politicians: List[PoliticianResponse]
+    wikidata_id: Optional[str] = None
     meta: EnrichmentMetadata
 
 

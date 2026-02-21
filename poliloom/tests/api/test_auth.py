@@ -216,7 +216,7 @@ class TestAuthIntegration:
         client_no_db = TestClient(app)
 
         # Test a few representative endpoints
-        assert client_no_db.get("/politicians/").status_code == 401
+        assert client_no_db.get("/politicians/next").status_code == 401
         assert (
             client_no_db.post("/evaluations/", json={"evaluations": []}).status_code
             == 401
@@ -227,13 +227,12 @@ class TestAuthIntegration:
 
     def test_authenticated_requests_pass_auth(self, client, mock_auth):
         """Test that properly authenticated requests can access protected endpoints."""
-        # Test politicians endpoint with auth - returns PoliticiansListResponse
-        response = client.get("/politicians/", headers=mock_auth)
+        # Test politicians/next endpoint with auth - returns NextPoliticianResponse
+        response = client.get("/politicians/next", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
-        assert "politicians" in data
         assert "meta" in data
-        assert isinstance(data["politicians"], list)
+        assert "wikidata_id" in data
 
         # Test evaluations endpoint with auth
         response = client.post(

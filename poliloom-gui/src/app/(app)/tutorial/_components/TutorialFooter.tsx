@@ -6,6 +6,8 @@ interface TutorialFooterProps {
   requiredKeys: string[]
   onSubmit: () => void
   onBack: () => void
+  skipHref: string
+  onSkip?: () => void
 }
 
 export function TutorialFooter({
@@ -13,13 +15,16 @@ export function TutorialFooter({
   requiredKeys,
   onSubmit,
   onBack,
+  skipHref,
+  onSkip,
 }: TutorialFooterProps) {
   const isComplete = requiredKeys.every((key) => evaluations.has(key))
 
   return (
     <div className="flex justify-between items-center">
       <Link
-        href="/evaluate"
+        href={skipHref}
+        onClick={onSkip}
         className="text-foreground-tertiary hover:text-foreground-secondary font-medium"
       >
         Skip Tutorial

@@ -63,8 +63,8 @@ export interface EnrichmentMetadata {
   total_matching_filters: number
 }
 
-export interface PoliticiansListResponse {
-  politicians: Politician[]
+export interface NextPoliticianResponse {
+  wikidata_id: string | null
   meta: EnrichmentMetadata
 }
 

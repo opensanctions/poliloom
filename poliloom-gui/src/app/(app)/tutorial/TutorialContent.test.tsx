@@ -698,10 +698,7 @@ describe('Tutorial Page', () => {
       expect(
         screen.getByText(/You're all set! You now have everything you need/),
       ).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'Start Evaluating' })).toHaveAttribute(
-        'href',
-        '/evaluate',
-      )
+      expect(screen.getByRole('link', { name: 'Start Evaluating' })).toHaveAttribute('href', '/')
     })
   })
 
@@ -937,11 +934,11 @@ describe('Tutorial Page', () => {
       expect(screen.getByRole('link', { name: 'Skip Tutorial' })).toBeInTheDocument()
     })
 
-    it('Skip Tutorial links to /evaluate', () => {
+    it('Skip Tutorial links to home', () => {
       render(<TutorialContent />)
 
       const skipLink = screen.getByRole('link', { name: 'Skip Tutorial' })
-      expect(skipLink).toHaveAttribute('href', '/evaluate')
+      expect(skipLink).toHaveAttribute('href', '/')
     })
   })
 

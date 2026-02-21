@@ -14,6 +14,8 @@ import { SuccessFeedback } from './_components/SuccessFeedback'
 import { ErrorFeedback } from './_components/ErrorFeedback'
 import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
+import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
+import { useNextPolitician } from '@/hooks/useNextPolitician'
 import { Politician } from '@/types'
 import tutorialData from './tutorialData.json'
 
@@ -108,6 +110,10 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     completeAdvancedTutorial,
   } = useUserProgress()
   const { isAdvancedMode } = useUserPreferences()
+  const { startSession } = useEvaluationSession()
+  const { nextHref } = useNextPolitician()
+
+  const startHref = nextHref || '/'
 
   // Determine starting step based on completion status
   const getStartingStep = (): number => {
@@ -168,7 +174,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         <p className="mb-8">
           You&apos;re all set! You now have everything you need to start verifying politician data.
         </p>
-        <Button href="/evaluate" size="large" fullWidth>
+        <Button href={startHref} size="large" fullWidth onClick={() => startSession()}>
           Start Evaluating
         </Button>
       </CenteredCard>
@@ -183,7 +189,12 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           You&apos;re about to help build accurate, open political data by verifying information
           extracted from official sources.
         </p>
-        <TutorialActions buttonText="Let's Go" onNext={nextStep} />
+        <TutorialActions
+          skipHref={startHref}
+          onSkip={() => startSession()}
+          buttonText="Let's Go"
+          onNext={nextStep}
+        />
       </CenteredCard>
     )
   }
@@ -196,7 +207,12 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           Your role is to check whether what the AI extracted actually matches what&apos;s written
           in the source document.
         </p>
-        <TutorialActions buttonText="Got It" onNext={nextStep} />
+        <TutorialActions
+          skipHref={startHref}
+          onSkip={() => startSession()}
+          buttonText="Got It"
+          onNext={nextStep}
+        />
       </CenteredCard>
     )
   }
@@ -217,7 +233,12 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                 save copies so you can verify the data even if the original page changes.
               </p>
             </div>
-            <TutorialActions buttonText="Next" onNext={nextStep} />
+            <TutorialActions
+              skipHref={startHref}
+              onSkip={() => startSession()}
+              buttonText="Next"
+              onNext={nextStep}
+            />
           </CenteredCard>
         }
         right={<ArchivedPageViewer pageId="tutorial-page-1" apiBasePath="/api/tutorial-pages" />}
@@ -259,7 +280,12 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                 allow you to view the source document.
               </p>
             </div>
-            <TutorialActions buttonText="Next" onNext={nextStep} />
+            <TutorialActions
+              skipHref={startHref}
+              onSkip={() => startSession()}
+              buttonText="Next"
+              onNext={nextStep}
+            />
           </CenteredCard>
         }
       />
@@ -274,7 +300,12 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           Compare the extracted data to the source. If they match, accept. If they don&apos;t,
           reject.
         </p>
-        <TutorialActions buttonText="Let's do it" onNext={nextStep} />
+        <TutorialActions
+          skipHref={startHref}
+          onSkip={() => startSession()}
+          buttonText="Let's do it"
+          onNext={nextStep}
+        />
       </CenteredCard>
     )
   }
@@ -287,6 +318,8 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         politician={birthDatePolitician}
         footer={(evaluations) => (
           <TutorialFooter
+            skipHref={startHref}
+            onSkip={() => startSession()}
             evaluations={evaluations}
             requiredKeys={Object.keys(birthDateExpected)}
             onSubmit={() => {
@@ -335,7 +368,12 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           Sometimes information comes from different source documents. Next, try switching between
           these to evaluate all statements.
         </p>
-        <TutorialActions buttonText="Let's do it" onNext={nextStep} />
+        <TutorialActions
+          skipHref={startHref}
+          onSkip={() => startSession()}
+          buttonText="Let's do it"
+          onNext={nextStep}
+        />
       </CenteredCard>
     )
   }
@@ -348,6 +386,8 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         politician={multipleSourcesPolitician}
         footer={(evaluations) => (
           <TutorialFooter
+            skipHref={startHref}
+            onSkip={() => startSession()}
             evaluations={evaluations}
             requiredKeys={Object.keys(multipleSourcesExpected)}
             onSubmit={() => {
@@ -396,7 +436,12 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           Specific data is better than generic data. If a more specific version already exists,
           reject the generic extraction.
         </p>
-        <TutorialActions buttonText="Let's do it" onNext={nextStep} />
+        <TutorialActions
+          skipHref={startHref}
+          onSkip={() => startSession()}
+          buttonText="Let's do it"
+          onNext={nextStep}
+        />
       </CenteredCard>
     )
   }
@@ -409,6 +454,8 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         politician={genericVsSpecificPolitician}
         footer={(evaluations) => (
           <TutorialFooter
+            skipHref={startHref}
+            onSkip={() => startSession()}
             evaluations={evaluations}
             requiredKeys={genericVsSpecificRequiredKeys}
             onSubmit={() => {
@@ -463,7 +510,12 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             required to decide on every item.
           </p>
         </div>
-        <TutorialActions buttonText="Got It!" onNext={nextStep} />
+        <TutorialActions
+          skipHref={startHref}
+          onSkip={() => startSession()}
+          buttonText="Got It!"
+          onNext={nextStep}
+        />
       </CenteredCard>
     )
   }
@@ -480,7 +532,12 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             what&apos;s currently in Wikidata.
           </p>
         </div>
-        <TutorialActions buttonText="Let's Advance" onNext={nextStep} />
+        <TutorialActions
+          skipHref={startHref}
+          onSkip={() => startSession()}
+          buttonText="Let's Advance"
+          onNext={nextStep}
+        />
       </CenteredCard>
     )
   }
@@ -499,7 +556,12 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             extraction.
           </p>
         </div>
-        <TutorialActions buttonText="Let's do it" onNext={nextStep} />
+        <TutorialActions
+          skipHref={startHref}
+          onSkip={() => startSession()}
+          buttonText="Let's do it"
+          onNext={nextStep}
+        />
       </CenteredCard>
     )
   }
@@ -536,6 +598,8 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         politician={deprecateSimplePolitician}
         footer={(evaluations) => (
           <TutorialFooter
+            skipHref={startHref}
+            onSkip={() => startSession()}
             evaluations={evaluations}
             requiredKeys={deprecateSimpleRequiredKeys}
             onSubmit={() => {
@@ -564,7 +628,12 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             your new data via PoliLoom, then manually edit Wikidata to preserve the metadata.
           </p>
         </div>
-        <TutorialActions buttonText="Let's do it" onNext={nextStep} />
+        <TutorialActions
+          skipHref={startHref}
+          onSkip={() => startSession()}
+          buttonText="Let's do it"
+          onNext={nextStep}
+        />
       </CenteredCard>
     )
   }
@@ -599,6 +668,8 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         politician={deprecateWithMetadataPolitician}
         footer={(evaluations) => (
           <TutorialFooter
+            skipHref={startHref}
+            onSkip={() => startSession()}
             evaluations={evaluations}
             requiredKeys={deprecateWithMetadataRequiredKeys}
             onSubmit={() => {
@@ -628,7 +699,12 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             the metadata.
           </p>
         </div>
-        <TutorialActions buttonText="Got It!" onNext={nextStep} />
+        <TutorialActions
+          skipHref={startHref}
+          onSkip={() => startSession()}
+          buttonText="Got It!"
+          onNext={nextStep}
+        />
       </CenteredCard>
     )
   }
