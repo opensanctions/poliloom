@@ -8,7 +8,7 @@ import {
   mockRouterPush,
   mockFetch,
 } from '@/test/test-utils'
-import { PoliticianClient } from './PoliticianClient'
+import { PoliticianEvaluation } from './PoliticianEvaluation'
 import { mockPolitician, mockPoliticianWithConflicts } from '@/test/mock-data'
 
 // Mock the CSS Custom Highlight API for testing
@@ -43,7 +43,7 @@ vi.mock('@/hooks/useIframeHighlighting', () => ({
 // Mock console.error to suppress expected error output
 vi.spyOn(console, 'error').mockImplementation(() => {})
 
-describe('PoliticianClient', () => {
+describe('PoliticianEvaluation', () => {
   const defaultProps = {
     politician: mockPolitician,
   }
@@ -60,14 +60,14 @@ describe('PoliticianClient', () => {
   })
 
   it('renders politician name and wikidata id', () => {
-    render(<PoliticianClient {...defaultProps} />)
+    render(<PoliticianEvaluation {...defaultProps} />)
 
     expect(screen.getByText('Test Politician')).toBeInTheDocument()
     expect(screen.getByText('(Q987654)')).toBeInTheDocument()
   })
 
   it('renders properties section with property details', () => {
-    render(<PoliticianClient {...defaultProps} />)
+    render(<PoliticianEvaluation {...defaultProps} />)
 
     expect(screen.getByText('Properties')).toBeInTheDocument()
     expect(screen.getByText('Birth Date')).toBeInTheDocument()
@@ -76,20 +76,20 @@ describe('PoliticianClient', () => {
   })
 
   it('renders positions section with position details', () => {
-    render(<PoliticianClient {...defaultProps} />)
+    render(<PoliticianEvaluation {...defaultProps} />)
 
     expect(screen.getByText('Political Positions')).toBeInTheDocument()
     expect(screen.getByText(/Mayor of Test City/)).toBeInTheDocument()
   })
 
   it('renders birthplaces section with birthplace details', () => {
-    render(<PoliticianClient {...defaultProps} />)
+    render(<PoliticianEvaluation {...defaultProps} />)
 
     expect(screen.getByText('Birthplaces')).toBeInTheDocument()
   })
 
   it('allows users to evaluate items by accepting or rejecting', () => {
-    render(<PoliticianClient {...defaultProps} />)
+    render(<PoliticianEvaluation {...defaultProps} />)
 
     const acceptButton = screen.getAllByText('✓ Accept')[0]
     const rejectButton = screen.getAllByText('× Reject')[0]
@@ -102,14 +102,14 @@ describe('PoliticianClient', () => {
   })
 
   it('shows session progress in session mode', () => {
-    render(<PoliticianClient {...defaultProps} />)
+    render(<PoliticianEvaluation {...defaultProps} />)
 
     expect(screen.getByText(/Progress:/)).toBeInTheDocument()
     expect(screen.getByText('0 / 5')).toBeInTheDocument()
   })
 
   it('shows "Skip Politician" when no evaluations and "Submit Evaluations & Next" when evaluations exist', () => {
-    render(<PoliticianClient {...defaultProps} />)
+    render(<PoliticianEvaluation {...defaultProps} />)
 
     expect(screen.getByText('Skip Politician')).toBeInTheDocument()
     expect(screen.queryByText('Submit Evaluations & Next')).not.toBeInTheDocument()
@@ -128,7 +128,7 @@ describe('PoliticianClient', () => {
     })
     mockSubmitAndAdvance.mockReturnValue({ sessionComplete: false })
 
-    render(<PoliticianClient {...defaultProps} />)
+    render(<PoliticianEvaluation {...defaultProps} />)
 
     const acceptButtons = screen.getAllByText('✓ Accept')
     fireEvent.click(acceptButtons[0])
@@ -154,7 +154,7 @@ describe('PoliticianClient', () => {
     })
     mockSubmitAndAdvance.mockReturnValue({ sessionComplete: true })
 
-    render(<PoliticianClient {...defaultProps} />)
+    render(<PoliticianEvaluation {...defaultProps} />)
 
     const acceptButtons = screen.getAllByText('✓ Accept')
     fireEvent.click(acceptButtons[0])
@@ -169,7 +169,7 @@ describe('PoliticianClient', () => {
 
   describe('property grouping', () => {
     it('groups properties correctly by type and entity', () => {
-      render(<PoliticianClient {...defaultProps} politician={mockPoliticianWithConflicts} />)
+      render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianWithConflicts} />)
 
       expect(screen.getByText('Properties')).toBeInTheDocument()
       expect(screen.getByText('Birth Date')).toBeInTheDocument()
@@ -183,7 +183,7 @@ describe('PoliticianClient', () => {
 
   describe('archived page handling', () => {
     it('provides source viewing for items with archived pages', () => {
-      render(<PoliticianClient {...defaultProps} politician={mockPoliticianWithConflicts} />)
+      render(<PoliticianEvaluation {...defaultProps} politician={mockPoliticianWithConflicts} />)
 
       const viewingButtons = screen.getAllByText(/Viewing/)
       expect(viewingButtons.length).toBeGreaterThan(0)

@@ -8,13 +8,13 @@ import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useNextPolitician } from '@/hooks/useNextPolitician'
 import { Button } from '@/components/ui/Button'
-import { PoliticianEvaluationView } from './PoliticianEvaluationView'
+import { PoliticianEvaluationView } from '@/components/evaluation/PoliticianEvaluationView'
 
-interface PoliticianClientProps {
+interface PoliticianEvaluationProps {
   politician: Politician
 }
 
-export function PoliticianClient({ politician }: PoliticianClientProps) {
+export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) {
   const router = useRouter()
   const { isSessionActive, completedCount, sessionGoal, submitAndAdvance } = useEvaluationSession()
   const { statsUnlocked, completeBasicTutorial, completeAdvancedTutorial } = useUserProgress()

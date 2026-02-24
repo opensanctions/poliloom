@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { NextResponse } from 'next/server'
 import { fetchWithAuth } from '@/lib/api-auth'
 import { Politician } from '@/types'
-import { PoliticianClient } from '@/components/evaluation/PoliticianClient'
+import { PoliticianEvaluation } from './PoliticianEvaluation'
 
 export default async function PoliticianPage({ params }: { params: Promise<{ qid: string }> }) {
   const { qid } = await params
@@ -22,5 +22,5 @@ export default async function PoliticianPage({ params }: { params: Promise<{ qid
     key: prop.id || prop.key,
   }))
 
-  return <PoliticianClient politician={politician} />
+  return <PoliticianEvaluation politician={politician} />
 }
