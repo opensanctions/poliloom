@@ -2,14 +2,14 @@
 
 import { useEffect } from 'react'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
-import { useNextPolitician } from '@/hooks/useNextPolitician'
+import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 
 export default function CompletePage() {
   const { sessionGoal, endSession, startSession } = useEvaluationSession()
-  const { nextHref, loading } = useNextPolitician()
+  const { nextHref, loading } = useNextPoliticianContext()
 
   useEffect(() => {
     endSession()

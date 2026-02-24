@@ -15,7 +15,7 @@ import { ErrorFeedback } from './_components/ErrorFeedback'
 import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
-import { useNextPolitician } from '@/hooks/useNextPolitician'
+import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { Politician } from '@/types'
 import tutorialData from './tutorialData.json'
 
@@ -111,7 +111,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   } = useUserProgress()
   const { isAdvancedMode } = useUserPreferences()
   const { startSession } = useEvaluationSession()
-  const { nextHref } = useNextPolitician()
+  const { nextHref } = useNextPoliticianContext()
 
   const startHref = nextHref || '/'
 

@@ -62,5 +62,5 @@ export function useNextPolitician(excludeId?: string) {
 
   const nextHref = nextQid ? `/politician/${nextQid}` : null
 
-  return { nextQid, nextHref, loading, enrichmentMeta }
+  return { nextQid, nextHref, loading, enrichmentMeta, languageFilters, countryFilters }
 }

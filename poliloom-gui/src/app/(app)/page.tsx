@@ -10,12 +10,11 @@ import { MultiSelect, MultiSelectOption } from '@/components/entity/MultiSelect'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
-import { useNextPolitician } from '@/hooks/useNextPolitician'
+import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { PreferenceType, WikidataEntity } from '@/types'
 
 export default function Home() {
   const {
-    filters,
     languages,
     countries,
     loadingLanguages,
@@ -26,15 +25,13 @@ export default function Home() {
   } = useUserPreferences()
   const { hasCompletedBasicTutorial, hasCompletedAdvancedTutorial } = useUserProgress()
   const { startSession } = useEvaluationSession()
-  const { nextHref, loading: loadingNext, enrichmentMeta } = useNextPolitician()
-
-  const languageFilters = filters
-    .filter((p) => p.preference_type === PreferenceType.LANGUAGE)
-    .map((p) => p.wikidata_id)
-
-  const countryFilters = filters
-    .filter((p) => p.preference_type === PreferenceType.COUNTRY)
-    .map((p) => p.wikidata_id)
+  const {
+    nextHref,
+    loading: loadingNext,
+    enrichmentMeta,
+    languageFilters,
+    countryFilters,
+  } = useNextPoliticianContext()
 
   // Determine CTA state
   const needsTutorial = !hasCompletedBasicTutorial

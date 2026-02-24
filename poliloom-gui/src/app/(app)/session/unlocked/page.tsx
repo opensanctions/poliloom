@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
-import { useNextPolitician } from '@/hooks/useNextPolitician'
+import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
@@ -11,7 +11,7 @@ import { Spinner } from '@/components/ui/Spinner'
 export default function UnlockedPage() {
   const { unlockStats } = useUserProgress()
   const { endSession, startSession } = useEvaluationSession()
-  const { nextHref, loading } = useNextPolitician()
+  const { nextHref, loading } = useNextPoliticianContext()
 
   useEffect(() => {
     unlockStats()

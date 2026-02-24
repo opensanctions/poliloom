@@ -2,6 +2,7 @@ import { UserPreferencesProvider } from '@/contexts/UserPreferencesContext'
 import { EvaluationSessionProvider } from '@/contexts/EvaluationSessionContext'
 import { UserProgressProvider } from '@/contexts/UserProgressContext'
 import { EvaluationCountProvider } from '@/contexts/EvaluationCountContext'
+import { NextPoliticianProvider } from '@/contexts/NextPoliticianContext'
 import { Header } from '@/components/layout/Header'
 import { EvaluationCountButton } from '@/components/layout/EvaluationCountButton'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
@@ -13,12 +14,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <EvaluationSessionProvider>
         <UserProgressProvider>
           <EvaluationCountProvider>
-            <Header>
-              <EvaluationCountButton />
-              <ThemeToggle />
-              <AuthButton />
-            </Header>
-            {children}
+            <NextPoliticianProvider>
+              <Header>
+                <EvaluationCountButton />
+                <ThemeToggle />
+                <AuthButton />
+              </Header>
+              {children}
+            </NextPoliticianProvider>
           </EvaluationCountProvider>
         </UserProgressProvider>
       </EvaluationSessionProvider>
