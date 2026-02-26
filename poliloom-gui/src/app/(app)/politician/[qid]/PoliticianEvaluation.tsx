@@ -2,7 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Politician, EvaluationItem, EvaluationRequest, EvaluationResponse } from '@/types'
+import {
+  Politician,
+  PropertyWithEvaluation,
+  EvaluationRequest,
+  EvaluationResponse,
+  SubmissionItem,
+} from '@/types'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
@@ -36,18 +42,31 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleSubmit = async (evaluations: Map<string, boolean>) => {
+  const handleSubmit = async (properties: PropertyWithEvaluation[]) => {
     setIsSubmitting(true)
 
-    const evaluationItems: EvaluationItem[] = Array.from(evaluations.entries()).map(
-      ([id, isAccepted]) => ({
-        id,
-        is_accepted: isAccepted,
-      }),
-    )
+    const items: SubmissionItem[] = properties
+      .filter((p) => p.evaluation !== undefined || !p.id)
+      .map((p) => {
+        if (p.id) {
+          // Existing property → evaluation
+          return { id: p.id, is_accepted: p.evaluation }
+        }
+        // User-created property → creation
+        return {
+          type: p.type,
+          value: p.value,
+          value_precision: p.value_precision,
+          entity_id: p.entity_id,
+          qualifiers_json: p.qualifiers as Record<string, unknown> | undefined,
+        }
+      })
 
     try {
-      const evaluationData: EvaluationRequest = { evaluations: evaluationItems }
+      const evaluationData: EvaluationRequest = {
+        politician_id: politician.id,
+        items,
+      }
       const response = await fetch('/api/evaluations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -81,8 +100,11 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
     }
   }
 
+  const hasChanges = (properties: PropertyWithEvaluation[]) =>
+    properties.some((p) => p.evaluation !== undefined || !p.id)
+
   // Session mode footer
-  const sessionFooter = (evaluations: Map<string, boolean>) => (
+  const sessionFooter = (properties: PropertyWithEvaluation[]) => (
     <div className="flex justify-between items-center">
       <div className="text-base text-foreground">
         Progress:{' '}
@@ -91,7 +113,7 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
         </strong>{' '}
         politicians evaluated
       </div>
-      {evaluations.size === 0 ? (
+      {!hasChanges(properties) ? (
         <Button
           href={nextPoliticianHref ?? (nextLoading ? undefined : '/session/enriching')}
           disabled={nextLoading}
@@ -101,7 +123,7 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
         </Button>
       ) : (
         <Button
-          onClick={() => handleSubmit(evaluations)}
+          onClick={() => handleSubmit(properties)}
           disabled={isSubmitting || nextLoading}
           className="px-6 py-3"
         >
@@ -112,11 +134,11 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
   )
 
   // Standalone mode footer
-  const standaloneFooter = (evaluations: Map<string, boolean>) => (
+  const standaloneFooter = (properties: PropertyWithEvaluation[]) => (
     <div className="flex justify-end items-center">
       <Button
-        onClick={() => handleSubmit(evaluations)}
-        disabled={isSubmitting || evaluations.size === 0}
+        onClick={() => handleSubmit(properties)}
+        disabled={isSubmitting || !hasChanges(properties)}
         className="px-6 py-3"
       >
         {isSubmitting ? 'Submitting...' : 'Submit Evaluations'}

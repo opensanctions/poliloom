@@ -1,7 +1,13 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, ReactNode } from 'react'
-import { Politician, Property, PropertyReference, ArchivedPageResponse } from '@/types'
+import {
+  Politician,
+  Property,
+  PropertyWithEvaluation,
+  PropertyReference,
+  ArchivedPageResponse,
+} from '@/types'
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting'
 import { highlightTextInScope } from '@/lib/textHighlighter'
 import { TwoPanel } from '@/components/layout/TwoPanel'
@@ -12,19 +18,17 @@ import { ArchivedPageViewer } from './ArchivedPageViewer'
 
 interface PoliticianEvaluationViewProps {
   politician: Politician
-  footer: (evaluations: Map<string, boolean>) => ReactNode
+  footer: (properties: PropertyWithEvaluation[]) => ReactNode
   archivedPagesApiPath?: string
-  initialEvaluations?: Map<string, boolean>
 }
 
 export function PoliticianEvaluationView({
   politician,
   footer,
   archivedPagesApiPath = '/api/archived-pages',
-  initialEvaluations,
 }: PoliticianEvaluationViewProps) {
-  const [evaluations, setEvaluations] = useState<Map<string, boolean>>(
-    () => initialEvaluations ?? new Map(),
+  const [properties, setProperties] = useState<PropertyWithEvaluation[]>(() =>
+    politician.properties.map((p) => ({ ...p })),
   )
 
   // Initial selection is handled by PropertiesEvaluation calling onShowArchived on mount
@@ -54,19 +58,18 @@ export function PoliticianEvaluationView({
     }
   }, [selectedQuotes, isIframeLoaded, handleQuotesChange])
 
-  const handleEvaluate = (propertyId: string, action: 'accept' | 'reject') => {
-    setEvaluations((prev) => {
-      const newMap = new Map(prev)
-      const currentValue = newMap.get(propertyId)
-      const targetValue = action === 'accept'
+  const handleEvaluate = (key: string, action: 'accept' | 'reject') => {
+    setProperties((prev) =>
+      prev.map((p) => {
+        if (p.key !== key) return p
+        const targetValue = action === 'accept'
+        return { ...p, evaluation: p.evaluation === targetValue ? undefined : targetValue }
+      }),
+    )
+  }
 
-      if (currentValue === targetValue) {
-        newMap.delete(propertyId)
-      } else {
-        newMap.set(propertyId, targetValue)
-      }
-      return newMap
-    })
+  const handleAddProperty = (prop: PropertyWithEvaluation) => {
+    setProperties((prev) => [...prev, prop])
   }
 
   // Handler for showing archived page (used by View button and initial selection)
@@ -98,17 +101,17 @@ export function PoliticianEvaluationView({
 
         <div ref={propertiesRef}>
           <PropertiesEvaluation
-            properties={politician.properties}
-            evaluations={evaluations}
+            properties={properties}
             onAction={handleEvaluate}
             onShowArchived={handleShowArchived}
             onHover={handlePropertyHover}
             activeArchivedPageId={selectedArchivedPage?.id || null}
+            onAddProperty={handleAddProperty}
           />
         </div>
       </div>
 
-      <div className="p-6 border-t border-border">{footer(evaluations)}</div>
+      <div className="p-6 border-t border-border">{footer(properties)}</div>
     </div>
   )
 

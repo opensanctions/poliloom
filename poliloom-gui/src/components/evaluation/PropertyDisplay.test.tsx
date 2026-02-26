@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { PropertyDisplay } from './PropertyDisplay'
-import { PropertyType } from '@/types'
+import { PropertyType, PropertyWithEvaluation } from '@/types'
 import { vi } from 'vitest'
 
 vi.mock('@/contexts/UserPreferencesContext', () => ({
@@ -20,7 +20,7 @@ const mockArchivedPage = {
   fetch_timestamp: '2024-01-01T00:00:00Z',
 }
 
-const baseProperty = {
+const baseProperty: PropertyWithEvaluation = {
   key: 'test-1',
   id: 'test-1',
   type: PropertyType.P569,
@@ -34,7 +34,7 @@ describe('PropertyDisplay', () => {
   })
 
   it('renders birth date with formatted value', () => {
-    const property = {
+    const property: PropertyWithEvaluation = {
       ...baseProperty,
       type: PropertyType.P569,
       value: '+1990-05-15T00:00:00Z',
@@ -44,7 +44,6 @@ describe('PropertyDisplay', () => {
     render(
       <PropertyDisplay
         property={property}
-        evaluations={new Map()}
         onAction={mockOnAction}
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}
@@ -56,7 +55,7 @@ describe('PropertyDisplay', () => {
   })
 
   it('renders position with date range from qualifiers', () => {
-    const property = {
+    const property: PropertyWithEvaluation = {
       ...baseProperty,
       type: PropertyType.P39,
       qualifiers: {
@@ -68,7 +67,6 @@ describe('PropertyDisplay', () => {
     render(
       <PropertyDisplay
         property={property}
-        evaluations={new Map()}
         onAction={mockOnAction}
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}
@@ -80,7 +78,7 @@ describe('PropertyDisplay', () => {
   })
 
   it('shows no timeframe message for position without dates', () => {
-    const property = {
+    const property: PropertyWithEvaluation = {
       ...baseProperty,
       type: PropertyType.P39,
     }
@@ -88,7 +86,6 @@ describe('PropertyDisplay', () => {
     render(
       <PropertyDisplay
         property={property}
-        evaluations={new Map()}
         onAction={mockOnAction}
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}
@@ -100,7 +97,7 @@ describe('PropertyDisplay', () => {
   })
 
   it('renders empty content for birthplace properties', () => {
-    const property = {
+    const property: PropertyWithEvaluation = {
       ...baseProperty,
       type: PropertyType.P19,
     }
@@ -108,7 +105,6 @@ describe('PropertyDisplay', () => {
     render(
       <PropertyDisplay
         property={property}
-        evaluations={new Map()}
         onAction={mockOnAction}
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}
@@ -122,12 +118,11 @@ describe('PropertyDisplay', () => {
   })
 
   it('calls onHover when mouse enters component', () => {
-    const property = { ...baseProperty }
+    const property: PropertyWithEvaluation = { ...baseProperty }
 
     const { container } = render(
       <PropertyDisplay
         property={property}
-        evaluations={new Map()}
         onAction={mockOnAction}
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}
@@ -135,8 +130,6 @@ describe('PropertyDisplay', () => {
       />,
     )
 
-    // The component returns a fragment with <hr> as first child and <div> as second child
-    // We need to target the div that has the onMouseEnter handler
     const divWithHover = container.querySelector('.space-y-2')
     fireEvent.mouseEnter(divWithHover as Element)
 
@@ -144,7 +137,7 @@ describe('PropertyDisplay', () => {
   })
 
   it('shows StatementSource for non-Wikidata statements', () => {
-    const property = {
+    const property: PropertyWithEvaluation = {
       ...baseProperty,
       statement_id: null,
       sources: [
@@ -159,7 +152,6 @@ describe('PropertyDisplay', () => {
     render(
       <PropertyDisplay
         property={property}
-        evaluations={new Map()}
         onAction={mockOnAction}
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}
@@ -171,7 +163,7 @@ describe('PropertyDisplay', () => {
   })
 
   it('shows WikidataMetadata only when deprecating existing Wikidata statements', () => {
-    const property = {
+    const property: PropertyWithEvaluation = {
       ...baseProperty,
       statement_id: 'Q123$abc-def',
       references: [{ url: 'https://example.com', title: 'Reference' }],
@@ -182,7 +174,6 @@ describe('PropertyDisplay', () => {
     render(
       <PropertyDisplay
         property={property}
-        evaluations={new Map()}
         onAction={mockOnAction}
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}
@@ -195,20 +186,17 @@ describe('PropertyDisplay', () => {
   })
 
   it('shows WikidataMetadata when user is deprecating a statement', () => {
-    const property = {
+    const property: PropertyWithEvaluation = {
       ...baseProperty,
       statement_id: 'Q123$abc-def',
       references: [{ url: 'https://example.com', title: 'Reference' }],
       sources: [],
+      evaluation: false, // Deprecating
     }
-
-    // When isDiscarding is true (evaluation is false), metadata should show
-    const evaluations = new Map([[property.key, false]])
 
     render(
       <PropertyDisplay
         property={property}
-        evaluations={evaluations}
         onAction={mockOnAction}
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}

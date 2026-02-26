@@ -1,5 +1,5 @@
 import { useState, useLayoutEffect } from 'react'
-import { Property, PropertyType, PropertyReference } from '@/types'
+import { PropertyWithEvaluation, PropertyType, PropertyReference } from '@/types'
 import { parseWikidataDate } from '@/lib/wikidata/dateParser'
 import { parsePositionQualifiers, formatPositionDates } from '@/lib/wikidata/qualifierParser'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
@@ -8,18 +8,16 @@ import { StatementSource } from './StatementSource'
 import { WikidataMetadataButtons, WikidataMetadataPanel } from './WikidataMetadata'
 
 interface PropertyDisplayProps {
-  property: Property
-  evaluations: Map<string, boolean>
+  property: PropertyWithEvaluation
   onAction?: (propertyId: string, action: 'accept' | 'reject') => void
   onShowArchived?: (ref: PropertyReference) => void
-  onHover?: (property: Property) => void
+  onHover?: (property: PropertyWithEvaluation) => void
   activeArchivedPageId?: string | null
   shouldAutoOpen?: boolean
 }
 
 export function PropertyDisplay({
   property,
-  evaluations,
   onAction,
   onShowArchived,
   onHover,
@@ -30,7 +28,7 @@ export function PropertyDisplay({
   const [openSection, setOpenSection] = useState<'qualifiers' | 'references' | null>(null)
   const [wasAutoOpened, setWasAutoOpened] = useState(false)
 
-  const isDiscarding = evaluations.get(property.key) === false
+  const isDiscarding = property.evaluation === false
   const hasQualifiers = property.qualifiers && Object.keys(property.qualifiers).length > 0
   const hasReferences = property.references && property.references.length > 0
 
@@ -134,7 +132,7 @@ export function PropertyDisplay({
         <EvaluationActions
           statementId={property.key}
           isWikidataStatement={!!property.statement_id}
-          isAccepted={evaluations.get(property.key) ?? null}
+          isAccepted={property.evaluation ?? null}
           isSourceVisible={
             property.sources.length === 0 ||
             property.sources.some((s) => activeArchivedPageId === s.archived_page.id)

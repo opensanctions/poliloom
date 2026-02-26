@@ -1,7 +1,8 @@
+import { PropertyWithEvaluation } from '@/types'
 import { Button } from '@/components/ui/Button'
 
 interface TutorialFooterProps {
-  evaluations: Map<string, boolean>
+  properties: PropertyWithEvaluation[]
   requiredKeys: string[]
   onSubmit: () => void
   onBack: () => void
@@ -10,14 +11,16 @@ interface TutorialFooterProps {
 }
 
 export function TutorialFooter({
-  evaluations,
+  properties,
   requiredKeys,
   onSubmit,
   onBack,
   skipHref,
   onSkip,
 }: TutorialFooterProps) {
-  const isComplete = requiredKeys.every((key) => evaluations.has(key))
+  const isComplete = requiredKeys.every(
+    (key) => properties.find((p) => p.key === key)?.evaluation !== undefined,
+  )
 
   return (
     <div className="flex justify-between items-center">

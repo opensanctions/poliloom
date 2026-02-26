@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..database import get_db_session
-from ..models import Evaluation, Property
+from ..models import Evaluation, Politician, Property, PropertyType
 from ..wikidata_statement import push_evaluation
 from .auth import User, get_current_user
 from .schemas import (
@@ -19,6 +19,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Map frontend property type strings (Wikidata P-IDs) to backend enum
+PROPERTY_TYPE_MAP = {
+    "P569": PropertyType.BIRTH_DATE,
+    "P570": PropertyType.DEATH_DATE,
+    "P19": PropertyType.BIRTHPLACE,
+    "P39": PropertyType.POSITION,
+    "P27": PropertyType.CITIZENSHIP,
+}
+
 
 @router.post("", response_model=EvaluationResponse)
 async def evaluate_extracted_data(
@@ -27,38 +36,77 @@ async def evaluate_extracted_data(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Evaluate extracted properties, positions, and birthplaces.
+    Evaluate extracted properties and/or create new ones.
 
-    This endpoint allows authenticated users to evaluate extracted data,
-    marking it as accepted or rejected. Creates evaluation records
-    that can be used for threshold-based evaluation workflows.
+    Each item in the request is either:
+    - An evaluation of an existing property (has `id` + `is_accepted`)
+    - A new property creation (has `type` + value/entity fields)
 
     For accepted evaluations, attempts to push statements to Wikidata.
     For rejected existing statements, deprecates them in Wikidata.
+    New properties are auto-accepted and pushed to Wikidata.
     """
+    # Validate politician exists
+    politician = db.get(Politician, request.politician_id)
+    if not politician:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Politician {request.politician_id} not found",
+        )
+
     errors = []
     all_evaluations = []
 
-    # Process each evaluation in the request
-    for eval_item in request.evaluations:
+    for item in request.items:
         try:
-            property_entity = db.get(Property, eval_item.id)
-            if not property_entity:
-                errors.append(f"Property {eval_item.id} not found")
-                continue
+            if item.id is not None:
+                # Evaluation of existing property
+                property_entity = db.get(Property, item.id)
+                if not property_entity:
+                    errors.append(f"Property {item.id} not found")
+                    continue
 
-            evaluation = Evaluation(
-                user_id=str(current_user.user_id),
-                is_accepted=eval_item.is_accepted,
-                property_id=eval_item.id,
-            )
-            db.add(evaluation)
+                evaluation = Evaluation(
+                    user_id=str(current_user.user_id),
+                    is_accepted=item.is_accepted,
+                    property_id=item.id,
+                )
+                db.add(evaluation)
+                all_evaluations.append(evaluation)
+            else:
+                # New property creation
+                if not item.type:
+                    errors.append("New property item missing 'type'")
+                    continue
 
-            # Track all evaluations for Wikidata operations
-            all_evaluations.append(evaluation)
+                prop_type = PROPERTY_TYPE_MAP.get(item.type)
+                if not prop_type:
+                    errors.append(f"Unknown property type: {item.type}")
+                    continue
+
+                new_property = Property(
+                    politician_id=request.politician_id,
+                    type=prop_type,
+                    value=item.value,
+                    value_precision=item.value_precision,
+                    entity_id=item.entity_id,
+                    qualifiers_json=item.qualifiers_json,
+                )
+                db.add(new_property)
+                db.flush()  # Get the ID
+
+                # Auto-accept the new property
+                evaluation = Evaluation(
+                    user_id=str(current_user.user_id),
+                    is_accepted=True,
+                    property_id=new_property.id,
+                )
+                db.add(evaluation)
+                all_evaluations.append(evaluation)
 
         except Exception as e:
-            errors.append(f"Error processing property {eval_item.id}: {str(e)}")
+            item_desc = str(item.id) if item.id else f"new {item.type}"
+            errors.append(f"Error processing item {item_desc}: {str(e)}")
             continue
 
     try:

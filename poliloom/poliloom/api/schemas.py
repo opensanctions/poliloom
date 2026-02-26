@@ -77,43 +77,27 @@ class NextPoliticianResponse(BaseModel):
     meta: EnrichmentMetadata
 
 
-class EvaluationItem(UUIDBaseModel):
-    """Single evaluation item."""
+class SubmissionItem(BaseModel):
+    """Single submission item — either an evaluation of an existing property or creation of a new one.
 
-    id: UUID
-    is_accepted: bool
+    If `id` is present, this is an evaluation (requires `is_accepted`).
+    If `id` is absent, this is a new property creation (requires `type` + value/entity fields).
+    """
 
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "id": "12345678-1234-1234-1234-123456789012",
-                "is_accepted": True,
-            }
-        }
-    )
+    id: Optional[UUID] = None
+    is_accepted: Optional[bool] = None
+    type: Optional[str] = None
+    value: Optional[str] = None
+    value_precision: Optional[int] = None
+    entity_id: Optional[str] = None
+    qualifiers_json: Optional[Dict[str, Any]] = None
 
 
-class EvaluationRequest(UUIDBaseModel):
-    """Simplified evaluation request."""
+class EvaluationRequest(BaseModel):
+    """Unified evaluation/creation request."""
 
-    evaluations: List[EvaluationItem]
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "evaluations": [
-                    {
-                        "id": "12345678-1234-1234-1234-123456789012",
-                        "is_accepted": True,
-                    },
-                    {
-                        "id": "22222222-1234-1234-1234-123456789012",
-                        "is_accepted": False,
-                    },
-                ]
-            }
-        }
-    )
+    politician_id: UUID
+    items: List[SubmissionItem]
 
 
 class EvaluationObjectResponse(UUIDBaseModel):

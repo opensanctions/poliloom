@@ -16,7 +16,7 @@ import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
-import { Politician } from '@/types'
+import { Politician, PropertyWithEvaluation } from '@/types'
 import tutorialData from './tutorialData.json'
 
 const extractedDataPolitician = tutorialData.steps.extractedData.politician as Politician
@@ -68,15 +68,16 @@ interface EvaluationResult {
 }
 
 function checkEvaluations(
-  evaluations: Map<string, boolean>,
+  properties: PropertyWithEvaluation[],
   expected: ExpectedEvaluations,
 ): EvaluationResult {
   const mistakes: string[] = []
+  const getEvaluation = (key: string) => properties.find((p) => p.key === key)?.evaluation
 
   for (const [key, expectedValue] of Object.entries(expected)) {
     // For existing data (where expected is true = keep), only count as mistake if user deprecated it
-    // If the key is not in evaluations, that means "keep" which is correct
-    const actualValue = evaluations.get(key)
+    // If the key has no evaluation, that means "keep" which is correct
+    const actualValue = getEvaluation(key)
     if (expectedValue === true && actualValue === undefined) {
       // Expected to keep and user didn't touch it - correct, skip
       continue
@@ -266,7 +267,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             </div>
             <PropertiesEvaluation
               properties={extractedDataPolitician.properties}
-              evaluations={new Map()}
               onAction={() => {}}
               onShowArchived={() => {}}
               onHover={() => {}}
@@ -322,14 +322,14 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <PoliticianEvaluationView
         key={`birth-date-${birthDateKey}`}
         politician={birthDatePolitician}
-        footer={(evaluations) => (
+        footer={(properties) => (
           <TutorialFooter
             skipHref={startHref}
             onSkip={() => startSession()}
-            evaluations={evaluations}
+            properties={properties}
             requiredKeys={Object.keys(birthDateExpected)}
             onSubmit={() => {
-              const result = checkEvaluations(evaluations, birthDateExpected)
+              const result = checkEvaluations(properties, birthDateExpected)
               setBirthDateResult(result)
               nextStep()
             }}
@@ -390,14 +390,14 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <PoliticianEvaluationView
         key={`multiple-sources-${multipleSourcesKey}`}
         politician={multipleSourcesPolitician}
-        footer={(evaluations) => (
+        footer={(properties) => (
           <TutorialFooter
             skipHref={startHref}
             onSkip={() => startSession()}
-            evaluations={evaluations}
+            properties={properties}
             requiredKeys={Object.keys(multipleSourcesExpected)}
             onSubmit={() => {
-              const result = checkEvaluations(evaluations, multipleSourcesExpected)
+              const result = checkEvaluations(properties, multipleSourcesExpected)
               setMultipleSourcesResult(result)
               nextStep()
             }}
@@ -458,14 +458,14 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <PoliticianEvaluationView
         key={`generic-vs-specific-${genericVsSpecificKey}`}
         politician={genericVsSpecificPolitician}
-        footer={(evaluations) => (
+        footer={(properties) => (
           <TutorialFooter
             skipHref={startHref}
             onSkip={() => startSession()}
-            evaluations={evaluations}
+            properties={properties}
             requiredKeys={genericVsSpecificRequiredKeys}
             onSubmit={() => {
-              const result = checkEvaluations(evaluations, genericVsSpecificExpected)
+              const result = checkEvaluations(properties, genericVsSpecificExpected)
               setGenericVsSpecificResult(result)
               nextStep()
             }}
@@ -602,14 +602,14 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <PoliticianEvaluationView
         key={`deprecate-simple-${deprecateSimpleKey}`}
         politician={deprecateSimplePolitician}
-        footer={(evaluations) => (
+        footer={(properties) => (
           <TutorialFooter
             skipHref={startHref}
             onSkip={() => startSession()}
-            evaluations={evaluations}
+            properties={properties}
             requiredKeys={deprecateSimpleRequiredKeys}
             onSubmit={() => {
-              const result = checkEvaluations(evaluations, deprecateSimpleExpected)
+              const result = checkEvaluations(properties, deprecateSimpleExpected)
               setDeprecateSimpleResult(result)
             }}
             onBack={() => setStep(15)}
@@ -672,14 +672,14 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <PoliticianEvaluationView
         key={`deprecate-metadata-${deprecateWithMetadataKey}`}
         politician={deprecateWithMetadataPolitician}
-        footer={(evaluations) => (
+        footer={(properties) => (
           <TutorialFooter
             skipHref={startHref}
             onSkip={() => startSession()}
-            evaluations={evaluations}
+            properties={properties}
             requiredKeys={deprecateWithMetadataRequiredKeys}
             onSubmit={() => {
-              const result = checkEvaluations(evaluations, deprecateWithMetadataExpected)
+              const result = checkEvaluations(properties, deprecateWithMetadataExpected)
               setDeprecateWithMetadataResult(result)
             }}
             onBack={() => setStep(17)}

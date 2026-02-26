@@ -68,13 +68,23 @@ export interface NextPoliticianResponse {
   meta: EnrichmentMetadata
 }
 
-export interface EvaluationItem {
-  id: string
-  is_accepted: boolean
+export interface PropertyWithEvaluation extends Property {
+  evaluation?: boolean // undefined = not evaluated, true = accepted, false = rejected
+}
+
+export interface SubmissionItem {
+  id?: string // existing property → evaluation
+  is_accepted?: boolean
+  type?: string // new property → creation
+  value?: string
+  value_precision?: number
+  entity_id?: string
+  qualifiers_json?: Record<string, unknown>
 }
 
 export interface EvaluationRequest {
-  evaluations: EvaluationItem[]
+  politician_id: string
+  items: SubmissionItem[]
 }
 
 export interface EvaluationResponse {

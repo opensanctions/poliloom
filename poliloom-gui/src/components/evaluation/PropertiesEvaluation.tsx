@@ -1,28 +1,38 @@
-import { ReactNode, Fragment, useEffect, useMemo } from 'react'
-import { Property, PropertyType, PropertyReference } from '@/types'
+import { ReactNode, Fragment, useEffect, useMemo, useState } from 'react'
+import { Property, PropertyType, PropertyWithEvaluation, PropertyReference } from '@/types'
 import { EvaluationItem } from './EvaluationItem'
 import { PropertyDisplay } from './PropertyDisplay'
+import { AddDatePropertyForm } from './AddDatePropertyForm'
+import { AddPositionPropertyForm } from './AddPositionPropertyForm'
+import { AddEntityPropertyForm } from './AddEntityPropertyForm'
 import { EntityLink } from '@/components/ui/EntityLink'
+import { Button } from '@/components/ui/Button'
+import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { parsePositionQualifiers, compareDates } from '@/lib/wikidata/qualifierParser'
 import { parseWikidataDate } from '@/lib/wikidata/dateParser'
 
+type SectionType = 'date' | PropertyType.P39 | PropertyType.P19 | PropertyType.P27
+
 interface PropertiesEvaluationProps {
-  properties: Property[]
-  evaluations: Map<string, boolean>
+  properties: PropertyWithEvaluation[]
   onAction: (propertyId: string, action: 'accept' | 'reject') => void
   onShowArchived: (ref: PropertyReference) => void
   onHover: (property: Property) => void
   activeArchivedPageId: string | null
+  onAddProperty?: (property: PropertyWithEvaluation) => void
 }
 
 export function PropertiesEvaluation({
   properties,
-  evaluations,
   onAction,
   onShowArchived,
   onHover,
   activeArchivedPageId,
+  onAddProperty,
 }: PropertiesEvaluationProps) {
+  const { isAdvancedMode } = useUserPreferences()
+  const [addingSection, setAddingSection] = useState<SectionType | null>(null)
+
   const getPropertyTitle = (property: Property): ReactNode => {
     switch (property.type) {
       case PropertyType.P569:
@@ -51,19 +61,33 @@ export function PropertiesEvaluation({
     }
   }
 
+  const getAddLabel = (sectionType: SectionType): string => {
+    switch (sectionType) {
+      case 'date':
+        return '+ Add Date'
+      case PropertyType.P39:
+        return '+ Add Position'
+      case PropertyType.P19:
+        return '+ Add Birthplace'
+      case PropertyType.P27:
+        return '+ Add Citizenship'
+    }
+  }
+
   const sections = useMemo(() => {
     const result: Array<{
       title: string
+      sectionType: SectionType
       items: Array<{
         title: ReactNode
-        properties: Property[]
+        properties: PropertyWithEvaluation[]
         key: string
       }>
     }> = []
 
     // Collect date properties (birth/death)
-    const dateProps: Property[] = []
-    const entityBasedProps = new Map<PropertyType, Property[]>()
+    const dateProps: PropertyWithEvaluation[] = []
+    const entityBasedProps = new Map<PropertyType, PropertyWithEvaluation[]>()
 
     properties.forEach((property) => {
       if (property.type === PropertyType.P569 || property.type === PropertyType.P570) {
@@ -133,11 +157,11 @@ export function PropertiesEvaluation({
         properties: props,
         key: type,
       }))
-      result.push({ title: 'Properties', items })
+      result.push({ title: 'Properties', sectionType: 'date', items })
     }
 
     // Process entity-based properties in fixed order (positions, birthplaces, citizenships)
-    const orderedPropertyTypes = [PropertyType.P39, PropertyType.P19, PropertyType.P27]
+    const orderedPropertyTypes = [PropertyType.P39, PropertyType.P19, PropertyType.P27] as const
 
     orderedPropertyTypes.forEach((propertyType) => {
       const typeProperties = entityBasedProps.get(propertyType)
@@ -164,7 +188,7 @@ export function PropertiesEvaluation({
         }))
         .sort((a, b) => compareByStartDate(a.properties[0], b.properties[0]))
 
-      result.push({ title: getSectionTitle(propertyType), items })
+      result.push({ title: getSectionTitle(propertyType), sectionType: propertyType, items })
     })
 
     return result
@@ -182,6 +206,36 @@ export function PropertiesEvaluation({
       }
     }
   }, [sections, onShowArchived])
+
+  const handleAdd = (property: PropertyWithEvaluation) => {
+    onAddProperty?.(property)
+    setAddingSection(null)
+  }
+
+  const renderAddForm = (sectionType: SectionType) => {
+    switch (sectionType) {
+      case 'date':
+        return <AddDatePropertyForm onAdd={handleAdd} onCancel={() => setAddingSection(null)} />
+      case PropertyType.P39:
+        return <AddPositionPropertyForm onAdd={handleAdd} onCancel={() => setAddingSection(null)} />
+      case PropertyType.P19:
+        return (
+          <AddEntityPropertyForm
+            type={PropertyType.P19}
+            onAdd={handleAdd}
+            onCancel={() => setAddingSection(null)}
+          />
+        )
+      case PropertyType.P27:
+        return (
+          <AddEntityPropertyForm
+            type={PropertyType.P27}
+            onAdd={handleAdd}
+            onCancel={() => setAddingSection(null)}
+          />
+        )
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -208,7 +262,6 @@ export function PropertiesEvaluation({
                       {index > 0 && <hr className="border-border-muted my-3" />}
                       <PropertyDisplay
                         property={property}
-                        evaluations={evaluations}
                         onAction={onAction}
                         onShowArchived={onShowArchived}
                         onHover={onHover}
@@ -221,6 +274,21 @@ export function PropertiesEvaluation({
               )
             })}
           </div>
+          {onAddProperty && isAdvancedMode && (
+            <div className="mt-4">
+              {addingSection === section.sectionType ? (
+                renderAddForm(section.sectionType)
+              ) : (
+                <Button
+                  variant="secondary"
+                  size="small"
+                  onClick={() => setAddingSection(section.sectionType)}
+                >
+                  {getAddLabel(section.sectionType)}
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       ))}
     </div>
