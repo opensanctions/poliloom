@@ -433,7 +433,8 @@ class Politician(
             )
         )
 
-        # Apply language filtering via PropertyReference → ArchivedPage if specified
+        # Apply language filtering via PropertyReference → ArchivedPageLanguage
+        # Skip the ArchivedPage join — PropertyReference.archived_page_id links directly
         if languages:
             unevaluated_exists = exists(
                 select(1)
@@ -443,12 +444,9 @@ class Politician(
                     PropertyReference.property_id == Property.id,
                 )
                 .join(
-                    ArchivedPage,
-                    PropertyReference.archived_page_id == ArchivedPage.id,
-                )
-                .join(
                     ArchivedPageLanguage,
-                    ArchivedPageLanguage.archived_page_id == ArchivedPage.id,
+                    ArchivedPageLanguage.archived_page_id
+                    == PropertyReference.archived_page_id,
                 )
                 .where(
                     and_(
@@ -1261,6 +1259,7 @@ class PropertyReference(Base, TimestampMixin):
             name="uq_property_ref_property_page",
         ),
         Index("idx_property_references_property_id", "property_id"),
+        Index("idx_property_references_archived_page_id", "archived_page_id"),
     )
 
     id = Column(
