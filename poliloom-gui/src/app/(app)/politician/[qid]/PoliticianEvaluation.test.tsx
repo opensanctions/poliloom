@@ -176,9 +176,9 @@ describe('PoliticianEvaluation', () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/evaluations',
+        '/api/politicians/Q987654',
         expect.objectContaining({
-          method: 'POST',
+          method: 'PATCH',
         }),
       )
       expect(mockSubmitAndAdvance).toHaveBeenCalled()

@@ -72,25 +72,34 @@ export interface PropertyWithEvaluation extends Property {
   evaluation?: boolean // undefined = not evaluated, true = accepted, false = rejected
 }
 
-export interface SubmissionItem {
-  id?: string // existing property → evaluation
-  is_accepted?: boolean
-  type?: string // new property → creation
+export interface AcceptPropertyItem {
+  action: 'accept'
+  id: string
+}
+
+export interface RejectPropertyItem {
+  action: 'reject'
+  id: string
+}
+
+export interface CreatePropertyItem {
+  action: 'create'
+  type: string
   value?: string
   value_precision?: number
   entity_id?: string
   qualifiers_json?: Record<string, unknown>
 }
 
-export interface EvaluationRequest {
-  politician_id: string
-  items: SubmissionItem[]
+export type PropertyActionItem = AcceptPropertyItem | RejectPropertyItem | CreatePropertyItem
+
+export interface PatchPropertiesRequest {
+  items: PropertyActionItem[]
 }
 
-export interface EvaluationResponse {
+export interface PatchPropertiesResponse {
   success: boolean
   message: string
-  evaluation_count: number
   errors: string[]
 }
 

@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import {
   Politician,
   PropertyWithEvaluation,
-  EvaluationRequest,
-  EvaluationResponse,
-  SubmissionItem,
+  PatchPropertiesRequest,
+  PatchPropertiesResponse,
+  PropertyActionItem,
 } from '@/types'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useUserProgress } from '@/contexts/UserProgressContext'
@@ -45,15 +45,17 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
   const handleSubmit = async (properties: PropertyWithEvaluation[]) => {
     setIsSubmitting(true)
 
-    const items: SubmissionItem[] = properties
+    const items: PropertyActionItem[] = properties
       .filter((p) => p.evaluation !== undefined || !p.id)
-      .map((p) => {
+      .map((p): PropertyActionItem => {
         if (p.id) {
-          // Existing property → evaluation
-          return { id: p.id, is_accepted: p.evaluation }
+          return {
+            action: p.evaluation ? 'accept' : 'reject',
+            id: p.id,
+          }
         }
-        // User-created property → creation
         return {
+          action: 'create',
           type: p.type,
           value: p.value,
           value_precision: p.value_precision,
@@ -63,21 +65,18 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
       })
 
     try {
-      const evaluationData: EvaluationRequest = {
-        politician_id: politician.id,
-        items,
-      }
-      const response = await fetch('/api/evaluations', {
-        method: 'POST',
+      const requestData: PatchPropertiesRequest = { items }
+      const response = await fetch(`/api/politicians/${politician.wikidata_id}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(evaluationData),
+        body: JSON.stringify(requestData),
       })
 
       if (!response.ok) {
         throw new Error(`Failed to submit evaluations: ${response.statusText}`)
       }
 
-      const result: EvaluationResponse = await response.json()
+      const result: PatchPropertiesResponse = await response.json()
       if (!result.success) {
         console.error('Evaluation errors:', result.errors)
         alert(`Error submitting evaluations: ${result.message}`)

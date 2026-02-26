@@ -5,3 +5,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { qid } = await params
   return proxyToBackend(request, `/politicians/${qid}`)
 }
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ qid: string }> },
+) {
+  const { qid } = await params
+  return proxyToBackend(request, `/politicians/${qid}/properties`)
+}

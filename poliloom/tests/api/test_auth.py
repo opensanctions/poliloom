@@ -218,7 +218,9 @@ class TestAuthIntegration:
         # Test a few representative endpoints
         assert client_no_db.get("/politicians/next").status_code == 401
         assert (
-            client_no_db.post("/evaluations/", json={"evaluations": []}).status_code
+            client_no_db.patch(
+                "/politicians/Q123456/properties", json={"items": []}
+            ).status_code
             == 401
         )
 
@@ -236,13 +238,10 @@ class TestAuthIntegration:
         assert "meta" in data
         assert "wikidata_id" in data
 
-        # Test evaluations endpoint with auth
-        response = client.post(
-            "/evaluations/",
-            json={
-                "politician_id": str(sample_politician.id),
-                "items": [],
-            },
+        # Test patch properties endpoint with auth
+        response = client.patch(
+            f"/politicians/{sample_politician.wikidata_id}/properties",
+            json={"items": []},
             headers=mock_auth,
         )
         assert response.status_code == 200

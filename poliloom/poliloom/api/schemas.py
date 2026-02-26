@@ -1,8 +1,8 @@
 """Pydantic schemas for API responses."""
 
-from typing import List, Optional, Dict, Any
+from typing import Annotated, List, Literal, Optional, Dict, Any, Union
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, field_serializer
+from pydantic import BaseModel, ConfigDict, Discriminator, Tag, field_serializer
 from datetime import datetime
 from ..models import PropertyType
 
@@ -77,77 +77,47 @@ class NextPoliticianResponse(BaseModel):
     meta: EnrichmentMetadata
 
 
-class SubmissionItem(BaseModel):
-    """Single submission item — either an evaluation of an existing property or creation of a new one.
+class AcceptPropertyItem(BaseModel):
+    action: Literal["accept"]
+    id: UUID
 
-    If `id` is present, this is an evaluation (requires `is_accepted`).
-    If `id` is absent, this is a new property creation (requires `type` + value/entity fields).
-    """
 
-    id: Optional[UUID] = None
-    is_accepted: Optional[bool] = None
-    type: Optional[str] = None
+class RejectPropertyItem(BaseModel):
+    action: Literal["reject"]
+    id: UUID
+
+
+class CreatePropertyItem(BaseModel):
+    action: Literal["create"]
+    type: str
     value: Optional[str] = None
     value_precision: Optional[int] = None
     entity_id: Optional[str] = None
     qualifiers_json: Optional[Dict[str, Any]] = None
 
 
-class EvaluationRequest(BaseModel):
-    """Unified evaluation/creation request."""
-
-    politician_id: UUID
-    items: List[SubmissionItem]
-
-
-class EvaluationObjectResponse(UUIDBaseModel):
-    """Schema for a single evaluation object."""
-
-    id: UUID
-    user_id: str
-    is_accepted: bool
-    property_id: UUID
-    created_at: datetime
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "id": "98765432-4321-4321-4321-210987654321",
-                "user_id": "12345",
-                "is_accepted": True,
-                "property_id": "12345678-1234-1234-1234-123456789012",
-                "created_at": "2025-10-12T10:30:00Z",
-            }
-        }
-    )
+PropertyActionItem = Annotated[
+    Union[
+        Annotated[AcceptPropertyItem, Tag("accept")],
+        Annotated[RejectPropertyItem, Tag("reject")],
+        Annotated[CreatePropertyItem, Tag("create")],
+    ],
+    Discriminator("action"),
+]
 
 
-class EvaluationResponse(UUIDBaseModel):
-    """Schema for evaluation response."""
+class PatchPropertiesRequest(BaseModel):
+    """Request body for PATCH /politicians/{qid}/properties."""
+
+    items: List[PropertyActionItem]
+
+
+class PatchPropertiesResponse(BaseModel):
+    """Response for PATCH /politicians/{qid}/properties."""
 
     success: bool
     message: str
-    evaluations: List[EvaluationObjectResponse] = []
     errors: List[str] = []
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "success": True,
-                "message": "Successfully processed 4 evaluations",
-                "evaluations": [
-                    {
-                        "id": "98765432-4321-4321-4321-210987654321",
-                        "user_id": "12345",
-                        "is_accepted": True,
-                        "property_id": "12345678-1234-1234-1234-123456789012",
-                        "created_at": "2025-10-12T10:30:00Z",
-                    }
-                ],
-                "errors": [],
-            }
-        }
-    )
 
 
 class LanguageResponse(BaseModel):

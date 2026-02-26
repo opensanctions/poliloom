@@ -6,7 +6,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -20,15 +20,23 @@ from ..search import SearchService
 from ..models import (
     ArchivedPage,
     ArchivedPageLanguage,
+    Evaluation,
     Politician,
     Property,
     PropertyReference,
+    PropertyType,
 )
+from ..wikidata_statement import push_evaluation
 from .schemas import (
+    AcceptPropertyItem,
     ArchivedPageResponse,
+    CreatePropertyItem,
     EnrichmentMetadata,
     NextPoliticianResponse,
+    PatchPropertiesRequest,
+    PatchPropertiesResponse,
     PoliticianResponse,
+    RejectPropertyItem,
     PropertyReferenceResponse,
     PropertyResponse,
 )
@@ -37,6 +45,15 @@ from .auth import get_current_user, User
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Map frontend property type strings (Wikidata P-IDs) to backend enum
+PROPERTY_TYPE_MAP = {
+    "P569": PropertyType.BIRTH_DATE,
+    "P570": PropertyType.DEATH_DATE,
+    "P19": PropertyType.BIRTHPLACE,
+    "P39": PropertyType.POSITION,
+    "P27": PropertyType.CITIZENSHIP,
+}
 
 # Thread pool for background enrichment tasks (4 concurrent workers)
 _enrichment_executor = ThreadPoolExecutor(
@@ -303,4 +320,121 @@ async def get_politician(
         name=politician.name,
         wikidata_id=politician.wikidata_id,
         properties=build_property_responses(politician.properties),
+    )
+
+
+@router.patch("/{qid}/properties", response_model=PatchPropertiesResponse)
+async def patch_properties(
+    qid: str,
+    request: PatchPropertiesRequest,
+    db: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Accept, reject, or create properties for a politician.
+
+    Each item must specify an explicit `action`:
+    - `accept` / `reject`: evaluate an existing property (requires `id`)
+    - `create`: add a new property (requires `type` + value/entity fields)
+    - `update`: not yet implemented
+    """
+    politician = (
+        db.execute(select(Politician).where(Politician.wikidata_id == qid))
+        .scalars()
+        .first()
+    )
+    if not politician:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Politician with QID {qid} not found",
+        )
+
+    errors = []
+    all_evaluations = []
+
+    for item in request.items:
+        try:
+            match item:
+                case AcceptPropertyItem() | RejectPropertyItem():
+                    property_entity = db.get(Property, item.id)
+                    if not property_entity:
+                        errors.append(f"Property {item.id} not found")
+                        continue
+
+                    evaluation = Evaluation(
+                        user_id=str(current_user.user_id),
+                        is_accepted=isinstance(item, AcceptPropertyItem),
+                        property_id=item.id,
+                    )
+                    db.add(evaluation)
+                    all_evaluations.append(evaluation)
+
+                case CreatePropertyItem():
+                    prop_type = PROPERTY_TYPE_MAP.get(item.type)
+                    if not prop_type:
+                        errors.append(f"Unknown property type: {item.type}")
+                        continue
+
+                    new_property = Property(
+                        politician_id=politician.id,
+                        type=prop_type,
+                        value=item.value,
+                        value_precision=item.value_precision,
+                        entity_id=item.entity_id,
+                        qualifiers_json=item.qualifiers_json,
+                    )
+                    db.add(new_property)
+                    db.flush()
+
+                    evaluation = Evaluation(
+                        user_id=str(current_user.user_id),
+                        is_accepted=True,
+                        property_id=new_property.id,
+                    )
+                    db.add(evaluation)
+                    all_evaluations.append(evaluation)
+
+        except Exception as e:
+            item_desc = str(
+                getattr(item, "id", None) or f"new {getattr(item, 'type', '?')}"
+            )
+            errors.append(f"Error processing item {item_desc}: {str(e)}")
+            continue
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}",
+        )
+
+    # Push evaluations to Wikidata (don't rollback local changes on failure)
+    wikidata_errors = []
+
+    jwt_token = current_user.jwt_token
+    if not jwt_token:
+        wikidata_errors.append("No JWT token available for Wikidata API calls")
+    else:
+        for evaluation in all_evaluations:
+            try:
+                success = await push_evaluation(evaluation, jwt_token, db)
+                if not success:
+                    wikidata_errors.append(
+                        f"Failed to process evaluation {evaluation.id} in Wikidata"
+                    )
+            except Exception as e:
+                wikidata_errors.append(
+                    f"Error processing evaluation {evaluation.id} in Wikidata: {str(e)}"
+                )
+
+    if wikidata_errors:
+        errors.extend(wikidata_errors)
+
+    return PatchPropertiesResponse(
+        success=True,
+        message=f"Successfully processed {len(all_evaluations)} items"
+        + (f" ({len(wikidata_errors)} Wikidata errors)" if wikidata_errors else ""),
+        errors=errors,
     )
