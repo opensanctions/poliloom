@@ -26,6 +26,7 @@ class Country(
 
     __tablename__ = "countries"
 
+    _search_indexed = True
     # Use hybrid search for demonyms and abbreviations (American → United States)
     _search_semantic_ratio = 0.4
 
@@ -236,6 +237,7 @@ class Location(
 
     __tablename__ = "locations"
 
+    _search_indexed = True
     # Use hybrid search for transliterations and historical names
     _search_semantic_ratio = 0.3
 
@@ -281,6 +283,7 @@ class Position(
 
     __tablename__ = "positions"
 
+    _search_indexed = True
     # Use hybrid search with strong semantic bias for position matching
     _search_semantic_ratio = 0.8
 

@@ -55,6 +55,7 @@ class Politician(
 
     __tablename__ = "politicians"
 
+    _search_indexed = True
     # UpsertMixin configuration
     _upsert_update_columns = ["name"]
     _upsert_conflict_columns = ["wikidata_id"]

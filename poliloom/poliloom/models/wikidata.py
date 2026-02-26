@@ -42,6 +42,8 @@ from .base import (
 class WikidataEntityMixin:
     """Mixin for entities that have a wikidata_id and wikidata_entity relationship."""
 
+    _search_indexed = False
+
     @declared_attr
     def wikidata_id(cls):
         return Column(
@@ -635,7 +637,7 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         Returns:
             SQLAlchemy select query with columns: wikidata_id, types, labels
         """
-        models = WikidataEntityMixin.__subclasses__()
+        models = [m for m in WikidataEntityMixin.__subclasses__() if m._search_indexed]
 
         # Build UNION of all model tables with their type names
         entity_unions = union_all(
