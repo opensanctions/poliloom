@@ -5,7 +5,6 @@ import { Box } from '@/components/ui/Box'
 import { Button } from '@/components/ui/Button'
 import { Footer } from '@/components/ui/Footer'
 import { Toggle } from '@/components/ui/Toggle'
-import { Spinner } from '@/components/ui/Spinner'
 import { MultiSelect, MultiSelectOption } from '@/components/entity/MultiSelect'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useUserProgress } from '@/contexts/UserProgressContext'
@@ -125,22 +124,17 @@ export default function Home() {
                       : "No filters selected. You'll evaluate politicians from all languages and countries."}
               </p>
             </div>
-            {isWaitingForEnrichment ? (
-              <div className="shrink-0 flex items-center gap-3">
-                <Spinner />
-                <span className="text-foreground-tertiary text-sm">Gathering data...</span>
-              </div>
-            ) : (
-              <Button
-                href={ctaHref ?? undefined}
-                disabled={!ctaHref || loadingNext}
-                size="xlarge"
-                className="shrink-0"
-                onClick={shouldStartSession ? () => startSession() : undefined}
-              >
-                {ctaText}
-              </Button>
-            )}
+            <Button
+              href={isWaitingForEnrichment ? '/session/enriching' : (ctaHref ?? undefined)}
+              disabled={isWaitingForEnrichment ? false : !ctaHref || loadingNext}
+              size="xlarge"
+              className="shrink-0"
+              onClick={
+                isWaitingForEnrichment || shouldStartSession ? () => startSession() : undefined
+              }
+            >
+              {ctaText}
+            </Button>
           </div>
 
           {/* Advanced Mode Toggle */}

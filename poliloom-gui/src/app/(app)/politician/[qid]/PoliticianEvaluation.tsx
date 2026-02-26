@@ -69,8 +69,8 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
         const { sessionComplete } = submitAndAdvance()
         if (sessionComplete) {
           router.push(statsUnlocked ? '/session/complete' : '/session/unlocked')
-        } else if (nextPoliticianHref) {
-          router.push(nextPoliticianHref)
+        } else {
+          router.push(nextPoliticianHref ?? '/session/enriching')
         }
       }
     } catch (error) {
@@ -92,15 +92,13 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
         politicians evaluated
       </div>
       {evaluations.size === 0 ? (
-        nextPoliticianHref && !nextLoading ? (
-          <Button href={nextPoliticianHref} className="px-6 py-3">
-            Skip Politician
-          </Button>
-        ) : (
-          <Button disabled className="px-6 py-3">
-            Skip Politician
-          </Button>
-        )
+        <Button
+          href={nextPoliticianHref ?? (nextLoading ? undefined : '/session/enriching')}
+          disabled={nextLoading}
+          className="px-6 py-3"
+        >
+          Skip Politician
+        </Button>
       ) : (
         <Button
           onClick={() => handleSubmit(evaluations)}

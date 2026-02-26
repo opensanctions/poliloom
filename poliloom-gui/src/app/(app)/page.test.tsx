@@ -78,6 +78,67 @@ vi.mock('@/contexts/UserPreferencesContext', async (importOriginal) => {
   }
 })
 
+describe('Home Page - waiting for enrichment', () => {
+  it('CTA links to /session/enriching when waiting for enrichment', async () => {
+    vi.resetModules()
+
+    vi.doMock('@/contexts/NextPoliticianContext', () => ({
+      useNextPoliticianContext: () => ({
+        nextHref: null,
+        nextQid: null,
+        loading: false,
+        enrichmentMeta: { has_enrichable_politicians: true },
+        languageFilters: [],
+        countryFilters: [],
+        advanceNext: vi.fn(),
+      }),
+    }))
+
+    vi.doMock('@/contexts/EvaluationSessionContext', () => ({
+      useEvaluationSession: () => ({
+        isSessionActive: false,
+        completedCount: 0,
+        sessionGoal: 5,
+        startSession: vi.fn(),
+        submitAndAdvance: vi.fn(),
+        endSession: vi.fn(),
+      }),
+    }))
+
+    mockUseUserProgress.mockReturnValue({
+      hasCompletedBasicTutorial: true,
+      hasCompletedAdvancedTutorial: false,
+      statsUnlocked: false,
+      completeBasicTutorial: vi.fn(),
+      completeAdvancedTutorial: vi.fn(),
+      unlockStats: vi.fn(),
+    })
+
+    mockUseUserPreferences.mockReturnValue({
+      filters: [],
+      languages: [],
+      countries: [],
+      loadingLanguages: false,
+      loadingCountries: false,
+      initialized: true,
+      updateFilters: vi.fn(),
+      isAdvancedMode: false,
+      setAdvancedMode: vi.fn(),
+    })
+
+    const { default: Home } = await import('./page')
+
+    await act(async () => {
+      render(<Home />)
+    })
+
+    await waitFor(() => {
+      const ctaButton = screen.getByRole('link', { name: 'Start Your Session' })
+      expect(ctaButton).toHaveAttribute('href', '/session/enriching')
+    })
+  })
+})
+
 describe('Home Page (Filter Selection)', () => {
   beforeEach(() => {
     vi.clearAllMocks()

@@ -226,3 +226,90 @@ describe('PoliticianEvaluation', () => {
     })
   })
 })
+
+describe('PoliticianEvaluation - no next politician', () => {
+  beforeEach(() => {
+    vi.resetModules()
+
+    vi.doMock('@/contexts/NextPoliticianContext', () => ({
+      useNextPoliticianContext: () => ({
+        nextHref: null,
+        nextQid: null,
+        loading: false,
+        enrichmentMeta: null,
+        languageFilters: [],
+        countryFilters: [],
+        advanceNext: vi.fn(),
+      }),
+    }))
+
+    vi.doMock('@/contexts/EvaluationSessionContext', () => ({
+      useEvaluationSession: () => ({
+        isSessionActive: true,
+        completedCount: 0,
+        sessionGoal: 5,
+        startSession: vi.fn(),
+        submitAndAdvance: mockSubmitAndAdvance,
+        endSession: vi.fn(),
+      }),
+    }))
+
+    vi.doMock('@/contexts/UserProgressContext', () => ({
+      useUserProgress: () => ({
+        hasCompletedBasicTutorial: true,
+        hasCompletedAdvancedTutorial: true,
+        statsUnlocked: true,
+        completeBasicTutorial: vi.fn(),
+        completeAdvancedTutorial: vi.fn(),
+        unlockStats: vi.fn(),
+      }),
+    }))
+
+    vi.doMock('@/contexts/UserPreferencesContext', () => ({
+      useUserPreferences: () => ({
+        isAdvancedMode: false,
+      }),
+    }))
+
+    vi.doMock('@/hooks/useIframeHighlighting', () => ({
+      useIframeAutoHighlight: () => ({
+        isIframeLoaded: true,
+        handleIframeLoad: vi.fn(),
+        handleQuotesChange: vi.fn(),
+      }),
+    }))
+
+    mockSubmitAndAdvance.mockClear()
+    mockRouterPush.mockClear()
+    mockFetch.mockClear()
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, message: 'OK', errors: [] }),
+    })
+  })
+
+  it('navigates to /session/enriching on submit when no next politician available', async () => {
+    mockSubmitAndAdvance.mockReturnValue({ sessionComplete: false })
+
+    const { PoliticianEvaluation } = await import('./PoliticianEvaluation')
+    render(<PoliticianEvaluation politician={mockPolitician} />)
+
+    const acceptButtons = screen.getAllByText('✓ Accept')
+    fireEvent.click(acceptButtons[0])
+
+    const submitButton = screen.getByText('Submit Evaluations & Next')
+    fireEvent.click(submitButton)
+
+    await waitFor(() => {
+      expect(mockRouterPush).toHaveBeenCalledWith('/session/enriching')
+    })
+  })
+
+  it('skip button links to /session/enriching when no next politician available', async () => {
+    const { PoliticianEvaluation } = await import('./PoliticianEvaluation')
+    render(<PoliticianEvaluation politician={mockPolitician} />)
+
+    const skipButton = screen.getByText('Skip Politician')
+    expect(skipButton.closest('a')).toHaveAttribute('href', '/session/enriching')
+  })
+})
