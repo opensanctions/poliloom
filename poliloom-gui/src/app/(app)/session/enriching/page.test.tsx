@@ -1,19 +1,27 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, render } from '@testing-library/react'
 import { mockRouterPush } from '@/test/test-utils'
 import EnrichingPage from './page'
 
+const mockUseNextPoliticianContext = vi.fn()
 vi.mock('@/contexts/NextPoliticianContext', () => ({
-  useNextPoliticianContext: () => ({
-    nextHref: null,
-    nextQid: null,
-    loading: false,
-    enrichmentMeta: { has_enrichable_politicians: true },
-    languageFilters: [],
-    countryFilters: [],
-    advanceNext: vi.fn(),
-  }),
+  useNextPoliticianContext: () => mockUseNextPoliticianContext(),
 }))
+
+const defaultNextPolitician = {
+  nextHref: null,
+  nextQid: null,
+  loading: false,
+  enrichmentMeta: { has_enrichable_politicians: true },
+  languageFilters: [],
+  countryFilters: [],
+  advanceNext: vi.fn(),
+}
+
+beforeEach(() => {
+  mockUseNextPoliticianContext.mockReturnValue(defaultNextPolitician)
+  mockRouterPush.mockClear()
+})
 
 describe('Enriching Page', () => {
   it('shows gathering data message when waiting for enrichment', () => {
@@ -31,46 +39,28 @@ describe('Enriching Page', () => {
 })
 
 describe('Enriching Page - politician available', () => {
-  it('auto-navigates when nextHref becomes available', async () => {
-    vi.resetModules()
+  it('auto-navigates when nextHref becomes available', () => {
+    mockUseNextPoliticianContext.mockReturnValue({
+      ...defaultNextPolitician,
+      nextHref: '/politician/Q12345',
+      nextQid: 'Q12345',
+      enrichmentMeta: null,
+    })
 
-    vi.doMock('@/contexts/NextPoliticianContext', () => ({
-      useNextPoliticianContext: () => ({
-        nextHref: '/politician/Q12345',
-        nextQid: 'Q12345',
-        loading: false,
-        enrichmentMeta: null,
-        languageFilters: [],
-        countryFilters: [],
-        advanceNext: vi.fn(),
-      }),
-    }))
-
-    const { default: EnrichingPageWithNext } = await import('./page')
-    render(<EnrichingPageWithNext />)
+    render(<EnrichingPage />)
 
     expect(mockRouterPush).toHaveBeenCalledWith('/politician/Q12345')
   })
 })
 
 describe('Enriching Page - all caught up', () => {
-  it('shows all caught up message when no enrichable politicians', async () => {
-    vi.resetModules()
+  it('shows all caught up message when no enrichable politicians', () => {
+    mockUseNextPoliticianContext.mockReturnValue({
+      ...defaultNextPolitician,
+      enrichmentMeta: { has_enrichable_politicians: false },
+    })
 
-    vi.doMock('@/contexts/NextPoliticianContext', () => ({
-      useNextPoliticianContext: () => ({
-        nextHref: null,
-        nextQid: null,
-        loading: false,
-        enrichmentMeta: { has_enrichable_politicians: false },
-        languageFilters: [],
-        countryFilters: [],
-        advanceNext: vi.fn(),
-      }),
-    }))
-
-    const { default: EnrichingPageCaughtUp } = await import('./page')
-    render(<EnrichingPageCaughtUp />)
+    render(<EnrichingPage />)
 
     expect(screen.getByText('All Caught Up!')).toBeInTheDocument()
     const link = screen.getByRole('link', { name: 'Return Home' })

@@ -3,28 +3,40 @@ import { screen, waitFor, act, render } from '@testing-library/react'
 import '@/test/test-utils'
 import Home from './page'
 
+const mockUseNextPoliticianContext = vi.fn()
 vi.mock('@/contexts/NextPoliticianContext', () => ({
-  useNextPoliticianContext: () => ({
-    nextHref: null,
-    nextQid: null,
-    loading: false,
-    enrichmentMeta: null,
-    languageFilters: [],
-    countryFilters: [],
-    advanceNext: vi.fn(),
-  }),
+  useNextPoliticianContext: () => mockUseNextPoliticianContext(),
 }))
 
+const mockUseEvaluationSession = vi.fn()
 vi.mock('@/contexts/EvaluationSessionContext', () => ({
-  useEvaluationSession: () => ({
-    isSessionActive: false,
-    completedCount: 0,
-    sessionGoal: 5,
-    startSession: vi.fn(),
-    submitAndAdvance: vi.fn(),
-    endSession: vi.fn(),
-  }),
+  useEvaluationSession: () => mockUseEvaluationSession(),
 }))
+
+const mockUseSession = vi.fn()
+const mockSignIn = vi.fn()
+vi.mock('next-auth/react', () => ({
+  useSession: () => mockUseSession(),
+  signIn: (...args: unknown[]) => mockSignIn(...args),
+}))
+
+const mockUseUserProgress = vi.fn()
+vi.mock('@/contexts/UserProgressContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/contexts/UserProgressContext')>()
+  return {
+    ...actual,
+    useUserProgress: () => mockUseUserProgress(),
+  }
+})
+
+const mockUseUserPreferences = vi.fn()
+vi.mock('@/contexts/UserPreferencesContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/contexts/UserPreferencesContext')>()
+  return {
+    ...actual,
+    useUserPreferences: () => mockUseUserPreferences(),
+  }
+})
 
 // Mock fetch for API calls
 global.fetch = vi.fn()
@@ -53,80 +65,100 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }))
 
-const mockUseSession = vi.fn()
-const mockSignIn = vi.fn()
-vi.mock('next-auth/react', () => ({
-  useSession: () => mockUseSession(),
-  signIn: (...args: unknown[]) => mockSignIn(...args),
-}))
+const defaultNextPolitician = {
+  nextHref: null,
+  nextQid: null,
+  loading: false,
+  enrichmentMeta: null,
+  languageFilters: [],
+  countryFilters: [],
+  advanceNext: vi.fn(),
+}
 
-const mockUseUserProgress = vi.fn()
-vi.mock('@/contexts/UserProgressContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/contexts/UserProgressContext')>()
-  return {
-    ...actual,
-    useUserProgress: () => mockUseUserProgress(),
-  }
-})
+const defaultEvaluationSession = {
+  isSessionActive: false,
+  completedCount: 0,
+  sessionGoal: 5,
+  startSession: vi.fn(),
+  submitAndAdvance: vi.fn(),
+  endSession: vi.fn(),
+}
 
-const mockUseUserPreferences = vi.fn()
-vi.mock('@/contexts/UserPreferencesContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/contexts/UserPreferencesContext')>()
-  return {
-    ...actual,
-    useUserPreferences: () => mockUseUserPreferences(),
-  }
+const defaultUserProgress = {
+  hasCompletedBasicTutorial: false,
+  hasCompletedAdvancedTutorial: false,
+  statsUnlocked: false,
+  completeBasicTutorial: vi.fn(),
+  completeAdvancedTutorial: vi.fn(),
+  unlockStats: vi.fn(),
+}
+
+const defaultUserPreferences = {
+  filters: [],
+  languages: [],
+  countries: [],
+  loadingLanguages: false,
+  loadingCountries: false,
+  initialized: true,
+  updateFilters: vi.fn(),
+  isAdvancedMode: false,
+  setAdvancedMode: vi.fn(),
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  mockUseNextPoliticianContext.mockReturnValue(defaultNextPolitician)
+  mockUseEvaluationSession.mockReturnValue(defaultEvaluationSession)
+  mockUseSession.mockReturnValue({ data: null, status: 'loading' })
+  mockUseUserProgress.mockReturnValue(defaultUserProgress)
+  mockUseUserPreferences.mockReturnValue(defaultUserPreferences)
+
+  vi.mocked(fetch).mockImplementation((url) => {
+    const urlStr = url.toString()
+
+    if (urlStr.includes('/api/languages')) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => [
+          { wikidata_id: 'Q1860', name: 'English' },
+          { wikidata_id: 'Q188', name: 'German' },
+        ],
+      } as Response)
+    }
+
+    if (urlStr.includes('/api/countries')) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => [
+          { wikidata_id: 'Q30', name: 'United States' },
+          { wikidata_id: 'Q183', name: 'Germany' },
+        ],
+      } as Response)
+    }
+
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => [],
+    } as Response)
+  })
 })
 
 describe('Home Page - waiting for enrichment', () => {
   it('CTA links to /session/enriching when waiting for enrichment', async () => {
-    vi.resetModules()
-
-    vi.doMock('@/contexts/NextPoliticianContext', () => ({
-      useNextPoliticianContext: () => ({
-        nextHref: null,
-        nextQid: null,
-        loading: false,
-        enrichmentMeta: { has_enrichable_politicians: true },
-        languageFilters: [],
-        countryFilters: [],
-        advanceNext: vi.fn(),
-      }),
-    }))
-
-    vi.doMock('@/contexts/EvaluationSessionContext', () => ({
-      useEvaluationSession: () => ({
-        isSessionActive: false,
-        completedCount: 0,
-        sessionGoal: 5,
-        startSession: vi.fn(),
-        submitAndAdvance: vi.fn(),
-        endSession: vi.fn(),
-      }),
-    }))
-
+    mockUseNextPoliticianContext.mockReturnValue({
+      ...defaultNextPolitician,
+      enrichmentMeta: { has_enrichable_politicians: true },
+    })
     mockUseUserProgress.mockReturnValue({
+      ...defaultUserProgress,
       hasCompletedBasicTutorial: true,
-      hasCompletedAdvancedTutorial: false,
-      statsUnlocked: false,
-      completeBasicTutorial: vi.fn(),
-      completeAdvancedTutorial: vi.fn(),
-      unlockStats: vi.fn(),
     })
-
-    mockUseUserPreferences.mockReturnValue({
-      filters: [],
-      languages: [],
-      countries: [],
-      loadingLanguages: false,
-      loadingCountries: false,
-      initialized: true,
-      updateFilters: vi.fn(),
-      isAdvancedMode: false,
-      setAdvancedMode: vi.fn(),
-    })
-
-    const { default: Home } = await import('./page')
 
     await act(async () => {
       render(<Home />)
@@ -140,75 +172,7 @@ describe('Home Page - waiting for enrichment', () => {
 })
 
 describe('Home Page (Filter Selection)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-
-    // Default tutorial state - not completed
-    mockUseUserProgress.mockReturnValue({
-      hasCompletedBasicTutorial: false,
-      hasCompletedAdvancedTutorial: false,
-      statsUnlocked: false,
-      completeBasicTutorial: vi.fn(),
-      completeAdvancedTutorial: vi.fn(),
-      unlockStats: vi.fn(),
-    })
-
-    // Default user preferences - basic mode
-    mockUseUserPreferences.mockReturnValue({
-      filters: [],
-      languages: [],
-      countries: [],
-      loadingLanguages: false,
-      loadingCountries: false,
-      initialized: true,
-      updateFilters: vi.fn(),
-      isAdvancedMode: false,
-      setAdvancedMode: vi.fn(),
-    })
-
-    // Mock fetch for API calls
-    vi.mocked(fetch).mockImplementation((url) => {
-      const urlStr = url.toString()
-
-      if (urlStr.includes('/api/languages')) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          statusText: 'OK',
-          json: async () => [
-            { wikidata_id: 'Q1860', name: 'English' },
-            { wikidata_id: 'Q188', name: 'German' },
-          ],
-        } as Response)
-      }
-
-      if (urlStr.includes('/api/countries')) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          statusText: 'OK',
-          json: async () => [
-            { wikidata_id: 'Q30', name: 'United States' },
-            { wikidata_id: 'Q183', name: 'Germany' },
-          ],
-        } as Response)
-      }
-
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        statusText: 'OK',
-        json: async () => [],
-      } as Response)
-    })
-  })
-
   it('renders home page with filter options', async () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: 'loading',
-    })
-
     await act(async () => {
       render(<Home />)
     })
@@ -227,11 +191,6 @@ describe('Home Page (Filter Selection)', () => {
   })
 
   it('shows Start Tutorial button when tutorial not completed', async () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: 'loading',
-    })
-
     await act(async () => {
       render(<Home />)
     })
@@ -242,21 +201,11 @@ describe('Home Page (Filter Selection)', () => {
   })
 
   it('shows Begin Evaluation Session button when basic tutorial completed in basic mode', async () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: 'loading',
-    })
-
     mockUseUserProgress.mockReturnValue({
+      ...defaultUserProgress,
       hasCompletedBasicTutorial: true,
-      hasCompletedAdvancedTutorial: false,
-      statsUnlocked: false,
-      completeBasicTutorial: vi.fn(),
-      completeAdvancedTutorial: vi.fn(),
-      unlockStats: vi.fn(),
     })
 
-    // Basic mode (default from beforeEach)
     await act(async () => {
       render(<Home />)
     })
@@ -267,30 +216,13 @@ describe('Home Page (Filter Selection)', () => {
   })
 
   it('shows Start Advanced Tutorial button when basic completed but advanced not completed in advanced mode', async () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: 'loading',
-    })
-
     mockUseUserProgress.mockReturnValue({
+      ...defaultUserProgress,
       hasCompletedBasicTutorial: true,
-      hasCompletedAdvancedTutorial: false,
-      statsUnlocked: false,
-      completeBasicTutorial: vi.fn(),
-      completeAdvancedTutorial: vi.fn(),
-      unlockStats: vi.fn(),
     })
-
     mockUseUserPreferences.mockReturnValue({
-      filters: [],
-      languages: [],
-      countries: [],
-      loadingLanguages: false,
-      loadingCountries: false,
-      initialized: true,
-      updateFilters: vi.fn(),
+      ...defaultUserPreferences,
       isAdvancedMode: true,
-      setAdvancedMode: vi.fn(),
     })
 
     await act(async () => {
@@ -303,30 +235,15 @@ describe('Home Page (Filter Selection)', () => {
   })
 
   it('shows Begin Evaluation Session button when both tutorials completed in advanced mode', async () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: 'loading',
-    })
-
     mockUseUserProgress.mockReturnValue({
+      ...defaultUserProgress,
       hasCompletedBasicTutorial: true,
       hasCompletedAdvancedTutorial: true,
       statsUnlocked: true,
-      completeBasicTutorial: vi.fn(),
-      completeAdvancedTutorial: vi.fn(),
-      unlockStats: vi.fn(),
     })
-
     mockUseUserPreferences.mockReturnValue({
-      filters: [],
-      languages: [],
-      countries: [],
-      loadingLanguages: false,
-      loadingCountries: false,
-      initialized: true,
-      updateFilters: vi.fn(),
+      ...defaultUserPreferences,
       isAdvancedMode: true,
-      setAdvancedMode: vi.fn(),
     })
 
     await act(async () => {
@@ -339,22 +256,9 @@ describe('Home Page (Filter Selection)', () => {
   })
 
   it('shows Start Tutorial button when no tutorials completed in advanced mode', async () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: 'loading',
-    })
-
-    // No tutorials completed (default from beforeEach)
     mockUseUserPreferences.mockReturnValue({
-      filters: [],
-      languages: [],
-      countries: [],
-      loadingLanguages: false,
-      loadingCountries: false,
-      initialized: true,
-      updateFilters: vi.fn(),
+      ...defaultUserPreferences,
       isAdvancedMode: true,
-      setAdvancedMode: vi.fn(),
     })
 
     await act(async () => {

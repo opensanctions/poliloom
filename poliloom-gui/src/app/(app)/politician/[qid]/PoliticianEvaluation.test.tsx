@@ -5,16 +5,9 @@ import { PoliticianEvaluation } from './PoliticianEvaluation'
 import { mockPolitician, mockPoliticianWithConflicts } from '@/test/mock-data'
 
 const mockAdvanceNext = vi.fn()
+const mockUseNextPoliticianContext = vi.fn()
 vi.mock('@/contexts/NextPoliticianContext', () => ({
-  useNextPoliticianContext: () => ({
-    nextHref: '/politician/Q99999',
-    nextQid: 'Q99999',
-    loading: false,
-    enrichmentMeta: null,
-    languageFilters: [],
-    countryFilters: [],
-    advanceNext: mockAdvanceNext,
-  }),
+  useNextPoliticianContext: () => mockUseNextPoliticianContext(),
 }))
 
 vi.mock('@/contexts/EvaluationSessionContext', () => ({
@@ -77,6 +70,16 @@ vi.mock('@/hooks/useIframeHighlighting', () => ({
 // Mock console.error to suppress expected error output
 vi.spyOn(console, 'error').mockImplementation(() => {})
 
+const defaultNextPolitician = {
+  nextHref: '/politician/Q99999',
+  nextQid: 'Q99999',
+  loading: false,
+  enrichmentMeta: null,
+  languageFilters: [],
+  countryFilters: [],
+  advanceNext: mockAdvanceNext,
+}
+
 describe('PoliticianEvaluation', () => {
   const defaultProps = {
     politician: mockPolitician,
@@ -91,6 +94,7 @@ describe('PoliticianEvaluation', () => {
       ok: true,
       json: async () => ({ success: true, message: 'OK', errors: [] }),
     })
+    mockUseNextPoliticianContext.mockReturnValue(defaultNextPolitician)
   })
 
   it('renders politician name and wikidata id', () => {
@@ -229,55 +233,11 @@ describe('PoliticianEvaluation', () => {
 
 describe('PoliticianEvaluation - no next politician', () => {
   beforeEach(() => {
-    vi.resetModules()
-
-    vi.doMock('@/contexts/NextPoliticianContext', () => ({
-      useNextPoliticianContext: () => ({
-        nextHref: null,
-        nextQid: null,
-        loading: false,
-        enrichmentMeta: null,
-        languageFilters: [],
-        countryFilters: [],
-        advanceNext: vi.fn(),
-      }),
-    }))
-
-    vi.doMock('@/contexts/EvaluationSessionContext', () => ({
-      useEvaluationSession: () => ({
-        isSessionActive: true,
-        completedCount: 0,
-        sessionGoal: 5,
-        startSession: vi.fn(),
-        submitAndAdvance: mockSubmitAndAdvance,
-        endSession: vi.fn(),
-      }),
-    }))
-
-    vi.doMock('@/contexts/UserProgressContext', () => ({
-      useUserProgress: () => ({
-        hasCompletedBasicTutorial: true,
-        hasCompletedAdvancedTutorial: true,
-        statsUnlocked: true,
-        completeBasicTutorial: vi.fn(),
-        completeAdvancedTutorial: vi.fn(),
-        unlockStats: vi.fn(),
-      }),
-    }))
-
-    vi.doMock('@/contexts/UserPreferencesContext', () => ({
-      useUserPreferences: () => ({
-        isAdvancedMode: false,
-      }),
-    }))
-
-    vi.doMock('@/hooks/useIframeHighlighting', () => ({
-      useIframeAutoHighlight: () => ({
-        isIframeLoaded: true,
-        handleIframeLoad: vi.fn(),
-        handleQuotesChange: vi.fn(),
-      }),
-    }))
+    mockUseNextPoliticianContext.mockReturnValue({
+      ...defaultNextPolitician,
+      nextHref: null,
+      nextQid: null,
+    })
 
     mockSubmitAndAdvance.mockClear()
     mockRouterPush.mockClear()
@@ -291,7 +251,6 @@ describe('PoliticianEvaluation - no next politician', () => {
   it('navigates to /session/enriching on submit when no next politician available', async () => {
     mockSubmitAndAdvance.mockReturnValue({ sessionComplete: false })
 
-    const { PoliticianEvaluation } = await import('./PoliticianEvaluation')
     render(<PoliticianEvaluation politician={mockPolitician} />)
 
     const acceptButtons = screen.getAllByText('✓ Accept')
@@ -305,8 +264,7 @@ describe('PoliticianEvaluation - no next politician', () => {
     })
   })
 
-  it('skip button links to /session/enriching when no next politician available', async () => {
-    const { PoliticianEvaluation } = await import('./PoliticianEvaluation')
+  it('skip button links to /session/enriching when no next politician available', () => {
     render(<PoliticianEvaluation politician={mockPolitician} />)
 
     const skipButton = screen.getByText('Skip Politician')
