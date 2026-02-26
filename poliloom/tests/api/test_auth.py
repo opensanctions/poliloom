@@ -225,7 +225,9 @@ class TestAuthIntegration:
         fake_id = "12345678-1234-1234-1234-123456789012"
         assert client_no_db.get(f"/archived-pages/{fake_id}.html").status_code == 401
 
-    def test_authenticated_requests_pass_auth(self, client, mock_auth):
+    def test_authenticated_requests_pass_auth(
+        self, client, mock_auth, sample_politician
+    ):
         """Test that properly authenticated requests can access protected endpoints."""
         # Test politicians/next endpoint with auth - returns NextPoliticianResponse
         response = client.get("/politicians/next", headers=mock_auth)
@@ -236,6 +238,11 @@ class TestAuthIntegration:
 
         # Test evaluations endpoint with auth
         response = client.post(
-            "/evaluations/", json={"evaluations": []}, headers=mock_auth
+            "/evaluations/",
+            json={
+                "politician_id": str(sample_politician.id),
+                "items": [],
+            },
+            headers=mock_auth,
         )
         assert response.status_code == 200
