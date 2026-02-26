@@ -242,14 +242,9 @@ class Location(
     # Hierarchy configuration for import filtering and cleanup
     _hierarchy_roots = [
         "Q486972",  # human settlement
-        "Q82794",  # region
-        "Q1306755",  # administrative centre
-        "Q3257686",  # locality
-        "Q48907157",  # section of populated place
+        "Q56061",  # administrative territorial entity
     ]
-    _hierarchy_ignore = [
-        "Q51041800",  # religious administrative entity (dioceses, parishes, abbeys, etc.)
-    ]
+    _hierarchy_ignore = []
 
     # Cleanup configuration: property type to soft-delete when cleaning hierarchy
     _cleanup_property_type = "BIRTHPLACE"
