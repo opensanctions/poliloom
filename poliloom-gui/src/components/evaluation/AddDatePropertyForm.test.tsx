@@ -10,27 +10,25 @@ describe('AddDatePropertyForm', () => {
     vi.clearAllMocks()
   })
 
-  it('renders type selector, date input, and precision selector', () => {
+  it('renders type selector and date inputs', () => {
     render(<AddDatePropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
     expect(screen.getByText('Birth Date')).toBeInTheDocument()
-    expect(screen.getByText('Death Date')).toBeInTheDocument()
-    expect(screen.getByText('Day')).toBeInTheDocument()
-    expect(screen.getByText('Month')).toBeInTheDocument()
-    expect(screen.getByText('Year')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Year')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Month')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Day')).toBeInTheDocument()
   })
 
-  it('disables Add button when no date is entered', () => {
+  it('disables Add button when no year is entered', () => {
     render(<AddDatePropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
     expect(screen.getByText('Add')).toBeDisabled()
   })
 
-  it('enables Add button when date is entered', () => {
+  it('enables Add button when year is entered', () => {
     render(<AddDatePropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
-    const dateInput = screen.getByDisplayValue('')
-    fireEvent.change(dateInput, { target: { value: '1990-05-15' } })
+    fireEvent.change(screen.getByPlaceholderText('Year'), { target: { value: '1990' } })
 
     expect(screen.getByText('Add')).not.toBeDisabled()
   })
@@ -38,8 +36,9 @@ describe('AddDatePropertyForm', () => {
   it('calls onAdd with correct property for day precision', () => {
     render(<AddDatePropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
-    const dateInput = screen.getByDisplayValue('')
-    fireEvent.change(dateInput, { target: { value: '1990-05-15' } })
+    fireEvent.change(screen.getByPlaceholderText('Year'), { target: { value: '1990' } })
+    fireEvent.change(screen.getByPlaceholderText('Month'), { target: { value: '05' } })
+    fireEvent.change(screen.getByPlaceholderText('Day'), { target: { value: '15' } })
     fireEvent.click(screen.getByText('Add'))
 
     expect(mockOnAdd).toHaveBeenCalledTimes(1)
@@ -53,16 +52,11 @@ describe('AddDatePropertyForm', () => {
     expect(property.key).toMatch(/^new-/)
   })
 
-  it('zeroes out day for month precision', () => {
+  it('infers month precision when day is omitted', () => {
     render(<AddDatePropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
-    const dateInput = screen.getByDisplayValue('')
-    fireEvent.change(dateInput, { target: { value: '1990-05-15' } })
-
-    // Change precision to month
-    const precisionSelect = screen.getByDisplayValue('Day')
-    fireEvent.change(precisionSelect, { target: { value: '10' } })
-
+    fireEvent.change(screen.getByPlaceholderText('Year'), { target: { value: '1990' } })
+    fireEvent.change(screen.getByPlaceholderText('Month'), { target: { value: '05' } })
     fireEvent.click(screen.getByText('Add'))
 
     const property = mockOnAdd.mock.calls[0][0]
@@ -70,15 +64,10 @@ describe('AddDatePropertyForm', () => {
     expect(property.value_precision).toBe(10)
   })
 
-  it('zeroes out month and day for year precision', () => {
+  it('infers year precision when month and day are omitted', () => {
     render(<AddDatePropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
-    const dateInput = screen.getByDisplayValue('')
-    fireEvent.change(dateInput, { target: { value: '1990-05-15' } })
-
-    const precisionSelect = screen.getByDisplayValue('Day')
-    fireEvent.change(precisionSelect, { target: { value: '9' } })
-
+    fireEvent.change(screen.getByPlaceholderText('Year'), { target: { value: '1990' } })
     fireEvent.click(screen.getByText('Add'))
 
     const property = mockOnAdd.mock.calls[0][0]
@@ -89,11 +78,11 @@ describe('AddDatePropertyForm', () => {
   it('allows selecting Death Date type', () => {
     render(<AddDatePropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
-    const typeSelect = screen.getByDisplayValue('Birth Date')
-    fireEvent.change(typeSelect, { target: { value: PropertyType.P570 } })
+    // Open the Select dropdown and pick Death Date
+    fireEvent.click(screen.getByRole('button', { name: /Birth Date/i }))
+    fireEvent.click(screen.getByRole('option', { name: /Death Date/i }))
 
-    const dateInput = screen.getByDisplayValue('')
-    fireEvent.change(dateInput, { target: { value: '2020-01-01' } })
+    fireEvent.change(screen.getByPlaceholderText('Year'), { target: { value: '2020' } })
     fireEvent.click(screen.getByText('Add'))
 
     const property = mockOnAdd.mock.calls[0][0]

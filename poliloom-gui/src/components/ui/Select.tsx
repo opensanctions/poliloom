@@ -65,18 +65,11 @@ export function Select({
           type="button"
           onClick={() => !disabled && setIsOpen(!isOpen)}
           disabled={disabled}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
           className={`${baseClasses} ${errorClasses} ${disabledClasses}`}
         >
-          <span className="grid">
-            {options.map((opt) => (
-              <span
-                key={opt.value}
-                className={`col-start-1 row-start-1 ${opt.value === value ? 'visible' : 'invisible'}`}
-              >
-                {opt.label}
-              </span>
-            ))}
-          </span>
+          <span>{selectedOption?.label}</span>
           <svg
             className={`w-4 h-4 text-foreground-subtle transition-transform ${isOpen ? 'rotate-180' : ''}`}
             fill="none"
@@ -88,23 +81,27 @@ export function Select({
         </button>
 
         {isOpen && (
-          <div className="absolute z-10 mt-1 w-full bg-surface border border-border-strong rounded-md shadow-lg max-h-60 overflow-auto">
+          <ul
+            role="listbox"
+            className="absolute z-10 mt-1 w-full bg-surface border border-border-strong rounded-md shadow-lg max-h-60 overflow-auto"
+          >
             {options.map((option) => (
-              <button
+              <li
                 key={option.value}
-                type="button"
+                role="option"
+                aria-selected={option.value === value}
                 onClick={() => {
                   onChange(option.value)
                   setIsOpen(false)
                 }}
-                className={`w-full px-3 py-2 text-left text-foreground hover:bg-accent-muted ${
+                className={`w-full px-3 py-2 text-left text-foreground cursor-pointer hover:bg-accent-muted ${
                   option.value === value ? 'bg-accent-muted font-medium' : ''
                 }`}
               >
                 {option.label}
-              </button>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
       {error && <p className="mt-1 text-sm text-danger-foreground">{error}</p>}

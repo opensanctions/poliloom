@@ -71,11 +71,15 @@ describe('AddPositionPropertyForm', () => {
       target: { value: 'Mayor' },
     })
 
-    const dateInputs = screen.getAllByDisplayValue('')
-    // dateInputs: [QID already filled, name already filled, start date, end date]
-    // After filling QID and name, the date inputs are the ones still empty
-    const emptyInputs = screen.getAllByDisplayValue('')
-    fireEvent.change(emptyInputs[0], { target: { value: '2020-01-15' } })
+    // The start date picker has Year/Month/Day inputs — grab by label context
+    const yearInputs = screen.getAllByPlaceholderText('Year')
+    const monthInputs = screen.getAllByPlaceholderText('Month')
+    const dayInputs = screen.getAllByPlaceholderText('Day')
+
+    // First set is Start, second set is End
+    fireEvent.change(yearInputs[0], { target: { value: '2020' } })
+    fireEvent.change(monthInputs[0], { target: { value: '01' } })
+    fireEvent.change(dayInputs[0], { target: { value: '15' } })
 
     fireEvent.click(screen.getByText('Add'))
 
@@ -97,9 +101,17 @@ describe('AddPositionPropertyForm', () => {
       target: { value: 'Mayor' },
     })
 
-    const emptyInputs = screen.getAllByDisplayValue('')
-    fireEvent.change(emptyInputs[0], { target: { value: '2020-01-15' } })
-    fireEvent.change(emptyInputs[1], { target: { value: '2024-06-30' } })
+    const yearInputs = screen.getAllByPlaceholderText('Year')
+    const monthInputs = screen.getAllByPlaceholderText('Month')
+    const dayInputs = screen.getAllByPlaceholderText('Day')
+
+    fireEvent.change(yearInputs[0], { target: { value: '2020' } })
+    fireEvent.change(monthInputs[0], { target: { value: '01' } })
+    fireEvent.change(dayInputs[0], { target: { value: '15' } })
+
+    fireEvent.change(yearInputs[1], { target: { value: '2024' } })
+    fireEvent.change(monthInputs[1], { target: { value: '06' } })
+    fireEvent.change(dayInputs[1], { target: { value: '30' } })
 
     fireEvent.click(screen.getByText('Add'))
 
