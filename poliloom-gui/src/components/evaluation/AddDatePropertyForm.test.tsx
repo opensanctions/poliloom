@@ -15,8 +15,8 @@ describe('AddDatePropertyForm', () => {
 
     expect(screen.getByText('Birth Date')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Year')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Month')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Day')).toBeInTheDocument()
+    expect(screen.getByText('Month')).toBeInTheDocument()
+    expect(screen.getByText('Day')).toBeInTheDocument()
   })
 
   it('disables Add button when no year is entered', () => {
@@ -37,8 +37,12 @@ describe('AddDatePropertyForm', () => {
     render(<AddDatePropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
     fireEvent.change(screen.getByPlaceholderText('Year'), { target: { value: '1990' } })
-    fireEvent.change(screen.getByPlaceholderText('Month'), { target: { value: '05' } })
-    fireEvent.change(screen.getByPlaceholderText('Day'), { target: { value: '15' } })
+    // Select month "May" from the Month dropdown
+    fireEvent.click(screen.getByRole('button', { name: /Month/i }))
+    fireEvent.click(screen.getByRole('option', { name: 'May' }))
+    // Select day "15" from the Day dropdown
+    fireEvent.click(screen.getByRole('button', { name: /Day/i }))
+    fireEvent.click(screen.getByRole('option', { name: '15' }))
     fireEvent.click(screen.getByText('Add'))
 
     expect(mockOnAdd).toHaveBeenCalledTimes(1)
@@ -56,7 +60,9 @@ describe('AddDatePropertyForm', () => {
     render(<AddDatePropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
     fireEvent.change(screen.getByPlaceholderText('Year'), { target: { value: '1990' } })
-    fireEvent.change(screen.getByPlaceholderText('Month'), { target: { value: '05' } })
+    // Select month "May" from the Month dropdown
+    fireEvent.click(screen.getByRole('button', { name: /Month/i }))
+    fireEvent.click(screen.getByRole('option', { name: 'May' }))
     fireEvent.click(screen.getByText('Add'))
 
     const property = mockOnAdd.mock.calls[0][0]
