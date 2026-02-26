@@ -158,6 +158,8 @@ export function PropertiesEvaluation({
         key: type,
       }))
       result.push({ title: 'Properties', sectionType: 'date', items })
+    } else if (isAdvancedMode) {
+      result.push({ title: 'Properties', sectionType: 'date', items: [] })
     }
 
     // Process entity-based properties in fixed order (positions, birthplaces, citizenships)
@@ -165,7 +167,16 @@ export function PropertiesEvaluation({
 
     orderedPropertyTypes.forEach((propertyType) => {
       const typeProperties = entityBasedProps.get(propertyType)
-      if (!typeProperties) return
+      if (!typeProperties) {
+        if (isAdvancedMode) {
+          result.push({
+            title: getSectionTitle(propertyType),
+            sectionType: propertyType,
+            items: [],
+          })
+        }
+        return
+      }
 
       // Group by entity_id
       const entityGroups = new Map<string, Property[]>()
@@ -192,7 +203,7 @@ export function PropertiesEvaluation({
     })
 
     return result
-  }, [properties])
+  }, [properties, isAdvancedMode])
 
   // Select the first property with sources when properties change
   useEffect(() => {
