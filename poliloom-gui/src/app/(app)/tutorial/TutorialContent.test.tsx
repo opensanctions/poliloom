@@ -1,7 +1,30 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
-import { render } from '@/test/test-utils'
+import { screen, fireEvent, render } from '@testing-library/react'
+import '@/test/test-utils'
 import { TutorialContent } from './TutorialContent'
+
+vi.mock('@/contexts/NextPoliticianContext', () => ({
+  useNextPoliticianContext: () => ({
+    nextHref: '/politician/Q99999',
+    nextQid: 'Q99999',
+    loading: false,
+    enrichmentMeta: null,
+    languageFilters: [],
+    countryFilters: [],
+    advanceNext: vi.fn(),
+  }),
+}))
+
+vi.mock('@/contexts/EvaluationSessionContext', () => ({
+  useEvaluationSession: () => ({
+    isSessionActive: false,
+    completedCount: 0,
+    sessionGoal: 5,
+    startSession: vi.fn(),
+    submitAndAdvance: vi.fn(),
+    endSession: vi.fn(),
+  }),
+}))
 
 // Mock the CSS Custom Highlight API for testing
 global.CSS = {
@@ -698,7 +721,10 @@ describe('Tutorial Page', () => {
       expect(
         screen.getByText(/You're all set! You now have everything you need/),
       ).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'Start Evaluating' })).toHaveAttribute('href', '/')
+      expect(screen.getByRole('link', { name: 'Start Evaluating' })).toHaveAttribute(
+        'href',
+        '/politician/Q99999',
+      )
     })
   })
 
@@ -934,11 +960,11 @@ describe('Tutorial Page', () => {
       expect(screen.getByRole('link', { name: 'Skip Tutorial' })).toBeInTheDocument()
     })
 
-    it('Skip Tutorial links to home', () => {
+    it('Skip Tutorial links to next politician', () => {
       render(<TutorialContent />)
 
       const skipLink = screen.getByRole('link', { name: 'Skip Tutorial' })
-      expect(skipLink).toHaveAttribute('href', '/')
+      expect(skipLink).toHaveAttribute('href', '/politician/Q99999')
     })
   })
 

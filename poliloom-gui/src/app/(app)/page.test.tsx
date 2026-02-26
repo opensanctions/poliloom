@@ -1,7 +1,30 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, waitFor, act } from '@testing-library/react'
-import { render } from '@/test/test-utils'
+import { screen, waitFor, act, render } from '@testing-library/react'
+import '@/test/test-utils'
 import Home from './page'
+
+vi.mock('@/contexts/NextPoliticianContext', () => ({
+  useNextPoliticianContext: () => ({
+    nextHref: null,
+    nextQid: null,
+    loading: false,
+    enrichmentMeta: null,
+    languageFilters: [],
+    countryFilters: [],
+    advanceNext: vi.fn(),
+  }),
+}))
+
+vi.mock('@/contexts/EvaluationSessionContext', () => ({
+  useEvaluationSession: () => ({
+    isSessionActive: false,
+    completedCount: 0,
+    sessionGoal: 5,
+    startSession: vi.fn(),
+    submitAndAdvance: vi.fn(),
+    endSession: vi.fn(),
+  }),
+}))
 
 // Mock fetch for API calls
 global.fetch = vi.fn()

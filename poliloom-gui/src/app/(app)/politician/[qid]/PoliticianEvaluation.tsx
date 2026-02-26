@@ -6,7 +6,7 @@ import { Politician, EvaluationItem, EvaluationRequest, EvaluationResponse } fro
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
-import { useNextPolitician } from '@/hooks/useNextPolitician'
+import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { Button } from '@/components/ui/Button'
 import { PoliticianEvaluationView } from '@/components/evaluation/PoliticianEvaluationView'
 
@@ -19,15 +19,20 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
   const { isSessionActive, completedCount, sessionGoal, submitAndAdvance } = useEvaluationSession()
   const { statsUnlocked, completeBasicTutorial, completeAdvancedTutorial } = useUserProgress()
   const { isAdvancedMode } = useUserPreferences()
-  const { nextHref: nextPoliticianHref } = useNextPolitician(politician.wikidata_id ?? undefined)
+  const {
+    nextHref: nextPoliticianHref,
+    advanceNext,
+    loading: nextLoading,
+  } = useNextPoliticianContext()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Mark tutorials complete on mount
+  // Mark tutorials complete and prefetch next politician on mount
   useEffect(() => {
     completeBasicTutorial()
     if (isAdvancedMode) {
       completeAdvancedTutorial()
     }
+    advanceNext()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -87,7 +92,7 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
         politicians evaluated
       </div>
       {evaluations.size === 0 ? (
-        nextPoliticianHref ? (
+        nextPoliticianHref && !nextLoading ? (
           <Button href={nextPoliticianHref} className="px-6 py-3">
             Skip Politician
           </Button>
@@ -99,7 +104,7 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
       ) : (
         <Button
           onClick={() => handleSubmit(evaluations)}
-          disabled={isSubmitting}
+          disabled={isSubmitting || nextLoading}
           className="px-6 py-3"
         >
           {isSubmitting ? 'Submitting...' : 'Submit Evaluations & Next'}

@@ -111,9 +111,9 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   } = useUserProgress()
   const { isAdvancedMode } = useUserPreferences()
   const { startSession } = useEvaluationSession()
-  const { nextHref } = useNextPoliticianContext()
+  const { nextHref, loading: nextLoading } = useNextPoliticianContext()
 
-  const startHref = nextHref || '/'
+  const startHref = !nextLoading ? (nextHref ?? undefined) : undefined
 
   // Determine starting step based on completion status
   const getStartingStep = (): number => {
@@ -174,7 +174,13 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         <p className="mb-8">
           You&apos;re all set! You now have everything you need to start verifying politician data.
         </p>
-        <Button href={startHref} size="large" fullWidth onClick={() => startSession()}>
+        <Button
+          href={startHref}
+          size="large"
+          fullWidth
+          disabled={!startHref}
+          onClick={() => startSession()}
+        >
           Start Evaluating
         </Button>
       </CenteredCard>

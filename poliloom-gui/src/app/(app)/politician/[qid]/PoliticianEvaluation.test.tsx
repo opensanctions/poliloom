@@ -1,15 +1,49 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import {
-  screen,
-  fireEvent,
-  waitFor,
-  render,
-  mockSubmitAndAdvance,
-  mockRouterPush,
-  mockFetch,
-} from '@/test/test-utils'
+import { screen, fireEvent, waitFor, render } from '@testing-library/react'
+import { mockSubmitAndAdvance, mockRouterPush, mockFetch } from '@/test/test-utils'
 import { PoliticianEvaluation } from './PoliticianEvaluation'
 import { mockPolitician, mockPoliticianWithConflicts } from '@/test/mock-data'
+
+const mockAdvanceNext = vi.fn()
+vi.mock('@/contexts/NextPoliticianContext', () => ({
+  useNextPoliticianContext: () => ({
+    nextHref: '/politician/Q99999',
+    nextQid: 'Q99999',
+    loading: false,
+    enrichmentMeta: null,
+    languageFilters: [],
+    countryFilters: [],
+    advanceNext: mockAdvanceNext,
+  }),
+}))
+
+vi.mock('@/contexts/EvaluationSessionContext', () => ({
+  useEvaluationSession: () => ({
+    isSessionActive: true,
+    completedCount: 0,
+    sessionGoal: 5,
+    startSession: vi.fn(),
+    submitAndAdvance: mockSubmitAndAdvance,
+    endSession: vi.fn(),
+  }),
+}))
+
+vi.mock('@/contexts/UserProgressContext', () => ({
+  useUserProgress: () => ({
+    hasCompletedBasicTutorial: true,
+    hasCompletedAdvancedTutorial: true,
+    statsUnlocked: true,
+    completeBasicTutorial: vi.fn(),
+    completeAdvancedTutorial: vi.fn(),
+    unlockStats: vi.fn(),
+  }),
+}))
+
+vi.mock('@/contexts/UserPreferencesContext', () => ({
+  useUserPreferences: () => ({
+    isAdvancedMode: false,
+  }),
+}))
 
 // Mock the CSS Custom Highlight API for testing
 global.CSS = {

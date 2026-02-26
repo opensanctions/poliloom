@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 
 interface TutorialFooterProps {
@@ -6,7 +5,7 @@ interface TutorialFooterProps {
   requiredKeys: string[]
   onSubmit: () => void
   onBack: () => void
-  skipHref: string
+  skipHref?: string
   onSkip?: () => void
 }
 
@@ -22,13 +21,9 @@ export function TutorialFooter({
 
   return (
     <div className="flex justify-between items-center">
-      <Link
-        href={skipHref}
-        onClick={onSkip}
-        className="text-foreground-tertiary hover:text-foreground-secondary font-medium"
-      >
+      <Button href={skipHref} variant="secondary" onClick={onSkip} disabled={!skipHref}>
         Skip Tutorial
-      </Link>
+      </Button>
       <div className="flex gap-3">
         <Button onClick={onBack} variant="secondary" size="large">
           Go Back

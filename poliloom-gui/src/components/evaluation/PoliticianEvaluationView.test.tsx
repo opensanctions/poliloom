@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, fireEvent, render } from '@/test/test-utils'
+import { screen, fireEvent, render } from '@testing-library/react'
 import { PoliticianEvaluationView } from './PoliticianEvaluationView'
 import {
   mockPoliticianWithDifferentSources,
@@ -35,6 +35,12 @@ vi.mock('@/hooks/useIframeHighlighting', () => ({
     isIframeLoaded: true,
     handleIframeLoad: vi.fn(),
     handleQuotesChange: vi.fn(),
+  }),
+}))
+
+vi.mock('@/contexts/UserPreferencesContext', () => ({
+  useUserPreferences: () => ({
+    isAdvancedMode: false,
   }),
 }))
 

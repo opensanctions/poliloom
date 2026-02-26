@@ -1,7 +1,13 @@
-import { render, screen, fireEvent } from '@/test/test-utils'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { PropertyDisplay } from './PropertyDisplay'
 import { PropertyType } from '@/types'
 import { vi } from 'vitest'
+
+vi.mock('@/contexts/UserPreferencesContext', () => ({
+  useUserPreferences: () => ({
+    isAdvancedMode: false,
+  }),
+}))
 
 const mockOnAction = vi.fn()
 const mockOnShowArchived = vi.fn()

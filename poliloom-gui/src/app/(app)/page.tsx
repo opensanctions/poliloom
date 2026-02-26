@@ -133,7 +133,7 @@ export default function Home() {
             ) : (
               <Button
                 href={ctaHref ?? undefined}
-                disabled={!ctaHref}
+                disabled={!ctaHref || loadingNext}
                 size="xlarge"
                 className="shrink-0"
                 onClick={shouldStartSession ? () => startSession() : undefined}
