@@ -132,6 +132,7 @@ export function PropertyDisplay({
         <EvaluationActions
           statementId={property.key}
           isWikidataStatement={!!property.statement_id}
+          isUserAdded={!property.id}
           isAccepted={property.evaluation ?? null}
           isSourceVisible={
             property.sources.length === 0 ||

@@ -8,6 +8,7 @@ describe('EvaluationActions', () => {
         <EvaluationActions
           statementId="stmt-1"
           isWikidataStatement={true}
+          isUserAdded={false}
           isAccepted={null}
           isSourceVisible={true}
           isAdvancedMode={false}
@@ -24,6 +25,7 @@ describe('EvaluationActions', () => {
         <EvaluationActions
           statementId="stmt-1"
           isWikidataStatement={true}
+          isUserAdded={false}
           isAccepted={null}
           isSourceVisible={true}
           isAdvancedMode={true}
@@ -41,6 +43,7 @@ describe('EvaluationActions', () => {
         <EvaluationActions
           statementId="stmt-1"
           isWikidataStatement={false}
+          isUserAdded={false}
           isAccepted={null}
           isSourceVisible={true}
           isAdvancedMode={false}
@@ -57,6 +60,7 @@ describe('EvaluationActions', () => {
         <EvaluationActions
           statementId="stmt-1"
           isWikidataStatement={false}
+          isUserAdded={false}
           isAccepted={null}
           isSourceVisible={false}
           isAdvancedMode={false}
@@ -67,6 +71,25 @@ describe('EvaluationActions', () => {
       expect(screen.queryByRole('button', { name: /Accept/ })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /Reject/ })).not.toBeInTheDocument()
       expect(screen.getByText('View source to evaluate')).toBeInTheDocument()
+    })
+  })
+
+  describe('user-added properties', () => {
+    it('shows Remove button instead of Reject', () => {
+      render(
+        <EvaluationActions
+          statementId="new-123"
+          isWikidataStatement={false}
+          isUserAdded={true}
+          isAccepted={true}
+          isSourceVisible={true}
+          isAdvancedMode={false}
+          onAction={vi.fn()}
+        />,
+      )
+
+      expect(screen.getByRole('button', { name: /Remove/ })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Reject/ })).not.toBeInTheDocument()
     })
   })
 })

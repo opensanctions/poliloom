@@ -4,6 +4,7 @@ import { DataLabel } from '@/components/ui/DataLabel'
 interface EvaluationActionsProps {
   statementId: string
   isWikidataStatement: boolean
+  isUserAdded: boolean
   isAccepted: boolean | null
   isSourceVisible: boolean
   isAdvancedMode: boolean
@@ -13,6 +14,7 @@ interface EvaluationActionsProps {
 export function EvaluationActions({
   statementId,
   isWikidataStatement,
+  isUserAdded,
   isAccepted,
   isSourceVisible,
   isAdvancedMode,
@@ -39,7 +41,7 @@ export function EvaluationActions({
           <Button
             size="small"
             variant={isWikidataStatement && isAccepted !== false ? 'secondary' : 'danger'}
-            active={isAccepted === false}
+            active={!isUserAdded && isAccepted === false}
             onClick={() => onAction?.(statementId, 'reject')}
             className={
               isWikidataStatement && isAccepted !== false
@@ -47,12 +49,14 @@ export function EvaluationActions({
                 : ''
             }
             title={
-              isWikidataStatement
-                ? 'Mark this existing Wikidata statement as deprecated (incorrect or outdated)'
-                : 'Mark this data as incorrect and prevent it from being submitted'
+              isUserAdded
+                ? 'Remove this property you added'
+                : isWikidataStatement
+                  ? 'Mark this existing Wikidata statement as deprecated (incorrect or outdated)'
+                  : 'Mark this data as incorrect and prevent it from being submitted'
             }
           >
-            {isWikidataStatement ? '↓ Deprecate' : '× Reject'}
+            {isUserAdded ? '× Remove' : isWikidataStatement ? '↓ Deprecate' : '× Reject'}
           </Button>
         </div>
       ) : !isWikidataStatement ? (

@@ -59,13 +59,19 @@ export function PoliticianEvaluationView({
   }, [selectedQuotes, isIframeLoaded, handleQuotesChange])
 
   const handleEvaluate = (key: string, action: 'accept' | 'reject') => {
-    setProperties((prev) =>
-      prev.map((p) => {
+    setProperties((prev) => {
+      // User-added properties (no id) are removed on reject
+      const target = prev.find((p) => p.key === key)
+      if (action === 'reject' && target && !target.id) {
+        return prev.filter((p) => p.key !== key)
+      }
+
+      return prev.map((p) => {
         if (p.key !== key) return p
         const targetValue = action === 'accept'
         return { ...p, evaluation: p.evaluation === targetValue ? undefined : targetValue }
-      }),
-    )
+      })
+    })
   }
 
   const handleAddProperty = (prop: PropertyWithEvaluation) => {
