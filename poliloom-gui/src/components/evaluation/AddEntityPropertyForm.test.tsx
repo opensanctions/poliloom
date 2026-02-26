@@ -1,6 +1,20 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { AddEntityPropertyForm } from './AddEntityPropertyForm'
 import { PropertyType } from '@/types'
+
+const locationResults = [
+  { wikidata_id: 'Q64', name: 'Berlin', description: 'capital of Germany' },
+  { wikidata_id: 'Q1022', name: 'Bern', description: 'capital of Switzerland' },
+]
+
+const countryResults = [{ wikidata_id: 'Q183', name: 'Germany', description: 'country in Europe' }]
+
+function mockFetchSuccess(results: unknown[]) {
+  ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+    ok: true,
+    json: async () => results,
+  })
+}
 
 describe('AddEntityPropertyForm', () => {
   const mockOnAdd = vi.fn()
@@ -10,16 +24,23 @@ describe('AddEntityPropertyForm', () => {
     vi.clearAllMocks()
   })
 
-  it('renders QID and name inputs', () => {
+  it('renders search input for birthplace', () => {
     render(
       <AddEntityPropertyForm type={PropertyType.P19} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
     )
 
-    expect(screen.getByPlaceholderText('QID (e.g. Q64)')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Name')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search for a location...')).toBeInTheDocument()
   })
 
-  it('disables Add button when fields are empty', () => {
+  it('renders search input for citizenship', () => {
+    render(
+      <AddEntityPropertyForm type={PropertyType.P27} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
+    )
+
+    expect(screen.getByPlaceholderText('Search for a country...')).toBeInTheDocument()
+  })
+
+  it('disables Add button when no entity is selected', () => {
     render(
       <AddEntityPropertyForm type={PropertyType.P19} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
     )
@@ -27,53 +48,56 @@ describe('AddEntityPropertyForm', () => {
     expect(screen.getByText('Add')).toBeDisabled()
   })
 
-  it('disables Add button with invalid QID', () => {
+  it('searches locations endpoint for birthplace type', async () => {
+    mockFetchSuccess(locationResults)
+
     render(
       <AddEntityPropertyForm type={PropertyType.P19} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
     )
 
-    fireEvent.change(screen.getByPlaceholderText('QID (e.g. Q64)'), {
-      target: { value: 'invalid' },
+    fireEvent.change(screen.getByPlaceholderText('Search for a location...'), {
+      target: { value: 'Ber' },
     })
-    fireEvent.change(screen.getByPlaceholderText('Name'), { target: { value: 'Berlin' } })
 
-    expect(screen.getByText('Add')).toBeDisabled()
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/locations/search?q=Ber')
+    })
   })
 
-  it('disables Add button with empty name', () => {
+  it('searches countries endpoint for citizenship type', async () => {
+    mockFetchSuccess(countryResults)
+
     render(
-      <AddEntityPropertyForm type={PropertyType.P19} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
+      <AddEntityPropertyForm type={PropertyType.P27} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
     )
 
-    fireEvent.change(screen.getByPlaceholderText('QID (e.g. Q64)'), {
-      target: { value: 'Q64' },
+    fireEvent.change(screen.getByPlaceholderText('Search for a country...'), {
+      target: { value: 'Ger' },
     })
 
-    expect(screen.getByText('Add')).toBeDisabled()
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/countries/search?q=Ger')
+    })
   })
 
-  it('enables Add button with valid QID and name', () => {
+  it('calls onAdd with correct birthplace property after search and select', async () => {
+    mockFetchSuccess(locationResults)
+
     render(
       <AddEntityPropertyForm type={PropertyType.P19} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
     )
 
-    fireEvent.change(screen.getByPlaceholderText('QID (e.g. Q64)'), {
-      target: { value: 'Q64' },
+    fireEvent.change(screen.getByPlaceholderText('Search for a location...'), {
+      target: { value: 'Ber' },
     })
-    fireEvent.change(screen.getByPlaceholderText('Name'), { target: { value: 'Berlin' } })
+
+    await waitFor(() => {
+      expect(screen.getByText('Berlin')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText('Berlin'))
 
     expect(screen.getByText('Add')).not.toBeDisabled()
-  })
-
-  it('calls onAdd with correct birthplace property', () => {
-    render(
-      <AddEntityPropertyForm type={PropertyType.P19} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
-    )
-
-    fireEvent.change(screen.getByPlaceholderText('QID (e.g. Q64)'), {
-      target: { value: 'Q64' },
-    })
-    fireEvent.change(screen.getByPlaceholderText('Name'), { target: { value: 'Berlin' } })
     fireEvent.click(screen.getByText('Add'))
 
     expect(mockOnAdd).toHaveBeenCalledTimes(1)
@@ -87,36 +111,28 @@ describe('AddEntityPropertyForm', () => {
     expect(property.key).toMatch(/^new-/)
   })
 
-  it('calls onAdd with correct citizenship property', () => {
+  it('calls onAdd with correct citizenship property after search and select', async () => {
+    mockFetchSuccess(countryResults)
+
     render(
       <AddEntityPropertyForm type={PropertyType.P27} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
     )
 
-    fireEvent.change(screen.getByPlaceholderText('QID (e.g. Q64)'), {
-      target: { value: 'Q183' },
+    fireEvent.change(screen.getByPlaceholderText('Search for a country...'), {
+      target: { value: 'Ger' },
     })
-    fireEvent.change(screen.getByPlaceholderText('Name'), { target: { value: 'Germany' } })
+
+    await waitFor(() => {
+      expect(screen.getByText('Germany')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText('Germany'))
     fireEvent.click(screen.getByText('Add'))
 
     const property = mockOnAdd.mock.calls[0][0]
     expect(property.type).toBe(PropertyType.P27)
     expect(property.entity_id).toBe('Q183')
     expect(property.entity_name).toBe('Germany')
-  })
-
-  it('trims entity name whitespace', () => {
-    render(
-      <AddEntityPropertyForm type={PropertyType.P19} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
-    )
-
-    fireEvent.change(screen.getByPlaceholderText('QID (e.g. Q64)'), {
-      target: { value: 'Q64' },
-    })
-    fireEvent.change(screen.getByPlaceholderText('Name'), { target: { value: '  Berlin  ' } })
-    fireEvent.click(screen.getByText('Add'))
-
-    const property = mockOnAdd.mock.calls[0][0]
-    expect(property.entity_name).toBe('Berlin')
   })
 
   it('calls onCancel when Cancel button is clicked', () => {

@@ -1,6 +1,18 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { AddPositionPropertyForm } from './AddPositionPropertyForm'
 import { PropertyType } from '@/types'
+
+const positionResults = [
+  { wikidata_id: 'Q30185', name: 'Mayor', description: 'head of a municipality' },
+  { wikidata_id: 'Q193391', name: 'Mayor of Berlin', description: 'political office' },
+]
+
+function mockFetchSuccess(results = positionResults) {
+  ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+    ok: true,
+    json: async () => results,
+  })
+}
 
 describe('AddPositionPropertyForm', () => {
   const mockOnAdd = vi.fn()
@@ -10,43 +22,48 @@ describe('AddPositionPropertyForm', () => {
     vi.clearAllMocks()
   })
 
-  it('renders QID, name, and date inputs', () => {
+  it('renders search input and date pickers', () => {
     render(<AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
-    expect(screen.getByPlaceholderText('QID (e.g. Q30185)')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Position name')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search for a position...')).toBeInTheDocument()
     expect(screen.getByText('Start')).toBeInTheDocument()
     expect(screen.getByText('End')).toBeInTheDocument()
   })
 
-  it('disables Add button when fields are empty', () => {
+  it('disables Add button when no entity is selected', () => {
     render(<AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
     expect(screen.getByText('Add')).toBeDisabled()
   })
 
-  it('disables Add button with invalid QID', () => {
+  it('searches positions endpoint', async () => {
+    mockFetchSuccess()
+
     render(<AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
-    fireEvent.change(screen.getByPlaceholderText('QID (e.g. Q30185)'), {
-      target: { value: 'invalid' },
-    })
-    fireEvent.change(screen.getByPlaceholderText('Position name'), {
+    fireEvent.change(screen.getByPlaceholderText('Search for a position...'), {
       target: { value: 'Mayor' },
     })
 
-    expect(screen.getByText('Add')).toBeDisabled()
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/positions/search?q=Mayor')
+    })
   })
 
-  it('calls onAdd with correct property without dates', () => {
+  it('calls onAdd with correct property without dates', async () => {
+    mockFetchSuccess()
+
     render(<AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
-    fireEvent.change(screen.getByPlaceholderText('QID (e.g. Q30185)'), {
-      target: { value: 'Q30185' },
-    })
-    fireEvent.change(screen.getByPlaceholderText('Position name'), {
+    fireEvent.change(screen.getByPlaceholderText('Search for a position...'), {
       target: { value: 'Mayor' },
     })
+
+    await waitFor(() => {
+      expect(screen.getByText('Mayor')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText('Mayor'))
     fireEvent.click(screen.getByText('Add'))
 
     expect(mockOnAdd).toHaveBeenCalledTimes(1)
@@ -61,22 +78,25 @@ describe('AddPositionPropertyForm', () => {
     expect(property.key).toMatch(/^new-/)
   })
 
-  it('includes start date qualifier when provided', () => {
+  it('includes start date qualifier when provided', async () => {
+    mockFetchSuccess()
+
     render(<AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
-    fireEvent.change(screen.getByPlaceholderText('QID (e.g. Q30185)'), {
-      target: { value: 'Q30185' },
-    })
-    fireEvent.change(screen.getByPlaceholderText('Position name'), {
+    fireEvent.change(screen.getByPlaceholderText('Search for a position...'), {
       target: { value: 'Mayor' },
     })
 
-    // The start date picker has Year/Month/Day inputs — grab by label context
+    await waitFor(() => {
+      expect(screen.getByText('Mayor')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText('Mayor'))
+
     const yearInputs = screen.getAllByPlaceholderText('Year')
     const monthInputs = screen.getAllByPlaceholderText('Month')
     const dayInputs = screen.getAllByPlaceholderText('Day')
 
-    // First set is Start, second set is End
     fireEvent.change(yearInputs[0], { target: { value: '2020' } })
     fireEvent.change(monthInputs[0], { target: { value: '01' } })
     fireEvent.change(dayInputs[0], { target: { value: '15' } })
@@ -91,15 +111,20 @@ describe('AddPositionPropertyForm', () => {
     expect(property.qualifiers.P582).toBeUndefined()
   })
 
-  it('includes both start and end date qualifiers when provided', () => {
+  it('includes both start and end date qualifiers when provided', async () => {
+    mockFetchSuccess()
+
     render(<AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
-    fireEvent.change(screen.getByPlaceholderText('QID (e.g. Q30185)'), {
-      target: { value: 'Q30185' },
-    })
-    fireEvent.change(screen.getByPlaceholderText('Position name'), {
+    fireEvent.change(screen.getByPlaceholderText('Search for a position...'), {
       target: { value: 'Mayor' },
     })
+
+    await waitFor(() => {
+      expect(screen.getByText('Mayor')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText('Mayor'))
 
     const yearInputs = screen.getAllByPlaceholderText('Year')
     const monthInputs = screen.getAllByPlaceholderText('Month')
@@ -118,21 +143,6 @@ describe('AddPositionPropertyForm', () => {
     const property = mockOnAdd.mock.calls[0][0]
     expect(property.qualifiers.P580[0].datavalue.value.time).toBe('+2020-01-15T00:00:00Z')
     expect(property.qualifiers.P582[0].datavalue.value.time).toBe('+2024-06-30T00:00:00Z')
-  })
-
-  it('trims entity name whitespace', () => {
-    render(<AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
-
-    fireEvent.change(screen.getByPlaceholderText('QID (e.g. Q30185)'), {
-      target: { value: 'Q30185' },
-    })
-    fireEvent.change(screen.getByPlaceholderText('Position name'), {
-      target: { value: '  Mayor of Berlin  ' },
-    })
-    fireEvent.click(screen.getByText('Add'))
-
-    const property = mockOnAdd.mock.calls[0][0]
-    expect(property.entity_name).toBe('Mayor of Berlin')
   })
 
   it('calls onCancel when Cancel button is clicked', () => {

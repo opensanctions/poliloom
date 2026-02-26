@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { PropertyType, PropertyWithEvaluation } from '@/types'
 import { Button } from '@/components/ui/Button'
+import { EntitySearch } from '@/components/ui/EntitySearch'
 
 interface AddEntityPropertyFormProps {
   type: PropertyType.P19 | PropertyType.P27
@@ -10,21 +11,30 @@ interface AddEntityPropertyFormProps {
   onCancel: () => void
 }
 
-export function AddEntityPropertyForm({ type, onAdd, onCancel }: AddEntityPropertyFormProps) {
-  const [entityId, setEntityId] = useState('')
-  const [entityName, setEntityName] = useState('')
+const SEARCH_ENDPOINTS: Record<PropertyType.P19 | PropertyType.P27, string> = {
+  [PropertyType.P19]: '/api/locations/search',
+  [PropertyType.P27]: '/api/countries/search',
+}
 
-  const isValidQid = /^Q\d+$/.test(entityId)
-  const isValid = isValidQid && entityName.trim().length > 0
+const PLACEHOLDERS: Record<PropertyType.P19 | PropertyType.P27, string> = {
+  [PropertyType.P19]: 'Search for a location...',
+  [PropertyType.P27]: 'Search for a country...',
+}
+
+export function AddEntityPropertyForm({ type, onAdd, onCancel }: AddEntityPropertyFormProps) {
+  const [selectedEntity, setSelectedEntity] = useState<{
+    wikidata_id: string
+    name: string
+  } | null>(null)
 
   const handleSubmit = () => {
-    if (!isValid) return
+    if (!selectedEntity) return
 
     const property: PropertyWithEvaluation = {
       key: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       type,
-      entity_id: entityId,
-      entity_name: entityName.trim(),
+      entity_id: selectedEntity.wikidata_id,
+      entity_name: selectedEntity.name,
       statement_id: null,
       sources: [],
       evaluation: true,
@@ -35,24 +45,15 @@ export function AddEntityPropertyForm({ type, onAdd, onCancel }: AddEntityProper
 
   return (
     <div className="border border-border rounded-lg p-4 space-y-3">
-      <div className="flex gap-3">
-        <input
-          type="text"
-          placeholder="QID (e.g. Q64)"
-          value={entityId}
-          onChange={(e) => setEntityId(e.target.value)}
-          className="border border-border rounded px-2 py-1 bg-surface text-foreground w-32"
-        />
-        <input
-          type="text"
-          placeholder="Name"
-          value={entityName}
-          onChange={(e) => setEntityName(e.target.value)}
-          className="border border-border rounded px-2 py-1 bg-surface text-foreground flex-1"
-        />
-      </div>
+      <EntitySearch
+        searchEndpoint={SEARCH_ENDPOINTS[type]}
+        onSelect={setSelectedEntity}
+        onClear={() => setSelectedEntity(null)}
+        selectedEntity={selectedEntity}
+        placeholder={PLACEHOLDERS[type]}
+      />
       <div className="flex gap-2">
-        <Button size="small" onClick={handleSubmit} disabled={!isValid}>
+        <Button size="small" onClick={handleSubmit} disabled={!selectedEntity}>
           Add
         </Button>
         <Button size="small" variant="secondary" onClick={onCancel}>
