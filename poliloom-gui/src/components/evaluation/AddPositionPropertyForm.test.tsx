@@ -14,6 +14,35 @@ function mockFetchSuccess(results = positionResults) {
   })
 }
 
+function selectDate(
+  container: HTMLElement,
+  dateIndex: number,
+  year: string,
+  month: string,
+  day: string,
+) {
+  // Each DatePrecisionPicker has a year input and two Select dropdowns (month, day)
+  // dateIndex 0 = start date, dateIndex 1 = end date
+  const yearInputs = container.querySelectorAll<HTMLInputElement>('input[type="number"]')
+  fireEvent.change(yearInputs[dateIndex], { target: { value: year } })
+
+  // Find all Select dropdown buttons (aria-haspopup="listbox")
+  const selectButtons = container.querySelectorAll<HTMLButtonElement>('[aria-haspopup="listbox"]')
+  // Each date picker has 2 selects (month, day), so index: dateIndex*2 for month, dateIndex*2+1 for day
+  const monthButton = selectButtons[dateIndex * 2]
+  const dayButton = selectButtons[dateIndex * 2 + 1]
+
+  // Select month
+  fireEvent.click(monthButton)
+  const monthOption = screen.getByRole('option', { name: month })
+  fireEvent.click(monthOption)
+
+  // Select day
+  fireEvent.click(dayButton)
+  const dayOption = screen.getByRole('option', { name: day })
+  fireEvent.click(dayOption)
+}
+
 describe('AddPositionPropertyForm', () => {
   const mockOnAdd = vi.fn()
   const mockOnCancel = vi.fn()
@@ -81,7 +110,9 @@ describe('AddPositionPropertyForm', () => {
   it('includes start date qualifier when provided', async () => {
     mockFetchSuccess()
 
-    render(<AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
+    const { container } = render(
+      <AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />,
+    )
 
     fireEvent.change(screen.getByPlaceholderText('Search for a position...'), {
       target: { value: 'Mayor' },
@@ -93,13 +124,7 @@ describe('AddPositionPropertyForm', () => {
 
     fireEvent.click(screen.getByText('Mayor'))
 
-    const yearInputs = screen.getAllByPlaceholderText('Year')
-    const monthInputs = screen.getAllByPlaceholderText('Month')
-    const dayInputs = screen.getAllByPlaceholderText('Day')
-
-    fireEvent.change(yearInputs[0], { target: { value: '2020' } })
-    fireEvent.change(monthInputs[0], { target: { value: '01' } })
-    fireEvent.change(dayInputs[0], { target: { value: '15' } })
+    selectDate(container, 0, '2020', 'January', '15')
 
     fireEvent.click(screen.getByText('Add'))
 
@@ -114,7 +139,9 @@ describe('AddPositionPropertyForm', () => {
   it('includes both start and end date qualifiers when provided', async () => {
     mockFetchSuccess()
 
-    render(<AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
+    const { container } = render(
+      <AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />,
+    )
 
     fireEvent.change(screen.getByPlaceholderText('Search for a position...'), {
       target: { value: 'Mayor' },
@@ -126,17 +153,8 @@ describe('AddPositionPropertyForm', () => {
 
     fireEvent.click(screen.getByText('Mayor'))
 
-    const yearInputs = screen.getAllByPlaceholderText('Year')
-    const monthInputs = screen.getAllByPlaceholderText('Month')
-    const dayInputs = screen.getAllByPlaceholderText('Day')
-
-    fireEvent.change(yearInputs[0], { target: { value: '2020' } })
-    fireEvent.change(monthInputs[0], { target: { value: '01' } })
-    fireEvent.change(dayInputs[0], { target: { value: '15' } })
-
-    fireEvent.change(yearInputs[1], { target: { value: '2024' } })
-    fireEvent.change(monthInputs[1], { target: { value: '06' } })
-    fireEvent.change(dayInputs[1], { target: { value: '30' } })
+    selectDate(container, 0, '2020', 'January', '15')
+    selectDate(container, 1, '2024', 'June', '30')
 
     fireEvent.click(screen.getByText('Add'))
 

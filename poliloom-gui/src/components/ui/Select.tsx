@@ -12,6 +12,7 @@ interface SelectProps {
   value: string
   onChange: (value: string) => void
   label?: string
+  placeholder?: string
   required?: boolean
   error?: string
   disabled?: boolean
@@ -23,6 +24,7 @@ export function Select({
   value,
   onChange,
   label,
+  placeholder,
   required,
   error,
   disabled = false,
@@ -69,7 +71,9 @@ export function Select({
           aria-expanded={isOpen}
           className={`${baseClasses} ${errorClasses} ${disabledClasses}`}
         >
-          <span>{selectedOption?.label}</span>
+          <span className={!selectedOption && placeholder ? 'text-foreground-muted' : ''}>
+            {selectedOption?.label || placeholder}
+          </span>
           <svg
             className={`w-4 h-4 text-foreground-subtle transition-transform ${isOpen ? 'rotate-180' : ''}`}
             fill="none"

@@ -61,12 +61,12 @@ describe('DatePrecisionPicker', () => {
     vi.clearAllMocks()
   })
 
-  it('renders year, month, and day inputs', () => {
+  it('renders year input and month/day selects', () => {
     render(<DatePrecisionPicker {...defaultProps} />)
 
     expect(screen.getByPlaceholderText('Year')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Month')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Day')).toBeInTheDocument()
+    expect(screen.getByText('Month')).toBeInTheDocument()
+    expect(screen.getByText('Day')).toBeInTheDocument()
   })
 
   it('renders label when provided', () => {
@@ -90,22 +90,30 @@ describe('DatePrecisionPicker', () => {
     expect(onChange).toHaveBeenCalledWith({ year: '1990', month: '', day: '' })
   })
 
-  it('calls onChange with updated month', () => {
+  it('calls onChange with updated month via select', () => {
     const onChange = vi.fn()
     render(<DatePrecisionPicker {...defaultProps} onChange={onChange} />)
 
-    fireEvent.change(screen.getByPlaceholderText('Month'), { target: { value: '05' } })
+    // Open the month dropdown
+    fireEvent.click(screen.getByText('Month'))
+    // Select May
+    fireEvent.click(screen.getByText('May'))
 
     expect(onChange).toHaveBeenCalledWith({ year: '', month: '05', day: '' })
   })
 
-  it('calls onChange with updated day', () => {
+  it('calls onChange with updated day via select', () => {
     const onChange = vi.fn()
-    render(<DatePrecisionPicker {...defaultProps} onChange={onChange} />)
+    render(
+      <DatePrecisionPicker value={{ year: '1990', month: '05', day: '' }} onChange={onChange} />,
+    )
 
-    fireEvent.change(screen.getByPlaceholderText('Day'), { target: { value: '15' } })
+    // Open the day dropdown
+    fireEvent.click(screen.getByText('Day'))
+    // Select day 15
+    fireEvent.click(screen.getByText('15'))
 
-    expect(onChange).toHaveBeenCalledWith({ year: '', month: '', day: '15' })
+    expect(onChange).toHaveBeenCalledWith({ year: '1990', month: '05', day: '15' })
   })
 
   it('displays current values', () => {
@@ -114,7 +122,16 @@ describe('DatePrecisionPicker', () => {
     )
 
     expect(screen.getByDisplayValue('2020')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('01')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('15')).toBeInTheDocument()
+    expect(screen.getByText('January')).toBeInTheDocument()
+    expect(screen.getByText('15')).toBeInTheDocument()
+  })
+
+  it('disables day select when no month is selected', () => {
+    render(<DatePrecisionPicker {...defaultProps} />)
+
+    const dayButtons = screen.getAllByRole('button')
+    // The day select button (second one) should be disabled
+    const dayButton = dayButtons.find((btn) => btn.textContent === 'Day')
+    expect(dayButton).toBeDisabled()
   })
 })
