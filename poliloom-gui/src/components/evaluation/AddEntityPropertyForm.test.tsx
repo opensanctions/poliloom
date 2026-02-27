@@ -45,7 +45,7 @@ describe('AddEntityPropertyForm', () => {
       <AddEntityPropertyForm type={PropertyType.P19} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
     )
 
-    expect(screen.getByText('Add')).toBeDisabled()
+    expect(screen.getByText('+ Add')).toBeDisabled()
   })
 
   it('searches locations endpoint for birthplace type', async () => {
@@ -97,8 +97,8 @@ describe('AddEntityPropertyForm', () => {
 
     fireEvent.click(screen.getByText('Berlin'))
 
-    expect(screen.getByText('Add')).not.toBeDisabled()
-    fireEvent.click(screen.getByText('Add'))
+    expect(screen.getByText('+ Add')).not.toBeDisabled()
+    fireEvent.click(screen.getByText('+ Add'))
 
     expect(mockOnAdd).toHaveBeenCalledTimes(1)
     const property = mockOnAdd.mock.calls[0][0]
@@ -127,7 +127,7 @@ describe('AddEntityPropertyForm', () => {
     })
 
     fireEvent.click(screen.getByText('Germany'))
-    fireEvent.click(screen.getByText('Add'))
+    fireEvent.click(screen.getByText('+ Add'))
 
     const property = mockOnAdd.mock.calls[0][0]
     expect(property.type).toBe(PropertyType.P27)

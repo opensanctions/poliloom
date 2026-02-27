@@ -62,7 +62,7 @@ describe('AddPositionPropertyForm', () => {
   it('disables Add button when no entity is selected', () => {
     render(<AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
-    expect(screen.getByText('Add')).toBeDisabled()
+    expect(screen.getByText('+ Add')).toBeDisabled()
   })
 
   it('searches positions endpoint', async () => {
@@ -93,7 +93,7 @@ describe('AddPositionPropertyForm', () => {
     })
 
     fireEvent.click(screen.getByText('Mayor'))
-    fireEvent.click(screen.getByText('Add'))
+    fireEvent.click(screen.getByText('+ Add'))
 
     expect(mockOnAdd).toHaveBeenCalledTimes(1)
     const property = mockOnAdd.mock.calls[0][0]
@@ -126,7 +126,7 @@ describe('AddPositionPropertyForm', () => {
 
     selectDate(container, 0, '2020', 'January', '15')
 
-    fireEvent.click(screen.getByText('Add'))
+    fireEvent.click(screen.getByText('+ Add'))
 
     const property = mockOnAdd.mock.calls[0][0]
     expect(property.qualifiers).toBeDefined()
@@ -156,7 +156,7 @@ describe('AddPositionPropertyForm', () => {
     selectDate(container, 0, '2020', 'January', '15')
     selectDate(container, 1, '2024', 'June', '30')
 
-    fireEvent.click(screen.getByText('Add'))
+    fireEvent.click(screen.getByText('+ Add'))
 
     const property = mockOnAdd.mock.calls[0][0]
     expect(property.qualifiers.P580[0].datavalue.value.time).toBe('+2020-01-15T00:00:00Z')

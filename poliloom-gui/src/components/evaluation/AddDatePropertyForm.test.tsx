@@ -22,7 +22,7 @@ describe('AddDatePropertyForm', () => {
   it('disables Add button when no year is entered', () => {
     render(<AddDatePropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
-    expect(screen.getByText('Add')).toBeDisabled()
+    expect(screen.getByText('+ Add')).toBeDisabled()
   })
 
   it('enables Add button when year is entered', () => {
@@ -30,7 +30,7 @@ describe('AddDatePropertyForm', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Year'), { target: { value: '1990' } })
 
-    expect(screen.getByText('Add')).not.toBeDisabled()
+    expect(screen.getByText('+ Add')).not.toBeDisabled()
   })
 
   it('calls onAdd with correct property for day precision', () => {
@@ -43,7 +43,7 @@ describe('AddDatePropertyForm', () => {
     // Select day "15" from the Day dropdown
     fireEvent.click(screen.getByRole('button', { name: /Day/i }))
     fireEvent.click(screen.getByRole('option', { name: '15' }))
-    fireEvent.click(screen.getByText('Add'))
+    fireEvent.click(screen.getByText('+ Add'))
 
     expect(mockOnAdd).toHaveBeenCalledTimes(1)
     const property = mockOnAdd.mock.calls[0][0]
@@ -63,7 +63,7 @@ describe('AddDatePropertyForm', () => {
     // Select month "May" from the Month dropdown
     fireEvent.click(screen.getByRole('button', { name: /Month/i }))
     fireEvent.click(screen.getByRole('option', { name: 'May' }))
-    fireEvent.click(screen.getByText('Add'))
+    fireEvent.click(screen.getByText('+ Add'))
 
     const property = mockOnAdd.mock.calls[0][0]
     expect(property.value).toBe('+1990-05-00T00:00:00Z')
@@ -74,7 +74,7 @@ describe('AddDatePropertyForm', () => {
     render(<AddDatePropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
 
     fireEvent.change(screen.getByPlaceholderText('Year'), { target: { value: '1990' } })
-    fireEvent.click(screen.getByText('Add'))
+    fireEvent.click(screen.getByText('+ Add'))
 
     const property = mockOnAdd.mock.calls[0][0]
     expect(property.value).toBe('+1990-00-00T00:00:00Z')
@@ -89,7 +89,7 @@ describe('AddDatePropertyForm', () => {
     fireEvent.click(screen.getByRole('option', { name: /Death Date/i }))
 
     fireEvent.change(screen.getByPlaceholderText('Year'), { target: { value: '2020' } })
-    fireEvent.click(screen.getByText('Add'))
+    fireEvent.click(screen.getByText('+ Add'))
 
     const property = mockOnAdd.mock.calls[0][0]
     expect(property.type).toBe(PropertyType.P570)
