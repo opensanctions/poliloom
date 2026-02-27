@@ -69,7 +69,7 @@ export function PoliticianEvaluationView({
     }
   }, [selectedQuotes, isIframeLoaded, handleQuotesChange])
 
-  const handleAction = (id: string, action: 'accept' | 'reject' | 'remove') => {
+  const handleAction = (id: string, action: 'accept' | 'reject') => {
     setActions((prev) => applyAction(prev, id, action))
   }
 

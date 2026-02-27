@@ -207,4 +207,107 @@ describe('PropertyDisplay', () => {
     expect(screen.getByText('References')).toBeInTheDocument()
     expect(screen.getByText('⚠️')).toBeInTheDocument()
   })
+
+  describe('Wikidata statements', () => {
+    it('hides Deprecate button when not in advanced mode', () => {
+      const property: Property = {
+        ...baseProperty,
+        statement_id: 'Q123$abc-def',
+        sources: [],
+      }
+
+      render(
+        <PropertyDisplay property={property} onAction={mockOnAction} activeArchivedPageId={null} />,
+      )
+
+      expect(screen.queryByRole('button', { name: /Deprecate/ })).not.toBeInTheDocument()
+      expect(screen.getByText('Existing data')).toBeInTheDocument()
+    })
+  })
+
+  describe('new data statements', () => {
+    it('shows Accept/Reject buttons when source is visible', () => {
+      const property: Property = {
+        ...baseProperty,
+        sources: [
+          {
+            id: 'ref-1',
+            archived_page: mockArchivedPage,
+            supporting_quotes: [],
+          },
+        ],
+      }
+
+      render(
+        <PropertyDisplay
+          property={property}
+          onAction={mockOnAction}
+          activeArchivedPageId="archived-1"
+        />,
+      )
+
+      expect(screen.getByRole('button', { name: /Accept/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Reject/ })).toBeInTheDocument()
+    })
+
+    it('hides buttons when source is not visible', () => {
+      const property: Property = {
+        ...baseProperty,
+        sources: [
+          {
+            id: 'ref-1',
+            archived_page: mockArchivedPage,
+            supporting_quotes: [],
+          },
+        ],
+      }
+
+      render(
+        <PropertyDisplay
+          property={property}
+          onAction={mockOnAction}
+          activeArchivedPageId="other-page"
+        />,
+      )
+
+      expect(screen.queryByRole('button', { name: /Accept/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Reject/ })).not.toBeInTheDocument()
+      expect(screen.getByText('View source to evaluate')).toBeInTheDocument()
+    })
+  })
+
+  describe('user-added properties', () => {
+    it('shows Remove button instead of Reject and hides Accept', () => {
+      const property: Property = {
+        ...baseProperty,
+        id: undefined, // user-added
+        evaluation: true,
+        sources: [],
+      }
+
+      render(
+        <PropertyDisplay property={property} onAction={mockOnAction} activeArchivedPageId={null} />,
+      )
+
+      expect(screen.getByRole('button', { name: /Remove/ })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Reject/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Accept/ })).not.toBeInTheDocument()
+    })
+
+    it('calls onAction with reject when Remove is clicked', () => {
+      const property: Property = {
+        ...baseProperty,
+        id: undefined,
+        evaluation: true,
+        sources: [],
+      }
+
+      render(
+        <PropertyDisplay property={property} onAction={mockOnAction} activeArchivedPageId={null} />,
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /Remove/ }))
+      expect(mockOnAction).toHaveBeenCalledWith('test-1', 'reject')
+    })
+  })
 })

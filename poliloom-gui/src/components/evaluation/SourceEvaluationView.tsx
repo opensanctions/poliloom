@@ -75,11 +75,7 @@ export function SourceEvaluationView({
     }
   }, [selectedQuotes, isIframeLoaded, handleQuotesChange])
 
-  const handleAction = (
-    politicianQid: string,
-    id: string,
-    action: 'accept' | 'reject' | 'remove',
-  ) => {
+  const handleAction = (politicianQid: string, id: string, action: 'accept' | 'reject') => {
     setActionsByPolitician((prev) => {
       const next = new Map(prev)
       const actions = next.get(politicianQid) || []

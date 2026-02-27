@@ -15,7 +15,7 @@ type SectionType = 'date' | PropertyType.P39 | PropertyType.P19 | PropertyType.P
 
 interface PropertiesEvaluationProps {
   properties: Property[]
-  onAction: (propertyId: string, action: 'accept' | 'reject' | 'remove') => void
+  onAction: (propertyId: string, action: 'accept' | 'reject') => void
   onShowArchived: (ref: PropertyReference) => void
   onHover: (property: Property) => void
   activeArchivedPageId: string | null

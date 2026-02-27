@@ -3,13 +3,14 @@ import { Property, PropertyType, PropertyReference } from '@/types'
 import { parseWikidataDate } from '@/lib/wikidata/dateParser'
 import { parsePositionQualifiers, formatPositionDates } from '@/lib/wikidata/qualifierParser'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
-import { EvaluationActions } from './EvaluationActions'
+import { Button } from '@/components/ui/Button'
+import { DataLabel } from '@/components/ui/DataLabel'
 import { StatementSource } from './StatementSource'
 import { WikidataMetadataButtons, WikidataMetadataPanel } from './WikidataMetadata'
 
 interface PropertyDisplayProps {
   property: Property
-  onAction?: (propertyId: string, action: 'accept' | 'reject' | 'remove') => void
+  onAction?: (propertyId: string, action: 'accept' | 'reject') => void
   onShowArchived?: (ref: PropertyReference) => void
   onHover?: (property: Property) => void
   activeArchivedPageId?: string | null
@@ -31,6 +32,13 @@ export function PropertyDisplay({
   const isDiscarding = property.evaluation === false
   const hasQualifiers = property.qualifiers && Object.keys(property.qualifiers).length > 0
   const hasReferences = property.references && property.references.length > 0
+
+  const isWikidataStatement = !!property.statement_id
+  const isUserAdded = !property.id
+  const isAccepted = property.evaluation ?? null
+  const isSourceVisible =
+    property.sources.length === 0 ||
+    property.sources.some((s) => activeArchivedPageId === s.archived_page.id)
 
   // Auto-open panel when discarding existing Wikidata statements (to show what metadata will be lost)
   useLayoutEffect(() => {
@@ -101,6 +109,8 @@ export function PropertyDisplay({
     }
   }
 
+  const showButtons = isWikidataStatement ? isAdvancedMode : isSourceVisible
+
   const hasContent =
     property.type === PropertyType.P569 ||
     property.type === PropertyType.P570 ||
@@ -114,7 +124,7 @@ export function PropertyDisplay({
       {!property.statement_id && (
         <StatementSource
           sources={property.sources}
-          isWikidataStatement={!!property.statement_id}
+          isWikidataStatement={isWikidataStatement}
           activeArchivedPageId={activeArchivedPageId}
           onShowArchived={(ref) => onShowArchived?.(ref)}
           onHover={() => onHover?.(property)}
@@ -129,18 +139,56 @@ export function PropertyDisplay({
             onToggle={handleToggle}
           />
         )}
-        <EvaluationActions
-          statementId={property.key}
-          isWikidataStatement={!!property.statement_id}
-          isUserAdded={!property.id}
-          isAccepted={property.evaluation ?? null}
-          isSourceVisible={
-            property.sources.length === 0 ||
-            property.sources.some((s) => activeArchivedPageId === s.archived_page.id)
-          }
-          isAdvancedMode={isAdvancedMode}
-          onAction={onAction}
-        />
+        <div className="flex gap-5 items-center ml-auto">
+          <DataLabel variant={isWikidataStatement ? 'existing' : 'new'} />
+          {showButtons ? (
+            <div className="flex gap-2">
+              {!isWikidataStatement && !isUserAdded && (
+                <Button
+                  size="small"
+                  variant="success"
+                  active={isAccepted === true}
+                  onClick={() => onAction?.(property.key, 'accept')}
+                  title="Mark this data as correct and submit it to Wikidata"
+                >
+                  ✓ Accept
+                </Button>
+              )}
+              <Button
+                size="small"
+                variant={isWikidataStatement && isAccepted !== false ? 'secondary' : 'danger'}
+                active={!isUserAdded && isAccepted === false}
+                onClick={() => onAction?.(property.key, 'reject')}
+                className={
+                  isWikidataStatement && isAccepted !== false
+                    ? '!text-foreground-muted !bg-surface-hover hover:!bg-surface-active'
+                    : ''
+                }
+                title={
+                  isUserAdded
+                    ? 'Remove this property you added'
+                    : isWikidataStatement
+                      ? 'Mark this existing Wikidata statement as deprecated (incorrect or outdated)'
+                      : 'Mark this data as incorrect and prevent it from being submitted'
+                }
+              >
+                {isUserAdded ? '× Remove' : isWikidataStatement ? '↓ Deprecate' : '× Reject'}
+              </Button>
+            </div>
+          ) : !isWikidataStatement ? (
+            <div className="flex gap-2">
+              {isAccepted === null ? (
+                <span className="text-sm text-foreground-muted">View source to evaluate</span>
+              ) : (
+                <span
+                  className={`text-sm font-medium ${isAccepted ? 'text-success-foreground' : 'text-danger-foreground'}`}
+                >
+                  {isAccepted ? '✓ Accepted' : '× Rejected'}
+                </span>
+              )}
+            </div>
+          ) : null}
+        </div>
       </div>
       {isDiscarding && property.statement_id && (
         <WikidataMetadataPanel

@@ -9,10 +9,14 @@ export function actionToEvaluation(actions: PropertyActionItem[], id: string): b
 export function applyAction(
   actions: PropertyActionItem[],
   id: string,
-  action: 'accept' | 'reject' | 'remove',
+  action: 'accept' | 'reject',
 ): PropertyActionItem[] {
-  if (action === 'remove') {
-    return actions.filter((a) => !(a.action === 'create' && a.key === id))
+  // If rejecting a user-added (create) property, remove it
+  if (action === 'reject') {
+    const createAction = actions.find((a) => a.action === 'create' && a.key === id)
+    if (createAction) {
+      return actions.filter((a) => a !== createAction)
+    }
   }
 
   const existing = actions.find((a) => a.action !== 'create' && a.id === id)
