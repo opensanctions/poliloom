@@ -38,7 +38,7 @@ export function AddDatePropertyForm({ onAdd, onCancel }: AddDatePropertyFormProp
   }
 
   return (
-    <div className="border border-border rounded-lg p-4 space-y-3">
+    <div className="border border-border rounded-lg px-6 py-5 space-y-3">
       <Select
         options={[
           { value: PropertyType.P569, label: 'Birth Date' },
@@ -50,7 +50,7 @@ export function AddDatePropertyForm({ onAdd, onCancel }: AddDatePropertyFormProp
       <DatePrecisionPicker value={date} onChange={setDate} />
       <div className="flex gap-2">
         <Button size="small" onClick={handleSubmit} disabled={!hasYear(date)}>
-          Add
+          + Add
         </Button>
         <Button size="small" variant="secondary" onClick={onCancel}>
           Cancel

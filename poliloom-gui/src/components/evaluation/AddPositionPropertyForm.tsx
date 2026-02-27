@@ -64,7 +64,7 @@ export function AddPositionPropertyForm({ onAdd, onCancel }: AddPositionProperty
   }
 
   return (
-    <div className="border border-border rounded-lg p-4 space-y-3">
+    <div className="border border-border rounded-lg px-6 py-5 space-y-3">
       <EntitySearch
         searchEndpoint="/api/positions/search"
         onSelect={setSelectedEntity}
@@ -76,7 +76,7 @@ export function AddPositionPropertyForm({ onAdd, onCancel }: AddPositionProperty
       <DatePrecisionPicker label="End" value={endDate} onChange={setEndDate} />
       <div className="flex gap-2">
         <Button size="small" onClick={handleSubmit} disabled={!selectedEntity}>
-          Add
+          + Add
         </Button>
         <Button size="small" variant="secondary" onClick={onCancel}>
           Cancel

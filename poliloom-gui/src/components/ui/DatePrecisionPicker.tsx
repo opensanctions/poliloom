@@ -66,7 +66,7 @@ export function DatePrecisionPicker({ value, onChange, label }: DatePrecisionPic
 
   return (
     <div className="flex gap-2 items-center">
-      {label && <label className="text-sm text-foreground-secondary">{label}</label>}
+      {label && <label className="text-sm text-foreground-secondary w-10 shrink-0">{label}</label>}
       <Input
         type="number"
         placeholder="Year"

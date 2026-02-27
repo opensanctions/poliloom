@@ -336,7 +336,6 @@ async def patch_properties(
     Each item must specify an explicit `action`:
     - `accept` / `reject`: evaluate an existing property (requires `id`)
     - `create`: add a new property (requires `type` + value/entity fields)
-    - `update`: not yet implemented
     """
     politician = (
         db.execute(select(Politician).where(Politician.wikidata_id == qid))
