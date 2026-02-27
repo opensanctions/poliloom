@@ -102,12 +102,10 @@ describe('AddEntityPropertyForm', () => {
 
     expect(mockOnAdd).toHaveBeenCalledTimes(1)
     const property = mockOnAdd.mock.calls[0][0]
+    expect(property.action).toBe('create')
     expect(property.type).toBe(PropertyType.P19)
     expect(property.entity_id).toBe('Q64')
     expect(property.entity_name).toBe('Berlin')
-    expect(property.evaluation).toBe(true)
-    expect(property.sources).toEqual([])
-    expect(property.statement_id).toBeNull()
     expect(property.key).toMatch(/^new-/)
   })
 

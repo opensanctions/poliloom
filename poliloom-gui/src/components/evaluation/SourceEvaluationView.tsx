@@ -1,7 +1,14 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, ReactNode } from 'react'
-import { SourceResponse, Property, PropertyWithEvaluation, PropertyReference } from '@/types'
+import { useState, useMemo, useRef, useEffect, useCallback, ReactNode } from 'react'
+import {
+  SourceResponse,
+  Property,
+  PropertyActionItem,
+  CreatePropertyItem,
+  PropertyReference,
+} from '@/types'
+import { actionToEvaluation, applyAction, createPropertyFromAction } from '@/lib/evaluation'
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting'
 import { highlightTextInScope } from '@/lib/textHighlighter'
 import { TwoPanel } from '@/components/layout/TwoPanel'
@@ -11,7 +18,7 @@ import { ArchivedPageViewer } from './ArchivedPageViewer'
 
 interface SourceEvaluationViewProps {
   source: SourceResponse
-  footer: (propertiesByPolitician: Map<string, PropertyWithEvaluation[]>) => ReactNode
+  footer: (actionsByPolitician: Map<string, PropertyActionItem[]>) => ReactNode
   archivedPagesApiPath?: string
 }
 
@@ -20,19 +27,32 @@ export function SourceEvaluationView({
   footer,
   archivedPagesApiPath = '/api/archived-pages',
 }: SourceEvaluationViewProps) {
-  // Flat properties array with politician QID tracked per property
-  const [propertiesByPolitician, setPropertiesByPolitician] = useState<
-    Map<string, PropertyWithEvaluation[]>
-  >(() => {
-    const map = new Map<string, PropertyWithEvaluation[]>()
+  const [actionsByPolitician, setActionsByPolitician] = useState<Map<string, PropertyActionItem[]>>(
+    () => {
+      const map = new Map<string, PropertyActionItem[]>()
+      for (const politician of source.politicians) {
+        map.set(politician.wikidata_id!, [])
+      }
+      return map
+    },
+  )
+
+  const displayPropertiesByPolitician = useMemo(() => {
+    const result = new Map<string, Property[]>()
     for (const politician of source.politicians) {
-      map.set(
-        politician.wikidata_id!,
-        politician.properties.map((p) => ({ ...p })),
-      )
+      const qid = politician.wikidata_id!
+      const actions = actionsByPolitician.get(qid) || []
+      const originals = politician.properties.map((p) => ({
+        ...p,
+        evaluation: actionToEvaluation(actions, p.id!),
+      }))
+      const added = actions
+        .filter((a): a is CreatePropertyItem => a.action === 'create')
+        .map((a) => createPropertyFromAction(a))
+      result.set(qid, [...originals, ...added])
     }
-    return map
-  })
+    return result
+  }, [source.politicians, actionsByPolitician])
 
   const [selectedQuotes, setSelectedQuotes] = useState<string[] | null>(null)
 
@@ -55,39 +75,24 @@ export function SourceEvaluationView({
     }
   }, [selectedQuotes, isIframeLoaded, handleQuotesChange])
 
-  const handleEvaluate = (politicianQid: string, key: string, action: 'accept' | 'reject') => {
-    setPropertiesByPolitician((prev) => {
+  const handleAction = (
+    politicianQid: string,
+    id: string,
+    action: 'accept' | 'reject' | 'remove',
+  ) => {
+    setActionsByPolitician((prev) => {
       const next = new Map(prev)
-      const properties = next.get(politicianQid)
-      if (!properties) return prev
-
-      // User-added properties (no id) are removed on reject
-      const target = properties.find((p) => p.key === key)
-      if (action === 'reject' && target && !target.id) {
-        next.set(
-          politicianQid,
-          properties.filter((p) => p.key !== key),
-        )
-        return next
-      }
-
-      next.set(
-        politicianQid,
-        properties.map((p) => {
-          if (p.key !== key) return p
-          const targetValue = action === 'accept'
-          return { ...p, evaluation: p.evaluation === targetValue ? undefined : targetValue }
-        }),
-      )
+      const actions = next.get(politicianQid) || []
+      next.set(politicianQid, applyAction(actions, id, action))
       return next
     })
   }
 
-  const handleAddProperty = (politicianQid: string, prop: PropertyWithEvaluation) => {
-    setPropertiesByPolitician((prev) => {
+  const handleAddProperty = (politicianQid: string, item: CreatePropertyItem) => {
+    setActionsByPolitician((prev) => {
       const next = new Map(prev)
-      const properties = next.get(politicianQid) || []
-      next.set(politicianQid, [...properties, prop])
+      const actions = next.get(politicianQid) || []
+      next.set(politicianQid, [...actions, item])
       return next
     })
   }
@@ -108,7 +113,7 @@ export function SourceEvaluationView({
       <div className="overflow-y-auto min-h-0 p-6" ref={propertiesRef}>
         {source.politicians.map((politician) => {
           const qid = politician.wikidata_id!
-          const properties = propertiesByPolitician.get(qid) || []
+          const properties = displayPropertiesByPolitician.get(qid) || []
 
           return (
             <div key={qid} className="mb-8">
@@ -118,18 +123,18 @@ export function SourceEvaluationView({
 
               <PropertiesEvaluation
                 properties={properties}
-                onAction={(key, action) => handleEvaluate(qid, key, action)}
+                onAction={(id, action) => handleAction(qid, id, action)}
                 onShowArchived={handleShowArchived}
                 onHover={handlePropertyHover}
                 activeArchivedPageId={source.archived_page.id}
-                onAddProperty={(prop) => handleAddProperty(qid, prop)}
+                onAddProperty={(item) => handleAddProperty(qid, item)}
               />
             </div>
           )
         })}
       </div>
 
-      <div className="p-6 border-t border-border">{footer(propertiesByPolitician)}</div>
+      <div className="p-6 border-t border-border">{footer(actionsByPolitician)}</div>
     </div>
   )
 

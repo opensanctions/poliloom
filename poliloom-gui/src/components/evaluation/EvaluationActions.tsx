@@ -8,7 +8,7 @@ interface EvaluationActionsProps {
   isAccepted: boolean | null
   isSourceVisible: boolean
   isAdvancedMode: boolean
-  onAction?: (id: string, action: 'accept' | 'reject') => void
+  onAction?: (id: string, action: 'accept' | 'reject' | 'remove') => void
 }
 
 export function EvaluationActions({
@@ -27,7 +27,7 @@ export function EvaluationActions({
       <DataLabel variant={isWikidataStatement ? 'existing' : 'new'} />
       {showButtons ? (
         <div className="flex gap-2">
-          {!isWikidataStatement && (
+          {!isWikidataStatement && !isUserAdded && (
             <Button
               size="small"
               variant="success"
@@ -42,7 +42,7 @@ export function EvaluationActions({
             size="small"
             variant={isWikidataStatement && isAccepted !== false ? 'secondary' : 'danger'}
             active={!isUserAdded && isAccepted === false}
-            onClick={() => onAction?.(statementId, 'reject')}
+            onClick={() => onAction?.(statementId, isUserAdded ? 'remove' : 'reject')}
             className={
               isWikidataStatement && isAccepted !== false
                 ? '!text-foreground-muted !bg-surface-hover hover:!bg-surface-active'

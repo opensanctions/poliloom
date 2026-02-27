@@ -1,5 +1,5 @@
 import { useState, useLayoutEffect } from 'react'
-import { PropertyWithEvaluation, PropertyType, PropertyReference } from '@/types'
+import { Property, PropertyType, PropertyReference } from '@/types'
 import { parseWikidataDate } from '@/lib/wikidata/dateParser'
 import { parsePositionQualifiers, formatPositionDates } from '@/lib/wikidata/qualifierParser'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
@@ -8,10 +8,10 @@ import { StatementSource } from './StatementSource'
 import { WikidataMetadataButtons, WikidataMetadataPanel } from './WikidataMetadata'
 
 interface PropertyDisplayProps {
-  property: PropertyWithEvaluation
-  onAction?: (propertyId: string, action: 'accept' | 'reject') => void
+  property: Property
+  onAction?: (propertyId: string, action: 'accept' | 'reject' | 'remove') => void
   onShowArchived?: (ref: PropertyReference) => void
-  onHover?: (property: PropertyWithEvaluation) => void
+  onHover?: (property: Property) => void
   activeArchivedPageId?: string | null
   shouldAutoOpen?: boolean
 }

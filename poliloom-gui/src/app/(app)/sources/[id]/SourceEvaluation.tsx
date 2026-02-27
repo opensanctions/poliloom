@@ -3,11 +3,11 @@
 import { useState } from 'react'
 import {
   SourceResponse,
-  PropertyWithEvaluation,
   SourcePatchPropertiesRequest,
   PatchPropertiesResponse,
   PropertyActionItem,
 } from '@/types'
+import { stripCreateKeys } from '@/lib/evaluation'
 import { Button } from '@/components/ui/Button'
 import { SourceEvaluationView } from '@/components/evaluation/SourceEvaluationView'
 
@@ -18,34 +18,14 @@ interface SourceEvaluationProps {
 export function SourceEvaluation({ source }: SourceEvaluationProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = async (propertiesByPolitician: Map<string, PropertyWithEvaluation[]>) => {
+  const handleSubmit = async (actionsByPolitician: Map<string, PropertyActionItem[]>) => {
     setIsSubmitting(true)
 
-    // Build items keyed by politician QID
     const items: Record<string, PropertyActionItem[]> = {}
 
-    for (const [qid, properties] of propertiesByPolitician) {
-      const politicianItems: PropertyActionItem[] = properties
-        .filter((p) => p.evaluation !== undefined || !p.id)
-        .map((p): PropertyActionItem => {
-          if (p.id) {
-            return {
-              action: p.evaluation ? 'accept' : 'reject',
-              id: p.id,
-            }
-          }
-          return {
-            action: 'create',
-            type: p.type,
-            value: p.value,
-            value_precision: p.value_precision,
-            entity_id: p.entity_id,
-            qualifiers_json: p.qualifiers as Record<string, unknown> | undefined,
-          }
-        })
-
-      if (politicianItems.length > 0) {
-        items[qid] = politicianItems
+    for (const [qid, actions] of actionsByPolitician) {
+      if (actions.length > 0) {
+        items[qid] = stripCreateKeys(actions)
       }
     }
 
@@ -75,20 +55,18 @@ export function SourceEvaluation({ source }: SourceEvaluationProps) {
     }
   }
 
-  const hasChanges = (propertiesByPolitician: Map<string, PropertyWithEvaluation[]>) => {
-    for (const properties of propertiesByPolitician.values()) {
-      if (properties.some((p) => p.evaluation !== undefined || !p.id)) {
-        return true
-      }
+  const hasChanges = (actionsByPolitician: Map<string, PropertyActionItem[]>) => {
+    for (const actions of actionsByPolitician.values()) {
+      if (actions.length > 0) return true
     }
     return false
   }
 
-  const footer = (propertiesByPolitician: Map<string, PropertyWithEvaluation[]>) => (
+  const footer = (actionsByPolitician: Map<string, PropertyActionItem[]>) => (
     <div className="flex justify-end items-center">
       <Button
-        onClick={() => handleSubmit(propertiesByPolitician)}
-        disabled={isSubmitting || !hasChanges(propertiesByPolitician)}
+        onClick={() => handleSubmit(actionsByPolitician)}
+        disabled={isSubmitting || !hasChanges(actionsByPolitician)}
         className="px-6 py-3"
       >
         {isSubmitting ? 'Submitting...' : 'Submit Evaluations'}

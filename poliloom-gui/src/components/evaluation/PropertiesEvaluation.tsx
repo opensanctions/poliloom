@@ -1,5 +1,5 @@
 import { ReactNode, Fragment, useEffect, useMemo, useState } from 'react'
-import { Property, PropertyType, PropertyWithEvaluation, PropertyReference } from '@/types'
+import { Property, PropertyType, PropertyReference, CreatePropertyItem } from '@/types'
 import { EvaluationItem } from './EvaluationItem'
 import { PropertyDisplay } from './PropertyDisplay'
 import { AddDatePropertyForm } from './AddDatePropertyForm'
@@ -14,12 +14,12 @@ import { parseWikidataDate } from '@/lib/wikidata/dateParser'
 type SectionType = 'date' | PropertyType.P39 | PropertyType.P19 | PropertyType.P27
 
 interface PropertiesEvaluationProps {
-  properties: PropertyWithEvaluation[]
-  onAction: (propertyId: string, action: 'accept' | 'reject') => void
+  properties: Property[]
+  onAction: (propertyId: string, action: 'accept' | 'reject' | 'remove') => void
   onShowArchived: (ref: PropertyReference) => void
   onHover: (property: Property) => void
   activeArchivedPageId: string | null
-  onAddProperty?: (property: PropertyWithEvaluation) => void
+  onAddProperty?: (property: CreatePropertyItem) => void
 }
 
 export function PropertiesEvaluation({
@@ -80,14 +80,14 @@ export function PropertiesEvaluation({
       sectionType: SectionType
       items: Array<{
         title: ReactNode
-        properties: PropertyWithEvaluation[]
+        properties: Property[]
         key: string
       }>
     }> = []
 
     // Collect date properties (birth/death)
-    const dateProps: PropertyWithEvaluation[] = []
-    const entityBasedProps = new Map<PropertyType, PropertyWithEvaluation[]>()
+    const dateProps: Property[] = []
+    const entityBasedProps = new Map<PropertyType, Property[]>()
 
     properties.forEach((property) => {
       if (property.type === PropertyType.P569 || property.type === PropertyType.P570) {
@@ -218,7 +218,7 @@ export function PropertiesEvaluation({
     }
   }, [sections, onShowArchived])
 
-  const handleAdd = (property: PropertyWithEvaluation) => {
+  const handleAdd = (property: CreatePropertyItem) => {
     onAddProperty?.(property)
     setAddingSection(null)
   }

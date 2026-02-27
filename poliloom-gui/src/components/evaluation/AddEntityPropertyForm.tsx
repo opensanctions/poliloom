@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { PropertyType, PropertyWithEvaluation } from '@/types'
+import { PropertyType, CreatePropertyItem } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { EntitySearch } from '@/components/ui/EntitySearch'
 
 interface AddEntityPropertyFormProps {
   type: PropertyType.P19 | PropertyType.P27
-  onAdd: (property: PropertyWithEvaluation) => void
+  onAdd: (property: CreatePropertyItem) => void
   onCancel: () => void
 }
 
@@ -30,14 +30,12 @@ export function AddEntityPropertyForm({ type, onAdd, onCancel }: AddEntityProper
   const handleSubmit = () => {
     if (!selectedEntity) return
 
-    const property: PropertyWithEvaluation = {
+    const property: CreatePropertyItem = {
+      action: 'create',
       key: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       type,
       entity_id: selectedEntity.wikidata_id,
       entity_name: selectedEntity.name,
-      statement_id: null,
-      sources: [],
-      evaluation: true,
     }
 
     onAdd(property)

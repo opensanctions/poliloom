@@ -1,36 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, render } from '@testing-library/react'
+import '@/test/highlight-mocks'
 import { SourceEvaluationView } from './SourceEvaluationView'
 import { mockSourceResponse } from '@/test/mock-data'
-
-// Mock the CSS Custom Highlight API for testing
-global.CSS = {
-  highlights: new Map(),
-} as typeof CSS
-
-global.Highlight = class MockHighlight {
-  private ranges: Range[]
-
-  constructor(...ranges: Range[]) {
-    this.ranges = ranges
-  }
-
-  get size() {
-    return this.ranges.length
-  }
-
-  values() {
-    return this.ranges[Symbol.iterator]()
-  }
-} as unknown as typeof Highlight
-
-vi.mock('@/hooks/useIframeHighlighting', () => ({
-  useIframeAutoHighlight: () => ({
-    isIframeLoaded: true,
-    handleIframeLoad: vi.fn(),
-    handleQuotesChange: vi.fn(),
-  }),
-}))
 
 vi.mock('@/contexts/UserPreferencesContext', () => ({
   useUserPreferences: () => ({

@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { PropertyDisplay } from './PropertyDisplay'
-import { PropertyType, PropertyWithEvaluation } from '@/types'
+import { PropertyType, Property } from '@/types'
 import { vi } from 'vitest'
 
 vi.mock('@/contexts/UserPreferencesContext', () => ({
@@ -20,7 +20,7 @@ const mockArchivedPage = {
   fetch_timestamp: '2024-01-01T00:00:00Z',
 }
 
-const baseProperty: PropertyWithEvaluation = {
+const baseProperty: Property = {
   key: 'test-1',
   id: 'test-1',
   type: PropertyType.P569,
@@ -34,7 +34,7 @@ describe('PropertyDisplay', () => {
   })
 
   it('renders birth date with formatted value', () => {
-    const property: PropertyWithEvaluation = {
+    const property: Property = {
       ...baseProperty,
       type: PropertyType.P569,
       value: '+1990-05-15T00:00:00Z',
@@ -55,7 +55,7 @@ describe('PropertyDisplay', () => {
   })
 
   it('renders position with date range from qualifiers', () => {
-    const property: PropertyWithEvaluation = {
+    const property: Property = {
       ...baseProperty,
       type: PropertyType.P39,
       qualifiers: {
@@ -78,7 +78,7 @@ describe('PropertyDisplay', () => {
   })
 
   it('shows no timeframe message for position without dates', () => {
-    const property: PropertyWithEvaluation = {
+    const property: Property = {
       ...baseProperty,
       type: PropertyType.P39,
     }
@@ -97,7 +97,7 @@ describe('PropertyDisplay', () => {
   })
 
   it('renders empty content for birthplace properties', () => {
-    const property: PropertyWithEvaluation = {
+    const property: Property = {
       ...baseProperty,
       type: PropertyType.P19,
     }
@@ -118,7 +118,7 @@ describe('PropertyDisplay', () => {
   })
 
   it('calls onHover when mouse enters component', () => {
-    const property: PropertyWithEvaluation = { ...baseProperty }
+    const property: Property = { ...baseProperty }
 
     const { container } = render(
       <PropertyDisplay
@@ -137,7 +137,7 @@ describe('PropertyDisplay', () => {
   })
 
   it('shows StatementSource for non-Wikidata statements', () => {
-    const property: PropertyWithEvaluation = {
+    const property: Property = {
       ...baseProperty,
       statement_id: null,
       sources: [
@@ -163,7 +163,7 @@ describe('PropertyDisplay', () => {
   })
 
   it('shows WikidataMetadata only when deprecating existing Wikidata statements', () => {
-    const property: PropertyWithEvaluation = {
+    const property: Property = {
       ...baseProperty,
       statement_id: 'Q123$abc-def',
       references: [{ url: 'https://example.com', title: 'Reference' }],
@@ -186,7 +186,7 @@ describe('PropertyDisplay', () => {
   })
 
   it('shows WikidataMetadata when user is deprecating a statement', () => {
-    const property: PropertyWithEvaluation = {
+    const property: Property = {
       ...baseProperty,
       statement_id: 'Q123$abc-def',
       references: [{ url: 'https://example.com', title: 'Reference' }],

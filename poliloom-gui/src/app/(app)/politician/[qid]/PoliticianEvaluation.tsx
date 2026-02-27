@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Politician,
-  PropertyWithEvaluation,
   PatchPropertiesRequest,
   PatchPropertiesResponse,
   PropertyActionItem,
 } from '@/types'
+import { stripCreateKeys } from '@/lib/evaluation'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
@@ -42,30 +42,11 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleSubmit = async (properties: PropertyWithEvaluation[]) => {
+  const handleSubmit = async (actions: PropertyActionItem[]) => {
     setIsSubmitting(true)
 
-    const items: PropertyActionItem[] = properties
-      .filter((p) => p.evaluation !== undefined || !p.id)
-      .map((p): PropertyActionItem => {
-        if (p.id) {
-          return {
-            action: p.evaluation ? 'accept' : 'reject',
-            id: p.id,
-          }
-        }
-        return {
-          action: 'create',
-          type: p.type,
-          value: p.value,
-          value_precision: p.value_precision,
-          entity_id: p.entity_id,
-          qualifiers_json: p.qualifiers as Record<string, unknown> | undefined,
-        }
-      })
-
     try {
-      const requestData: PatchPropertiesRequest = { items }
+      const requestData: PatchPropertiesRequest = { items: stripCreateKeys(actions) }
       const response = await fetch(`/api/politicians/${politician.wikidata_id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -99,11 +80,8 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
     }
   }
 
-  const hasChanges = (properties: PropertyWithEvaluation[]) =>
-    properties.some((p) => p.evaluation !== undefined || !p.id)
-
   // Session mode footer
-  const sessionFooter = (properties: PropertyWithEvaluation[]) => (
+  const sessionFooter = (actions: PropertyActionItem[]) => (
     <div className="flex justify-between items-center">
       <div className="text-base text-foreground">
         Progress:{' '}
@@ -112,7 +90,7 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
         </strong>{' '}
         politicians evaluated
       </div>
-      {!hasChanges(properties) ? (
+      {actions.length === 0 ? (
         <Button
           href={nextPoliticianHref ?? (nextLoading ? undefined : '/session/enriching')}
           disabled={nextLoading}
@@ -122,7 +100,7 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
         </Button>
       ) : (
         <Button
-          onClick={() => handleSubmit(properties)}
+          onClick={() => handleSubmit(actions)}
           disabled={isSubmitting || nextLoading}
           className="px-6 py-3"
         >
@@ -133,11 +111,11 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
   )
 
   // Standalone mode footer
-  const standaloneFooter = (properties: PropertyWithEvaluation[]) => (
+  const standaloneFooter = (actions: PropertyActionItem[]) => (
     <div className="flex justify-end items-center">
       <Button
-        onClick={() => handleSubmit(properties)}
-        disabled={isSubmitting || !hasChanges(properties)}
+        onClick={() => handleSubmit(actions)}
+        disabled={isSubmitting || actions.length === 0}
         className="px-6 py-3"
       >
         {isSubmitting ? 'Submitting...' : 'Submit Evaluations'}

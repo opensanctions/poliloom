@@ -1,8 +1,8 @@
-import { PropertyWithEvaluation } from '@/types'
+import { PropertyActionItem } from '@/types'
 import { Button } from '@/components/ui/Button'
 
 interface TutorialFooterProps {
-  properties: PropertyWithEvaluation[]
+  actions: PropertyActionItem[]
   requiredKeys: string[]
   onSubmit: () => void
   onBack: () => void
@@ -11,15 +11,15 @@ interface TutorialFooterProps {
 }
 
 export function TutorialFooter({
-  properties,
+  actions,
   requiredKeys,
   onSubmit,
   onBack,
   skipHref,
   onSkip,
 }: TutorialFooterProps) {
-  const isComplete = requiredKeys.every(
-    (key) => properties.find((p) => p.key === key)?.evaluation !== undefined,
+  const isComplete = requiredKeys.every((key) =>
+    actions.some((a) => a.action !== 'create' && a.id === key),
   )
 
   return (

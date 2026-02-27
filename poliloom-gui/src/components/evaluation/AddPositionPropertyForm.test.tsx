@@ -97,13 +97,11 @@ describe('AddPositionPropertyForm', () => {
 
     expect(mockOnAdd).toHaveBeenCalledTimes(1)
     const property = mockOnAdd.mock.calls[0][0]
+    expect(property.action).toBe('create')
     expect(property.type).toBe(PropertyType.P39)
     expect(property.entity_id).toBe('Q30185')
     expect(property.entity_name).toBe('Mayor')
     expect(property.qualifiers).toBeUndefined()
-    expect(property.evaluation).toBe(true)
-    expect(property.sources).toEqual([])
-    expect(property.statement_id).toBeNull()
     expect(property.key).toMatch(/^new-/)
   })
 

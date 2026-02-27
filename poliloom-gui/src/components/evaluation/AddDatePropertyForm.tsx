@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { PropertyType, PropertyWithEvaluation } from '@/types'
+import { PropertyType, CreatePropertyItem } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import {
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/DatePrecisionPicker'
 
 interface AddDatePropertyFormProps {
-  onAdd: (property: PropertyWithEvaluation) => void
+  onAdd: (property: CreatePropertyItem) => void
   onCancel: () => void
 }
 
@@ -24,14 +24,12 @@ export function AddDatePropertyForm({ onAdd, onCancel }: AddDatePropertyFormProp
   const handleSubmit = () => {
     if (!hasYear(date)) return
 
-    const property: PropertyWithEvaluation = {
+    const property: CreatePropertyItem = {
+      action: 'create',
       key: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       type,
       value: formatWikidataDate(date),
       value_precision: inferPrecision(date),
-      statement_id: null,
-      sources: [],
-      evaluation: true,
     }
 
     onAdd(property)

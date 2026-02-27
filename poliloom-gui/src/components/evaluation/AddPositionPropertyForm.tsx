@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { PropertyType, PropertyWithEvaluation, PropertyQualifiers } from '@/types'
+import { PropertyType, CreatePropertyItem, PropertyQualifiers } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { EntitySearch } from '@/components/ui/EntitySearch'
 import {
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/DatePrecisionPicker'
 
 interface AddPositionPropertyFormProps {
-  onAdd: (property: PropertyWithEvaluation) => void
+  onAdd: (property: CreatePropertyItem) => void
   onCancel: () => void
 }
 
@@ -49,15 +49,13 @@ export function AddPositionPropertyForm({ onAdd, onCancel }: AddPositionProperty
       qualifiers.P582 = [buildDateQualifier(endDate)]
     }
 
-    const property: PropertyWithEvaluation = {
+    const property: CreatePropertyItem = {
+      action: 'create',
       key: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       type: PropertyType.P39,
       entity_id: selectedEntity.wikidata_id,
       entity_name: selectedEntity.name,
       qualifiers: Object.keys(qualifiers).length > 0 ? qualifiers : undefined,
-      statement_id: null,
-      sources: [],
-      evaluation: true,
     }
 
     onAdd(property)

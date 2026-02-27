@@ -75,7 +75,7 @@ describe('EvaluationActions', () => {
   })
 
   describe('user-added properties', () => {
-    it('shows Remove button instead of Reject', () => {
+    it('shows Remove button instead of Reject and hides Accept', () => {
       render(
         <EvaluationActions
           statementId="new-123"
@@ -90,6 +90,7 @@ describe('EvaluationActions', () => {
 
       expect(screen.getByRole('button', { name: /Remove/ })).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /Reject/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Accept/ })).not.toBeInTheDocument()
     })
   })
 })

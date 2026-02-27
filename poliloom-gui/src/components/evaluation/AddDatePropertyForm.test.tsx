@@ -47,12 +47,10 @@ describe('AddDatePropertyForm', () => {
 
     expect(mockOnAdd).toHaveBeenCalledTimes(1)
     const property = mockOnAdd.mock.calls[0][0]
+    expect(property.action).toBe('create')
     expect(property.type).toBe(PropertyType.P569)
     expect(property.value).toBe('+1990-05-15T00:00:00Z')
     expect(property.value_precision).toBe(11)
-    expect(property.evaluation).toBe(true)
-    expect(property.sources).toEqual([])
-    expect(property.statement_id).toBeNull()
     expect(property.key).toMatch(/^new-/)
   })
 

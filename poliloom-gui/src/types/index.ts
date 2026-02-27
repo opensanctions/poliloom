@@ -49,6 +49,7 @@ export interface Property {
   qualifiers?: PropertyQualifiers
   references?: Array<Record<string, unknown>>
   sources: PropertyReference[]
+  evaluation?: boolean // undefined = not evaluated, true = accepted, false = rejected (derived from action list)
 }
 
 export interface Politician {
@@ -68,10 +69,6 @@ export interface NextPoliticianResponse {
   meta: EnrichmentMetadata
 }
 
-export interface PropertyWithEvaluation extends Property {
-  evaluation?: boolean // undefined = not evaluated, true = accepted, false = rejected
-}
-
 export interface AcceptPropertyItem {
   action: 'accept'
   id: string
@@ -84,11 +81,13 @@ export interface RejectPropertyItem {
 
 export interface CreatePropertyItem {
   action: 'create'
+  key: string
   type: string
   value?: string
   value_precision?: number
   entity_id?: string
-  qualifiers_json?: Record<string, unknown>
+  entity_name?: string
+  qualifiers?: PropertyQualifiers
 }
 
 export type PropertyActionItem = AcceptPropertyItem | RejectPropertyItem | CreatePropertyItem
