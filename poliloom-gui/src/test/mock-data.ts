@@ -1,4 +1,4 @@
-import { Politician, PropertyType, ArchivedPageResponse } from '@/types'
+import { Politician, PropertyType, ArchivedPageResponse, SourceResponse } from '@/types'
 
 const mockArchivedPage: ArchivedPageResponse = {
   id: 'archived-1',
@@ -390,6 +390,72 @@ export const mockPoliticianWithDifferentSources: Politician = {
           id: 'ref-src-3',
           archived_page: mockArchivedPage3, // archived-3
           supporting_quotes: ['was born in Capital City'],
+        },
+      ],
+    },
+  ],
+}
+
+// Source-centric mock: one archived page, multiple politicians
+export const mockSourceResponse: SourceResponse = {
+  archived_page: mockArchivedPage,
+  politicians: [
+    {
+      id: 'pol-src-1',
+      name: 'Source Politician A',
+      wikidata_id: 'Q111000',
+      properties: [
+        {
+          key: 'src-prop-1',
+          id: 'src-prop-1',
+          type: PropertyType.P569,
+          value: '+1970-01-01T00:00:00Z',
+          value_precision: 11,
+          statement_id: null,
+          sources: [
+            {
+              id: 'src-ref-1',
+              archived_page: mockArchivedPage,
+              supporting_quotes: ['born on January 1, 1970'],
+            },
+          ],
+        },
+        {
+          key: 'src-prop-2',
+          id: 'src-prop-2',
+          type: PropertyType.P39,
+          entity_id: 'Q555777',
+          entity_name: 'Mayor of Test City',
+          statement_id: null,
+          sources: [
+            {
+              id: 'src-ref-2',
+              archived_page: mockArchivedPage,
+              supporting_quotes: ['served as mayor'],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'pol-src-2',
+      name: 'Source Politician B',
+      wikidata_id: 'Q222000',
+      properties: [
+        {
+          key: 'src-prop-3',
+          id: 'src-prop-3',
+          type: PropertyType.P27,
+          entity_id: 'Q142',
+          entity_name: 'France',
+          statement_id: null,
+          sources: [
+            {
+              id: 'src-ref-3',
+              archived_page: mockArchivedPage,
+              supporting_quotes: ['French citizen'],
+            },
+          ],
         },
       ],
     },

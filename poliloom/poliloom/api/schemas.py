@@ -63,6 +63,13 @@ class PoliticianResponse(UUIDBaseModel):
     properties: List[PropertyResponse]  # Single flat list
 
 
+class SourcePageResponse(BaseModel):
+    """Response for GET /archived-pages/{id} — source-centric view."""
+
+    archived_page: ArchivedPageResponse
+    politicians: List[PoliticianResponse]
+
+
 class EnrichmentMetadata(BaseModel):
     """Metadata about enrichment status for empty state UX."""
 
@@ -112,8 +119,18 @@ class PatchPropertiesRequest(BaseModel):
     items: List[PropertyActionItem]
 
 
+class SourcePatchPropertiesRequest(BaseModel):
+    """Request body for PATCH /archived-pages/{id}/properties.
+
+    Items keyed by politician QID, e.g.:
+    {"Q123": [{"action": "accept", "id": "..."}, ...]}
+    """
+
+    items: Dict[str, List[PropertyActionItem]]
+
+
 class PatchPropertiesResponse(BaseModel):
-    """Response for PATCH /politicians/{qid}/properties."""
+    """Response for property evaluation endpoints."""
 
     success: bool
     message: str

@@ -323,82 +323,86 @@ async def get_politician(
     )
 
 
-@router.patch("/{qid}/properties", response_model=PatchPropertiesResponse)
-async def patch_properties(
-    qid: str,
-    request: PatchPropertiesRequest,
-    db: Session = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Accept, reject, or create properties for a politician.
+async def process_property_actions(
+    items_by_politician: dict[str, list],
+    db: Session,
+    current_user: User,
+) -> PatchPropertiesResponse:
+    """Shared evaluation logic for both politician and source endpoints.
 
-    Each item must specify an explicit `action`:
-    - `accept` / `reject`: evaluate an existing property (requires `id`)
-    - `create`: add a new property (requires `type` + value/entity fields)
+    Args:
+        items_by_politician: Property actions keyed by politician QID.
+            Accept/reject items only need the property ID (politician key is
+            for grouping only). Create items use the key to look up the politician.
     """
-    politician = (
-        db.execute(select(Politician).where(Politician.wikidata_id == qid))
-        .scalars()
-        .first()
-    )
-    if not politician:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Politician with QID {qid} not found",
-        )
-
     errors = []
     all_evaluations = []
 
-    for item in request.items:
-        try:
-            match item:
-                case AcceptPropertyItem() | RejectPropertyItem():
-                    property_entity = db.get(Property, item.id)
-                    if not property_entity:
-                        errors.append(f"Property {item.id} not found")
-                        continue
+    # Batch-load all politicians needed for create actions
+    all_qids = set(items_by_politician.keys())
+    politicians_by_qid = {}
+    if all_qids:
+        results = (
+            db.execute(select(Politician).where(Politician.wikidata_id.in_(all_qids)))
+            .scalars()
+            .all()
+        )
+        politicians_by_qid = {p.wikidata_id: p for p in results}
 
-                    evaluation = Evaluation(
-                        user_id=str(current_user.user_id),
-                        is_accepted=isinstance(item, AcceptPropertyItem),
-                        property_id=item.id,
-                    )
-                    db.add(evaluation)
-                    all_evaluations.append(evaluation)
+    for qid, items in items_by_politician.items():
+        for item in items:
+            try:
+                match item:
+                    case AcceptPropertyItem() | RejectPropertyItem():
+                        property_entity = db.get(Property, item.id)
+                        if not property_entity:
+                            errors.append(f"Property {item.id} not found")
+                            continue
 
-                case CreatePropertyItem():
-                    prop_type = PROPERTY_TYPE_MAP.get(item.type)
-                    if not prop_type:
-                        errors.append(f"Unknown property type: {item.type}")
-                        continue
+                        evaluation = Evaluation(
+                            user_id=str(current_user.user_id),
+                            is_accepted=isinstance(item, AcceptPropertyItem),
+                            property_id=item.id,
+                        )
+                        db.add(evaluation)
+                        all_evaluations.append(evaluation)
 
-                    new_property = Property(
-                        politician_id=politician.id,
-                        type=prop_type,
-                        value=item.value,
-                        value_precision=item.value_precision,
-                        entity_id=item.entity_id,
-                        qualifiers_json=item.qualifiers_json,
-                    )
-                    db.add(new_property)
-                    db.flush()
+                    case CreatePropertyItem():
+                        prop_type = PROPERTY_TYPE_MAP.get(item.type)
+                        if not prop_type:
+                            errors.append(f"Unknown property type: {item.type}")
+                            continue
 
-                    evaluation = Evaluation(
-                        user_id=str(current_user.user_id),
-                        is_accepted=True,
-                        property_id=new_property.id,
-                    )
-                    db.add(evaluation)
-                    all_evaluations.append(evaluation)
+                        politician = politicians_by_qid.get(qid)
+                        if not politician:
+                            errors.append(f"Politician with QID {qid} not found")
+                            continue
 
-        except Exception as e:
-            item_desc = str(
-                getattr(item, "id", None) or f"new {getattr(item, 'type', '?')}"
-            )
-            errors.append(f"Error processing item {item_desc}: {str(e)}")
-            continue
+                        new_property = Property(
+                            politician_id=politician.id,
+                            type=prop_type,
+                            value=item.value,
+                            value_precision=item.value_precision,
+                            entity_id=item.entity_id,
+                            qualifiers_json=item.qualifiers_json,
+                        )
+                        db.add(new_property)
+                        db.flush()
+
+                        evaluation = Evaluation(
+                            user_id=str(current_user.user_id),
+                            is_accepted=True,
+                            property_id=new_property.id,
+                        )
+                        db.add(evaluation)
+                        all_evaluations.append(evaluation)
+
+            except Exception as e:
+                item_desc = str(
+                    getattr(item, "id", None) or f"new {getattr(item, 'type', '?')}"
+                )
+                errors.append(f"Error processing item {item_desc}: {str(e)}")
+                continue
 
     try:
         db.commit()
@@ -437,3 +441,32 @@ async def patch_properties(
         + (f" ({len(wikidata_errors)} Wikidata errors)" if wikidata_errors else ""),
         errors=errors,
     )
+
+
+@router.patch("/{qid}/properties", response_model=PatchPropertiesResponse)
+async def patch_properties(
+    qid: str,
+    request: PatchPropertiesRequest,
+    db: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Accept, reject, or create properties for a politician.
+
+    Each item must specify an explicit `action`:
+    - `accept` / `reject`: evaluate an existing property (requires `id`)
+    - `create`: add a new property (requires `type` + value/entity fields)
+    """
+    # Verify politician exists
+    politician = (
+        db.execute(select(Politician).where(Politician.wikidata_id == qid))
+        .scalars()
+        .first()
+    )
+    if not politician:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Politician with QID {qid} not found",
+        )
+
+    return await process_property_actions({qid: request.items}, db, current_user)
