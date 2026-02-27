@@ -16,12 +16,12 @@ export default async function SourcePage({ params }: { params: Promise<{ id: str
 
   const source: SourceResponse = await response.json()
 
-  // Ensure all properties have key field set
+  // API properties always have id; set key (used for React keys and client-side lookups)
   source.politicians = source.politicians.map((politician) => ({
     ...politician,
     properties: politician.properties.map((prop) => ({
       ...prop,
-      key: prop.id || prop.key,
+      key: prop.id!,
     })),
   }))
 
