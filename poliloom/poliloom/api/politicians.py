@@ -384,7 +384,7 @@ async def process_property_actions(
                             value=item.value,
                             value_precision=item.value_precision,
                             entity_id=item.entity_id,
-                            qualifiers_json=item.qualifiers_json,
+                            qualifiers_json=item.qualifiers,
                         )
                         db.add(new_property)
                         db.flush()

@@ -100,7 +100,7 @@ class CreatePropertyItem(BaseModel):
     value: Optional[str] = None
     value_precision: Optional[int] = None
     entity_id: Optional[str] = None
-    qualifiers_json: Optional[Dict[str, Any]] = None
+    qualifiers: Optional[Dict[str, Any]] = None
 
 
 PropertyActionItem = Annotated[

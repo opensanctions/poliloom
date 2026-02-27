@@ -49,14 +49,3 @@ export function createPropertyFromAction(action: CreatePropertyItem): Property {
     evaluation: true,
   }
 }
-
-export function stripCreateIds(actions: PropertyActionItem[]): PropertyActionItem[] {
-  return actions.map((a) => {
-    if (a.action !== 'create') return a
-    const { id, qualifiers, ...rest } = a
-    return {
-      ...rest,
-      ...(qualifiers ? { qualifiers_json: qualifiers as Record<string, unknown> } : {}),
-    } as PropertyActionItem
-  })
-}

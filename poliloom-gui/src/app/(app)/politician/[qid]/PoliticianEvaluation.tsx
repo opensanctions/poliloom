@@ -8,7 +8,6 @@ import {
   PatchPropertiesResponse,
   PropertyActionItem,
 } from '@/types'
-import { stripCreateIds } from '@/lib/evaluation'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
@@ -46,7 +45,7 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
     setIsSubmitting(true)
 
     try {
-      const requestData: PatchPropertiesRequest = { items: stripCreateIds(actions) }
+      const requestData: PatchPropertiesRequest = { items: actions }
       const response = await fetch(`/api/politicians/${politician.wikidata_id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

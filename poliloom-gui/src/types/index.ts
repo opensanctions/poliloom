@@ -81,7 +81,7 @@ export interface RejectPropertyItem {
 
 export interface CreatePropertyItem {
   action: 'create'
-  id: string // Temporary client-side ID, stripped before submission
+  id: string // Temporary client-side ID (ignored by backend)
   type: string
   value?: string
   value_precision?: number

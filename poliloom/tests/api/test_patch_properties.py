@@ -240,7 +240,7 @@ class TestPatchProperties:
                     "action": "create",
                     "type": "P39",
                     "entity_id": sample_position.wikidata_id,
-                    "qualifiers_json": {
+                    "qualifiers": {
                         "P580": [
                             {
                                 "datavalue": {
