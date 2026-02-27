@@ -13,7 +13,7 @@ import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { Button } from '@/components/ui/Button'
-import { PoliticianEvaluationView } from '@/components/evaluation/PoliticianEvaluationView'
+import { EvaluationView } from '@/components/evaluation/EvaluationView'
 
 interface PoliticianEvaluationProps {
   politician: Politician
@@ -79,52 +79,61 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
     }
   }
 
+  const getActions = (actionsByPolitician: Map<string, PropertyActionItem[]>) =>
+    actionsByPolitician.get(politician.wikidata_id!) || []
+
   // Session mode footer
-  const sessionFooter = (actions: PropertyActionItem[]) => (
-    <div className="flex justify-between items-center">
-      <div className="text-base text-foreground">
-        Progress:{' '}
-        <strong>
-          {completedCount} / {sessionGoal}
-        </strong>{' '}
-        politicians evaluated
+  const sessionFooter = (actionsByPolitician: Map<string, PropertyActionItem[]>) => {
+    const actions = getActions(actionsByPolitician)
+    return (
+      <div className="flex justify-between items-center">
+        <div className="text-base text-foreground">
+          Progress:{' '}
+          <strong>
+            {completedCount} / {sessionGoal}
+          </strong>{' '}
+          politicians evaluated
+        </div>
+        {actions.length === 0 ? (
+          <Button
+            href={nextPoliticianHref ?? (nextLoading ? undefined : '/session/enriching')}
+            disabled={nextLoading}
+            className="px-6 py-3"
+          >
+            Skip Politician
+          </Button>
+        ) : (
+          <Button
+            onClick={() => handleSubmit(actions)}
+            disabled={isSubmitting || nextLoading}
+            className="px-6 py-3"
+          >
+            {isSubmitting ? 'Submitting...' : 'Submit Evaluations & Next'}
+          </Button>
+        )}
       </div>
-      {actions.length === 0 ? (
-        <Button
-          href={nextPoliticianHref ?? (nextLoading ? undefined : '/session/enriching')}
-          disabled={nextLoading}
-          className="px-6 py-3"
-        >
-          Skip Politician
-        </Button>
-      ) : (
-        <Button
-          onClick={() => handleSubmit(actions)}
-          disabled={isSubmitting || nextLoading}
-          className="px-6 py-3"
-        >
-          {isSubmitting ? 'Submitting...' : 'Submit Evaluations & Next'}
-        </Button>
-      )}
-    </div>
-  )
+    )
+  }
 
   // Standalone mode footer
-  const standaloneFooter = (actions: PropertyActionItem[]) => (
-    <div className="flex justify-end items-center">
-      <Button
-        onClick={() => handleSubmit(actions)}
-        disabled={isSubmitting || actions.length === 0}
-        className="px-6 py-3"
-      >
-        {isSubmitting ? 'Submitting...' : 'Submit Evaluations'}
-      </Button>
-    </div>
-  )
+  const standaloneFooter = (actionsByPolitician: Map<string, PropertyActionItem[]>) => {
+    const actions = getActions(actionsByPolitician)
+    return (
+      <div className="flex justify-end items-center">
+        <Button
+          onClick={() => handleSubmit(actions)}
+          disabled={isSubmitting || actions.length === 0}
+          className="px-6 py-3"
+        >
+          {isSubmitting ? 'Submitting...' : 'Submit Evaluations'}
+        </Button>
+      </div>
+    )
+  }
 
   return (
-    <PoliticianEvaluationView
-      politician={politician}
+    <EvaluationView
+      politicians={[politician]}
       footer={isSessionActive ? sessionFooter : standaloneFooter}
     />
   )

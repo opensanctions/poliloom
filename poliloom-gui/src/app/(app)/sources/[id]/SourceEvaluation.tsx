@@ -8,7 +8,7 @@ import {
   PropertyActionItem,
 } from '@/types'
 import { Button } from '@/components/ui/Button'
-import { SourceEvaluationView } from '@/components/evaluation/SourceEvaluationView'
+import { EvaluationView } from '@/components/evaluation/EvaluationView'
 
 interface SourceEvaluationProps {
   source: SourceResponse
@@ -73,5 +73,5 @@ export function SourceEvaluation({ source }: SourceEvaluationProps) {
     </div>
   )
 
-  return <SourceEvaluationView source={source} footer={footer} />
+  return <EvaluationView politicians={source.politicians} footer={footer} />
 }

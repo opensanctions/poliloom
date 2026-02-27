@@ -18,29 +18,43 @@ import { PropertiesEvaluation } from './PropertiesEvaluation'
 import { PoliticianHeader } from './PoliticianHeader'
 import { ArchivedPageViewer } from './ArchivedPageViewer'
 
-interface PoliticianEvaluationViewProps {
-  politician: Politician
-  footer: (actions: PropertyActionItem[]) => ReactNode
+interface EvaluationViewProps {
+  politicians: Politician[]
+  footer: (actionsByPolitician: Map<string, PropertyActionItem[]>) => ReactNode
   archivedPagesApiPath?: string
 }
 
-export function PoliticianEvaluationView({
-  politician,
+export function EvaluationView({
+  politicians,
   footer,
   archivedPagesApiPath = '/api/archived-pages',
-}: PoliticianEvaluationViewProps) {
-  const [actions, setActions] = useState<PropertyActionItem[]>([])
+}: EvaluationViewProps) {
+  const [actionsByPolitician, setActionsByPolitician] = useState<Map<string, PropertyActionItem[]>>(
+    () => {
+      const map = new Map<string, PropertyActionItem[]>()
+      for (const politician of politicians) {
+        map.set(politician.wikidata_id!, [])
+      }
+      return map
+    },
+  )
 
-  const displayProperties: Property[] = useMemo(() => {
-    const originals = politician.properties.map((p) => ({
-      ...p,
-      evaluation: actionToEvaluation(actions, p.id!),
-    }))
-    const added = actions
-      .filter((a): a is CreatePropertyItem => a.action === 'create')
-      .map((a) => createPropertyFromAction(a))
-    return [...originals, ...added]
-  }, [politician.properties, actions])
+  const displayPropertiesByPolitician = useMemo(() => {
+    const result = new Map<string, Property[]>()
+    for (const politician of politicians) {
+      const qid = politician.wikidata_id!
+      const actions = actionsByPolitician.get(qid) || []
+      const originals = politician.properties.map((p) => ({
+        ...p,
+        evaluation: actionToEvaluation(actions, p.id!),
+      }))
+      const added = actions
+        .filter((a): a is CreatePropertyItem => a.action === 'create')
+        .map((a) => createPropertyFromAction(a))
+      result.set(qid, [...originals, ...added])
+    }
+    return result
+  }, [politicians, actionsByPolitician])
 
   // Initial selection is handled by PropertiesEvaluation calling onShowArchived on mount
   const [selectedArchivedPage, setSelectedArchivedPage] = useState<ArchivedPageResponse | null>(
@@ -58,23 +72,31 @@ export function PoliticianEvaluationView({
 
   // Update highlighting when supporting quotes change
   useEffect(() => {
-    // Properties panel highlighting - always do this when quotes change
     if (propertiesRef.current && selectedQuotes && selectedQuotes.length > 0) {
       highlightTextInScope(document, propertiesRef.current, selectedQuotes)
     }
 
-    // Iframe highlighting - only when iframe is loaded
     if (isIframeLoaded && selectedQuotes && selectedQuotes.length > 0) {
       handleQuotesChange(selectedQuotes)
     }
   }, [selectedQuotes, isIframeLoaded, handleQuotesChange])
 
-  const handleAction = (id: string, action: 'accept' | 'reject') => {
-    setActions((prev) => applyAction(prev, id, action))
+  const handleAction = (politicianQid: string, id: string, action: 'accept' | 'reject') => {
+    setActionsByPolitician((prev) => {
+      const next = new Map(prev)
+      const actions = next.get(politicianQid) || []
+      next.set(politicianQid, applyAction(actions, id, action))
+      return next
+    })
   }
 
-  const handleAddProperty = (item: CreatePropertyItem) => {
-    setActions((prev) => [...prev, item])
+  const handleAddProperty = (politicianQid: string, item: CreatePropertyItem) => {
+    setActionsByPolitician((prev) => {
+      const next = new Map(prev)
+      const actions = next.get(politicianQid) || []
+      next.set(politicianQid, [...actions, item])
+      return next
+    })
   }
 
   // Handler for showing archived page (used by View button and initial selection)
@@ -85,7 +107,6 @@ export function PoliticianEvaluationView({
 
   // Unified hover handler for all property types
   const handlePropertyHover = (property: Property) => {
-    // Only update quotes (which triggers highlighting) if we're viewing this property's archived page
     const matchingRef = property.sources.find(
       (s) => selectedArchivedPage?.id === s.archived_page.id,
     )
@@ -96,27 +117,31 @@ export function PoliticianEvaluationView({
 
   const leftPanel = (
     <div className="grid grid-rows-[1fr_auto] h-full">
-      <div className="overflow-y-auto min-h-0 p-6">
-        <div className="mb-6">
-          <PoliticianHeader
-            name={politician.name}
-            wikidataId={politician.wikidata_id ?? undefined}
-          />
-        </div>
+      <div className="overflow-y-auto min-h-0 p-6" ref={propertiesRef}>
+        {politicians.map((politician) => {
+          const qid = politician.wikidata_id!
+          const properties = displayPropertiesByPolitician.get(qid) || []
 
-        <div ref={propertiesRef}>
-          <PropertiesEvaluation
-            properties={displayProperties}
-            onAction={handleAction}
-            onShowArchived={handleShowArchived}
-            onHover={handlePropertyHover}
-            activeArchivedPageId={selectedArchivedPage?.id || null}
-            onAddProperty={handleAddProperty}
-          />
-        </div>
+          return (
+            <div key={qid} className="mb-8">
+              <div className="mb-6">
+                <PoliticianHeader name={politician.name} wikidataId={qid} />
+              </div>
+
+              <PropertiesEvaluation
+                properties={properties}
+                onAction={(id, action) => handleAction(qid, id, action)}
+                onShowArchived={handleShowArchived}
+                onHover={handlePropertyHover}
+                activeArchivedPageId={selectedArchivedPage?.id || null}
+                onAddProperty={(item) => handleAddProperty(qid, item)}
+              />
+            </div>
+          )
+        })}
       </div>
 
-      <div className="p-6 border-t border-border">{footer(actions)}</div>
+      <div className="p-6 border-t border-border">{footer(actionsByPolitician)}</div>
     </div>
   )
 

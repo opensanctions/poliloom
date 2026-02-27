@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { TwoPanel } from '@/components/layout/TwoPanel'
 import { Button } from '@/components/ui/Button'
 import { CenteredCard } from '@/components/ui/CenteredCard'
-import { PoliticianEvaluationView } from '@/components/evaluation/PoliticianEvaluationView'
+import { EvaluationView } from '@/components/evaluation/EvaluationView'
 import { PoliticianHeader } from '@/components/evaluation/PoliticianHeader'
 import { ArchivedPageViewer } from '@/components/evaluation/ArchivedPageViewer'
 import { PropertiesEvaluation } from '@/components/evaluation/PropertiesEvaluation'
@@ -318,23 +318,26 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   if (step === 5) {
     // Interactive: birth date evaluation
     return (
-      <PoliticianEvaluationView
+      <EvaluationView
         key={`birth-date-${birthDateKey}`}
-        politician={birthDatePolitician}
-        footer={(actions) => (
-          <TutorialFooter
-            skipHref={startHref}
-            onSkip={() => startSession()}
-            actions={actions}
-            requiredKeys={Object.keys(birthDateExpected)}
-            onSubmit={() => {
-              const result = checkEvaluations(actions, birthDateExpected)
-              setBirthDateResult(result)
-              nextStep()
-            }}
-            onBack={() => setStep(4)}
-          />
-        )}
+        politicians={[birthDatePolitician]}
+        footer={(actionsByPolitician) => {
+          const actions = actionsByPolitician.get(birthDatePolitician.wikidata_id!) || []
+          return (
+            <TutorialFooter
+              skipHref={startHref}
+              onSkip={() => startSession()}
+              actions={actions}
+              requiredKeys={Object.keys(birthDateExpected)}
+              onSubmit={() => {
+                const result = checkEvaluations(actions, birthDateExpected)
+                setBirthDateResult(result)
+                nextStep()
+              }}
+              onBack={() => setStep(4)}
+            />
+          )
+        }}
         archivedPagesApiPath="/api/tutorial-pages"
       />
     )
@@ -386,23 +389,26 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   if (step === 8) {
     // Interactive: positions evaluation
     return (
-      <PoliticianEvaluationView
+      <EvaluationView
         key={`multiple-sources-${multipleSourcesKey}`}
-        politician={multipleSourcesPolitician}
-        footer={(actions) => (
-          <TutorialFooter
-            skipHref={startHref}
-            onSkip={() => startSession()}
-            actions={actions}
-            requiredKeys={Object.keys(multipleSourcesExpected)}
-            onSubmit={() => {
-              const result = checkEvaluations(actions, multipleSourcesExpected)
-              setMultipleSourcesResult(result)
-              nextStep()
-            }}
-            onBack={() => setStep(7)}
-          />
-        )}
+        politicians={[multipleSourcesPolitician]}
+        footer={(actionsByPolitician) => {
+          const actions = actionsByPolitician.get(multipleSourcesPolitician.wikidata_id!) || []
+          return (
+            <TutorialFooter
+              skipHref={startHref}
+              onSkip={() => startSession()}
+              actions={actions}
+              requiredKeys={Object.keys(multipleSourcesExpected)}
+              onSubmit={() => {
+                const result = checkEvaluations(actions, multipleSourcesExpected)
+                setMultipleSourcesResult(result)
+                nextStep()
+              }}
+              onBack={() => setStep(7)}
+            />
+          )
+        }}
         archivedPagesApiPath="/api/tutorial-pages"
       />
     )
@@ -454,23 +460,26 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   if (step === 11) {
     // Interactive: generic vs specific evaluation
     return (
-      <PoliticianEvaluationView
+      <EvaluationView
         key={`generic-vs-specific-${genericVsSpecificKey}`}
-        politician={genericVsSpecificPolitician}
-        footer={(actions) => (
-          <TutorialFooter
-            skipHref={startHref}
-            onSkip={() => startSession()}
-            actions={actions}
-            requiredKeys={genericVsSpecificRequiredKeys}
-            onSubmit={() => {
-              const result = checkEvaluations(actions, genericVsSpecificExpected)
-              setGenericVsSpecificResult(result)
-              nextStep()
-            }}
-            onBack={() => setStep(10)}
-          />
-        )}
+        politicians={[genericVsSpecificPolitician]}
+        footer={(actionsByPolitician) => {
+          const actions = actionsByPolitician.get(genericVsSpecificPolitician.wikidata_id!) || []
+          return (
+            <TutorialFooter
+              skipHref={startHref}
+              onSkip={() => startSession()}
+              actions={actions}
+              requiredKeys={genericVsSpecificRequiredKeys}
+              onSubmit={() => {
+                const result = checkEvaluations(actions, genericVsSpecificExpected)
+                setGenericVsSpecificResult(result)
+                nextStep()
+              }}
+              onBack={() => setStep(10)}
+            />
+          )
+        }}
         archivedPagesApiPath="/api/tutorial-pages"
       />
     )
@@ -598,22 +607,25 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       )
     }
     return (
-      <PoliticianEvaluationView
+      <EvaluationView
         key={`deprecate-simple-${deprecateSimpleKey}`}
-        politician={deprecateSimplePolitician}
-        footer={(actions) => (
-          <TutorialFooter
-            skipHref={startHref}
-            onSkip={() => startSession()}
-            actions={actions}
-            requiredKeys={deprecateSimpleRequiredKeys}
-            onSubmit={() => {
-              const result = checkEvaluations(actions, deprecateSimpleExpected)
-              setDeprecateSimpleResult(result)
-            }}
-            onBack={() => setStep(15)}
-          />
-        )}
+        politicians={[deprecateSimplePolitician]}
+        footer={(actionsByPolitician) => {
+          const actions = actionsByPolitician.get(deprecateSimplePolitician.wikidata_id!) || []
+          return (
+            <TutorialFooter
+              skipHref={startHref}
+              onSkip={() => startSession()}
+              actions={actions}
+              requiredKeys={deprecateSimpleRequiredKeys}
+              onSubmit={() => {
+                const result = checkEvaluations(actions, deprecateSimpleExpected)
+                setDeprecateSimpleResult(result)
+              }}
+              onBack={() => setStep(15)}
+            />
+          )
+        }}
         archivedPagesApiPath="/api/tutorial-pages"
       />
     )
@@ -668,22 +680,26 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       )
     }
     return (
-      <PoliticianEvaluationView
+      <EvaluationView
         key={`deprecate-metadata-${deprecateWithMetadataKey}`}
-        politician={deprecateWithMetadataPolitician}
-        footer={(actions) => (
-          <TutorialFooter
-            skipHref={startHref}
-            onSkip={() => startSession()}
-            actions={actions}
-            requiredKeys={deprecateWithMetadataRequiredKeys}
-            onSubmit={() => {
-              const result = checkEvaluations(actions, deprecateWithMetadataExpected)
-              setDeprecateWithMetadataResult(result)
-            }}
-            onBack={() => setStep(17)}
-          />
-        )}
+        politicians={[deprecateWithMetadataPolitician]}
+        footer={(actionsByPolitician) => {
+          const actions =
+            actionsByPolitician.get(deprecateWithMetadataPolitician.wikidata_id!) || []
+          return (
+            <TutorialFooter
+              skipHref={startHref}
+              onSkip={() => startSession()}
+              actions={actions}
+              requiredKeys={deprecateWithMetadataRequiredKeys}
+              onSubmit={() => {
+                const result = checkEvaluations(actions, deprecateWithMetadataExpected)
+                setDeprecateWithMetadataResult(result)
+              }}
+              onBack={() => setStep(17)}
+            />
+          )
+        }}
         archivedPagesApiPath="/api/tutorial-pages"
       />
     )
