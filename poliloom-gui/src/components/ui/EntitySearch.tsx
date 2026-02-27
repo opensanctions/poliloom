@@ -1,15 +1,18 @@
 'use client'
 
-import { useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
-import { useEntitySearch } from '@/hooks/useEntitySearch'
+
+interface Entity {
+  wikidata_id: string
+  name: string
+  description?: string
+}
 
 export interface EntitySearchProps {
   searchEndpoint: string
   onSelect: (entity: { wikidata_id: string; name: string }) => void
-  onClear: () => void
-  selectedEntity: { wikidata_id: string; name: string } | null
   placeholder?: string
   disabled?: boolean
 }
@@ -17,13 +20,13 @@ export interface EntitySearchProps {
 export function EntitySearch({
   searchEndpoint,
   onSelect,
-  onClear,
-  selectedEntity,
   placeholder = 'Search...',
   disabled = false,
 }: EntitySearchProps) {
-  const { query, setQuery, results, isLoading, isOpen, setIsOpen, clear } =
-    useEntitySearch(searchEndpoint)
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<Entity[]>([])
+  const [isOpen, setIsOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -36,26 +39,44 @@ export function EntitySearch({
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [setIsOpen])
+  }, [])
 
-  if (selectedEntity) {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="text-foreground">
-          {selectedEntity.name}{' '}
-          <span className="text-foreground-muted text-sm">({selectedEntity.wikidata_id})</span>
-        </span>
-        <button
-          type="button"
-          onClick={onClear}
-          disabled={disabled}
-          className="text-foreground-muted hover:text-foreground text-sm"
-        >
-          Clear
-        </button>
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (query.length === 0) {
+      setResults([])
+      setIsOpen(false)
+      return
+    }
+
+    let cancelled = false
+
+    async function search() {
+      setIsLoading(true)
+      try {
+        const res = await fetch(`${searchEndpoint}?q=${encodeURIComponent(query)}`)
+        if (!res.ok) throw new Error('Search failed')
+        const data = await res.json()
+        if (!cancelled) {
+          setResults(data)
+          setIsOpen(true)
+        }
+      } catch {
+        if (!cancelled) {
+          setResults([])
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    search()
+
+    return () => {
+      cancelled = true
+    }
+  }, [query, searchEndpoint])
 
   return (
     <div ref={containerRef} className="relative">
@@ -87,7 +108,9 @@ export function EntitySearch({
               aria-selected={false}
               onClick={() => {
                 onSelect({ wikidata_id: entity.wikidata_id, name: entity.name })
-                clear()
+                setQuery('')
+                setResults([])
+                setIsOpen(false)
               }}
               className="px-3 py-2 cursor-pointer hover:bg-accent-muted"
             >

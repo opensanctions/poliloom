@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { PropertyType, CreatePropertyItem } from '@/types'
 import { Button } from '@/components/ui/Button'
-import { EntitySearch } from '@/components/ui/EntitySearch'
+import { EntitySelector } from '@/components/ui/EntitySelector'
 
 interface AddEntityPropertyFormProps {
   type: PropertyType.P19 | PropertyType.P27
@@ -43,7 +43,7 @@ export function AddEntityPropertyForm({ type, onAdd, onCancel }: AddEntityProper
 
   return (
     <div className="border border-border rounded-lg px-6 py-5 space-y-3">
-      <EntitySearch
+      <EntitySelector
         searchEndpoint={SEARCH_ENDPOINTS[type]}
         onSelect={setSelectedEntity}
         onClear={() => setSelectedEntity(null)}

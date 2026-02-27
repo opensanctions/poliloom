@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { PropertyType, CreatePropertyItem, PropertyQualifiers } from '@/types'
 import { Button } from '@/components/ui/Button'
-import { EntitySearch } from '@/components/ui/EntitySearch'
+import { EntitySelector } from '@/components/ui/EntitySelector'
 import {
   DatePrecisionPicker,
   DatePrecisionValue,
@@ -63,7 +63,7 @@ export function AddPositionPropertyForm({ onAdd, onCancel }: AddPositionProperty
 
   return (
     <div className="border border-border rounded-lg px-6 py-5 space-y-3">
-      <EntitySearch
+      <EntitySelector
         searchEndpoint="/api/positions/search"
         onSelect={setSelectedEntity}
         onClear={() => setSelectedEntity(null)}

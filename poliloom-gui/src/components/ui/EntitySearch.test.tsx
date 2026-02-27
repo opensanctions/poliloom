@@ -21,7 +21,6 @@ function mockFetchFailure() {
 
 describe('EntitySearch', () => {
   const mockOnSelect = vi.fn()
-  const mockOnClear = vi.fn()
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -32,8 +31,6 @@ describe('EntitySearch', () => {
       <EntitySearch
         searchEndpoint="/api/locations/search"
         onSelect={mockOnSelect}
-        onClear={mockOnClear}
-        selectedEntity={null}
         placeholder="Search for a location..."
       />,
     )
@@ -44,14 +41,7 @@ describe('EntitySearch', () => {
   it('shows search results when typing', async () => {
     mockFetchSuccess()
 
-    render(
-      <EntitySearch
-        searchEndpoint="/api/locations/search"
-        onSelect={mockOnSelect}
-        onClear={mockOnClear}
-        selectedEntity={null}
-      />,
-    )
+    render(<EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />)
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Ber' } })
 
@@ -66,14 +56,7 @@ describe('EntitySearch', () => {
   it('shows description and QID in results', async () => {
     mockFetchSuccess()
 
-    render(
-      <EntitySearch
-        searchEndpoint="/api/locations/search"
-        onSelect={mockOnSelect}
-        onClear={mockOnClear}
-        selectedEntity={null}
-      />,
-    )
+    render(<EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />)
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Ber' } })
 
@@ -85,14 +68,7 @@ describe('EntitySearch', () => {
   it('calls onSelect when a result is clicked', async () => {
     mockFetchSuccess()
 
-    render(
-      <EntitySearch
-        searchEndpoint="/api/locations/search"
-        onSelect={mockOnSelect}
-        onClear={mockOnClear}
-        selectedEntity={null}
-      />,
-    )
+    render(<EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />)
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Ber' } })
 
@@ -105,49 +81,13 @@ describe('EntitySearch', () => {
     expect(mockOnSelect).toHaveBeenCalledWith({ wikidata_id: 'Q64', name: 'Berlin' })
   })
 
-  it('shows selected entity with clear button', () => {
-    render(
-      <EntitySearch
-        searchEndpoint="/api/locations/search"
-        onSelect={mockOnSelect}
-        onClear={mockOnClear}
-        selectedEntity={{ wikidata_id: 'Q64', name: 'Berlin' }}
-      />,
-    )
-
-    expect(screen.getByText('Berlin')).toBeInTheDocument()
-    expect(screen.getByText('(Q64)')).toBeInTheDocument()
-    expect(screen.getByText('Clear')).toBeInTheDocument()
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-  })
-
-  it('calls onClear when clear button is clicked', () => {
-    render(
-      <EntitySearch
-        searchEndpoint="/api/locations/search"
-        onSelect={mockOnSelect}
-        onClear={mockOnClear}
-        selectedEntity={{ wikidata_id: 'Q64', name: 'Berlin' }}
-      />,
-    )
-
-    fireEvent.click(screen.getByText('Clear'))
-
-    expect(mockOnClear).toHaveBeenCalledTimes(1)
-  })
-
   it('closes dropdown on click outside', async () => {
     mockFetchSuccess()
 
     render(
       <div>
         <div data-testid="outside">Outside</div>
-        <EntitySearch
-          searchEndpoint="/api/locations/search"
-          onSelect={mockOnSelect}
-          onClear={mockOnClear}
-          selectedEntity={null}
-        />
+        <EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />
       </div>,
     )
 
@@ -165,14 +105,7 @@ describe('EntitySearch', () => {
   })
 
   it('does not show dropdown when query is empty', () => {
-    render(
-      <EntitySearch
-        searchEndpoint="/api/locations/search"
-        onSelect={mockOnSelect}
-        onClear={mockOnClear}
-        selectedEntity={null}
-      />,
-    )
+    render(<EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />)
 
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
@@ -180,14 +113,7 @@ describe('EntitySearch', () => {
   it('handles fetch errors gracefully', async () => {
     mockFetchFailure()
 
-    render(
-      <EntitySearch
-        searchEndpoint="/api/locations/search"
-        onSelect={mockOnSelect}
-        onClear={mockOnClear}
-        selectedEntity={null}
-      />,
-    )
+    render(<EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />)
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Ber' } })
 
