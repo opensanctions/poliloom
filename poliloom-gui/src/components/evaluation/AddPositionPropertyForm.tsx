@@ -51,7 +51,7 @@ export function AddPositionPropertyForm({ onAdd, onCancel }: AddPositionProperty
 
     const property: CreatePropertyItem = {
       action: 'create',
-      key: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: crypto.randomUUID(),
       type: PropertyType.P39,
       entity_id: selectedEntity.wikidata_id,
       entity_name: selectedEntity.name,

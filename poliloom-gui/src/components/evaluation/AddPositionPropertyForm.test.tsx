@@ -102,7 +102,7 @@ describe('AddPositionPropertyForm', () => {
     expect(property.entity_id).toBe('Q30185')
     expect(property.entity_name).toBe('Mayor')
     expect(property.qualifiers).toBeUndefined()
-    expect(property.key).toMatch(/^new-/)
+    expect(property.id).toMatch(/^[0-9a-f]{8}-/)
   })
 
   it('includes start date qualifier when provided', async () => {

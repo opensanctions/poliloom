@@ -38,8 +38,7 @@ export interface PropertyReference {
 }
 
 export interface Property {
-  key: string // Used for React keys and Map lookups
-  id?: string // Optional: Present for backend properties, absent for manually added properties
+  id: string
   type: PropertyType
   value?: string
   value_precision?: number
@@ -49,6 +48,7 @@ export interface Property {
   qualifiers?: PropertyQualifiers
   references?: Array<Record<string, unknown>>
   sources: PropertyReference[]
+  userAdded?: boolean // true for properties manually added by user on the client
   evaluation?: boolean // undefined = not evaluated, true = accepted, false = rejected (derived from action list)
 }
 
@@ -81,7 +81,7 @@ export interface RejectPropertyItem {
 
 export interface CreatePropertyItem {
   action: 'create'
-  key: string
+  id: string // Temporary client-side ID, stripped before submission
   type: string
   value?: string
   value_precision?: number

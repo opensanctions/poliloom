@@ -21,7 +21,6 @@ const mockArchivedPage = {
 }
 
 const baseProperty: Property = {
-  key: 'test-1',
   id: 'test-1',
   type: PropertyType.P569,
   statement_id: null,
@@ -280,7 +279,7 @@ describe('PropertyDisplay', () => {
     it('shows Remove button instead of Reject and hides Accept', () => {
       const property: Property = {
         ...baseProperty,
-        id: undefined, // user-added
+        userAdded: true,
         evaluation: true,
         sources: [],
       }
@@ -297,7 +296,7 @@ describe('PropertyDisplay', () => {
     it('calls onAction with reject when Remove is clicked', () => {
       const property: Property = {
         ...baseProperty,
-        id: undefined,
+        userAdded: true,
         evaluation: true,
         sources: [],
       }

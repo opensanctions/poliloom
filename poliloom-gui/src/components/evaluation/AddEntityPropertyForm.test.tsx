@@ -106,7 +106,7 @@ describe('AddEntityPropertyForm', () => {
     expect(property.type).toBe(PropertyType.P19)
     expect(property.entity_id).toBe('Q64')
     expect(property.entity_name).toBe('Berlin')
-    expect(property.key).toMatch(/^new-/)
+    expect(property.id).toMatch(/^[0-9a-f]{8}-/)
   })
 
   it('calls onAdd with correct citizenship property after search and select', async () => {

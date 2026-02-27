@@ -26,7 +26,7 @@ export function AddDatePropertyForm({ onAdd, onCancel }: AddDatePropertyFormProp
 
     const property: CreatePropertyItem = {
       action: 'create',
-      key: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: crypto.randomUUID(),
       type,
       value: formatWikidataDate(date),
       value_precision: inferPrecision(date),

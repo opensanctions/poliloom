@@ -16,11 +16,5 @@ export default async function PoliticianPage({ params }: { params: Promise<{ qid
 
   const politician: Politician = await response.json()
 
-  // API properties always have id; set key (used for React keys and client-side lookups)
-  politician.properties = politician.properties.map((prop) => ({
-    ...prop,
-    key: prop.id!,
-  }))
-
   return <PoliticianEvaluation politician={politician} />
 }

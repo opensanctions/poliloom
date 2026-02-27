@@ -32,7 +32,7 @@ export function AddEntityPropertyForm({ type, onAdd, onCancel }: AddEntityProper
 
     const property: CreatePropertyItem = {
       action: 'create',
-      key: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: crypto.randomUUID(),
       type,
       entity_id: selectedEntity.wikidata_id,
       entity_name: selectedEntity.name,

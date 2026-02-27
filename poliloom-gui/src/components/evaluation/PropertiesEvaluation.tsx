@@ -269,7 +269,7 @@ export function PropertiesEvaluation({
                   }}
                 >
                   {item.properties.map((property, index) => (
-                    <Fragment key={property.key}>
+                    <Fragment key={property.id}>
                       {index > 0 && <hr className="border-border-muted my-3" />}
                       <PropertyDisplay
                         property={property}

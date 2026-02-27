@@ -51,7 +51,7 @@ describe('AddDatePropertyForm', () => {
     expect(property.type).toBe(PropertyType.P569)
     expect(property.value).toBe('+1990-05-15T00:00:00Z')
     expect(property.value_precision).toBe(11)
-    expect(property.key).toMatch(/^new-/)
+    expect(property.id).toMatch(/^[0-9a-f]{8}-/)
   })
 
   it('infers month precision when day is omitted', () => {

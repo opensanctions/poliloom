@@ -34,7 +34,7 @@ export function PropertyDisplay({
   const hasReferences = property.references && property.references.length > 0
 
   const isWikidataStatement = !!property.statement_id
-  const isUserAdded = !property.id
+  const isUserAdded = !!property.userAdded
   const isAccepted = property.evaluation ?? null
   const isSourceVisible =
     property.sources.length === 0 ||
@@ -148,7 +148,7 @@ export function PropertyDisplay({
                   size="small"
                   variant="success"
                   active={isAccepted === true}
-                  onClick={() => onAction?.(property.key, 'accept')}
+                  onClick={() => onAction?.(property.id, 'accept')}
                   title="Mark this data as correct and submit it to Wikidata"
                 >
                   ✓ Accept
@@ -158,7 +158,7 @@ export function PropertyDisplay({
                 size="small"
                 variant={isWikidataStatement && isAccepted !== false ? 'secondary' : 'danger'}
                 active={!isUserAdded && isAccepted === false}
-                onClick={() => onAction?.(property.key, 'reject')}
+                onClick={() => onAction?.(property.id, 'reject')}
                 className={
                   isWikidataStatement && isAccepted !== false
                     ? '!text-foreground-muted !bg-surface-hover hover:!bg-surface-active'

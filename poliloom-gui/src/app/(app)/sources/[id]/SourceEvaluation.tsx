@@ -7,7 +7,7 @@ import {
   PatchPropertiesResponse,
   PropertyActionItem,
 } from '@/types'
-import { stripCreateKeys } from '@/lib/evaluation'
+import { stripCreateIds } from '@/lib/evaluation'
 import { Button } from '@/components/ui/Button'
 import { SourceEvaluationView } from '@/components/evaluation/SourceEvaluationView'
 
@@ -25,7 +25,7 @@ export function SourceEvaluation({ source }: SourceEvaluationProps) {
 
     for (const [qid, actions] of actionsByPolitician) {
       if (actions.length > 0) {
-        items[qid] = stripCreateKeys(actions)
+        items[qid] = stripCreateIds(actions)
       }
     }
 
