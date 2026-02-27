@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 
-export function Header({ children }: { children?: React.ReactNode }) {
+export function Header({ left, right }: { left?: React.ReactNode; right?: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
@@ -18,17 +18,20 @@ export function Header({ children }: { children?: React.ReactNode }) {
 
   return (
     <header className="flex justify-between items-center h-16 px-6 bg-surface shadow-sm border-b border-border sticky top-0 z-10">
-      <Link href="/" className="flex items-center gap-2 text-xl font-bold text-foreground">
-        <Image
-          src="https://assets.opensanctions.org/images/ep/logo-icon-color.svg"
-          alt="European Parliament"
-          width={32}
-          height={32}
-          className="h-8 w-8"
-          priority
-        />
-        PoliLoom
-      </Link>
+      <div className="flex items-center gap-4">
+        <Link href="/" className="flex items-center gap-2 text-xl font-bold text-foreground">
+          <Image
+            src="https://assets.opensanctions.org/images/ep/logo-icon-color.svg"
+            alt="European Parliament"
+            width={32}
+            height={32}
+            className="h-8 w-8"
+            priority
+          />
+          PoliLoom
+        </Link>
+        {left}
+      </div>
 
       <button
         className="md:hidden flex flex-col justify-center gap-[5px] w-10 h-10 p-2 -mr-2"
@@ -52,7 +55,7 @@ export function Header({ children }: { children?: React.ReactNode }) {
         id="main-nav"
         className={`flex items-center gap-4 max-md:fixed max-md:inset-0 max-md:top-16 max-md:flex-col max-md:items-stretch max-md:gap-0 max-md:bg-surface max-md:pt-4 ${menuOpen ? '' : 'max-md:hidden'}`}
       >
-        {children}
+        {right}
       </nav>
     </header>
   )

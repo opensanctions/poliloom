@@ -1,14 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useRef, useEffect } from 'react'
 import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
-
-interface Entity {
-  wikidata_id: string
-  name: string
-  description?: string
-}
+import { useEntitySearch } from '@/hooks/useEntitySearch'
 
 export interface EntitySearchProps {
   searchEndpoint: string
@@ -27,10 +22,8 @@ export function EntitySearch({
   placeholder = 'Search...',
   disabled = false,
 }: EntitySearchProps) {
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState<Entity[]>([])
-  const [isOpen, setIsOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const { query, setQuery, results, isLoading, isOpen, setIsOpen, clear } =
+    useEntitySearch(searchEndpoint)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -43,44 +36,7 @@ export function EntitySearch({
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  useEffect(() => {
-    if (query.length === 0) {
-      setResults([])
-      setIsOpen(false)
-      return
-    }
-
-    let cancelled = false
-
-    async function search() {
-      setIsLoading(true)
-      try {
-        const res = await fetch(`${searchEndpoint}?q=${encodeURIComponent(query)}`)
-        if (!res.ok) throw new Error('Search failed')
-        const data = await res.json()
-        if (!cancelled) {
-          setResults(data)
-          setIsOpen(true)
-        }
-      } catch {
-        if (!cancelled) {
-          setResults([])
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    search()
-
-    return () => {
-      cancelled = true
-    }
-  }, [query, searchEndpoint])
+  }, [setIsOpen])
 
   if (selectedEntity) {
     return (
@@ -131,9 +87,7 @@ export function EntitySearch({
               aria-selected={false}
               onClick={() => {
                 onSelect({ wikidata_id: entity.wikidata_id, name: entity.name })
-                setQuery('')
-                setResults([])
-                setIsOpen(false)
+                clear()
               }}
               className="px-3 py-2 cursor-pointer hover:bg-accent-muted"
             >

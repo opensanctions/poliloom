@@ -5,10 +5,14 @@ import { AuthButton } from '@/components/layout/AuthButton'
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <Header>
-        <ThemeToggle />
-        <AuthButton />
-      </Header>
+      <Header
+        right={
+          <>
+            <ThemeToggle />
+            <AuthButton />
+          </>
+        }
+      />
       {children}
     </>
   )
