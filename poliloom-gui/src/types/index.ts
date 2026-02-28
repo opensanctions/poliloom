@@ -111,6 +111,18 @@ export interface PatchPropertiesResponse {
   errors: string[]
 }
 
+export interface CreatePoliticianRequest {
+  name: string
+  items: CreatePropertyItem[]
+}
+
+export interface CreatePoliticianResponse {
+  success: boolean
+  wikidata_id?: string
+  message: string
+  errors: string[]
+}
+
 export interface WikidataEntity {
   wikidata_id: string
   name: string

@@ -80,7 +80,7 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
   }
 
   const getActions = (actionsByPolitician: Map<string, PropertyActionItem[]>) =>
-    actionsByPolitician.get(politician.wikidata_id!) || []
+    actionsByPolitician.get(politician.id) || []
 
   // Session mode footer
   const sessionFooter = (actionsByPolitician: Map<string, PropertyActionItem[]>) => {

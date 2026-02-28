@@ -122,8 +122,8 @@ class PatchPropertiesRequest(BaseModel):
 class SourcePatchPropertiesRequest(BaseModel):
     """Request body for PATCH /archived-pages/{id}/properties.
 
-    Items keyed by politician QID, e.g.:
-    {"Q123": [{"action": "accept", "id": "..."}, ...]}
+    Items keyed by politician ID (UUID), e.g.:
+    {"uuid-here": [{"action": "accept", "id": "..."}, ...]}
     """
 
     items: Dict[str, List[PropertyActionItem]]
@@ -133,6 +133,22 @@ class PatchPropertiesResponse(BaseModel):
     """Response for property evaluation endpoints."""
 
     success: bool
+    message: str
+    errors: List[str] = []
+
+
+class CreatePoliticianRequest(BaseModel):
+    """Request body for POST /politicians."""
+
+    name: str
+    items: List[CreatePropertyItem]
+
+
+class CreatePoliticianResponse(BaseModel):
+    """Response for POST /politicians."""
+
+    success: bool
+    wikidata_id: Optional[str] = None
     message: str
     errors: List[str] = []
 

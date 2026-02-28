@@ -238,7 +238,7 @@ class TestPatchSourceProperties:
 
         data = {
             "items": {
-                "Q123456": [
+                str(sample_politician.id): [
                     {"action": "accept", "id": str(prop1.id)},
                     {"action": "reject", "id": str(prop2.id)},
                 ]
@@ -255,7 +255,7 @@ class TestPatchSourceProperties:
         assert "2 items" in result["message"]
 
     @patch("poliloom.api.politicians.push_evaluation")
-    def test_create_works_with_politician_qid(
+    def test_create_works_with_politician_id(
         self,
         mock_push_evaluation,
         client,
@@ -263,12 +263,12 @@ class TestPatchSourceProperties:
         sample_politician,
         sample_archived_page,
     ):
-        """Test creating a property via source endpoint using QID key."""
+        """Test creating a property via source endpoint using politician ID key."""
         mock_push_evaluation.return_value = True
 
         data = {
             "items": {
-                "Q123456": [
+                str(sample_politician.id): [
                     {
                         "action": "create",
                         "type": "P569",
@@ -314,8 +314,8 @@ class TestPatchSourceProperties:
 
         data = {
             "items": {
-                "Q123456": [{"action": "accept", "id": str(prop1.id)}],
-                "Q789012": [{"action": "reject", "id": str(prop2.id)}],
+                str(sample_politician.id): [{"action": "accept", "id": str(prop1.id)}],
+                str(politician2.id): [{"action": "reject", "id": str(prop2.id)}],
             }
         }
         response = client.patch(
@@ -331,10 +331,11 @@ class TestPatchSourceProperties:
     def test_create_with_nonexistent_politician(
         self, client, mock_auth, sample_archived_page
     ):
-        """Test create with a QID that doesn't exist."""
+        """Test create with a politician ID that doesn't exist."""
+        fake_id = "00000000-0000-0000-0000-000000000000"
         data = {
             "items": {
-                "Q999999": [
+                fake_id: [
                     {
                         "action": "create",
                         "type": "P569",
@@ -351,4 +352,4 @@ class TestPatchSourceProperties:
         )
         assert response.status_code == 200
         result = response.json()
-        assert any("Q999999 not found" in e for e in result["errors"])
+        assert any(f"{fake_id} not found" in e for e in result["errors"])

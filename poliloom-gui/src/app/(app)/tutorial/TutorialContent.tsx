@@ -322,7 +322,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         key={`birth-date-${birthDateKey}`}
         politicians={[birthDatePolitician]}
         footer={(actionsByPolitician) => {
-          const actions = actionsByPolitician.get(birthDatePolitician.wikidata_id!) || []
+          const actions = actionsByPolitician.get(birthDatePolitician.id) || []
           return (
             <TutorialFooter
               skipHref={startHref}
@@ -393,7 +393,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         key={`multiple-sources-${multipleSourcesKey}`}
         politicians={[multipleSourcesPolitician]}
         footer={(actionsByPolitician) => {
-          const actions = actionsByPolitician.get(multipleSourcesPolitician.wikidata_id!) || []
+          const actions = actionsByPolitician.get(multipleSourcesPolitician.id) || []
           return (
             <TutorialFooter
               skipHref={startHref}
@@ -464,7 +464,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         key={`generic-vs-specific-${genericVsSpecificKey}`}
         politicians={[genericVsSpecificPolitician]}
         footer={(actionsByPolitician) => {
-          const actions = actionsByPolitician.get(genericVsSpecificPolitician.wikidata_id!) || []
+          const actions = actionsByPolitician.get(genericVsSpecificPolitician.id) || []
           return (
             <TutorialFooter
               skipHref={startHref}
@@ -611,7 +611,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         key={`deprecate-simple-${deprecateSimpleKey}`}
         politicians={[deprecateSimplePolitician]}
         footer={(actionsByPolitician) => {
-          const actions = actionsByPolitician.get(deprecateSimplePolitician.wikidata_id!) || []
+          const actions = actionsByPolitician.get(deprecateSimplePolitician.id) || []
           return (
             <TutorialFooter
               skipHref={startHref}
@@ -684,8 +684,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         key={`deprecate-metadata-${deprecateWithMetadataKey}`}
         politicians={[deprecateWithMetadataPolitician]}
         footer={(actionsByPolitician) => {
-          const actions =
-            actionsByPolitician.get(deprecateWithMetadataPolitician.wikidata_id!) || []
+          const actions = actionsByPolitician.get(deprecateWithMetadataPolitician.id) || []
           return (
             <TutorialFooter
               skipHref={startHref}

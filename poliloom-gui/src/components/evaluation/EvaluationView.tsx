@@ -33,7 +33,7 @@ export function EvaluationView({
     () => {
       const map = new Map<string, PropertyActionItem[]>()
       for (const politician of politicians) {
-        map.set(politician.wikidata_id!, [])
+        map.set(politician.id, [])
       }
       return map
     },
@@ -42,8 +42,8 @@ export function EvaluationView({
   const displayPropertiesByPolitician = useMemo(() => {
     const result = new Map<string, Property[]>()
     for (const politician of politicians) {
-      const qid = politician.wikidata_id!
-      const actions = actionsByPolitician.get(qid) || []
+      const key = politician.id
+      const actions = actionsByPolitician.get(key) || []
       const originals = politician.properties.map((p) => ({
         ...p,
         evaluation: actionToEvaluation(actions, p.id!),
@@ -51,7 +51,7 @@ export function EvaluationView({
       const added = actions
         .filter((a): a is CreatePropertyItem => a.action === 'create')
         .map((a) => createPropertyFromAction(a))
-      result.set(qid, [...originals, ...added])
+      result.set(key, [...originals, ...added])
     }
     return result
   }, [politicians, actionsByPolitician])
@@ -81,20 +81,20 @@ export function EvaluationView({
     }
   }, [selectedQuotes, isIframeLoaded, handleQuotesChange])
 
-  const handleAction = (politicianQid: string, id: string, action: 'accept' | 'reject') => {
+  const handleAction = (politicianKey: string, id: string, action: 'accept' | 'reject') => {
     setActionsByPolitician((prev) => {
       const next = new Map(prev)
-      const actions = next.get(politicianQid) || []
-      next.set(politicianQid, applyAction(actions, id, action))
+      const actions = next.get(politicianKey) || []
+      next.set(politicianKey, applyAction(actions, id, action))
       return next
     })
   }
 
-  const handleAddProperty = (politicianQid: string, item: CreatePropertyItem) => {
+  const handleAddProperty = (politicianKey: string, item: CreatePropertyItem) => {
     setActionsByPolitician((prev) => {
       const next = new Map(prev)
-      const actions = next.get(politicianQid) || []
-      next.set(politicianQid, [...actions, item])
+      const actions = next.get(politicianKey) || []
+      next.set(politicianKey, [...actions, item])
       return next
     })
   }
@@ -119,22 +119,25 @@ export function EvaluationView({
     <div className="grid grid-rows-[1fr_auto] h-full">
       <div className="overflow-y-auto min-h-0 p-6" ref={propertiesRef}>
         {politicians.map((politician) => {
-          const qid = politician.wikidata_id!
-          const properties = displayPropertiesByPolitician.get(qid) || []
+          const key = politician.id
+          const properties = displayPropertiesByPolitician.get(key) || []
 
           return (
-            <div key={qid} className="mb-8">
+            <div key={key} className="mb-8">
               <div className="mb-6">
-                <PoliticianHeader name={politician.name} wikidataId={qid} />
+                <PoliticianHeader
+                  name={politician.name}
+                  wikidataId={politician.wikidata_id ?? undefined}
+                />
               </div>
 
               <PropertiesEvaluation
                 properties={properties}
-                onAction={(id, action) => handleAction(qid, id, action)}
+                onAction={(id, action) => handleAction(key, id, action)}
                 onShowArchived={handleShowArchived}
                 onHover={handlePropertyHover}
                 activeArchivedPageId={selectedArchivedPage?.id || null}
-                onAddProperty={(item) => handleAddProperty(qid, item)}
+                onAddProperty={(item) => handleAddProperty(key, item)}
               />
             </div>
           )

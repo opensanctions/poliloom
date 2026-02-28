@@ -22,9 +22,9 @@ export function SourceEvaluation({ source }: SourceEvaluationProps) {
 
     const items: Record<string, PropertyActionItem[]> = {}
 
-    for (const [qid, actions] of actionsByPolitician) {
+    for (const [id, actions] of actionsByPolitician) {
       if (actions.length > 0) {
-        items[qid] = actions
+        items[id] = actions
       }
     }
 

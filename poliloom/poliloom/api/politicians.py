@@ -26,10 +26,12 @@ from ..models import (
     PropertyReference,
     PropertyType,
 )
-from ..wikidata_statement import push_evaluation
+from ..wikidata_statement import create_entity, create_statement, push_evaluation
 from .schemas import (
     AcceptPropertyItem,
     ArchivedPageResponse,
+    CreatePoliticianRequest,
+    CreatePoliticianResponse,
     CreatePropertyItem,
     EnrichmentMetadata,
     NextPoliticianResponse,
@@ -141,6 +143,69 @@ def _trigger_enrichment_if_needed(
 # =============================================================================
 # Endpoints
 # =============================================================================
+
+
+@router.post("", response_model=CreatePoliticianResponse)
+async def create_politician(
+    request: CreatePoliticianRequest,
+    db: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Create a new politician in Wikidata and the local database.
+
+    Creates a Wikidata entity, adds instance-of-human and occupation-politician
+    statements, then processes the provided property items.
+    """
+    errors = []
+    jwt_token = current_user.jwt_token
+
+    # 1. Create the Wikidata entity
+    try:
+        wikidata_id = await create_entity(request.name, jwt_token=jwt_token)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to create Wikidata entity: {str(e)}",
+        )
+
+    # 2. Add instance-of: human (P31 → Q5) and occupation: politician (P106 → Q82955)
+    base_statements = [
+        ("P31", {"type": "value", "content": "Q5"}),
+        ("P106", {"type": "value", "content": "Q82955"}),
+    ]
+    for prop_id, value in base_statements:
+        try:
+            await create_statement(wikidata_id, prop_id, value, jwt_token=jwt_token)
+        except Exception as e:
+            errors.append(f"Failed to add {prop_id} statement: {str(e)}")
+
+    # 3. Create the Politician row in the local DB
+    politician = Politician(name=request.name, wikidata_id=wikidata_id)
+    db.add(politician)
+    try:
+        db.commit()
+        db.refresh(politician)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error creating politician: {str(e)}",
+        )
+
+    # 4. Process property items (create properties + push to Wikidata)
+    if request.items:
+        result = await process_property_actions(
+            {str(politician.id): request.items}, db, current_user
+        )
+        errors.extend(result.errors)
+
+    return CreatePoliticianResponse(
+        success=True,
+        wikidata_id=wikidata_id,
+        message=f"Created politician '{request.name}' ({wikidata_id})",
+        errors=errors,
+    )
 
 
 @router.get("/next", response_model=NextPoliticianResponse)
@@ -331,7 +396,7 @@ async def process_property_actions(
     """Shared evaluation logic for both politician and source endpoints.
 
     Args:
-        items_by_politician: Property actions keyed by politician QID.
+        items_by_politician: Property actions keyed by politician ID (UUID).
             Accept/reject items only need the property ID (politician key is
             for grouping only). Create items use the key to look up the politician.
     """
@@ -339,17 +404,20 @@ async def process_property_actions(
     all_evaluations = []
 
     # Batch-load all politicians needed for create actions
-    all_qids = set(items_by_politician.keys())
-    politicians_by_qid = {}
-    if all_qids:
+    from uuid import UUID as _UUID
+
+    all_ids = set(items_by_politician.keys())
+    politicians_by_id = {}
+    if all_ids:
+        uuid_ids = [_UUID(pid) for pid in all_ids]
         results = (
-            db.execute(select(Politician).where(Politician.wikidata_id.in_(all_qids)))
+            db.execute(select(Politician).where(Politician.id.in_(uuid_ids)))
             .scalars()
             .all()
         )
-        politicians_by_qid = {p.wikidata_id: p for p in results}
+        politicians_by_id = {str(p.id): p for p in results}
 
-    for qid, items in items_by_politician.items():
+    for politician_id, items in items_by_politician.items():
         for item in items:
             try:
                 match item:
@@ -373,9 +441,9 @@ async def process_property_actions(
                             errors.append(f"Unknown property type: {item.type}")
                             continue
 
-                        politician = politicians_by_qid.get(qid)
+                        politician = politicians_by_id.get(politician_id)
                         if not politician:
-                            errors.append(f"Politician with QID {qid} not found")
+                            errors.append(f"Politician {politician_id} not found")
                             continue
 
                         new_property = Property(
@@ -469,4 +537,6 @@ async def patch_properties(
             detail=f"Politician with QID {qid} not found",
         )
 
-    return await process_property_actions({qid: request.items}, db, current_user)
+    return await process_property_actions(
+        {str(politician.id): request.items}, db, current_user
+    )
