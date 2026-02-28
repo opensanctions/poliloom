@@ -1,9 +1,12 @@
+import { Input } from '@/components/ui/Input'
+
 interface PoliticianHeaderProps {
   name: string
   wikidataId?: string
+  onNameChange?: (name: string) => void
 }
 
-export function PoliticianHeader({ name, wikidataId }: PoliticianHeaderProps) {
+export function PoliticianHeader({ name, wikidataId, onNameChange }: PoliticianHeaderProps) {
   if (wikidataId) {
     return (
       <h1 className="text-2xl font-bold text-foreground mb-2">
@@ -16,6 +19,16 @@ export function PoliticianHeader({ name, wikidataId }: PoliticianHeaderProps) {
           {name} <span className="text-foreground-muted font-normal">({wikidataId})</span>
         </a>
       </h1>
+    )
+  }
+
+  if (onNameChange) {
+    return (
+      <Input
+        value={name}
+        onChange={(e) => onNameChange(e.target.value)}
+        placeholder="Politician name"
+      />
     )
   }
 

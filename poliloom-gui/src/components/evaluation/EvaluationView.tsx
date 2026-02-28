@@ -22,12 +22,14 @@ interface EvaluationViewProps {
   politicians: Politician[]
   footer: (actionsByPolitician: Map<string, PropertyActionItem[]>) => ReactNode
   archivedPagesApiPath?: string
+  onNameChange?: (politicianId: string, name: string) => void
 }
 
 export function EvaluationView({
   politicians,
   footer,
   archivedPagesApiPath = '/api/archived-pages',
+  onNameChange,
 }: EvaluationViewProps) {
   const [actionsByPolitician, setActionsByPolitician] = useState<Map<string, PropertyActionItem[]>>(
     () => {
@@ -128,6 +130,9 @@ export function EvaluationView({
                 <PoliticianHeader
                   name={politician.name}
                   wikidataId={politician.wikidata_id ?? undefined}
+                  onNameChange={
+                    onNameChange ? (name) => onNameChange(politician.id, name) : undefined
+                  }
                 />
               </div>
 

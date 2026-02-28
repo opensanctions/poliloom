@@ -21,7 +21,7 @@ export default function CreatePoliticianPage() {
   const [syntheticId] = useState(() => crypto.randomUUID())
   const syntheticPolitician: Politician = {
     id: syntheticId,
-    name: name || 'New Politician',
+    name,
     wikidata_id: null,
     properties: [],
   }
@@ -81,14 +81,7 @@ export default function CreatePoliticianPage() {
     const hasCreateActions = actions.some((a) => a.action === 'create')
 
     return (
-      <div className="flex items-center gap-4">
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Politician name"
-          className="flex-1 px-4 py-2 border border-border rounded-lg bg-background text-foreground text-lg"
-        />
+      <div className="flex justify-end items-center">
         <Button
           onClick={() => handleSubmit(actionsByPolitician)}
           disabled={isSubmitting || !name.trim() || !hasCreateActions}
@@ -100,5 +93,11 @@ export default function CreatePoliticianPage() {
     )
   }
 
-  return <EvaluationView politicians={[syntheticPolitician]} footer={footer} />
+  return (
+    <EvaluationView
+      politicians={[syntheticPolitician]}
+      footer={footer}
+      onNameChange={(_, name) => setName(name)}
+    />
+  )
 }
