@@ -24,7 +24,7 @@ const baseProperty: Property = {
   id: 'test-1',
   type: PropertyType.P569,
   statement_id: null,
-  sources: [],
+  archived_pages: [],
 }
 
 describe('PropertyDisplay', () => {
@@ -139,7 +139,7 @@ describe('PropertyDisplay', () => {
     const property: Property = {
       ...baseProperty,
       statement_id: null,
-      sources: [
+      archived_pages: [
         {
           id: 'ref-1',
           archived_page: mockArchivedPage,
@@ -166,7 +166,7 @@ describe('PropertyDisplay', () => {
       ...baseProperty,
       statement_id: 'Q123$abc-def',
       references: [{ url: 'https://example.com', title: 'Reference' }],
-      sources: [],
+      archived_pages: [],
     }
 
     // Initially, metadata is not shown
@@ -189,7 +189,7 @@ describe('PropertyDisplay', () => {
       ...baseProperty,
       statement_id: 'Q123$abc-def',
       references: [{ url: 'https://example.com', title: 'Reference' }],
-      sources: [],
+      archived_pages: [],
       evaluation: false, // Deprecating
     }
 
@@ -212,7 +212,7 @@ describe('PropertyDisplay', () => {
       const property: Property = {
         ...baseProperty,
         statement_id: 'Q123$abc-def',
-        sources: [],
+        archived_pages: [],
       }
 
       render(
@@ -228,7 +228,7 @@ describe('PropertyDisplay', () => {
     it('shows Accept/Reject buttons when source is visible', () => {
       const property: Property = {
         ...baseProperty,
-        sources: [
+        archived_pages: [
           {
             id: 'ref-1',
             archived_page: mockArchivedPage,
@@ -252,7 +252,7 @@ describe('PropertyDisplay', () => {
     it('hides buttons when source is not visible', () => {
       const property: Property = {
         ...baseProperty,
-        sources: [
+        archived_pages: [
           {
             id: 'ref-1',
             archived_page: mockArchivedPage,
@@ -281,7 +281,7 @@ describe('PropertyDisplay', () => {
         ...baseProperty,
         userAdded: true,
         evaluation: true,
-        sources: [],
+        archived_pages: [],
       }
 
       render(
@@ -298,7 +298,7 @@ describe('PropertyDisplay', () => {
         ...baseProperty,
         userAdded: true,
         evaluation: true,
-        sources: [],
+        archived_pages: [],
       }
 
       render(

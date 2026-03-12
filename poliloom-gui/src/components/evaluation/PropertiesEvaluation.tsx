@@ -209,9 +209,11 @@ export function PropertiesEvaluation({
   useEffect(() => {
     for (const section of sections) {
       for (const item of section.items) {
-        const firstWithSource = item.properties.find((p) => p.sources.length > 0 && !p.statement_id)
+        const firstWithSource = item.properties.find(
+          (p) => p.archived_pages.length > 0 && !p.statement_id,
+        )
         if (firstWithSource) {
-          onShowArchived(firstWithSource.sources[0])
+          onShowArchived(firstWithSource.archived_pages[0])
           return
         }
       }
@@ -261,7 +263,7 @@ export function PropertiesEvaluation({
                   title={item.title}
                   onHover={() => {
                     const firstWithSource = item.properties.find(
-                      (p) => p.sources.length > 0 && !p.statement_id,
+                      (p) => p.archived_pages.length > 0 && !p.statement_id,
                     )
                     if (firstWithSource) {
                       onHover(firstWithSource)

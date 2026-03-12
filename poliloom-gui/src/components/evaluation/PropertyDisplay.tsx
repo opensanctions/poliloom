@@ -37,8 +37,8 @@ export function PropertyDisplay({
   const isUserAdded = !!property.userAdded
   const isAccepted = property.evaluation ?? null
   const isSourceVisible =
-    property.sources.length === 0 ||
-    property.sources.some((s) => activeArchivedPageId === s.archived_page.id)
+    property.archived_pages.length === 0 ||
+    property.archived_pages.some((s) => activeArchivedPageId === s.archived_page.id)
 
   // Auto-open panel when discarding existing Wikidata statements (to show what metadata will be lost)
   useLayoutEffect(() => {
@@ -123,7 +123,7 @@ export function PropertyDisplay({
       )}
       {!property.statement_id && (
         <StatementSource
-          sources={property.sources}
+          sources={property.archived_pages}
           isWikidataStatement={isWikidataStatement}
           activeArchivedPageId={activeArchivedPageId}
           onShowArchived={(ref) => onShowArchived?.(ref)}

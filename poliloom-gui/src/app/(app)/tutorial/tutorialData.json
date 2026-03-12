@@ -31,7 +31,7 @@
             "type": "P569",
             "value": "+1975-03-15T00:00:00Z",
             "value_precision": 11,
-            "sources": [
+            "archived_pages": [
               {
                 "id": "ref-tutorial-1",
                 "archived_page": {
@@ -66,7 +66,7 @@
                 }
               ]
             },
-            "sources": []
+            "archived_pages": []
           }
         ]
       }
@@ -83,7 +83,7 @@
             "type": "P569",
             "value": "+1952-06-08T00:00:00Z",
             "value_precision": 11,
-            "sources": [
+            "archived_pages": [
               {
                 "id": "ref-tutorial-2",
                 "archived_page": {
@@ -104,7 +104,7 @@
             "type": "P569",
             "value": "+1975-03-15T00:00:00Z",
             "value_precision": 11,
-            "sources": [
+            "archived_pages": [
               {
                 "id": "ref-tutorial-3",
                 "archived_page": {
@@ -147,7 +147,7 @@
                 }
               ]
             },
-            "sources": [
+            "archived_pages": [
               {
                 "id": "ref-tutorial-4",
                 "archived_page": {
@@ -181,7 +181,7 @@
                 }
               ]
             },
-            "sources": [
+            "archived_pages": [
               {
                 "id": "ref-tutorial-5",
                 "archived_page": {
@@ -225,7 +225,7 @@
                 }
               ]
             },
-            "sources": []
+            "archived_pages": []
           },
           {
             "key": "tutorial-generic-position",
@@ -245,7 +245,7 @@
                 }
               ]
             },
-            "sources": [
+            "archived_pages": [
               {
                 "id": "ref-tutorial-6",
                 "archived_page": {
@@ -277,7 +277,7 @@
             "entity_id": "Q486839",
             "entity_name": "Member of Parliament",
             "statement_id": "Q955672$existing-generic-1",
-            "sources": []
+            "archived_pages": []
           },
           {
             "key": "tutorial-new-specific-position",
@@ -297,7 +297,7 @@
                 }
               ]
             },
-            "sources": [
+            "archived_pages": [
               {
                 "id": "ref-tutorial-7",
                 "archived_page": {
@@ -423,7 +423,7 @@
                 ]
               }
             ],
-            "sources": []
+            "archived_pages": []
           },
           {
             "key": "tutorial-new-specific-with-source",
@@ -443,7 +443,7 @@
                 }
               ]
             },
-            "sources": [
+            "archived_pages": [
               {
                 "id": "ref-tutorial-8",
                 "archived_page": {

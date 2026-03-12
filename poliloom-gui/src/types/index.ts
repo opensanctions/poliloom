@@ -47,7 +47,7 @@ export interface Property {
   statement_id?: string | null
   qualifiers?: PropertyQualifiers
   references?: Array<Record<string, unknown>>
-  sources: PropertyReference[]
+  archived_pages: PropertyReference[]
   userAdded?: boolean // true for properties manually added by user on the client
   evaluation?: boolean // undefined = not evaluated, true = accepted, false = rejected (derived from action list)
 }

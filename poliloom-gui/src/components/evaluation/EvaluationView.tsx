@@ -17,6 +17,7 @@ import { CenteredCard } from '@/components/ui/CenteredCard'
 import { PropertiesEvaluation } from './PropertiesEvaluation'
 import { PoliticianHeader } from './PoliticianHeader'
 import { ArchivedPageViewer } from './ArchivedPageViewer'
+import { SourcesList } from './SourcesList'
 
 interface EvaluationViewProps {
   politicians: Politician[]
@@ -107,9 +108,15 @@ export function EvaluationView({
     setSelectedQuotes(ref.supporting_quotes || null)
   }, [])
 
+  // Handler for selecting an archived page directly (from sources list)
+  const handleSelectArchivedPage = useCallback((page: ArchivedPageResponse) => {
+    setSelectedArchivedPage(page)
+    setSelectedQuotes(null)
+  }, [])
+
   // Unified hover handler for all property types
   const handlePropertyHover = (property: Property) => {
-    const matchingRef = property.sources.find(
+    const matchingRef = property.archived_pages.find(
       (s) => selectedArchivedPage?.id === s.archived_page.id,
     )
     if (matchingRef?.supporting_quotes && matchingRef.supporting_quotes.length > 0) {
@@ -117,12 +124,30 @@ export function EvaluationView({
     }
   }
 
+  // Collect unique archived pages across all politicians' property sources
+  const archivedPagesByPolitician = useMemo(() => {
+    const result = new Map<string, ArchivedPageResponse[]>()
+    for (const politician of politicians) {
+      const seen = new Map<string, ArchivedPageResponse>()
+      for (const prop of politician.properties) {
+        for (const ref of prop.archived_pages) {
+          if (!seen.has(ref.archived_page.id)) {
+            seen.set(ref.archived_page.id, ref.archived_page)
+          }
+        }
+      }
+      result.set(politician.id, Array.from(seen.values()))
+    }
+    return result
+  }, [politicians])
+
   const leftPanel = (
     <div className="grid grid-rows-[1fr_auto] h-full">
       <div className="overflow-y-auto min-h-0 p-6" ref={propertiesRef}>
         {politicians.map((politician) => {
           const key = politician.id
           const properties = displayPropertiesByPolitician.get(key) || []
+          const archivedPages = archivedPagesByPolitician.get(key) || []
 
           return (
             <div key={key} className="mb-8">
@@ -135,6 +160,12 @@ export function EvaluationView({
                   }
                 />
               </div>
+
+              <SourcesList
+                archivedPages={archivedPages}
+                activeArchivedPageId={selectedArchivedPage?.id || null}
+                onSelect={handleSelectArchivedPage}
+              />
 
               <PropertiesEvaluation
                 properties={properties}
