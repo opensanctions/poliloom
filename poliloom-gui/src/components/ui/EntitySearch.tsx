@@ -103,6 +103,21 @@ export function EntitySearch({
           role="listbox"
           className="absolute z-10 mt-1 w-full bg-surface border border-border-strong rounded-md shadow-lg max-h-60 overflow-auto"
         >
+          {onCreate && query.trim() && (
+            <li
+              role="option"
+              aria-selected={false}
+              onClick={() => {
+                onCreate(query.trim())
+                setQuery('')
+                setResults([])
+                setIsOpen(false)
+              }}
+              className="px-3 py-2 cursor-pointer hover:bg-accent-muted border-b border-border"
+            >
+              <div className="text-foreground">Create &lsquo;{query.trim()}&rsquo;</div>
+            </li>
+          )}
           {results.map((entity) => (
             <li
               key={entity.wikidata_id}
@@ -123,23 +138,6 @@ export function EntitySearch({
               </div>
             </li>
           ))}
-          {onCreate &&
-            query.trim() &&
-            !results.some((r) => r.name.toLowerCase() === query.trim().toLowerCase()) && (
-              <li
-                role="option"
-                aria-selected={false}
-                onClick={() => {
-                  onCreate(query.trim())
-                  setQuery('')
-                  setResults([])
-                  setIsOpen(false)
-                }}
-                className="px-3 py-2 cursor-pointer hover:bg-accent-muted border-t border-border"
-              >
-                <div className="text-foreground">Create &lsquo;{query.trim()}&rsquo;</div>
-              </li>
-            )}
         </ul>
       )}
     </div>
