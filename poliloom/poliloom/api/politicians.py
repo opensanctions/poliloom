@@ -33,6 +33,7 @@ from .schemas import (
     CreatePoliticianRequest,
     CreatePoliticianResponse,
     CreatePropertyItem,
+    CreateSourceRequest,
     EnrichmentMetadata,
     NextPoliticianResponse,
     PatchPropertiesRequest,
@@ -537,4 +538,59 @@ async def patch_properties(
 
     return await process_property_actions(
         {str(politician.id): request.items}, db, current_user
+    )
+
+
+@router.post("/{qid}/sources", response_model=ArchivedPageResponse)
+async def create_source(
+    qid: str,
+    request: CreateSourceRequest,
+    db: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Add a source link to a politician by fetching and archiving the page.
+    """
+    from ..enrichment import fetch_and_archive_page
+    from ..page_fetcher import PageFetchError
+
+    politician = (
+        db.execute(select(Politician).where(Politician.wikidata_id == qid))
+        .scalars()
+        .first()
+    )
+    if not politician:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Politician with QID {qid} not found",
+        )
+
+    try:
+        archived_page = await fetch_and_archive_page(
+            url=request.url,
+            db=db,
+            user_id=str(current_user.user_id),
+        )
+    except PageFetchError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to fetch page: {str(e)}",
+        )
+
+    archived_page.politician_id = politician.id
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}",
+        )
+
+    return ArchivedPageResponse(
+        id=archived_page.id,
+        url=archived_page.url,
+        content_hash=archived_page.content_hash,
+        fetch_timestamp=archived_page.fetch_timestamp,
     )

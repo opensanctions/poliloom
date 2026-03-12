@@ -56,6 +56,7 @@ export interface Politician {
   id: string
   name: string
   wikidata_id: string | null
+  archived_pages: ArchivedPageResponse[]
   properties: Property[]
 }
 

@@ -16,17 +16,16 @@ import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
-import { Politician, PropertyActionItem } from '@/types'
+import { PropertyActionItem } from '@/types'
 import { actionToEvaluation } from '@/lib/evaluation'
-import tutorialData from './tutorialData.json'
-
-const extractedDataPolitician = tutorialData.steps.extractedData.politician as Politician
-const birthDatePolitician = tutorialData.steps.birthDateEvaluation.politician as Politician
-const multipleSourcesPolitician = tutorialData.steps.multipleSources.politician as Politician
-const genericVsSpecificPolitician = tutorialData.steps.genericVsSpecific.politician as Politician
-const deprecateSimplePolitician = tutorialData.steps.deprecateSimple.politician as Politician
-const deprecateWithMetadataPolitician = tutorialData.steps.deprecateWithMetadata
-  .politician as Politician
+import {
+  extractedDataPolitician,
+  birthDatePolitician,
+  multipleSourcesPolitician,
+  genericVsSpecificPolitician,
+  deprecateSimplePolitician,
+  deprecateWithMetadataPolitician,
+} from './tutorialData'
 
 // Expected answers for each evaluation step
 type ExpectedEvaluations = Record<string, boolean>

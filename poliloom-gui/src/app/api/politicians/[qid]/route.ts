@@ -13,3 +13,8 @@ export async function PATCH(
   const { qid } = await params
   return proxyToBackend(request, `/politicians/${qid}/properties`)
 }
+
+export async function POST(request: NextRequest, { params }: { params: Promise<{ qid: string }> }) {
+  const { qid } = await params
+  return proxyToBackend(request, `/politicians/${qid}/sources`)
+}

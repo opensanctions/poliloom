@@ -54,6 +54,7 @@ const politician: Politician = {
   id: 'pol-1',
   name: 'Test Politician',
   wikidata_id: 'Q987654',
+  archived_pages: [],
   properties: [
     {
       id: 'prop-1',
@@ -104,6 +105,7 @@ const politicianWithConflicts: Politician = {
   id: 'pol-2',
   name: 'Conflicted Politician',
   wikidata_id: 'Q111222',
+  archived_pages: [],
   properties: [
     {
       id: 'prop-c1',

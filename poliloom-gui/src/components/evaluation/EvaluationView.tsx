@@ -124,11 +124,34 @@ export function EvaluationView({
     }
   }
 
-  // Collect unique archived pages across all politicians' property sources
+  // Track sources added by the user during this session
+  const [addedSourcesByPolitician, setAddedSourcesByPolitician] = useState<
+    Map<string, ArchivedPageResponse[]>
+  >(() => new Map())
+
+  const handleAddSource = (politicianId: string, source: ArchivedPageResponse) => {
+    setAddedSourcesByPolitician((prev) => {
+      const next = new Map(prev)
+      const sources = next.get(politicianId) || []
+      next.set(politicianId, [...sources, source])
+      return next
+    })
+    setSelectedArchivedPage(source)
+    setSelectedQuotes(null)
+  }
+
+  // Collect unique archived pages across all politicians' property sources + top-level + added
   const archivedPagesByPolitician = useMemo(() => {
     const result = new Map<string, ArchivedPageResponse[]>()
     for (const politician of politicians) {
       const seen = new Map<string, ArchivedPageResponse>()
+      // Top-level archived pages linked directly to politician
+      for (const page of politician.archived_pages || []) {
+        if (!seen.has(page.id)) {
+          seen.set(page.id, page)
+        }
+      }
+      // Pages from property references
       for (const prop of politician.properties) {
         for (const ref of prop.archived_pages) {
           if (!seen.has(ref.archived_page.id)) {
@@ -136,10 +159,16 @@ export function EvaluationView({
           }
         }
       }
+      // User-added sources in this session
+      for (const page of addedSourcesByPolitician.get(politician.id) || []) {
+        if (!seen.has(page.id)) {
+          seen.set(page.id, page)
+        }
+      }
       result.set(politician.id, Array.from(seen.values()))
     }
     return result
-  }, [politicians])
+  }, [politicians, addedSourcesByPolitician])
 
   const leftPanel = (
     <div className="grid grid-rows-[1fr_auto] h-full">
@@ -165,6 +194,8 @@ export function EvaluationView({
                 archivedPages={archivedPages}
                 activeArchivedPageId={selectedArchivedPage?.id || null}
                 onSelect={handleSelectArchivedPage}
+                politicianQid={politician.wikidata_id ?? undefined}
+                onAddSource={(source) => handleAddSource(politician.id, source)}
               />
 
               <PropertiesEvaluation

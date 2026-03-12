@@ -138,6 +138,12 @@ class PatchPropertiesResponse(BaseModel):
     errors: List[str] = []
 
 
+class CreateSourceRequest(BaseModel):
+    """Request body for POST /politicians/{qid}/sources."""
+
+    url: str
+
+
 class CreatePoliticianRequest(BaseModel):
     """Request body for POST /politicians."""
 

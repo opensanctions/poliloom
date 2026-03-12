@@ -36,6 +36,7 @@ const politicianWithDifferentSources: Politician = {
   id: 'pol-1',
   name: 'Multi-Source Politician',
   wikidata_id: 'Q100',
+  archived_pages: [],
   properties: [
     {
       id: 'prop-1',
@@ -77,6 +78,7 @@ const politicianWithEdgeCases: Politician = {
   id: 'pol-2',
   name: 'Edge Case Politician',
   wikidata_id: 'Q101',
+  archived_pages: [],
   properties: [
     {
       id: 'prop-wikidata',
@@ -128,6 +130,7 @@ const sourceResponse: SourceResponse = {
       id: 'pol-a',
       name: 'Source Politician A',
       wikidata_id: 'Q111',
+      archived_pages: [],
       properties: [
         {
           id: 'sp-1',
@@ -155,6 +158,7 @@ const sourceResponse: SourceResponse = {
       id: 'pol-b',
       name: 'Source Politician B',
       wikidata_id: 'Q222',
+      archived_pages: [],
       properties: [
         {
           id: 'sp-3',
