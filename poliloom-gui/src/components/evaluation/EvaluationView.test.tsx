@@ -2,20 +2,174 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, render } from '@testing-library/react'
 import '@/test/highlight-mocks'
 import { EvaluationView } from './EvaluationView'
-import {
-  mockPoliticianWithDifferentSources,
-  mockPoliticianWithEdgeCases,
-  mockArchivedPage,
-  mockArchivedPage2,
-  mockArchivedPage3,
-  mockSourceResponse,
-} from '@/test/mock-data'
+import type { Politician, SourceResponse, ArchivedPageResponse } from '@/types'
+import { PropertyType } from '@/types'
 
 vi.mock('@/contexts/UserPreferencesContext', () => ({
   useUserPreferences: () => ({
     isAdvancedMode: false,
   }),
 }))
+
+const archivedPage1: ArchivedPageResponse = {
+  id: 'archived-1',
+  url: 'https://en.wikipedia.org/wiki/Test',
+  content_hash: 'abc',
+  fetch_timestamp: '2024-01-01T00:00:00Z',
+}
+
+const archivedPage2: ArchivedPageResponse = {
+  id: 'archived-2',
+  url: 'https://gov.example.com/official',
+  content_hash: 'def',
+  fetch_timestamp: '2024-02-01T00:00:00Z',
+}
+
+const archivedPage3: ArchivedPageResponse = {
+  id: 'archived-3',
+  url: 'https://news.example.com/bio',
+  content_hash: 'ghi',
+  fetch_timestamp: '2024-03-01T00:00:00Z',
+}
+
+const politicianWithDifferentSources: Politician = {
+  id: 'pol-1',
+  name: 'Multi-Source Politician',
+  wikidata_id: 'Q100',
+  properties: [
+    {
+      id: 'prop-1',
+      type: PropertyType.P569,
+      value: '+1975-06-15T00:00:00Z',
+      value_precision: 11,
+      statement_id: null,
+      archived_pages: [
+        { id: 'ref-1', archived_page: archivedPage1, supporting_quotes: ['born June 15'] },
+      ],
+    },
+    {
+      id: 'prop-2',
+      type: PropertyType.P39,
+      entity_id: 'Q200',
+      entity_name: 'Governor',
+      statement_id: null,
+      qualifiers: {
+        P580: [{ datavalue: { value: { time: '+2018-01-01T00:00:00Z', precision: 11 } } }],
+      },
+      archived_pages: [
+        { id: 'ref-2', archived_page: archivedPage2, supporting_quotes: ['elected governor'] },
+      ],
+    },
+    {
+      id: 'prop-3',
+      type: PropertyType.P19,
+      entity_id: 'Q300',
+      entity_name: 'Capital City',
+      statement_id: null,
+      archived_pages: [
+        { id: 'ref-3', archived_page: archivedPage3, supporting_quotes: ['born in Capital City'] },
+      ],
+    },
+  ],
+}
+
+const politicianWithEdgeCases: Politician = {
+  id: 'pol-2',
+  name: 'Edge Case Politician',
+  wikidata_id: 'Q101',
+  properties: [
+    {
+      id: 'prop-wikidata',
+      type: PropertyType.P569,
+      value: '+1980-01-01T00:00:00Z',
+      value_precision: 11,
+      statement_id: 'Q101$some-uuid',
+      archived_pages: [
+        { id: 'ref-w', archived_page: archivedPage1, supporting_quotes: ['born 1980'] },
+      ],
+    },
+    {
+      id: 'prop-extracted',
+      type: PropertyType.P569,
+      value: '+1980-01-02T00:00:00Z',
+      value_precision: 11,
+      statement_id: null,
+      archived_pages: [
+        { id: 'ref-e', archived_page: archivedPage1, supporting_quotes: ['born Jan 2'] },
+      ],
+    },
+    {
+      id: 'pos-wikidata',
+      type: PropertyType.P39,
+      entity_id: 'Q400',
+      entity_name: 'Mayor',
+      statement_id: 'Q400$some-uuid',
+      qualifiers: {
+        P580: [{ datavalue: { value: { time: '+2020-01-01T00:00:00Z', precision: 11 } } }],
+        P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }],
+      },
+      archived_pages: [],
+    },
+    {
+      id: 'birth-wikidata',
+      type: PropertyType.P19,
+      entity_id: 'Q500',
+      entity_name: 'Test City',
+      statement_id: 'Q500$some-uuid',
+      archived_pages: [],
+    },
+  ],
+}
+
+const sourceResponse: SourceResponse = {
+  archived_page: archivedPage1,
+  politicians: [
+    {
+      id: 'pol-a',
+      name: 'Source Politician A',
+      wikidata_id: 'Q111',
+      properties: [
+        {
+          id: 'sp-1',
+          type: PropertyType.P569,
+          value: '+1970-01-01T00:00:00Z',
+          value_precision: 11,
+          statement_id: null,
+          archived_pages: [
+            { id: 'sr-1', archived_page: archivedPage1, supporting_quotes: ['born 1970'] },
+          ],
+        },
+        {
+          id: 'sp-2',
+          type: PropertyType.P39,
+          entity_id: 'Q555',
+          entity_name: 'Mayor of Test City',
+          statement_id: null,
+          archived_pages: [
+            { id: 'sr-2', archived_page: archivedPage1, supporting_quotes: ['served as mayor'] },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'pol-b',
+      name: 'Source Politician B',
+      wikidata_id: 'Q222',
+      properties: [
+        {
+          id: 'sp-3',
+          type: PropertyType.P27,
+          entity_id: 'Q142',
+          entity_name: 'France',
+          statement_id: null,
+          archived_pages: [
+            { id: 'sr-3', archived_page: archivedPage1, supporting_quotes: ['French citizen'] },
+          ],
+        },
+      ],
+    },
+  ],
+}
 
 describe('EvaluationView', () => {
   beforeEach(() => {
@@ -26,7 +180,7 @@ describe('EvaluationView', () => {
     it('auto-loads the first property with an archived page on mount', () => {
       render(
         <EvaluationView
-          politicians={[mockPoliticianWithDifferentSources]}
+          politicians={[politicianWithDifferentSources]}
           archivedPagesApiPath="/api/archived-pages"
           footer={() => <div>Footer</div>}
         />,
@@ -34,7 +188,7 @@ describe('EvaluationView', () => {
 
       const iframe = screen.getByTitle('Archived Page') as HTMLIFrameElement
       expect(iframe).toBeInTheDocument()
-      expect(iframe.src).toContain(`/api/archived-pages/${mockArchivedPage.id}/html`)
+      expect(iframe.src).toContain(`/api/archived-pages/${archivedPage1.id}/html`)
 
       const viewButtons = screen.getAllByRole('button', { name: /• View|• Viewing/ })
       expect(viewButtons[0]).toHaveTextContent('• Viewing')
@@ -43,53 +197,53 @@ describe('EvaluationView', () => {
     it('clicking View on a property updates the iframe to show that archived page', () => {
       render(
         <EvaluationView
-          politicians={[mockPoliticianWithDifferentSources]}
+          politicians={[politicianWithDifferentSources]}
           archivedPagesApiPath="/api/archived-pages"
           footer={() => <div>Footer</div>}
         />,
       )
 
       const iframe = screen.getByTitle('Archived Page') as HTMLIFrameElement
-      expect(iframe.src).toContain(`/api/archived-pages/${mockArchivedPage.id}/html`)
+      expect(iframe.src).toContain(`/api/archived-pages/${archivedPage1.id}/html`)
 
       const viewButtons = screen.getAllByRole('button', { name: /• View|• Viewing/ })
       const secondViewButton = viewButtons.find((btn) => btn.textContent === '• View')
       expect(secondViewButton).toBeDefined()
       fireEvent.click(secondViewButton!)
 
-      expect(iframe.src).toContain(`/api/archived-pages/${mockArchivedPage2.id}/html`)
+      expect(iframe.src).toContain(`/api/archived-pages/${archivedPage2.id}/html`)
       expect(secondViewButton).toHaveTextContent('• Viewing')
     })
 
     it('switching between properties with different archived pages updates the iframe', () => {
       render(
         <EvaluationView
-          politicians={[mockPoliticianWithDifferentSources]}
+          politicians={[politicianWithDifferentSources]}
           archivedPagesApiPath="/api/archived-pages"
           footer={() => <div>Footer</div>}
         />,
       )
 
       const iframe = screen.getByTitle('Archived Page') as HTMLIFrameElement
-      expect(iframe.src).toContain(`/api/archived-pages/${mockArchivedPage.id}/html`)
+      expect(iframe.src).toContain(`/api/archived-pages/${archivedPage1.id}/html`)
 
       const viewButtons = screen.getAllByRole('button', { name: /• View|• Viewing/ })
       expect(viewButtons.length).toBe(3)
 
       fireEvent.click(viewButtons[1])
-      expect(iframe.src).toContain(`/api/archived-pages/${mockArchivedPage2.id}/html`)
+      expect(iframe.src).toContain(`/api/archived-pages/${archivedPage2.id}/html`)
 
       fireEvent.click(viewButtons[2])
-      expect(iframe.src).toContain(`/api/archived-pages/${mockArchivedPage3.id}/html`)
+      expect(iframe.src).toContain(`/api/archived-pages/${archivedPage3.id}/html`)
 
       fireEvent.click(viewButtons[0])
-      expect(iframe.src).toContain(`/api/archived-pages/${mockArchivedPage.id}/html`)
+      expect(iframe.src).toContain(`/api/archived-pages/${archivedPage1.id}/html`)
     })
 
     it('only the active property View button shows "Viewing"', () => {
       render(
         <EvaluationView
-          politicians={[mockPoliticianWithDifferentSources]}
+          politicians={[politicianWithDifferentSources]}
           archivedPagesApiPath="/api/archived-pages"
           footer={() => <div>Footer</div>}
         />,
@@ -117,7 +271,7 @@ describe('EvaluationView', () => {
     it('does not show View button for Wikidata statements even if they have archived pages', () => {
       render(
         <EvaluationView
-          politicians={[mockPoliticianWithEdgeCases]}
+          politicians={[politicianWithEdgeCases]}
           archivedPagesApiPath="/api/archived-pages"
           footer={() => <div>Footer</div>}
         />,
@@ -132,7 +286,7 @@ describe('EvaluationView', () => {
     it('renders multiple politicians with headers', () => {
       render(
         <EvaluationView
-          politicians={mockSourceResponse.politicians}
+          politicians={sourceResponse.politicians}
           footer={() => <div>Footer</div>}
         />,
       )
@@ -144,23 +298,20 @@ describe('EvaluationView', () => {
     it('renders properties for each politician', () => {
       render(
         <EvaluationView
-          politicians={mockSourceResponse.politicians}
+          politicians={sourceResponse.politicians}
           footer={() => <div>Footer</div>}
         />,
       )
 
-      // Politician A has birth date and position
       expect(screen.getByText('Birth Date')).toBeInTheDocument()
       expect(screen.getByText('Mayor of Test City')).toBeInTheDocument()
-
-      // Politician B has citizenship
       expect(screen.getByText('France')).toBeInTheDocument()
     })
 
     it('auto-loads the first archived page on mount', () => {
       render(
         <EvaluationView
-          politicians={mockSourceResponse.politicians}
+          politicians={sourceResponse.politicians}
           archivedPagesApiPath="/api/archived-pages"
           footer={() => <div>Footer</div>}
         />,
@@ -168,27 +319,22 @@ describe('EvaluationView', () => {
 
       const iframe = screen.getByTitle('Archived Page') as HTMLIFrameElement
       expect(iframe).toBeInTheDocument()
-      expect(iframe.src).toContain(
-        `/api/archived-pages/${mockSourceResponse.archived_page.id}/html`,
-      )
+      expect(iframe.src).toContain(`/api/archived-pages/${sourceResponse.archived_page.id}/html`)
     })
 
     it('accept/reject toggles work per politician', () => {
       render(
         <EvaluationView
-          politicians={mockSourceResponse.politicians}
+          politicians={sourceResponse.politicians}
           footer={() => <div>Footer</div>}
         />,
       )
 
-      // Find accept buttons - should have one per non-wikidata property (3 total)
       const acceptButtons = screen.getAllByRole('button', { name: /accept/i })
       expect(acceptButtons.length).toBe(3)
 
-      // Click accept on first property
       fireEvent.click(acceptButtons[0])
 
-      // The button should now show as active (re-query to check state)
       const rejectButtons = screen.getAllByRole('button', { name: /reject/i })
       expect(rejectButtons.length).toBe(3)
     })
@@ -196,7 +342,7 @@ describe('EvaluationView', () => {
     it('renders footer', () => {
       render(
         <EvaluationView
-          politicians={mockSourceResponse.politicians}
+          politicians={sourceResponse.politicians}
           footer={() => <div data-testid="test-footer">Custom Footer</div>}
         />,
       )
