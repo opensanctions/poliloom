@@ -42,6 +42,7 @@ from .schemas import (
     PropertyReferenceResponse,
     PropertyResponse,
 )
+
 from .auth import get_current_user, User
 
 logger = logging.getLogger(__name__)
@@ -154,8 +155,8 @@ async def create_politician(
     """
     Create a new politician in Wikidata and the local database.
 
-    Creates a Wikidata entity, adds instance-of-human and occupation-politician
-    statements, then processes the provided property items.
+    Creates a Wikidata entity with instance-of-human and occupation-politician
+    base statements, then creates a local database record.
     """
     errors = []
     jwt_token = current_user.jwt_token
@@ -185,20 +186,12 @@ async def create_politician(
     db.add(politician)
     try:
         db.commit()
-        db.refresh(politician)
     except Exception as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Database error creating politician: {str(e)}",
         )
-
-    # 4. Process property items (create properties + push to Wikidata)
-    if request.items:
-        result = await process_property_actions(
-            {str(politician.id): request.items}, db, current_user
-        )
-        errors.extend(result.errors)
 
     return CreatePoliticianResponse(
         success=True,

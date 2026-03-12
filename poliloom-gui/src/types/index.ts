@@ -113,7 +113,6 @@ export interface PatchPropertiesResponse {
 
 export interface CreatePoliticianRequest {
   name: string
-  items: CreatePropertyItem[]
 }
 
 export interface CreatePoliticianResponse {

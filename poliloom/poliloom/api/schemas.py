@@ -141,7 +141,6 @@ class CreatePoliticianRequest(BaseModel):
     """Request body for POST /politicians."""
 
     name: str
-    items: List[CreatePropertyItem]
 
 
 class CreatePoliticianResponse(BaseModel):
