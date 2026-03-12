@@ -10,6 +10,16 @@ interface Entity {
   description?: string
 }
 
+class CreateItem {
+  constructor(public name: string) {}
+}
+
+class SelectItem {
+  constructor(public entity: Entity) {}
+}
+
+type DropdownItem = CreateItem | SelectItem
+
 export interface EntitySearchProps {
   searchEndpoint: string
   onSelect: (entity: { wikidata_id: string; name: string }) => void
@@ -29,8 +39,10 @@ export function EntitySearch({
   const [results, setResults] = useState<Entity[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -80,6 +92,61 @@ export function EntitySearch({
     }
   }, [query, searchEndpoint])
 
+  const items: DropdownItem[] = [
+    ...(onCreate && query.trim() ? [new CreateItem(query.trim())] : []),
+    ...results.map((entity) => new SelectItem(entity)),
+  ]
+
+  useEffect(() => {
+    setActiveIndex(-1)
+  }, [results])
+
+  useEffect(() => {
+    if (activeIndex >= 0) {
+      const el = document.getElementById(`entity-option-${activeIndex}`)
+      el?.scrollIntoView({ block: 'nearest' })
+    }
+  }, [activeIndex])
+
+  function selectItem(item: DropdownItem) {
+    if (item instanceof SelectItem) {
+      onSelect({ wikidata_id: item.entity.wikidata_id, name: item.entity.name })
+    } else {
+      onCreate!(item.name)
+    }
+    setQuery('')
+    setResults([])
+    setIsOpen(false)
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (!isOpen || items.length === 0) {
+      return
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setActiveIndex((prev) => (prev + 1) % items.length)
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setActiveIndex((prev) => (prev <= 0 ? items.length - 1 : prev - 1))
+        break
+      case 'Enter':
+        e.preventDefault()
+        if (activeIndex >= 0) {
+          selectItem(items[activeIndex])
+        }
+        break
+      case 'Escape':
+        e.preventDefault()
+        setIsOpen(false)
+        setActiveIndex(-1)
+        break
+    }
+  }
+
   return (
     <div ref={containerRef} className="relative">
       <div className="relative">
@@ -89,7 +156,11 @@ export function EntitySearch({
           placeholder={placeholder}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
           disabled={disabled}
+          role="combobox"
+          aria-expanded={isOpen}
+          aria-activedescendant={activeIndex >= 0 ? `entity-option-${activeIndex}` : undefined}
         />
         {isLoading && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -98,44 +169,35 @@ export function EntitySearch({
         )}
       </div>
 
-      {isOpen && (results.length > 0 || (onCreate && query.trim())) && (
+      {isOpen && items.length > 0 && (
         <ul
+          ref={listRef}
           role="listbox"
           className="absolute z-10 mt-1 w-full bg-surface border border-border-strong rounded-md shadow-lg max-h-60 overflow-auto"
         >
-          {onCreate && query.trim() && (
+          {items.map((item, i) => (
             <li
+              key={item instanceof CreateItem ? '__create__' : item.entity.wikidata_id}
+              id={`entity-option-${i}`}
               role="option"
-              aria-selected={false}
-              onClick={() => {
-                onCreate(query.trim())
-                setQuery('')
-                setResults([])
-                setIsOpen(false)
-              }}
-              className="px-3 py-2 cursor-pointer hover:bg-accent-muted border-b border-border"
+              aria-selected={activeIndex === i}
+              onClick={() => selectItem(item)}
+              onMouseMove={() => setActiveIndex(i)}
+              className={`px-3 py-2 cursor-pointer ${item instanceof CreateItem ? 'border-b border-border' : ''} ${activeIndex === i ? 'bg-accent-muted' : ''}`}
             >
-              <div className="text-foreground">Create &lsquo;{query.trim()}&rsquo;</div>
-            </li>
-          )}
-          {results.map((entity) => (
-            <li
-              key={entity.wikidata_id}
-              role="option"
-              aria-selected={false}
-              onClick={() => {
-                onSelect({ wikidata_id: entity.wikidata_id, name: entity.name })
-                setQuery('')
-                setResults([])
-                setIsOpen(false)
-              }}
-              className="px-3 py-2 cursor-pointer hover:bg-accent-muted"
-            >
-              <div className="text-foreground">{entity.name}</div>
-              <div className="text-foreground-muted text-sm">
-                {entity.description && <span>{entity.description} · </span>}
-                {entity.wikidata_id}
-              </div>
+              {item instanceof CreateItem ? (
+                <div className="text-foreground">
+                  Create <strong>&ldquo;{item.name}&rdquo;</strong> in Wikidata
+                </div>
+              ) : (
+                <>
+                  <div className="text-foreground">{item.entity.name}</div>
+                  <div className="text-foreground-muted text-sm">
+                    {item.entity.description && <span>{item.entity.description} · </span>}
+                    {item.entity.wikidata_id}
+                  </div>
+                </>
+              )}
             </li>
           ))}
         </ul>

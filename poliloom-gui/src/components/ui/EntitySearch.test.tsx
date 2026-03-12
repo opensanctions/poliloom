@@ -19,6 +19,10 @@ function mockFetchFailure() {
   })
 }
 
+beforeAll(() => {
+  Element.prototype.scrollIntoView = vi.fn()
+})
+
 describe('EntitySearch', () => {
   const mockOnSelect = vi.fn()
 
@@ -43,7 +47,7 @@ describe('EntitySearch', () => {
 
     render(<EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />)
 
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Ber' } })
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Ber' } })
 
     await waitFor(() => {
       expect(screen.getByText('Berlin')).toBeInTheDocument()
@@ -58,7 +62,7 @@ describe('EntitySearch', () => {
 
     render(<EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />)
 
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Ber' } })
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Ber' } })
 
     await waitFor(() => {
       expect(screen.getByText('Q64')).toBeInTheDocument()
@@ -70,7 +74,7 @@ describe('EntitySearch', () => {
 
     render(<EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />)
 
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Ber' } })
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Ber' } })
 
     await waitFor(() => {
       expect(screen.getByText('Berlin')).toBeInTheDocument()
@@ -91,7 +95,7 @@ describe('EntitySearch', () => {
       </div>,
     )
 
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Ber' } })
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Ber' } })
 
     await waitFor(() => {
       expect(screen.getByText('Berlin')).toBeInTheDocument()
@@ -115,10 +119,88 @@ describe('EntitySearch', () => {
 
     render(<EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />)
 
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Ber' } })
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Ber' } })
 
     await waitFor(() => {
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('keyboard navigation', () => {
+    async function openDropdown() {
+      mockFetchSuccess()
+      render(<EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />)
+      const input = screen.getByRole('combobox')
+      fireEvent.change(input, { target: { value: 'Ber' } })
+      await waitFor(() => expect(screen.getByText('Berlin')).toBeInTheDocument())
+      return input
+    }
+
+    it('highlights options with arrow keys', async () => {
+      const input = await openDropdown()
+
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-selected', 'true')
+
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-selected', 'false')
+      expect(screen.getAllByRole('option')[1]).toHaveAttribute('aria-selected', 'true')
+    })
+
+    it('wraps around when navigating past the end', async () => {
+      const input = await openDropdown()
+
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-selected', 'true')
+    })
+
+    it('navigates up from top wraps to bottom', async () => {
+      const input = await openDropdown()
+
+      fireEvent.keyDown(input, { key: 'ArrowUp' })
+      expect(screen.getAllByRole('option')[1]).toHaveAttribute('aria-selected', 'true')
+    })
+
+    it('selects option on Enter', async () => {
+      const input = await openDropdown()
+
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      fireEvent.keyDown(input, { key: 'Enter' })
+
+      expect(mockOnSelect).toHaveBeenCalledWith({ wikidata_id: 'Q64', name: 'Berlin' })
+    })
+
+    it('closes dropdown on Escape', async () => {
+      const input = await openDropdown()
+
+      fireEvent.keyDown(input, { key: 'Escape' })
+
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    })
+
+    it('navigates create option with arrow keys', async () => {
+      const mockOnCreate = vi.fn()
+      mockFetchSuccess()
+
+      render(
+        <EntitySearch
+          searchEndpoint="/api/locations/search"
+          onSelect={mockOnSelect}
+          onCreate={mockOnCreate}
+        />,
+      )
+
+      const input = screen.getByRole('combobox')
+      fireEvent.change(input, { target: { value: 'Ber' } })
+      await waitFor(() => expect(screen.getByText('Berlin')).toBeInTheDocument())
+
+      // First option should be the create option
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      fireEvent.keyDown(input, { key: 'Enter' })
+
+      expect(mockOnCreate).toHaveBeenCalledWith('Ber')
     })
   })
 })
