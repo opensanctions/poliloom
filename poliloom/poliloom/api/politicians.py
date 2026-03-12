@@ -69,18 +69,27 @@ _enrichment_executor = ThreadPoolExecutor(
 # =============================================================================
 
 
-def build_property_responses(properties) -> List[PropertyResponse]:
-    """Build PropertyResponse list from property entities."""
-    responses = []
-    for prop in properties:
+def build_politician_response(politician, archived_pages=None) -> PoliticianResponse:
+    """Build PoliticianResponse from a politician entity."""
+    top_level_pages = [
+        ArchivedPageResponse(
+            id=ap.id,
+            url=ap.url,
+            content_hash=ap.content_hash,
+            fetch_timestamp=ap.fetch_timestamp,
+        )
+        for ap in (archived_pages or [])
+    ]
+
+    property_responses = []
+    for prop in politician.properties:
         entity_name = None
         if prop.entity and prop.entity_id:
             entity_name = prop.entity.name
 
-        # Build sources from PropertyReferences
-        sources = []
+        refs = []
         for ref in prop.property_references:
-            sources.append(
+            refs.append(
                 PropertyReferenceResponse(
                     id=ref.id,
                     archived_page=ArchivedPageResponse(
@@ -93,7 +102,7 @@ def build_property_responses(properties) -> List[PropertyResponse]:
                 )
             )
 
-        responses.append(
+        property_responses.append(
             PropertyResponse(
                 id=prop.id,
                 type=prop.type,
@@ -104,10 +113,17 @@ def build_property_responses(properties) -> List[PropertyResponse]:
                 statement_id=prop.statement_id,
                 qualifiers=prop.qualifiers_json,
                 references=prop.references_json,
-                sources=sources,
+                archived_pages=refs,
             )
         )
-    return responses
+
+    return PoliticianResponse(
+        id=politician.id,
+        name=politician.name,
+        wikidata_id=politician.wikidata_id,
+        archived_pages=top_level_pages,
+        properties=property_responses,
+    )
 
 
 def _trigger_enrichment_if_needed(
@@ -296,15 +312,7 @@ async def search_politicians(
 
     politicians = db.execute(query).scalars().all()
 
-    return [
-        PoliticianResponse(
-            id=politician.id,
-            name=politician.name,
-            wikidata_id=politician.wikidata_id,
-            properties=build_property_responses(politician.properties),
-        )
-        for politician in politicians
-    ]
+    return [build_politician_response(politician) for politician in politicians]
 
 
 @router.get("/{qid}", response_model=PoliticianResponse)
@@ -352,6 +360,7 @@ async def get_politician(
                 .selectinload(ArchivedPage.language_entities),
             ),
             selectinload(Politician.wikipedia_links),
+            selectinload(Politician.archived_pages),
         )
     else:
         query = query.options(
@@ -364,6 +373,7 @@ async def get_politician(
                 .selectinload(ArchivedPage.language_entities),
             ),
             selectinload(Politician.wikipedia_links),
+            selectinload(Politician.archived_pages),
         )
 
     query = query.execution_options(populate_existing=True)
@@ -373,12 +383,7 @@ async def get_politician(
     if not politician:
         raise HTTPException(status_code=404, detail="Politician not found")
 
-    return PoliticianResponse(
-        id=politician.id,
-        name=politician.name,
-        wikidata_id=politician.wikidata_id,
-        properties=build_property_responses(politician.properties),
-    )
+    return build_politician_response(politician, politician.archived_pages)
 
 
 async def process_property_actions(

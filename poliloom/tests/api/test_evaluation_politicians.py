@@ -182,24 +182,24 @@ class TestGetPoliticianEndpointProperties:
 
         birth_dates = [p for p in extracted if p["type"] == "P569"]
         assert len(birth_dates) == 1
-        assert len(birth_dates[0]["sources"]) == 1
-        assert birth_dates[0]["sources"][0]["supporting_quotes"] == [
+        assert len(birth_dates[0]["archived_pages"]) == 1
+        assert birth_dates[0]["archived_pages"][0]["supporting_quotes"] == [
             "Born on January 15, 1970"
         ]
-        assert birth_dates[0]["sources"][0]["archived_page"] is not None
-        assert "url" in birth_dates[0]["sources"][0]["archived_page"]
+        assert birth_dates[0]["archived_pages"][0]["archived_page"] is not None
+        assert "url" in birth_dates[0]["archived_pages"][0]["archived_page"]
 
         positions = [p for p in extracted if p["type"] == "P39"]
         assert len(positions) == 1
-        assert len(positions[0]["sources"]) == 1
-        assert positions[0]["sources"][0]["supporting_quotes"] == [
+        assert len(positions[0]["archived_pages"]) == 1
+        assert positions[0]["archived_pages"][0]["supporting_quotes"] == [
             "Served as Mayor from 2020 to 2024"
         ]
 
         birthplaces = [p for p in extracted if p["type"] == "P19"]
         assert len(birthplaces) == 1
-        assert len(birthplaces[0]["sources"]) == 1
-        assert birthplaces[0]["sources"][0]["supporting_quotes"] == [
+        assert len(birthplaces[0]["archived_pages"]) == 1
+        assert birthplaces[0]["archived_pages"][0]["supporting_quotes"] == [
             "Born in Springfield"
         ]
 
@@ -213,7 +213,7 @@ class TestGetPoliticianEndpointProperties:
         wikidata = [p for p in data["properties"] if p["statement_id"] is not None]
         death_dates = [p for p in wikidata if p["type"] == "P570"]
         assert len(death_dates) >= 1
-        assert death_dates[0].get("sources") == []
+        assert death_dates[0].get("archived_pages") == []
         assert "value_precision" in death_dates[0]
 
     def test_property_response_structure(
@@ -342,7 +342,7 @@ class TestGetPoliticianEndpointProperties:
         data = response.json()
 
         extracted_props = [
-            p for p in data["properties"] if len(p.get("sources", [])) > 0
+            p for p in data["properties"] if len(p.get("archived_pages", [])) > 0
         ]
         assert len(extracted_props) == 1
         assert extracted_props[0]["value"] == "1970-01-01"
@@ -353,7 +353,7 @@ class TestGetPoliticianEndpointProperties:
         data = response.json()
 
         extracted_props = [
-            p for p in data["properties"] if len(p.get("sources", [])) > 0
+            p for p in data["properties"] if len(p.get("archived_pages", [])) > 0
         ]
         assert len(extracted_props) == 1
         assert extracted_props[0]["value"] == "1970-01-02"

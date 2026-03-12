@@ -646,6 +646,7 @@ class Politician(
     wikipedia_links = relationship(
         "WikipediaLink", back_populates="politician", cascade="all, delete-orphan"
     )
+    archived_pages = relationship("ArchivedPage", back_populates="politician")
 
 
 class ArchivedPageLanguage(Base, TimestampMixin):
@@ -697,8 +698,15 @@ class ArchivedPage(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    politician_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("politicians.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     # Relationships
+    politician = relationship("Politician", back_populates="archived_pages")
     property_references = relationship(
         "PropertyReference", back_populates="archived_page"
     )

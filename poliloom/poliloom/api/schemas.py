@@ -46,7 +46,7 @@ class PropertyResponse(UUIDBaseModel):
     statement_id: Optional[str] = None
     qualifiers: Optional[Dict[str, Any]] = None
     references: Optional[List[Dict[str, Any]]] = None
-    sources: List[PropertyReferenceResponse] = []
+    archived_pages: List[PropertyReferenceResponse] = []
 
     @field_serializer("type")
     def serialize_property_type(self, value: PropertyType) -> str:
@@ -60,6 +60,7 @@ class PoliticianResponse(UUIDBaseModel):
     id: UUID
     name: str
     wikidata_id: Optional[str] = None
+    archived_pages: List[ArchivedPageResponse] = []
     properties: List[PropertyResponse]  # Single flat list
 
 

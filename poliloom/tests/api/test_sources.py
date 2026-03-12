@@ -61,8 +61,11 @@ class TestGetSourcePage:
         prop = politician["properties"][0]
         assert prop["type"] == "P569"
         assert prop["value"] == "1980-01-01"
-        assert len(prop["sources"]) == 1
-        assert prop["sources"][0]["supporting_quotes"] == ["born in 1980"]
+        assert len(prop["archived_pages"]) == 1
+        assert prop["archived_pages"][0]["supporting_quotes"] == ["born in 1980"]
+        assert prop["archived_pages"][0]["archived_page"]["id"] == str(
+            sample_archived_page.id
+        )
 
     def test_multiple_properties_grouped_under_one_politician(
         self,
@@ -190,8 +193,8 @@ class TestGetSourcePage:
         data = response.json()
         assert len(data["politicians"]) == 1
         prop_data = data["politicians"][0]["properties"][0]
-        assert len(prop_data["sources"]) == 1
-        assert prop_data["sources"][0]["archived_page"]["id"] == str(
+        assert len(prop_data["archived_pages"]) == 1
+        assert prop_data["archived_pages"][0]["archived_page"]["id"] == str(
             sample_archived_page.id
         )
 

@@ -14,11 +14,10 @@ from .auth import get_current_user, User
 from .schemas import (
     ArchivedPageResponse,
     PatchPropertiesResponse,
-    PoliticianResponse,
     SourcePageResponse,
     SourcePatchPropertiesRequest,
 )
-from .politicians import build_property_responses, process_property_actions
+from .politicians import build_politician_response, process_property_actions
 
 router = APIRouter()
 
@@ -110,13 +109,7 @@ async def get_source_page(
             fetch_timestamp=archived_page.fetch_timestamp,
         ),
         politicians=[
-            PoliticianResponse(
-                id=politician.id,
-                name=politician.name,
-                wikidata_id=politician.wikidata_id,
-                properties=build_property_responses(politician.properties),
-            )
-            for politician in politicians
+            build_politician_response(politician) for politician in politicians
         ],
     )
 
