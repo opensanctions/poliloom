@@ -12,13 +12,14 @@ from sqlalchemy.orm import Session, selectinload
 from ..database import get_db_session
 from ..enrichment import (
     count_politicians_with_unevaluated,
-    enrich_batch_async,
+    enrich_politician_from_wikipedia,
     has_enrichable_politicians,
 )
 from ..search import SearchService
 from ..models import (
     ArchivedPage,
     ArchivedPageLanguage,
+    ArchivedPageOrigin,
     ArchivedPageStatus,
     Evaluation,
     Politician,
@@ -119,33 +120,6 @@ def build_politician_response(politician, archived_pages=None) -> PoliticianResp
     )
 
 
-def _trigger_enrichment_if_needed(
-    db: Session,
-    languages: Optional[List[str]],
-    countries: Optional[List[str]],
-) -> EnrichmentMetadata:
-    """Check enrichment status and trigger background enrichment if needed.
-
-    Returns EnrichmentMetadata with current status.
-    """
-    min_threshold = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
-    current_count = count_politicians_with_unevaluated(db, languages, countries)
-    can_enrich = has_enrichable_politicians(db, languages, countries)
-
-    if current_count < min_threshold and can_enrich:
-        logger.info(
-            f"Only {current_count} politicians with unevaluated properties (threshold: {min_threshold}), triggering enrichment batch"
-        )
-        asyncio.create_task(
-            enrich_batch_async(languages=languages, countries=countries)
-        )
-
-    return EnrichmentMetadata(
-        has_enrichable_politicians=can_enrich,
-        total_matching_filters=current_count,
-    )
-
-
 # =============================================================================
 # Endpoints
 # =============================================================================
@@ -243,7 +217,25 @@ async def get_next_politician(
 
     politician = db.execute(query).scalars().first()
 
-    meta = _trigger_enrichment_if_needed(db, languages, countries)
+    # Trigger enrichment if unevaluated pool is running low
+    min_threshold = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
+    current_count = count_politicians_with_unevaluated(db, languages, countries)
+    can_enrich = has_enrichable_politicians(db, languages, countries)
+
+    if current_count < min_threshold and can_enrich:
+        logger.info(
+            f"Only {current_count} politicians with unevaluated properties (threshold: {min_threshold}), triggering enrichment"
+        )
+        await enrich_politician_from_wikipedia(
+            languages=languages,
+            countries=countries,
+            user_id=str(current_user.user_id),
+        )
+
+    meta = EnrichmentMetadata(
+        has_enrichable_politicians=can_enrich,
+        total_matching_filters=current_count,
+    )
 
     if politician:
         return NextPoliticianResponse(
@@ -556,6 +548,7 @@ async def create_source(
         url=request.url,
         user_id=str(current_user.user_id),
         status=ArchivedPageStatus.PENDING,
+        origin=ArchivedPageOrigin.USER_SUBMITTED,
     )
     db.add(archived_page)
     db.flush()

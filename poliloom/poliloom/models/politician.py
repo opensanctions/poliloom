@@ -715,6 +715,13 @@ class ArchivedPageStatus(str, Enum):
     DONE = "done"
 
 
+class ArchivedPageOrigin(str, Enum):
+    """Origin of an archived page."""
+
+    ENRICHMENT = "ENRICHMENT"
+    USER_SUBMITTED = "USER_SUBMITTED"
+
+
 class ArchivedPage(Base, TimestampMixin):
     """Archived page entity for storing fetched web page metadata."""
 
@@ -750,6 +757,11 @@ class ArchivedPage(Base, TimestampMixin):
         nullable=True,
     )
     http_status_code = Column(Integer, nullable=True)
+    origin = Column(
+        SQLEnum(ArchivedPageOrigin, name="archivedpageorigin"),
+        nullable=False,
+        server_default="ENRICHMENT",
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -1300,10 +1312,12 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
                 existing_ref.supporting_quotes = supporting_quotes
             return existing_ref
 
-        # Create new reference
+        # Create new reference using relationship objects so SQLAlchemy
+        # populates both sides (e.g. archived_page.property_references)
+        # within the same flush.
         ref = PropertyReference(
-            property_id=self.id,
-            archived_page_id=archived_page.id,
+            property=self,
+            archived_page=archived_page,
             supporting_quotes=supporting_quotes,
         )
         db.add(ref)
@@ -1353,7 +1367,7 @@ class PropertyReference(Base, TimestampMixin):
 @event.listens_for(Session, "after_flush")
 def _broadcast_archived_page_status(session, flush_context):
     """Broadcast SSE events when ArchivedPage status changes."""
-    from ..sse import notify_all
+    from ..sse import notify
 
     for obj in session.dirty | session.new:
         if not isinstance(obj, ArchivedPage):
@@ -1365,9 +1379,10 @@ def _broadcast_archived_page_status(session, flush_context):
             "archived_page_id": str(obj.id),
             "status": obj.status.value,
             "politician_ids": [str(p.id) for p in obj.politicians],
+            "has_extracted_properties": len(obj.property_references) > 0,
         }
         if obj.error:
             payload["error"] = obj.error.value
         if obj.http_status_code is not None:
             payload["http_status_code"] = obj.http_status_code
-        notify_all(payload)
+        notify(payload, user_id=obj.user_id)

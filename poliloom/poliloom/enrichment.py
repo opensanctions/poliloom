@@ -25,6 +25,7 @@ from .models import (
     Country,
     ArchivedPage,
     ArchivedPageError,
+    ArchivedPageOrigin,
     ArchivedPageStatus,
     WikidataRelation,
     WikidataEntity,
@@ -824,6 +825,7 @@ async def enrich_politician_from_wikipedia(
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,
     stateless: bool = False,
+    user_id: Optional[str] = None,
 ) -> bool:
     """
     Enrich a single politician's data by extracting information from their Wikipedia sources.
@@ -888,6 +890,8 @@ async def enrich_politician_from_wikipedia(
                     url=url,
                     wikipedia_project_id=wikipedia_project_id,
                     status=ArchivedPageStatus.PENDING,
+                    user_id=user_id,
+                    origin=ArchivedPageOrigin.ENRICHMENT,
                 )
                 db.add(archived_page)
                 db.flush()
