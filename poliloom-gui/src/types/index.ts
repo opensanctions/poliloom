@@ -1,8 +1,12 @@
+export type ArchivedPageStatus = 'PENDING' | 'PROCESSING' | 'DONE'
+
 export interface ArchivedPageResponse {
   id: string
   url: string
-  content_hash: string
-  fetch_timestamp: string
+  content_hash: string | null
+  fetch_timestamp: string | null
+  status: ArchivedPageStatus
+  error?: string | null
 }
 
 export enum PropertyType {

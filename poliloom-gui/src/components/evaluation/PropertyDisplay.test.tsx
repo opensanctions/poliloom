@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { PropertyDisplay } from './PropertyDisplay'
-import { PropertyType, Property } from '@/types'
+import { PropertyType, Property, ArchivedPageResponse } from '@/types'
 import { vi } from 'vitest'
 
 vi.mock('@/contexts/UserPreferencesContext', () => ({
@@ -13,11 +13,12 @@ const mockOnAction = vi.fn()
 const mockOnShowArchived = vi.fn()
 const mockOnHover = vi.fn()
 
-const mockArchivedPage = {
+const mockArchivedPage: ArchivedPageResponse = {
   id: 'archived-1',
   url: 'https://en.wikipedia.org/wiki/Test_Politician',
   content_hash: 'abc123',
   fetch_timestamp: '2024-01-01T00:00:00Z',
+  status: 'DONE',
 }
 
 const baseProperty: Property = {

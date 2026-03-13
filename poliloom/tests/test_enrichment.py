@@ -11,7 +11,6 @@ from poliloom.enrichment import (
     count_politicians_with_unevaluated,
     enrich_batch,
     extract_permanent_url,
-    fetch_and_archive_page,
     ExtractedProperty,
     ExtractedPosition,
     ExtractedBirthplace,
@@ -443,9 +442,7 @@ class TestEnrichment:
         """Test enrichment when no politicians have Wikipedia links."""
         # The sample_politician fixture by default has no Wikipedia links
         # The function should filter these out and return False
-
-        with patch("poliloom.enrichment.AsyncOpenAI"):
-            politician_found = await enrich_politician_from_wikipedia()
+        politician_found = await enrich_politician_from_wikipedia()
 
         # Should find no politicians to enrich since they're filtered out by the query
         assert politician_found is False
@@ -764,111 +761,3 @@ class TestConvertMhtmlToHtml:
 
             result = convert_mhtml_to_html(mhtml_content)
             assert result is None
-
-
-class TestFetchAndArchivePage:
-    """Test fetch_and_archive_page function."""
-
-    @pytest.mark.asyncio
-    async def test_fetch_and_archive_page_success(
-        self, db_session, sample_wikipedia_project
-    ):
-        """Test successful page fetch and archive with permanent URL extraction."""
-        from poliloom.page_fetcher import FetchedPage
-
-        url = "https://en.wikipedia.org/wiki/Test_Page"
-        permanent_url = "https://en.wikipedia.org/w/index.php?title=Test_Page&oldid=123"
-
-        mock_fetched = FetchedPage(mhtml="MHTML content", html="<html>Converted</html>")
-
-        async def mock_fetch_page(url):
-            return mock_fetched
-
-        with patch("poliloom.enrichment.fetch_page", side_effect=mock_fetch_page):
-            with patch("poliloom.enrichment.extract_permanent_url") as mock_extract:
-                mock_extract.return_value = permanent_url
-
-                archived_page = await fetch_and_archive_page(
-                    url,
-                    db_session,
-                    wikipedia_project_id=sample_wikipedia_project.wikidata_id,
-                )
-
-                # Original URL is preserved for display
-                assert archived_page.url == url
-                # Permanent URL is stored separately for references
-                assert archived_page.permanent_url == permanent_url
-                assert (
-                    archived_page.wikipedia_project_id
-                    == sample_wikipedia_project.wikidata_id
-                )
-                mock_extract.assert_called_once_with("<html>Converted</html>")
-                assert archived_page.user_id is None
-
-    @pytest.mark.asyncio
-    async def test_fetch_and_archive_page_without_wikipedia_project(self, db_session):
-        """Test fetch and archive without Wikipedia project."""
-        from poliloom.page_fetcher import FetchedPage
-
-        url = "https://example.com/article"
-
-        mock_fetched = FetchedPage(mhtml="MHTML content", html="<html>Converted</html>")
-
-        async def mock_fetch_page(url):
-            return mock_fetched
-
-        with patch("poliloom.enrichment.fetch_page", side_effect=mock_fetch_page):
-            archived_page = await fetch_and_archive_page(url, db_session)
-
-            assert archived_page.url == url
-            assert archived_page.permanent_url is None
-            assert archived_page.wikipedia_project_id is None
-            assert archived_page.user_id is None
-
-    @pytest.mark.asyncio
-    async def test_fetch_and_archive_page_with_user_id(self, db_session):
-        """Test that user_id is stored when provided."""
-        from poliloom.page_fetcher import FetchedPage
-
-        url = "https://example.com/article"
-
-        mock_fetched = FetchedPage(mhtml="MHTML content", html="<html>Converted</html>")
-
-        async def mock_fetch_page(url):
-            return mock_fetched
-
-        with patch("poliloom.enrichment.fetch_page", side_effect=mock_fetch_page):
-            archived_page = await fetch_and_archive_page(
-                url, db_session, user_id="12345"
-            )
-
-            assert archived_page.url == url
-            assert archived_page.user_id == "12345"
-
-    @pytest.mark.asyncio
-    async def test_fetch_and_archive_page_http_error(self, db_session):
-        """Test handling of HTTP error response."""
-        from poliloom.page_fetcher import PageFetchError
-
-        url = "https://example.com/article"
-
-        async def mock_fetch_page(url):
-            raise PageFetchError(f"HTTP 404 for {url}")
-
-        with patch("poliloom.enrichment.fetch_page", side_effect=mock_fetch_page):
-            with pytest.raises(PageFetchError, match="HTTP 404"):
-                await fetch_and_archive_page(url, db_session)
-
-    @pytest.mark.asyncio
-    async def test_fetch_and_archive_page_timeout(self, db_session):
-        """Test handling of timeout."""
-        from poliloom.page_fetcher import PageFetchError
-
-        url = "https://example.com/slow-page"
-
-        async def mock_fetch_page(url):
-            raise PageFetchError(f"Timeout after 60000ms: {url}")
-
-        with patch("poliloom.enrichment.fetch_page", side_effect=mock_fetch_page):
-            with pytest.raises(PageFetchError, match="Timeout"):
-                await fetch_and_archive_page(url, db_session)

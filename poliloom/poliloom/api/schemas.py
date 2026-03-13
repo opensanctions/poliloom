@@ -22,8 +22,10 @@ class ArchivedPageResponse(UUIDBaseModel):
 
     id: UUID
     url: str
-    content_hash: str
-    fetch_timestamp: datetime
+    content_hash: Optional[str] = None
+    fetch_timestamp: Optional[datetime] = None
+    status: str = "DONE"
+    error: Optional[str] = None
 
 
 class PropertyReferenceResponse(UUIDBaseModel):

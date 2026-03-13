@@ -24,6 +24,7 @@ from .models import (
     Location,
     Country,
     ArchivedPage,
+    ArchivedPageStatus,
     WikidataRelation,
     WikidataEntity,
 )
@@ -510,60 +511,127 @@ def extract_permanent_url(html_content: str) -> Optional[str]:
         return None
 
 
-async def fetch_and_archive_page(
-    url: str,
-    db: Session,
-    wikipedia_project_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-) -> ArchivedPage:
-    """Fetch web page content and archive it.
+async def process_archived_page(page_id) -> None:
+    """Process a PENDING archived page: fetch, archive, extract properties.
 
-    Stores HTML and MHTML content. When a Wikipedia project ID is provided,
-    also extracts the permanent URL with oldid and links languages from the project.
+    Opens its own database session and eager-loads the politician with all
+    relationships needed for extraction. Used by both user submissions and
+    batch enrichment. Results are committed directly; nothing is returned.
 
     Args:
-        url: The URL to fetch and archive
-        db: Database session
-        wikipedia_project_id: Optional Wikipedia project Wikidata ID. When provided,
-            extracts the permanent URL with oldid and links languages from the project.
-
-    Returns:
-        ArchivedPage with archived content (HTML, MHTML)
-
-    Raises:
-        PageFetchError: If the page cannot be fetched (timeout, network error, HTTP error)
+        page_id: ArchivedPage UUID
     """
-    now = datetime.now(timezone.utc)
+    with Session(get_engine()) as db:
+        # Load page with politician and all relationships needed for extraction
+        archived_page = db.execute(
+            select(ArchivedPage)
+            .where(ArchivedPage.id == page_id)
+            .options(
+                selectinload(ArchivedPage.politician).options(
+                    selectinload(Politician.wikidata_entity),
+                    selectinload(Politician.properties)
+                    .selectinload(Property.entity)
+                    .selectinload(WikidataEntity.parent_relations)
+                    .selectinload(WikidataRelation.parent_entity),
+                ),
+            )
+        ).scalar_one()
 
-    # Fetch the page content
-    fetched = await fetch_page(url)
+        try:
+            archived_page.status = ArchivedPageStatus.PROCESSING
+            db.commit()
 
-    # Extract permanent URL for Wikipedia pages (used in references)
-    permanent_url = None
-    if wikipedia_project_id and fetched.html:
-        permanent_url = extract_permanent_url(fetched.html)
-        if permanent_url:
-            logger.info(f"Extracted permanent URL: {permanent_url}")
+            # Fetch & archive
+            fetched = await fetch_page(archived_page.url)
+            now = datetime.now(timezone.utc)
 
-    # Create ArchivedPage record with original URL for display
-    archived_page = ArchivedPage(
-        url=url,
-        permanent_url=permanent_url,
-        fetch_timestamp=now,
-        user_id=user_id,
-        wikipedia_project_id=wikipedia_project_id,
-    )
-    db.add(archived_page)
-    db.flush()
+            if archived_page.wikipedia_project_id and fetched.html:
+                permanent_url = extract_permanent_url(fetched.html)
+                if permanent_url:
+                    logger.info(f"Extracted permanent URL: {permanent_url}")
+                    archived_page.permanent_url = permanent_url
 
-    # Link languages from Wikipedia project
-    archived_page.link_languages_from_project(db)
-    db.flush()
+            archived_page.content_hash = ArchivedPage._generate_content_hash(
+                archived_page.url
+            )
+            archived_page.fetch_timestamp = now
+            db.flush()
 
-    # Save all content files
-    archived_page.save_archived_files(fetched.mhtml, fetched.html)
+            archived_page.link_languages_from_project(db)
+            db.flush()
 
-    return archived_page
+            archived_page.save_archived_files(fetched.mhtml, fetched.html)
+            db.commit()
+
+            # Read content and extract text
+            html_content = archive.read_archived_content(
+                archived_page.path_root, "html"
+            )
+            soup = BeautifulSoup(html_content, "html.parser")
+            text = soup.get_text()
+            content = " ".join(text.split())
+
+            # Extract properties in parallel
+            openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            try:
+                (
+                    date_properties,
+                    positions,
+                    birthplaces,
+                    citizenships,
+                ) = await asyncio.gather(
+                    extract_properties_generic(
+                        openai_client,
+                        content,
+                        archived_page.politician,
+                        DATES_CONFIG,
+                    ),
+                    extract_two_stage_generic(
+                        openai_client,
+                        db,
+                        content,
+                        archived_page.politician,
+                        POSITIONS_CONFIG,
+                    ),
+                    extract_two_stage_generic(
+                        openai_client,
+                        db,
+                        content,
+                        archived_page.politician,
+                        BIRTHPLACES_CONFIG,
+                    ),
+                    extract_two_stage_generic(
+                        openai_client,
+                        db,
+                        content,
+                        archived_page.politician,
+                        CITIZENSHIPS_CONFIG,
+                    ),
+                )
+            finally:
+                await openai_client.close()
+
+            # Store extracted data
+            store_extracted_data(
+                db,
+                archived_page.politician,
+                archived_page,
+                date_properties,
+                positions,
+                birthplaces,
+                citizenships,
+            )
+
+            archived_page.status = ArchivedPageStatus.DONE
+            db.commit()
+
+        except Exception as e:
+            logger.error(f"Error processing archived page {page_id}: {e}")
+            db.rollback()
+            archived_page = db.get(ArchivedPage, page_id)
+            archived_page.status = ArchivedPageStatus.DONE
+            archived_page.error = str(e)
+            db.commit()
 
 
 # Configuration instances for different extraction types
@@ -680,16 +748,13 @@ def has_enrichable_politicians(
     return result is not None
 
 
-def enrich_batch(
+async def enrich_batch_async(
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,
     stateless: bool = False,
 ) -> int:
     """
     Enrich a batch of politicians based on ENRICHMENT_BATCH_SIZE env var.
-
-    This function is synchronous and uses asyncio.run() to call async enrichment functions.
-    It's designed to be run in a ThreadPoolExecutor to avoid blocking API workers.
 
     Args:
         languages: Optional list of language QIDs to filter by
@@ -705,15 +770,11 @@ def enrich_batch(
     logger.info(f"Starting enrichment batch of {batch_size} politicians")
 
     for i in range(batch_size):
-        # Enrich one politician - run async function in new event loop
-        politician_found = asyncio.run(
-            enrich_politician_from_wikipedia(
-                languages=languages, countries=countries, stateless=stateless
-            )
+        politician_found = await enrich_politician_from_wikipedia(
+            languages=languages, countries=countries, stateless=stateless
         )
 
         if not politician_found:
-            # No more politicians to enrich
             logger.info("No more politicians available to enrich")
             break
 
@@ -725,95 +786,17 @@ def enrich_batch(
     return enriched_count
 
 
-async def _fetch_and_extract_from_page(
-    openai_client: AsyncOpenAI,
-    db: Session,
-    politician: Politician,
-    url: str,
-    wikipedia_project_id: str,
-) -> tuple[bool, int, int, int, int]:
-    """
-    Fetch a web page, archive it, and extract politician data from it.
-
-    Args:
-        openai_client: OpenAI async client
-        db: Database session
-        politician: Politician to enrich
-        url: Web page URL
-        wikipedia_project_id: Wikipedia project Wikidata ID for language linking
-
-    Returns:
-        Tuple of (success, date_count, position_count, birthplace_count, citizenship_count)
-    """
-    try:
-        logger.info(f"Processing source: {url}")
-
-        # Fetch and archive the page
-        archived_page = await fetch_and_archive_page(url, db, wikipedia_project_id)
-
-        # Read content from archived page
-        html_content = archive.read_archived_content(archived_page.path_root, "html")
-
-        soup = BeautifulSoup(html_content, "html.parser")
-        text = soup.get_text()
-        content = " ".join(text.split())
-
-        # Extract data from this specific source in parallel
-        (
-            date_properties,
-            positions,
-            birthplaces,
-            citizenships,
-        ) = await asyncio.gather(
-            extract_properties_generic(
-                openai_client, content, politician, DATES_CONFIG
-            ),
-            extract_two_stage_generic(
-                openai_client, db, content, politician, POSITIONS_CONFIG
-            ),
-            extract_two_stage_generic(
-                openai_client, db, content, politician, BIRTHPLACES_CONFIG
-            ),
-            extract_two_stage_generic(
-                openai_client, db, content, politician, CITIZENSHIPS_CONFIG
-            ),
+def enrich_batch(
+    languages: Optional[List[str]] = None,
+    countries: Optional[List[str]] = None,
+    stateless: bool = False,
+) -> int:
+    """Sync wrapper for CLI usage."""
+    return asyncio.run(
+        enrich_batch_async(
+            languages=languages, countries=countries, stateless=stateless
         )
-
-        # Store extracted data for this specific source
-        success = store_extracted_data(
-            db,
-            politician,
-            archived_page,
-            date_properties,
-            positions,
-            birthplaces,
-            citizenships,
-        )
-
-        if success:
-            # Count what was extracted from this source
-            date_count = len(date_properties) if date_properties else 0
-            position_count = len(positions) if positions else 0
-            birthplace_count = len(birthplaces) if birthplaces else 0
-            citizenship_count = len(citizenships) if citizenships else 0
-
-            source_total = (
-                date_count + position_count + birthplace_count + citizenship_count
-            )
-            logger.info(
-                f"Extracted {source_total} items from {url} "
-                f"({date_count} dates, {position_count} positions, {birthplace_count} birthplaces, {citizenship_count} citizenships)"
-            )
-            return True, date_count, position_count, birthplace_count, citizenship_count
-        else:
-            logger.warning(
-                f"Failed to store extracted data from {url} for {politician.name}"
-            )
-            return False, 0, 0, 0, 0
-
-    except Exception as e:
-        logger.error(f"Error processing page {url}: {e}")
-        return False, 0, 0, 0, 0
+    )
 
 
 async def enrich_politician_from_wikipedia(
@@ -824,12 +807,9 @@ async def enrich_politician_from_wikipedia(
     """
     Enrich a single politician's data by extracting information from their Wikipedia sources.
 
-    Processes multiple Wikipedia articles concurrently based on politician's
-    citizenship and official languages of their countries, prioritized by Wikipedia
-    link popularity.
-
-    Uses FOR UPDATE SKIP LOCKED to prevent concurrent processes from enriching
-    the same politician.
+    Creates PENDING ArchivedPage rows for the politician's Wikipedia links and sets
+    enriched_at immediately (preventing other workers from re-selecting), then
+    processes each page independently with its own session.
 
     Args:
         languages: Optional list of language QIDs to filter by
@@ -837,25 +817,14 @@ async def enrich_politician_from_wikipedia(
         stateless: If True, only enrich politicians without citizenship data
 
     Returns:
-        True if a politician was found and enriched (successfully or not), False if no politician available
+        True if a politician was found and queued, False if no politician available
     """
 
-    openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
     with Session(get_engine()) as db:
-        # Build query for enrichment candidates
-        # All filters (including enriched_at) are in the same query that gets the lock,
-        # preventing race conditions where a politician is selected after being enriched
-        # by another concurrent process.
-        #
         # Ordering strategy:
         # 1. NULL enriched_at first (never enriched)
         # 2. Among NULL, higher QID numbers first (newer politicians)
         # 3. Then by enriched_at ascending (oldest enrichment first)
-        # This ensures we enrich all politicians once before re-enriching any
-        #
-        # Use FOR UPDATE SKIP LOCKED to prevent concurrent processes from
-        # selecting the same politician
         query = (
             Politician.query_for_enrichment(
                 languages=languages,
@@ -863,14 +832,6 @@ async def enrich_politician_from_wikipedia(
                 stateless=stateless,
             )
             .options(
-                # Load the politician's wikidata entity
-                selectinload(Politician.wikidata_entity),
-                # Load all properties with their related entities and relations
-                selectinload(Politician.properties)
-                .selectinload(Property.entity)
-                .selectinload(WikidataEntity.parent_relations)
-                .selectinload(WikidataRelation.parent_entity),
-                # Load Wikipedia links
                 selectinload(Politician.wikipedia_links),
             )
             .order_by(
@@ -887,7 +848,6 @@ async def enrich_politician_from_wikipedia(
             return False
 
         try:
-            # Get priority Wikipedia links based on citizenship and language popularity
             priority_links = politician.get_priority_wikipedia_links(db)
 
             if not priority_links:
@@ -900,64 +860,37 @@ async def enrich_politician_from_wikipedia(
                 f"{[f'{wikipedia_project_id} ({url})' for url, wikipedia_project_id in priority_links]}"
             )
 
-            # Process all pages concurrently
-            page_tasks = [
-                _fetch_and_extract_from_page(
-                    openai_client, db, politician, url, wikipedia_project_id
+            # Create PENDING ArchivedPage rows for each link
+            page_ids = []
+            for url, wikipedia_project_id in priority_links:
+                archived_page = ArchivedPage(
+                    url=url,
+                    politician_id=politician.id,
+                    wikipedia_project_id=wikipedia_project_id,
+                    status=ArchivedPageStatus.PENDING,
                 )
-                for url, wikipedia_project_id in priority_links
-            ]
+                db.add(archived_page)
+                db.flush()
+                page_ids.append(archived_page.id)
 
-            page_results = await asyncio.gather(*page_tasks)
-
-            # Aggregate results from all pages
-            total_dates = 0
-            total_positions = 0
-            total_birthplaces = 0
-            total_citizenships = 0
-            processed_sources = 0
-
-            for (
-                success,
-                date_count,
-                position_count,
-                birthplace_count,
-                citizenship_count,
-            ) in page_results:
-                if success:
-                    total_dates += date_count
-                    total_positions += position_count
-                    total_birthplaces += birthplace_count
-                    total_citizenships += citizenship_count
-                    processed_sources += 1
-
-            # Final summary
-            grand_total = (
-                total_dates + total_positions + total_birthplaces + total_citizenships
-            )
-            logger.info(
-                f"Successfully enriched {politician.name} ({politician.wikidata_id}) from {processed_sources}/{len(priority_links)} sources: "
-                f"{grand_total} total items ({total_dates} dates, {total_positions} positions, {total_birthplaces} birthplaces, {total_citizenships} citizenships)"
-            )
-
-            # Update enriched_at and commit all changes atomically
-            # This includes: ArchivedPages, Properties, and enriched_at timestamp
-            # The FOR UPDATE lock is held until this commit
+            # Mark politician as processed — prevents re-selection by other workers
             politician.enriched_at = datetime.now(timezone.utc)
             db.commit()
 
         except Exception as e:
-            logger.error(f"Error enriching politician {politician.wikidata_id}: {e}")
-            # Rollback failed enrichment, then set enriched_at to prevent infinite retries
+            logger.error(
+                f"Error scheduling enrichment for politician {politician.wikidata_id}: {e}"
+            )
             db.rollback()
             politician.enriched_at = datetime.now(timezone.utc)
             db.commit()
+            return True
 
-        finally:
-            # Close the OpenAI client to prevent event loop cleanup errors
-            await openai_client.close()
+    # Fire off page processing as background tasks (same path as manual source creation)
+    for page_id in page_ids:
+        asyncio.create_task(process_archived_page(page_id))
 
-        return True
+    return True
 
 
 def store_extracted_data(

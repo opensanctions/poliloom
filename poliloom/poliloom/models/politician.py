@@ -3,6 +3,7 @@
 import hashlib
 import os
 from datetime import datetime, timedelta, timezone
+from enum import Enum
 from typing import List, Optional
 
 from dicttoxml import dicttoxml
@@ -27,6 +28,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.engine import Row
 from sqlalchemy.orm import Session, relationship
+from sqlalchemy.orm.attributes import get_history
 from sqlalchemy import event
 
 from ..wikidata_date import WikidataDate
@@ -673,6 +675,14 @@ class ArchivedPageLanguage(Base, TimestampMixin):
     language_entity = relationship("WikidataEntity")
 
 
+class ArchivedPageStatus(str, Enum):
+    """Status of an archived page through the processing pipeline."""
+
+    PENDING = "pending"
+    PROCESSING = "processing"
+    DONE = "done"
+
+
 class ArchivedPage(Base, TimestampMixin):
     """Archived page entity for storing fetched web page metadata."""
 
@@ -684,10 +694,10 @@ class ArchivedPage(Base, TimestampMixin):
     url = Column(String, nullable=False)
     permanent_url = Column(String, nullable=True)  # Wikipedia oldid URL for references
     content_hash = Column(
-        String, nullable=False, index=True
-    )  # SHA256 hash for deduplication
+        String, nullable=True, index=True
+    )  # SHA256 hash for deduplication, null while pending
     fetch_timestamp = Column(
-        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+        DateTime, nullable=True, default=lambda: datetime.now(timezone.utc)
     )
     user_id = Column(
         String, nullable=True, index=True
@@ -704,6 +714,12 @@ class ArchivedPage(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    status = Column(
+        SQLEnum(ArchivedPageStatus, name="archivedpagestatus"),
+        nullable=False,
+        server_default="PENDING",
+    )
+    error = Column(String, nullable=True)
 
     # Relationships
     politician = relationship("Politician", back_populates="archived_pages")
@@ -1291,3 +1307,23 @@ class PropertyReference(Base, TimestampMixin):
     # Relationships
     property = relationship("Property", back_populates="property_references")
     archived_page = relationship("ArchivedPage", back_populates="property_references")
+
+
+@event.listens_for(Session, "after_flush")
+def _broadcast_archived_page_status(session, flush_context):
+    """Broadcast SSE events when ArchivedPage status changes."""
+    from ..sse import notify_all
+
+    for obj in session.dirty | session.new:
+        if not isinstance(obj, ArchivedPage):
+            continue
+        history = get_history(obj, "status")
+        if not history.has_changes():
+            continue
+        payload = {
+            "archived_page_id": str(obj.id),
+            "status": obj.status.value,
+        }
+        if obj.error:
+            payload["error"] = obj.error
+        notify_all(payload)

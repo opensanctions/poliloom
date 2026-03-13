@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, waitFor, render } from '@testing-library/react'
 import { mockSubmitAndAdvance, mockRouterPush, mockFetch } from '@/test/test-utils'
 import { PoliticianEvaluation } from './PoliticianEvaluation'
-import type { Politician } from '@/types'
+import type { ArchivedPageResponse, Politician } from '@/types'
 import { PropertyType } from '@/types'
 
 const mockAdvanceNext = vi.fn()
@@ -43,11 +43,12 @@ import '@/test/highlight-mocks'
 
 vi.spyOn(console, 'error').mockImplementation(() => {})
 
-const archivedPage = {
+const archivedPage: ArchivedPageResponse = {
   id: 'archived-1',
   url: 'https://en.wikipedia.org/wiki/Test',
   content_hash: 'abc',
   fetch_timestamp: '2024-01-01T00:00:00Z',
+  status: 'DONE',
 }
 
 const politician: Politician = {

@@ -4,6 +4,67 @@ import { Button } from '@/components/ui/Button'
 import { AddSourceForm } from './AddSourceForm'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 
+function SourceStatusIndicator({
+  status,
+  error,
+}: {
+  status: ArchivedPageResponse['status']
+  error?: string | null
+}) {
+  if (error) {
+    return (
+      <span className="text-xs text-red-500" title={error}>
+        Failed
+      </span>
+    )
+  }
+  if (status === 'PENDING' || status === 'PROCESSING') {
+    return (
+      <span className="text-xs text-muted-foreground animate-pulse">
+        {status === 'PENDING' ? 'Queued' : 'Processing...'}
+      </span>
+    )
+  }
+  return null
+}
+
+function SourceItem({
+  page,
+  isActive,
+  onSelect,
+}: {
+  page: ArchivedPageResponse
+  isActive: boolean
+  onSelect: (page: ArchivedPageResponse) => void
+}) {
+  const isDone = page.status === 'DONE' && !page.error
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        size="small"
+        variant="info"
+        active={isActive}
+        onClick={() => onSelect(page)}
+        className="flex-shrink-0"
+        disabled={!isDone}
+      >
+        {isActive ? 'Viewing' : 'View'}
+      </Button>
+      <a
+        href={page.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-sm text-accent-foreground hover:underline truncate min-w-0"
+        title={page.url}
+      >
+        {page.url}
+      </a>
+      <SourceStatusIndicator status={page.status} error={page.error} />
+    </div>
+  )
+}
+
 interface SourcesListProps {
   archivedPages: ArchivedPageResponse[]
   activeArchivedPageId: string | null
@@ -32,26 +93,12 @@ export function SourcesList({
       <h2 className="text-xl font-semibold text-foreground mb-4">Sources</h2>
       <div className="space-y-2">
         {archivedPages.map((page) => (
-          <div key={page.id} className="flex items-center gap-2">
-            <Button
-              size="small"
-              variant="info"
-              active={activeArchivedPageId === page.id}
-              onClick={() => onSelect(page)}
-              className="flex-shrink-0"
-            >
-              {activeArchivedPageId === page.id ? 'Viewing' : 'View'}
-            </Button>
-            <a
-              href={page.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-accent-foreground hover:underline truncate min-w-0"
-              title={page.url}
-            >
-              {page.url}
-            </a>
-          </div>
+          <SourceItem
+            key={page.id}
+            page={page}
+            isActive={activeArchivedPageId === page.id}
+            onSelect={onSelect}
+          />
         ))}
       </div>
       {onAddSource && politicianQid && isAdvancedMode && (

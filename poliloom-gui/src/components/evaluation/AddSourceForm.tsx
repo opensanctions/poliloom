@@ -15,7 +15,6 @@ export function AddSourceForm({ politicianQid, onAdd, onCancel }: AddSourceFormP
   const [url, setUrl] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
   const isValidUrl = (() => {
     try {
       new URL(url)
@@ -45,9 +44,9 @@ export function AddSourceForm({ politicianQid, onAdd, onCancel }: AddSourceFormP
 
       const source: ArchivedPageResponse = await response.json()
       onAdd(source)
+      setIsSubmitting(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to add source')
-    } finally {
       setIsSubmitting(false)
     }
   }
@@ -63,7 +62,7 @@ export function AddSourceForm({ politicianQid, onAdd, onCancel }: AddSourceFormP
       />
       <div className="flex gap-2">
         <Button size="small" onClick={handleSubmit} disabled={!isValidUrl || isSubmitting}>
-          {isSubmitting ? 'Fetching...' : '+ Add'}
+          {isSubmitting ? 'Adding...' : '+ Add'}
         </Button>
         <Button size="small" variant="secondary" onClick={onCancel} disabled={isSubmitting}>
           Cancel

@@ -36,6 +36,7 @@ from .user import Evaluation
 from .politician import (
     ArchivedPage,
     ArchivedPageLanguage,
+    ArchivedPageStatus,
     Politician,
     Property,
     PropertyReference,
@@ -74,6 +75,7 @@ __all__ = [
     # Politician
     "ArchivedPage",
     "ArchivedPageLanguage",
+    "ArchivedPageStatus",
     "Politician",
     "Property",
     "PropertyReference",

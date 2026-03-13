@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -13,13 +12,14 @@ from sqlalchemy.orm import Session, selectinload
 from ..database import get_db_session
 from ..enrichment import (
     count_politicians_with_unevaluated,
-    enrich_batch,
+    enrich_batch_async,
     has_enrichable_politicians,
 )
 from ..search import SearchService
 from ..models import (
     ArchivedPage,
     ArchivedPageLanguage,
+    ArchivedPageStatus,
     Evaluation,
     Politician,
     Property,
@@ -59,12 +59,6 @@ PROPERTY_TYPE_MAP = {
     "P27": PropertyType.CITIZENSHIP,
 }
 
-# Thread pool for background enrichment tasks (4 concurrent workers)
-_enrichment_executor = ThreadPoolExecutor(
-    max_workers=4, thread_name_prefix="enrichment"
-)
-
-
 # =============================================================================
 # Helper function to build property responses
 # =============================================================================
@@ -78,6 +72,8 @@ def build_politician_response(politician, archived_pages=None) -> PoliticianResp
             url=ap.url,
             content_hash=ap.content_hash,
             fetch_timestamp=ap.fetch_timestamp,
+            status=ap.status.value,
+            error=ap.error,
         )
         for ap in (archived_pages or [])
     ]
@@ -98,6 +94,8 @@ def build_politician_response(politician, archived_pages=None) -> PoliticianResp
                         url=ref.archived_page.url,
                         content_hash=ref.archived_page.content_hash,
                         fetch_timestamp=ref.archived_page.fetch_timestamp,
+                        status=ref.archived_page.status.value,
+                        error=ref.archived_page.error,
                     ),
                     supporting_quotes=ref.supporting_quotes,
                 )
@@ -144,12 +142,8 @@ def _trigger_enrichment_if_needed(
         logger.info(
             f"Only {current_count} politicians with unevaluated properties (threshold: {min_threshold}), triggering enrichment batch"
         )
-        loop = asyncio.get_running_loop()
-        loop.run_in_executor(
-            _enrichment_executor,
-            enrich_batch,
-            languages,
-            countries,
+        asyncio.create_task(
+            enrich_batch_async(languages=languages, countries=countries)
         )
 
     return EnrichmentMetadata(
@@ -541,7 +535,11 @@ async def patch_properties(
     )
 
 
-@router.post("/{qid}/sources", response_model=ArchivedPageResponse)
+@router.post(
+    "/{qid}/sources",
+    response_model=ArchivedPageResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def create_source(
     qid: str,
     request: CreateSourceRequest,
@@ -549,10 +547,10 @@ async def create_source(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Add a source link to a politician by fetching and archiving the page.
+    Add a source link to a politician. Creates a pending ArchivedPage and
+    processes it in the background (fetch + extract). Returns 202 immediately.
     """
-    from ..enrichment import fetch_and_archive_page
-    from ..page_fetcher import PageFetchError
+    from ..enrichment import process_archived_page
 
     politician = (
         db.execute(select(Politician).where(Politician.wikidata_id == qid))
@@ -565,32 +563,21 @@ async def create_source(
             detail=f"Politician with QID {qid} not found",
         )
 
-    try:
-        archived_page = await fetch_and_archive_page(
-            url=request.url,
-            db=db,
-            user_id=str(current_user.user_id),
-        )
-    except PageFetchError as e:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Failed to fetch page: {str(e)}",
-        )
+    # Create pending ArchivedPage
+    archived_page = ArchivedPage(
+        url=request.url,
+        politician_id=politician.id,
+        user_id=str(current_user.user_id),
+        status=ArchivedPageStatus.PENDING,
+    )
+    db.add(archived_page)
+    db.commit()
 
-    archived_page.politician_id = politician.id
-
-    try:
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}",
-        )
+    # process_archived_page manages its own session
+    asyncio.create_task(process_archived_page(archived_page.id))
 
     return ArchivedPageResponse(
         id=archived_page.id,
         url=archived_page.url,
-        content_hash=archived_page.content_hash,
-        fetch_timestamp=archived_page.fetch_timestamp,
+        status=archived_page.status.value,
     )

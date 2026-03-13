@@ -66,6 +66,8 @@ export async function proxyToBackend(request: NextRequest, backendPath: string) 
     return response
   }
 
-  const data = await response.json()
-  return NextResponse.json(data)
+  return new Response(response.body, {
+    status: response.status,
+    headers: { 'Content-Type': response.headers.get('Content-Type') || 'application/json' },
+  })
 }
