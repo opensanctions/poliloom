@@ -514,12 +514,131 @@ def extract_permanent_url(html_content: str) -> Optional[str]:
         return None
 
 
-async def process_archived_page(page_id, politician_id) -> None:
-    """Process a PENDING archived page: fetch, archive, extract properties.
+async def process_archived_page(
+    db: Session, archived_page: ArchivedPage, politician: Politician
+) -> None:
+    """Fetch, archive, and extract properties from an archived page.
 
-    Opens its own database session and eager-loads the politician with all
-    relationships needed for extraction. Used by both user submissions and
-    batch enrichment. Results are committed directly; nothing is returned.
+    Handles status transitions and error recording on the archived_page.
+    Caller is responsible for providing the session and loading entities.
+
+    Args:
+        db: Active database session
+        archived_page: ArchivedPage in PENDING state
+        politician: Politician with eager-loaded relationships for extraction
+    """
+    try:
+        archived_page.status = ArchivedPageStatus.PROCESSING
+        db.commit()
+
+        # Fetch & archive
+        fetched = await fetch_page(archived_page.url)
+        now = datetime.now(timezone.utc)
+
+        if archived_page.wikipedia_project_id and fetched.html:
+            permanent_url = extract_permanent_url(fetched.html)
+            if permanent_url:
+                logger.info(f"Extracted permanent URL: {permanent_url}")
+                archived_page.permanent_url = permanent_url
+
+        archived_page.content_hash = ArchivedPage._generate_content_hash(
+            archived_page.url
+        )
+        archived_page.fetch_timestamp = now
+        db.flush()
+
+        archived_page.link_languages_from_project(db)
+        db.flush()
+
+        archived_page.save_archived_files(fetched.mhtml, fetched.html)
+        db.commit()
+
+        # Read content and extract text
+        html_content = archive.read_archived_content(archived_page.path_root, "html")
+        if not html_content:
+            archived_page.status = ArchivedPageStatus.DONE
+            archived_page.error = ArchivedPageError.INVALID_CONTENT
+            db.commit()
+            return
+        soup = BeautifulSoup(html_content, "html.parser")
+        text = soup.get_text()
+        content = " ".join(text.split())
+        if not content.strip():
+            archived_page.status = ArchivedPageStatus.DONE
+            archived_page.error = ArchivedPageError.INVALID_CONTENT
+            db.commit()
+            return
+
+        # Extract properties in parallel
+        openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        try:
+            (
+                date_properties,
+                positions,
+                birthplaces,
+                citizenships,
+            ) = await asyncio.gather(
+                extract_properties_generic(
+                    openai_client,
+                    content,
+                    politician,
+                    DATES_CONFIG,
+                ),
+                extract_two_stage_generic(
+                    openai_client,
+                    db,
+                    content,
+                    politician,
+                    POSITIONS_CONFIG,
+                ),
+                extract_two_stage_generic(
+                    openai_client,
+                    db,
+                    content,
+                    politician,
+                    BIRTHPLACES_CONFIG,
+                ),
+                extract_two_stage_generic(
+                    openai_client,
+                    db,
+                    content,
+                    politician,
+                    CITIZENSHIPS_CONFIG,
+                ),
+            )
+        finally:
+            await openai_client.close()
+
+        # Store extracted data
+        store_extracted_data(
+            db,
+            politician,
+            archived_page,
+            date_properties,
+            positions,
+            birthplaces,
+            citizenships,
+        )
+
+        archived_page.status = ArchivedPageStatus.DONE
+        db.commit()
+
+    except PageFetchError as e:
+        logger.error(f"Fetch error for archived page {archived_page.id}: {e}")
+        archived_page.status = ArchivedPageStatus.DONE
+        archived_page.error = ArchivedPageError(e.error_type)
+        if e.http_status_code is not None:
+            archived_page.http_status_code = e.http_status_code
+        db.commit()
+    except Exception as e:
+        logger.error(f"Pipeline error for archived page {archived_page.id}: {e}")
+        archived_page.status = ArchivedPageStatus.DONE
+        archived_page.error = ArchivedPageError.PIPELINE_ERROR
+        db.commit()
+
+
+async def process_archived_page_task(page_id, politician_id) -> None:
+    """Background task entry point: opens a session and processes an archived page.
 
     Args:
         page_id: ArchivedPage UUID
@@ -540,120 +659,7 @@ async def process_archived_page(page_id, politician_id) -> None:
             )
         ).scalar_one()
 
-        try:
-            archived_page.status = ArchivedPageStatus.PROCESSING
-            db.commit()
-
-            # Fetch & archive
-            fetched = await fetch_page(archived_page.url)
-            now = datetime.now(timezone.utc)
-
-            if archived_page.wikipedia_project_id and fetched.html:
-                permanent_url = extract_permanent_url(fetched.html)
-                if permanent_url:
-                    logger.info(f"Extracted permanent URL: {permanent_url}")
-                    archived_page.permanent_url = permanent_url
-
-            archived_page.content_hash = ArchivedPage._generate_content_hash(
-                archived_page.url
-            )
-            archived_page.fetch_timestamp = now
-            db.flush()
-
-            archived_page.link_languages_from_project(db)
-            db.flush()
-
-            archived_page.save_archived_files(fetched.mhtml, fetched.html)
-            db.commit()
-
-            # Read content and extract text
-            html_content = archive.read_archived_content(
-                archived_page.path_root, "html"
-            )
-            if not html_content:
-                archived_page.status = ArchivedPageStatus.DONE
-                archived_page.error = ArchivedPageError.INVALID_CONTENT
-                db.commit()
-                return
-            soup = BeautifulSoup(html_content, "html.parser")
-            text = soup.get_text()
-            content = " ".join(text.split())
-            if not content.strip():
-                archived_page.status = ArchivedPageStatus.DONE
-                archived_page.error = ArchivedPageError.INVALID_CONTENT
-                db.commit()
-                return
-
-            # Extract properties in parallel
-            openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            try:
-                (
-                    date_properties,
-                    positions,
-                    birthplaces,
-                    citizenships,
-                ) = await asyncio.gather(
-                    extract_properties_generic(
-                        openai_client,
-                        content,
-                        politician,
-                        DATES_CONFIG,
-                    ),
-                    extract_two_stage_generic(
-                        openai_client,
-                        db,
-                        content,
-                        politician,
-                        POSITIONS_CONFIG,
-                    ),
-                    extract_two_stage_generic(
-                        openai_client,
-                        db,
-                        content,
-                        politician,
-                        BIRTHPLACES_CONFIG,
-                    ),
-                    extract_two_stage_generic(
-                        openai_client,
-                        db,
-                        content,
-                        politician,
-                        CITIZENSHIPS_CONFIG,
-                    ),
-                )
-            finally:
-                await openai_client.close()
-
-            # Store extracted data
-            store_extracted_data(
-                db,
-                politician,
-                archived_page,
-                date_properties,
-                positions,
-                birthplaces,
-                citizenships,
-            )
-
-            archived_page.status = ArchivedPageStatus.DONE
-            db.commit()
-
-        except PageFetchError as e:
-            logger.error(f"Fetch error for archived page {page_id}: {e}")
-            db.rollback()
-            archived_page = db.get(ArchivedPage, page_id)
-            archived_page.status = ArchivedPageStatus.DONE
-            archived_page.error = ArchivedPageError(e.error_type)
-            if e.http_status_code is not None:
-                archived_page.http_status_code = e.http_status_code
-            db.commit()
-        except Exception as e:
-            logger.error(f"Pipeline error for archived page {page_id}: {e}")
-            db.rollback()
-            archived_page = db.get(ArchivedPage, page_id)
-            archived_page.status = ArchivedPageStatus.DONE
-            archived_page.error = ArchivedPageError.PIPELINE_ERROR
-            db.commit()
+        await process_archived_page(db, archived_page, politician)
 
 
 # Configuration instances for different extraction types
@@ -862,7 +868,7 @@ async def enrich_politician_from_wikipedia(
 
     # Fire off page processing as background tasks (same path as manual source creation)
     for page_id in page_ids:
-        asyncio.create_task(process_archived_page(page_id, politician.id))
+        asyncio.create_task(process_archived_page_task(page_id, politician.id))
 
     return True
 

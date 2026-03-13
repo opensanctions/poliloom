@@ -1,7 +1,7 @@
 """Tests for enrichment module functionality."""
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, MagicMock, patch
 
 from poliloom.enrichment import (
     enrich_politician_from_wikipedia,
@@ -9,6 +9,7 @@ from poliloom.enrichment import (
     extract_two_stage_generic,
     store_extracted_data,
     count_politicians_with_unevaluated,
+    has_enrichable_politicians,
     extract_permanent_url,
     ExtractedProperty,
     ExtractedPosition,
@@ -23,6 +24,9 @@ from poliloom.enrichment import (
     FreeFormBirthplaceResult,
 )
 from poliloom.models import (
+    ArchivedPage,
+    ArchivedPageOrigin,
+    ArchivedPageStatus,
     Location,
     Position,
     Property,
@@ -643,3 +647,110 @@ class TestConvertMhtmlToHtml:
 
             result = convert_mhtml_to_html(mhtml_content)
             assert result is None
+
+
+class TestHasEnrichablePoliticians:
+    """Test has_enrichable_politicians function."""
+
+    def test_returns_true_when_enrichable_exists(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_link,
+        sample_country,
+        create_citizenship,
+    ):
+        """Test returns True when a politician with Wikipedia links exists."""
+        create_citizenship(sample_politician, sample_country)
+        db_session.flush()
+
+        assert has_enrichable_politicians(db_session) is True
+
+    def test_returns_false_when_no_politicians(self, db_session):
+        """Test returns False when no politicians exist."""
+        assert has_enrichable_politicians(db_session) is False
+
+    def test_returns_false_when_no_wikipedia_links(self, db_session, sample_politician):
+        """Test returns False when politician has no Wikipedia links."""
+        assert has_enrichable_politicians(db_session) is False
+
+    def test_respects_country_filter(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_link,
+        sample_country,
+        create_citizenship,
+    ):
+        """Test that country filter is applied."""
+        create_citizenship(sample_politician, sample_country)
+        db_session.flush()
+
+        # Q30 = US (matches)
+        assert has_enrichable_politicians(db_session, countries=["Q30"]) is True
+        # Q183 = Germany (no match)
+        assert has_enrichable_politicians(db_session, countries=["Q183"]) is False
+
+
+class TestEnrichPoliticianUserID:
+    """Test that enrich_politician_from_wikipedia passes user_id to ArchivedPage."""
+
+    @pytest.fixture(autouse=True)
+    def _use_test_session(self, db_session):
+        """Patch Session so enrich_politician_from_wikipedia uses the test session."""
+        # The function does `with Session(get_engine()) as db:` — make that
+        # return a context manager that yields the existing test session.
+        cm = Mock()
+        cm.__enter__ = Mock(return_value=db_session)
+        cm.__exit__ = Mock(return_value=False)
+        with patch("poliloom.enrichment.Session", return_value=cm):
+            yield
+
+    @pytest.mark.asyncio
+    async def test_user_id_stored_on_archived_pages(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_link,
+        sample_country,
+        create_citizenship,
+    ):
+        """Test that user_id is set on created ArchivedPage rows."""
+        create_citizenship(sample_politician, sample_country)
+        db_session.flush()
+
+        with patch("asyncio.create_task", new_callable=MagicMock):
+            result = await enrich_politician_from_wikipedia(user_id="42")
+
+        assert result is True
+
+        # Check that the archived page was created with user_id
+        pages = db_session.query(ArchivedPage).filter_by(user_id="42").all()
+        assert len(pages) >= 1
+        assert all(p.origin == ArchivedPageOrigin.ENRICHMENT for p in pages)
+
+    @pytest.mark.asyncio
+    async def test_no_user_id_when_not_provided(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_link,
+        sample_country,
+        create_citizenship,
+    ):
+        """Test that user_id is None when not provided."""
+        create_citizenship(sample_politician, sample_country)
+        db_session.flush()
+
+        with patch("asyncio.create_task", new_callable=MagicMock):
+            result = await enrich_politician_from_wikipedia()
+
+        assert result is True
+
+        pages = (
+            db_session.query(ArchivedPage)
+            .filter(ArchivedPage.status == ArchivedPageStatus.PENDING)
+            .all()
+        )
+        assert len(pages) >= 1
+        assert all(p.user_id is None for p in pages)

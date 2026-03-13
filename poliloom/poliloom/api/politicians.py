@@ -14,6 +14,7 @@ from ..enrichment import (
     count_politicians_with_unevaluated,
     enrich_politician_from_wikipedia,
     has_enrichable_politicians,
+    process_archived_page_task,
 )
 from ..search import SearchService
 from ..models import (
@@ -530,8 +531,6 @@ async def create_source(
     Add a source link to a politician. Creates a pending ArchivedPage and
     processes it in the background (fetch + extract). Returns 202 immediately.
     """
-    from ..enrichment import process_archived_page
-
     politician = (
         db.execute(select(Politician).where(Politician.wikidata_id == qid))
         .scalars()
@@ -555,8 +554,8 @@ async def create_source(
     politician.archived_pages.append(archived_page)
     db.commit()
 
-    # process_archived_page manages its own session
-    asyncio.create_task(process_archived_page(archived_page.id, politician.id))
+    # process_archived_page_task manages its own session
+    asyncio.create_task(process_archived_page_task(archived_page.id, politician.id))
 
     return ArchivedPageResponse(
         id=archived_page.id,
