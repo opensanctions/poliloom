@@ -88,7 +88,6 @@ def mock_search_service():
     """
     service = SyncMock()
     service.index_documents.return_value = 1  # Returns task_uid
-    service.wait_for_tasks.return_value = None
     return service
 
 

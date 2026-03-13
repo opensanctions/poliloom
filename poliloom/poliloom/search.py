@@ -138,16 +138,6 @@ class SearchService:
         task = index.add_documents(documents)
         return task.task_uid
 
-    def wait_for_tasks(self, task_uids: list[int], timeout_in_ms: int = 300000) -> None:
-        """Wait for multiple tasks to complete.
-
-        Args:
-            task_uids: List of task UIDs to wait for
-            timeout_in_ms: Timeout for each task (default 5 minutes)
-        """
-        for task_uid in task_uids:
-            self.client.wait_for_task(task_uid, timeout_in_ms=timeout_in_ms)
-
     def delete_documents(self, document_ids: list[str]) -> int:
         """Delete documents from Meilisearch by ID.
 

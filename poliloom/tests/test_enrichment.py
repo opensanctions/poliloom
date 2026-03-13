@@ -9,7 +9,6 @@ from poliloom.enrichment import (
     extract_two_stage_generic,
     store_extracted_data,
     count_politicians_with_unevaluated,
-    enrich_batch,
     extract_permanent_url,
     ExtractedProperty,
     ExtractedPosition,
@@ -531,123 +530,6 @@ class TestCountPoliticiansWithUnevaluated:
         # Count with different country filter
         count = count_politicians_with_unevaluated(db_session, countries=["Q183"])
         assert count == 0
-
-
-class TestEnrichBatch:
-    """Test enrich_batch function."""
-
-    def test_enrich_batch_enriches_n_politicians(
-        self, db_session, sample_politician, sample_wikipedia_link, sample_archived_page
-    ):
-        """Test enriching a batch of politicians."""
-        # Mock the enrichment process
-        with patch(
-            "poliloom.enrichment.enrich_politician_from_wikipedia"
-        ) as mock_enrich:
-
-            async def mock_enrich_func(languages=None, countries=None, stateless=False):
-                return True  # politician_found
-
-            mock_enrich.side_effect = mock_enrich_func
-
-            # Mock env var for batch size
-            with patch.dict("os.environ", {"ENRICHMENT_BATCH_SIZE": "3"}):
-                enriched_count = enrich_batch()
-
-        assert enriched_count == 3
-        assert mock_enrich.call_count == 3
-
-    def test_enrich_batch_no_more_politicians(self, db_session):
-        """Test when no more politicians available to enrich."""
-        # No politicians in database
-        with patch(
-            "poliloom.enrichment.enrich_politician_from_wikipedia"
-        ) as mock_enrich:
-            # Mock returns False indicating no politicians to enrich
-            async def mock_enrich_func(languages=None, countries=None, stateless=False):
-                return False
-
-            mock_enrich.side_effect = mock_enrich_func
-
-            with patch.dict("os.environ", {"ENRICHMENT_BATCH_SIZE": "5"}):
-                enriched_count = enrich_batch()
-
-        assert enriched_count == 0
-        # Should only call once, then break
-        assert mock_enrich.call_count == 1
-
-    def test_enrich_batch_with_filters(
-        self,
-        db_session,
-        sample_politician,
-        sample_country,
-        sample_language,
-        sample_wikipedia_link,
-        sample_archived_page,
-        create_citizenship,
-    ):
-        """Test enrich_batch with language and country filters."""
-        # Add citizenship
-        create_citizenship(sample_politician, sample_country)
-        db_session.flush()
-
-        # Mock enrichment
-        with patch(
-            "poliloom.enrichment.enrich_politician_from_wikipedia"
-        ) as mock_enrich:
-
-            async def mock_enrich_func(languages=None, countries=None, stateless=False):
-                return True
-
-            mock_enrich.side_effect = mock_enrich_func
-
-            with patch.dict("os.environ", {"ENRICHMENT_BATCH_SIZE": "2"}):
-                enriched_count = enrich_batch(languages=["Q1860"], countries=["Q30"])
-
-        assert enriched_count == 2
-        # Verify mock was called with correct filters
-        mock_enrich.assert_called_with(
-            languages=["Q1860"], countries=["Q30"], stateless=False
-        )
-
-    def test_enrich_batch_stops_early_when_no_politicians(self, db_session):
-        """Test that batch stops early if politicians run out."""
-        # Mock to return True twice, then False
-        call_count = [0]
-
-        with patch(
-            "poliloom.enrichment.enrich_politician_from_wikipedia"
-        ) as mock_enrich:
-
-            async def mock_enrich_func(languages=None, countries=None, stateless=False):
-                call_count[0] += 1
-                return call_count[0] <= 2  # True for first 2, False after
-
-            mock_enrich.side_effect = mock_enrich_func
-
-            with patch.dict("os.environ", {"ENRICHMENT_BATCH_SIZE": "5"}):
-                enriched_count = enrich_batch()
-
-        assert enriched_count == 2
-        assert mock_enrich.call_count == 3  # Called 3 times, but only 2 successful
-
-    def test_enrich_batch_with_stateless_flag(self, db_session):
-        """Test enrich_batch with stateless flag."""
-        with patch(
-            "poliloom.enrichment.enrich_politician_from_wikipedia"
-        ) as mock_enrich:
-
-            async def mock_enrich_func(languages=None, countries=None, stateless=False):
-                return True
-
-            mock_enrich.side_effect = mock_enrich_func
-
-            with patch.dict("os.environ", {"ENRICHMENT_BATCH_SIZE": "2"}):
-                enriched_count = enrich_batch(stateless=True)
-
-        assert enriched_count == 2
-        # Verify mock was called with stateless=True
-        mock_enrich.assert_called_with(languages=None, countries=None, stateless=True)
 
 
 class TestExtractPermanentUrl:

@@ -770,57 +770,6 @@ def has_enrichable_politicians(
     return result is not None
 
 
-async def enrich_batch_async(
-    languages: Optional[List[str]] = None,
-    countries: Optional[List[str]] = None,
-    stateless: bool = False,
-) -> int:
-    """
-    Enrich a batch of politicians based on ENRICHMENT_BATCH_SIZE env var.
-
-    Args:
-        languages: Optional list of language QIDs to filter by
-        countries: Optional list of country QIDs to filter by
-        stateless: If True, only enrich politicians without citizenship data
-
-    Returns:
-        Number of politicians successfully enriched during this run
-    """
-    batch_size = int(os.getenv("ENRICHMENT_BATCH_SIZE", "5"))
-    enriched_count = 0
-
-    logger.info(f"Starting enrichment batch of {batch_size} politicians")
-
-    for i in range(batch_size):
-        politician_found = await enrich_politician_from_wikipedia(
-            languages=languages, countries=countries, stateless=stateless
-        )
-
-        if not politician_found:
-            logger.info("No more politicians available to enrich")
-            break
-
-        enriched_count += 1
-
-    logger.info(
-        f"Enrichment batch complete: {enriched_count}/{batch_size} politicians enriched"
-    )
-    return enriched_count
-
-
-def enrich_batch(
-    languages: Optional[List[str]] = None,
-    countries: Optional[List[str]] = None,
-    stateless: bool = False,
-) -> int:
-    """Sync wrapper for CLI usage."""
-    return asyncio.run(
-        enrich_batch_async(
-            languages=languages, countries=countries, stateless=stateless
-        )
-    )
-
-
 async def enrich_politician_from_wikipedia(
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,
