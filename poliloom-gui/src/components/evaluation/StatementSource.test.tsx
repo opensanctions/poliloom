@@ -11,7 +11,7 @@ const mockArchivedPage: ArchivedPageResponse = {
   url: 'https://en.wikipedia.org/wiki/Test_Politician',
   content_hash: 'abc123',
   fetch_timestamp: '2024-01-01T00:00:00Z',
-  status: 'DONE',
+  status: 'done',
 }
 
 const archivedPageById = new Map([['archived-1', mockArchivedPage]])

@@ -16,7 +16,7 @@ const archivedPage1: ArchivedPageResponse = {
   url: 'https://en.wikipedia.org/wiki/Test',
   content_hash: 'abc',
   fetch_timestamp: '2024-01-01T00:00:00Z',
-  status: 'DONE',
+  status: 'done',
 }
 
 const archivedPage2: ArchivedPageResponse = {
@@ -24,7 +24,7 @@ const archivedPage2: ArchivedPageResponse = {
   url: 'https://gov.example.com/official',
   content_hash: 'def',
   fetch_timestamp: '2024-02-01T00:00:00Z',
-  status: 'DONE',
+  status: 'done',
 }
 
 const archivedPage3: ArchivedPageResponse = {
@@ -32,7 +32,7 @@ const archivedPage3: ArchivedPageResponse = {
   url: 'https://news.example.com/bio',
   content_hash: 'ghi',
   fetch_timestamp: '2024-03-01T00:00:00Z',
-  status: 'DONE',
+  status: 'done',
 }
 
 const politicianWithDifferentSources: Politician = {

@@ -18,10 +18,10 @@ function SourceStatusIndicator({
       </span>
     )
   }
-  if (status === 'PENDING' || status === 'PROCESSING') {
+  if (status === 'pending' || status === 'processing') {
     return (
       <span className="text-xs text-muted-foreground animate-pulse">
-        {status === 'PENDING' ? 'Queued' : 'Processing...'}
+        {status === 'pending' ? 'Queued' : 'Processing...'}
       </span>
     )
   }
@@ -37,7 +37,7 @@ function SourceItem({
   isActive: boolean
   onSelect: (page: ArchivedPageResponse) => void
 }) {
-  const isDone = page.status === 'DONE' && !page.error
+  const isDone = page.status === 'done' && !page.error
 
   return (
     <div className="flex items-center gap-2">

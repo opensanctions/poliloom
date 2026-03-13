@@ -12,7 +12,7 @@ const page1: ArchivedPageResponse = {
   url: 'https://example.parliament.gov/members/jane-doe',
   content_hash: 'tutorial-hash-1',
   fetch_timestamp: '2024-01-15T10:00:00Z',
-  status: 'DONE',
+  status: 'done',
 }
 
 const page2: ArchivedPageResponse = {
@@ -20,7 +20,7 @@ const page2: ArchivedPageResponse = {
   url: 'https://en.wikipedia.org/wiki/Jane_Doe_(politician)',
   content_hash: 'tutorial-hash-2',
   fetch_timestamp: '2024-01-15T10:00:00Z',
-  status: 'DONE',
+  status: 'done',
 }
 
 export const archivedPages = { page1, page2 }

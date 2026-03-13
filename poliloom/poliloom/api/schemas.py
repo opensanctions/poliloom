@@ -24,7 +24,7 @@ class ArchivedPageResponse(UUIDBaseModel):
     url: str
     content_hash: Optional[str] = None
     fetch_timestamp: Optional[datetime] = None
-    status: str = "DONE"
+    status: str = "done"
     error: Optional[str] = None
     http_status_code: Optional[int] = None
 

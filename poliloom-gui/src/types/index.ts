@@ -1,4 +1,4 @@
-export type ArchivedPageStatus = 'PENDING' | 'PROCESSING' | 'DONE'
+export type ArchivedPageStatus = 'pending' | 'processing' | 'done'
 
 export interface ArchivedPageResponse {
   id: string

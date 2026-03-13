@@ -48,7 +48,7 @@ const archivedPage: ArchivedPageResponse = {
   url: 'https://en.wikipedia.org/wiki/Test',
   content_hash: 'abc',
   fetch_timestamp: '2024-01-01T00:00:00Z',
-  status: 'DONE',
+  status: 'done',
 }
 
 const politician: Politician = {
