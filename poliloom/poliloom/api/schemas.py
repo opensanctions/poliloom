@@ -24,7 +24,7 @@ class ArchivedPageResponse(UUIDBaseModel):
     url: str
     content_hash: Optional[str] = None
     fetch_timestamp: Optional[datetime] = None
-    status: str = "done"
+    status: str
     error: Optional[str] = None
     http_status_code: Optional[int] = None
 
@@ -77,8 +77,8 @@ class SourcePageResponse(BaseModel):
 class EnrichmentMetadata(BaseModel):
     """Metadata about enrichment status for empty state UX."""
 
-    has_enrichable_politicians: bool = True
-    total_matching_filters: int = 0
+    has_enrichable_politicians: bool
+    total_matching_filters: int
 
 
 class NextPoliticianResponse(BaseModel):
@@ -170,7 +170,7 @@ class LanguageResponse(BaseModel):
     description: Optional[str] = None
     iso_639_1: Optional[str] = None
     iso_639_3: Optional[str] = None
-    sources_count: int = 0
+    sources_count: int
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -181,7 +181,7 @@ class CountryResponse(BaseModel):
     wikidata_id: str
     name: str
     description: Optional[str] = None
-    citizenships_count: int = 0
+    citizenships_count: int
 
     model_config = ConfigDict(from_attributes=True)
 
