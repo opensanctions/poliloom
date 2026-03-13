@@ -73,7 +73,8 @@ def build_politician_response(politician, archived_pages=None) -> PoliticianResp
             content_hash=ap.content_hash,
             fetch_timestamp=ap.fetch_timestamp,
             status=ap.status.value,
-            error=ap.error,
+            error=ap.error.value if ap.error else None,
+            http_status_code=ap.http_status_code,
         )
         for ap in (archived_pages or [])
     ]

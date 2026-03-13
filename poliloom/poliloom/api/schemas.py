@@ -26,6 +26,7 @@ class ArchivedPageResponse(UUIDBaseModel):
     fetch_timestamp: Optional[datetime] = None
     status: str = "DONE"
     error: Optional[str] = None
+    http_status_code: Optional[int] = None
 
 
 class PropertyReferenceResponse(UUIDBaseModel):

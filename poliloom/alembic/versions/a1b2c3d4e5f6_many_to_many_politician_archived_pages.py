@@ -28,9 +28,14 @@ def upgrade() -> None:
             "created_at",
             sa.DateTime(),
             server_default=sa.text("now()"),
-            nullable=True,
+            nullable=False,
         ),
-        sa.Column("updated_at", sa.DateTime(), nullable=True),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(
             ["politician_id"],
             ["politicians.id"],

@@ -21,7 +21,15 @@ USER_AGENT = f"poliloom/{__version__} ({__repo_url__})"
 class PageFetchError(Exception):
     """Error fetching a web page."""
 
-    pass
+    def __init__(
+        self,
+        message: str,
+        http_status_code: Optional[int] = None,
+        error_type: Optional[str] = None,
+    ):
+        super().__init__(message)
+        self.http_status_code = http_status_code
+        self.error_type = error_type
 
 
 @dataclass
@@ -78,10 +86,17 @@ async def fetch_page(url: str) -> FetchedPage:
             )
 
             if not response:
-                raise PageFetchError(f"No response received: {url}")
+                raise PageFetchError(
+                    f"No response received: {url}",
+                    error_type="NO_RESPONSE",
+                )
 
             if not response.ok:
-                raise PageFetchError(f"HTTP {response.status} for {url}")
+                raise PageFetchError(
+                    f"HTTP {response.status} for {url}",
+                    http_status_code=response.status,
+                    error_type="FETCH_ERROR",
+                )
 
             # Capture MHTML using CDP
             cdp_session = await context.new_cdp_session(page)
@@ -96,8 +111,14 @@ async def fetch_page(url: str) -> FetchedPage:
             return FetchedPage(mhtml=mhtml_content, html=html_content)
 
         except PlaywrightTimeoutError:
-            raise PageFetchError(f"Timeout after {PAGE_FETCH_TIMEOUT_MS}ms: {url}")
+            raise PageFetchError(
+                f"Timeout after {PAGE_FETCH_TIMEOUT_MS}ms: {url}",
+                error_type="TIMEOUT",
+            )
         except PlaywrightError as e:
-            raise PageFetchError(f"Browser error for {url}: {e}")
+            raise PageFetchError(
+                f"Browser error for {url}: {e}",
+                error_type="BROWSER_ERROR",
+            )
         finally:
             await browser.close()

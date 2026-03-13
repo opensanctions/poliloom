@@ -24,12 +24,14 @@ from .models import (
     Location,
     Country,
     ArchivedPage,
+    ArchivedPageError,
     ArchivedPageStatus,
     WikidataRelation,
     WikidataEntity,
 )
 from . import archive
 from .database import get_engine
+from .page_fetcher import PageFetchError
 from .search import SearchService
 from .wikidata_date import WikidataDate
 from . import prompts
@@ -567,9 +569,19 @@ async def process_archived_page(page_id, politician_id) -> None:
             html_content = archive.read_archived_content(
                 archived_page.path_root, "html"
             )
+            if not html_content:
+                archived_page.status = ArchivedPageStatus.DONE
+                archived_page.error = ArchivedPageError.INVALID_CONTENT
+                db.commit()
+                return
             soup = BeautifulSoup(html_content, "html.parser")
             text = soup.get_text()
             content = " ".join(text.split())
+            if not content.strip():
+                archived_page.status = ArchivedPageStatus.DONE
+                archived_page.error = ArchivedPageError.INVALID_CONTENT
+                db.commit()
+                return
 
             # Extract properties in parallel
             openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -625,12 +637,21 @@ async def process_archived_page(page_id, politician_id) -> None:
             archived_page.status = ArchivedPageStatus.DONE
             db.commit()
 
-        except Exception as e:
-            logger.error(f"Error processing archived page {page_id}: {e}")
+        except PageFetchError as e:
+            logger.error(f"Fetch error for archived page {page_id}: {e}")
             db.rollback()
             archived_page = db.get(ArchivedPage, page_id)
             archived_page.status = ArchivedPageStatus.DONE
-            archived_page.error = str(e)
+            archived_page.error = ArchivedPageError(e.error_type)
+            if e.http_status_code is not None:
+                archived_page.http_status_code = e.http_status_code
+            db.commit()
+        except Exception as e:
+            logger.error(f"Pipeline error for archived page {page_id}: {e}")
+            db.rollback()
+            archived_page = db.get(ArchivedPage, page_id)
+            archived_page.status = ArchivedPageStatus.DONE
+            archived_page.error = ArchivedPageError.PIPELINE_ERROR
             db.commit()
 
 

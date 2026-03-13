@@ -696,6 +696,17 @@ class ArchivedPageLanguage(Base, TimestampMixin):
     language_entity = relationship("WikidataEntity")
 
 
+class ArchivedPageError(str, Enum):
+    """Error type for an archived page that failed processing."""
+
+    FETCH_ERROR = "FETCH_ERROR"
+    TIMEOUT = "TIMEOUT"
+    NO_RESPONSE = "NO_RESPONSE"
+    BROWSER_ERROR = "BROWSER_ERROR"
+    INVALID_CONTENT = "INVALID_CONTENT"
+    PIPELINE_ERROR = "PIPELINE_ERROR"
+
+
 class ArchivedPageStatus(str, Enum):
     """Status of an archived page through the processing pipeline."""
 
@@ -734,7 +745,18 @@ class ArchivedPage(Base, TimestampMixin):
         nullable=False,
         server_default="PENDING",
     )
-    error = Column(String, nullable=True)
+    error = Column(
+        SQLEnum(ArchivedPageError, name="archivedpageerror"),
+        nullable=True,
+    )
+    http_status_code = Column(Integer, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "(error = 'FETCH_ERROR') = (http_status_code IS NOT NULL)",
+            name="ck_archived_pages_http_status_code_requires_fetch_error",
+        ),
+    )
 
     # Relationships
     politicians = relationship(
@@ -1345,5 +1367,7 @@ def _broadcast_archived_page_status(session, flush_context):
             "politician_ids": [str(p.id) for p in obj.politicians],
         }
         if obj.error:
-            payload["error"] = obj.error
+            payload["error"] = obj.error.value
+        if obj.http_status_code is not None:
+            payload["http_status_code"] = obj.http_status_code
         notify_all(payload)

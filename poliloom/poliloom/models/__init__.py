@@ -35,6 +35,7 @@ from .user import Evaluation
 # Politician domain
 from .politician import (
     ArchivedPage,
+    ArchivedPageError,
     ArchivedPageLanguage,
     ArchivedPageStatus,
     Politician,
@@ -75,6 +76,7 @@ __all__ = [
     "Evaluation",
     # Politician
     "ArchivedPage",
+    "ArchivedPageError",
     "ArchivedPageLanguage",
     "ArchivedPageStatus",
     "Politician",

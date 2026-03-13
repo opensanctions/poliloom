@@ -108,7 +108,8 @@ async def get_source_page(
             content_hash=archived_page.content_hash,
             fetch_timestamp=archived_page.fetch_timestamp,
             status=archived_page.status.value,
-            error=archived_page.error,
+            error=archived_page.error.value if archived_page.error else None,
+            http_status_code=archived_page.http_status_code,
         ),
         politicians=[
             build_politician_response(politician) for politician in politicians
