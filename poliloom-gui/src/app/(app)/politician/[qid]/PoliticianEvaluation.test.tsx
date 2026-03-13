@@ -55,7 +55,7 @@ const politician: Politician = {
   id: 'pol-1',
   name: 'Test Politician',
   wikidata_id: 'Q987654',
-  archived_pages: [],
+  archived_pages: [archivedPage],
   properties: [
     {
       id: 'prop-1',
@@ -66,7 +66,7 @@ const politician: Politician = {
       archived_pages: [
         {
           id: 'ref-1',
-          archived_page: archivedPage,
+          archived_page_id: archivedPage.id,
           supporting_quotes: ['born on January 1, 1970'],
         },
       ],
@@ -84,7 +84,7 @@ const politician: Politician = {
       archived_pages: [
         {
           id: 'ref-2',
-          archived_page: archivedPage,
+          archived_page_id: archivedPage.id,
           supporting_quotes: ['served as mayor from 2020 to 2024'],
         },
       ],
@@ -96,7 +96,11 @@ const politician: Politician = {
       entity_name: 'Test City',
       statement_id: null,
       archived_pages: [
-        { id: 'ref-3', archived_page: archivedPage, supporting_quotes: ['was born in Test City'] },
+        {
+          id: 'ref-3',
+          archived_page_id: archivedPage.id,
+          supporting_quotes: ['was born in Test City'],
+        },
       ],
     },
   ],
@@ -106,7 +110,7 @@ const politicianWithConflicts: Politician = {
   id: 'pol-2',
   name: 'Conflicted Politician',
   wikidata_id: 'Q111222',
-  archived_pages: [],
+  archived_pages: [archivedPage],
   properties: [
     {
       id: 'prop-c1',
@@ -115,7 +119,7 @@ const politicianWithConflicts: Politician = {
       value_precision: 11,
       statement_id: null,
       archived_pages: [
-        { id: 'ref-c1', archived_page: archivedPage, supporting_quotes: ['born January 2'] },
+        { id: 'ref-c1', archived_page_id: archivedPage.id, supporting_quotes: ['born January 2'] },
       ],
     },
     {
@@ -125,7 +129,11 @@ const politicianWithConflicts: Politician = {
       entity_name: 'France',
       statement_id: null,
       archived_pages: [
-        { id: 'ref-c2', archived_page: archivedPage, supporting_quotes: ['French politician'] },
+        {
+          id: 'ref-c2',
+          archived_page_id: archivedPage.id,
+          supporting_quotes: ['French politician'],
+        },
       ],
     },
     {
@@ -139,7 +147,7 @@ const politicianWithConflicts: Politician = {
         P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }],
       },
       archived_pages: [
-        { id: 'ref-c3', archived_page: archivedPage, supporting_quotes: ['served as mayor'] },
+        { id: 'ref-c3', archived_page_id: archivedPage.id, supporting_quotes: ['served as mayor'] },
       ],
     },
     {
@@ -154,7 +162,7 @@ const politicianWithConflicts: Politician = {
       archived_pages: [
         {
           id: 'ref-c4',
-          archived_page: archivedPage,
+          archived_page_id: archivedPage.id,
           supporting_quotes: ['council member since 2018'],
         },
       ],
@@ -166,7 +174,11 @@ const politicianWithConflicts: Politician = {
       entity_name: 'Test City',
       statement_id: null,
       archived_pages: [
-        { id: 'ref-c5', archived_page: archivedPage, supporting_quotes: ['born in Test City'] },
+        {
+          id: 'ref-c5',
+          archived_page_id: archivedPage.id,
+          supporting_quotes: ['born in Test City'],
+        },
       ],
     },
     {
@@ -176,7 +188,11 @@ const politicianWithConflicts: Politician = {
       entity_name: 'New City',
       statement_id: null,
       archived_pages: [
-        { id: 'ref-c6', archived_page: archivedPage, supporting_quotes: ['born in New City'] },
+        {
+          id: 'ref-c6',
+          archived_page_id: archivedPage.id,
+          supporting_quotes: ['born in New City'],
+        },
       ],
     },
   ],

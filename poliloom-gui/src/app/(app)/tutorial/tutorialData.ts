@@ -27,7 +27,7 @@ export const archivedPages = { page1, page2 }
 
 // Helper to create a reference to page1
 function ref(id: string, quotes: string[]): PropertyReference {
-  return { id, archived_page: page1, supporting_quotes: quotes }
+  return { id, archived_page_id: page1.id, supporting_quotes: quotes }
 }
 
 // Shared politician identity
@@ -35,7 +35,7 @@ const politicianBase = {
   id: 'tutorial-politician',
   name: 'Jane Doe',
   wikidata_id: 'Q955672',
-  archived_pages: [] as ArchivedPageResponse[],
+  archived_pages: [page1, page2] as ArchivedPageResponse[],
 } as const satisfies Pick<Politician, 'id' | 'name' | 'wikidata_id' | 'archived_pages'>
 
 // Reusable qualifier snippet
@@ -124,7 +124,7 @@ export const multipleSourcesPolitician: Politician = {
       archived_pages: [
         {
           id: 'ref-tutorial-5',
-          archived_page: page2,
+          archived_page_id: page2.id,
           supporting_quotes: [
             'She was appointed Minister of Education in June 2022.',
             'Current Minister of Education since 2022',

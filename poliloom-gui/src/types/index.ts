@@ -37,7 +37,7 @@ export interface PropertyQualifiers {
 
 export interface PropertyReference {
   id: string
-  archived_page: ArchivedPageResponse
+  archived_page_id: string
   supporting_quotes?: string[]
 }
 

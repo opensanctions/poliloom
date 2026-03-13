@@ -32,7 +32,7 @@ class PropertyReferenceResponse(UUIDBaseModel):
     """Schema for a property reference (evidence source)."""
 
     id: UUID
-    archived_page: ArchivedPageResponse
+    archived_page_id: str
     supporting_quotes: Optional[List[str]] = None
 
 

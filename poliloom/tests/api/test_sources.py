@@ -63,7 +63,7 @@ class TestGetSourcePage:
         assert prop["value"] == "1980-01-01"
         assert len(prop["archived_pages"]) == 1
         assert prop["archived_pages"][0]["supporting_quotes"] == ["born in 1980"]
-        assert prop["archived_pages"][0]["archived_page"]["id"] == str(
+        assert prop["archived_pages"][0]["archived_page_id"] == str(
             sample_archived_page.id
         )
 
@@ -194,7 +194,7 @@ class TestGetSourcePage:
         assert len(data["politicians"]) == 1
         prop_data = data["politicians"][0]["properties"][0]
         assert len(prop_data["archived_pages"]) == 1
-        assert prop_data["archived_pages"][0]["archived_page"]["id"] == str(
+        assert prop_data["archived_pages"][0]["archived_page_id"] == str(
             sample_archived_page.id
         )
 

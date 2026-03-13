@@ -39,7 +39,7 @@ const politicianWithDifferentSources: Politician = {
   id: 'pol-1',
   name: 'Multi-Source Politician',
   wikidata_id: 'Q100',
-  archived_pages: [],
+  archived_pages: [archivedPage1, archivedPage2, archivedPage3],
   properties: [
     {
       id: 'prop-1',
@@ -48,7 +48,7 @@ const politicianWithDifferentSources: Politician = {
       value_precision: 11,
       statement_id: null,
       archived_pages: [
-        { id: 'ref-1', archived_page: archivedPage1, supporting_quotes: ['born June 15'] },
+        { id: 'ref-1', archived_page_id: archivedPage1.id, supporting_quotes: ['born June 15'] },
       ],
     },
     {
@@ -61,7 +61,11 @@ const politicianWithDifferentSources: Politician = {
         P580: [{ datavalue: { value: { time: '+2018-01-01T00:00:00Z', precision: 11 } } }],
       },
       archived_pages: [
-        { id: 'ref-2', archived_page: archivedPage2, supporting_quotes: ['elected governor'] },
+        {
+          id: 'ref-2',
+          archived_page_id: archivedPage2.id,
+          supporting_quotes: ['elected governor'],
+        },
       ],
     },
     {
@@ -71,7 +75,11 @@ const politicianWithDifferentSources: Politician = {
       entity_name: 'Capital City',
       statement_id: null,
       archived_pages: [
-        { id: 'ref-3', archived_page: archivedPage3, supporting_quotes: ['born in Capital City'] },
+        {
+          id: 'ref-3',
+          archived_page_id: archivedPage3.id,
+          supporting_quotes: ['born in Capital City'],
+        },
       ],
     },
   ],
@@ -81,7 +89,7 @@ const politicianWithEdgeCases: Politician = {
   id: 'pol-2',
   name: 'Edge Case Politician',
   wikidata_id: 'Q101',
-  archived_pages: [],
+  archived_pages: [archivedPage1],
   properties: [
     {
       id: 'prop-wikidata',
@@ -90,7 +98,7 @@ const politicianWithEdgeCases: Politician = {
       value_precision: 11,
       statement_id: 'Q101$some-uuid',
       archived_pages: [
-        { id: 'ref-w', archived_page: archivedPage1, supporting_quotes: ['born 1980'] },
+        { id: 'ref-w', archived_page_id: archivedPage1.id, supporting_quotes: ['born 1980'] },
       ],
     },
     {
@@ -100,7 +108,7 @@ const politicianWithEdgeCases: Politician = {
       value_precision: 11,
       statement_id: null,
       archived_pages: [
-        { id: 'ref-e', archived_page: archivedPage1, supporting_quotes: ['born Jan 2'] },
+        { id: 'ref-e', archived_page_id: archivedPage1.id, supporting_quotes: ['born Jan 2'] },
       ],
     },
     {
@@ -133,7 +141,7 @@ const sourceResponse: SourceResponse = {
       id: 'pol-a',
       name: 'Source Politician A',
       wikidata_id: 'Q111',
-      archived_pages: [],
+      archived_pages: [archivedPage1],
       properties: [
         {
           id: 'sp-1',
@@ -142,7 +150,7 @@ const sourceResponse: SourceResponse = {
           value_precision: 11,
           statement_id: null,
           archived_pages: [
-            { id: 'sr-1', archived_page: archivedPage1, supporting_quotes: ['born 1970'] },
+            { id: 'sr-1', archived_page_id: archivedPage1.id, supporting_quotes: ['born 1970'] },
           ],
         },
         {
@@ -152,7 +160,11 @@ const sourceResponse: SourceResponse = {
           entity_name: 'Mayor of Test City',
           statement_id: null,
           archived_pages: [
-            { id: 'sr-2', archived_page: archivedPage1, supporting_quotes: ['served as mayor'] },
+            {
+              id: 'sr-2',
+              archived_page_id: archivedPage1.id,
+              supporting_quotes: ['served as mayor'],
+            },
           ],
         },
       ],
@@ -161,7 +173,7 @@ const sourceResponse: SourceResponse = {
       id: 'pol-b',
       name: 'Source Politician B',
       wikidata_id: 'Q222',
-      archived_pages: [],
+      archived_pages: [archivedPage1],
       properties: [
         {
           id: 'sp-3',
@@ -170,7 +182,11 @@ const sourceResponse: SourceResponse = {
           entity_name: 'France',
           statement_id: null,
           archived_pages: [
-            { id: 'sr-3', archived_page: archivedPage1, supporting_quotes: ['French citizen'] },
+            {
+              id: 'sr-3',
+              archived_page_id: archivedPage1.id,
+              supporting_quotes: ['French citizen'],
+            },
           ],
         },
       ],

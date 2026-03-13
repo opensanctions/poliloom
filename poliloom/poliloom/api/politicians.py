@@ -89,14 +89,7 @@ def build_politician_response(politician, archived_pages=None) -> PoliticianResp
             refs.append(
                 PropertyReferenceResponse(
                     id=ref.id,
-                    archived_page=ArchivedPageResponse(
-                        id=ref.archived_page.id,
-                        url=ref.archived_page.url,
-                        content_hash=ref.archived_page.content_hash,
-                        fetch_timestamp=ref.archived_page.fetch_timestamp,
-                        status=ref.archived_page.status.value,
-                        error=ref.archived_page.error,
-                    ),
+                    archived_page_id=str(ref.archived_page_id),
                     supporting_quotes=ref.supporting_quotes,
                 )
             )
@@ -298,9 +291,7 @@ async def search_politicians(
                 Politician.properties.and_(Property.deleted_at.is_(None))
             ).options(
                 selectinload(Property.entity),
-                selectinload(Property.property_references).selectinload(
-                    PropertyReference.archived_page
-                ),
+                selectinload(Property.property_references),
             ),
         )
     )
@@ -350,9 +341,7 @@ async def get_politician(
         query = query.options(
             selectinload(Politician.properties.and_(property_filter)).options(
                 selectinload(Property.entity),
-                selectinload(Property.property_references)
-                .selectinload(PropertyReference.archived_page)
-                .selectinload(ArchivedPage.language_entities),
+                selectinload(Property.property_references),
             ),
             selectinload(Politician.wikipedia_links),
             selectinload(Politician.archived_pages),
@@ -363,9 +352,7 @@ async def get_politician(
                 Politician.properties.and_(Property.deleted_at.is_(None))
             ).options(
                 selectinload(Property.entity),
-                selectinload(Property.property_references)
-                .selectinload(PropertyReference.archived_page)
-                .selectinload(ArchivedPage.language_entities),
+                selectinload(Property.property_references),
             ),
             selectinload(Politician.wikipedia_links),
             selectinload(Politician.archived_pages),
@@ -566,15 +553,16 @@ async def create_source(
     # Create pending ArchivedPage
     archived_page = ArchivedPage(
         url=request.url,
-        politician_id=politician.id,
         user_id=str(current_user.user_id),
         status=ArchivedPageStatus.PENDING,
     )
     db.add(archived_page)
+    db.flush()
+    politician.archived_pages.append(archived_page)
     db.commit()
 
     # process_archived_page manages its own session
-    asyncio.create_task(process_archived_page(archived_page.id))
+    asyncio.create_task(process_archived_page(archived_page.id, politician.id))
 
     return ArchivedPageResponse(
         id=archived_page.id,

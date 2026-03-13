@@ -14,15 +14,17 @@ const mockArchivedPage: ArchivedPageResponse = {
   status: 'DONE',
 }
 
+const archivedPageById = new Map([['archived-1', mockArchivedPage]])
+
 const mockSource: PropertyReference = {
   id: 'ref-1',
-  archived_page: mockArchivedPage,
+  archived_page_id: mockArchivedPage.id,
   supporting_quotes: ['test quote'],
 }
 
 const mockSourceNoQuotes: PropertyReference = {
   id: 'ref-2',
-  archived_page: mockArchivedPage,
+  archived_page_id: mockArchivedPage.id,
 }
 
 describe('StatementSource', () => {
@@ -39,6 +41,7 @@ describe('StatementSource', () => {
           activeArchivedPageId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
+          archivedPageById={archivedPageById}
         />,
       )
 
@@ -55,6 +58,7 @@ describe('StatementSource', () => {
           activeArchivedPageId="archived-1"
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
+          archivedPageById={archivedPageById}
         />,
       )
 
@@ -71,6 +75,7 @@ describe('StatementSource', () => {
           activeArchivedPageId="other-page"
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
+          archivedPageById={archivedPageById}
         />,
       )
 
@@ -87,6 +92,7 @@ describe('StatementSource', () => {
           activeArchivedPageId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
+          archivedPageById={archivedPageById}
         />,
       )
 
@@ -105,6 +111,7 @@ describe('StatementSource', () => {
           activeArchivedPageId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
+          archivedPageById={archivedPageById}
         />,
       )
 
@@ -119,6 +126,7 @@ describe('StatementSource', () => {
           activeArchivedPageId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
+          archivedPageById={archivedPageById}
         />,
       )
 
@@ -133,6 +141,7 @@ describe('StatementSource', () => {
           activeArchivedPageId="archived-1"
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
+          archivedPageById={archivedPageById}
         />,
       )
 
@@ -145,7 +154,7 @@ describe('StatementSource', () => {
     it('renders supporting quotes when provided', () => {
       const sourceWithQuotes: PropertyReference = {
         id: 'ref-quotes',
-        archived_page: mockArchivedPage,
+        archived_page_id: mockArchivedPage.id,
         supporting_quotes: ['first quote', 'second quote'],
       }
 
@@ -156,6 +165,7 @@ describe('StatementSource', () => {
           activeArchivedPageId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
+          archivedPageById={archivedPageById}
         />,
       )
 
@@ -171,6 +181,7 @@ describe('StatementSource', () => {
           activeArchivedPageId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
+          archivedPageById={archivedPageById}
         />,
       )
 
@@ -181,7 +192,7 @@ describe('StatementSource', () => {
     it('does not render quotes section when supportingQuotes is empty', () => {
       const sourceEmptyQuotes: PropertyReference = {
         id: 'ref-empty',
-        archived_page: mockArchivedPage,
+        archived_page_id: mockArchivedPage.id,
         supporting_quotes: [],
       }
 
@@ -192,6 +203,7 @@ describe('StatementSource', () => {
           activeArchivedPageId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
+          archivedPageById={archivedPageById}
         />,
       )
 
@@ -209,6 +221,7 @@ describe('StatementSource', () => {
           activeArchivedPageId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
+          archivedPageById={archivedPageById}
         />,
       )
 
@@ -228,6 +241,7 @@ describe('StatementSource', () => {
           activeArchivedPageId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
+          archivedPageById={archivedPageById}
         />,
       )
 

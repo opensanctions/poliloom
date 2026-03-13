@@ -648,7 +648,28 @@ class Politician(
     wikipedia_links = relationship(
         "WikipediaLink", back_populates="politician", cascade="all, delete-orphan"
     )
-    archived_pages = relationship("ArchivedPage", back_populates="politician")
+    archived_pages = relationship(
+        "ArchivedPage",
+        secondary="politician_archived_pages",
+        back_populates="politicians",
+    )
+
+
+class PoliticianArchivedPage(Base, TimestampMixin):
+    """Junction table for many-to-many relationship between politicians and archived pages."""
+
+    __tablename__ = "politician_archived_pages"
+
+    politician_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("politicians.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    archived_page_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("archived_pages.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
 
 
 class ArchivedPageLanguage(Base, TimestampMixin):
@@ -708,12 +729,6 @@ class ArchivedPage(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
-    politician_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("politicians.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
     status = Column(
         SQLEnum(ArchivedPageStatus, name="archivedpagestatus"),
         nullable=False,
@@ -722,7 +737,11 @@ class ArchivedPage(Base, TimestampMixin):
     error = Column(String, nullable=True)
 
     # Relationships
-    politician = relationship("Politician", back_populates="archived_pages")
+    politicians = relationship(
+        "Politician",
+        secondary="politician_archived_pages",
+        back_populates="archived_pages",
+    )
     property_references = relationship(
         "PropertyReference", back_populates="archived_page"
     )
@@ -1323,6 +1342,7 @@ def _broadcast_archived_page_status(session, flush_context):
         payload = {
             "archived_page_id": str(obj.id),
             "status": obj.status.value,
+            "politician_ids": [str(p.id) for p in obj.politicians],
         }
         if obj.error:
             payload["error"] = obj.error

@@ -102,11 +102,28 @@ export function EvaluationView({
     })
   }
 
+  // Build a lookup map of all archived pages by ID across all politicians
+  const archivedPageById = useMemo(() => {
+    const map = new Map<string, ArchivedPageResponse>()
+    for (const politician of politicians) {
+      for (const page of politician.archived_pages || []) {
+        map.set(page.id, page)
+      }
+    }
+    return map
+  }, [politicians])
+
   // Handler for showing archived page (used by View button and initial selection)
-  const handleShowArchived = useCallback((ref: PropertyReference) => {
-    setSelectedArchivedPage(ref.archived_page)
-    setSelectedQuotes(ref.supporting_quotes || null)
-  }, [])
+  const handleShowArchived = useCallback(
+    (ref: PropertyReference) => {
+      const page = archivedPageById.get(ref.archived_page_id)
+      if (page) {
+        setSelectedArchivedPage(page)
+      }
+      setSelectedQuotes(ref.supporting_quotes || null)
+    },
+    [archivedPageById],
+  )
 
   // Handler for selecting an archived page directly (from sources list)
   const handleSelectArchivedPage = useCallback((page: ArchivedPageResponse) => {
@@ -117,7 +134,7 @@ export function EvaluationView({
   // Unified hover handler for all property types
   const handlePropertyHover = (property: Property) => {
     const matchingRef = property.archived_pages.find(
-      (s) => selectedArchivedPage?.id === s.archived_page.id,
+      (s) => selectedArchivedPage?.id === s.archived_page_id,
     )
     if (matchingRef?.supporting_quotes && matchingRef.supporting_quotes.length > 0) {
       setSelectedQuotes(matchingRef.supporting_quotes)
@@ -151,11 +168,14 @@ export function EvaluationView({
           seen.set(page.id, page)
         }
       }
-      // Pages from property references
+      // Pages from property references (look up from top-level list)
       for (const prop of politician.properties) {
         for (const ref of prop.archived_pages) {
-          if (!seen.has(ref.archived_page.id)) {
-            seen.set(ref.archived_page.id, ref.archived_page)
+          if (!seen.has(ref.archived_page_id)) {
+            const page = archivedPageById.get(ref.archived_page_id)
+            if (page) {
+              seen.set(ref.archived_page_id, page)
+            }
           }
         }
       }
@@ -168,7 +188,7 @@ export function EvaluationView({
       result.set(politician.id, Array.from(seen.values()))
     }
     return result
-  }, [politicians, addedSourcesByPolitician])
+  }, [politicians, addedSourcesByPolitician, archivedPageById])
 
   const leftPanel = (
     <div className="grid grid-rows-[1fr_auto] h-full">
@@ -204,6 +224,7 @@ export function EvaluationView({
                 onShowArchived={handleShowArchived}
                 onHover={handlePropertyHover}
                 activeArchivedPageId={selectedArchivedPage?.id || null}
+                archivedPageById={archivedPageById}
                 onAddProperty={(item) => handleAddProperty(key, item)}
               />
             </div>

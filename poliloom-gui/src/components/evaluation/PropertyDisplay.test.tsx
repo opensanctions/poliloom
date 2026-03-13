@@ -21,6 +21,8 @@ const mockArchivedPage: ArchivedPageResponse = {
   status: 'DONE',
 }
 
+const archivedPageById = new Map([['archived-1', mockArchivedPage]])
+
 const baseProperty: Property = {
   id: 'test-1',
   type: PropertyType.P569,
@@ -143,7 +145,7 @@ describe('PropertyDisplay', () => {
       archived_pages: [
         {
           id: 'ref-1',
-          archived_page: mockArchivedPage,
+          archived_page_id: mockArchivedPage.id,
           supporting_quotes: ['Test proof line'],
         },
       ],
@@ -156,6 +158,7 @@ describe('PropertyDisplay', () => {
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}
         activeArchivedPageId={null}
+        archivedPageById={archivedPageById}
       />,
     )
 
@@ -232,7 +235,7 @@ describe('PropertyDisplay', () => {
         archived_pages: [
           {
             id: 'ref-1',
-            archived_page: mockArchivedPage,
+            archived_page_id: mockArchivedPage.id,
             supporting_quotes: [],
           },
         ],
@@ -243,6 +246,7 @@ describe('PropertyDisplay', () => {
           property={property}
           onAction={mockOnAction}
           activeArchivedPageId="archived-1"
+          archivedPageById={archivedPageById}
         />,
       )
 
@@ -256,7 +260,7 @@ describe('PropertyDisplay', () => {
         archived_pages: [
           {
             id: 'ref-1',
-            archived_page: mockArchivedPage,
+            archived_page_id: mockArchivedPage.id,
             supporting_quotes: [],
           },
         ],
@@ -267,6 +271,7 @@ describe('PropertyDisplay', () => {
           property={property}
           onAction={mockOnAction}
           activeArchivedPageId="other-page"
+          archivedPageById={archivedPageById}
         />,
       )
 

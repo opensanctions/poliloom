@@ -511,7 +511,7 @@ def extract_permanent_url(html_content: str) -> Optional[str]:
         return None
 
 
-async def process_archived_page(page_id) -> None:
+async def process_archived_page(page_id, politician_id) -> None:
     """Process a PENDING archived page: fetch, archive, extract properties.
 
     Opens its own database session and eager-loads the politician with all
@@ -520,20 +520,20 @@ async def process_archived_page(page_id) -> None:
 
     Args:
         page_id: ArchivedPage UUID
+        politician_id: Politician UUID to extract properties for
     """
     with Session(get_engine()) as db:
-        # Load page with politician and all relationships needed for extraction
-        archived_page = db.execute(
-            select(ArchivedPage)
-            .where(ArchivedPage.id == page_id)
+        archived_page = db.get(ArchivedPage, page_id)
+
+        politician = db.execute(
+            select(Politician)
+            .where(Politician.id == politician_id)
             .options(
-                selectinload(ArchivedPage.politician).options(
-                    selectinload(Politician.wikidata_entity),
-                    selectinload(Politician.properties)
-                    .selectinload(Property.entity)
-                    .selectinload(WikidataEntity.parent_relations)
-                    .selectinload(WikidataRelation.parent_entity),
-                ),
+                selectinload(Politician.wikidata_entity),
+                selectinload(Politician.properties)
+                .selectinload(Property.entity)
+                .selectinload(WikidataEntity.parent_relations)
+                .selectinload(WikidataRelation.parent_entity),
             )
         ).scalar_one()
 
@@ -583,28 +583,28 @@ async def process_archived_page(page_id) -> None:
                     extract_properties_generic(
                         openai_client,
                         content,
-                        archived_page.politician,
+                        politician,
                         DATES_CONFIG,
                     ),
                     extract_two_stage_generic(
                         openai_client,
                         db,
                         content,
-                        archived_page.politician,
+                        politician,
                         POSITIONS_CONFIG,
                     ),
                     extract_two_stage_generic(
                         openai_client,
                         db,
                         content,
-                        archived_page.politician,
+                        politician,
                         BIRTHPLACES_CONFIG,
                     ),
                     extract_two_stage_generic(
                         openai_client,
                         db,
                         content,
-                        archived_page.politician,
+                        politician,
                         CITIZENSHIPS_CONFIG,
                     ),
                 )
@@ -614,7 +614,7 @@ async def process_archived_page(page_id) -> None:
             # Store extracted data
             store_extracted_data(
                 db,
-                archived_page.politician,
+                politician,
                 archived_page,
                 date_properties,
                 positions,
@@ -865,12 +865,12 @@ async def enrich_politician_from_wikipedia(
             for url, wikipedia_project_id in priority_links:
                 archived_page = ArchivedPage(
                     url=url,
-                    politician_id=politician.id,
                     wikipedia_project_id=wikipedia_project_id,
                     status=ArchivedPageStatus.PENDING,
                 )
                 db.add(archived_page)
                 db.flush()
+                politician.archived_pages.append(archived_page)
                 page_ids.append(archived_page.id)
 
             # Mark politician as processed — prevents re-selection by other workers
@@ -888,7 +888,7 @@ async def enrich_politician_from_wikipedia(
 
     # Fire off page processing as background tasks (same path as manual source creation)
     for page_id in page_ids:
-        asyncio.create_task(process_archived_page(page_id))
+        asyncio.create_task(process_archived_page(page_id, politician.id))
 
     return True
 

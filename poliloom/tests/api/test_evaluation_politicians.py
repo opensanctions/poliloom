@@ -186,8 +186,7 @@ class TestGetPoliticianEndpointProperties:
         assert birth_dates[0]["archived_pages"][0]["supporting_quotes"] == [
             "Born on January 15, 1970"
         ]
-        assert birth_dates[0]["archived_pages"][0]["archived_page"] is not None
-        assert "url" in birth_dates[0]["archived_pages"][0]["archived_page"]
+        assert birth_dates[0]["archived_pages"][0]["archived_page_id"] is not None
 
         positions = [p for p in extracted if p["type"] == "P39"]
         assert len(positions) == 1

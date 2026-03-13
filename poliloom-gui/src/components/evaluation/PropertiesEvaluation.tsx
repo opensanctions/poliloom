@@ -1,5 +1,11 @@
 import { ReactNode, Fragment, useEffect, useMemo, useState } from 'react'
-import { Property, PropertyType, PropertyReference, CreatePropertyItem } from '@/types'
+import {
+  Property,
+  PropertyType,
+  PropertyReference,
+  CreatePropertyItem,
+  ArchivedPageResponse,
+} from '@/types'
 import { EvaluationItem } from './EvaluationItem'
 import { PropertyDisplay } from './PropertyDisplay'
 import { AddDatePropertyForm } from './AddDatePropertyForm'
@@ -19,6 +25,7 @@ interface PropertiesEvaluationProps {
   onShowArchived: (ref: PropertyReference) => void
   onHover: (property: Property) => void
   activeArchivedPageId: string | null
+  archivedPageById?: Map<string, ArchivedPageResponse>
   onAddProperty?: (property: CreatePropertyItem) => void
 }
 
@@ -28,6 +35,7 @@ export function PropertiesEvaluation({
   onShowArchived,
   onHover,
   activeArchivedPageId,
+  archivedPageById = new Map(),
   onAddProperty,
 }: PropertiesEvaluationProps) {
   const { isAdvancedMode } = useUserPreferences()
@@ -279,6 +287,7 @@ export function PropertiesEvaluation({
                         onShowArchived={onShowArchived}
                         onHover={onHover}
                         activeArchivedPageId={activeArchivedPageId}
+                        archivedPageById={archivedPageById}
                         shouldAutoOpen={true}
                       />
                     </Fragment>

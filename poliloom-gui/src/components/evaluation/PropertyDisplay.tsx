@@ -1,5 +1,5 @@
 import { useState, useLayoutEffect } from 'react'
-import { Property, PropertyType, PropertyReference } from '@/types'
+import { Property, PropertyType, PropertyReference, ArchivedPageResponse } from '@/types'
 import { parseWikidataDate } from '@/lib/wikidata/dateParser'
 import { parsePositionQualifiers, formatPositionDates } from '@/lib/wikidata/qualifierParser'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
@@ -14,6 +14,7 @@ interface PropertyDisplayProps {
   onShowArchived?: (ref: PropertyReference) => void
   onHover?: (property: Property) => void
   activeArchivedPageId?: string | null
+  archivedPageById?: Map<string, ArchivedPageResponse>
   shouldAutoOpen?: boolean
 }
 
@@ -23,6 +24,7 @@ export function PropertyDisplay({
   onShowArchived,
   onHover,
   activeArchivedPageId,
+  archivedPageById = new Map(),
   shouldAutoOpen,
 }: PropertyDisplayProps) {
   const { isAdvancedMode } = useUserPreferences()
@@ -38,7 +40,7 @@ export function PropertyDisplay({
   const isAccepted = property.evaluation ?? null
   const isSourceVisible =
     property.archived_pages.length === 0 ||
-    property.archived_pages.some((s) => activeArchivedPageId === s.archived_page.id)
+    property.archived_pages.some((s) => activeArchivedPageId === s.archived_page_id)
 
   // Auto-open panel when discarding existing Wikidata statements (to show what metadata will be lost)
   useLayoutEffect(() => {
@@ -126,6 +128,7 @@ export function PropertyDisplay({
           sources={property.archived_pages}
           isWikidataStatement={isWikidataStatement}
           activeArchivedPageId={activeArchivedPageId}
+          archivedPageById={archivedPageById}
           onShowArchived={(ref) => onShowArchived?.(ref)}
           onHover={() => onHover?.(property)}
         />
