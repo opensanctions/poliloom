@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
+import { useEventStream } from '@/contexts/EventStreamContext'
 import { NextPoliticianResponse, PreferenceType, EnrichmentMetadata } from '@/types'
 
 interface NextPoliticianContextType {
@@ -68,14 +69,21 @@ export function NextPoliticianProvider({ children }: { children: React.ReactNode
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchNext])
 
-  // Auto-poll when waiting for enrichment
-  useEffect(() => {
-    if (nextQid !== null) return
-    if (!enrichmentMeta?.has_enrichable_politicians) return
-
-    const pollInterval = setInterval(() => fetchNext(), 5000)
-    return () => clearInterval(pollInterval)
-  }, [nextQid, enrichmentMeta?.has_enrichable_politicians, fetchNext])
+  // Listen for enrichment_complete events instead of polling
+  useEventStream(
+    'enrichment_complete',
+    (event) => {
+      if (nextQid !== null) return
+      const languageMatch =
+        languageFilters.length === 0 || event.languages.some((l) => languageFilters.includes(l))
+      const countryMatch =
+        countryFilters.length === 0 || event.countries.some((c) => countryFilters.includes(c))
+      if (languageMatch && countryMatch) {
+        fetchNext()
+      }
+    },
+    [nextQid, languageFilters, countryFilters, fetchNext],
+  )
 
   const advanceNext = useCallback(() => {
     fetchNext(nextQid ?? undefined)

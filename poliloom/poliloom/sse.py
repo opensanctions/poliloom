@@ -15,6 +15,7 @@ class ArchivedPageStatusEvent(Event):
     """Sent when an archived page's status changes."""
 
     type: str = field(init=False, default="archived_page_status")
+    politician_ids: list[str] = field(default_factory=list)
     archived_page_id: str = ""
     status: str = ""
     error: str | None = None

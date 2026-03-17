@@ -170,3 +170,31 @@ export interface StatsResponse {
   country_coverage: CountryCoverage[] // includes stateless as wikidata_id=null
   cooldown_days: number
 }
+
+// SSE event types
+
+export interface ArchivedPageStatusEvent {
+  type: 'archived_page_status'
+  politician_ids: string[]
+  archived_page_id: string
+  status: string
+  error?: string
+  http_status_code?: number
+}
+
+export interface EnrichmentCompleteEvent {
+  type: 'enrichment_complete'
+  languages: string[]
+  countries: string[]
+}
+
+export interface EvaluationCountEvent {
+  type: 'evaluation_count'
+  total: number
+}
+
+export type SSEEvent = ArchivedPageStatusEvent | EnrichmentCompleteEvent | EvaluationCountEvent
+
+export type SSEEventType = SSEEvent['type']
+
+export type SSEEventByType<T extends SSEEventType> = Extract<SSEEvent, { type: T }>

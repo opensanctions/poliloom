@@ -12,6 +12,7 @@ import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
+import { useEventStream } from '@/contexts/EventStreamContext'
 import { Button } from '@/components/ui/Button'
 import { EvaluationView } from '@/components/evaluation/EvaluationView'
 
@@ -19,7 +20,7 @@ interface PoliticianEvaluationProps {
   politician: Politician
 }
 
-export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) {
+export function PoliticianEvaluation({ politician: initialPolitician }: PoliticianEvaluationProps) {
   const router = useRouter()
   const { isSessionActive, completedCount, sessionGoal, submitAndAdvance } = useEvaluationSession()
   const { statsUnlocked, completeBasicTutorial, completeAdvancedTutorial } = useUserProgress()
@@ -30,6 +31,7 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
     loading: nextLoading,
   } = useNextPoliticianContext()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [politician, setPolitician] = useState<Politician>(initialPolitician)
 
   // Mark tutorials complete and prefetch next politician on mount
   useEffect(() => {
@@ -40,6 +42,23 @@ export function PoliticianEvaluation({ politician }: PoliticianEvaluationProps) 
     advanceNext()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Refetch politician data when archived page processing completes
+  useEventStream(
+    'archived_page_status',
+    (event) => {
+      if (!event.politician_ids.includes(politician.id)) return
+      if (event.status !== 'done') return
+
+      fetch(`/api/politicians/${politician.wikidata_id}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: Politician | null) => {
+          if (data) setPolitician(data)
+        })
+        .catch(() => {})
+    },
+    [politician.id, politician.wikidata_id],
+  )
 
   const handleSubmit = async (actions: PropertyActionItem[]) => {
     setIsSubmitting(true)

@@ -1,12 +1,13 @@
 'use client'
 
-import { createContext, useEffect, useRef, useCallback, useState } from 'react'
+import { createContext, useEffect, useRef, useCallback, useState, useContext } from 'react'
 import { useSession } from 'next-auth/react'
+import type { SSEEvent, SSEEventType, SSEEventByType } from '@/types'
 
-type EventHandler = (event: { archived_page_id: string; status: string; error?: string }) => void
+type EventHandler = (event: SSEEvent) => void
 
 interface EventStreamContextType {
-  subscribe: (archivedPageId: string, handler: EventHandler) => () => void
+  subscribe: (eventType: SSEEventType, handler: EventHandler) => () => void
 }
 
 const EventStreamContext = createContext<EventStreamContextType | null>(null)
@@ -25,8 +26,8 @@ export function EventStreamProvider({ children }: { children: React.ReactNode })
 
     es.onmessage = (e) => {
       try {
-        const event = JSON.parse(e.data)
-        const handlers = listenersRef.current.get(event.archived_page_id)
+        const event: SSEEvent = JSON.parse(e.data)
+        const handlers = listenersRef.current.get(event.type)
         if (handlers) {
           handlers.forEach((handler) => handler(event))
         }
@@ -45,22 +46,39 @@ export function EventStreamProvider({ children }: { children: React.ReactNode })
     }
   }, [status])
 
-  const subscribe = useCallback((archivedPageId: string, handler: EventHandler) => {
-    if (!listenersRef.current.has(archivedPageId)) {
-      listenersRef.current.set(archivedPageId, new Set())
+  const subscribe = useCallback((eventType: SSEEventType, handler: EventHandler) => {
+    if (!listenersRef.current.has(eventType)) {
+      listenersRef.current.set(eventType, new Set())
     }
-    listenersRef.current.get(archivedPageId)!.add(handler)
+    listenersRef.current.get(eventType)!.add(handler)
 
     return () => {
-      const handlers = listenersRef.current.get(archivedPageId)
+      const handlers = listenersRef.current.get(eventType)
       if (handlers) {
         handlers.delete(handler)
         if (handlers.size === 0) {
-          listenersRef.current.delete(archivedPageId)
+          listenersRef.current.delete(eventType)
         }
       }
     }
   }, [])
 
   return <EventStreamContext.Provider value={{ subscribe }}>{children}</EventStreamContext.Provider>
+}
+
+export function useEventStream<T extends SSEEventType>(
+  eventType: T,
+  handler: (event: SSEEventByType<T>) => void,
+  deps: React.DependencyList,
+) {
+  const context = useContext(EventStreamContext)
+  const handlerRef = useRef(handler)
+  handlerRef.current = handler
+
+  useEffect(() => {
+    if (!context) return
+    const stableHandler: EventHandler = (event) => handlerRef.current(event as SSEEventByType<T>)
+    return context.subscribe(eventType, stableHandler)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [context, eventType, ...deps])
 }

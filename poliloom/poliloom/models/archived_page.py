@@ -255,6 +255,7 @@ def _broadcast_archived_page_status(session, flush_context):
             continue
         notify(
             ArchivedPageStatusEvent(
+                politician_ids=[str(pol.id) for pol in obj.politicians],
                 archived_page_id=str(obj.id),
                 status=obj.status.value,
                 error=obj.error.value if obj.error else None,

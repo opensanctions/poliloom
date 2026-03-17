@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { useEventStream } from '@/contexts/EventStreamContext'
 
 interface EvaluationCountContextType {
   evaluationCount: number | null
@@ -29,9 +30,15 @@ export function EvaluationCountProvider({ children }: { children: React.ReactNod
     }
 
     fetchEvaluationCount()
-    const interval = setInterval(fetchEvaluationCount, 2000)
-    return () => clearInterval(interval)
   }, [status])
+
+  useEventStream(
+    'evaluation_count',
+    (event) => {
+      setEvaluationCount(event.total)
+    },
+    [],
+  )
 
   return (
     <EvaluationCountContext.Provider value={{ evaluationCount }}>

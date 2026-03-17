@@ -55,6 +55,7 @@ class TestSSE:
         q2 = subscribe("user2")
         notify(
             ArchivedPageStatusEvent(
+                politician_ids=["pol-1"],
                 archived_page_id="page-1",
                 status="done",
             )
@@ -63,6 +64,7 @@ class TestSSE:
         assert q2.qsize() == 1
         payload = q1.get_nowait()
         assert payload["type"] == "archived_page_status"
+        assert payload["politician_ids"] == ["pol-1"]
         assert payload["archived_page_id"] == "page-1"
 
     def test_enrichment_complete_event(self):

@@ -1,8 +1,10 @@
 """Tests for the ArchivedPage model."""
 
 from datetime import datetime, timezone
+from unittest.mock import patch
 from poliloom.models import (
     ArchivedPage,
+    ArchivedPageStatus,
     WikidataRelation,
     RelationType,
 )
@@ -212,3 +214,61 @@ class TestArchivedPage:
 
         # Third reference should be P813 (retrieved date)
         assert references_json[2]["property"]["id"] == "P813"
+
+    @patch("poliloom.models.archived_page.notify")
+    def test_status_change_broadcasts_sse_with_politician_ids(
+        self, mock_notify, db_session, sample_politician
+    ):
+        """Status change broadcasts ArchivedPageStatusEvent with linked politician IDs."""
+        archived_page = ArchivedPage(
+            url="https://example.com/test",
+            fetch_timestamp=datetime.now(timezone.utc),
+            status=ArchivedPageStatus.PENDING,
+        )
+        db_session.add(archived_page)
+        sample_politician.archived_pages.append(archived_page)
+        db_session.flush()
+        mock_notify.reset_mock()
+
+        archived_page.status = ArchivedPageStatus.PROCESSING
+        db_session.flush()
+
+        assert mock_notify.call_count == 1
+        event = mock_notify.call_args[0][0]
+        assert event.politician_ids == [str(sample_politician.id)]
+        assert event.archived_page_id == str(archived_page.id)
+        assert event.status == "processing"
+
+    @patch("poliloom.models.archived_page.notify")
+    def test_status_change_broadcasts_multiple_politician_ids(
+        self, mock_notify, db_session, sample_politician
+    ):
+        """Status change includes all linked politician IDs."""
+        from poliloom.models import Politician
+
+        second_politician = Politician.create_with_entity(
+            db_session, "Q999999", "Second Politician"
+        )
+        db_session.flush()
+
+        archived_page = ArchivedPage(
+            url="https://example.com/shared",
+            fetch_timestamp=datetime.now(timezone.utc),
+            status=ArchivedPageStatus.PENDING,
+        )
+        db_session.add(archived_page)
+        sample_politician.archived_pages.append(archived_page)
+        second_politician.archived_pages.append(archived_page)
+        db_session.flush()
+        mock_notify.reset_mock()
+
+        archived_page.status = ArchivedPageStatus.DONE
+        db_session.flush()
+
+        assert mock_notify.call_count == 1
+        event = mock_notify.call_args[0][0]
+        assert set(event.politician_ids) == {
+            str(sample_politician.id),
+            str(second_politician.id),
+        }
+        assert event.status == "done"
