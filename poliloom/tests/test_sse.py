@@ -2,7 +2,14 @@
 
 import asyncio
 
-from poliloom.sse import subscribe, unsubscribe, notify, _subscribers
+from poliloom.sse import (
+    ArchivedPageStatusEvent,
+    EnrichmentCompleteEvent,
+    subscribe,
+    unsubscribe,
+    notify,
+    _subscribers,
+)
 
 
 class TestSSE:
@@ -43,22 +50,29 @@ class TestSSE:
         subscribe("user1")
         unsubscribe("user1", asyncio.Queue())
 
-    def test_notify_targeted(self):
+    def test_notify_broadcasts_to_all(self):
         q1 = subscribe("user1")
         q2 = subscribe("user2")
-        notify({"type": "test"}, user_id="user1")
-        assert q1.qsize() == 1
-        assert q2.qsize() == 0
-        assert q1.get_nowait() == {"type": "test"}
-
-    def test_notify_broadcast(self):
-        q1 = subscribe("user1")
-        q2 = subscribe("user2")
-        notify({"type": "broadcast"})
+        notify(
+            ArchivedPageStatusEvent(
+                archived_page_id="page-1",
+                status="done",
+            )
+        )
         assert q1.qsize() == 1
         assert q2.qsize() == 1
+        payload = q1.get_nowait()
+        assert payload["type"] == "archived_page_status"
+        assert payload["archived_page_id"] == "page-1"
+
+    def test_enrichment_complete_event(self):
+        q1 = subscribe("user1")
+        notify(EnrichmentCompleteEvent(languages=["Q1"], countries=[]))
+        payload = q1.get_nowait()
+        assert payload["type"] == "enrichment_complete"
+        assert payload["languages"] == ["Q1"]
 
     def test_notify_no_subscribers(self):
         """Should not raise when no subscribers exist."""
-        notify({"type": "test"}, user_id="nobody")
-        notify({"type": "broadcast"})
+        notify(ArchivedPageStatusEvent(archived_page_id="x", status="done"))
+        notify(EnrichmentCompleteEvent(languages=[], countries=[]))

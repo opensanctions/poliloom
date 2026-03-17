@@ -7,7 +7,6 @@ from poliloom.enrichment import process_archived_page
 from poliloom.models import (
     ArchivedPage,
     ArchivedPageError,
-    ArchivedPageOrigin,
     ArchivedPageStatus,
 )
 from poliloom.page_fetcher import FetchedPage, PageFetchError
@@ -19,7 +18,6 @@ def pending_archived_page(db_session, sample_politician):
     page = ArchivedPage(
         url="https://en.wikipedia.org/wiki/Test_Politician",
         status=ArchivedPageStatus.PENDING,
-        origin=ArchivedPageOrigin.ENRICHMENT,
     )
     db_session.add(page)
     db_session.flush()

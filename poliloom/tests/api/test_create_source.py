@@ -2,7 +2,7 @@
 
 from unittest.mock import patch, AsyncMock
 
-from poliloom.models import ArchivedPage, ArchivedPageOrigin, ArchivedPageStatus
+from poliloom.models import ArchivedPage, ArchivedPageStatus
 
 
 class TestCreateSource:
@@ -44,7 +44,6 @@ class TestCreateSource:
         page = db_session.get(ArchivedPage, data["id"])
         assert page is not None
         assert page.status == ArchivedPageStatus.PENDING
-        assert page.origin == ArchivedPageOrigin.USER_SUBMITTED
         assert page.user_id == "12345"  # from mock_auth fixture
 
     @patch(

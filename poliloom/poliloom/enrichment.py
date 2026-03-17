@@ -25,7 +25,6 @@ from .models import (
     Country,
     ArchivedPage,
     ArchivedPageError,
-    ArchivedPageOrigin,
     ArchivedPageStatus,
     WikidataRelation,
     WikidataEntity,
@@ -34,6 +33,7 @@ from . import archive
 from .database import get_engine
 from .page_fetcher import PageFetchError
 from .search import SearchService
+from .sse import EnrichmentCompleteEvent, notify
 from .wikidata_date import WikidataDate
 from . import prompts
 
@@ -516,16 +516,14 @@ def extract_permanent_url(html_content: str) -> Optional[str]:
 
 async def process_archived_page(
     db: Session, archived_page: ArchivedPage, politician: Politician
-) -> None:
+) -> int:
     """Fetch, archive, and extract properties from an archived page.
 
     Handles status transitions and error recording on the archived_page.
     Caller is responsible for providing the session and loading entities.
 
-    Args:
-        db: Active database session
-        archived_page: ArchivedPage in PENDING state
-        politician: Politician with eager-loaded relationships for extraction
+    Returns:
+        Number of properties extracted (0 on error or empty content).
     """
     try:
         archived_page.status = ArchivedPageStatus.PROCESSING
@@ -559,7 +557,7 @@ async def process_archived_page(
             archived_page.status = ArchivedPageStatus.DONE
             archived_page.error = ArchivedPageError.INVALID_CONTENT
             db.commit()
-            return
+            return 0
         soup = BeautifulSoup(html_content, "html.parser")
         text = soup.get_text()
         content = " ".join(text.split())
@@ -567,7 +565,7 @@ async def process_archived_page(
             archived_page.status = ArchivedPageStatus.DONE
             archived_page.error = ArchivedPageError.INVALID_CONTENT
             db.commit()
-            return
+            return 0
 
         # Extract properties in parallel
         openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -623,6 +621,12 @@ async def process_archived_page(
         archived_page.status = ArchivedPageStatus.DONE
         db.commit()
 
+        return sum(
+            len(items)
+            for items in (date_properties, positions, birthplaces, citizenships)
+            if items
+        )
+
     except PageFetchError as e:
         logger.error(f"Fetch error for archived page {archived_page.id}: {e}")
         archived_page.status = ArchivedPageStatus.DONE
@@ -630,19 +634,24 @@ async def process_archived_page(
         if e.http_status_code is not None:
             archived_page.http_status_code = e.http_status_code
         db.commit()
+        return 0
     except Exception as e:
         logger.error(f"Pipeline error for archived page {archived_page.id}: {e}")
         archived_page.status = ArchivedPageStatus.DONE
         archived_page.error = ArchivedPageError.PIPELINE_ERROR
         db.commit()
+        return 0
 
 
-async def process_archived_page_task(page_id, politician_id) -> None:
+async def process_archived_page_task(page_id, politician_id) -> int:
     """Background task entry point: opens a session and processes an archived page.
 
     Args:
         page_id: ArchivedPage UUID
         politician_id: Politician UUID to extract properties for
+
+    Returns:
+        Number of properties extracted.
     """
     with Session(get_engine()) as db:
         archived_page = db.get(ArchivedPage, page_id)
@@ -659,7 +668,7 @@ async def process_archived_page_task(page_id, politician_id) -> None:
             )
         ).scalar_one()
 
-        await process_archived_page(db, archived_page, politician)
+        return await process_archived_page(db, archived_page, politician)
 
 
 # Configuration instances for different extraction types
@@ -776,99 +785,122 @@ def has_enrichable_politicians(
     return result is not None
 
 
+@dataclass
+class ScheduledEnrichment:
+    """Result of scheduling a politician for enrichment."""
+
+    politician_id: Any
+    page_ids: list
+
+
+def schedule_enrichment(
+    db: Session,
+    languages: Optional[List[str]] = None,
+    countries: Optional[List[str]] = None,
+    stateless: bool = False,
+) -> Optional[ScheduledEnrichment]:
+    """Pick the next politician and create PENDING archived pages for its Wikipedia links.
+
+    Sets enriched_at immediately to prevent re-selection by other workers.
+
+    Returns:
+        ScheduledEnrichment if a politician was found, None otherwise.
+    """
+    query = (
+        Politician.query_for_enrichment(
+            languages=languages,
+            countries=countries,
+            stateless=stateless,
+        )
+        .options(
+            selectinload(Politician.wikipedia_links),
+        )
+        .order_by(
+            Politician.enriched_at.asc().nullsfirst(),
+            Politician.wikidata_id_numeric.desc(),
+        )
+        .limit(1)
+        .with_for_update(skip_locked=True)
+    )
+
+    politician = db.scalars(query).first()
+
+    if not politician:
+        return None
+
+    try:
+        priority_links = politician.get_priority_wikipedia_links(db)
+
+        if not priority_links:
+            raise ValueError(
+                f"No suitable Wikipedia links found for politician {politician.name}"
+            )
+
+        logger.info(
+            f"Processing {len(priority_links)} Wikipedia sources for {politician.name}: "
+            f"{[f'{wikipedia_project_id} ({url})' for url, wikipedia_project_id in priority_links]}"
+        )
+
+        page_ids = []
+        for url, wikipedia_project_id in priority_links:
+            archived_page = ArchivedPage(
+                url=url,
+                wikipedia_project_id=wikipedia_project_id,
+                status=ArchivedPageStatus.PENDING,
+            )
+            db.add(archived_page)
+            db.flush()
+            politician.archived_pages.append(archived_page)
+            page_ids.append(archived_page.id)
+
+        politician.enriched_at = datetime.now(timezone.utc)
+        db.commit()
+
+        return ScheduledEnrichment(
+            politician_id=politician.id,
+            page_ids=page_ids,
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Error scheduling enrichment for politician {politician.wikidata_id}: {e}"
+        )
+        db.rollback()
+        politician.enriched_at = datetime.now(timezone.utc)
+        db.commit()
+        return None
+
+
 async def enrich_politician_from_wikipedia(
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,
     stateless: bool = False,
-    user_id: Optional[str] = None,
 ) -> bool:
-    """
-    Enrich a single politician's data by extracting information from their Wikipedia sources.
-
-    Creates PENDING ArchivedPage rows for the politician's Wikipedia links and sets
-    enriched_at immediately (preventing other workers from re-selecting), then
-    processes each page independently with its own session.
-
-    Args:
-        languages: Optional list of language QIDs to filter by
-        countries: Optional list of country QIDs to filter by
-        stateless: If True, only enrich politicians without citizenship data
+    """Schedule and process enrichment for a single politician.
 
     Returns:
-        True if a politician was found and queued, False if no politician available
+        True if a politician was found, False if no politician available.
     """
-
     with Session(get_engine()) as db:
-        # Ordering strategy:
-        # 1. NULL enriched_at first (never enriched)
-        # 2. Among NULL, higher QID numbers first (newer politicians)
-        # 3. Then by enriched_at ascending (oldest enrichment first)
-        query = (
-            Politician.query_for_enrichment(
-                languages=languages,
-                countries=countries,
-                stateless=stateless,
-            )
-            .options(
-                selectinload(Politician.wikipedia_links),
-            )
-            .order_by(
-                Politician.enriched_at.asc().nullsfirst(),
-                Politician.wikidata_id_numeric.desc(),
-            )
-            .limit(1)
-            .with_for_update(skip_locked=True)
+        scheduled = schedule_enrichment(db, languages, countries, stateless)
+
+    if not scheduled:
+        return False
+
+    counts = await asyncio.gather(
+        *(
+            process_archived_page_task(page_id, scheduled.politician_id)
+            for page_id in scheduled.page_ids
         )
+    )
 
-        politician = db.scalars(query).first()
-
-        if not politician:
-            return False
-
-        try:
-            priority_links = politician.get_priority_wikipedia_links(db)
-
-            if not priority_links:
-                raise ValueError(
-                    f"No suitable Wikipedia links found for politician {politician.name}"
-                )
-
-            logger.info(
-                f"Processing {len(priority_links)} Wikipedia sources for {politician.name}: "
-                f"{[f'{wikipedia_project_id} ({url})' for url, wikipedia_project_id in priority_links]}"
+    if sum(counts) > 0:
+        notify(
+            EnrichmentCompleteEvent(
+                languages=languages or [],
+                countries=countries or [],
             )
-
-            # Create PENDING ArchivedPage rows for each link
-            page_ids = []
-            for url, wikipedia_project_id in priority_links:
-                archived_page = ArchivedPage(
-                    url=url,
-                    wikipedia_project_id=wikipedia_project_id,
-                    status=ArchivedPageStatus.PENDING,
-                    user_id=user_id,
-                    origin=ArchivedPageOrigin.ENRICHMENT,
-                )
-                db.add(archived_page)
-                db.flush()
-                politician.archived_pages.append(archived_page)
-                page_ids.append(archived_page.id)
-
-            # Mark politician as processed — prevents re-selection by other workers
-            politician.enriched_at = datetime.now(timezone.utc)
-            db.commit()
-
-        except Exception as e:
-            logger.error(
-                f"Error scheduling enrichment for politician {politician.wikidata_id}: {e}"
-            )
-            db.rollback()
-            politician.enriched_at = datetime.now(timezone.utc)
-            db.commit()
-            return True
-
-    # Fire off page processing as background tasks (same path as manual source creation)
-    for page_id in page_ids:
-        asyncio.create_task(process_archived_page_task(page_id, politician.id))
+        )
 
     return True
 

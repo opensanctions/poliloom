@@ -20,7 +20,6 @@ from ..search import SearchService
 from ..models import (
     ArchivedPage,
     ArchivedPageLanguage,
-    ArchivedPageOrigin,
     ArchivedPageStatus,
     Evaluation,
     Politician,
@@ -227,10 +226,11 @@ async def get_next_politician(
         logger.info(
             f"Only {current_count} politicians with unevaluated properties (threshold: {min_threshold}), triggering enrichment"
         )
-        await enrich_politician_from_wikipedia(
-            languages=languages,
-            countries=countries,
-            user_id=str(current_user.user_id),
+        asyncio.create_task(
+            enrich_politician_from_wikipedia(
+                languages=languages,
+                countries=countries,
+            )
         )
 
     meta = EnrichmentMetadata(
@@ -547,7 +547,6 @@ async def create_source(
         url=request.url,
         user_id=str(current_user.user_id),
         status=ArchivedPageStatus.PENDING,
-        origin=ArchivedPageOrigin.USER_SUBMITTED,
     )
     db.add(archived_page)
     db.flush()

@@ -1,7 +1,34 @@
 """In-memory SSE subscriber registry keyed by user_id."""
 
 import asyncio
+from dataclasses import asdict, dataclass, field
 from typing import Dict, List
+
+
+@dataclass
+class Event:
+    """Base SSE event."""
+
+
+@dataclass
+class ArchivedPageStatusEvent(Event):
+    """Sent when an archived page's status changes."""
+
+    type: str = field(init=False, default="archived_page_status")
+    archived_page_id: str = ""
+    status: str = ""
+    error: str | None = None
+    http_status_code: int | None = None
+
+
+@dataclass
+class EnrichmentCompleteEvent(Event):
+    """Broadcast when enrichment produces new properties."""
+
+    type: str = field(init=False, default="enrichment_complete")
+    languages: list[str] = field(default_factory=list)
+    countries: list[str] = field(default_factory=list)
+
 
 _subscribers: Dict[str, List[asyncio.Queue]] = {}
 
@@ -23,13 +50,9 @@ def unsubscribe(user_id: str, queue: asyncio.Queue) -> None:
             del _subscribers[user_id]
 
 
-def notify(event: dict, user_id: str | None = None) -> None:
-    """Send an event to subscribers. Targets a single user if user_id is given, otherwise broadcasts to all."""
-    if user_id:
-        queues = _subscribers.get(user_id, [])
+def notify(event: Event) -> None:
+    """Broadcast an event to all connected subscribers."""
+    payload = asdict(event)
+    for queues in _subscribers.values():
         for queue in queues:
-            queue.put_nowait(event)
-    else:
-        for queues in _subscribers.values():
-            for queue in queues:
-                queue.put_nowait(event)
+            queue.put_nowait(payload)

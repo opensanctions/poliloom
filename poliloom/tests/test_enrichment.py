@@ -1,10 +1,11 @@
 """Tests for enrichment module functionality."""
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 
 from poliloom.enrichment import (
     enrich_politician_from_wikipedia,
+    schedule_enrichment,
     extract_properties_generic,
     extract_two_stage_generic,
     store_extracted_data,
@@ -25,7 +26,6 @@ from poliloom.enrichment import (
 )
 from poliloom.models import (
     ArchivedPage,
-    ArchivedPageOrigin,
     ArchivedPageStatus,
     Location,
     Position,
@@ -692,22 +692,13 @@ class TestHasEnrichablePoliticians:
         assert has_enrichable_politicians(db_session, countries=["Q183"]) is False
 
 
-class TestEnrichPoliticianUserID:
-    """Test that enrich_politician_from_wikipedia passes user_id to ArchivedPage."""
+class TestScheduleEnrichment:
+    """Test schedule_enrichment selects a politician and creates archived pages."""
 
-    @pytest.fixture(autouse=True)
-    def _use_test_session(self, db_session):
-        """Patch Session so enrich_politician_from_wikipedia uses the test session."""
-        # The function does `with Session(get_engine()) as db:` — make that
-        # return a context manager that yields the existing test session.
-        cm = Mock()
-        cm.__enter__ = Mock(return_value=db_session)
-        cm.__exit__ = Mock(return_value=False)
-        with patch("poliloom.enrichment.Session", return_value=cm):
-            yield
+    def test_returns_none_when_no_politicians(self, db_session):
+        assert schedule_enrichment(db_session) is None
 
-    @pytest.mark.asyncio
-    async def test_user_id_stored_on_archived_pages(
+    def test_schedules_politician_with_wikipedia_links(
         self,
         db_session,
         sample_politician,
@@ -715,42 +706,26 @@ class TestEnrichPoliticianUserID:
         sample_country,
         create_citizenship,
     ):
-        """Test that user_id is set on created ArchivedPage rows."""
         create_citizenship(sample_politician, sample_country)
         db_session.flush()
 
-        with patch("asyncio.create_task", new_callable=MagicMock):
-            result = await enrich_politician_from_wikipedia(user_id="42")
+        result = schedule_enrichment(db_session)
 
-        assert result is True
+        assert result is not None
+        assert result.politician_id == sample_politician.id
+        assert len(result.page_ids) >= 1
 
-        # Check that the archived page was created with user_id
-        pages = db_session.query(ArchivedPage).filter_by(user_id="42").all()
-        assert len(pages) >= 1
-        assert all(p.origin == ArchivedPageOrigin.ENRICHMENT for p in pages)
+        # Politician should be marked as enriched
+        db_session.refresh(sample_politician)
+        assert sample_politician.enriched_at is not None
 
-    @pytest.mark.asyncio
-    async def test_no_user_id_when_not_provided(
-        self,
-        db_session,
-        sample_politician,
-        sample_wikipedia_link,
-        sample_country,
-        create_citizenship,
-    ):
-        """Test that user_id is None when not provided."""
-        create_citizenship(sample_politician, sample_country)
-        db_session.flush()
-
-        with patch("asyncio.create_task", new_callable=MagicMock):
-            result = await enrich_politician_from_wikipedia()
-
-        assert result is True
-
+        # Archived pages should be created as PENDING
         pages = (
             db_session.query(ArchivedPage)
-            .filter(ArchivedPage.status == ArchivedPageStatus.PENDING)
+            .filter(ArchivedPage.id.in_(result.page_ids))
             .all()
         )
-        assert len(pages) >= 1
-        assert all(p.user_id is None for p in pages)
+        assert all(p.status == ArchivedPageStatus.PENDING for p in pages)
+
+    def test_returns_none_when_no_wikipedia_links(self, db_session, sample_politician):
+        assert schedule_enrichment(db_session) is None
