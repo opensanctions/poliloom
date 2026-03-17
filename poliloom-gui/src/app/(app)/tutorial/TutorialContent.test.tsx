@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, render } from '@testing-library/react'
 import '@/test/test-utils'
 import { TutorialContent } from './TutorialContent'
@@ -71,7 +71,6 @@ vi.mock('@/contexts/UserPreferencesContext', async (importOriginal) => {
 
 describe('Tutorial Page', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     CSS.highlights.clear()
 
     // Default: basic mode, not completed
@@ -95,10 +94,6 @@ describe('Tutorial Page', () => {
       isAdvancedMode: false,
       setAdvancedMode: vi.fn(),
     })
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
   })
 
   describe('Step 0 - Welcome', () => {

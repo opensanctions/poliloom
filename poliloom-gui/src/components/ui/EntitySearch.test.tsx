@@ -26,10 +26,6 @@ beforeAll(() => {
 describe('EntitySearch', () => {
   const mockOnSelect = vi.fn()
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('renders search input with placeholder', () => {
     render(
       <EntitySearch

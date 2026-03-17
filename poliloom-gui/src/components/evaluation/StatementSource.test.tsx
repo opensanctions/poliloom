@@ -28,10 +28,6 @@ const mockSourceNoQuotes: PropertyReference = {
 }
 
 describe('StatementSource', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   describe('View button behavior', () => {
     it('renders View button when sources exist and not a Wikidata statement', () => {
       render(

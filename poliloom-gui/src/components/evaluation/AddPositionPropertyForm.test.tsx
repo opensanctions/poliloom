@@ -44,15 +44,8 @@ function selectDate(
 }
 
 describe('AddPositionPropertyForm', () => {
-  const mockOnAdd = vi.fn()
-  const mockOnCancel = vi.fn()
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('renders search input and date pickers', () => {
-    render(<AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
+    render(<AddPositionPropertyForm onAdd={vi.fn()} onCancel={vi.fn()} />)
 
     expect(screen.getByPlaceholderText('Search for a position...')).toBeInTheDocument()
     expect(screen.getByText('Start')).toBeInTheDocument()
@@ -60,7 +53,7 @@ describe('AddPositionPropertyForm', () => {
   })
 
   it('disables Add button when no entity is selected', () => {
-    render(<AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
+    render(<AddPositionPropertyForm onAdd={vi.fn()} onCancel={vi.fn()} />)
 
     expect(screen.getByText('+ Add')).toBeDisabled()
   })
@@ -68,7 +61,7 @@ describe('AddPositionPropertyForm', () => {
   it('searches positions endpoint', async () => {
     mockFetchSuccess()
 
-    render(<AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
+    render(<AddPositionPropertyForm onAdd={vi.fn()} onCancel={vi.fn()} />)
 
     fireEvent.change(screen.getByPlaceholderText('Search for a position...'), {
       target: { value: 'Mayor' },
@@ -81,8 +74,9 @@ describe('AddPositionPropertyForm', () => {
 
   it('calls onAdd with correct property without dates', async () => {
     mockFetchSuccess()
+    const onAdd = vi.fn()
 
-    render(<AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
+    render(<AddPositionPropertyForm onAdd={onAdd} onCancel={vi.fn()} />)
 
     fireEvent.change(screen.getByPlaceholderText('Search for a position...'), {
       target: { value: 'Mayor' },
@@ -95,8 +89,8 @@ describe('AddPositionPropertyForm', () => {
     fireEvent.click(screen.getByText('Mayor'))
     fireEvent.click(screen.getByText('+ Add'))
 
-    expect(mockOnAdd).toHaveBeenCalledTimes(1)
-    const property = mockOnAdd.mock.calls[0][0]
+    expect(onAdd).toHaveBeenCalledTimes(1)
+    const property = onAdd.mock.calls[0][0]
     expect(property.action).toBe('create')
     expect(property.type).toBe(PropertyType.P39)
     expect(property.entity_id).toBe('Q30185')
@@ -107,10 +101,9 @@ describe('AddPositionPropertyForm', () => {
 
   it('includes start date qualifier when provided', async () => {
     mockFetchSuccess()
+    const onAdd = vi.fn()
 
-    const { container } = render(
-      <AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />,
-    )
+    const { container } = render(<AddPositionPropertyForm onAdd={onAdd} onCancel={vi.fn()} />)
 
     fireEvent.change(screen.getByPlaceholderText('Search for a position...'), {
       target: { value: 'Mayor' },
@@ -126,7 +119,7 @@ describe('AddPositionPropertyForm', () => {
 
     fireEvent.click(screen.getByText('+ Add'))
 
-    const property = mockOnAdd.mock.calls[0][0]
+    const property = onAdd.mock.calls[0][0]
     expect(property.qualifiers).toBeDefined()
     expect(property.qualifiers.P580).toHaveLength(1)
     expect(property.qualifiers.P580[0].datavalue.value.time).toBe('+2020-01-15T00:00:00Z')
@@ -136,10 +129,9 @@ describe('AddPositionPropertyForm', () => {
 
   it('includes both start and end date qualifiers when provided', async () => {
     mockFetchSuccess()
+    const onAdd = vi.fn()
 
-    const { container } = render(
-      <AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />,
-    )
+    const { container } = render(<AddPositionPropertyForm onAdd={onAdd} onCancel={vi.fn()} />)
 
     fireEvent.change(screen.getByPlaceholderText('Search for a position...'), {
       target: { value: 'Mayor' },
@@ -156,16 +148,17 @@ describe('AddPositionPropertyForm', () => {
 
     fireEvent.click(screen.getByText('+ Add'))
 
-    const property = mockOnAdd.mock.calls[0][0]
+    const property = onAdd.mock.calls[0][0]
     expect(property.qualifiers.P580[0].datavalue.value.time).toBe('+2020-01-15T00:00:00Z')
     expect(property.qualifiers.P582[0].datavalue.value.time).toBe('+2024-06-30T00:00:00Z')
   })
 
   it('calls onCancel when Cancel button is clicked', () => {
-    render(<AddPositionPropertyForm onAdd={mockOnAdd} onCancel={mockOnCancel} />)
+    const onCancel = vi.fn()
+    render(<AddPositionPropertyForm onAdd={vi.fn()} onCancel={onCancel} />)
 
     fireEvent.click(screen.getByText('Cancel'))
 
-    expect(mockOnCancel).toHaveBeenCalledTimes(1)
+    expect(onCancel).toHaveBeenCalledTimes(1)
   })
 })

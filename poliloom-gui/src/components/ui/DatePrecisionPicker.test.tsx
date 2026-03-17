@@ -57,10 +57,6 @@ describe('DatePrecisionPicker', () => {
     onChange: vi.fn(),
   }
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('renders year input and month/day selects', () => {
     render(<DatePrecisionPicker {...defaultProps} />)
 

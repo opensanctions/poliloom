@@ -17,33 +17,20 @@ function mockFetchSuccess(results: unknown[]) {
 }
 
 describe('AddEntityPropertyForm', () => {
-  const mockOnAdd = vi.fn()
-  const mockOnCancel = vi.fn()
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('renders search input for birthplace', () => {
-    render(
-      <AddEntityPropertyForm type={PropertyType.P19} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
-    )
+    render(<AddEntityPropertyForm type={PropertyType.P19} onAdd={vi.fn()} onCancel={vi.fn()} />)
 
     expect(screen.getByPlaceholderText('Search for a location...')).toBeInTheDocument()
   })
 
   it('renders search input for citizenship', () => {
-    render(
-      <AddEntityPropertyForm type={PropertyType.P27} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
-    )
+    render(<AddEntityPropertyForm type={PropertyType.P27} onAdd={vi.fn()} onCancel={vi.fn()} />)
 
     expect(screen.getByPlaceholderText('Search for a country...')).toBeInTheDocument()
   })
 
   it('disables Add button when no entity is selected', () => {
-    render(
-      <AddEntityPropertyForm type={PropertyType.P19} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
-    )
+    render(<AddEntityPropertyForm type={PropertyType.P19} onAdd={vi.fn()} onCancel={vi.fn()} />)
 
     expect(screen.getByText('+ Add')).toBeDisabled()
   })
@@ -51,9 +38,7 @@ describe('AddEntityPropertyForm', () => {
   it('searches locations endpoint for birthplace type', async () => {
     mockFetchSuccess(locationResults)
 
-    render(
-      <AddEntityPropertyForm type={PropertyType.P19} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
-    )
+    render(<AddEntityPropertyForm type={PropertyType.P19} onAdd={vi.fn()} onCancel={vi.fn()} />)
 
     fireEvent.change(screen.getByPlaceholderText('Search for a location...'), {
       target: { value: 'Ber' },
@@ -67,9 +52,7 @@ describe('AddEntityPropertyForm', () => {
   it('searches countries endpoint for citizenship type', async () => {
     mockFetchSuccess(countryResults)
 
-    render(
-      <AddEntityPropertyForm type={PropertyType.P27} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
-    )
+    render(<AddEntityPropertyForm type={PropertyType.P27} onAdd={vi.fn()} onCancel={vi.fn()} />)
 
     fireEvent.change(screen.getByPlaceholderText('Search for a country...'), {
       target: { value: 'Ger' },
@@ -82,10 +65,9 @@ describe('AddEntityPropertyForm', () => {
 
   it('calls onAdd with correct birthplace property after search and select', async () => {
     mockFetchSuccess(locationResults)
+    const onAdd = vi.fn()
 
-    render(
-      <AddEntityPropertyForm type={PropertyType.P19} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
-    )
+    render(<AddEntityPropertyForm type={PropertyType.P19} onAdd={onAdd} onCancel={vi.fn()} />)
 
     fireEvent.change(screen.getByPlaceholderText('Search for a location...'), {
       target: { value: 'Ber' },
@@ -100,8 +82,8 @@ describe('AddEntityPropertyForm', () => {
     expect(screen.getByText('+ Add')).not.toBeDisabled()
     fireEvent.click(screen.getByText('+ Add'))
 
-    expect(mockOnAdd).toHaveBeenCalledTimes(1)
-    const property = mockOnAdd.mock.calls[0][0]
+    expect(onAdd).toHaveBeenCalledTimes(1)
+    const property = onAdd.mock.calls[0][0]
     expect(property.action).toBe('create')
     expect(property.type).toBe(PropertyType.P19)
     expect(property.entity_id).toBe('Q64')
@@ -111,10 +93,9 @@ describe('AddEntityPropertyForm', () => {
 
   it('calls onAdd with correct citizenship property after search and select', async () => {
     mockFetchSuccess(countryResults)
+    const onAdd = vi.fn()
 
-    render(
-      <AddEntityPropertyForm type={PropertyType.P27} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
-    )
+    render(<AddEntityPropertyForm type={PropertyType.P27} onAdd={onAdd} onCancel={vi.fn()} />)
 
     fireEvent.change(screen.getByPlaceholderText('Search for a country...'), {
       target: { value: 'Ger' },
@@ -127,19 +108,18 @@ describe('AddEntityPropertyForm', () => {
     fireEvent.click(screen.getByText('Germany'))
     fireEvent.click(screen.getByText('+ Add'))
 
-    const property = mockOnAdd.mock.calls[0][0]
+    const property = onAdd.mock.calls[0][0]
     expect(property.type).toBe(PropertyType.P27)
     expect(property.entity_id).toBe('Q183')
     expect(property.entity_name).toBe('Germany')
   })
 
   it('calls onCancel when Cancel button is clicked', () => {
-    render(
-      <AddEntityPropertyForm type={PropertyType.P19} onAdd={mockOnAdd} onCancel={mockOnCancel} />,
-    )
+    const onCancel = vi.fn()
+    render(<AddEntityPropertyForm type={PropertyType.P19} onAdd={vi.fn()} onCancel={onCancel} />)
 
     fireEvent.click(screen.getByText('Cancel'))
 
-    expect(mockOnCancel).toHaveBeenCalledTimes(1)
+    expect(onCancel).toHaveBeenCalledTimes(1)
   })
 })

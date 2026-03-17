@@ -19,10 +19,6 @@ vi.mock('@/contexts/UserProgressContext', async (importOriginal) => {
 })
 
 describe('Stats Page', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   describe('when stats are locked', () => {
     beforeEach(() => {
       mockUseUserProgress.mockReturnValue({

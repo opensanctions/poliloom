@@ -1,5 +1,5 @@
 import { render, waitFor, fireEvent } from '@testing-library/react'
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { UserPreferencesProvider, useUserPreferences } from './UserPreferencesContext'
 import { PreferenceType } from '@/types'
 
@@ -60,10 +60,6 @@ describe('UserPreferencesContext', () => {
     // Mock fetch
     fetchMock = vi.fn<typeof fetch>()
     global.fetch = fetchMock as typeof fetch
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
   })
 
   it('detects browser language on first load when no localStorage filters exist', async () => {

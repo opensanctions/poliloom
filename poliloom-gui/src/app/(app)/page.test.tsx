@@ -106,7 +106,6 @@ const defaultUserPreferences = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mockUseNextPoliticianContext.mockReturnValue(defaultNextPolitician)
   mockUseEvaluationSession.mockReturnValue(defaultEvaluationSession)
   mockUseSession.mockReturnValue({ data: null, status: 'loading' })

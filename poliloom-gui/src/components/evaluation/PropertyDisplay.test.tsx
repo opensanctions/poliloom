@@ -31,10 +31,6 @@ const baseProperty: Property = {
 }
 
 describe('PropertyDisplay', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('renders birth date with formatted value', () => {
     const property: Property = {
       ...baseProperty,
