@@ -6,7 +6,7 @@ import {
   CreatePropertyItem,
   ArchivedPageResponse,
 } from '@/types'
-import { EvaluationItem } from './EvaluationItem'
+import { HeaderedBox } from '@/components/ui/HeaderedBox'
 import { PropertyDisplay } from './PropertyDisplay'
 import { AddDatePropertyForm } from './AddDatePropertyForm'
 import { AddPositionPropertyForm } from './AddPositionPropertyForm'
@@ -266,7 +266,7 @@ export function PropertiesEvaluation({
           <div className="space-y-4">
             {section.items.map((item) => {
               return (
-                <EvaluationItem
+                <HeaderedBox
                   key={item.key}
                   title={item.title}
                   onHover={() => {
@@ -278,21 +278,23 @@ export function PropertiesEvaluation({
                     }
                   }}
                 >
-                  {item.properties.map((property, index) => (
-                    <Fragment key={property.id}>
-                      {index > 0 && <hr className="border-border-muted my-3" />}
-                      <PropertyDisplay
-                        property={property}
-                        onAction={onAction}
-                        onShowArchived={onShowArchived}
-                        onHover={onHover}
-                        activeArchivedPageId={activeArchivedPageId}
-                        archivedPageById={archivedPageById}
-                        shouldAutoOpen={true}
-                      />
-                    </Fragment>
-                  ))}
-                </EvaluationItem>
+                  <div className="space-y-3">
+                    {item.properties.map((property, index) => (
+                      <Fragment key={property.id}>
+                        {index > 0 && <hr className="border-border-muted my-3" />}
+                        <PropertyDisplay
+                          property={property}
+                          onAction={onAction}
+                          onShowArchived={onShowArchived}
+                          onHover={onHover}
+                          activeArchivedPageId={activeArchivedPageId}
+                          archivedPageById={archivedPageById}
+                          shouldAutoOpen={true}
+                        />
+                      </Fragment>
+                    ))}
+                  </div>
+                </HeaderedBox>
               )
             })}
           </div>
