@@ -30,6 +30,14 @@ class EnrichmentCompleteEvent(Event):
     countries: list[str] = field(default_factory=list)
 
 
+@dataclass
+class EvaluationCountEvent(Event):
+    """Broadcast when evaluations are created, carrying the updated total."""
+
+    type: str = field(init=False, default="evaluation_count")
+    total: int = 0
+
+
 _subscribers: Dict[str, List[asyncio.Queue]] = {}
 
 

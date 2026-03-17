@@ -3,8 +3,10 @@
 from unittest.mock import patch
 
 from poliloom.models import (
+    Evaluation,
     Politician,
 )
+from poliloom.sse import EvaluationCountEvent
 
 
 class TestGetNextPoliticianEndpoint:
@@ -475,3 +477,30 @@ class TestPatchProperties:
             "/politicians/Q123456/properties", json=data, headers=mock_auth
         )
         assert response.status_code == 422
+
+    @patch("poliloom.api.politicians.push_evaluation")
+    @patch("poliloom.api.politicians.notify")
+    def test_emits_evaluation_count_event(
+        self,
+        mock_notify,
+        mock_push_evaluation,
+        client,
+        mock_auth,
+        db_session,
+        politician_with_unevaluated_data,
+    ):
+        """Test that accepting a property emits an EvaluationCountEvent."""
+        mock_push_evaluation.return_value = True
+        politician = politician_with_unevaluated_data
+        prop = next(p for p in politician.properties if p.statement_id is None)
+
+        data = {"items": [{"action": "accept", "id": str(prop.id)}]}
+        response = client.patch(
+            "/politicians/Q123456/properties", json=data, headers=mock_auth
+        )
+        assert response.status_code == 200
+
+        mock_notify.assert_called_once()
+        event = mock_notify.call_args[0][0]
+        assert isinstance(event, EvaluationCountEvent)
+        assert event.total == db_session.query(Evaluation).count()

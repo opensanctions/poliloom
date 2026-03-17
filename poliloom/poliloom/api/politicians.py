@@ -26,6 +26,7 @@ from ..models import (
     PropertyReference,
     PropertyType,
 )
+from ..sse import EvaluationCountEvent, notify
 from ..wikidata_statement import create_entity, create_statement, push_evaluation
 from .schemas import (
     AcceptPropertyItem,
@@ -445,14 +446,12 @@ async def process_property_actions(
                 errors.append(f"Error processing item {item_desc}: {str(e)}")
                 continue
 
-    try:
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}",
-        )
+    db.commit()
+
+    # Broadcast updated evaluation count
+    if all_evaluations:
+        total = db.execute(select(func.count()).select_from(Evaluation)).scalar() or 0
+        notify(EvaluationCountEvent(total=total))
 
     # Push evaluations to Wikidata (don't rollback local changes on failure)
     wikidata_errors = []
