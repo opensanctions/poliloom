@@ -3,15 +3,13 @@
 import pytest
 from unittest.mock import Mock, patch
 
+from poliloom.archiving import process_next_politician, schedule_enrichment
 from poliloom.enrichment import (
-    enrich_politician_from_wikipedia,
-    schedule_enrichment,
     extract_properties_generic,
     extract_two_stage_generic,
     store_extracted_data,
     count_politicians_with_unevaluated,
     has_enrichable_politicians,
-    extract_permanent_url,
     ExtractedProperty,
     ExtractedPosition,
     ExtractedBirthplace,
@@ -445,7 +443,7 @@ class TestEnrichment:
         """Test enrichment when no politicians have Wikipedia links."""
         # The sample_politician fixture by default has no Wikipedia links
         # The function should filter these out and return False
-        politician_found = await enrich_politician_from_wikipedia()
+        politician_found = await process_next_politician()
 
         # Should find no politicians to enrich since they're filtered out by the query
         assert politician_found is False
@@ -534,119 +532,6 @@ class TestCountPoliticiansWithUnevaluated:
         # Count with different country filter
         count = count_politicians_with_unevaluated(db_session, countries=["Q183"])
         assert count == 0
-
-
-class TestExtractPermanentUrl:
-    """Test extract_permanent_url function using t-permalink element."""
-
-    def test_extract_permanent_url_basic(self):
-        """Test extracting permanent URL from t-permalink element."""
-        html_snippet = """
-        <li id="t-permalink" class="mw-list-item">
-            <a href="https://en.wikipedia.org/w/index.php?title=Mirjam_Blaak&oldid=1314222018"
-               title="Permanent link to this revision of this page">
-                <span>Permanent link</span>
-            </a>
-        </li>
-        """
-
-        permanent_url = extract_permanent_url(html_snippet)
-        assert (
-            permanent_url
-            == "https://en.wikipedia.org/w/index.php?title=Mirjam_Blaak&oldid=1314222018"
-        )
-
-    def test_extract_permanent_url_uses_t_permalink_not_other_links(self):
-        """Test that only the t-permalink element is used, not other oldid links."""
-        html_snippet = """
-        <a href="https://en.wikipedia.org/w/index.php?title=Other_Page&oldid=9999999">Other</a>
-        <li id="t-permalink" class="mw-list-item">
-            <a href="https://en.wikipedia.org/w/index.php?title=Petra_Butler&oldid=1292404970">Correct</a>
-        </li>
-        <a href="https://en.wikipedia.org/w/index.php?title=Another_Page&oldid=8888888">Another</a>
-        """
-
-        permanent_url = extract_permanent_url(html_snippet)
-        assert (
-            permanent_url
-            == "https://en.wikipedia.org/w/index.php?title=Petra_Butler&oldid=1292404970"
-        )
-
-    def test_extract_permanent_url_no_t_permalink_returns_none(self):
-        """Test that None is returned when no t-permalink element exists."""
-        html_snippet = """
-        <a href="https://en.wikipedia.org/w/index.php?title=Mirjam_Blaak&oldid=1234567890">Link</a>
-        """
-
-        permanent_url = extract_permanent_url(html_snippet)
-        assert permanent_url is None
-
-    def test_extract_permanent_url_no_anchor_in_t_permalink(self):
-        """Test when t-permalink exists but has no anchor tag."""
-        html_snippet = """
-        <li id="t-permalink" class="mw-list-item">
-            <span>Permanent link</span>
-        </li>
-        """
-
-        permanent_url = extract_permanent_url(html_snippet)
-        assert permanent_url is None
-
-    def test_extract_permanent_url_with_fragment(self):
-        """Test that URL fragments are preserved in permanent URL."""
-        html_snippet = """
-        <li id="t-permalink" class="mw-list-item">
-            <a href="https://en.wikipedia.org/w/index.php?title=2025_shootings&oldid=1321768448#Accused">Link</a>
-        </li>
-        """
-
-        permanent_url = extract_permanent_url(html_snippet)
-        assert (
-            permanent_url
-            == "https://en.wikipedia.org/w/index.php?title=2025_shootings&oldid=1321768448#Accused"
-        )
-
-
-class TestConvertMhtmlToHtml:
-    """Test convert_mhtml_to_html function from page_fetcher."""
-
-    def test_convert_mhtml_to_html_success(self):
-        """Test successful MHTML to HTML conversion."""
-        from poliloom.page_fetcher import convert_mhtml_to_html
-
-        mhtml_content = "MHTML content here"
-        expected_html = "<html>Converted content</html>"
-
-        with patch("poliloom.page_fetcher.MHTMLConverter") as mock_converter_class:
-            mock_converter = Mock()
-            mock_converter.convert.return_value = expected_html
-            mock_converter_class.return_value = mock_converter
-
-            result = convert_mhtml_to_html(mhtml_content)
-
-            assert result == expected_html
-            mock_converter.convert.assert_called_once_with(mhtml_content)
-
-    def test_convert_mhtml_to_html_none_input(self):
-        """Test that None input returns None."""
-        from poliloom.page_fetcher import convert_mhtml_to_html
-
-        result = convert_mhtml_to_html(None)
-        assert result is None
-
-    def test_convert_mhtml_to_html_conversion_error(self):
-        """Test that conversion errors return None."""
-        from poliloom.page_fetcher import convert_mhtml_to_html
-
-        mhtml_content = "MHTML content"
-
-        with patch("poliloom.page_fetcher.MHTMLConverter") as mock_converter_class:
-            mock_converter = Mock()
-            mock_converter.convert.side_effect = Exception("Conversion failed")
-            mock_converter_class.return_value = mock_converter
-
-            result = convert_mhtml_to_html(mhtml_content)
-            assert result is None
 
 
 class TestHasEnrichablePoliticians:

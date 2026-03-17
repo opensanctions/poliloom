@@ -6,7 +6,7 @@ import logging
 import os
 from datetime import datetime, timezone
 import httpx
-from poliloom.enrichment import enrich_politician_from_wikipedia
+from poliloom.archiving import process_next_politician
 from poliloom.storage import StorageFactory
 from poliloom.importer.hierarchy import import_hierarchy_trees
 from poliloom.importer.entity import import_entities
@@ -361,7 +361,7 @@ def enrich_wikipedia(
         enriched_count = 0
         for i in range(count):
             politician_found = asyncio.run(
-                enrich_politician_from_wikipedia(
+                process_next_politician(
                     languages=languages_list,
                     countries=countries_list,
                     stateless=stateless,

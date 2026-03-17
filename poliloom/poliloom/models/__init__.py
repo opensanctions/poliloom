@@ -32,14 +32,18 @@ from .entities import Country, Language, Location, Position, WikipediaProject
 # User interaction
 from .user import Evaluation
 
-# Politician domain
-from .politician import (
+# Archived pages
+from .archived_page import (
     ArchivedPage,
     ArchivedPageError,
     ArchivedPageLanguage,
     ArchivedPageStatus,
-    Politician,
     PoliticianArchivedPage,
+)
+
+# Politician domain
+from .politician import (
+    Politician,
     Property,
     PropertyReference,
     WikipediaLink,
@@ -74,13 +78,14 @@ __all__ = [
     "WikipediaProject",
     # User
     "Evaluation",
-    # Politician
+    # Archived pages
     "ArchivedPage",
     "ArchivedPageError",
     "ArchivedPageLanguage",
     "ArchivedPageStatus",
-    "Politician",
     "PoliticianArchivedPage",
+    # Politician
+    "Politician",
     "Property",
     "PropertyReference",
     "WikipediaLink",

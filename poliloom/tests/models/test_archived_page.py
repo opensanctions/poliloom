@@ -1,13 +1,11 @@
 """Tests for the ArchivedPage model."""
 
 from datetime import datetime, timezone
-from unittest.mock import patch
 from poliloom.models import (
     ArchivedPage,
     WikidataRelation,
     RelationType,
 )
-from poliloom import archive
 
 
 class TestArchivedPage:
@@ -127,67 +125,6 @@ class TestArchivedPage:
         }
         assert sample_language.wikidata_id in language_ids
         assert sample_german_language.wikidata_id in language_ids
-
-    def test_save_archived_files_all_formats(self, db_session):
-        """Test saving both file formats (MHTML, HTML)."""
-        archived_page = ArchivedPage(
-            url="https://example.com/test",
-            fetch_timestamp=datetime.now(timezone.utc),
-        )
-        db_session.add(archived_page)
-        db_session.flush()
-
-        mhtml_content = "MHTML content"
-        html_content = "<html>HTML content</html>"
-
-        with patch.object(archive, "save_archived_content") as mock_save:
-            archived_page.save_archived_files(mhtml_content, html_content)
-
-            # Verify both formats were saved
-            assert mock_save.call_count == 2
-
-            # Check MHTML call
-            mock_save.assert_any_call(archived_page.path_root, "mhtml", mhtml_content)
-
-            # Check HTML call
-            mock_save.assert_any_call(archived_page.path_root, "html", html_content)
-
-    def test_save_archived_files_partial_formats(self, db_session):
-        """Test saving only some file formats when others are None."""
-        archived_page = ArchivedPage(
-            url="https://example.com/test",
-            fetch_timestamp=datetime.now(timezone.utc),
-        )
-        db_session.add(archived_page)
-        db_session.flush()
-
-        html_content = "<html>HTML content</html>"
-
-        with patch.object(archive, "save_archived_content") as mock_save:
-            # Only HTML content provided
-            archived_page.save_archived_files(None, html_content)
-
-            # Verify only HTML was saved
-            assert mock_save.call_count == 1
-            mock_save.assert_called_once_with(
-                archived_page.path_root, "html", html_content
-            )
-
-    def test_save_archived_files_none_formats(self, db_session):
-        """Test that save_archived_files handles all None gracefully."""
-        archived_page = ArchivedPage(
-            url="https://example.com/test",
-            fetch_timestamp=datetime.now(timezone.utc),
-        )
-        db_session.add(archived_page)
-        db_session.flush()
-
-        with patch.object(archive, "save_archived_content") as mock_save:
-            # All None
-            archived_page.save_archived_files(None, None)
-
-            # Verify nothing was saved
-            assert mock_save.call_count == 0
 
     def test_create_references_json_without_wikipedia_project(self, db_session):
         """Test that create_references_json uses P854 and P813 for non-Wikipedia sources."""

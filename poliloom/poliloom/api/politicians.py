@@ -10,11 +10,10 @@ from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db_session
+from ..archiving import process_archived_page_task, process_next_politician
 from ..enrichment import (
     count_politicians_with_unevaluated,
-    enrich_politician_from_wikipedia,
     has_enrichable_politicians,
-    process_archived_page_task,
 )
 from ..search import SearchService
 from ..models import (
@@ -227,7 +226,7 @@ async def get_next_politician(
             f"Only {current_count} politicians with unevaluated properties (threshold: {min_threshold}), triggering enrichment"
         )
         asyncio.create_task(
-            enrich_politician_from_wikipedia(
+            process_next_politician(
                 languages=languages,
                 countries=countries,
             )

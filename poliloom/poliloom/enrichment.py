@@ -3,18 +3,13 @@
 import os
 import logging
 import asyncio
-from datetime import datetime, timezone
+from dataclasses import dataclass
 from typing import List, Optional, Literal, Type, Union, Any
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, func
 from openai import AsyncOpenAI
 from pydantic import BaseModel, field_validator, create_model
-from bs4 import BeautifulSoup
 from dicttoxml import dicttoxml
-from dataclasses import dataclass
-
-from .page_fetcher import fetch_page
-
 
 from .models import (
     Politician,
@@ -24,16 +19,10 @@ from .models import (
     Location,
     Country,
     ArchivedPage,
-    ArchivedPageError,
-    ArchivedPageStatus,
     WikidataRelation,
     WikidataEntity,
 )
-from . import archive
-from .database import get_engine
-from .page_fetcher import PageFetchError
 from .search import SearchService
-from .sse import EnrichmentCompleteEvent, notify
 from .wikidata_date import WikidataDate
 from . import prompts
 
@@ -478,199 +467,6 @@ Select the best matching QID or None if no good match exists."""
         return None
 
 
-def extract_permanent_url(html_content: str) -> Optional[str]:
-    """Extract Wikipedia permanent URL with oldid from HTML content.
-
-    Uses the Wikipedia sidebar's permanent link element (id="t-permalink") to extract
-    the canonical permanent URL. This handles redirects correctly since the permanent
-    link always points to the actual page revision being viewed.
-
-    Args:
-        html_content: The HTML content to search
-
-    Returns:
-        The permanent URL with oldid (e.g., "https://en.wikipedia.org/w/index.php?title=Page&oldid=123456789"),
-        or None if not found
-    """
-    try:
-        soup = BeautifulSoup(html_content, "html.parser")
-        permalink_element = soup.find(id="t-permalink")
-
-        if not permalink_element:
-            logger.debug("No t-permalink element found in HTML")
-            return None
-
-        anchor = permalink_element.find("a")
-        if not anchor or not anchor.get("href"):
-            logger.debug("No anchor with href found in t-permalink element")
-            return None
-
-        permanent_url = anchor["href"]
-        logger.debug(f"Found permanent URL via t-permalink: {permanent_url}")
-        return permanent_url
-
-    except Exception as e:
-        logger.warning(f"Error extracting permanent URL: {e}")
-        return None
-
-
-async def process_archived_page(
-    db: Session, archived_page: ArchivedPage, politician: Politician
-) -> int:
-    """Fetch, archive, and extract properties from an archived page.
-
-    Handles status transitions and error recording on the archived_page.
-    Caller is responsible for providing the session and loading entities.
-
-    Returns:
-        Number of properties extracted (0 on error or empty content).
-    """
-    try:
-        archived_page.status = ArchivedPageStatus.PROCESSING
-        db.commit()
-
-        # Fetch & archive
-        fetched = await fetch_page(archived_page.url)
-        now = datetime.now(timezone.utc)
-
-        if archived_page.wikipedia_project_id and fetched.html:
-            permanent_url = extract_permanent_url(fetched.html)
-            if permanent_url:
-                logger.info(f"Extracted permanent URL: {permanent_url}")
-                archived_page.permanent_url = permanent_url
-
-        archived_page.content_hash = ArchivedPage._generate_content_hash(
-            archived_page.url
-        )
-        archived_page.fetch_timestamp = now
-        db.flush()
-
-        archived_page.link_languages_from_project(db)
-        db.flush()
-
-        archived_page.save_archived_files(fetched.mhtml, fetched.html)
-        db.commit()
-
-        # Read content and extract text
-        html_content = archive.read_archived_content(archived_page.path_root, "html")
-        if not html_content:
-            archived_page.status = ArchivedPageStatus.DONE
-            archived_page.error = ArchivedPageError.INVALID_CONTENT
-            db.commit()
-            return 0
-        soup = BeautifulSoup(html_content, "html.parser")
-        text = soup.get_text()
-        content = " ".join(text.split())
-        if not content.strip():
-            archived_page.status = ArchivedPageStatus.DONE
-            archived_page.error = ArchivedPageError.INVALID_CONTENT
-            db.commit()
-            return 0
-
-        # Extract properties in parallel
-        openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        try:
-            (
-                date_properties,
-                positions,
-                birthplaces,
-                citizenships,
-            ) = await asyncio.gather(
-                extract_properties_generic(
-                    openai_client,
-                    content,
-                    politician,
-                    DATES_CONFIG,
-                ),
-                extract_two_stage_generic(
-                    openai_client,
-                    db,
-                    content,
-                    politician,
-                    POSITIONS_CONFIG,
-                ),
-                extract_two_stage_generic(
-                    openai_client,
-                    db,
-                    content,
-                    politician,
-                    BIRTHPLACES_CONFIG,
-                ),
-                extract_two_stage_generic(
-                    openai_client,
-                    db,
-                    content,
-                    politician,
-                    CITIZENSHIPS_CONFIG,
-                ),
-            )
-        finally:
-            await openai_client.close()
-
-        # Store extracted data
-        store_extracted_data(
-            db,
-            politician,
-            archived_page,
-            date_properties,
-            positions,
-            birthplaces,
-            citizenships,
-        )
-
-        archived_page.status = ArchivedPageStatus.DONE
-        db.commit()
-
-        return sum(
-            len(items)
-            for items in (date_properties, positions, birthplaces, citizenships)
-            if items
-        )
-
-    except PageFetchError as e:
-        logger.error(f"Fetch error for archived page {archived_page.id}: {e}")
-        archived_page.status = ArchivedPageStatus.DONE
-        archived_page.error = ArchivedPageError(e.error_type)
-        if e.http_status_code is not None:
-            archived_page.http_status_code = e.http_status_code
-        db.commit()
-        return 0
-    except Exception as e:
-        logger.error(f"Pipeline error for archived page {archived_page.id}: {e}")
-        archived_page.status = ArchivedPageStatus.DONE
-        archived_page.error = ArchivedPageError.PIPELINE_ERROR
-        db.commit()
-        return 0
-
-
-async def process_archived_page_task(page_id, politician_id) -> int:
-    """Background task entry point: opens a session and processes an archived page.
-
-    Args:
-        page_id: ArchivedPage UUID
-        politician_id: Politician UUID to extract properties for
-
-    Returns:
-        Number of properties extracted.
-    """
-    with Session(get_engine()) as db:
-        archived_page = db.get(ArchivedPage, page_id)
-
-        politician = db.execute(
-            select(Politician)
-            .where(Politician.id == politician_id)
-            .options(
-                selectinload(Politician.wikidata_entity),
-                selectinload(Politician.properties)
-                .selectinload(Property.entity)
-                .selectinload(WikidataEntity.parent_relations)
-                .selectinload(WikidataRelation.parent_entity),
-            )
-        ).scalar_one()
-
-        return await process_archived_page(db, archived_page, politician)
-
-
 # Configuration instances for different extraction types
 DATES_CONFIG = ExtractionConfig(
     property_types=[PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE],
@@ -720,6 +516,81 @@ CITIZENSHIPS_CONFIG = TwoStageExtractionConfig(
 )
 
 
+async def extract_and_store(
+    db: Session,
+    content: str,
+    politician: Politician,
+    archived_page: ArchivedPage,
+) -> int:
+    """Extract properties from text content and store them.
+
+    This is the enrichment entry point called by the archiving pipeline.
+
+    Args:
+        db: Database session
+        content: Plain text content extracted from the archived page
+        politician: Politician to extract properties for
+        archived_page: ArchivedPage to link references to
+
+    Returns:
+        Number of properties extracted.
+    """
+    openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    try:
+        (
+            date_properties,
+            positions,
+            birthplaces,
+            citizenships,
+        ) = await asyncio.gather(
+            extract_properties_generic(
+                openai_client,
+                content,
+                politician,
+                DATES_CONFIG,
+            ),
+            extract_two_stage_generic(
+                openai_client,
+                db,
+                content,
+                politician,
+                POSITIONS_CONFIG,
+            ),
+            extract_two_stage_generic(
+                openai_client,
+                db,
+                content,
+                politician,
+                BIRTHPLACES_CONFIG,
+            ),
+            extract_two_stage_generic(
+                openai_client,
+                db,
+                content,
+                politician,
+                CITIZENSHIPS_CONFIG,
+            ),
+        )
+    finally:
+        await openai_client.close()
+
+    store_extracted_data(
+        db,
+        politician,
+        archived_page,
+        date_properties,
+        positions,
+        birthplaces,
+        citizenships,
+    )
+
+    return sum(
+        len(items)
+        for items in (date_properties, positions, birthplaces, citizenships)
+        if items
+    )
+
+
 def count_politicians_with_unevaluated(
     db: Session,
     languages: Optional[List[str]] = None,
@@ -763,9 +634,6 @@ def has_enrichable_politicians(
     """
     Check if there are politicians available to enrich.
 
-    Uses the same query logic as enrich_politician_from_wikipedia to determine
-    if any politicians can be enriched (not enriched within last 6 months).
-
     Args:
         db: Database session
         languages: Optional list of language QIDs to filter by
@@ -783,126 +651,6 @@ def has_enrichable_politicians(
 
     result = db.execute(query).first()
     return result is not None
-
-
-@dataclass
-class ScheduledEnrichment:
-    """Result of scheduling a politician for enrichment."""
-
-    politician_id: Any
-    page_ids: list
-
-
-def schedule_enrichment(
-    db: Session,
-    languages: Optional[List[str]] = None,
-    countries: Optional[List[str]] = None,
-    stateless: bool = False,
-) -> Optional[ScheduledEnrichment]:
-    """Pick the next politician and create PENDING archived pages for its Wikipedia links.
-
-    Sets enriched_at immediately to prevent re-selection by other workers.
-
-    Returns:
-        ScheduledEnrichment if a politician was found, None otherwise.
-    """
-    query = (
-        Politician.query_for_enrichment(
-            languages=languages,
-            countries=countries,
-            stateless=stateless,
-        )
-        .options(
-            selectinload(Politician.wikipedia_links),
-        )
-        .order_by(
-            Politician.enriched_at.asc().nullsfirst(),
-            Politician.wikidata_id_numeric.desc(),
-        )
-        .limit(1)
-        .with_for_update(skip_locked=True)
-    )
-
-    politician = db.scalars(query).first()
-
-    if not politician:
-        return None
-
-    try:
-        priority_links = politician.get_priority_wikipedia_links(db)
-
-        if not priority_links:
-            raise ValueError(
-                f"No suitable Wikipedia links found for politician {politician.name}"
-            )
-
-        logger.info(
-            f"Processing {len(priority_links)} Wikipedia sources for {politician.name}: "
-            f"{[f'{wikipedia_project_id} ({url})' for url, wikipedia_project_id in priority_links]}"
-        )
-
-        page_ids = []
-        for url, wikipedia_project_id in priority_links:
-            archived_page = ArchivedPage(
-                url=url,
-                wikipedia_project_id=wikipedia_project_id,
-                status=ArchivedPageStatus.PENDING,
-            )
-            db.add(archived_page)
-            db.flush()
-            politician.archived_pages.append(archived_page)
-            page_ids.append(archived_page.id)
-
-        politician.enriched_at = datetime.now(timezone.utc)
-        db.commit()
-
-        return ScheduledEnrichment(
-            politician_id=politician.id,
-            page_ids=page_ids,
-        )
-
-    except Exception as e:
-        logger.error(
-            f"Error scheduling enrichment for politician {politician.wikidata_id}: {e}"
-        )
-        db.rollback()
-        politician.enriched_at = datetime.now(timezone.utc)
-        db.commit()
-        return None
-
-
-async def enrich_politician_from_wikipedia(
-    languages: Optional[List[str]] = None,
-    countries: Optional[List[str]] = None,
-    stateless: bool = False,
-) -> bool:
-    """Schedule and process enrichment for a single politician.
-
-    Returns:
-        True if a politician was found, False if no politician available.
-    """
-    with Session(get_engine()) as db:
-        scheduled = schedule_enrichment(db, languages, countries, stateless)
-
-    if not scheduled:
-        return False
-
-    counts = await asyncio.gather(
-        *(
-            process_archived_page_task(page_id, scheduled.politician_id)
-            for page_id in scheduled.page_ids
-        )
-    )
-
-    if sum(counts) > 0:
-        notify(
-            EnrichmentCompleteEvent(
-                languages=languages or [],
-                countries=countries or [],
-            )
-        )
-
-    return True
 
 
 def store_extracted_data(

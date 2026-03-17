@@ -9,7 +9,7 @@ from uuid import UUID
 
 from ..database import get_db_session
 from ..models import ArchivedPage, Politician, Property, PropertyReference
-from .. import archive
+from ..archiving import read_archived_content
 from .auth import get_current_user, User
 from .schemas import (
     ArchivedPageResponse,
@@ -48,7 +48,7 @@ async def get_archived_page_html(
         )
 
     try:
-        content = archive.read_archived_content(archived_page.path_root, "html")
+        content = read_archived_content(archived_page.path_root, "html")
         return HTMLResponse(content=content, media_type="text/html")
     except FileNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

@@ -33,7 +33,7 @@ class TestArchivedPagesAPI:
         """Test that missing files return 404 even when database record exists."""
         # Mock the archival service's read method to raise FileNotFoundError
         with patch(
-            "poliloom.archive.read_archived_content",
+            "poliloom.api.archived_pages.read_archived_content",
             side_effect=FileNotFoundError("File not found"),
         ):
             response = client.get(
@@ -54,7 +54,8 @@ class TestArchivedPagesAPI:
             raise FileNotFoundError()
 
         with patch(
-            "poliloom.archive.read_archived_content", side_effect=mock_read_content
+            "poliloom.api.archived_pages.read_archived_content",
+            side_effect=mock_read_content,
         ):
             response = client.get(
                 f"/archived-pages/{sample_archived_page.id}.html", headers=mock_auth
