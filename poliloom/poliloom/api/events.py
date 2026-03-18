@@ -1,5 +1,6 @@
 """SSE endpoint for real-time event streaming."""
 
+import asyncio
 import json
 
 from fastapi import APIRouter, Depends
@@ -10,6 +11,8 @@ from .auth import get_current_user, User
 
 router = APIRouter()
 
+KEEPALIVE_INTERVAL = 30  # seconds
+
 
 @router.get("/events")
 async def events(current_user: User = Depends(get_current_user)):
@@ -18,7 +21,13 @@ async def events(current_user: User = Depends(get_current_user)):
     async def generator():
         try:
             while True:
-                event = await queue.get()
+                try:
+                    event = await asyncio.wait_for(
+                        queue.get(), timeout=KEEPALIVE_INTERVAL
+                    )
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+                    continue
                 if event is None:
                     break
                 yield f"data: {json.dumps(event)}\n\n"
