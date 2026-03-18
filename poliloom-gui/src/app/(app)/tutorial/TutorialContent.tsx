@@ -266,7 +266,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             <PropertiesEvaluation
               properties={extractedDataPolitician.properties}
               onAction={() => {}}
-              onShowSource={() => {}}
+              onViewSource={() => {}}
               onHover={() => {}}
               activeSourceId={null}
             />

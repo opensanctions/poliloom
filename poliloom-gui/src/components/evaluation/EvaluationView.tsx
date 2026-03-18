@@ -6,7 +6,6 @@ import {
   Property,
   PropertyActionItem,
   CreatePropertyItem,
-  PropertyReference,
   SourceResponse,
 } from '@/types'
 import { actionToEvaluation, applyAction, createPropertyFromAction } from '@/lib/evaluation'
@@ -113,23 +112,14 @@ export function EvaluationView({
     return map
   }, [politicians])
 
-  // Handler for showing source (used by View button and initial selection)
-  const handleShowSource = useCallback(
-    (ref: PropertyReference) => {
-      const page = sourceById.get(ref.source_id)
-      if (page) {
-        setSelectedSource(page)
-      }
-      setSelectedQuotes(ref.supporting_quotes || null)
+  const handleViewSource = useCallback(
+    (sourceId: string, quotes?: string[]) => {
+      const source = sourceById.get(sourceId)
+      if (source) setSelectedSource(source)
+      setSelectedQuotes(quotes || null)
     },
     [sourceById],
   )
-
-  // Handler for selecting a source directly (from sources list)
-  const handleSelectSource = useCallback((page: SourceResponse) => {
-    setSelectedSource(page)
-    setSelectedQuotes(null)
-  }, [])
 
   // Unified hover handler for all property types
   const handlePropertyHover = (property: Property) => {
@@ -189,7 +179,7 @@ export function EvaluationView({
               <SourcesList
                 sources={sources}
                 activeSourceId={selectedSource?.id || null}
-                onSelect={handleSelectSource}
+                onViewSource={handleViewSource}
                 politicianQid={politician.wikidata_id ?? undefined}
                 onAddSource={onSourceAdded}
               />
@@ -197,7 +187,7 @@ export function EvaluationView({
               <PropertiesEvaluation
                 properties={properties}
                 onAction={(id, action) => handleAction(key, id, action)}
-                onShowSource={handleShowSource}
+                onViewSource={handleViewSource}
                 onHover={handlePropertyHover}
                 activeSourceId={selectedSource?.id || null}
                 sourceById={sourceById}

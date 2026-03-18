@@ -43,7 +43,7 @@ describe('PropertyDisplay', () => {
       <PropertyDisplay
         property={property}
         onAction={mockOnAction}
-        onShowSource={mockOnShowSource}
+        onViewSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
       />,
@@ -66,7 +66,7 @@ describe('PropertyDisplay', () => {
       <PropertyDisplay
         property={property}
         onAction={mockOnAction}
-        onShowSource={mockOnShowSource}
+        onViewSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
       />,
@@ -85,7 +85,7 @@ describe('PropertyDisplay', () => {
       <PropertyDisplay
         property={property}
         onAction={mockOnAction}
-        onShowSource={mockOnShowSource}
+        onViewSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
       />,
@@ -104,7 +104,7 @@ describe('PropertyDisplay', () => {
       <PropertyDisplay
         property={property}
         onAction={mockOnAction}
-        onShowSource={mockOnShowSource}
+        onViewSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
       />,
@@ -122,7 +122,7 @@ describe('PropertyDisplay', () => {
       <PropertyDisplay
         property={property}
         onAction={mockOnAction}
-        onShowSource={mockOnShowSource}
+        onViewSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
       />,
@@ -151,7 +151,7 @@ describe('PropertyDisplay', () => {
       <PropertyDisplay
         property={property}
         onAction={mockOnAction}
-        onShowSource={mockOnShowSource}
+        onViewSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
         sourceById={sourceById}
@@ -174,7 +174,7 @@ describe('PropertyDisplay', () => {
       <PropertyDisplay
         property={property}
         onAction={mockOnAction}
-        onShowSource={mockOnShowSource}
+        onViewSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
       />,
@@ -197,7 +197,7 @@ describe('PropertyDisplay', () => {
       <PropertyDisplay
         property={property}
         onAction={mockOnAction}
-        onShowSource={mockOnShowSource}
+        onViewSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
       />,

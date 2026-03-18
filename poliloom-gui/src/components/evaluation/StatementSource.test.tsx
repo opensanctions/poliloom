@@ -29,13 +29,12 @@ const mockRefNoQuotes: PropertyReference = {
 
 describe('StatementSource', () => {
   describe('View button behavior', () => {
-    it('renders View button when sources exist and not a Wikidata statement', () => {
+    it('renders View button when sources exist', () => {
       render(
         <StatementSource
           sources={[mockRef]}
-          isWikidataStatement={false}
           activeSourceId={null}
-          onShowSource={mockOnShowSource}
+          onViewSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -50,9 +49,8 @@ describe('StatementSource', () => {
       render(
         <StatementSource
           sources={[mockRef]}
-          isWikidataStatement={false}
           activeSourceId="archived-1"
-          onShowSource={mockOnShowSource}
+          onViewSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -67,9 +65,8 @@ describe('StatementSource', () => {
       render(
         <StatementSource
           sources={[mockRef]}
-          isWikidataStatement={false}
           activeSourceId="other-page"
-          onShowSource={mockOnShowSource}
+          onViewSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -80,13 +77,12 @@ describe('StatementSource', () => {
       expect(viewButton).not.toHaveTextContent('Viewing')
     })
 
-    it('calls onShowSource with ref when View button is clicked', () => {
+    it('calls onViewSource with ref when View button is clicked', () => {
       render(
         <StatementSource
           sources={[mockRef]}
-          isWikidataStatement={false}
           activeSourceId={null}
-          onShowSource={mockOnShowSource}
+          onViewSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -96,31 +92,15 @@ describe('StatementSource', () => {
       fireEvent.click(viewButton)
 
       expect(mockOnShowSource).toHaveBeenCalledTimes(1)
-      expect(mockOnShowSource).toHaveBeenCalledWith(mockRef)
+      expect(mockOnShowSource).toHaveBeenCalledWith(mockRef.source_id, mockRef.supporting_quotes)
     })
 
     it('does not render when sources is empty', () => {
       render(
         <StatementSource
           sources={[]}
-          isWikidataStatement={false}
           activeSourceId={null}
-          onShowSource={mockOnShowSource}
-          onHover={mockOnHover}
-          sourceById={sourceById}
-        />,
-      )
-
-      expect(screen.queryByRole('button', { name: /View/ })).not.toBeInTheDocument()
-    })
-
-    it('does not render when isWikidataStatement is true', () => {
-      render(
-        <StatementSource
-          sources={[mockRef]}
-          isWikidataStatement={true}
-          activeSourceId={null}
-          onShowSource={mockOnShowSource}
+          onViewSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -133,9 +113,8 @@ describe('StatementSource', () => {
       render(
         <StatementSource
           sources={[mockRef]}
-          isWikidataStatement={false}
           activeSourceId="archived-1"
-          onShowSource={mockOnShowSource}
+          onViewSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -157,9 +136,8 @@ describe('StatementSource', () => {
       render(
         <StatementSource
           sources={[sourceWithQuotes]}
-          isWikidataStatement={false}
           activeSourceId={null}
-          onShowSource={mockOnShowSource}
+          onViewSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -173,9 +151,8 @@ describe('StatementSource', () => {
       render(
         <StatementSource
           sources={[mockRefNoQuotes]}
-          isWikidataStatement={false}
           activeSourceId={null}
-          onShowSource={mockOnShowSource}
+          onViewSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -195,9 +172,8 @@ describe('StatementSource', () => {
       render(
         <StatementSource
           sources={[sourceEmptyQuotes]}
-          isWikidataStatement={false}
           activeSourceId={null}
-          onShowSource={mockOnShowSource}
+          onViewSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -213,9 +189,8 @@ describe('StatementSource', () => {
       const { container } = render(
         <StatementSource
           sources={[mockRef]}
-          isWikidataStatement={false}
           activeSourceId={null}
-          onShowSource={mockOnShowSource}
+          onViewSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -233,9 +208,8 @@ describe('StatementSource', () => {
       render(
         <StatementSource
           sources={[mockRef]}
-          isWikidataStatement={false}
           activeSourceId={null}
-          onShowSource={mockOnShowSource}
+          onViewSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,

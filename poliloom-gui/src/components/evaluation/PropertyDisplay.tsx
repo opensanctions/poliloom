@@ -1,5 +1,5 @@
 import { useState, useLayoutEffect } from 'react'
-import { Property, PropertyType, PropertyReference, SourceResponse } from '@/types'
+import { Property, PropertyType, SourceResponse } from '@/types'
 import { parseWikidataDate } from '@/lib/wikidata/dateParser'
 import { parsePositionQualifiers, formatPositionDates } from '@/lib/wikidata/qualifierParser'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
@@ -11,7 +11,7 @@ import { WikidataMetadataButtons, WikidataMetadataPanel } from './WikidataMetada
 interface PropertyDisplayProps {
   property: Property
   onAction?: (propertyId: string, action: 'accept' | 'reject') => void
-  onShowSource?: (ref: PropertyReference) => void
+  onViewSource?: (sourceId: string, quotes?: string[]) => void
   onHover?: (property: Property) => void
   activeSourceId?: string | null
   sourceById?: Map<string, SourceResponse>
@@ -21,7 +21,7 @@ interface PropertyDisplayProps {
 export function PropertyDisplay({
   property,
   onAction,
-  onShowSource,
+  onViewSource,
   onHover,
   activeSourceId,
   sourceById = new Map(),
@@ -125,10 +125,9 @@ export function PropertyDisplay({
       {!property.statement_id && (
         <StatementSource
           sources={property.sources}
-          isWikidataStatement={isWikidataStatement}
           activeSourceId={activeSourceId}
           sourceById={sourceById}
-          onShowSource={(ref) => onShowSource?.(ref)}
+          onViewSource={onViewSource}
           onHover={() => onHover?.(property)}
         />
       )}

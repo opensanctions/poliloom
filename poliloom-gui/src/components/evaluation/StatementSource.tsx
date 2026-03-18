@@ -3,22 +3,20 @@ import { Button } from '@/components/ui/Button'
 
 interface StatementSourceProps {
   sources: PropertyReference[]
-  isWikidataStatement: boolean
   activeSourceId?: string | null
   sourceById: Map<string, SourceResponse>
-  onShowSource: (ref: PropertyReference) => void
+  onViewSource?: (sourceId: string, quotes?: string[]) => void
   onHover: () => void
 }
 
 export function StatementSource({
   sources,
-  isWikidataStatement,
   activeSourceId,
   sourceById,
-  onShowSource,
+  onViewSource,
   onHover,
 }: StatementSourceProps) {
-  if (isWikidataStatement || sources.length === 0) {
+  if (sources.length === 0) {
     return null
   }
 
@@ -33,7 +31,7 @@ export function StatementSource({
                 size="small"
                 variant="info"
                 active={activeSourceId === ref.source_id}
-                onClick={() => onShowSource(ref)}
+                onClick={() => onViewSource?.(ref.source_id, ref.supporting_quotes)}
                 className="flex-shrink-0"
                 title="Show the source page with highlighted supporting quotes"
               >

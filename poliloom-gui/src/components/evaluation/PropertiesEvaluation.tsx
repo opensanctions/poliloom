@@ -1,11 +1,5 @@
 import { ReactNode, Fragment, useEffect, useMemo, useState } from 'react'
-import {
-  Property,
-  PropertyType,
-  PropertyReference,
-  CreatePropertyItem,
-  SourceResponse,
-} from '@/types'
+import { Property, PropertyType, CreatePropertyItem, SourceResponse } from '@/types'
 import { HeaderedBox } from '@/components/ui/HeaderedBox'
 import { PropertyDisplay } from './PropertyDisplay'
 import { AddDatePropertyForm } from './AddDatePropertyForm'
@@ -22,7 +16,7 @@ type SectionType = 'date' | PropertyType.P39 | PropertyType.P19 | PropertyType.P
 interface PropertiesEvaluationProps {
   properties: Property[]
   onAction: (propertyId: string, action: 'accept' | 'reject') => void
-  onShowSource: (ref: PropertyReference) => void
+  onViewSource: (sourceId: string, quotes?: string[]) => void
   onHover: (property: Property) => void
   activeSourceId: string | null
   sourceById?: Map<string, SourceResponse>
@@ -32,7 +26,7 @@ interface PropertiesEvaluationProps {
 export function PropertiesEvaluation({
   properties,
   onAction,
-  onShowSource,
+  onViewSource,
   onHover,
   activeSourceId,
   sourceById = new Map(),
@@ -219,12 +213,13 @@ export function PropertiesEvaluation({
       for (const item of section.items) {
         const firstWithSource = item.properties.find((p) => p.sources.length > 0 && !p.statement_id)
         if (firstWithSource) {
-          onShowSource(firstWithSource.sources[0])
+          const ref = firstWithSource.sources[0]
+          onViewSource(ref.source_id, ref.supporting_quotes)
           return
         }
       }
     }
-  }, [sections, onShowSource])
+  }, [sections, onViewSource])
 
   const handleAdd = (property: CreatePropertyItem) => {
     onAddProperty?.(property)
@@ -283,7 +278,7 @@ export function PropertiesEvaluation({
                         <PropertyDisplay
                           property={property}
                           onAction={onAction}
-                          onShowSource={onShowSource}
+                          onViewSource={onViewSource}
                           onHover={onHover}
                           activeSourceId={activeSourceId}
                           sourceById={sourceById}

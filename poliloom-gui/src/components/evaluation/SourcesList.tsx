@@ -31,11 +31,11 @@ function SourceStatusIndicator({
 function SourceItem({
   page,
   isActive,
-  onSelect,
+  onViewSource,
 }: {
   page: SourceResponse
   isActive: boolean
-  onSelect: (page: SourceResponse) => void
+  onViewSource: (sourceId: string) => void
 }) {
   const isDone = page.status === 'done' && !page.error
 
@@ -45,7 +45,7 @@ function SourceItem({
         size="small"
         variant="info"
         active={isActive}
-        onClick={() => onSelect(page)}
+        onClick={() => onViewSource(page.id)}
         className="flex-shrink-0"
         disabled={!isDone}
       >
@@ -68,7 +68,7 @@ function SourceItem({
 interface SourcesListProps {
   sources: SourceResponse[]
   activeSourceId: string | null
-  onSelect: (page: SourceResponse) => void
+  onViewSource: (sourceId: string) => void
   politicianQid?: string
   onAddSource?: () => void
 }
@@ -76,7 +76,7 @@ interface SourcesListProps {
 export function SourcesList({
   sources,
   activeSourceId,
-  onSelect,
+  onViewSource,
   politicianQid,
   onAddSource,
 }: SourcesListProps) {
@@ -97,7 +97,7 @@ export function SourcesList({
             key={page.id}
             page={page}
             isActive={activeSourceId === page.id}
-            onSelect={onSelect}
+            onViewSource={onViewSource}
           />
         ))}
       </div>
