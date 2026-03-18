@@ -1,11 +1,11 @@
-import { PropertyReference, ArchivedPageResponse } from '@/types'
+import { PropertyReference, SourceResponse } from '@/types'
 import { Button } from '@/components/ui/Button'
 
 interface StatementSourceProps {
   sources: PropertyReference[]
   isWikidataStatement: boolean
-  activeArchivedPageId?: string | null
-  archivedPageById: Map<string, ArchivedPageResponse>
+  activeSourceId?: string | null
+  sourceById: Map<string, SourceResponse>
   onShowArchived: (ref: PropertyReference) => void
   onHover: () => void
 }
@@ -13,8 +13,8 @@ interface StatementSourceProps {
 export function StatementSource({
   sources,
   isWikidataStatement,
-  activeArchivedPageId,
-  archivedPageById,
+  activeSourceId,
+  sourceById,
   onShowArchived,
   onHover,
 }: StatementSourceProps) {
@@ -25,19 +25,19 @@ export function StatementSource({
   return (
     <div className="space-y-2" onMouseEnter={onHover}>
       {sources.map((ref) => {
-        const page = archivedPageById.get(ref.archived_page_id)
+        const page = sourceById.get(ref.source_id)
         return (
           <div key={ref.id} className="space-y-1">
             <div className="flex items-center gap-2">
               <Button
                 size="small"
                 variant="info"
-                active={activeArchivedPageId === ref.archived_page_id}
+                active={activeSourceId === ref.source_id}
                 onClick={() => onShowArchived(ref)}
                 className="flex-shrink-0"
                 title="Show the archived source page with highlighted supporting quotes"
               >
-                • {activeArchivedPageId === ref.archived_page_id ? 'Viewing' : 'View'}
+                • {activeSourceId === ref.source_id ? 'Viewing' : 'View'}
               </Button>
               {page && (
                 <a

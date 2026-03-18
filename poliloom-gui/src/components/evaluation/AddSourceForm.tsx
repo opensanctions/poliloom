@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { ArchivedPageResponse } from '@/types'
+import { SourceResponse } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 
 interface AddSourceFormProps {
   politicianQid: string
-  onAdd: (source: ArchivedPageResponse) => void
+  onAdd: (source: SourceResponse) => void
   onCancel: () => void
 }
 
@@ -42,7 +42,7 @@ export function AddSourceForm({ politicianQid, onAdd, onCancel }: AddSourceFormP
         throw new Error(data?.detail || `Failed to add source: ${response.statusText}`)
       }
 
-      const source: ArchivedPageResponse = await response.json()
+      const source: SourceResponse = await response.json()
       onAdd(source)
       setIsSubmitting(false)
     } catch (e) {

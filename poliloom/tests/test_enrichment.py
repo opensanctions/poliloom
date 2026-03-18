@@ -23,8 +23,8 @@ from poliloom.enrichment import (
     FreeFormBirthplaceResult,
 )
 from poliloom.models import (
-    ArchivedPage,
-    ArchivedPageStatus,
+    Source,
+    SourceStatus,
     Location,
     Position,
     Property,
@@ -253,7 +253,7 @@ class TestEnrichment:
     def test_store_extracted_data_properties(
         self,
         db_session,
-        sample_archived_page,
+        sample_source,
         sample_country,
         sample_politician,
         sample_wikipedia_link,
@@ -275,7 +275,7 @@ class TestEnrichment:
         success = store_extracted_data(
             db_session,
             sample_politician,
-            sample_archived_page,
+            sample_source,
             properties,
             None,  # positions
             None,  # birthplaces
@@ -300,12 +300,12 @@ class TestEnrichment:
             .first()
         )
         assert ref is not None
-        assert ref.archived_page_id == sample_archived_page.id
+        assert ref.source_id == sample_source.id
 
     def test_store_extracted_data_positions(
         self,
         db_session,
-        sample_archived_page,
+        sample_source,
         sample_country,
         sample_politician,
         sample_position,
@@ -329,7 +329,7 @@ class TestEnrichment:
         success = store_extracted_data(
             db_session,
             sample_politician,
-            sample_archived_page,
+            sample_source,
             None,  # properties
             positions,
             None,  # birthplaces
@@ -357,7 +357,7 @@ class TestEnrichment:
         self,
         db_session,
         sample_location,
-        sample_archived_page,
+        sample_source,
         sample_country,
         sample_politician,
         create_citizenship,
@@ -376,7 +376,7 @@ class TestEnrichment:
         success = store_extracted_data(
             db_session,
             sample_politician,
-            sample_archived_page,
+            sample_source,
             None,  # properties
             None,  # positions
             birthplaces,
@@ -403,12 +403,12 @@ class TestEnrichment:
             .first()
         )
         assert ref is not None
-        assert ref.archived_page_id == sample_archived_page.id
+        assert ref.source_id == sample_source.id
 
     def test_store_extracted_data_error_handling(
         self,
         db_session,
-        sample_archived_page,
+        sample_source,
         sample_country,
         sample_politician,
     ):
@@ -427,7 +427,7 @@ class TestEnrichment:
             success = store_extracted_data(
                 db_session,
                 sample_politician,
-                sample_archived_page,
+                sample_source,
                 properties,
                 None,
                 None,
@@ -457,24 +457,24 @@ class TestCountPoliticiansWithUnevaluated:
     """Test count_politicians_with_unevaluated function."""
 
     def test_count_with_unevaluated_properties(
-        self, db_session, sample_politician, sample_archived_page, create_birth_date
+        self, db_session, sample_politician, sample_source, create_birth_date
     ):
         """Test counting politicians with unevaluated properties."""
         # Add unevaluated property
-        create_birth_date(sample_politician, archived_page=sample_archived_page)
+        create_birth_date(sample_politician, source=sample_source)
         db_session.flush()
 
         count = count_politicians_with_unevaluated(db_session)
         assert count == 1
 
     def test_count_excludes_evaluated_properties(
-        self, db_session, sample_politician, sample_archived_page, create_birth_date
+        self, db_session, sample_politician, sample_source, create_birth_date
     ):
         """Test that count excludes properties with statement_id."""
         # Add property with statement_id
         create_birth_date(
             sample_politician,
-            archived_page=sample_archived_page,
+            source=sample_source,
             statement_id="Q123456$12345678-1234-1234-1234-123456789012",
         )
         db_session.flush()
@@ -487,19 +487,19 @@ class TestCountPoliticiansWithUnevaluated:
         db_session,
         sample_politician,
         sample_language,
-        create_archived_page,
+        create_source,
         create_birth_date,
     ):
         """Test counting with language filter."""
         # Create English archived page
-        en_page = create_archived_page(
+        en_page = create_source(
             url="https://en.example.com/test",
             content_hash="en123",
             languages=[sample_language],
         )
 
         # Add English property
-        create_birth_date(sample_politician, archived_page=en_page)
+        create_birth_date(sample_politician, source=en_page)
         db_session.flush()
 
         # Count with English filter
@@ -515,14 +515,14 @@ class TestCountPoliticiansWithUnevaluated:
         db_session,
         sample_politician,
         sample_country,
-        sample_archived_page,
+        sample_source,
         create_citizenship,
         create_birth_date,
     ):
         """Test counting with country filter."""
         # Add citizenship and unevaluated property
-        create_citizenship(sample_politician, sample_country, sample_archived_page)
-        create_birth_date(sample_politician, archived_page=sample_archived_page)
+        create_citizenship(sample_politician, sample_country, sample_source)
+        create_birth_date(sample_politician, source=sample_source)
         db_session.flush()
 
         # Count with USA filter
@@ -605,12 +605,8 @@ class TestScheduleEnrichment:
         assert sample_politician.enriched_at is not None
 
         # Archived pages should be created as PENDING
-        pages = (
-            db_session.query(ArchivedPage)
-            .filter(ArchivedPage.id.in_(result.page_ids))
-            .all()
-        )
-        assert all(p.status == ArchivedPageStatus.PENDING for p in pages)
+        pages = db_session.query(Source).filter(Source.id.in_(result.page_ids)).all()
+        assert all(p.status == SourceStatus.PENDING for p in pages)
 
     def test_returns_none_when_no_wikipedia_links(self, db_session, sample_politician):
         assert schedule_enrichment(db_session) is None

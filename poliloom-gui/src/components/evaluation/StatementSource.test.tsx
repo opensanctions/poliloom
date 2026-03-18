@@ -1,12 +1,12 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { StatementSource } from './StatementSource'
 import { vi } from 'vitest'
-import { ArchivedPageResponse, PropertyReference } from '@/types'
+import { SourceResponse, PropertyReference } from '@/types'
 
 const mockOnShowArchived = vi.fn()
 const mockOnHover = vi.fn()
 
-const mockArchivedPage: ArchivedPageResponse = {
+const mockSource: SourceResponse = {
   id: 'archived-1',
   url: 'https://en.wikipedia.org/wiki/Test_Politician',
   content_hash: 'abc123',
@@ -14,17 +14,17 @@ const mockArchivedPage: ArchivedPageResponse = {
   status: 'done',
 }
 
-const archivedPageById = new Map([['archived-1', mockArchivedPage]])
+const sourceById = new Map([['archived-1', mockSource]])
 
-const mockSource: PropertyReference = {
+const mockRef: PropertyReference = {
   id: 'ref-1',
-  archived_page_id: mockArchivedPage.id,
+  source_id: mockSource.id,
   supporting_quotes: ['test quote'],
 }
 
-const mockSourceNoQuotes: PropertyReference = {
+const mockRefNoQuotes: PropertyReference = {
   id: 'ref-2',
-  archived_page_id: mockArchivedPage.id,
+  source_id: mockSource.id,
 }
 
 describe('StatementSource', () => {
@@ -32,12 +32,12 @@ describe('StatementSource', () => {
     it('renders View button when sources exist and not a Wikidata statement', () => {
       render(
         <StatementSource
-          sources={[mockSource]}
+          sources={[mockRef]}
           isWikidataStatement={false}
-          activeArchivedPageId={null}
+          activeSourceId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
-          archivedPageById={archivedPageById}
+          sourceById={sourceById}
         />,
       )
 
@@ -46,15 +46,15 @@ describe('StatementSource', () => {
       expect(viewButton).toHaveTextContent('• View')
     })
 
-    it('shows "Viewing" text when activeArchivedPageId matches', () => {
+    it('shows "Viewing" text when activeSourceId matches', () => {
       render(
         <StatementSource
-          sources={[mockSource]}
+          sources={[mockRef]}
           isWikidataStatement={false}
-          activeArchivedPageId="archived-1"
+          activeSourceId="archived-1"
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
-          archivedPageById={archivedPageById}
+          sourceById={sourceById}
         />,
       )
 
@@ -63,15 +63,15 @@ describe('StatementSource', () => {
       expect(viewButton).toHaveTextContent('• Viewing')
     })
 
-    it('shows "View" text when activeArchivedPageId does not match', () => {
+    it('shows "View" text when activeSourceId does not match', () => {
       render(
         <StatementSource
-          sources={[mockSource]}
+          sources={[mockRef]}
           isWikidataStatement={false}
-          activeArchivedPageId="other-page"
+          activeSourceId="other-page"
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
-          archivedPageById={archivedPageById}
+          sourceById={sourceById}
         />,
       )
 
@@ -83,12 +83,12 @@ describe('StatementSource', () => {
     it('calls onShowArchived with ref when View button is clicked', () => {
       render(
         <StatementSource
-          sources={[mockSource]}
+          sources={[mockRef]}
           isWikidataStatement={false}
-          activeArchivedPageId={null}
+          activeSourceId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
-          archivedPageById={archivedPageById}
+          sourceById={sourceById}
         />,
       )
 
@@ -96,7 +96,7 @@ describe('StatementSource', () => {
       fireEvent.click(viewButton)
 
       expect(mockOnShowArchived).toHaveBeenCalledTimes(1)
-      expect(mockOnShowArchived).toHaveBeenCalledWith(mockSource)
+      expect(mockOnShowArchived).toHaveBeenCalledWith(mockRef)
     })
 
     it('does not render when sources is empty', () => {
@@ -104,10 +104,10 @@ describe('StatementSource', () => {
         <StatementSource
           sources={[]}
           isWikidataStatement={false}
-          activeArchivedPageId={null}
+          activeSourceId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
-          archivedPageById={archivedPageById}
+          sourceById={sourceById}
         />,
       )
 
@@ -117,27 +117,27 @@ describe('StatementSource', () => {
     it('does not render when isWikidataStatement is true', () => {
       render(
         <StatementSource
-          sources={[mockSource]}
+          sources={[mockRef]}
           isWikidataStatement={true}
-          activeArchivedPageId={null}
+          activeSourceId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
-          archivedPageById={archivedPageById}
+          sourceById={sourceById}
         />,
       )
 
       expect(screen.queryByRole('button', { name: /View/ })).not.toBeInTheDocument()
     })
 
-    it('applies active styling to button when activeArchivedPageId matches', () => {
+    it('applies active styling to button when activeSourceId matches', () => {
       render(
         <StatementSource
-          sources={[mockSource]}
+          sources={[mockRef]}
           isWikidataStatement={false}
-          activeArchivedPageId="archived-1"
+          activeSourceId="archived-1"
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
-          archivedPageById={archivedPageById}
+          sourceById={sourceById}
         />,
       )
 
@@ -150,7 +150,7 @@ describe('StatementSource', () => {
     it('renders supporting quotes when provided', () => {
       const sourceWithQuotes: PropertyReference = {
         id: 'ref-quotes',
-        archived_page_id: mockArchivedPage.id,
+        source_id: mockSource.id,
         supporting_quotes: ['first quote', 'second quote'],
       }
 
@@ -158,10 +158,10 @@ describe('StatementSource', () => {
         <StatementSource
           sources={[sourceWithQuotes]}
           isWikidataStatement={false}
-          activeArchivedPageId={null}
+          activeSourceId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
-          archivedPageById={archivedPageById}
+          sourceById={sourceById}
         />,
       )
 
@@ -172,12 +172,12 @@ describe('StatementSource', () => {
     it('does not render quotes section when supportingQuotes is undefined', () => {
       render(
         <StatementSource
-          sources={[mockSourceNoQuotes]}
+          sources={[mockRefNoQuotes]}
           isWikidataStatement={false}
-          activeArchivedPageId={null}
+          activeSourceId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
-          archivedPageById={archivedPageById}
+          sourceById={sourceById}
         />,
       )
 
@@ -188,7 +188,7 @@ describe('StatementSource', () => {
     it('does not render quotes section when supportingQuotes is empty', () => {
       const sourceEmptyQuotes: PropertyReference = {
         id: 'ref-empty',
-        archived_page_id: mockArchivedPage.id,
+        source_id: mockSource.id,
         supporting_quotes: [],
       }
 
@@ -196,10 +196,10 @@ describe('StatementSource', () => {
         <StatementSource
           sources={[sourceEmptyQuotes]}
           isWikidataStatement={false}
-          activeArchivedPageId={null}
+          activeSourceId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
-          archivedPageById={archivedPageById}
+          sourceById={sourceById}
         />,
       )
 
@@ -212,12 +212,12 @@ describe('StatementSource', () => {
     it('calls onHover when mouse enters component', () => {
       const { container } = render(
         <StatementSource
-          sources={[mockSource]}
+          sources={[mockRef]}
           isWikidataStatement={false}
-          activeArchivedPageId={null}
+          activeSourceId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
-          archivedPageById={archivedPageById}
+          sourceById={sourceById}
         />,
       )
 
@@ -232,17 +232,17 @@ describe('StatementSource', () => {
     it('renders archived page URL as a link', () => {
       render(
         <StatementSource
-          sources={[mockSource]}
+          sources={[mockRef]}
           isWikidataStatement={false}
-          activeArchivedPageId={null}
+          activeSourceId={null}
           onShowArchived={mockOnShowArchived}
           onHover={mockOnHover}
-          archivedPageById={archivedPageById}
+          sourceById={sourceById}
         />,
       )
 
-      const link = screen.getByRole('link', { name: mockArchivedPage.url })
-      expect(link).toHaveAttribute('href', mockArchivedPage.url)
+      const link = screen.getByRole('link', { name: mockSource.url })
+      expect(link).toHaveAttribute('href', mockSource.url)
       expect(link).toHaveAttribute('target', '_blank')
       expect(link).toHaveAttribute('rel', 'noopener noreferrer')
     })

@@ -8,8 +8,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock as SyncMock, patch
 
 from poliloom.models import (
-    ArchivedPage,
-    ArchivedPageLanguage,
+    Source,
+    SourceLanguage,
     Base,
     Country,
     Language,
@@ -258,56 +258,56 @@ def sample_french_language(db_session):
 
 
 @pytest.fixture
-def sample_archived_page(db_session):
-    """Return a created archived page entity."""
-    archived_page = ArchivedPage(
+def sample_source(db_session):
+    """Return a created source entity."""
+    source = Source(
         url="https://en.wikipedia.org/wiki/Test_Page",
         content_hash="test123",
         fetch_timestamp=datetime.now(timezone.utc),
     )
-    db_session.add(archived_page)
+    db_session.add(source)
     db_session.flush()
-    return archived_page
+    return source
 
 
 @pytest.fixture
-def create_archived_page(db_session):
-    """Factory fixture to create archived pages with language links.
+def create_source(db_session):
+    """Factory fixture to create sources with language links.
 
-    Returns a function that creates an ArchivedPage with optional language associations.
+    Returns a function that creates a Source with optional language associations.
     """
 
-    def _create_archived_page(url, content_hash=None, languages=None):
-        """Create an archived page with optional language links.
+    def _create_source(url, content_hash=None, languages=None):
+        """Create a source with optional language links.
 
         Args:
             url: Page URL
             content_hash: Optional content hash (auto-generated if not provided)
-            languages: Optional list of Language entities to link to this page
+            languages: Optional list of Language entities to link to this source
 
         Returns:
-            Created ArchivedPage instance
+            Created Source instance
         """
-        archived_page = ArchivedPage(
+        source = Source(
             url=url,
             content_hash=content_hash,
             fetch_timestamp=datetime.now(timezone.utc),
         )
-        db_session.add(archived_page)
+        db_session.add(source)
         db_session.flush()
 
         # Create language links if provided
         if languages:
             for language in languages:
-                lang_link = ArchivedPageLanguage(
-                    archived_page_id=archived_page.id, language_id=language.wikidata_id
+                lang_link = SourceLanguage(
+                    source_id=source.id, language_id=language.wikidata_id
                 )
                 db_session.add(lang_link)
             db_session.flush()
 
-        return archived_page
+        return source
 
-    return _create_archived_page
+    return _create_source
 
 
 @pytest.fixture
@@ -454,13 +454,13 @@ def create_citizenship(db_session):
     """
     from poliloom.models import Property, PropertyType
 
-    def _create_citizenship(politician, country, archived_page=None):
+    def _create_citizenship(politician, country, source=None):
         """Create a citizenship property for a politician.
 
         Args:
             politician: Politician instance
             country: Country instance
-            archived_page: Optional ArchivedPage instance (creates a PropertyReference)
+            source: Optional Source instance (creates a PropertyReference)
 
         Returns:
             Created Property instance
@@ -472,10 +472,10 @@ def create_citizenship(db_session):
         )
         db_session.add(prop)
         db_session.flush()
-        if archived_page:
+        if source:
             ref = PropertyReference(
                 property_id=prop.id,
-                archived_page_id=archived_page.id,
+                source_id=source.id,
             )
             db_session.add(ref)
         return prop
@@ -494,7 +494,7 @@ def create_birth_date(db_session):
     def _create_birth_date(
         politician,
         value="1980-01-01",
-        archived_page=None,
+        source=None,
         statement_id=None,
         supporting_quotes=None,
     ):
@@ -503,7 +503,7 @@ def create_birth_date(db_session):
         Args:
             politician: Politician instance
             value: Date string (default: "1980-01-01")
-            archived_page: Optional ArchivedPage instance (creates a PropertyReference)
+            source: Optional Source instance (creates a PropertyReference)
             statement_id: Optional statement ID (makes it "from Wikidata")
             supporting_quotes: Optional list of supporting quotes
 
@@ -519,10 +519,10 @@ def create_birth_date(db_session):
         )
         db_session.add(prop)
         db_session.flush()
-        if archived_page:
+        if source:
             ref = PropertyReference(
                 property_id=prop.id,
-                archived_page_id=archived_page.id,
+                source_id=source.id,
                 supporting_quotes=supporting_quotes,
             )
             db_session.add(ref)
@@ -542,7 +542,7 @@ def create_death_date(db_session):
     def _create_death_date(
         politician,
         value="2020-01-01",
-        archived_page=None,
+        source=None,
         statement_id=None,
         supporting_quotes=None,
     ):
@@ -551,7 +551,7 @@ def create_death_date(db_session):
         Args:
             politician: Politician instance
             value: Date string (default: "2020-01-01")
-            archived_page: Optional ArchivedPage instance (creates a PropertyReference)
+            source: Optional Source instance (creates a PropertyReference)
             statement_id: Optional statement ID (makes it "from Wikidata")
             supporting_quotes: Optional list of supporting quotes
 
@@ -567,10 +567,10 @@ def create_death_date(db_session):
         )
         db_session.add(prop)
         db_session.flush()
-        if archived_page:
+        if source:
             ref = PropertyReference(
                 property_id=prop.id,
-                archived_page_id=archived_page.id,
+                source_id=source.id,
                 supporting_quotes=supporting_quotes,
             )
             db_session.add(ref)
@@ -590,7 +590,7 @@ def create_position(db_session):
     def _create_position(
         politician,
         position,
-        archived_page=None,
+        source=None,
         qualifiers_json=None,
         statement_id=None,
         supporting_quotes=None,
@@ -600,7 +600,7 @@ def create_position(db_session):
         Args:
             politician: Politician instance
             position: Position instance
-            archived_page: Optional ArchivedPage instance (creates a PropertyReference)
+            source: Optional Source instance (creates a PropertyReference)
             qualifiers_json: Optional qualifiers dict (e.g., P580/P582 for dates)
             statement_id: Optional statement ID (makes it "from Wikidata")
             supporting_quotes: Optional list of supporting quotes
@@ -617,10 +617,10 @@ def create_position(db_session):
         )
         db_session.add(prop)
         db_session.flush()
-        if archived_page:
+        if source:
             ref = PropertyReference(
                 property_id=prop.id,
-                archived_page_id=archived_page.id,
+                source_id=source.id,
                 supporting_quotes=supporting_quotes,
             )
             db_session.add(ref)
@@ -640,7 +640,7 @@ def create_birthplace(db_session):
     def _create_birthplace(
         politician,
         location,
-        archived_page=None,
+        source=None,
         statement_id=None,
         supporting_quotes=None,
     ):
@@ -649,7 +649,7 @@ def create_birthplace(db_session):
         Args:
             politician: Politician instance
             location: Location instance
-            archived_page: Optional ArchivedPage instance (creates a PropertyReference)
+            source: Optional Source instance (creates a PropertyReference)
             statement_id: Optional statement ID (makes it "from Wikidata")
             supporting_quotes: Optional list of supporting quotes
 
@@ -664,10 +664,10 @@ def create_birthplace(db_session):
         )
         db_session.add(prop)
         db_session.flush()
-        if archived_page:
+        if source:
             ref = PropertyReference(
                 property_id=prop.id,
-                archived_page_id=archived_page.id,
+                source_id=source.id,
                 supporting_quotes=supporting_quotes,
             )
             db_session.add(ref)

@@ -391,7 +391,7 @@ async def push_evaluation(
 
             # Build reference blocks from all PropertyReferences
             references = [
-                {"parts": ref.archived_page.create_references_json()}
+                {"parts": ref.source.create_references_json()}
                 for ref in evaluation.property.property_references
             ] or None
 

@@ -116,7 +116,7 @@ def create_timestamp_triggers(engine: Engine):
 
         # Current tables with updated_at columns (based on actual database schema)
         tables_with_updated_at = [
-            "archived_pages",
+            "sources",
             "countries",
             "evaluations",
             "locations",

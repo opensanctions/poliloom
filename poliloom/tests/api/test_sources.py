@@ -1,29 +1,25 @@
-"""Tests for the source page endpoints (GET/PATCH /archived-pages/{id})."""
+"""Tests for the source page endpoints (GET/PATCH /sources/{id})."""
 
 from unittest.mock import patch
 
 
 class TestGetSourcePage:
-    """Test the GET /archived-pages/{id} endpoint."""
+    """Test the GET /sources/{id} endpoint."""
 
-    def test_requires_authentication(self, client, sample_archived_page):
+    def test_requires_authentication(self, client, sample_source):
         """Test that endpoint requires authentication."""
-        response = client.get(f"/archived-pages/{sample_archived_page.id}")
+        response = client.get(f"/sources/{sample_source.id}")
         assert response.status_code in [401, 403]
 
     def test_not_found_for_unknown_uuid(self, client, mock_auth):
-        """Test 404 for unknown archived page UUID."""
+        """Test 404 for unknown source UUID."""
         fake_uuid = "99999999-9999-9999-9999-999999999999"
-        response = client.get(f"/archived-pages/{fake_uuid}", headers=mock_auth)
+        response = client.get(f"/sources/{fake_uuid}", headers=mock_auth)
         assert response.status_code == 404
 
-    def test_empty_politicians_when_no_links(
-        self, client, mock_auth, sample_archived_page
-    ):
-        """Test that an archived page with no linked politicians returns empty list."""
-        response = client.get(
-            f"/archived-pages/{sample_archived_page.id}", headers=mock_auth
-        )
+    def test_empty_politicians_when_no_links(self, client, mock_auth, sample_source):
+        """Test that a source with no linked politicians returns empty list."""
+        response = client.get(f"/sources/{sample_source.id}", headers=mock_auth)
         assert response.status_code == 200
         assert response.json() == []
 
@@ -33,22 +29,20 @@ class TestGetSourcePage:
         client,
         mock_auth,
         sample_politician,
-        sample_archived_page,
+        sample_source,
         create_birth_date,
     ):
         """Test that properties referencing this page are returned with the politician."""
-        sample_politician.archived_pages.append(sample_archived_page)
+        sample_politician.sources.append(sample_source)
         db_session.flush()
         create_birth_date(
             sample_politician,
             value="1980-01-01",
-            archived_page=sample_archived_page,
+            source=sample_source,
             supporting_quotes=["born in 1980"],
         )
 
-        response = client.get(
-            f"/archived-pages/{sample_archived_page.id}", headers=mock_auth
-        )
+        response = client.get(f"/sources/{sample_source.id}", headers=mock_auth)
         assert response.status_code == 200
         politicians = response.json()
         assert len(politicians) == 1
@@ -61,11 +55,9 @@ class TestGetSourcePage:
         prop = politician["properties"][0]
         assert prop["type"] == "P569"
         assert prop["value"] == "1980-01-01"
-        assert len(prop["archived_pages"]) == 1
-        assert prop["archived_pages"][0]["supporting_quotes"] == ["born in 1980"]
-        assert prop["archived_pages"][0]["archived_page_id"] == str(
-            sample_archived_page.id
-        )
+        assert len(prop["sources"]) == 1
+        assert prop["sources"][0]["supporting_quotes"] == ["born in 1980"]
+        assert prop["sources"][0]["source_id"] == str(sample_source.id)
 
     def test_multiple_properties_grouped_under_one_politician(
         self,
@@ -73,24 +65,18 @@ class TestGetSourcePage:
         client,
         mock_auth,
         sample_politician,
-        sample_archived_page,
+        sample_source,
         create_birth_date,
         create_citizenship,
         sample_country,
     ):
         """Test multiple properties from same page grouped under one politician."""
-        sample_politician.archived_pages.append(sample_archived_page)
+        sample_politician.sources.append(sample_source)
         db_session.flush()
-        create_birth_date(
-            sample_politician, value="1980-01-01", archived_page=sample_archived_page
-        )
-        create_citizenship(
-            sample_politician, sample_country, archived_page=sample_archived_page
-        )
+        create_birth_date(sample_politician, value="1980-01-01", source=sample_source)
+        create_citizenship(sample_politician, sample_country, source=sample_source)
 
-        response = client.get(
-            f"/archived-pages/{sample_archived_page.id}", headers=mock_auth
-        )
+        response = client.get(f"/sources/{sample_source.id}", headers=mock_auth)
         assert response.status_code == 200
         politicians = response.json()
         assert len(politicians) == 1
@@ -102,7 +88,7 @@ class TestGetSourcePage:
         client,
         mock_auth,
         sample_politician,
-        sample_archived_page,
+        sample_source,
         create_birth_date,
     ):
         """Test multiple politicians with properties from the same page."""
@@ -113,20 +99,14 @@ class TestGetSourcePage:
         )
         db_session.flush()
 
-        sample_politician.archived_pages.append(sample_archived_page)
-        politician2.archived_pages.append(sample_archived_page)
+        sample_politician.sources.append(sample_source)
+        politician2.sources.append(sample_source)
         db_session.flush()
 
-        create_birth_date(
-            sample_politician, value="1980-01-01", archived_page=sample_archived_page
-        )
-        create_birth_date(
-            politician2, value="1990-05-15", archived_page=sample_archived_page
-        )
+        create_birth_date(sample_politician, value="1980-01-01", source=sample_source)
+        create_birth_date(politician2, value="1990-05-15", source=sample_source)
 
-        response = client.get(
-            f"/archived-pages/{sample_archived_page.id}", headers=mock_auth
-        )
+        response = client.get(f"/sources/{sample_source.id}", headers=mock_auth)
         assert response.status_code == 200
         politicians = response.json()
         assert len(politicians) == 2
@@ -139,21 +119,19 @@ class TestGetSourcePage:
         client,
         mock_auth,
         sample_politician,
-        sample_archived_page,
+        sample_source,
         create_birth_date,
     ):
         """Test that soft-deleted properties are excluded."""
         from datetime import datetime, timezone
 
         prop = create_birth_date(
-            sample_politician, value="1980-01-01", archived_page=sample_archived_page
+            sample_politician, value="1980-01-01", source=sample_source
         )
         prop.deleted_at = datetime.now(timezone.utc)
         db_session.flush()
 
-        response = client.get(
-            f"/archived-pages/{sample_archived_page.id}", headers=mock_auth
-        )
+        response = client.get(f"/sources/{sample_source.id}", headers=mock_auth)
         assert response.status_code == 200
         assert response.json() == []
 
@@ -163,15 +141,15 @@ class TestGetSourcePage:
         client,
         mock_auth,
         sample_politician,
-        sample_archived_page,
+        sample_source,
         create_birth_date,
     ):
         """Test that properties only include the matching source, not all sources."""
-        from poliloom.models import ArchivedPage, PropertyReference
+        from poliloom.models import Source, PropertyReference
         from datetime import datetime, timezone
 
-        # Create a second archived page
-        other_page = ArchivedPage(
+        # Create a second source
+        other_page = Source(
             url="https://example.com/other",
             content_hash="other123",
             fetch_timestamp=datetime.now(timezone.utc),
@@ -179,52 +157,46 @@ class TestGetSourcePage:
         db_session.add(other_page)
         db_session.flush()
 
-        sample_politician.archived_pages.append(sample_archived_page)
+        sample_politician.sources.append(sample_source)
         db_session.flush()
 
         # Create property with reference to the first page
         prop = create_birth_date(
-            sample_politician, value="1980-01-01", archived_page=sample_archived_page
+            sample_politician, value="1980-01-01", source=sample_source
         )
         # Add a second reference to the other page
         ref2 = PropertyReference(
             property_id=prop.id,
-            archived_page_id=other_page.id,
+            source_id=other_page.id,
         )
         db_session.add(ref2)
         db_session.flush()
 
         # Query by first page — should only see the first page's reference
-        response = client.get(
-            f"/archived-pages/{sample_archived_page.id}", headers=mock_auth
-        )
+        response = client.get(f"/sources/{sample_source.id}", headers=mock_auth)
         assert response.status_code == 200
         politicians = response.json()
         assert len(politicians) == 1
         prop_data = politicians[0]["properties"][0]
-        assert len(prop_data["archived_pages"]) == 1
-        assert prop_data["archived_pages"][0]["archived_page_id"] == str(
-            sample_archived_page.id
-        )
+        assert len(prop_data["sources"]) == 1
+        assert prop_data["sources"][0]["source_id"] == str(sample_source.id)
 
 
 class TestPatchSourceProperties:
-    """Test the PATCH /archived-pages/{id}/properties endpoint."""
+    """Test the PATCH /sources/{id}/properties endpoint."""
 
-    def test_requires_authentication(self, client, sample_archived_page):
+    def test_requires_authentication(self, client, sample_source):
         """Test that endpoint requires authentication."""
         data = {"items": {}}
-        response = client.patch(
-            f"/archived-pages/{sample_archived_page.id}/properties", json=data
-        )
+        response = client.patch(f"/sources/{sample_source.id}/properties", json=data)
         assert response.status_code in [401, 403]
 
     def test_not_found_for_unknown_uuid(self, client, mock_auth):
-        """Test 404 for unknown archived page UUID."""
+        """Test 404 for unknown source UUID."""
         fake_uuid = "99999999-9999-9999-9999-999999999999"
         data = {"items": {}}
         response = client.patch(
-            f"/archived-pages/{fake_uuid}/properties",
+            f"/sources/{fake_uuid}/properties",
             json=data,
             headers=mock_auth,
         )
@@ -235,17 +207,17 @@ class TestPatchSourceProperties:
         client,
         mock_auth,
         sample_politician,
-        sample_archived_page,
+        sample_source,
         create_birth_date,
         create_citizenship,
         sample_country,
     ):
         """Test accept/reject via source endpoint."""
         prop1 = create_birth_date(
-            sample_politician, value="1980-01-01", archived_page=sample_archived_page
+            sample_politician, value="1980-01-01", source=sample_source
         )
         prop2 = create_citizenship(
-            sample_politician, sample_country, archived_page=sample_archived_page
+            sample_politician, sample_country, source=sample_source
         )
 
         data = {
@@ -257,7 +229,7 @@ class TestPatchSourceProperties:
             }
         }
         response = client.patch(
-            f"/archived-pages/{sample_archived_page.id}/properties",
+            f"/sources/{sample_source.id}/properties",
             json=data,
             headers=mock_auth,
         )
@@ -273,7 +245,7 @@ class TestPatchSourceProperties:
         client,
         mock_auth,
         sample_politician,
-        sample_archived_page,
+        sample_source,
     ):
         """Test creating a property via source endpoint using politician ID key."""
         mock_push_evaluation.return_value = True
@@ -291,7 +263,7 @@ class TestPatchSourceProperties:
             }
         }
         response = client.patch(
-            f"/archived-pages/{sample_archived_page.id}/properties",
+            f"/sources/{sample_source.id}/properties",
             json=data,
             headers=mock_auth,
         )
@@ -306,7 +278,7 @@ class TestPatchSourceProperties:
         client,
         mock_auth,
         sample_politician,
-        sample_archived_page,
+        sample_source,
         create_birth_date,
     ):
         """Test submitting actions for multiple politicians in one request."""
@@ -318,11 +290,9 @@ class TestPatchSourceProperties:
         db_session.flush()
 
         prop1 = create_birth_date(
-            sample_politician, value="1980-01-01", archived_page=sample_archived_page
+            sample_politician, value="1980-01-01", source=sample_source
         )
-        prop2 = create_birth_date(
-            politician2, value="1990-05-15", archived_page=sample_archived_page
-        )
+        prop2 = create_birth_date(politician2, value="1990-05-15", source=sample_source)
 
         data = {
             "items": {
@@ -331,7 +301,7 @@ class TestPatchSourceProperties:
             }
         }
         response = client.patch(
-            f"/archived-pages/{sample_archived_page.id}/properties",
+            f"/sources/{sample_source.id}/properties",
             json=data,
             headers=mock_auth,
         )
@@ -340,9 +310,7 @@ class TestPatchSourceProperties:
         assert result["success"] is True
         assert "2 items" in result["message"]
 
-    def test_create_with_nonexistent_politician(
-        self, client, mock_auth, sample_archived_page
-    ):
+    def test_create_with_nonexistent_politician(self, client, mock_auth, sample_source):
         """Test create with a politician ID that doesn't exist."""
         fake_id = "00000000-0000-0000-0000-000000000000"
         data = {
@@ -358,7 +326,7 @@ class TestPatchSourceProperties:
             }
         }
         response = client.patch(
-            f"/archived-pages/{sample_archived_page.id}/properties",
+            f"/sources/{sample_source.id}/properties",
             json=data,
             headers=mock_auth,
         )

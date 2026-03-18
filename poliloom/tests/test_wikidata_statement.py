@@ -656,25 +656,25 @@ class TestPushEvaluation:
 
         # Set up property_references
         if has_property_references:
-            mock_archived_page_1 = Mock()
-            mock_archived_page_1.create_references_json.return_value = [
+            mock_source_1 = Mock()
+            mock_source_1.create_references_json.return_value = [
                 {
                     "property": {"id": "P854"},
                     "value": {"type": "value", "content": "https://example.com"},
                 }
             ]
             mock_ref_1 = Mock()
-            mock_ref_1.archived_page = mock_archived_page_1
+            mock_ref_1.source = mock_source_1
 
-            mock_archived_page_2 = Mock()
-            mock_archived_page_2.create_references_json.return_value = [
+            mock_source_2 = Mock()
+            mock_source_2.create_references_json.return_value = [
                 {
                     "property": {"id": "P854"},
                     "value": {"type": "value", "content": "https://other-source.com"},
                 }
             ]
             mock_ref_2 = Mock()
-            mock_ref_2.archived_page = mock_archived_page_2
+            mock_ref_2.source = mock_source_2
 
             property_mock.property_references = [mock_ref_1, mock_ref_2]
         else:

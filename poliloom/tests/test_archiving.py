@@ -9,12 +9,12 @@ from poliloom.archiving import (
     convert_mhtml_to_html,
     extract_permanent_url,
     fetch_page,
-    process_archived_page,
+    process_source,
 )
 from poliloom.models import (
-    ArchivedPage,
-    ArchivedPageError,
-    ArchivedPageStatus,
+    Source,
+    SourceError,
+    SourceStatus,
 )
 
 
@@ -415,15 +415,15 @@ class TestConvertMhtmlToHtml:
 
 
 @pytest.fixture
-def pending_archived_page(db_session, sample_politician):
+def pending_source(db_session, sample_politician):
     """Create a PENDING archived page linked to sample_politician."""
-    page = ArchivedPage(
+    page = Source(
         url="https://en.wikipedia.org/wiki/Test_Politician",
-        status=ArchivedPageStatus.PENDING,
+        status=SourceStatus.PENDING,
     )
     db_session.add(page)
     db_session.flush()
-    sample_politician.archived_pages.append(page)
+    sample_politician.sources.append(page)
     db_session.flush()
     return page
 
@@ -432,8 +432,8 @@ FETCHED_PAGE = FetchedPage(mhtml="<mhtml>", html="<html><body>text</body></html>
 VALID_HTML = "<html><body>Some real text content</body></html>"
 
 
-class TestProcessArchivedPage:
-    """Test process_archived_page pipeline."""
+class TestProcessSource:
+    """Test process_source pipeline."""
 
     @pytest.mark.asyncio
     @patch(
@@ -454,18 +454,16 @@ class TestProcessArchivedPage:
         mock_extract,
         db_session,
         sample_politician,
-        pending_archived_page,
+        pending_source,
     ):
-        await process_archived_page(
-            db_session, pending_archived_page, sample_politician
-        )
+        await process_source(db_session, pending_source, sample_politician)
 
-        assert pending_archived_page.status == ArchivedPageStatus.DONE
-        assert pending_archived_page.error is None
+        assert pending_source.status == SourceStatus.DONE
+        assert pending_source.error is None
 
     @pytest.mark.asyncio
     async def test_fetch_error_sets_error_type(
-        self, db_session, sample_politician, pending_archived_page
+        self, db_session, sample_politician, pending_source
     ):
         with patch(
             "poliloom.archiving.fetch_page",
@@ -475,32 +473,26 @@ class TestProcessArchivedPage:
                 )
             ),
         ):
-            await process_archived_page(
-                db_session, pending_archived_page, sample_politician
-            )
+            await process_source(db_session, pending_source, sample_politician)
 
-        assert pending_archived_page.status == ArchivedPageStatus.DONE
-        assert pending_archived_page.error == ArchivedPageError.FETCH_ERROR
-        assert pending_archived_page.http_status_code == 404
+        assert pending_source.status == SourceStatus.DONE
+        assert pending_source.error == SourceError.FETCH_ERROR
+        assert pending_source.http_status_code == 404
 
     @pytest.mark.asyncio
-    async def test_timeout_error(
-        self, db_session, sample_politician, pending_archived_page
-    ):
+    async def test_timeout_error(self, db_session, sample_politician, pending_source):
         with patch(
             "poliloom.archiving.fetch_page",
             AsyncMock(side_effect=PageFetchError("Timeout", error_type="TIMEOUT")),
         ):
-            await process_archived_page(
-                db_session, pending_archived_page, sample_politician
-            )
+            await process_source(db_session, pending_source, sample_politician)
 
-        assert pending_archived_page.status == ArchivedPageStatus.DONE
-        assert pending_archived_page.error == ArchivedPageError.TIMEOUT
+        assert pending_source.status == SourceStatus.DONE
+        assert pending_source.error == SourceError.TIMEOUT
 
     @pytest.mark.asyncio
     async def test_no_response_error(
-        self, db_session, sample_politician, pending_archived_page
+        self, db_session, sample_politician, pending_source
     ):
         with patch(
             "poliloom.archiving.fetch_page",
@@ -508,27 +500,23 @@ class TestProcessArchivedPage:
                 side_effect=PageFetchError("No response", error_type="NO_RESPONSE")
             ),
         ):
-            await process_archived_page(
-                db_session, pending_archived_page, sample_politician
-            )
+            await process_source(db_session, pending_source, sample_politician)
 
-        assert pending_archived_page.status == ArchivedPageStatus.DONE
-        assert pending_archived_page.error == ArchivedPageError.NO_RESPONSE
+        assert pending_source.status == SourceStatus.DONE
+        assert pending_source.error == SourceError.NO_RESPONSE
 
     @pytest.mark.asyncio
     async def test_generic_exception_sets_pipeline_error(
-        self, db_session, sample_politician, pending_archived_page
+        self, db_session, sample_politician, pending_source
     ):
         with patch(
             "poliloom.archiving.fetch_page",
             AsyncMock(side_effect=RuntimeError("unexpected crash")),
         ):
-            await process_archived_page(
-                db_session, pending_archived_page, sample_politician
-            )
+            await process_source(db_session, pending_source, sample_politician)
 
-        assert pending_archived_page.status == ArchivedPageStatus.DONE
-        assert pending_archived_page.error == ArchivedPageError.PIPELINE_ERROR
+        assert pending_source.status == SourceStatus.DONE
+        assert pending_source.error == SourceError.PIPELINE_ERROR
 
     @pytest.mark.asyncio
     @patch(
@@ -549,14 +537,12 @@ class TestProcessArchivedPage:
         mock_extract,
         db_session,
         sample_politician,
-        pending_archived_page,
+        pending_source,
     ):
-        await process_archived_page(
-            db_session, pending_archived_page, sample_politician
-        )
+        await process_source(db_session, pending_source, sample_politician)
 
-        assert pending_archived_page.status == ArchivedPageStatus.DONE
-        assert pending_archived_page.error == ArchivedPageError.INVALID_CONTENT
+        assert pending_source.status == SourceStatus.DONE
+        assert pending_source.error == SourceError.INVALID_CONTENT
 
     @pytest.mark.asyncio
     @patch(
@@ -580,14 +566,12 @@ class TestProcessArchivedPage:
         mock_extract,
         db_session,
         sample_politician,
-        pending_archived_page,
+        pending_source,
     ):
-        await process_archived_page(
-            db_session, pending_archived_page, sample_politician
-        )
+        await process_source(db_session, pending_source, sample_politician)
 
-        assert pending_archived_page.status == ArchivedPageStatus.DONE
-        assert pending_archived_page.error == ArchivedPageError.INVALID_CONTENT
+        assert pending_source.status == SourceStatus.DONE
+        assert pending_source.error == SourceError.INVALID_CONTENT
 
     @pytest.mark.asyncio
     @patch(
@@ -613,23 +597,19 @@ class TestProcessArchivedPage:
         mock_extract,
         db_session,
         sample_politician,
-        pending_archived_page,
+        pending_source,
         sample_wikipedia_project,
     ):
-        pending_archived_page.wikipedia_project_id = (
-            sample_wikipedia_project.wikidata_id
-        )
+        pending_source.wikipedia_project_id = sample_wikipedia_project.wikidata_id
         db_session.flush()
 
-        await process_archived_page(
-            db_session, pending_archived_page, sample_politician
-        )
+        await process_source(db_session, pending_source, sample_politician)
 
         assert (
-            pending_archived_page.permanent_url
+            pending_source.permanent_url
             == "https://en.wikipedia.org/w/index.php?title=Test&oldid=123"
         )
-        assert pending_archived_page.status == ArchivedPageStatus.DONE
+        assert pending_source.status == SourceStatus.DONE
 
     @pytest.mark.asyncio
     @patch(
@@ -644,19 +624,17 @@ class TestProcessArchivedPage:
         mock_extract,
         db_session,
         sample_politician,
-        pending_archived_page,
+        pending_source,
     ):
         """Status should be PROCESSING when fetch is called."""
         observed_status = None
 
         async def capture_status(url):
             nonlocal observed_status
-            observed_status = pending_archived_page.status
+            observed_status = pending_source.status
             return FetchedPage(mhtml="<mhtml>", html="<html><body>text</body></html>")
 
         with patch("poliloom.archiving.fetch_page", side_effect=capture_status):
-            await process_archived_page(
-                db_session, pending_archived_page, sample_politician
-            )
+            await process_source(db_session, pending_source, sample_politician)
 
-        assert observed_status == ArchivedPageStatus.PROCESSING
+        assert observed_status == SourceStatus.PROCESSING

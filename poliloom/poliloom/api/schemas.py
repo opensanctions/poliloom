@@ -17,8 +17,8 @@ class UUIDBaseModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ArchivedPageResponse(UUIDBaseModel):
-    """Schema for archived page data."""
+class SourceResponse(UUIDBaseModel):
+    """Schema for source data."""
 
     id: UUID
     url: str
@@ -33,7 +33,7 @@ class PropertyReferenceResponse(UUIDBaseModel):
     """Schema for a property reference (evidence source)."""
 
     id: UUID
-    archived_page_id: str
+    source_id: str
     supporting_quotes: Optional[List[str]] = None
 
 
@@ -49,7 +49,7 @@ class PropertyResponse(UUIDBaseModel):
     statement_id: Optional[str] = None
     qualifiers: Optional[Dict[str, Any]] = None
     references: Optional[List[Dict[str, Any]]] = None
-    archived_pages: List[PropertyReferenceResponse] = []
+    sources: List[PropertyReferenceResponse] = []
 
     @field_serializer("type")
     def serialize_property_type(self, value: PropertyType) -> str:
@@ -63,7 +63,7 @@ class PoliticianResponse(UUIDBaseModel):
     id: UUID
     name: str
     wikidata_id: Optional[str] = None
-    archived_pages: List[ArchivedPageResponse] = []
+    sources: List[SourceResponse] = []
     properties: List[PropertyResponse]  # Single flat list
 
 
@@ -117,7 +117,7 @@ class PatchPropertiesRequest(BaseModel):
 
 
 class SourcePatchPropertiesRequest(BaseModel):
-    """Request body for PATCH /archived-pages/{id}/properties.
+    """Request body for PATCH /sources/{id}/properties.
 
     Items keyed by politician ID (UUID), e.g.:
     {"uuid-here": [{"action": "accept", "id": "..."}, ...]}

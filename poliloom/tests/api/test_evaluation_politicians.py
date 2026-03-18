@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from poliloom.models import (
     Politician,
-    ArchivedPage,
+    Source,
     Evaluation,
 )
 from poliloom.wikidata_date import WikidataDate
@@ -14,11 +14,11 @@ from poliloom.wikidata_date import WikidataDate
 @pytest.fixture
 def politician_with_evaluated_data(db_session, create_birth_date):
     """Create a politician with only evaluated extracted data (should be excluded)."""
-    archived_page = ArchivedPage(
+    source = Source(
         url="https://example.com/test2",
         content_hash="test456",
     )
-    db_session.add(archived_page)
+    db_session.add(source)
 
     # Create politician
     politician = Politician.create_with_entity(
@@ -31,7 +31,7 @@ def politician_with_evaluated_data(db_session, create_birth_date):
     extracted_property = create_birth_date(
         politician,
         value="1980-05-20",
-        archived_page=archived_page,
+        source=source,
         supporting_quotes=["Born on May 20, 1980"],
     )
     db_session.flush()  # Need ID for evaluation
@@ -144,19 +144,19 @@ class TestGetPoliticianEndpointProperties:
     def test_extracted_data_contains_supporting_quotes_and_archive_info(
         self, client, mock_auth, db_session, politician_with_unevaluated_data
     ):
-        """Test that extracted data includes supporting_quotes and archived_page info."""
-        from poliloom.models import ArchivedPage, PropertyReference
+        """Test that extracted data includes supporting_quotes and source info."""
+        from poliloom.models import Source, PropertyReference
 
         extracted_properties = [
             p
             for p in politician_with_unevaluated_data.properties
             if p.statement_id is None
         ]
-        archived_page = ArchivedPage(
+        source = Source(
             url="https://example.com/test",
             content_hash="test123",
         )
-        db_session.add(archived_page)
+        db_session.add(source)
         db_session.flush()
 
         quotes = {
@@ -168,7 +168,7 @@ class TestGetPoliticianEndpointProperties:
             db_session.add(
                 PropertyReference(
                     property_id=prop.id,
-                    archived_page_id=archived_page.id,
+                    source_id=source.id,
                     supporting_quotes=quotes[i],
                 )
             )
@@ -182,23 +182,23 @@ class TestGetPoliticianEndpointProperties:
 
         birth_dates = [p for p in extracted if p["type"] == "P569"]
         assert len(birth_dates) == 1
-        assert len(birth_dates[0]["archived_pages"]) == 1
-        assert birth_dates[0]["archived_pages"][0]["supporting_quotes"] == [
+        assert len(birth_dates[0]["sources"]) == 1
+        assert birth_dates[0]["sources"][0]["supporting_quotes"] == [
             "Born on January 15, 1970"
         ]
-        assert birth_dates[0]["archived_pages"][0]["archived_page_id"] is not None
+        assert birth_dates[0]["sources"][0]["source_id"] is not None
 
         positions = [p for p in extracted if p["type"] == "P39"]
         assert len(positions) == 1
-        assert len(positions[0]["archived_pages"]) == 1
-        assert positions[0]["archived_pages"][0]["supporting_quotes"] == [
+        assert len(positions[0]["sources"]) == 1
+        assert positions[0]["sources"][0]["supporting_quotes"] == [
             "Served as Mayor from 2020 to 2024"
         ]
 
         birthplaces = [p for p in extracted if p["type"] == "P19"]
         assert len(birthplaces) == 1
-        assert len(birthplaces[0]["archived_pages"]) == 1
-        assert birthplaces[0]["archived_pages"][0]["supporting_quotes"] == [
+        assert len(birthplaces[0]["sources"]) == 1
+        assert birthplaces[0]["sources"][0]["supporting_quotes"] == [
             "Born in Springfield"
         ]
 
@@ -212,7 +212,7 @@ class TestGetPoliticianEndpointProperties:
         wikidata = [p for p in data["properties"] if p["statement_id"] is not None]
         death_dates = [p for p in wikidata if p["type"] == "P570"]
         assert len(death_dates) >= 1
-        assert death_dates[0].get("archived_pages") == []
+        assert death_dates[0].get("sources") == []
         assert "value_precision" in death_dates[0]
 
     def test_property_response_structure(
@@ -244,11 +244,11 @@ class TestGetPoliticianEndpointProperties:
         create_position,
     ):
         """Test politician with mix of evaluated and unevaluated data."""
-        archived_page = ArchivedPage(
+        source = Source(
             url="https://example.com/mixed",
             content_hash="mixed123",
         )
-        db_session.add(archived_page)
+        db_session.add(source)
 
         politician = Politician.create_with_entity(
             db_session, "Q999999", "Mixed Evaluation"
@@ -257,7 +257,7 @@ class TestGetPoliticianEndpointProperties:
         db_session.flush()
 
         evaluated_prop = create_birth_date(
-            politician, value="1975-03-15", archived_page=archived_page
+            politician, value="1975-03-15", source=source
         )
         db_session.flush()
 
@@ -270,7 +270,7 @@ class TestGetPoliticianEndpointProperties:
         create_position(
             politician,
             sample_position,
-            archived_page=archived_page,
+            source=source,
             qualifiers_json={
                 "P580": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()]
             },
@@ -294,17 +294,17 @@ class TestGetPoliticianEndpointProperties:
         db_session,
         sample_language,
         sample_german_language,
-        create_archived_page,
+        create_source,
         create_birth_date,
         create_death_date,
     ):
         """Test that when filtering by language, only properties from that language's archived pages are returned."""
-        english_page = create_archived_page(
+        english_page = create_source(
             url="https://en.wikipedia.org/test",
             content_hash="en123",
             languages=[sample_language],
         )
-        german_page = create_archived_page(
+        german_page = create_source(
             url="https://de.wikipedia.org/test",
             content_hash="de123",
             languages=[sample_german_language],
@@ -319,13 +319,13 @@ class TestGetPoliticianEndpointProperties:
         create_birth_date(
             politician,
             value="1970-01-01",
-            archived_page=english_page,
+            source=english_page,
             supporting_quotes=["Born on January 1, 1970"],
         )
         create_birth_date(
             politician,
             value="1970-01-02",
-            archived_page=german_page,
+            source=german_page,
             supporting_quotes=["Geboren am 2. Januar 1970"],
         )
         create_death_date(
@@ -341,7 +341,7 @@ class TestGetPoliticianEndpointProperties:
         data = response.json()
 
         extracted_props = [
-            p for p in data["properties"] if len(p.get("archived_pages", [])) > 0
+            p for p in data["properties"] if len(p.get("sources", [])) > 0
         ]
         assert len(extracted_props) == 1
         assert extracted_props[0]["value"] == "1970-01-01"
@@ -352,7 +352,7 @@ class TestGetPoliticianEndpointProperties:
         data = response.json()
 
         extracted_props = [
-            p for p in data["properties"] if len(p.get("archived_pages", [])) > 0
+            p for p in data["properties"] if len(p.get("sources", [])) > 0
         ]
         assert len(extracted_props) == 1
         assert extracted_props[0]["value"] == "1970-01-02"
@@ -364,7 +364,7 @@ class TestGetPoliticianEndpointProperties:
         db_session,
         sample_politician,
         sample_position,
-        sample_archived_page,
+        sample_source,
         create_birth_date,
         create_position,
     ):
@@ -372,14 +372,14 @@ class TestGetPoliticianEndpointProperties:
         create_birth_date(
             sample_politician,
             value="1980-01-01",
-            archived_page=sample_archived_page,
+            source=sample_source,
             supporting_quotes=["Born on January 1, 1980"],
         )
 
         deleted_property = create_position(
             sample_politician,
             sample_position,
-            archived_page=sample_archived_page,
+            source=sample_source,
             supporting_quotes=["Served as Mayor"],
         )
         deleted_property.deleted_at = datetime.now(timezone.utc)
@@ -396,7 +396,7 @@ class TestGetPoliticianEndpointProperties:
         assert birth_dates[0]["value"] == "1980-01-01"
 
     def test_excludes_politicians_with_soft_deleted_wikidata_entity(
-        self, client, mock_auth, db_session, sample_archived_page, create_birth_date
+        self, client, mock_auth, db_session, sample_source, create_birth_date
     ):
         """Test that politicians whose WikidataEntity has been soft-deleted are excluded."""
         politician = Politician.create_with_entity(
@@ -408,7 +408,7 @@ class TestGetPoliticianEndpointProperties:
         create_birth_date(
             politician,
             value="1985-07-20",
-            archived_page=sample_archived_page,
+            source=sample_source,
             supporting_quotes=["Born on July 20, 1985"],
         )
         db_session.flush()
@@ -436,16 +436,16 @@ class TestNextEndpointLanguageFiltering:
         db_session,
         sample_language,
         sample_german_language,
-        create_archived_page,
+        create_source,
         create_birth_date,
     ):
         """Test filtering politicians by language QIDs."""
-        english_page = create_archived_page(
+        english_page = create_source(
             url="https://en.example.com/test",
             content_hash="en123",
             languages=[sample_language],
         )
-        german_page = create_archived_page(
+        german_page = create_source(
             url="https://de.example.com/test",
             content_hash="de123",
             languages=[sample_german_language],
@@ -461,12 +461,8 @@ class TestNextEndpointLanguageFiltering:
         db_session.add_all([english_politician, german_politician])
         db_session.flush()
 
-        create_birth_date(
-            english_politician, value="1970-01-01", archived_page=english_page
-        )
-        create_birth_date(
-            german_politician, value="1971-01-01", archived_page=german_page
-        )
+        create_birth_date(english_politician, value="1970-01-01", source=english_page)
+        create_birth_date(german_politician, value="1971-01-01", source=german_page)
         db_session.flush()
 
         # English filter should find English politician
@@ -498,11 +494,11 @@ class TestNextEndpointLanguageFiltering:
         create_birth_date,
     ):
         """Test filtering politicians by country QIDs."""
-        archived_page = ArchivedPage(
+        source = Source(
             url="https://example.com/test",
             content_hash="test123",
         )
-        db_session.add(archived_page)
+        db_session.add(source)
         db_session.flush()
 
         american_politician = Politician.create_with_entity(
@@ -515,8 +511,8 @@ class TestNextEndpointLanguageFiltering:
         db_session.add_all([american_politician, german_politician])
         db_session.flush()
 
-        create_citizenship(american_politician, sample_country, archived_page)
-        create_citizenship(german_politician, sample_germany_country, archived_page)
+        create_citizenship(american_politician, sample_country, source)
+        create_citizenship(german_politician, sample_germany_country, source)
         db_session.flush()
 
         # US filter

@@ -1,11 +1,11 @@
-export type ArchivedPageStatus = 'pending' | 'processing' | 'done'
+export type SourceStatus = 'pending' | 'processing' | 'done'
 
-export interface ArchivedPageResponse {
+export interface SourceResponse {
   id: string
   url: string
   content_hash: string | null
   fetch_timestamp: string | null
-  status: ArchivedPageStatus
+  status: SourceStatus
   error?: string | null
 }
 
@@ -37,7 +37,7 @@ export interface PropertyQualifiers {
 
 export interface PropertyReference {
   id: string
-  archived_page_id: string
+  source_id: string
   supporting_quotes?: string[]
 }
 
@@ -51,7 +51,7 @@ export interface Property {
   statement_id?: string | null
   qualifiers?: PropertyQualifiers
   references?: Array<Record<string, unknown>>
-  archived_pages: PropertyReference[]
+  sources: PropertyReference[]
   userAdded?: boolean // true for properties manually added by user on the client
   evaluation?: boolean // undefined = not evaluated, true = accepted, false = rejected (derived from action list)
 }
@@ -60,7 +60,7 @@ export interface Politician {
   id: string
   name: string
   wikidata_id: string | null
-  archived_pages: ArchivedPageResponse[]
+  sources: SourceResponse[]
   properties: Property[]
 }
 
@@ -168,10 +168,10 @@ export interface StatsResponse {
 
 // SSE event types
 
-export interface ArchivedPageStatusEvent {
-  type: 'archived_page_status'
+export interface SourceStatusEvent {
+  type: 'source_status'
   politician_ids: string[]
-  archived_page_id: string
+  source_id: string
   status: string
   error?: string
   http_status_code?: number
@@ -188,7 +188,7 @@ export interface EvaluationCountEvent {
   total: number
 }
 
-export type SSEEvent = ArchivedPageStatusEvent | EnrichmentCompleteEvent | EvaluationCountEvent
+export type SSEEvent = SourceStatusEvent | EnrichmentCompleteEvent | EvaluationCountEvent
 
 export type SSEEventType = SSEEvent['type']
 

@@ -11,12 +11,12 @@ class Event:
 
 
 @dataclass
-class ArchivedPageStatusEvent(Event):
-    """Sent when an archived page's status changes."""
+class SourceStatusEvent(Event):
+    """Sent when a source's status changes."""
 
-    type: str = field(init=False, default="archived_page_status")
+    type: str = field(init=False, default="source_status")
     politician_ids: list[str] = field(default_factory=list)
-    archived_page_id: str = ""
+    source_id: str = ""
     status: str = ""
     error: str | None = None
     http_status_code: int | None = None

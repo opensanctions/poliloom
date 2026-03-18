@@ -44,7 +44,7 @@ export function createPropertyFromAction(action: CreatePropertyItem): Property {
     entity_name: action.entity_name,
     qualifiers: action.qualifiers,
     statement_id: null,
-    archived_pages: [],
+    sources: [],
     userAdded: true,
     evaluation: true,
   }

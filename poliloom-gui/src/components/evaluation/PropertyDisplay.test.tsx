@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { PropertyDisplay } from './PropertyDisplay'
-import { PropertyType, Property, ArchivedPageResponse } from '@/types'
+import { PropertyType, Property, SourceResponse } from '@/types'
 import { vi } from 'vitest'
 
 vi.mock('@/contexts/UserPreferencesContext', () => ({
@@ -13,7 +13,7 @@ const mockOnAction = vi.fn()
 const mockOnShowArchived = vi.fn()
 const mockOnHover = vi.fn()
 
-const mockArchivedPage: ArchivedPageResponse = {
+const mockSource: SourceResponse = {
   id: 'archived-1',
   url: 'https://en.wikipedia.org/wiki/Test_Politician',
   content_hash: 'abc123',
@@ -21,13 +21,13 @@ const mockArchivedPage: ArchivedPageResponse = {
   status: 'done',
 }
 
-const archivedPageById = new Map([['archived-1', mockArchivedPage]])
+const sourceById = new Map([['archived-1', mockSource]])
 
 const baseProperty: Property = {
   id: 'test-1',
   type: PropertyType.P569,
   statement_id: null,
-  archived_pages: [],
+  sources: [],
 }
 
 describe('PropertyDisplay', () => {
@@ -45,7 +45,7 @@ describe('PropertyDisplay', () => {
         onAction={mockOnAction}
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}
-        activeArchivedPageId={null}
+        activeSourceId={null}
       />,
     )
 
@@ -68,7 +68,7 @@ describe('PropertyDisplay', () => {
         onAction={mockOnAction}
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}
-        activeArchivedPageId={null}
+        activeSourceId={null}
       />,
     )
 
@@ -87,7 +87,7 @@ describe('PropertyDisplay', () => {
         onAction={mockOnAction}
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}
-        activeArchivedPageId={null}
+        activeSourceId={null}
       />,
     )
 
@@ -106,7 +106,7 @@ describe('PropertyDisplay', () => {
         onAction={mockOnAction}
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}
-        activeArchivedPageId={null}
+        activeSourceId={null}
       />,
     )
 
@@ -124,7 +124,7 @@ describe('PropertyDisplay', () => {
         onAction={mockOnAction}
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}
-        activeArchivedPageId={null}
+        activeSourceId={null}
       />,
     )
 
@@ -138,10 +138,10 @@ describe('PropertyDisplay', () => {
     const property: Property = {
       ...baseProperty,
       statement_id: null,
-      archived_pages: [
+      sources: [
         {
           id: 'ref-1',
-          archived_page_id: mockArchivedPage.id,
+          source_id: mockSource.id,
           supporting_quotes: ['Test proof line'],
         },
       ],
@@ -153,8 +153,8 @@ describe('PropertyDisplay', () => {
         onAction={mockOnAction}
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}
-        activeArchivedPageId={null}
-        archivedPageById={archivedPageById}
+        activeSourceId={null}
+        sourceById={sourceById}
       />,
     )
 
@@ -166,7 +166,7 @@ describe('PropertyDisplay', () => {
       ...baseProperty,
       statement_id: 'Q123$abc-def',
       references: [{ url: 'https://example.com', title: 'Reference' }],
-      archived_pages: [],
+      sources: [],
     }
 
     // Initially, metadata is not shown
@@ -176,7 +176,7 @@ describe('PropertyDisplay', () => {
         onAction={mockOnAction}
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}
-        activeArchivedPageId={null}
+        activeSourceId={null}
       />,
     )
 
@@ -189,7 +189,7 @@ describe('PropertyDisplay', () => {
       ...baseProperty,
       statement_id: 'Q123$abc-def',
       references: [{ url: 'https://example.com', title: 'Reference' }],
-      archived_pages: [],
+      sources: [],
       evaluation: false, // Deprecating
     }
 
@@ -199,7 +199,7 @@ describe('PropertyDisplay', () => {
         onAction={mockOnAction}
         onShowArchived={mockOnShowArchived}
         onHover={mockOnHover}
-        activeArchivedPageId={null}
+        activeSourceId={null}
       />,
     )
 
@@ -212,12 +212,10 @@ describe('PropertyDisplay', () => {
       const property: Property = {
         ...baseProperty,
         statement_id: 'Q123$abc-def',
-        archived_pages: [],
+        sources: [],
       }
 
-      render(
-        <PropertyDisplay property={property} onAction={mockOnAction} activeArchivedPageId={null} />,
-      )
+      render(<PropertyDisplay property={property} onAction={mockOnAction} activeSourceId={null} />)
 
       expect(screen.queryByRole('button', { name: /Deprecate/ })).not.toBeInTheDocument()
       expect(screen.getByText('Existing data')).toBeInTheDocument()
@@ -228,10 +226,10 @@ describe('PropertyDisplay', () => {
     it('shows Accept/Reject buttons when source is visible', () => {
       const property: Property = {
         ...baseProperty,
-        archived_pages: [
+        sources: [
           {
             id: 'ref-1',
-            archived_page_id: mockArchivedPage.id,
+            source_id: mockSource.id,
             supporting_quotes: [],
           },
         ],
@@ -241,8 +239,8 @@ describe('PropertyDisplay', () => {
         <PropertyDisplay
           property={property}
           onAction={mockOnAction}
-          activeArchivedPageId="archived-1"
-          archivedPageById={archivedPageById}
+          activeSourceId="archived-1"
+          sourceById={sourceById}
         />,
       )
 
@@ -253,10 +251,10 @@ describe('PropertyDisplay', () => {
     it('hides buttons when source is not visible', () => {
       const property: Property = {
         ...baseProperty,
-        archived_pages: [
+        sources: [
           {
             id: 'ref-1',
-            archived_page_id: mockArchivedPage.id,
+            source_id: mockSource.id,
             supporting_quotes: [],
           },
         ],
@@ -266,8 +264,8 @@ describe('PropertyDisplay', () => {
         <PropertyDisplay
           property={property}
           onAction={mockOnAction}
-          activeArchivedPageId="other-page"
-          archivedPageById={archivedPageById}
+          activeSourceId="other-page"
+          sourceById={sourceById}
         />,
       )
 
@@ -283,12 +281,10 @@ describe('PropertyDisplay', () => {
         ...baseProperty,
         userAdded: true,
         evaluation: true,
-        archived_pages: [],
+        sources: [],
       }
 
-      render(
-        <PropertyDisplay property={property} onAction={mockOnAction} activeArchivedPageId={null} />,
-      )
+      render(<PropertyDisplay property={property} onAction={mockOnAction} activeSourceId={null} />)
 
       expect(screen.getByRole('button', { name: /Remove/ })).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /Reject/ })).not.toBeInTheDocument()
@@ -300,12 +296,10 @@ describe('PropertyDisplay', () => {
         ...baseProperty,
         userAdded: true,
         evaluation: true,
-        archived_pages: [],
+        sources: [],
       }
 
-      render(
-        <PropertyDisplay property={property} onAction={mockOnAction} activeArchivedPageId={null} />,
-      )
+      render(<PropertyDisplay property={property} onAction={mockOnAction} activeSourceId={null} />)
 
       fireEvent.click(screen.getByRole('button', { name: /Remove/ }))
       expect(mockOnAction).toHaveBeenCalledWith('test-1', 'reject')

@@ -530,7 +530,7 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
 
         Removes WikidataEntity records that are no longer needed because:
         - No politician, position, location, country, language, or wikipedia_project references them
-        - No archived_page_languages references them as language_id
+        - No source_languages references them as language_id
         - No property references them as entity_id
         - No relation references them as parent of a kept entity
 
@@ -568,7 +568,7 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         )
         session.execute(
             text(
-                "INSERT INTO entities_to_keep SELECT DISTINCT language_id FROM archived_page_languages"
+                "INSERT INTO entities_to_keep SELECT DISTINCT language_id FROM source_languages"
             )
         )
 

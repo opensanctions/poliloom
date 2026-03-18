@@ -45,7 +45,7 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
 
   // Refetch politician data when archived page processing completes
   useEventStream(
-    'archived_page_status',
+    'source_status',
     (event) => {
       if (!event.politician_ids.includes(politician.id)) return
       if (event.status !== 'done') return

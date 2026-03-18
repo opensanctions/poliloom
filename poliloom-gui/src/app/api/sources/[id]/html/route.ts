@@ -11,9 +11,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const resolvedParams = await params
   const pageId = resolvedParams.id
 
-  // Fetch archived page from backend
+  // Fetch source page from backend
   const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:8000'
-  const url = `${apiBaseUrl}/archived-pages/${pageId}.html`
+  const url = `${apiBaseUrl}/sources/${pageId}.html`
 
   const response = await fetchWithAuth(url)
 

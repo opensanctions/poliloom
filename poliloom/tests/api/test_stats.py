@@ -6,7 +6,7 @@ from uuid import uuid4
 from sqlalchemy import text
 
 from poliloom.models import (
-    ArchivedPage,
+    Source,
     Country,
     Evaluation,
     Politician,
@@ -145,13 +145,13 @@ class TestStatsEndpoint:
         db_session.add(country)
 
         # Create archived page for extraction
-        archived_page = ArchivedPage(
+        source = Source(
             id=uuid4(),
             url="https://example.com/politician",
             content_hash="test_hash",
             fetch_timestamp=datetime.now(timezone.utc),
         )
-        db_session.add(archived_page)
+        db_session.add(source)
 
         # Create politician with citizenship (enriched recently)
         politician_entity = WikidataEntity(wikidata_id="Q123", name="Test Politician")
@@ -185,7 +185,7 @@ class TestStatsEndpoint:
         db_session.add(
             PropertyReference(
                 property_id=extracted_prop.id,
-                archived_page_id=archived_page.id,
+                source_id=source.id,
             )
         )
         db_session.flush()
@@ -212,13 +212,13 @@ class TestStatsEndpoint:
     def test_stats_stateless_politicians(self, client, db_session, mock_auth):
         """Stats endpoint should include stateless politicians in country_coverage with wikidata_id=None."""
         # Create archived page for extraction
-        archived_page = ArchivedPage(
+        source = Source(
             id=uuid4(),
             url="https://example.com/politician",
             content_hash="test_hash",
             fetch_timestamp=datetime.now(timezone.utc),
         )
-        db_session.add(archived_page)
+        db_session.add(source)
 
         # Create country for extracted citizenship
         country_entity = WikidataEntity(
@@ -250,7 +250,7 @@ class TestStatsEndpoint:
         db_session.add(
             PropertyReference(
                 property_id=extracted_citizenship.id,
-                archived_page_id=archived_page.id,
+                source_id=source.id,
             )
         )
         db_session.flush()
@@ -288,13 +288,13 @@ class TestStatsEndpoint:
         db_session.add(country)
 
         # Create archived page for extraction
-        archived_page = ArchivedPage(
+        source = Source(
             id=uuid4(),
             url="https://example.com/politician",
             content_hash="test_hash",
             fetch_timestamp=datetime.now(timezone.utc) - timedelta(days=400),
         )
-        db_session.add(archived_page)
+        db_session.add(source)
 
         # Create politician (enriched recently, but has old evaluation)
         politician_entity = WikidataEntity(wikidata_id="Q123", name="Old Politician")
@@ -328,7 +328,7 @@ class TestStatsEndpoint:
         db_session.add(
             PropertyReference(
                 property_id=extracted_prop.id,
-                archived_page_id=archived_page.id,
+                source_id=source.id,
             )
         )
         db_session.flush()
@@ -371,13 +371,13 @@ class TestStatsEndpoint:
         db_session.add(country)
 
         # Create archived page for extraction
-        archived_page = ArchivedPage(
+        source = Source(
             id=uuid4(),
             url="https://example.com/politician",
             content_hash="test_hash",
             fetch_timestamp=datetime.now(timezone.utc),
         )
-        db_session.add(archived_page)
+        db_session.add(source)
 
         # Create politician (enriched recently)
         politician_entity = WikidataEntity(wikidata_id="Q123", name="Test Politician")
@@ -411,7 +411,7 @@ class TestStatsEndpoint:
         db_session.add(
             PropertyReference(
                 property_id=extracted_prop.id,
-                archived_page_id=archived_page.id,
+                source_id=source.id,
             )
         )
         db_session.commit()

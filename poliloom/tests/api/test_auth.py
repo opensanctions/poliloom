@@ -225,7 +225,7 @@ class TestAuthIntegration:
         )
 
         fake_id = "12345678-1234-1234-1234-123456789012"
-        assert client_no_db.get(f"/archived-pages/{fake_id}.html").status_code == 401
+        assert client_no_db.get(f"/sources/{fake_id}.html").status_code == 401
 
     def test_authenticated_requests_pass_auth(
         self, client, mock_auth, sample_politician

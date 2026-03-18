@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArchivedPageResponse } from '@/types'
+import { SourceResponse } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { AddSourceForm } from './AddSourceForm'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
@@ -8,7 +8,7 @@ function SourceStatusIndicator({
   status,
   error,
 }: {
-  status: ArchivedPageResponse['status']
+  status: SourceResponse['status']
   error?: string | null
 }) {
   if (error) {
@@ -33,9 +33,9 @@ function SourceItem({
   isActive,
   onSelect,
 }: {
-  page: ArchivedPageResponse
+  page: SourceResponse
   isActive: boolean
-  onSelect: (page: ArchivedPageResponse) => void
+  onSelect: (page: SourceResponse) => void
 }) {
   const isDone = page.status === 'done' && !page.error
 
@@ -66,16 +66,16 @@ function SourceItem({
 }
 
 interface SourcesListProps {
-  archivedPages: ArchivedPageResponse[]
-  activeArchivedPageId: string | null
-  onSelect: (page: ArchivedPageResponse) => void
+  sources: SourceResponse[]
+  activeSourceId: string | null
+  onSelect: (page: SourceResponse) => void
   politicianQid?: string
-  onAddSource?: (source: ArchivedPageResponse) => void
+  onAddSource?: (source: SourceResponse) => void
 }
 
 export function SourcesList({
-  archivedPages,
-  activeArchivedPageId,
+  sources,
+  activeSourceId,
   onSelect,
   politicianQid,
   onAddSource,
@@ -83,7 +83,7 @@ export function SourcesList({
   const { isAdvancedMode } = useUserPreferences()
   const [isAdding, setIsAdding] = useState(false)
 
-  const handleAdd = (source: ArchivedPageResponse) => {
+  const handleAdd = (source: SourceResponse) => {
     onAddSource?.(source)
     setIsAdding(false)
   }
@@ -92,11 +92,11 @@ export function SourcesList({
     <div className="mb-8">
       <h2 className="text-xl font-semibold text-foreground mb-4">Sources</h2>
       <div className="space-y-2">
-        {archivedPages.map((page) => (
+        {sources.map((page) => (
           <SourceItem
             key={page.id}
             page={page}
-            isActive={activeArchivedPageId === page.id}
+            isActive={activeSourceId === page.id}
             onSelect={onSelect}
           />
         ))}

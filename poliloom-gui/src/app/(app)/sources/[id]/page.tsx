@@ -8,7 +8,7 @@ export default async function SourcePage({ params }: { params: Promise<{ id: str
   const { id } = await params
   const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:8000'
 
-  const response = await fetchWithAuth(`${apiBaseUrl}/archived-pages/${id}`)
+  const response = await fetchWithAuth(`${apiBaseUrl}/sources/${id}`)
 
   if (response instanceof NextResponse || !response.ok) {
     notFound()

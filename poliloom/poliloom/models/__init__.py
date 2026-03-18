@@ -32,13 +32,13 @@ from .entities import Country, Language, Location, Position, WikipediaProject
 # User interaction
 from .user import Evaluation
 
-# Archived pages
-from .archived_page import (
-    ArchivedPage,
-    ArchivedPageError,
-    ArchivedPageLanguage,
-    ArchivedPageStatus,
-    PoliticianArchivedPage,
+# Sources
+from .source import (
+    Source,
+    SourceError,
+    SourceLanguage,
+    SourceStatus,
+    PoliticianSource,
 )
 
 # Politician domain
@@ -78,12 +78,12 @@ __all__ = [
     "WikipediaProject",
     # User
     "Evaluation",
-    # Archived pages
-    "ArchivedPage",
-    "ArchivedPageError",
-    "ArchivedPageLanguage",
-    "ArchivedPageStatus",
-    "PoliticianArchivedPage",
+    # Sources
+    "Source",
+    "SourceError",
+    "SourceLanguage",
+    "SourceStatus",
+    "PoliticianSource",
     # Politician
     "Politician",
     "Property",

@@ -2,7 +2,7 @@
 
 from unittest.mock import patch, AsyncMock
 
-from poliloom.models import ArchivedPage, ArchivedPageStatus
+from poliloom.models import Source, SourceStatus
 
 
 class TestCreateSource:
@@ -23,13 +23,11 @@ class TestCreateSource:
         )
         assert response.status_code == 404
 
-    @patch(
-        "poliloom.api.politicians.process_archived_page_task", new_callable=AsyncMock
-    )
-    def test_creates_pending_archived_page(
+    @patch("poliloom.api.politicians.process_source_task", new_callable=AsyncMock)
+    def test_creates_pending_source(
         self, mock_process, client, mock_auth, db_session, sample_politician
     ):
-        """Test that a PENDING archived page is created and linked to the politician."""
+        """Test that a PENDING source is created and linked to the politician."""
         response = client.post(
             f"/politicians/{sample_politician.wikidata_id}/sources",
             json={"url": "https://example.com/article"},
@@ -41,18 +39,16 @@ class TestCreateSource:
         assert data["status"] == "pending"
 
         # Verify the page exists in DB with correct attributes
-        page = db_session.get(ArchivedPage, data["id"])
+        page = db_session.get(Source, data["id"])
         assert page is not None
-        assert page.status == ArchivedPageStatus.PENDING
+        assert page.status == SourceStatus.PENDING
         assert page.user_id == "12345"  # from mock_auth fixture
 
-    @patch(
-        "poliloom.api.politicians.process_archived_page_task", new_callable=AsyncMock
-    )
+    @patch("poliloom.api.politicians.process_source_task", new_callable=AsyncMock)
     def test_links_page_to_politician(
         self, mock_process, client, mock_auth, db_session, sample_politician
     ):
-        """Test that the archived page is linked to the politician."""
+        """Test that the source is linked to the politician."""
         response = client.post(
             f"/politicians/{sample_politician.wikidata_id}/sources",
             json={"url": "https://example.com/article"},
@@ -61,16 +57,14 @@ class TestCreateSource:
         assert response.status_code == 202
 
         db_session.refresh(sample_politician)
-        page_urls = [p.url for p in sample_politician.archived_pages]
+        page_urls = [p.url for p in sample_politician.sources]
         assert "https://example.com/article" in page_urls
 
-    @patch(
-        "poliloom.api.politicians.process_archived_page_task", new_callable=AsyncMock
-    )
+    @patch("poliloom.api.politicians.process_source_task", new_callable=AsyncMock)
     def test_fires_background_task(
         self, mock_process, client, mock_auth, db_session, sample_politician
     ):
-        """Test that process_archived_page_task is launched as a background task."""
+        """Test that process_source_task is launched as a background task."""
         response = client.post(
             f"/politicians/{sample_politician.wikidata_id}/sources",
             json={"url": "https://example.com/article"},
@@ -78,7 +72,7 @@ class TestCreateSource:
         )
         assert response.status_code == 202
 
-        # asyncio.create_task calls process_archived_page_task with page_id and politician_id
+        # asyncio.create_task calls process_source_task with page_id and politician_id
         mock_process.assert_called_once()
         call_args = mock_process.call_args
         # First arg is page_id (UUID), second is politician_id

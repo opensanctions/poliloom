@@ -18,7 +18,7 @@ from .models import (
     Position,
     Location,
     Country,
-    ArchivedPage,
+    Source,
     WikidataRelation,
     WikidataEntity,
 )
@@ -520,7 +520,7 @@ async def extract_and_store(
     db: Session,
     content: str,
     politician: Politician,
-    archived_page: ArchivedPage,
+    source: Source,
 ) -> int:
     """Extract properties from text content and store them.
 
@@ -528,9 +528,9 @@ async def extract_and_store(
 
     Args:
         db: Database session
-        content: Plain text content extracted from the archived page
+        content: Plain text content extracted from the source
         politician: Politician to extract properties for
-        archived_page: ArchivedPage to link references to
+        source: Source to link references to
 
     Returns:
         Number of properties extracted.
@@ -577,7 +577,7 @@ async def extract_and_store(
     store_extracted_data(
         db,
         politician,
-        archived_page,
+        source,
         date_properties,
         positions,
         birthplaces,
@@ -656,7 +656,7 @@ def has_enrichable_politicians(
 def store_extracted_data(
     db: Session,
     politician: Politician,
-    archived_page: ArchivedPage,
+    source: Source,
     properties: Optional[List[ExtractedProperty]],
     positions: Optional[List[ExtractedPosition]],
     birthplaces: Optional[List[ExtractedBirthplace]],
@@ -679,9 +679,7 @@ def store_extracted_data(
                 )
 
                 if existing:
-                    existing.add_reference(
-                        db, archived_page, property_data.supporting_quotes
-                    )
+                    existing.add_reference(db, source, property_data.supporting_quotes)
                     logger.info(
                         f"Added reference to existing property: {property_data.type} = '{property_data.value}' for {politician.name}"
                     )
@@ -697,7 +695,7 @@ def store_extracted_data(
                     db.add(new_property)
                     db.flush()
                     new_property.add_reference(
-                        db, archived_page, property_data.supporting_quotes
+                        db, source, property_data.supporting_quotes
                     )
                     logger.info(
                         f"Added new property: {property_data.type} = '{property_data.value}' for {politician.name}"
@@ -738,7 +736,7 @@ def store_extracted_data(
 
                         if existing:
                             existing.add_reference(
-                                db, archived_page, item_data.supporting_quotes
+                                db, source, item_data.supporting_quotes
                             )
                             logger.info(
                                 f"Added reference to existing {entity_name}: '{entity.name}' ({entity.wikidata_id}) for {politician.name}"
@@ -754,7 +752,7 @@ def store_extracted_data(
                             db.add(new_property)
                             db.flush()
                             new_property.add_reference(
-                                db, archived_page, item_data.supporting_quotes
+                                db, source, item_data.supporting_quotes
                             )
                             logger.info(
                                 f"Added new {entity_name}: '{entity.name}' ({entity.wikidata_id}) for {politician.name}"

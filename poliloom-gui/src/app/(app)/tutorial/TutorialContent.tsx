@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { EvaluationView } from '@/components/evaluation/EvaluationView'
 import { PoliticianHeader } from '@/components/evaluation/PoliticianHeader'
-import { ArchivedPageViewer } from '@/components/evaluation/ArchivedPageViewer'
+import { SourceViewer } from '@/components/evaluation/SourceViewer'
 import { PropertiesEvaluation } from '@/components/evaluation/PropertiesEvaluation'
 import { TutorialActions } from './_components/TutorialActions'
 import { TutorialFooter } from './_components/TutorialFooter'
@@ -246,7 +246,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             />
           </CenteredCard>
         }
-        right={<ArchivedPageViewer pageId="tutorial-page-1" apiBasePath="/api/tutorial-pages" />}
+        right={<SourceViewer pageId="tutorial-page-1" apiBasePath="/api/tutorial-pages" />}
       />
     )
   }
@@ -268,7 +268,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
               onAction={() => {}}
               onShowArchived={() => {}}
               onHover={() => {}}
-              activeArchivedPageId={null}
+              activeSourceId={null}
             />
           </div>
         }
@@ -337,7 +337,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             />
           )
         }}
-        archivedPagesApiPath="/api/tutorial-pages"
+        sourcesApiPath="/api/tutorial-pages"
       />
     )
   }
@@ -408,7 +408,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             />
           )
         }}
-        archivedPagesApiPath="/api/tutorial-pages"
+        sourcesApiPath="/api/tutorial-pages"
       />
     )
   }
@@ -479,7 +479,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             />
           )
         }}
-        archivedPagesApiPath="/api/tutorial-pages"
+        sourcesApiPath="/api/tutorial-pages"
       />
     )
   }
@@ -625,7 +625,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             />
           )
         }}
-        archivedPagesApiPath="/api/tutorial-pages"
+        sourcesApiPath="/api/tutorial-pages"
       />
     )
   }
@@ -698,7 +698,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             />
           )
         }}
-        archivedPagesApiPath="/api/tutorial-pages"
+        sourcesApiPath="/api/tutorial-pages"
       />
     )
   }

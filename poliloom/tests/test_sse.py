@@ -3,7 +3,7 @@
 import asyncio
 
 from poliloom.sse import (
-    ArchivedPageStatusEvent,
+    SourceStatusEvent,
     EnrichmentCompleteEvent,
     subscribe,
     unsubscribe,
@@ -54,18 +54,18 @@ class TestSSE:
         q1 = subscribe("user1")
         q2 = subscribe("user2")
         notify(
-            ArchivedPageStatusEvent(
+            SourceStatusEvent(
                 politician_ids=["pol-1"],
-                archived_page_id="page-1",
+                source_id="page-1",
                 status="done",
             )
         )
         assert q1.qsize() == 1
         assert q2.qsize() == 1
         payload = q1.get_nowait()
-        assert payload["type"] == "archived_page_status"
+        assert payload["type"] == "source_status"
         assert payload["politician_ids"] == ["pol-1"]
-        assert payload["archived_page_id"] == "page-1"
+        assert payload["source_id"] == "page-1"
 
     def test_enrichment_complete_event(self):
         q1 = subscribe("user1")
@@ -76,5 +76,5 @@ class TestSSE:
 
     def test_notify_no_subscribers(self):
         """Should not raise when no subscribers exist."""
-        notify(ArchivedPageStatusEvent(archived_page_id="x", status="done"))
+        notify(SourceStatusEvent(source_id="x", status="done"))
         notify(EnrichmentCompleteEvent(languages=[], countries=[]))

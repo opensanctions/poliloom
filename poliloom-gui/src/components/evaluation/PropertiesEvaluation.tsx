@@ -4,7 +4,7 @@ import {
   PropertyType,
   PropertyReference,
   CreatePropertyItem,
-  ArchivedPageResponse,
+  SourceResponse,
 } from '@/types'
 import { HeaderedBox } from '@/components/ui/HeaderedBox'
 import { PropertyDisplay } from './PropertyDisplay'
@@ -24,8 +24,8 @@ interface PropertiesEvaluationProps {
   onAction: (propertyId: string, action: 'accept' | 'reject') => void
   onShowArchived: (ref: PropertyReference) => void
   onHover: (property: Property) => void
-  activeArchivedPageId: string | null
-  archivedPageById?: Map<string, ArchivedPageResponse>
+  activeSourceId: string | null
+  sourceById?: Map<string, SourceResponse>
   onAddProperty?: (property: CreatePropertyItem) => void
 }
 
@@ -34,8 +34,8 @@ export function PropertiesEvaluation({
   onAction,
   onShowArchived,
   onHover,
-  activeArchivedPageId,
-  archivedPageById = new Map(),
+  activeSourceId,
+  sourceById = new Map(),
   onAddProperty,
 }: PropertiesEvaluationProps) {
   const { isAdvancedMode } = useUserPreferences()
@@ -217,11 +217,9 @@ export function PropertiesEvaluation({
   useEffect(() => {
     for (const section of sections) {
       for (const item of section.items) {
-        const firstWithSource = item.properties.find(
-          (p) => p.archived_pages.length > 0 && !p.statement_id,
-        )
+        const firstWithSource = item.properties.find((p) => p.sources.length > 0 && !p.statement_id)
         if (firstWithSource) {
-          onShowArchived(firstWithSource.archived_pages[0])
+          onShowArchived(firstWithSource.sources[0])
           return
         }
       }
@@ -271,7 +269,7 @@ export function PropertiesEvaluation({
                   title={item.title}
                   onHover={() => {
                     const firstWithSource = item.properties.find(
-                      (p) => p.archived_pages.length > 0 && !p.statement_id,
+                      (p) => p.sources.length > 0 && !p.statement_id,
                     )
                     if (firstWithSource) {
                       onHover(firstWithSource)
@@ -287,8 +285,8 @@ export function PropertiesEvaluation({
                           onAction={onAction}
                           onShowArchived={onShowArchived}
                           onHover={onHover}
-                          activeArchivedPageId={activeArchivedPageId}
-                          archivedPageById={archivedPageById}
+                          activeSourceId={activeSourceId}
+                          sourceById={sourceById}
                           shouldAutoOpen={true}
                         />
                       </Fragment>

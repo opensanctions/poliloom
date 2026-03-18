@@ -17,9 +17,9 @@ from . import __version__, __repo_url__
 from .database import get_engine
 from .enrichment import extract_and_store
 from .models import (
-    ArchivedPage,
-    ArchivedPageError,
-    ArchivedPageStatus,
+    Source,
+    SourceError,
+    SourceStatus,
     Politician,
     Property,
     WikidataEntity,
@@ -236,102 +236,96 @@ def extract_permanent_url(html_content: str) -> Optional[str]:
         return None
 
 
-async def process_archived_page(
-    db: Session, archived_page: ArchivedPage, politician: Politician
-) -> int:
-    """Fetch, archive, and extract properties from an archived page.
+async def process_source(db: Session, source: Source, politician: Politician) -> int:
+    """Fetch, archive, and extract properties from a source.
 
-    Handles status transitions and error recording on the archived_page.
+    Handles status transitions and error recording on the source.
     Caller is responsible for providing the session and loading entities.
 
     Returns:
         Number of properties extracted (0 on error or empty content).
     """
     try:
-        archived_page.status = ArchivedPageStatus.PROCESSING
+        source.status = SourceStatus.PROCESSING
         db.commit()
 
         # Fetch & archive
-        fetched = await fetch_page(archived_page.url)
+        fetched = await fetch_page(source.url)
         now = datetime.now(timezone.utc)
 
-        if archived_page.wikipedia_project_id and fetched.html:
+        if source.wikipedia_project_id and fetched.html:
             permanent_url = extract_permanent_url(fetched.html)
             if permanent_url:
                 logger.info(f"Extracted permanent URL: {permanent_url}")
-                archived_page.permanent_url = permanent_url
+                source.permanent_url = permanent_url
 
-        archived_page.content_hash = ArchivedPage._generate_content_hash(
-            archived_page.url
-        )
-        archived_page.fetch_timestamp = now
+        source.content_hash = Source._generate_content_hash(source.url)
+        source.fetch_timestamp = now
         db.flush()
 
-        archived_page.link_languages_from_project(db)
+        source.link_languages_from_project(db)
         db.flush()
 
         if fetched.mhtml:
-            path = save_archived_content(
-                archived_page.path_root, "mhtml", fetched.mhtml
-            )
+            path = save_archived_content(source.path_root, "mhtml", fetched.mhtml)
             logger.info(f"Saved MHTML archive: {path}")
         if fetched.html:
-            path = save_archived_content(archived_page.path_root, "html", fetched.html)
+            path = save_archived_content(source.path_root, "html", fetched.html)
             logger.info(f"Saved HTML: {path}")
         db.commit()
 
         # Read content and extract text
-        html_content = read_archived_content(archived_page.path_root, "html")
+        html_content = read_archived_content(source.path_root, "html")
         if not html_content:
-            archived_page.status = ArchivedPageStatus.DONE
-            archived_page.error = ArchivedPageError.INVALID_CONTENT
+            source.status = SourceStatus.DONE
+            source.error = SourceError.INVALID_CONTENT
             db.commit()
             return 0
         soup = BeautifulSoup(html_content, "html.parser")
         text = soup.get_text()
         content = " ".join(text.split())
         if not content.strip():
-            archived_page.status = ArchivedPageStatus.DONE
-            archived_page.error = ArchivedPageError.INVALID_CONTENT
+            source.status = SourceStatus.DONE
+            source.error = SourceError.INVALID_CONTENT
             db.commit()
             return 0
 
         # Extract and store properties
-        count = await extract_and_store(db, content, politician, archived_page)
+        count = await extract_and_store(db, content, politician, source)
 
-        archived_page.status = ArchivedPageStatus.DONE
+        source.status = SourceStatus.DONE
         db.commit()
 
         return count
 
     except PageFetchError as e:
-        logger.error(f"Fetch error for archived page {archived_page.id}: {e}")
-        archived_page.status = ArchivedPageStatus.DONE
-        archived_page.error = ArchivedPageError(e.error_type)
+        logger.error(f"Fetch error for source {source.id}: {e}")
+        source.status = SourceStatus.DONE
+        source.error = SourceError(e.error_type)
         if e.http_status_code is not None:
-            archived_page.http_status_code = e.http_status_code
+            source.http_status_code = e.http_status_code
         db.commit()
         return 0
     except Exception as e:
-        logger.error(f"Pipeline error for archived page {archived_page.id}: {e}")
-        archived_page.status = ArchivedPageStatus.DONE
-        archived_page.error = ArchivedPageError.PIPELINE_ERROR
+        logger.error(f"Pipeline error for source {source.id}: {e}")
+        source.status = SourceStatus.DONE
+        source.error = SourceError.PIPELINE_ERROR
         db.commit()
         return 0
 
 
-async def process_archived_page_task(page_id, politician_id) -> int:
-    """Background task entry point: opens a session and processes an archived page.
+async def process_source_task(page_id, politician_id) -> int:
+    """Background task entry point: opens a session and processes a source.
 
     Args:
-        page_id: ArchivedPage UUID
+        page_id: Source UUID
         politician_id: Politician UUID to extract properties for
 
     Returns:
         Number of properties extracted.
     """
     with Session(get_engine()) as db:
-        archived_page = db.get(ArchivedPage, page_id)
+        source = db.get(Source, page_id)
 
         politician = db.execute(
             select(Politician)
@@ -345,7 +339,7 @@ async def process_archived_page_task(page_id, politician_id) -> int:
             )
         ).scalar_one()
 
-        return await process_archived_page(db, archived_page, politician)
+        return await process_source(db, source, politician)
 
 
 # --- Orchestration ---
@@ -409,15 +403,15 @@ def schedule_enrichment(
 
         page_ids = []
         for url, wikipedia_project_id in priority_links:
-            archived_page = ArchivedPage(
+            source = Source(
                 url=url,
                 wikipedia_project_id=wikipedia_project_id,
-                status=ArchivedPageStatus.PENDING,
+                status=SourceStatus.PENDING,
             )
-            db.add(archived_page)
+            db.add(source)
             db.flush()
-            politician.archived_pages.append(archived_page)
-            page_ids.append(archived_page.id)
+            politician.sources.append(source)
+            page_ids.append(source.id)
 
         politician.enriched_at = datetime.now(timezone.utc)
         db.commit()
@@ -455,7 +449,7 @@ async def process_next_politician(
 
     counts = await asyncio.gather(
         *(
-            process_archived_page_task(page_id, scheduled.politician_id)
+            process_source_task(page_id, scheduled.politician_id)
             for page_id in scheduled.page_ids
         )
     )

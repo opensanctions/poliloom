@@ -1,13 +1,7 @@
-import {
-  ArchivedPageResponse,
-  Politician,
-  Property,
-  PropertyReference,
-  PropertyType,
-} from '@/types'
+import { SourceResponse, Politician, Property, PropertyReference, PropertyType } from '@/types'
 
 // Shared archived pages
-const page1: ArchivedPageResponse = {
+const page1: SourceResponse = {
   id: 'tutorial-page-1',
   url: 'https://example.parliament.gov/members/jane-doe',
   content_hash: 'tutorial-hash-1',
@@ -15,7 +9,7 @@ const page1: ArchivedPageResponse = {
   status: 'done',
 }
 
-const page2: ArchivedPageResponse = {
+const page2: SourceResponse = {
   id: 'tutorial-page-2',
   url: 'https://en.wikipedia.org/wiki/Jane_Doe_(politician)',
   content_hash: 'tutorial-hash-2',
@@ -23,11 +17,11 @@ const page2: ArchivedPageResponse = {
   status: 'done',
 }
 
-export const archivedPages = { page1, page2 }
+export const tutorialSources = { page1, page2 }
 
 // Helper to create a reference to page1
 function ref(id: string, quotes: string[]): PropertyReference {
-  return { id, archived_page_id: page1.id, supporting_quotes: quotes }
+  return { id, source_id: page1.id, supporting_quotes: quotes }
 }
 
 // Shared politician identity
@@ -35,8 +29,8 @@ const politicianBase = {
   id: 'tutorial-politician',
   name: 'Jane Doe',
   wikidata_id: 'Q955672',
-  archived_pages: [page1, page2] as ArchivedPageResponse[],
-} as const satisfies Pick<Politician, 'id' | 'name' | 'wikidata_id' | 'archived_pages'>
+  sources: [page1, page2] as SourceResponse[],
+} as const satisfies Pick<Politician, 'id' | 'name' | 'wikidata_id' | 'sources'>
 
 // Reusable qualifier snippet
 function startDate(time: string, precision: number) {
@@ -55,7 +49,7 @@ const birthDate: Property = {
   type: PropertyType.P569,
   value: '+1975-03-15T00:00:00Z',
   value_precision: 11,
-  archived_pages: [
+  sources: [
     ref('ref-tutorial-1', [
       'Jane Doe was born on March 15, 1975 in Springfield.',
       'Born: March 15, 1975',
@@ -76,7 +70,7 @@ export const extractedDataPolitician: Politician = {
       entity_name: 'Member of Parliament',
       statement_id: 'Q955672$existing-statement-1',
       qualifiers: startDate('+2020-01-01T00:00:00Z', 11),
-      archived_pages: [],
+      sources: [],
     },
   ],
 }
@@ -89,7 +83,7 @@ export const birthDatePolitician: Politician = {
       type: PropertyType.P569,
       value: '+1952-06-08T00:00:00Z',
       value_precision: 11,
-      archived_pages: [
+      sources: [
         ref('ref-tutorial-2', [
           'Following in the footsteps of her mother Mary Doe (born June 8, 1952), she pursued a career in public service.',
         ]),
@@ -97,7 +91,7 @@ export const birthDatePolitician: Politician = {
     },
     {
       ...birthDate,
-      archived_pages: [ref('ref-tutorial-3', birthDate.archived_pages[0].supporting_quotes!)],
+      sources: [ref('ref-tutorial-3', birthDate.sources[0].supporting_quotes!)],
     },
   ],
 }
@@ -111,7 +105,7 @@ export const multipleSourcesPolitician: Politician = {
       entity_id: 'Q1343573',
       entity_name: 'Member of Springfield Parliament',
       qualifiers: startDate('+2020-01-01T00:00:00Z', 11),
-      archived_pages: [ref('ref-tutorial-4', springfieldMemberQuotes)],
+      sources: [ref('ref-tutorial-4', springfieldMemberQuotes)],
     },
     {
       id: 'tutorial-position-2',
@@ -121,10 +115,10 @@ export const multipleSourcesPolitician: Politician = {
       qualifiers: {
         P580: [{ datavalue: { value: { time: '+2022-06-01T00:00:00Z', precision: 10 } } }],
       },
-      archived_pages: [
+      sources: [
         {
           id: 'ref-tutorial-5',
-          archived_page_id: page2.id,
+          source_id: page2.id,
           supporting_quotes: [
             'She was appointed Minister of Education in June 2022.',
             'Current Minister of Education since 2022',
@@ -145,7 +139,7 @@ export const genericVsSpecificPolitician: Politician = {
       entity_name: 'Member of Springfield Parliament',
       statement_id: 'Q955672$existing-specific-1',
       qualifiers: startDate('+2020-01-01T00:00:00Z', 11),
-      archived_pages: [],
+      sources: [],
     },
     {
       id: 'tutorial-generic-position',
@@ -153,7 +147,7 @@ export const genericVsSpecificPolitician: Politician = {
       entity_id: 'Q486839',
       entity_name: 'Member of Parliament',
       qualifiers: startDate('+2020-01-01T00:00:00Z', 11),
-      archived_pages: [ref('ref-tutorial-6', springfieldMemberQuotes)],
+      sources: [ref('ref-tutorial-6', springfieldMemberQuotes)],
     },
   ],
 }
@@ -167,7 +161,7 @@ export const deprecateSimplePolitician: Politician = {
       entity_id: 'Q486839',
       entity_name: 'Member of Parliament',
       statement_id: 'Q955672$existing-generic-1',
-      archived_pages: [],
+      sources: [],
     },
     {
       id: 'tutorial-new-specific-position',
@@ -175,7 +169,7 @@ export const deprecateSimplePolitician: Politician = {
       entity_id: 'Q1343573',
       entity_name: 'Member of Springfield Parliament',
       qualifiers: startDate('+2020-01-01T00:00:00Z', 11),
-      archived_pages: [ref('ref-tutorial-7', springfieldMemberQuotes)],
+      sources: [ref('ref-tutorial-7', springfieldMemberQuotes)],
     },
   ],
 }
@@ -222,7 +216,7 @@ export const deprecateWithMetadataPolitician: Politician = {
           P1476: [{ datavalue: { value: { text: 'Election Winners Announced', language: 'en' } } }],
         },
       ],
-      archived_pages: [],
+      sources: [],
     },
     {
       id: 'tutorial-new-specific-with-source',
@@ -230,7 +224,7 @@ export const deprecateWithMetadataPolitician: Politician = {
       entity_id: 'Q1343573',
       entity_name: 'Member of Springfield Parliament',
       qualifiers: startDate('+2020-01-01T00:00:00Z', 11),
-      archived_pages: [ref('ref-tutorial-8', springfieldMemberQuotes)],
+      sources: [ref('ref-tutorial-8', springfieldMemberQuotes)],
     },
   ],
 }

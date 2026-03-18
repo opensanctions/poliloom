@@ -1,5 +1,5 @@
 import { useState, useLayoutEffect } from 'react'
-import { Property, PropertyType, PropertyReference, ArchivedPageResponse } from '@/types'
+import { Property, PropertyType, PropertyReference, SourceResponse } from '@/types'
 import { parseWikidataDate } from '@/lib/wikidata/dateParser'
 import { parsePositionQualifiers, formatPositionDates } from '@/lib/wikidata/qualifierParser'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
@@ -13,8 +13,8 @@ interface PropertyDisplayProps {
   onAction?: (propertyId: string, action: 'accept' | 'reject') => void
   onShowArchived?: (ref: PropertyReference) => void
   onHover?: (property: Property) => void
-  activeArchivedPageId?: string | null
-  archivedPageById?: Map<string, ArchivedPageResponse>
+  activeSourceId?: string | null
+  sourceById?: Map<string, SourceResponse>
   shouldAutoOpen?: boolean
 }
 
@@ -23,8 +23,8 @@ export function PropertyDisplay({
   onAction,
   onShowArchived,
   onHover,
-  activeArchivedPageId,
-  archivedPageById = new Map(),
+  activeSourceId,
+  sourceById = new Map(),
   shouldAutoOpen,
 }: PropertyDisplayProps) {
   const { isAdvancedMode } = useUserPreferences()
@@ -39,8 +39,7 @@ export function PropertyDisplay({
   const isUserAdded = !!property.userAdded
   const isAccepted = property.evaluation ?? null
   const isSourceVisible =
-    property.archived_pages.length === 0 ||
-    property.archived_pages.some((s) => activeArchivedPageId === s.archived_page_id)
+    property.sources.length === 0 || property.sources.some((s) => activeSourceId === s.source_id)
 
   // Auto-open panel when discarding existing Wikidata statements (to show what metadata will be lost)
   useLayoutEffect(() => {
@@ -125,10 +124,10 @@ export function PropertyDisplay({
       )}
       {!property.statement_id && (
         <StatementSource
-          sources={property.archived_pages}
+          sources={property.sources}
           isWikidataStatement={isWikidataStatement}
-          activeArchivedPageId={activeArchivedPageId}
-          archivedPageById={archivedPageById}
+          activeSourceId={activeSourceId}
+          sourceById={sourceById}
           onShowArchived={(ref) => onShowArchived?.(ref)}
           onHover={() => onHover?.(property)}
         />

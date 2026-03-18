@@ -1,18 +1,18 @@
 import { RefObject } from 'react'
 
-interface ArchivedPageViewerProps {
+interface SourceViewerProps {
   pageId: string
   apiBasePath?: string
   iframeRef?: RefObject<HTMLIFrameElement | null>
   onLoad?: () => void
 }
 
-export function ArchivedPageViewer({
+export function SourceViewer({
   pageId,
-  apiBasePath = '/api/archived-pages',
+  apiBasePath = '/api/sources',
   iframeRef,
   onLoad,
-}: ArchivedPageViewerProps) {
+}: SourceViewerProps) {
   return (
     <iframe
       ref={iframeRef}

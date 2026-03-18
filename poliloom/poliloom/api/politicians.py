@@ -10,16 +10,16 @@ from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db_session
-from ..archiving import process_archived_page_task, process_next_politician
+from ..archiving import process_source_task, process_next_politician
 from ..enrichment import (
     count_politicians_with_unevaluated,
     has_enrichable_politicians,
 )
 from ..search import SearchService
 from ..models import (
-    ArchivedPage,
-    ArchivedPageLanguage,
-    ArchivedPageStatus,
+    Source,
+    SourceLanguage,
+    SourceStatus,
     Evaluation,
     Politician,
     Property,
@@ -30,7 +30,7 @@ from ..sse import EvaluationCountEvent, notify
 from ..wikidata_statement import create_entity, create_statement, push_evaluation
 from .schemas import (
     AcceptPropertyItem,
-    ArchivedPageResponse,
+    SourceResponse,
     CreatePoliticianRequest,
     CreatePoliticianResponse,
     CreatePropertyItem,
@@ -65,20 +65,8 @@ PROPERTY_TYPE_MAP = {
 # =============================================================================
 
 
-def build_politician_response(politician, archived_pages=None) -> PoliticianResponse:
+def build_politician_response(politician) -> PoliticianResponse:
     """Build PoliticianResponse from a politician entity."""
-    top_level_pages = [
-        ArchivedPageResponse(
-            id=ap.id,
-            url=ap.url,
-            content_hash=ap.content_hash,
-            fetch_timestamp=ap.fetch_timestamp,
-            status=ap.status.value,
-            error=ap.error.value if ap.error else None,
-            http_status_code=ap.http_status_code,
-        )
-        for ap in (archived_pages or [])
-    ]
 
     property_responses = []
     for prop in politician.properties:
@@ -91,7 +79,7 @@ def build_politician_response(politician, archived_pages=None) -> PoliticianResp
             refs.append(
                 PropertyReferenceResponse(
                     id=ref.id,
-                    archived_page_id=str(ref.archived_page_id),
+                    source_id=str(ref.source_id),
                     supporting_quotes=ref.supporting_quotes,
                 )
             )
@@ -107,7 +95,7 @@ def build_politician_response(politician, archived_pages=None) -> PoliticianResp
                 statement_id=prop.statement_id,
                 qualifiers=prop.qualifiers_json,
                 references=prop.references_json,
-                archived_pages=refs,
+                sources=refs,
             )
         )
 
@@ -115,7 +103,18 @@ def build_politician_response(politician, archived_pages=None) -> PoliticianResp
         id=politician.id,
         name=politician.name,
         wikidata_id=politician.wikidata_id,
-        archived_pages=top_level_pages,
+        sources=[
+            SourceResponse(
+                id=s.id,
+                url=s.url,
+                content_hash=s.content_hash,
+                fetch_timestamp=s.fetch_timestamp,
+                status=s.status.value,
+                error=s.error.value if s.error else None,
+                http_status_code=s.http_status_code,
+            )
+            for s in politician.sources
+        ],
         properties=property_responses,
     )
 
@@ -320,13 +319,12 @@ async def get_politician(
                     select(1)
                     .select_from(PropertyReference)
                     .join(
-                        ArchivedPageLanguage,
-                        ArchivedPageLanguage.archived_page_id
-                        == PropertyReference.archived_page_id,
+                        SourceLanguage,
+                        SourceLanguage.source_id == PropertyReference.source_id,
                     )
                     .where(
                         PropertyReference.property_id == Property.id,
-                        ArchivedPageLanguage.language_id.in_(languages),
+                        SourceLanguage.language_id.in_(languages),
                     )
                 ),
             ),
@@ -338,7 +336,7 @@ async def get_politician(
                 selectinload(Property.property_references),
             ),
             selectinload(Politician.wikipedia_links),
-            selectinload(Politician.archived_pages),
+            selectinload(Politician.sources),
         )
     else:
         query = query.options(
@@ -349,7 +347,7 @@ async def get_politician(
                 selectinload(Property.property_references),
             ),
             selectinload(Politician.wikipedia_links),
-            selectinload(Politician.archived_pages),
+            selectinload(Politician.sources),
         )
 
     query = query.execution_options(populate_existing=True)
@@ -359,7 +357,7 @@ async def get_politician(
     if not politician:
         raise HTTPException(status_code=404, detail="Politician not found")
 
-    return build_politician_response(politician, politician.archived_pages)
+    return build_politician_response(politician)
 
 
 async def process_property_actions(
@@ -516,7 +514,7 @@ async def patch_properties(
 
 @router.post(
     "/{qid}/sources",
-    response_model=ArchivedPageResponse,
+    response_model=SourceResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def create_source(
@@ -526,7 +524,7 @@ async def create_source(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Add a source link to a politician. Creates a pending ArchivedPage and
+    Add a source link to a politician. Creates a pending Source and
     processes it in the background (fetch + extract). Returns 202 immediately.
     """
     politician = (
@@ -540,22 +538,22 @@ async def create_source(
             detail=f"Politician with QID {qid} not found",
         )
 
-    # Create pending ArchivedPage
-    archived_page = ArchivedPage(
+    # Create pending Source
+    source = Source(
         url=request.url,
         user_id=str(current_user.user_id),
-        status=ArchivedPageStatus.PENDING,
+        status=SourceStatus.PENDING,
     )
-    db.add(archived_page)
+    db.add(source)
     db.flush()
-    politician.archived_pages.append(archived_page)
+    politician.sources.append(source)
     db.commit()
 
-    # process_archived_page_task manages its own session
-    asyncio.create_task(process_archived_page_task(archived_page.id, politician.id))
+    # process_source_task manages its own session
+    asyncio.create_task(process_source_task(source.id, politician.id))
 
-    return ArchivedPageResponse(
-        id=archived_page.id,
-        url=archived_page.url,
-        status=archived_page.status.value,
+    return SourceResponse(
+        id=source.id,
+        url=source.url,
+        status=source.status.value,
     )

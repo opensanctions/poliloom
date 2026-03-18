@@ -44,7 +44,7 @@ from .wikidata import (
     WikidataEntityMixin,
     WikidataRelation,
 )
-from .archived_page import ArchivedPage, ArchivedPageLanguage
+from .source import Source, SourceLanguage
 
 
 class Politician(
@@ -433,8 +433,8 @@ class Politician(
             )
         )
 
-        # Apply language filtering via PropertyReference → ArchivedPageLanguage
-        # Skip the ArchivedPage join — PropertyReference.archived_page_id links directly
+        # Apply language filtering via PropertyReference → SourceLanguage
+        # Skip the Source join — PropertyReference.source_id links directly
         if languages:
             unevaluated_exists = exists(
                 select(1)
@@ -444,16 +444,15 @@ class Politician(
                     PropertyReference.property_id == Property.id,
                 )
                 .join(
-                    ArchivedPageLanguage,
-                    ArchivedPageLanguage.archived_page_id
-                    == PropertyReference.archived_page_id,
+                    SourceLanguage,
+                    SourceLanguage.source_id == PropertyReference.source_id,
                 )
                 .where(
                     and_(
                         Property.politician_id == cls.id,
                         Property.statement_id.is_(None),
                         Property.deleted_at.is_(None),
-                        ArchivedPageLanguage.language_id.in_(languages),
+                        SourceLanguage.language_id.in_(languages),
                     )
                 )
             )
@@ -645,9 +644,9 @@ class Politician(
     wikipedia_links = relationship(
         "WikipediaLink", back_populates="politician", cascade="all, delete-orphan"
     )
-    archived_pages = relationship(
-        "ArchivedPage",
-        secondary="politician_archived_pages",
+    sources = relationship(
+        "Source",
+        secondary="politician_sources",
         back_populates="politicians",
     )
 
@@ -1015,28 +1014,28 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     def add_reference(
         self,
         db: Session,
-        archived_page: "ArchivedPage",
+        source: "Source",
         supporting_quotes: list | None = None,
     ) -> "PropertyReference":
-        """Add a PropertyReference linking this property to an archived page source.
+        """Add a PropertyReference linking this property to a source.
 
-        Creates a new PropertyReference, or updates quotes if same archived_page
+        Creates a new PropertyReference, or updates quotes if same source
         is already linked. Uses the unique constraint for idempotency.
 
         Args:
             db: Database session
-            archived_page: The archived page source
+            source: The source
             supporting_quotes: Optional list of supporting quote strings
 
         Returns:
             The created or updated PropertyReference
         """
-        # Check if reference already exists for this property + archived_page
+        # Check if reference already exists for this property + source
         existing_ref = (
             db.query(PropertyReference)
             .filter(
                 PropertyReference.property_id == self.id,
-                PropertyReference.archived_page_id == archived_page.id,
+                PropertyReference.source_id == source.id,
             )
             .first()
         )
@@ -1048,11 +1047,11 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             return existing_ref
 
         # Create new reference using relationship objects so SQLAlchemy
-        # populates both sides (e.g. archived_page.property_references)
+        # populates both sides (e.g. source.property_references)
         # within the same flush.
         ref = PropertyReference(
             property=self,
-            archived_page=archived_page,
+            source=source,
             supporting_quotes=supporting_quotes,
         )
         db.add(ref)
@@ -1060,7 +1059,7 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
 
 
 class PropertyReference(Base, TimestampMixin):
-    """Evidence linking a Property to an ArchivedPage source.
+    """Evidence linking a Property to a Source.
 
     Each PropertyReference represents one independent source corroborating a fact.
     Multiple PropertyReferences can exist per Property (multiple sources for the same fact).
@@ -1070,11 +1069,11 @@ class PropertyReference(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint(
             "property_id",
-            "archived_page_id",
-            name="uq_property_ref_property_page",
+            "source_id",
+            name="uq_property_ref_property_source",
         ),
         Index("idx_property_references_property_id", "property_id"),
-        Index("idx_property_references_archived_page_id", "archived_page_id"),
+        Index("idx_property_references_source_id", "source_id"),
     )
 
     id = Column(
@@ -1087,13 +1086,13 @@ class PropertyReference(Base, TimestampMixin):
         ForeignKey("properties.id", ondelete="CASCADE"),
         nullable=False,
     )
-    archived_page_id = Column(
+    source_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("archived_pages.id"),
+        ForeignKey("sources.id"),
         nullable=False,
     )
     supporting_quotes = Column(ARRAY(String), nullable=True)
 
     # Relationships
     property = relationship("Property", back_populates="property_references")
-    archived_page = relationship("ArchivedPage", back_populates="property_references")
+    source = relationship("Source", back_populates="property_references")

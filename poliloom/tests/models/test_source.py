@@ -1,33 +1,33 @@
-"""Tests for the ArchivedPage model."""
+"""Tests for the Source model."""
 
 from datetime import datetime, timezone
 from unittest.mock import patch
 from poliloom.models import (
-    ArchivedPage,
-    ArchivedPageStatus,
+    Source,
+    SourceStatus,
     WikidataRelation,
     RelationType,
 )
 
 
-class TestArchivedPage:
-    """Test cases for the ArchivedPage model."""
+class TestSource:
+    """Test cases for the Source model."""
 
     def test_create_references_json_with_wikipedia_project_no_permanent_url(
         self, db_session, sample_wikipedia_project
     ):
         """Test that create_references_json includes P143 and P813 for Wikipedia without permanent_url."""
-        # Create an archived page with a Wikipedia project ID but no permanent_url
-        archived_page = ArchivedPage(
+        # Create a source with a Wikipedia project ID but no permanent_url
+        source = Source(
             url="https://en.wikipedia.org/wiki/Example",
             fetch_timestamp=datetime.now(timezone.utc),
             wikipedia_project_id=sample_wikipedia_project.wikidata_id,
             permanent_url=None,
         )
-        db_session.add(archived_page)
+        db_session.add(source)
         db_session.flush()
 
-        references_json = archived_page.create_references_json()
+        references_json = source.create_references_json()
 
         # Should include P143 (imported from) and P813 (retrieved) - no URL reference without permanent_url
         assert len(references_json) == 2
@@ -48,43 +48,40 @@ class TestArchivedPage:
         # Note: sample_wikipedia_project fixture already creates a LANGUAGE_OF_WORK relation
         # with sample_language, so we don't need to create another relation
 
-        # Create archived page with Wikipedia project
-        archived_page = ArchivedPage(
+        # Create source with Wikipedia project
+        source = Source(
             url="https://en.wikipedia.org/wiki/Test",
             fetch_timestamp=datetime.now(timezone.utc),
             wikipedia_project_id=sample_wikipedia_project.wikidata_id,
         )
-        db_session.add(archived_page)
+        db_session.add(source)
         db_session.flush()
 
         # Link languages from project
-        archived_page.link_languages_from_project(db_session)
+        source.link_languages_from_project(db_session)
         db_session.flush()
 
         # Verify language was linked
-        assert len(archived_page.archived_page_languages) == 1
-        assert (
-            archived_page.archived_page_languages[0].language_id
-            == sample_language.wikidata_id
-        )
+        assert len(source.source_languages) == 1
+        assert source.source_languages[0].language_id == sample_language.wikidata_id
 
     def test_link_languages_from_project_without_wikipedia_project(self, db_session):
         """Test that link_languages_from_project does nothing when no wikipedia_project_id."""
-        # Create archived page without Wikipedia project
-        archived_page = ArchivedPage(
+        # Create source without Wikipedia project
+        source = Source(
             url="https://example.com/test",
             fetch_timestamp=datetime.now(timezone.utc),
             wikipedia_project_id=None,
         )
-        db_session.add(archived_page)
+        db_session.add(source)
         db_session.flush()
 
         # Try to link languages (should do nothing)
-        archived_page.link_languages_from_project(db_session)
+        source.link_languages_from_project(db_session)
         db_session.flush()
 
         # Verify no languages were linked
-        assert len(archived_page.archived_page_languages) == 0
+        assert len(source.source_languages) == 0
 
     def test_link_languages_from_project_with_multiple_languages(
         self,
@@ -107,39 +104,37 @@ class TestArchivedPage:
         db_session.add(relation)
         db_session.flush()
 
-        # Create archived page
-        archived_page = ArchivedPage(
+        # Create source
+        source = Source(
             url="https://en.wikipedia.org/wiki/Test",
             fetch_timestamp=datetime.now(timezone.utc),
             wikipedia_project_id=sample_wikipedia_project.wikidata_id,
         )
-        db_session.add(archived_page)
+        db_session.add(source)
         db_session.flush()
 
         # Link languages
-        archived_page.link_languages_from_project(db_session)
+        source.link_languages_from_project(db_session)
         db_session.flush()
 
         # Verify both languages were linked
-        assert len(archived_page.archived_page_languages) == 2
-        language_ids = {
-            link.language_id for link in archived_page.archived_page_languages
-        }
+        assert len(source.source_languages) == 2
+        language_ids = {link.language_id for link in source.source_languages}
         assert sample_language.wikidata_id in language_ids
         assert sample_german_language.wikidata_id in language_ids
 
     def test_create_references_json_without_wikipedia_project(self, db_session):
         """Test that create_references_json uses P854 and P813 for non-Wikipedia sources."""
-        # Create an archived page without a Wikipedia project ID
-        archived_page = ArchivedPage(
+        # Create a source without a Wikipedia project ID
+        source = Source(
             url="https://example.com/article",
             fetch_timestamp=datetime.now(timezone.utc),
             wikipedia_project_id=None,
         )
-        db_session.add(archived_page)
+        db_session.add(source)
         db_session.flush()
 
-        references_json = archived_page.create_references_json()
+        references_json = source.create_references_json()
 
         # Should include P854 (reference URL) and P813 (retrieved date) for non-Wikipedia sources
         assert len(references_json) == 2
@@ -153,17 +148,17 @@ class TestArchivedPage:
 
     def test_create_references_json_p813_retrieved_date_format(self, db_session):
         """Test that P813 (retrieved date) is correctly formatted with proper Wikidata time value."""
-        # Create an archived page with a specific fetch timestamp
+        # Create a source with a specific fetch timestamp
         fetch_time = datetime(2025, 11, 24, 10, 30, 45, tzinfo=timezone.utc)
-        archived_page = ArchivedPage(
+        source = Source(
             url="https://example.com/test",
             fetch_timestamp=fetch_time,
             wikipedia_project_id=None,
         )
-        db_session.add(archived_page)
+        db_session.add(source)
         db_session.flush()
 
-        references_json = archived_page.create_references_json()
+        references_json = source.create_references_json()
 
         # Find P813 reference
         p813_refs = [r for r in references_json if r["property"]["id"] == "P813"]
@@ -186,17 +181,17 @@ class TestArchivedPage:
         self, db_session, sample_wikipedia_project
     ):
         """Test that Wikipedia pages with permanent_url use P4656."""
-        # Create an archived page with permanent_url
-        archived_page = ArchivedPage(
+        # Create a source with permanent_url
+        source = Source(
             url="https://en.wikipedia.org/wiki/Example",
             permanent_url="https://en.wikipedia.org/w/index.php?title=Example&oldid=123456",
             fetch_timestamp=datetime.now(timezone.utc),
             wikipedia_project_id=sample_wikipedia_project.wikidata_id,
         )
-        db_session.add(archived_page)
+        db_session.add(source)
         db_session.flush()
 
-        references_json = archived_page.create_references_json()
+        references_json = source.create_references_json()
 
         # Should have P4656, P143, and P813
         assert len(references_json) == 3
@@ -215,31 +210,31 @@ class TestArchivedPage:
         # Third reference should be P813 (retrieved date)
         assert references_json[2]["property"]["id"] == "P813"
 
-    @patch("poliloom.models.archived_page.notify")
+    @patch("poliloom.models.source.notify")
     def test_status_change_broadcasts_sse_with_politician_ids(
         self, mock_notify, db_session, sample_politician
     ):
-        """Status change broadcasts ArchivedPageStatusEvent with linked politician IDs."""
-        archived_page = ArchivedPage(
+        """Status change broadcasts SourceStatusEvent with linked politician IDs."""
+        source = Source(
             url="https://example.com/test",
             fetch_timestamp=datetime.now(timezone.utc),
-            status=ArchivedPageStatus.PENDING,
+            status=SourceStatus.PENDING,
         )
-        db_session.add(archived_page)
-        sample_politician.archived_pages.append(archived_page)
+        db_session.add(source)
+        sample_politician.sources.append(source)
         db_session.flush()
         mock_notify.reset_mock()
 
-        archived_page.status = ArchivedPageStatus.PROCESSING
+        source.status = SourceStatus.PROCESSING
         db_session.flush()
 
         assert mock_notify.call_count == 1
         event = mock_notify.call_args[0][0]
         assert event.politician_ids == [str(sample_politician.id)]
-        assert event.archived_page_id == str(archived_page.id)
+        assert event.source_id == str(source.id)
         assert event.status == "processing"
 
-    @patch("poliloom.models.archived_page.notify")
+    @patch("poliloom.models.source.notify")
     def test_status_change_broadcasts_multiple_politician_ids(
         self, mock_notify, db_session, sample_politician
     ):
@@ -251,18 +246,18 @@ class TestArchivedPage:
         )
         db_session.flush()
 
-        archived_page = ArchivedPage(
+        source = Source(
             url="https://example.com/shared",
             fetch_timestamp=datetime.now(timezone.utc),
-            status=ArchivedPageStatus.PENDING,
+            status=SourceStatus.PENDING,
         )
-        db_session.add(archived_page)
-        sample_politician.archived_pages.append(archived_page)
-        second_politician.archived_pages.append(archived_page)
+        db_session.add(source)
+        sample_politician.sources.append(source)
+        second_politician.sources.append(source)
         db_session.flush()
         mock_notify.reset_mock()
 
-        archived_page.status = ArchivedPageStatus.DONE
+        source.status = SourceStatus.DONE
         db_session.flush()
 
         assert mock_notify.call_count == 1

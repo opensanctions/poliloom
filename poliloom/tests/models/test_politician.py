@@ -427,11 +427,11 @@ class TestPoliticianFilterByUnevaluated:
     """Test cases for Politician.filter_by_unevaluated_properties method."""
 
     def test_filter_returns_politicians_with_unevaluated_properties(
-        self, db_session, sample_politician, sample_archived_page, create_birth_date
+        self, db_session, sample_politician, sample_source, create_birth_date
     ):
         """Test that filter finds politicians with unevaluated properties."""
         # Add an unevaluated property
-        create_birth_date(sample_politician, archived_page=sample_archived_page)
+        create_birth_date(sample_politician, source=sample_source)
         db_session.flush()
 
         # Execute query with filter
@@ -443,13 +443,13 @@ class TestPoliticianFilterByUnevaluated:
         assert result[0].id == sample_politician.id
 
     def test_filter_excludes_politicians_with_only_evaluated_properties(
-        self, db_session, sample_politician, sample_archived_page, create_birth_date
+        self, db_session, sample_politician, sample_source, create_birth_date
     ):
         """Test that filter excludes politicians with statement_id (pushed to Wikidata)."""
         # Add property with statement_id (evaluated and pushed)
         create_birth_date(
             sample_politician,
-            archived_page=sample_archived_page,
+            source=sample_source,
             statement_id="Q123456$12345678-1234-1234-1234-123456789012",
         )
         db_session.flush()
@@ -489,26 +489,26 @@ class TestPoliticianFilterByUnevaluated:
         sample_politician,
         sample_language,
         sample_german_language,
-        create_archived_page,
+        create_source,
         create_birth_date,
         create_death_date,
     ):
         """Test language filtering based on archived page languages."""
         # Create archived pages with language associations
-        en_page = create_archived_page(
+        en_page = create_source(
             url="https://en.example.com/test",
             content_hash="en123",
             languages=[sample_language],
         )
-        de_page = create_archived_page(
+        de_page = create_source(
             url="https://de.example.com/test",
             content_hash="de123",
             languages=[sample_german_language],
         )
 
         # Add properties from different language sources
-        create_birth_date(sample_politician, archived_page=en_page)
-        create_death_date(sample_politician, archived_page=de_page)
+        create_birth_date(sample_politician, source=en_page)
+        create_death_date(sample_politician, source=de_page)
         db_session.flush()
 
         # Query with English language filter
@@ -529,12 +529,12 @@ class TestPoliticianFilterByCountries:
         db_session,
         sample_politician,
         sample_country,
-        sample_archived_page,
+        sample_source,
         create_citizenship,
     ):
         """Test that country filter finds politicians with matching citizenship."""
         # Add citizenship property
-        create_citizenship(sample_politician, sample_country, sample_archived_page)
+        create_citizenship(sample_politician, sample_country, sample_source)
         db_session.flush()
 
         # Query with country filter

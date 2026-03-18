@@ -7,7 +7,7 @@ import {
   PropertyActionItem,
   CreatePropertyItem,
   PropertyReference,
-  ArchivedPageResponse,
+  SourceResponse,
 } from '@/types'
 import { actionToEvaluation, applyAction, createPropertyFromAction } from '@/lib/evaluation'
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting'
@@ -16,20 +16,20 @@ import { TwoPanel } from '@/components/layout/TwoPanel'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { PropertiesEvaluation } from './PropertiesEvaluation'
 import { PoliticianHeader } from './PoliticianHeader'
-import { ArchivedPageViewer } from './ArchivedPageViewer'
+import { SourceViewer } from './SourceViewer'
 import { SourcesList } from './SourcesList'
 
 interface EvaluationViewProps {
   politicians: Politician[]
   footer: (actionsByPolitician: Map<string, PropertyActionItem[]>) => ReactNode
-  archivedPagesApiPath?: string
+  sourcesApiPath?: string
   onNameChange?: (politicianId: string, name: string) => void
 }
 
 export function EvaluationView({
   politicians,
   footer,
-  archivedPagesApiPath = '/api/archived-pages',
+  sourcesApiPath = '/api/sources',
   onNameChange,
 }: EvaluationViewProps) {
   const [actionsByPolitician, setActionsByPolitician] = useState<Map<string, PropertyActionItem[]>>(
@@ -60,9 +60,7 @@ export function EvaluationView({
   }, [politicians, actionsByPolitician])
 
   // Initial selection is handled by PropertiesEvaluation calling onShowArchived on mount
-  const [selectedArchivedPage, setSelectedArchivedPage] = useState<ArchivedPageResponse | null>(
-    null,
-  )
+  const [selectedSource, setSelectedSource] = useState<SourceResponse | null>(null)
   const [selectedQuotes, setSelectedQuotes] = useState<string[] | null>(null)
 
   // Refs and hooks for highlighting
@@ -102,40 +100,38 @@ export function EvaluationView({
     })
   }
 
-  // Build a lookup map of all archived pages by ID across all politicians
-  const archivedPageById = useMemo(() => {
-    const map = new Map<string, ArchivedPageResponse>()
+  // Build a lookup map of all sources by ID across all politicians
+  const sourceById = useMemo(() => {
+    const map = new Map<string, SourceResponse>()
     for (const politician of politicians) {
-      for (const page of politician.archived_pages || []) {
+      for (const page of politician.sources || []) {
         map.set(page.id, page)
       }
     }
     return map
   }, [politicians])
 
-  // Handler for showing archived page (used by View button and initial selection)
+  // Handler for showing source (used by View button and initial selection)
   const handleShowArchived = useCallback(
     (ref: PropertyReference) => {
-      const page = archivedPageById.get(ref.archived_page_id)
+      const page = sourceById.get(ref.source_id)
       if (page) {
-        setSelectedArchivedPage(page)
+        setSelectedSource(page)
       }
       setSelectedQuotes(ref.supporting_quotes || null)
     },
-    [archivedPageById],
+    [sourceById],
   )
 
-  // Handler for selecting an archived page directly (from sources list)
-  const handleSelectArchivedPage = useCallback((page: ArchivedPageResponse) => {
-    setSelectedArchivedPage(page)
+  // Handler for selecting a source directly (from sources list)
+  const handleSelectSource = useCallback((page: SourceResponse) => {
+    setSelectedSource(page)
     setSelectedQuotes(null)
   }, [])
 
   // Unified hover handler for all property types
   const handlePropertyHover = (property: Property) => {
-    const matchingRef = property.archived_pages.find(
-      (s) => selectedArchivedPage?.id === s.archived_page_id,
-    )
+    const matchingRef = property.sources.find((s) => selectedSource?.id === s.source_id)
     if (matchingRef?.supporting_quotes && matchingRef.supporting_quotes.length > 0) {
       setSelectedQuotes(matchingRef.supporting_quotes)
     }
@@ -143,38 +139,38 @@ export function EvaluationView({
 
   // Track sources added by the user during this session
   const [addedSourcesByPolitician, setAddedSourcesByPolitician] = useState<
-    Map<string, ArchivedPageResponse[]>
+    Map<string, SourceResponse[]>
   >(() => new Map())
 
-  const handleAddSource = (politicianId: string, source: ArchivedPageResponse) => {
+  const handleAddSource = (politicianId: string, source: SourceResponse) => {
     setAddedSourcesByPolitician((prev) => {
       const next = new Map(prev)
       const sources = next.get(politicianId) || []
       next.set(politicianId, [...sources, source])
       return next
     })
-    setSelectedArchivedPage(source)
+    setSelectedSource(source)
     setSelectedQuotes(null)
   }
 
-  // Collect unique archived pages across all politicians' property sources + top-level + added
-  const archivedPagesByPolitician = useMemo(() => {
-    const result = new Map<string, ArchivedPageResponse[]>()
+  // Collect unique sources across all politicians' property sources + top-level + added
+  const sourcesByPolitician = useMemo(() => {
+    const result = new Map<string, SourceResponse[]>()
     for (const politician of politicians) {
-      const seen = new Map<string, ArchivedPageResponse>()
-      // Top-level archived pages linked directly to politician
-      for (const page of politician.archived_pages || []) {
+      const seen = new Map<string, SourceResponse>()
+      // Top-level sources linked directly to politician
+      for (const page of politician.sources || []) {
         if (!seen.has(page.id)) {
           seen.set(page.id, page)
         }
       }
       // Pages from property references (look up from top-level list)
       for (const prop of politician.properties) {
-        for (const ref of prop.archived_pages) {
-          if (!seen.has(ref.archived_page_id)) {
-            const page = archivedPageById.get(ref.archived_page_id)
+        for (const ref of prop.sources) {
+          if (!seen.has(ref.source_id)) {
+            const page = sourceById.get(ref.source_id)
             if (page) {
-              seen.set(ref.archived_page_id, page)
+              seen.set(ref.source_id, page)
             }
           }
         }
@@ -188,7 +184,7 @@ export function EvaluationView({
       result.set(politician.id, Array.from(seen.values()))
     }
     return result
-  }, [politicians, addedSourcesByPolitician, archivedPageById])
+  }, [politicians, addedSourcesByPolitician, sourceById])
 
   const leftPanel = (
     <div className="grid grid-rows-[1fr_auto] h-full">
@@ -196,7 +192,7 @@ export function EvaluationView({
         {politicians.map((politician) => {
           const key = politician.id
           const properties = displayPropertiesByPolitician.get(key) || []
-          const archivedPages = archivedPagesByPolitician.get(key) || []
+          const sources = sourcesByPolitician.get(key) || []
 
           return (
             <div key={key} className="mb-8">
@@ -211,9 +207,9 @@ export function EvaluationView({
               </div>
 
               <SourcesList
-                archivedPages={archivedPages}
-                activeArchivedPageId={selectedArchivedPage?.id || null}
-                onSelect={handleSelectArchivedPage}
+                sources={sources}
+                activeSourceId={selectedSource?.id || null}
+                onSelect={handleSelectSource}
                 politicianQid={politician.wikidata_id ?? undefined}
                 onAddSource={(source) => handleAddSource(politician.id, source)}
               />
@@ -223,8 +219,8 @@ export function EvaluationView({
                 onAction={(id, action) => handleAction(key, id, action)}
                 onShowArchived={handleShowArchived}
                 onHover={handlePropertyHover}
-                activeArchivedPageId={selectedArchivedPage?.id || null}
-                archivedPageById={archivedPageById}
+                activeSourceId={selectedSource?.id || null}
+                sourceById={sourceById}
                 onAddProperty={(item) => handleAddProperty(key, item)}
               />
             </div>
@@ -236,10 +232,10 @@ export function EvaluationView({
     </div>
   )
 
-  const rightPanel = selectedArchivedPage ? (
-    <ArchivedPageViewer
-      pageId={selectedArchivedPage.id}
-      apiBasePath={archivedPagesApiPath}
+  const rightPanel = selectedSource ? (
+    <SourceViewer
+      pageId={selectedSource.id}
+      apiBasePath={sourcesApiPath}
       iframeRef={iframeRef}
       onLoad={handleIframeLoad}
     />
