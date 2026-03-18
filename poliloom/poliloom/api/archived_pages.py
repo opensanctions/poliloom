@@ -1,5 +1,7 @@
 """ArchivedPages API endpoints."""
 
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse
 from sqlalchemy import select
@@ -8,13 +10,18 @@ from sqlalchemy.orm import Session, selectinload
 from uuid import UUID
 
 from ..database import get_db_session
-from ..models import ArchivedPage, Politician, Property, PropertyReference
+from ..models import (
+    ArchivedPage,
+    Politician,
+    PoliticianArchivedPage,
+    Property,
+    PropertyReference,
+)
 from ..archiving import read_archived_content
 from .auth import get_current_user, User
 from .schemas import (
-    ArchivedPageResponse,
     PatchPropertiesResponse,
-    SourcePageResponse,
+    PoliticianResponse,
     SourcePatchPropertiesRequest,
 )
 from .politicians import build_politician_response, process_property_actions
@@ -54,13 +61,13 @@ async def get_archived_page_html(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
-@router.get("/{archived_page_id}", response_model=SourcePageResponse)
+@router.get("/{archived_page_id}", response_model=List[PoliticianResponse])
 async def get_source_page(
     archived_page_id: UUID,
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Get archived page metadata with all politicians and their properties referencing this page."""
+    """Get politicians linked to this archived page with their properties referencing it."""
     archived_page = db.get(ArchivedPage, archived_page_id)
     if not archived_page:
         raise HTTPException(
@@ -68,15 +75,14 @@ async def get_source_page(
             detail="Archived page not found",
         )
 
-    # Query politicians that have properties referencing this archived page
+    # Query politicians linked to this archived page via the junction table
     query = (
         select(Politician)
-        .join(Property, Property.politician_id == Politician.id)
-        .join(PropertyReference, PropertyReference.property_id == Property.id)
-        .where(
-            PropertyReference.archived_page_id == archived_page_id,
-            Property.deleted_at.is_(None),
+        .join(
+            PoliticianArchivedPage,
+            PoliticianArchivedPage.politician_id == Politician.id,
         )
+        .where(PoliticianArchivedPage.archived_page_id == archived_page_id)
         .options(
             selectinload(
                 Politician.properties.and_(
@@ -96,25 +102,11 @@ async def get_source_page(
                 ).selectinload(PropertyReference.archived_page),
             ),
         )
-        .distinct()
     )
 
     politicians = db.execute(query).scalars().all()
 
-    return SourcePageResponse(
-        archived_page=ArchivedPageResponse(
-            id=archived_page.id,
-            url=archived_page.url,
-            content_hash=archived_page.content_hash,
-            fetch_timestamp=archived_page.fetch_timestamp,
-            status=archived_page.status.value,
-            error=archived_page.error.value if archived_page.error else None,
-            http_status_code=archived_page.http_status_code,
-        ),
-        politicians=[
-            build_politician_response(politician) for politician in politicians
-        ],
-    )
+    return [build_politician_response(politician) for politician in politicians]
 
 
 @router.patch("/{archived_page_id}/properties", response_model=PatchPropertiesResponse)

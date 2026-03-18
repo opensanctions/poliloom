@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { useParams } from 'next/navigation'
 import {
-  SourceResponse,
+  Politician,
   SourcePatchPropertiesRequest,
   PatchPropertiesResponse,
   PropertyActionItem,
@@ -11,10 +12,11 @@ import { Button } from '@/components/ui/Button'
 import { EvaluationView } from '@/components/evaluation/EvaluationView'
 
 interface SourceEvaluationProps {
-  source: SourceResponse
+  politicians: Politician[]
 }
 
-export function SourceEvaluation({ source }: SourceEvaluationProps) {
+export function SourceEvaluation({ politicians }: SourceEvaluationProps) {
+  const { id } = useParams<{ id: string }>()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (actionsByPolitician: Map<string, PropertyActionItem[]>) => {
@@ -30,7 +32,7 @@ export function SourceEvaluation({ source }: SourceEvaluationProps) {
 
     try {
       const requestData: SourcePatchPropertiesRequest = { items }
-      const response = await fetch(`/api/sources/${source.archived_page.id}`, {
+      const response = await fetch(`/api/sources/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestData),
@@ -73,5 +75,5 @@ export function SourceEvaluation({ source }: SourceEvaluationProps) {
     </div>
   )
 
-  return <EvaluationView politicians={source.politicians} footer={footer} />
+  return <EvaluationView politicians={politicians} footer={footer} />
 }

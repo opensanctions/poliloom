@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { NextResponse } from 'next/server'
 import { fetchWithAuth } from '@/lib/api-auth'
-import { SourceResponse } from '@/types'
+import { Politician } from '@/types'
 import { SourceEvaluation } from './SourceEvaluation'
 
 export default async function SourcePage({ params }: { params: Promise<{ id: string }> }) {
@@ -14,7 +14,7 @@ export default async function SourcePage({ params }: { params: Promise<{ id: str
     notFound()
   }
 
-  const source: SourceResponse = await response.json()
+  const politicians: Politician[] = await response.json()
 
-  return <SourceEvaluation source={source} />
+  return <SourceEvaluation politicians={politicians} />
 }

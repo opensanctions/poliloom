@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, render } from '@testing-library/react'
 import '@/test/highlight-mocks'
 import { EvaluationView } from './EvaluationView'
-import type { Politician, SourceResponse, ArchivedPageResponse } from '@/types'
+import type { Politician, ArchivedPageResponse } from '@/types'
 import { PropertyType } from '@/types'
 
 vi.mock('@/contexts/UserPreferencesContext', () => ({
@@ -134,65 +134,62 @@ const politicianWithEdgeCases: Politician = {
   ],
 }
 
-const sourceResponse: SourceResponse = {
-  archived_page: archivedPage1,
-  politicians: [
-    {
-      id: 'pol-a',
-      name: 'Source Politician A',
-      wikidata_id: 'Q111',
-      archived_pages: [archivedPage1],
-      properties: [
-        {
-          id: 'sp-1',
-          type: PropertyType.P569,
-          value: '+1970-01-01T00:00:00Z',
-          value_precision: 11,
-          statement_id: null,
-          archived_pages: [
-            { id: 'sr-1', archived_page_id: archivedPage1.id, supporting_quotes: ['born 1970'] },
-          ],
-        },
-        {
-          id: 'sp-2',
-          type: PropertyType.P39,
-          entity_id: 'Q555',
-          entity_name: 'Mayor of Test City',
-          statement_id: null,
-          archived_pages: [
-            {
-              id: 'sr-2',
-              archived_page_id: archivedPage1.id,
-              supporting_quotes: ['served as mayor'],
-            },
-          ],
-        },
-      ],
-    },
-    {
-      id: 'pol-b',
-      name: 'Source Politician B',
-      wikidata_id: 'Q222',
-      archived_pages: [archivedPage1],
-      properties: [
-        {
-          id: 'sp-3',
-          type: PropertyType.P27,
-          entity_id: 'Q142',
-          entity_name: 'France',
-          statement_id: null,
-          archived_pages: [
-            {
-              id: 'sr-3',
-              archived_page_id: archivedPage1.id,
-              supporting_quotes: ['French citizen'],
-            },
-          ],
-        },
-      ],
-    },
-  ],
-}
+const sourcePoliticians: Politician[] = [
+  {
+    id: 'pol-a',
+    name: 'Source Politician A',
+    wikidata_id: 'Q111',
+    archived_pages: [archivedPage1],
+    properties: [
+      {
+        id: 'sp-1',
+        type: PropertyType.P569,
+        value: '+1970-01-01T00:00:00Z',
+        value_precision: 11,
+        statement_id: null,
+        archived_pages: [
+          { id: 'sr-1', archived_page_id: archivedPage1.id, supporting_quotes: ['born 1970'] },
+        ],
+      },
+      {
+        id: 'sp-2',
+        type: PropertyType.P39,
+        entity_id: 'Q555',
+        entity_name: 'Mayor of Test City',
+        statement_id: null,
+        archived_pages: [
+          {
+            id: 'sr-2',
+            archived_page_id: archivedPage1.id,
+            supporting_quotes: ['served as mayor'],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'pol-b',
+    name: 'Source Politician B',
+    wikidata_id: 'Q222',
+    archived_pages: [archivedPage1],
+    properties: [
+      {
+        id: 'sp-3',
+        type: PropertyType.P27,
+        entity_id: 'Q142',
+        entity_name: 'France',
+        statement_id: null,
+        archived_pages: [
+          {
+            id: 'sr-3',
+            archived_page_id: archivedPage1.id,
+            supporting_quotes: ['French citizen'],
+          },
+        ],
+      },
+    ],
+  },
+]
 
 describe('EvaluationView', () => {
   beforeEach(() => {
@@ -307,24 +304,14 @@ describe('EvaluationView', () => {
 
   describe('multiple politicians', () => {
     it('renders multiple politicians with headers', () => {
-      render(
-        <EvaluationView
-          politicians={sourceResponse.politicians}
-          footer={() => <div>Footer</div>}
-        />,
-      )
+      render(<EvaluationView politicians={sourcePoliticians} footer={() => <div>Footer</div>} />)
 
       expect(screen.getByText('Source Politician A')).toBeInTheDocument()
       expect(screen.getByText('Source Politician B')).toBeInTheDocument()
     })
 
     it('renders properties for each politician', () => {
-      render(
-        <EvaluationView
-          politicians={sourceResponse.politicians}
-          footer={() => <div>Footer</div>}
-        />,
-      )
+      render(<EvaluationView politicians={sourcePoliticians} footer={() => <div>Footer</div>} />)
 
       expect(screen.getByText('Birth Date')).toBeInTheDocument()
       expect(screen.getByText('Mayor of Test City')).toBeInTheDocument()
@@ -334,7 +321,7 @@ describe('EvaluationView', () => {
     it('auto-loads the first archived page on mount', () => {
       render(
         <EvaluationView
-          politicians={sourceResponse.politicians}
+          politicians={sourcePoliticians}
           archivedPagesApiPath="/api/archived-pages"
           footer={() => <div>Footer</div>}
         />,
@@ -342,16 +329,11 @@ describe('EvaluationView', () => {
 
       const iframe = screen.getByTitle('Archived Page') as HTMLIFrameElement
       expect(iframe).toBeInTheDocument()
-      expect(iframe.src).toContain(`/api/archived-pages/${sourceResponse.archived_page.id}/html`)
+      expect(iframe.src).toContain(`/api/archived-pages/${archivedPage1.id}/html`)
     })
 
     it('accept/reject toggles work per politician', () => {
-      render(
-        <EvaluationView
-          politicians={sourceResponse.politicians}
-          footer={() => <div>Footer</div>}
-        />,
-      )
+      render(<EvaluationView politicians={sourcePoliticians} footer={() => <div>Footer</div>} />)
 
       const acceptButtons = screen.getAllByRole('button', { name: /accept/i })
       expect(acceptButtons.length).toBe(3)
@@ -365,7 +347,7 @@ describe('EvaluationView', () => {
     it('renders footer', () => {
       render(
         <EvaluationView
-          politicians={sourceResponse.politicians}
+          politicians={sourcePoliticians}
           footer={() => <div data-testid="test-footer">Custom Footer</div>}
         />,
       )

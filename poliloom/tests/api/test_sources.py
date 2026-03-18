@@ -17,21 +17,19 @@ class TestGetSourcePage:
         response = client.get(f"/archived-pages/{fake_uuid}", headers=mock_auth)
         assert response.status_code == 404
 
-    def test_empty_politicians_when_no_references(
+    def test_empty_politicians_when_no_links(
         self, client, mock_auth, sample_archived_page
     ):
-        """Test that an archived page with no property references returns empty politicians list."""
+        """Test that an archived page with no linked politicians returns empty list."""
         response = client.get(
             f"/archived-pages/{sample_archived_page.id}", headers=mock_auth
         )
         assert response.status_code == 200
-        data = response.json()
-        assert data["archived_page"]["id"] == str(sample_archived_page.id)
-        assert data["archived_page"]["url"] == sample_archived_page.url
-        assert data["politicians"] == []
+        assert response.json() == []
 
     def test_returns_politician_with_properties(
         self,
+        db_session,
         client,
         mock_auth,
         sample_politician,
@@ -39,6 +37,8 @@ class TestGetSourcePage:
         create_birth_date,
     ):
         """Test that properties referencing this page are returned with the politician."""
+        sample_politician.archived_pages.append(sample_archived_page)
+        db_session.flush()
         create_birth_date(
             sample_politician,
             value="1980-01-01",
@@ -50,10 +50,10 @@ class TestGetSourcePage:
             f"/archived-pages/{sample_archived_page.id}", headers=mock_auth
         )
         assert response.status_code == 200
-        data = response.json()
-        assert len(data["politicians"]) == 1
+        politicians = response.json()
+        assert len(politicians) == 1
 
-        politician = data["politicians"][0]
+        politician = politicians[0]
         assert politician["wikidata_id"] == "Q123456"
         assert politician["name"] == "Test Politician"
         assert len(politician["properties"]) == 1
@@ -69,6 +69,7 @@ class TestGetSourcePage:
 
     def test_multiple_properties_grouped_under_one_politician(
         self,
+        db_session,
         client,
         mock_auth,
         sample_politician,
@@ -78,6 +79,8 @@ class TestGetSourcePage:
         sample_country,
     ):
         """Test multiple properties from same page grouped under one politician."""
+        sample_politician.archived_pages.append(sample_archived_page)
+        db_session.flush()
         create_birth_date(
             sample_politician, value="1980-01-01", archived_page=sample_archived_page
         )
@@ -89,9 +92,9 @@ class TestGetSourcePage:
             f"/archived-pages/{sample_archived_page.id}", headers=mock_auth
         )
         assert response.status_code == 200
-        data = response.json()
-        assert len(data["politicians"]) == 1
-        assert len(data["politicians"][0]["properties"]) == 2
+        politicians = response.json()
+        assert len(politicians) == 1
+        assert len(politicians[0]["properties"]) == 2
 
     def test_multiple_politicians_from_same_source(
         self,
@@ -110,6 +113,10 @@ class TestGetSourcePage:
         )
         db_session.flush()
 
+        sample_politician.archived_pages.append(sample_archived_page)
+        politician2.archived_pages.append(sample_archived_page)
+        db_session.flush()
+
         create_birth_date(
             sample_politician, value="1980-01-01", archived_page=sample_archived_page
         )
@@ -121,9 +128,9 @@ class TestGetSourcePage:
             f"/archived-pages/{sample_archived_page.id}", headers=mock_auth
         )
         assert response.status_code == 200
-        data = response.json()
-        assert len(data["politicians"]) == 2
-        qids = {p["wikidata_id"] for p in data["politicians"]}
+        politicians = response.json()
+        assert len(politicians) == 2
+        qids = {p["wikidata_id"] for p in politicians}
         assert qids == {"Q123456", "Q789012"}
 
     def test_soft_deleted_properties_excluded(
@@ -148,8 +155,7 @@ class TestGetSourcePage:
             f"/archived-pages/{sample_archived_page.id}", headers=mock_auth
         )
         assert response.status_code == 200
-        data = response.json()
-        assert data["politicians"] == []
+        assert response.json() == []
 
     def test_only_matching_source_in_property(
         self,
@@ -173,6 +179,9 @@ class TestGetSourcePage:
         db_session.add(other_page)
         db_session.flush()
 
+        sample_politician.archived_pages.append(sample_archived_page)
+        db_session.flush()
+
         # Create property with reference to the first page
         prop = create_birth_date(
             sample_politician, value="1980-01-01", archived_page=sample_archived_page
@@ -190,9 +199,9 @@ class TestGetSourcePage:
             f"/archived-pages/{sample_archived_page.id}", headers=mock_auth
         )
         assert response.status_code == 200
-        data = response.json()
-        assert len(data["politicians"]) == 1
-        prop_data = data["politicians"][0]["properties"][0]
+        politicians = response.json()
+        assert len(politicians) == 1
+        prop_data = politicians[0]["properties"][0]
         assert len(prop_data["archived_pages"]) == 1
         assert prop_data["archived_pages"][0]["archived_page_id"] == str(
             sample_archived_page.id

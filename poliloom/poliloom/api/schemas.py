@@ -67,13 +67,6 @@ class PoliticianResponse(UUIDBaseModel):
     properties: List[PropertyResponse]  # Single flat list
 
 
-class SourcePageResponse(BaseModel):
-    """Response for GET /archived-pages/{id} — source-centric view."""
-
-    archived_page: ArchivedPageResponse
-    politicians: List[PoliticianResponse]
-
-
 class EnrichmentMetadata(BaseModel):
     """Metadata about enrichment status for empty state UX."""
 
