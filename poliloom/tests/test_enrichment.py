@@ -293,7 +293,7 @@ class TestEnrichment:
         assert property_obj is not None
         assert property_obj.value == "+1970-01-15T00:00:00Z"
         assert property_obj.value_precision == 11  # Day precision
-        # Verify PropertyReference was created linking to archived page
+        # Verify PropertyReference was created linking to source
         ref = (
             db_session.query(PropertyReference)
             .filter_by(property_id=property_obj.id)
@@ -396,7 +396,7 @@ class TestEnrichment:
             .first()
         )
         assert birthplace_property is not None
-        # Verify PropertyReference was created linking to archived page
+        # Verify PropertyReference was created linking to source
         ref = (
             db_session.query(PropertyReference)
             .filter_by(property_id=birthplace_property.id)
@@ -491,7 +491,7 @@ class TestCountPoliticiansWithUnevaluated:
         create_birth_date,
     ):
         """Test counting with language filter."""
-        # Create English archived page
+        # Create English source
         en_page = create_source(
             url="https://en.example.com/test",
             content_hash="en123",
@@ -578,7 +578,7 @@ class TestHasEnrichablePoliticians:
 
 
 class TestScheduleEnrichment:
-    """Test schedule_enrichment selects a politician and creates archived pages."""
+    """Test schedule_enrichment selects a politician and creates sources."""
 
     def test_returns_none_when_no_politicians(self, db_session):
         assert schedule_enrichment(db_session) is None
@@ -598,14 +598,14 @@ class TestScheduleEnrichment:
 
         assert result is not None
         assert result.politician_id == sample_politician.id
-        assert len(result.page_ids) >= 1
+        assert len(result.source_ids) >= 1
 
         # Politician should be marked as enriched
         db_session.refresh(sample_politician)
         assert sample_politician.enriched_at is not None
 
-        # Archived pages should be created as PENDING
-        pages = db_session.query(Source).filter(Source.id.in_(result.page_ids)).all()
+        # Sources should be created as PENDING
+        pages = db_session.query(Source).filter(Source.id.in_(result.source_ids)).all()
         assert all(p.status == SourceStatus.PENDING for p in pages)
 
     def test_returns_none_when_no_wikipedia_links(self, db_session, sample_politician):

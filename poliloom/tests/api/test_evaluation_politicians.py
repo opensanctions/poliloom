@@ -298,7 +298,7 @@ class TestGetPoliticianEndpointProperties:
         create_birth_date,
         create_death_date,
     ):
-        """Test that when filtering by language, only properties from that language's archived pages are returned."""
+        """Test that when filtering by language, only properties from that language's sources are returned."""
         english_page = create_source(
             url="https://en.wikipedia.org/test",
             content_hash="en123",

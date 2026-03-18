@@ -18,7 +18,7 @@ export function SourceViewer({
       ref={iframeRef}
       src={`${apiBasePath}/${pageId}/html`}
       className="w-full h-full border-0"
-      title="Archived Page"
+      title="Source"
       sandbox="allow-scripts allow-same-origin"
       onLoad={onLoad}
     />

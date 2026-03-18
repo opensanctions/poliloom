@@ -1,4 +1,4 @@
-"""Archiving: page fetching, storage, and archived page processing pipeline."""
+"""Archiving: page fetching, storage, and source processing pipeline."""
 
 import asyncio
 import logging
@@ -147,10 +147,10 @@ async def fetch_page(url: str) -> FetchedPage:
 
 
 def read_archived_content(path_root: str, extension: str) -> str:
-    """Read content for an archived page.
+    """Read content for a source.
 
     Args:
-        path_root: The path root (timestamp/content_hash) from ArchivedPage.path_root
+        path_root: The path root (timestamp/content_hash) from Source.path_root
         extension: File extension (e.g., 'md', 'html', 'mhtml')
 
     Returns:
@@ -176,10 +176,10 @@ def save_archived_content(
     extension: str,
     content: str,
 ) -> str:
-    """Save content for an archived page.
+    """Save content for a source.
 
     Args:
-        path_root: The path root (timestamp/content_hash) from ArchivedPage.path_root
+        path_root: The path root (timestamp/content_hash) from Source.path_root
         extension: File extension (e.g., 'md', 'html', 'mhtml')
         content: The content to save
 
@@ -197,7 +197,7 @@ def save_archived_content(
     return file_path
 
 
-# --- Archived page processing ---
+# --- Source processing ---
 
 
 def extract_permanent_url(html_content: str) -> Optional[str]:
@@ -314,18 +314,22 @@ async def process_source(db: Session, source: Source, politician: Politician) ->
         return 0
 
 
-async def process_source_task(page_id, politician_id) -> int:
+async def process_source_task(source_id, politician_id) -> int:
     """Background task entry point: opens a session and processes a source.
 
     Args:
-        page_id: Source UUID
+        source_id: Source UUID
         politician_id: Politician UUID to extract properties for
 
     Returns:
         Number of properties extracted.
     """
     with Session(get_engine()) as db:
-        source = db.get(Source, page_id)
+        source = db.execute(
+            select(Source)
+            .where(Source.id == source_id)
+            .options(selectinload(Source.politicians))
+        ).scalar_one()
 
         politician = db.execute(
             select(Politician)
@@ -350,7 +354,7 @@ class ScheduledEnrichment:
     """Result of scheduling a politician for enrichment."""
 
     politician_id: Any
-    page_ids: list
+    source_ids: list
 
 
 def schedule_enrichment(
@@ -359,7 +363,7 @@ def schedule_enrichment(
     countries: Optional[List[str]] = None,
     stateless: bool = False,
 ) -> Optional[ScheduledEnrichment]:
-    """Pick the next politician and create PENDING archived pages for its Wikipedia links.
+    """Pick the next politician and create PENDING sources for its Wikipedia links.
 
     Sets enriched_at immediately to prevent re-selection by other workers.
 
@@ -401,7 +405,7 @@ def schedule_enrichment(
             f"{[f'{wikipedia_project_id} ({url})' for url, wikipedia_project_id in priority_links]}"
         )
 
-        page_ids = []
+        source_ids = []
         for url, wikipedia_project_id in priority_links:
             source = Source(
                 url=url,
@@ -411,14 +415,14 @@ def schedule_enrichment(
             db.add(source)
             db.flush()
             politician.sources.append(source)
-            page_ids.append(source.id)
+            source_ids.append(source.id)
 
         politician.enriched_at = datetime.now(timezone.utc)
         db.commit()
 
         return ScheduledEnrichment(
             politician_id=politician.id,
-            page_ids=page_ids,
+            source_ids=source_ids,
         )
 
     except Exception as e:
@@ -449,8 +453,8 @@ async def process_next_politician(
 
     counts = await asyncio.gather(
         *(
-            process_source_task(page_id, scheduled.politician_id)
-            for page_id in scheduled.page_ids
+            process_source_task(source_id, scheduled.politician_id)
+            for source_id in scheduled.source_ids
         )
     )
 

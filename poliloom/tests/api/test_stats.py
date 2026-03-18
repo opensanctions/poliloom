@@ -144,7 +144,7 @@ class TestStatsEndpoint:
         country = Country(wikidata_id="Q30")
         db_session.add(country)
 
-        # Create archived page for extraction
+        # Create source for extraction
         source = Source(
             id=uuid4(),
             url="https://example.com/politician",
@@ -211,7 +211,7 @@ class TestStatsEndpoint:
 
     def test_stats_stateless_politicians(self, client, db_session, mock_auth):
         """Stats endpoint should include stateless politicians in country_coverage with wikidata_id=None."""
-        # Create archived page for extraction
+        # Create source for extraction
         source = Source(
             id=uuid4(),
             url="https://example.com/politician",
@@ -287,7 +287,7 @@ class TestStatsEndpoint:
         country = Country(wikidata_id="Q30")
         db_session.add(country)
 
-        # Create archived page for extraction
+        # Create source for extraction
         source = Source(
             id=uuid4(),
             url="https://example.com/politician",
@@ -370,7 +370,7 @@ class TestStatsEndpoint:
         country = Country(wikidata_id="Q30")
         db_session.add(country)
 
-        # Create archived page for extraction
+        # Create source for extraction
         source = Source(
             id=uuid4(),
             url="https://example.com/politician",

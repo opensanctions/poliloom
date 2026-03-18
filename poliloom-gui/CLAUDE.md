@@ -26,8 +26,8 @@ The PoliLoom GUI is a web application that provides a user interface for confirm
 - **Sequential Navigation**: Move through politicians one by one
 - **Individual Item Actions**: Evaluate each property individually (birth dates, positions, birthplaces, etc. are all property types)
 - **Batch Evaluation**: Submit multiple evaluations in a single request
-- **Archived Pages**: Access and display archived web pages from government portals, Wikipedia, and other sources for verification
-- **Text Highlighting**: Automatic highlighting of proof text within archived pages using CSS Custom Highlight API
+- **Sources**: Access and display archived web pages from government portals, Wikipedia, and other sources for verification
+- **Text Highlighting**: Automatic highlighting of proof text within sources using CSS Custom Highlight API
 
 ### 3. User Experience
 
@@ -69,7 +69,7 @@ curl http://localhost:8000/openapi.json
 - `P39` - Political position (with entity ID, name, and date qualifiers)
 - `P27` - Citizenship (with entity ID and name)
 
-Properties may include supporting quotes, an attached archived page for verification, and qualifiers (start/end dates for positions).
+Properties may include supporting quotes, an attached source for verification, and qualifiers (start/end dates for positions).
 
 **Evaluations**: Users accept or reject individual properties:
 
@@ -81,8 +81,8 @@ Properties may include supporting quotes, an attached archived page for verifica
 
 - **Evaluation Components**: Individual UI for confirming properties (grouped by type in the interface)
 - **Navigation**: Simple sequential navigation between politicians
-- **Text Highlighting System**: CSS Custom Highlight API implementation for highlighting proof text in archived pages
-- **Iframe Integration**: Secure display of archived web pages with automatic highlighting
+- **Text Highlighting System**: CSS Custom Highlight API implementation for highlighting proof text in sources
+- **Iframe Integration**: Secure display of source pages with automatic highlighting
 - **Protected Routes**: All evaluation pages require authentication
 
 ## User Interface Requirements

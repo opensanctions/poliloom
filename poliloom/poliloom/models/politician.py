@@ -411,7 +411,7 @@ class Politician(
         Apply unevaluated properties filter to a politician query.
 
         Filters for politicians with properties that have no statement_id (unevaluated).
-        Optionally filters by language via archived pages.
+        Optionally filters by language via sources.
 
         Args:
             query: Existing select statement for Politician entities
@@ -581,8 +581,8 @@ class Politician(
         Count politicians without Wikidata citizenship who have unevaluated extracted citizenship.
 
         These are politicians where:
-        1. No citizenship property exists from Wikidata (archived_page_id IS NULL)
-        2. At least one extracted citizenship exists (archived_page_id IS NOT NULL, statement_id IS NULL)
+        1. No citizenship property exists from Wikidata (source_id IS NULL)
+        2. At least one extracted citizenship exists (source_id IS NOT NULL, statement_id IS NULL)
 
         This count represents the "buffer" of stateless politicians whose extracted
         citizenship is waiting for review. Used to throttle stateless enrichment.

@@ -223,7 +223,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   }
 
   if (step === 2) {
-    // Show archived page (explanation left, iframe right)
+    // Show source (explanation left, iframe right)
     return (
       <TwoPanel
         left={
@@ -266,7 +266,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             <PropertiesEvaluation
               properties={extractedDataPolitician.properties}
               onAction={() => {}}
-              onShowArchived={() => {}}
+              onShowSource={() => {}}
               onHover={() => {}}
               activeSourceId={null}
             />

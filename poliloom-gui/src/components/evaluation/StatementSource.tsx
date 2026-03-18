@@ -6,7 +6,7 @@ interface StatementSourceProps {
   isWikidataStatement: boolean
   activeSourceId?: string | null
   sourceById: Map<string, SourceResponse>
-  onShowArchived: (ref: PropertyReference) => void
+  onShowSource: (ref: PropertyReference) => void
   onHover: () => void
 }
 
@@ -15,7 +15,7 @@ export function StatementSource({
   isWikidataStatement,
   activeSourceId,
   sourceById,
-  onShowArchived,
+  onShowSource,
   onHover,
 }: StatementSourceProps) {
   if (isWikidataStatement || sources.length === 0) {
@@ -33,9 +33,9 @@ export function StatementSource({
                 size="small"
                 variant="info"
                 active={activeSourceId === ref.source_id}
-                onClick={() => onShowArchived(ref)}
+                onClick={() => onShowSource(ref)}
                 className="flex-shrink-0"
-                title="Show the archived source page with highlighted supporting quotes"
+                title="Show the source page with highlighted supporting quotes"
               >
                 • {activeSourceId === ref.source_id ? 'Viewing' : 'View'}
               </Button>

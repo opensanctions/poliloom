@@ -493,8 +493,8 @@ class TestPoliticianFilterByUnevaluated:
         create_birth_date,
         create_death_date,
     ):
-        """Test language filtering based on archived page languages."""
-        # Create archived pages with language associations
+        """Test language filtering based on source languages."""
+        # Create sources with language associations
         en_page = create_source(
             url="https://en.example.com/test",
             content_hash="en123",

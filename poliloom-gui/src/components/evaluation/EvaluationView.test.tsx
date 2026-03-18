@@ -188,8 +188,8 @@ describe('EvaluationView', () => {
     CSS.highlights.clear()
   })
 
-  describe('single politician - archived page handling', () => {
-    it('auto-loads the first property with an archived page on mount', () => {
+  describe('single politician - source handling', () => {
+    it('auto-loads the first property with a source on mount', () => {
       render(
         <EvaluationView
           politicians={[politicianWithDifferentSources]}
@@ -198,7 +198,7 @@ describe('EvaluationView', () => {
         />,
       )
 
-      const iframe = screen.getByTitle('Archived Page') as HTMLIFrameElement
+      const iframe = screen.getByTitle('Source') as HTMLIFrameElement
       expect(iframe).toBeInTheDocument()
       expect(iframe.src).toContain(`/api/sources/${source1.id}/html`)
 
@@ -206,7 +206,7 @@ describe('EvaluationView', () => {
       expect(viewButtons[0]).toHaveTextContent('• Viewing')
     })
 
-    it('clicking View on a property updates the iframe to show that archived page', () => {
+    it('clicking View on a property updates the iframe to show that source', () => {
       render(
         <EvaluationView
           politicians={[politicianWithDifferentSources]}
@@ -215,7 +215,7 @@ describe('EvaluationView', () => {
         />,
       )
 
-      const iframe = screen.getByTitle('Archived Page') as HTMLIFrameElement
+      const iframe = screen.getByTitle('Source') as HTMLIFrameElement
       expect(iframe.src).toContain(`/api/sources/${source1.id}/html`)
 
       const viewButtons = screen.getAllByRole('button', { name: /• View|• Viewing/ })
@@ -227,7 +227,7 @@ describe('EvaluationView', () => {
       expect(secondViewButton).toHaveTextContent('• Viewing')
     })
 
-    it('switching between properties with different archived pages updates the iframe', () => {
+    it('switching between properties with different sources updates the iframe', () => {
       render(
         <EvaluationView
           politicians={[politicianWithDifferentSources]}
@@ -236,7 +236,7 @@ describe('EvaluationView', () => {
         />,
       )
 
-      const iframe = screen.getByTitle('Archived Page') as HTMLIFrameElement
+      const iframe = screen.getByTitle('Source') as HTMLIFrameElement
       expect(iframe.src).toContain(`/api/sources/${source1.id}/html`)
 
       const viewButtons = screen.getAllByRole('button', { name: /• View|• Viewing/ })
@@ -280,7 +280,7 @@ describe('EvaluationView', () => {
       expect(viewButtons[2]).toHaveTextContent('• Viewing')
     })
 
-    it('does not show View button for Wikidata statements even if they have archived pages', () => {
+    it('does not show View button for Wikidata statements even if they have sources', () => {
       render(
         <EvaluationView
           politicians={[politicianWithEdgeCases]}
@@ -310,7 +310,7 @@ describe('EvaluationView', () => {
       expect(screen.getByText('France')).toBeInTheDocument()
     })
 
-    it('auto-loads the first archived page on mount', () => {
+    it('auto-loads the first source on mount', () => {
       render(
         <EvaluationView
           politicians={sourcePoliticians}
@@ -319,7 +319,7 @@ describe('EvaluationView', () => {
         />,
       )
 
-      const iframe = screen.getByTitle('Archived Page') as HTMLIFrameElement
+      const iframe = screen.getByTitle('Source') as HTMLIFrameElement
       expect(iframe).toBeInTheDocument()
       expect(iframe.src).toContain(`/api/sources/${source1.id}/html`)
     })

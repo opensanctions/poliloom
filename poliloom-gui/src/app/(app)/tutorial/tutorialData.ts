@@ -1,6 +1,6 @@
 import { SourceResponse, Politician, Property, PropertyReference, PropertyType } from '@/types'
 
-// Shared archived pages
+// Shared sources
 const page1: SourceResponse = {
   id: 'tutorial-page-1',
   url: 'https://example.parliament.gov/members/jane-doe',

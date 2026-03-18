@@ -43,7 +43,7 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Refetch politician data when archived page processing completes
+  // Refetch politician data when source processing completes
   useEventStream(
     'source_status',
     (event) => {

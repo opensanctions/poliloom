@@ -3,7 +3,7 @@ import { StatementSource } from './StatementSource'
 import { vi } from 'vitest'
 import { SourceResponse, PropertyReference } from '@/types'
 
-const mockOnShowArchived = vi.fn()
+const mockOnShowSource = vi.fn()
 const mockOnHover = vi.fn()
 
 const mockSource: SourceResponse = {
@@ -35,7 +35,7 @@ describe('StatementSource', () => {
           sources={[mockRef]}
           isWikidataStatement={false}
           activeSourceId={null}
-          onShowArchived={mockOnShowArchived}
+          onShowSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -52,7 +52,7 @@ describe('StatementSource', () => {
           sources={[mockRef]}
           isWikidataStatement={false}
           activeSourceId="archived-1"
-          onShowArchived={mockOnShowArchived}
+          onShowSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -69,7 +69,7 @@ describe('StatementSource', () => {
           sources={[mockRef]}
           isWikidataStatement={false}
           activeSourceId="other-page"
-          onShowArchived={mockOnShowArchived}
+          onShowSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -80,13 +80,13 @@ describe('StatementSource', () => {
       expect(viewButton).not.toHaveTextContent('Viewing')
     })
 
-    it('calls onShowArchived with ref when View button is clicked', () => {
+    it('calls onShowSource with ref when View button is clicked', () => {
       render(
         <StatementSource
           sources={[mockRef]}
           isWikidataStatement={false}
           activeSourceId={null}
-          onShowArchived={mockOnShowArchived}
+          onShowSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -95,8 +95,8 @@ describe('StatementSource', () => {
       const viewButton = screen.getByRole('button', { name: /View/ })
       fireEvent.click(viewButton)
 
-      expect(mockOnShowArchived).toHaveBeenCalledTimes(1)
-      expect(mockOnShowArchived).toHaveBeenCalledWith(mockRef)
+      expect(mockOnShowSource).toHaveBeenCalledTimes(1)
+      expect(mockOnShowSource).toHaveBeenCalledWith(mockRef)
     })
 
     it('does not render when sources is empty', () => {
@@ -105,7 +105,7 @@ describe('StatementSource', () => {
           sources={[]}
           isWikidataStatement={false}
           activeSourceId={null}
-          onShowArchived={mockOnShowArchived}
+          onShowSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -120,7 +120,7 @@ describe('StatementSource', () => {
           sources={[mockRef]}
           isWikidataStatement={true}
           activeSourceId={null}
-          onShowArchived={mockOnShowArchived}
+          onShowSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -135,7 +135,7 @@ describe('StatementSource', () => {
           sources={[mockRef]}
           isWikidataStatement={false}
           activeSourceId="archived-1"
-          onShowArchived={mockOnShowArchived}
+          onShowSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -159,7 +159,7 @@ describe('StatementSource', () => {
           sources={[sourceWithQuotes]}
           isWikidataStatement={false}
           activeSourceId={null}
-          onShowArchived={mockOnShowArchived}
+          onShowSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -175,7 +175,7 @@ describe('StatementSource', () => {
           sources={[mockRefNoQuotes]}
           isWikidataStatement={false}
           activeSourceId={null}
-          onShowArchived={mockOnShowArchived}
+          onShowSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -197,7 +197,7 @@ describe('StatementSource', () => {
           sources={[sourceEmptyQuotes]}
           isWikidataStatement={false}
           activeSourceId={null}
-          onShowArchived={mockOnShowArchived}
+          onShowSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -215,7 +215,7 @@ describe('StatementSource', () => {
           sources={[mockRef]}
           isWikidataStatement={false}
           activeSourceId={null}
-          onShowArchived={mockOnShowArchived}
+          onShowSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,
@@ -229,13 +229,13 @@ describe('StatementSource', () => {
   })
 
   describe('URL display', () => {
-    it('renders archived page URL as a link', () => {
+    it('renders source URL as a link', () => {
       render(
         <StatementSource
           sources={[mockRef]}
           isWikidataStatement={false}
           activeSourceId={null}
-          onShowArchived={mockOnShowArchived}
+          onShowSource={mockOnShowSource}
           onHover={mockOnHover}
           sourceById={sourceById}
         />,

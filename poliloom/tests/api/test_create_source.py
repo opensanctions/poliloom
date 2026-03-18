@@ -72,8 +72,8 @@ class TestCreateSource:
         )
         assert response.status_code == 202
 
-        # asyncio.create_task calls process_source_task with page_id and politician_id
+        # asyncio.create_task calls process_source_task with source_id and politician_id
         mock_process.assert_called_once()
         call_args = mock_process.call_args
-        # First arg is page_id (UUID), second is politician_id
+        # First arg is source_id (UUID), second is politician_id
         assert call_args[0][1] == sample_politician.id

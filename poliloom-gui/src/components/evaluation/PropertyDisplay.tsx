@@ -11,7 +11,7 @@ import { WikidataMetadataButtons, WikidataMetadataPanel } from './WikidataMetada
 interface PropertyDisplayProps {
   property: Property
   onAction?: (propertyId: string, action: 'accept' | 'reject') => void
-  onShowArchived?: (ref: PropertyReference) => void
+  onShowSource?: (ref: PropertyReference) => void
   onHover?: (property: Property) => void
   activeSourceId?: string | null
   sourceById?: Map<string, SourceResponse>
@@ -21,7 +21,7 @@ interface PropertyDisplayProps {
 export function PropertyDisplay({
   property,
   onAction,
-  onShowArchived,
+  onShowSource,
   onHover,
   activeSourceId,
   sourceById = new Map(),
@@ -128,7 +128,7 @@ export function PropertyDisplay({
           isWikidataStatement={isWikidataStatement}
           activeSourceId={activeSourceId}
           sourceById={sourceById}
-          onShowArchived={(ref) => onShowArchived?.(ref)}
+          onShowSource={(ref) => onShowSource?.(ref)}
           onHover={() => onHover?.(property)}
         />
       )}

@@ -22,7 +22,7 @@ type SectionType = 'date' | PropertyType.P39 | PropertyType.P19 | PropertyType.P
 interface PropertiesEvaluationProps {
   properties: Property[]
   onAction: (propertyId: string, action: 'accept' | 'reject') => void
-  onShowArchived: (ref: PropertyReference) => void
+  onShowSource: (ref: PropertyReference) => void
   onHover: (property: Property) => void
   activeSourceId: string | null
   sourceById?: Map<string, SourceResponse>
@@ -32,7 +32,7 @@ interface PropertiesEvaluationProps {
 export function PropertiesEvaluation({
   properties,
   onAction,
-  onShowArchived,
+  onShowSource,
   onHover,
   activeSourceId,
   sourceById = new Map(),
@@ -219,12 +219,12 @@ export function PropertiesEvaluation({
       for (const item of section.items) {
         const firstWithSource = item.properties.find((p) => p.sources.length > 0 && !p.statement_id)
         if (firstWithSource) {
-          onShowArchived(firstWithSource.sources[0])
+          onShowSource(firstWithSource.sources[0])
           return
         }
       }
     }
-  }, [sections, onShowArchived])
+  }, [sections, onShowSource])
 
   const handleAdd = (property: CreatePropertyItem) => {
     onAddProperty?.(property)
@@ -283,7 +283,7 @@ export function PropertiesEvaluation({
                         <PropertyDisplay
                           property={property}
                           onAction={onAction}
-                          onShowArchived={onShowArchived}
+                          onShowSource={onShowSource}
                           onHover={onHover}
                           activeSourceId={activeSourceId}
                           sourceById={sourceById}

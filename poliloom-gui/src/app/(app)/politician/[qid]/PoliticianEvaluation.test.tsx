@@ -339,14 +339,14 @@ describe('PoliticianEvaluation', () => {
     })
   })
 
-  describe('archived page handling', () => {
-    it('provides source viewing for items with archived pages', () => {
+  describe('source handling', () => {
+    it('provides source viewing for items with sources', () => {
       render(<PoliticianEvaluation politician={politicianWithConflicts} />)
 
       const viewingButtons = screen.getAllByText(/Viewing/)
       expect(viewingButtons.length).toBeGreaterThan(0)
 
-      expect(screen.getByTitle('Archived Page')).toBeInTheDocument()
+      expect(screen.getByTitle('Source')).toBeInTheDocument()
     })
   })
 })

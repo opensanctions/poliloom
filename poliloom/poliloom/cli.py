@@ -790,7 +790,7 @@ def clean_properties(dry_run):
     """Delete all unevaluated extracted properties.
 
     This command removes properties that:
-    - Were extracted from web sources (archived_page_id IS NOT NULL)
+    - Were extracted from web sources (source_id IS NOT NULL)
     - Have not been evaluated/pushed to Wikidata (statement_id IS NULL)
     - Are not already soft-deleted (deleted_at IS NULL)
 

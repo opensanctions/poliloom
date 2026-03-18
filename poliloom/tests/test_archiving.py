@@ -1,4 +1,4 @@
-"""Tests for the archiving module: page fetching, MHTML conversion, and archived page processing."""
+"""Tests for the archiving module: page fetching, MHTML conversion, and source processing."""
 
 import pytest
 from unittest.mock import AsyncMock, Mock, patch
@@ -416,7 +416,7 @@ class TestConvertMhtmlToHtml:
 
 @pytest.fixture
 def pending_source(db_session, sample_politician):
-    """Create a PENDING archived page linked to sample_politician."""
+    """Create a PENDING source linked to sample_politician."""
     page = Source(
         url="https://en.wikipedia.org/wiki/Test_Politician",
         status=SourceStatus.PENDING,

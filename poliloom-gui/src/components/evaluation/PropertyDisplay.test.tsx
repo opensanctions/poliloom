@@ -10,7 +10,7 @@ vi.mock('@/contexts/UserPreferencesContext', () => ({
 }))
 
 const mockOnAction = vi.fn()
-const mockOnShowArchived = vi.fn()
+const mockOnShowSource = vi.fn()
 const mockOnHover = vi.fn()
 
 const mockSource: SourceResponse = {
@@ -43,7 +43,7 @@ describe('PropertyDisplay', () => {
       <PropertyDisplay
         property={property}
         onAction={mockOnAction}
-        onShowArchived={mockOnShowArchived}
+        onShowSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
       />,
@@ -66,7 +66,7 @@ describe('PropertyDisplay', () => {
       <PropertyDisplay
         property={property}
         onAction={mockOnAction}
-        onShowArchived={mockOnShowArchived}
+        onShowSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
       />,
@@ -85,7 +85,7 @@ describe('PropertyDisplay', () => {
       <PropertyDisplay
         property={property}
         onAction={mockOnAction}
-        onShowArchived={mockOnShowArchived}
+        onShowSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
       />,
@@ -104,7 +104,7 @@ describe('PropertyDisplay', () => {
       <PropertyDisplay
         property={property}
         onAction={mockOnAction}
-        onShowArchived={mockOnShowArchived}
+        onShowSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
       />,
@@ -122,7 +122,7 @@ describe('PropertyDisplay', () => {
       <PropertyDisplay
         property={property}
         onAction={mockOnAction}
-        onShowArchived={mockOnShowArchived}
+        onShowSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
       />,
@@ -151,7 +151,7 @@ describe('PropertyDisplay', () => {
       <PropertyDisplay
         property={property}
         onAction={mockOnAction}
-        onShowArchived={mockOnShowArchived}
+        onShowSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
         sourceById={sourceById}
@@ -174,7 +174,7 @@ describe('PropertyDisplay', () => {
       <PropertyDisplay
         property={property}
         onAction={mockOnAction}
-        onShowArchived={mockOnShowArchived}
+        onShowSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
       />,
@@ -197,7 +197,7 @@ describe('PropertyDisplay', () => {
       <PropertyDisplay
         property={property}
         onAction={mockOnAction}
-        onShowArchived={mockOnShowArchived}
+        onShowSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
       />,

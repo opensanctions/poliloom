@@ -141,7 +141,7 @@ describe('Tutorial Page', () => {
   })
 
   describe('Step 2 - Source Documents', () => {
-    it('renders source documents explanation with archived page viewer', () => {
+    it('renders source documents explanation with source viewer', () => {
       render(<TutorialContent initialStep={2} />)
 
       expect(screen.getByText('Source Documents')).toBeInTheDocument()
@@ -152,7 +152,7 @@ describe('Tutorial Page', () => {
       ).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
       // Check iframe exists
-      expect(screen.getByTitle('Archived Page')).toBeInTheDocument()
+      expect(screen.getByTitle('Source')).toBeInTheDocument()
     })
 
     it('advances to step 3 when clicking "Next"', () => {
@@ -394,7 +394,7 @@ describe('Tutorial Page', () => {
   })
 
   describe('Step 8 - Multiple Sources Evaluation (Interactive)', () => {
-    // Helper to evaluate both positions - positions come from different archived pages
+    // Helper to evaluate both positions - positions come from different sources
     // so we need to click View on the second one to make its buttons visible
     const evaluateBothPositions = (
       firstAction: 'accept' | 'reject',
@@ -407,7 +407,7 @@ describe('Tutorial Page', () => {
         fireEvent.click(screen.getByRole('button', { name: /Reject/ }))
       }
 
-      // Click View on the second position to load its archived page
+      // Click View on the second position to load its source
       const viewButtons = screen.getAllByRole('button', { name: /View/ })
       fireEvent.click(viewButtons[viewButtons.length - 1]) // Click the last View button (second position)
 

@@ -40,7 +40,7 @@ async def get_source_html(
     """Get source HTML content explicitly."""
     # Parse UUID
     try:
-        page_id = UUID(source_id)
+        source_uuid = UUID(source_id)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -48,7 +48,7 @@ async def get_source_html(
         )
 
     # Get source from database
-    source = db.get(Source, page_id)
+    source = db.get(Source, source_uuid)
     if not source:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Source not found"

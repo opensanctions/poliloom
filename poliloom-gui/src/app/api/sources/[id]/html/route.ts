@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchWithAuth } from '@/lib/api-auth'
 
-// CSS styles injected into archived pages for highlighting functionality
+// CSS styles injected into sources for highlighting functionality
 // Using semi-transparent yellow with dark text for readability on any background
 const HIGHLIGHT_STYLES = `<style data-poliloom-highlight="true">
 ::highlight(poliloom) { background-color: rgba(253, 224, 71, 0.7); color: #000; }

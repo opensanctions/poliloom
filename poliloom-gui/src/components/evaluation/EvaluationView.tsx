@@ -59,7 +59,7 @@ export function EvaluationView({
     return result
   }, [politicians, actionsByPolitician])
 
-  // Initial selection is handled by PropertiesEvaluation calling onShowArchived on mount
+  // Initial selection is handled by PropertiesEvaluation calling onShowSource on mount
   const [selectedSource, setSelectedSource] = useState<SourceResponse | null>(null)
   const [selectedQuotes, setSelectedQuotes] = useState<string[] | null>(null)
 
@@ -112,7 +112,7 @@ export function EvaluationView({
   }, [politicians])
 
   // Handler for showing source (used by View button and initial selection)
-  const handleShowArchived = useCallback(
+  const handleShowSource = useCallback(
     (ref: PropertyReference) => {
       const page = sourceById.get(ref.source_id)
       if (page) {
@@ -217,7 +217,7 @@ export function EvaluationView({
               <PropertiesEvaluation
                 properties={properties}
                 onAction={(id, action) => handleAction(key, id, action)}
-                onShowArchived={handleShowArchived}
+                onShowSource={handleShowSource}
                 onHover={handlePropertyHover}
                 activeSourceId={selectedSource?.id || null}
                 sourceById={sourceById}
