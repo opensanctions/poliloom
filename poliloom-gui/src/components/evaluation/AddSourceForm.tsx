@@ -1,13 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { SourceResponse } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 
 interface AddSourceFormProps {
   politicianQid: string
-  onAdd: (source: SourceResponse) => void
+  onAdd: () => void
   onCancel: () => void
 }
 
@@ -42,8 +41,8 @@ export function AddSourceForm({ politicianQid, onAdd, onCancel }: AddSourceFormP
         throw new Error(data?.detail || `Failed to add source: ${response.statusText}`)
       }
 
-      const source: SourceResponse = await response.json()
-      onAdd(source)
+      await response.json()
+      onAdd()
       setIsSubmitting(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to add source')

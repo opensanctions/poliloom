@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Politician,
@@ -43,21 +43,23 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Refetch politician data when source processing completes
+  const refetchPolitician = useCallback(() => {
+    fetch(`/api/politicians/${politician.wikidata_id}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: Politician | null) => {
+        if (data) setPolitician(data)
+      })
+      .catch(() => {})
+  }, [politician.wikidata_id])
+
+  // Refetch politician data on source status changes
   useEventStream(
     'source_status',
     (event) => {
       if (!event.politician_ids.includes(politician.id)) return
-      if (event.status !== 'done') return
-
-      fetch(`/api/politicians/${politician.wikidata_id}`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data: Politician | null) => {
-          if (data) setPolitician(data)
-        })
-        .catch(() => {})
+      refetchPolitician()
     },
-    [politician.id, politician.wikidata_id],
+    [politician.id, refetchPolitician],
   )
 
   const handleSubmit = async (actions: PropertyActionItem[]) => {
@@ -154,6 +156,7 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
     <EvaluationView
       politicians={[politician]}
       footer={isSessionActive ? sessionFooter : standaloneFooter}
+      onSourceAdded={refetchPolitician}
     />
   )
 }

@@ -24,6 +24,7 @@ interface EvaluationViewProps {
   footer: (actionsByPolitician: Map<string, PropertyActionItem[]>) => ReactNode
   sourcesApiPath?: string
   onNameChange?: (politicianId: string, name: string) => void
+  onSourceAdded?: () => void
 }
 
 export function EvaluationView({
@@ -31,6 +32,7 @@ export function EvaluationView({
   footer,
   sourcesApiPath = '/api/sources',
   onNameChange,
+  onSourceAdded,
 }: EvaluationViewProps) {
   const [actionsByPolitician, setActionsByPolitician] = useState<Map<string, PropertyActionItem[]>>(
     () => {
@@ -137,23 +139,7 @@ export function EvaluationView({
     }
   }
 
-  // Track sources added by the user during this session
-  const [addedSourcesByPolitician, setAddedSourcesByPolitician] = useState<
-    Map<string, SourceResponse[]>
-  >(() => new Map())
-
-  const handleAddSource = (politicianId: string, source: SourceResponse) => {
-    setAddedSourcesByPolitician((prev) => {
-      const next = new Map(prev)
-      const sources = next.get(politicianId) || []
-      next.set(politicianId, [...sources, source])
-      return next
-    })
-    setSelectedSource(source)
-    setSelectedQuotes(null)
-  }
-
-  // Collect unique sources across all politicians' property sources + top-level + added
+  // Collect unique sources across all politicians' property sources + top-level
   const sourcesByPolitician = useMemo(() => {
     const result = new Map<string, SourceResponse[]>()
     for (const politician of politicians) {
@@ -175,16 +161,10 @@ export function EvaluationView({
           }
         }
       }
-      // User-added sources in this session
-      for (const page of addedSourcesByPolitician.get(politician.id) || []) {
-        if (!seen.has(page.id)) {
-          seen.set(page.id, page)
-        }
-      }
       result.set(politician.id, Array.from(seen.values()))
     }
     return result
-  }, [politicians, addedSourcesByPolitician, sourceById])
+  }, [politicians, sourceById])
 
   const leftPanel = (
     <div className="grid grid-rows-[1fr_auto] h-full">
@@ -211,7 +191,7 @@ export function EvaluationView({
                 activeSourceId={selectedSource?.id || null}
                 onSelect={handleSelectSource}
                 politicianQid={politician.wikidata_id ?? undefined}
-                onAddSource={(source) => handleAddSource(politician.id, source)}
+                onAddSource={onSourceAdded}
               />
 
               <PropertiesEvaluation

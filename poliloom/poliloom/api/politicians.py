@@ -19,7 +19,6 @@ from ..search import SearchService
 from ..models import (
     Source,
     SourceLanguage,
-    SourceStatus,
     Evaluation,
     Politician,
     Property,
@@ -335,7 +334,6 @@ async def get_politician(
                 selectinload(Property.entity),
                 selectinload(Property.property_references),
             ),
-            selectinload(Politician.wikipedia_links),
             selectinload(Politician.sources),
         )
     else:
@@ -346,7 +344,6 @@ async def get_politician(
                 selectinload(Property.entity),
                 selectinload(Property.property_references),
             ),
-            selectinload(Politician.wikipedia_links),
             selectinload(Politician.sources),
         )
 
@@ -542,7 +539,6 @@ async def create_source(
     source = Source(
         url=request.url,
         user_id=str(current_user.user_id),
-        status=SourceStatus.PENDING,
     )
     db.add(source)
     db.flush()

@@ -70,7 +70,7 @@ interface SourcesListProps {
   activeSourceId: string | null
   onSelect: (page: SourceResponse) => void
   politicianQid?: string
-  onAddSource?: (source: SourceResponse) => void
+  onAddSource?: () => void
 }
 
 export function SourcesList({
@@ -83,8 +83,8 @@ export function SourcesList({
   const { isAdvancedMode } = useUserPreferences()
   const [isAdding, setIsAdding] = useState(false)
 
-  const handleAdd = (source: SourceResponse) => {
-    onAddSource?.(source)
+  const handleAdd = () => {
+    onAddSource?.()
     setIsAdding(false)
   }
 
