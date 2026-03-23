@@ -5,11 +5,10 @@ import { PreferenceType } from '@/types'
 
 // Test component to access context
 function TestComponent() {
-  const { filters, initialized } = useUserPreferences()
+  const { filters } = useUserPreferences()
   return (
     <div>
       <div data-testid="filters">{JSON.stringify(filters)}</div>
-      <div data-testid="initialized">{String(initialized)}</div>
     </div>
   )
 }
@@ -135,10 +134,10 @@ describe('UserPreferencesContext', () => {
       expect(fetchMock).toHaveBeenCalledWith('/api/languages')
     })
 
-    // Wait for initialization
+    // Wait for filters to load from localStorage
     await waitFor(() => {
-      const testElement = document.querySelector('[data-testid="initialized"]')
-      expect(testElement?.textContent).toBe('true')
+      const filtersText = document.querySelector('[data-testid="filters"]')?.textContent
+      expect(filtersText).not.toBe('') // filters loaded (not undefined)
     })
 
     // Should NOT update filters (browser detection should not run because localStorage has filters)
@@ -177,10 +176,10 @@ describe('UserPreferencesContext', () => {
       expect(fetchMock).toHaveBeenCalledWith('/api/languages')
     })
 
-    // Wait for initialization
+    // Wait for filters to load from localStorage
     await waitFor(() => {
-      const testElement = document.querySelector('[data-testid="initialized"]')
-      expect(testElement?.textContent).toBe('true')
+      const filtersText = document.querySelector('[data-testid="filters"]')?.textContent
+      expect(filtersText).toBe('[]') // loaded but empty
     })
 
     // Should NOT update filters - the key exists so browser detection should not run
@@ -217,10 +216,6 @@ describe('UserPreferencesContext', () => {
     )
 
     await waitFor(() => {
-      expect(getByTestId('initialized').textContent).toBe('true')
-    })
-
-    await waitFor(() => {
       const filtersText = getByTestId('filters').textContent || ''
       const filters = JSON.parse(filtersText)
       expect(filters).toEqual(existingFilters)
@@ -242,11 +237,11 @@ describe('UserPreferencesContext', () => {
       } as Response)
 
     function TestComponentWithUpdate() {
-      const { updateFilters, initialized } = useUserPreferences()
+      const { filters, updateFilters } = useUserPreferences()
 
       return (
         <div>
-          <div data-testid="initialized">{String(initialized)}</div>
+          <div data-testid="filters">{JSON.stringify(filters)}</div>
           <button
             onClick={() =>
               updateFilters(PreferenceType.LANGUAGE, [{ wikidata_id: 'Q1860', name: 'English' }])
@@ -264,8 +259,9 @@ describe('UserPreferencesContext', () => {
       </UserPreferencesProvider>,
     )
 
+    // Wait for filters to load
     await waitFor(() => {
-      expect(getByTestId('initialized').textContent).toBe('true')
+      expect(getByTestId('filters').textContent).not.toBeUndefined()
     })
 
     // Click update button

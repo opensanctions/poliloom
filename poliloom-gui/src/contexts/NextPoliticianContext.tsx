@@ -27,14 +27,16 @@ export function NextPoliticianProvider({ children }: { children: React.ReactNode
   const languageFilters = useMemo(
     () =>
       filters
-        .filter((p) => p.preference_type === PreferenceType.LANGUAGE)
-        .map((p) => p.wikidata_id),
+        ?.filter((p) => p.preference_type === PreferenceType.LANGUAGE)
+        .map((p) => p.wikidata_id) ?? [],
     [filters],
   )
 
   const countryFilters = useMemo(
     () =>
-      filters.filter((p) => p.preference_type === PreferenceType.COUNTRY).map((p) => p.wikidata_id),
+      filters
+        ?.filter((p) => p.preference_type === PreferenceType.COUNTRY)
+        .map((p) => p.wikidata_id) ?? [],
     [filters],
   )
 
@@ -63,11 +65,14 @@ export function NextPoliticianProvider({ children }: { children: React.ReactNode
   )
 
   // Fetch on mount and when filters change, excluding the currently held id
+  // Wait for filters to load from localStorage before fetching,
+  // otherwise the first call fires with empty filters.
   useEffect(() => {
+    if (filters === undefined) return
     fetchNext(nextQid ?? undefined)
     // nextQid intentionally excluded — we only want to re-fetch when filters change, not when nextQid changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchNext])
+  }, [fetchNext, filters !== undefined])
 
   // Listen for enrichment_complete events instead of polling
   useEventStream(

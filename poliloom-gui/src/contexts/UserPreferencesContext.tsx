@@ -17,12 +17,11 @@ import {
 } from '@/types'
 
 interface UserPreferencesContextType {
-  filters: PreferenceResponse[]
+  filters: PreferenceResponse[] | undefined
   languages: LanguageResponse[]
   countries: CountryResponse[]
   loadingLanguages: boolean
   loadingCountries: boolean
-  initialized: boolean
   updateFilters: (type: PreferenceType, items: WikidataEntity[]) => void
   isAdvancedMode: boolean
   setAdvancedMode: (enabled: boolean) => void
@@ -85,12 +84,11 @@ const detectBrowserLanguage = (availableLanguages: LanguageResponse[]): Wikidata
 }
 
 export function UserPreferencesProvider({ children }: { children: React.ReactNode }) {
-  const [filters, setFilters] = useState<PreferenceResponse[]>([])
+  const [filters, setFilters] = useState<PreferenceResponse[] | undefined>(undefined)
   const [languages, setLanguages] = useState<LanguageResponse[]>([])
   const [countries, setCountries] = useState<CountryResponse[]>([])
   const [loadingLanguages, setLoadingLanguages] = useState(true)
   const [loadingCountries, setLoadingCountries] = useState(true)
-  const [initialized, setInitialized] = useState(false)
 
   // Advanced mode state
   const isAdvancedMode = useSyncExternalStore(
@@ -163,7 +161,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
     setFilters((prevFilters) => {
       // Update local state
       const updated = [
-        ...prevFilters.filter((p) => p.preference_type !== preferenceType),
+        ...(prevFilters ?? []).filter((p) => p.preference_type !== preferenceType),
         ...items.map((item) => ({
           wikidata_id: item.wikidata_id,
           name: item.name,
@@ -177,26 +175,18 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
 
   // Load filters from localStorage on mount
   useEffect(() => {
-    const loadFromStorage = () => {
-      try {
-        const stored = localStorage.getItem(FILTERS_STORAGE_KEY)
-        if (stored) {
-          const filters = JSON.parse(stored)
-          setFilters(filters)
-        }
-      } catch (error) {
-        console.warn('Failed to load evaluation filters from localStorage:', error)
-      } finally {
-        setInitialized(true)
-      }
+    try {
+      const stored = localStorage.getItem(FILTERS_STORAGE_KEY)
+      setFilters(stored ? JSON.parse(stored) : [])
+    } catch (error) {
+      console.warn('Failed to load evaluation filters from localStorage:', error)
+      setFilters([])
     }
-
-    loadFromStorage()
   }, [])
 
   // Auto-detect browser language on first visit (only if preferences were never set)
   useEffect(() => {
-    if (!initialized || loadingLanguages || languages.length === 0) return
+    if (filters === undefined || loadingLanguages || languages.length === 0) return
 
     // Only auto-detect if localStorage has never been set
     const hasStoredPreferences = localStorage.getItem(FILTERS_STORAGE_KEY) !== null
@@ -206,7 +196,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
     if (detectedLanguages.length > 0) {
       updateFilters(PreferenceType.LANGUAGE, detectedLanguages)
     }
-  }, [initialized, loadingLanguages, languages, updateFilters])
+  }, [filters, loadingLanguages, languages, updateFilters])
 
   const value: UserPreferencesContextType = {
     filters,
@@ -214,7 +204,6 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
     countries,
     loadingLanguages,
     loadingCountries,
-    initialized,
     updateFilters,
     isAdvancedMode,
     setAdvancedMode,

@@ -10,7 +10,6 @@ let mockFilters: Array<{ wikidata_id: string; name: string; preference_type: Pre
 vi.mock('@/contexts/UserPreferencesContext', () => ({
   useUserPreferences: () => ({
     filters: mockFilters,
-    initialized: true,
   }),
 }))
 

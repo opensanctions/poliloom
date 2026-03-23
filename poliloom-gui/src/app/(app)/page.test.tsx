@@ -99,7 +99,6 @@ const defaultUserPreferences = {
   countries: [],
   loadingLanguages: false,
   loadingCountries: false,
-  initialized: true,
   updateFilters: vi.fn(),
   isAdvancedMode: false,
   setAdvancedMode: vi.fn(),
