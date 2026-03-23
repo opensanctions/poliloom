@@ -1,4 +1,4 @@
-export type SourceStatus = 'pending' | 'processing' | 'done'
+export type SourceStatus = 'processing' | 'done'
 
 export interface SourceResponse {
   id: string

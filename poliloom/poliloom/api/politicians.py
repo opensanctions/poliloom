@@ -305,6 +305,9 @@ async def get_politician(
 ):
     """
     Fetch a single politician by Wikidata QID with all non-deleted properties.
+
+    Triggers enrichment if the politician hasn't been enriched within the
+    cooldown period, scheduling background source processing.
     """
     query = Politician.query_base().where(Politician.wikidata_id == qid)
 
@@ -354,7 +357,17 @@ async def get_politician(
     if not politician:
         raise HTTPException(status_code=404, detail="Politician not found")
 
-    return build_politician_response(politician)
+    new_sources = []
+    if politician.needs_enrichment:
+        new_sources = politician.schedule_enrichment(db)
+
+    response = build_politician_response(politician)
+
+    db.commit()
+    for source in new_sources:
+        asyncio.create_task(process_source_task(source.id, politician.id))
+
+    return response
 
 
 async def process_property_actions(
@@ -521,7 +534,7 @@ async def create_source(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Add a source link to a politician. Creates a pending Source and
+    Add a source link to a politician. Creates a Source and
     processes it in the background (fetch + extract). Returns 202 immediately.
     """
     politician = (
@@ -535,7 +548,7 @@ async def create_source(
             detail=f"Politician with QID {qid} not found",
         )
 
-    # Create pending Source
+    # Create Source
     source = Source(
         url=request.url,
         user_id=str(current_user.user_id),

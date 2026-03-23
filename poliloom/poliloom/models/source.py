@@ -81,7 +81,6 @@ class SourceError(str, Enum):
 class SourceStatus(str, Enum):
     """Status of a source through the processing pipeline."""
 
-    PENDING = "pending"
     PROCESSING = "processing"
     DONE = "done"
 
@@ -98,7 +97,7 @@ class Source(Base, TimestampMixin):
     permanent_url = Column(String, nullable=True)  # Wikipedia oldid URL for references
     url_hash = Column(
         String, nullable=True, index=True
-    )  # SHA256 hash for deduplication, null while pending
+    )  # SHA256 hash for deduplication, null while processing
     fetch_timestamp = Column(
         DateTime, nullable=True, default=lambda: datetime.now(timezone.utc)
     )

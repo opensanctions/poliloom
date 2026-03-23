@@ -20,6 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    op.execute("UPDATE sources SET status = 'PROCESSING' WHERE status = 'PENDING'")
     op.alter_column(
         "sources",
         "status",

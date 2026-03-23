@@ -218,21 +218,21 @@ class TestSource:
         source = Source(
             url="https://example.com/test",
             fetch_timestamp=datetime.now(timezone.utc),
-            status=SourceStatus.PENDING,
+            status=SourceStatus.PROCESSING,
         )
         db_session.add(source)
         sample_politician.sources.append(source)
         db_session.flush()
         mock_notify.reset_mock()
 
-        source.status = SourceStatus.PROCESSING
+        source.status = SourceStatus.DONE
         db_session.flush()
 
         assert mock_notify.call_count == 1
         event = mock_notify.call_args[0][0]
         assert event.politician_ids == [str(sample_politician.id)]
         assert event.source_id == str(source.id)
-        assert event.status == "processing"
+        assert event.status == "done"
 
     @patch("poliloom.models.source.notify")
     def test_status_change_broadcasts_multiple_politician_ids(
@@ -249,7 +249,7 @@ class TestSource:
         source = Source(
             url="https://example.com/shared",
             fetch_timestamp=datetime.now(timezone.utc),
-            status=SourceStatus.PENDING,
+            status=SourceStatus.PROCESSING,
         )
         db_session.add(source)
         sample_politician.sources.append(source)

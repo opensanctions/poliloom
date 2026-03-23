@@ -415,11 +415,11 @@ class TestConvertMhtmlToHtml:
 
 
 @pytest.fixture
-def pending_source(db_session, sample_politician):
-    """Create a PENDING source linked to sample_politician."""
+def source(db_session, sample_politician):
+    """Create a source linked to sample_politician."""
     page = Source(
         url="https://en.wikipedia.org/wiki/Test_Politician",
-        status=SourceStatus.PENDING,
+        status=SourceStatus.PROCESSING,
     )
     db_session.add(page)
     db_session.flush()
@@ -454,16 +454,16 @@ class TestProcessSource:
         mock_extract,
         db_session,
         sample_politician,
-        pending_source,
+        source,
     ):
-        await process_source(db_session, pending_source, sample_politician)
+        await process_source(db_session, source, sample_politician)
 
-        assert pending_source.status == SourceStatus.DONE
-        assert pending_source.error is None
+        assert source.status == SourceStatus.DONE
+        assert source.error is None
 
     @pytest.mark.asyncio
     async def test_fetch_error_sets_error_type(
-        self, db_session, sample_politician, pending_source
+        self, db_session, sample_politician, source
     ):
         with patch(
             "poliloom.archiving.fetch_page",
@@ -473,50 +473,48 @@ class TestProcessSource:
                 )
             ),
         ):
-            await process_source(db_session, pending_source, sample_politician)
+            await process_source(db_session, source, sample_politician)
 
-        assert pending_source.status == SourceStatus.DONE
-        assert pending_source.error == SourceError.FETCH_ERROR
-        assert pending_source.http_status_code == 404
+        assert source.status == SourceStatus.DONE
+        assert source.error == SourceError.FETCH_ERROR
+        assert source.http_status_code == 404
 
     @pytest.mark.asyncio
-    async def test_timeout_error(self, db_session, sample_politician, pending_source):
+    async def test_timeout_error(self, db_session, sample_politician, source):
         with patch(
             "poliloom.archiving.fetch_page",
             AsyncMock(side_effect=PageFetchError("Timeout", error_type="TIMEOUT")),
         ):
-            await process_source(db_session, pending_source, sample_politician)
+            await process_source(db_session, source, sample_politician)
 
-        assert pending_source.status == SourceStatus.DONE
-        assert pending_source.error == SourceError.TIMEOUT
+        assert source.status == SourceStatus.DONE
+        assert source.error == SourceError.TIMEOUT
 
     @pytest.mark.asyncio
-    async def test_no_response_error(
-        self, db_session, sample_politician, pending_source
-    ):
+    async def test_no_response_error(self, db_session, sample_politician, source):
         with patch(
             "poliloom.archiving.fetch_page",
             AsyncMock(
                 side_effect=PageFetchError("No response", error_type="NO_RESPONSE")
             ),
         ):
-            await process_source(db_session, pending_source, sample_politician)
+            await process_source(db_session, source, sample_politician)
 
-        assert pending_source.status == SourceStatus.DONE
-        assert pending_source.error == SourceError.NO_RESPONSE
+        assert source.status == SourceStatus.DONE
+        assert source.error == SourceError.NO_RESPONSE
 
     @pytest.mark.asyncio
     async def test_generic_exception_sets_pipeline_error(
-        self, db_session, sample_politician, pending_source
+        self, db_session, sample_politician, source
     ):
         with patch(
             "poliloom.archiving.fetch_page",
             AsyncMock(side_effect=RuntimeError("unexpected crash")),
         ):
-            await process_source(db_session, pending_source, sample_politician)
+            await process_source(db_session, source, sample_politician)
 
-        assert pending_source.status == SourceStatus.DONE
-        assert pending_source.error == SourceError.PIPELINE_ERROR
+        assert source.status == SourceStatus.DONE
+        assert source.error == SourceError.PIPELINE_ERROR
 
     @pytest.mark.asyncio
     @patch(
@@ -537,12 +535,12 @@ class TestProcessSource:
         mock_extract,
         db_session,
         sample_politician,
-        pending_source,
+        source,
     ):
-        await process_source(db_session, pending_source, sample_politician)
+        await process_source(db_session, source, sample_politician)
 
-        assert pending_source.status == SourceStatus.DONE
-        assert pending_source.error == SourceError.INVALID_CONTENT
+        assert source.status == SourceStatus.DONE
+        assert source.error == SourceError.INVALID_CONTENT
 
     @pytest.mark.asyncio
     @patch(
@@ -566,12 +564,12 @@ class TestProcessSource:
         mock_extract,
         db_session,
         sample_politician,
-        pending_source,
+        source,
     ):
-        await process_source(db_session, pending_source, sample_politician)
+        await process_source(db_session, source, sample_politician)
 
-        assert pending_source.status == SourceStatus.DONE
-        assert pending_source.error == SourceError.INVALID_CONTENT
+        assert source.status == SourceStatus.DONE
+        assert source.error == SourceError.INVALID_CONTENT
 
     @pytest.mark.asyncio
     @patch(
@@ -597,19 +595,19 @@ class TestProcessSource:
         mock_extract,
         db_session,
         sample_politician,
-        pending_source,
+        source,
         sample_wikipedia_project,
     ):
-        pending_source.wikipedia_project_id = sample_wikipedia_project.wikidata_id
+        source.wikipedia_project_id = sample_wikipedia_project.wikidata_id
         db_session.flush()
 
-        await process_source(db_session, pending_source, sample_politician)
+        await process_source(db_session, source, sample_politician)
 
         assert (
-            pending_source.permanent_url
+            source.permanent_url
             == "https://en.wikipedia.org/w/index.php?title=Test&oldid=123"
         )
-        assert pending_source.status == SourceStatus.DONE
+        assert source.status == SourceStatus.DONE
 
     @pytest.mark.asyncio
     @patch(
@@ -624,17 +622,17 @@ class TestProcessSource:
         mock_extract,
         db_session,
         sample_politician,
-        pending_source,
+        source,
     ):
         """Status should be PROCESSING when fetch is called."""
         observed_status = None
 
         async def capture_status(url):
             nonlocal observed_status
-            observed_status = pending_source.status
+            observed_status = source.status
             return FetchedPage(mhtml="<mhtml>", html="<html><body>text</body></html>")
 
         with patch("poliloom.archiving.fetch_page", side_effect=capture_status):
-            await process_source(db_session, pending_source, sample_politician)
+            await process_source(db_session, source, sample_politician)
 
         assert observed_status == SourceStatus.PROCESSING

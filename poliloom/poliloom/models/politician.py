@@ -25,6 +25,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.engine import Row
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Session, relationship
 from ..wikidata_date import WikidataDate
 from .base import (
@@ -111,6 +112,26 @@ class Politician(
 
         result = db.execute(query)
         return result.fetchall()
+
+    def schedule_enrichment(self, db: Session) -> list["Source"]:
+        """Create sources for this politician's priority Wikipedia links.
+
+        Sets enriched_at to now to prevent re-selection.
+        Caller manages commit/rollback.
+
+        Returns:
+            List of newly created Source objects (empty if no suitable links).
+        """
+        sources = []
+        for url, wikipedia_project_id in self.get_priority_wikipedia_links(db):
+            source = Source(url=url, wikipedia_project_id=wikipedia_project_id)
+            db.add(source)
+            db.flush()
+            self.sources.append(source)
+            sources.append(source)
+
+        self.enriched_at = datetime.now(timezone.utc)
+        return sources
 
     def to_xml_context(self, focus_property_types=None) -> str:
         """Build comprehensive politician context as XML structure for LLM prompts.
@@ -391,6 +412,21 @@ class Politician(
         cooldown_days = Politician.get_enrichment_cooldown_days()
         return datetime.now(timezone.utc) - timedelta(days=cooldown_days)
 
+    @hybrid_property
+    def needs_enrichment(self) -> bool:
+        if self.enriched_at is None:
+            return True
+        enriched_at = self.enriched_at.replace(tzinfo=timezone.utc)
+        return enriched_at < self.get_enrichment_cooldown_cutoff()
+
+    @needs_enrichment.expression
+    def needs_enrichment(cls):
+        cutoff = cls.get_enrichment_cooldown_cutoff()
+        return or_(
+            cls.enriched_at.is_(None),
+            cls.enriched_at < cutoff,
+        )
+
     @classmethod
     def query_base(cls):
         """
@@ -510,12 +546,6 @@ class Politician(
             SQLAlchemy select statement for Politician entities
         """
 
-        # Get cooldown cutoff from shared helper method
-        cooldown_cutoff = cls.get_enrichment_cooldown_cutoff()
-
-        # Base query: politicians with Wikipedia links and non-soft-deleted WikidataEntity
-        # Exclude politicians enriched within the cooldown period to prevent rapid re-enrichment
-        # Returns Politician entities (not just IDs) so filters are evaluated at lock time
         query = (
             select(cls)
             .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
@@ -524,11 +554,7 @@ class Politician(
                     exists(select(1).where(WikipediaLink.politician_id == cls.id)),
                     WikidataEntity.deleted_at.is_(None),
                     cls.wikidata_id.isnot(None),
-                    or_(
-                        cls.enriched_at.is_(None),  # Never enriched
-                        cls.enriched_at
-                        < cooldown_cutoff,  # Or enriched more than cooldown period ago
-                    ),
+                    cls.needs_enrichment,
                 )
             )
         )

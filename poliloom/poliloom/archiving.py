@@ -360,7 +360,7 @@ def schedule_enrichment(
     countries: Optional[List[str]] = None,
     stateless: bool = False,
 ) -> Optional[ScheduledEnrichment]:
-    """Pick the next politician and create PENDING sources for its Wikipedia links.
+    """Pick the next politician and create sources for its Wikipedia links.
 
     Sets enriched_at immediately to prevent re-selection by other workers.
 
@@ -390,35 +390,22 @@ def schedule_enrichment(
         return None
 
     try:
-        priority_links = politician.get_priority_wikipedia_links(db)
+        sources = politician.schedule_enrichment(db)
 
-        if not priority_links:
-            raise ValueError(
-                f"No suitable Wikipedia links found for politician {politician.name}"
-            )
+        if not sources:
+            db.commit()
+            return None
 
         logger.info(
-            f"Processing {len(priority_links)} Wikipedia sources for {politician.name}: "
-            f"{[f'{wikipedia_project_id} ({url})' for url, wikipedia_project_id in priority_links]}"
+            f"Processing {len(sources)} Wikipedia sources for {politician.name}: "
+            f"{[f'{s.wikipedia_project_id} ({s.url})' for s in sources]}"
         )
 
-        source_ids = []
-        for url, wikipedia_project_id in priority_links:
-            source = Source(
-                url=url,
-                wikipedia_project_id=wikipedia_project_id,
-            )
-            db.add(source)
-            db.flush()
-            politician.sources.append(source)
-            source_ids.append(source.id)
-
-        politician.enriched_at = datetime.now(timezone.utc)
         db.commit()
 
         return ScheduledEnrichment(
             politician_id=politician.id,
-            source_ids=source_ids,
+            source_ids=[s.id for s in sources],
         )
 
     except Exception as e:

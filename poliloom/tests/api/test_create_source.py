@@ -24,10 +24,10 @@ class TestCreateSource:
         assert response.status_code == 404
 
     @patch("poliloom.api.politicians.process_source_task", new_callable=AsyncMock)
-    def test_creates_pending_source(
+    def test_creates_source(
         self, mock_process, client, mock_auth, db_session, sample_politician
     ):
-        """Test that a PENDING source is created and linked to the politician."""
+        """Test that a source is created and linked to the politician."""
         response = client.post(
             f"/politicians/{sample_politician.wikidata_id}/sources",
             json={"url": "https://example.com/article"},
@@ -36,12 +36,12 @@ class TestCreateSource:
         assert response.status_code == 202
         data = response.json()
         assert data["url"] == "https://example.com/article"
-        assert data["status"] == "pending"
+        assert data["status"] == "processing"
 
         # Verify the page exists in DB with correct attributes
         page = db_session.get(Source, data["id"])
         assert page is not None
-        assert page.status == SourceStatus.PENDING
+        assert page.status == SourceStatus.PROCESSING
         assert page.user_id == "12345"  # from mock_auth fixture
 
     @patch("poliloom.api.politicians.process_source_task", new_callable=AsyncMock)

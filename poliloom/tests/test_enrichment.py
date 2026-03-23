@@ -604,9 +604,9 @@ class TestScheduleEnrichment:
         db_session.refresh(sample_politician)
         assert sample_politician.enriched_at is not None
 
-        # Sources should be created as PENDING
+        # Sources should be created as PROCESSING (server_default)
         pages = db_session.query(Source).filter(Source.id.in_(result.source_ids)).all()
-        assert all(p.status == SourceStatus.PENDING for p in pages)
+        assert all(p.status == SourceStatus.PROCESSING for p in pages)
 
     def test_returns_none_when_no_wikipedia_links(self, db_session, sample_politician):
         assert schedule_enrichment(db_session) is None
