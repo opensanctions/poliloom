@@ -7,6 +7,7 @@ export interface SourceResponse {
   fetch_timestamp: string | null
   status: SourceStatus
   error?: string | null
+  http_status_code?: number | null
 }
 
 export enum PropertyType {

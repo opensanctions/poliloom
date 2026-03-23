@@ -1,5 +1,5 @@
 import { PropertyReference, SourceResponse } from '@/types'
-import { Button } from '@/components/ui/Button'
+import { SourceItem } from './SourceItem'
 
 interface StatementSourceProps {
   sources: PropertyReference[]
@@ -25,42 +25,29 @@ export function StatementSource({
       {sources
         .map((ref) => ({ ref, page: sourceById.get(ref.source_id) }))
         .sort((a, b) => (a.page?.url ?? '').localeCompare(b.page?.url ?? ''))
-        .map(({ ref, page }) => (
-          <div key={ref.id} className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Button
-                size="small"
-                variant="info"
-                active={activeSourceId === ref.source_id}
-                onClick={() => onViewSource?.(ref.source_id, ref.supporting_quotes)}
-                className="flex-shrink-0"
-                title="Show the source page with highlighted supporting quotes"
-              >
-                • {activeSourceId === ref.source_id ? 'Viewing' : 'View'}
-              </Button>
-              {page && (
-                <a
-                  href={page.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-accent-foreground hover:underline truncate min-w-0"
-                  title={page.url}
-                >
-                  {page.url}
-                </a>
+        .map(({ ref, page }) => {
+          if (!page) return null
+          return (
+            <SourceItem
+              key={ref.id}
+              page={page}
+              isActive={activeSourceId === ref.source_id}
+              onView={() => onViewSource?.(ref.source_id, ref.supporting_quotes)}
+              label="• View"
+              activeLabel="• Viewing"
+            >
+              {ref.supporting_quotes && ref.supporting_quotes.length > 0 && (
+                <ol className="list-decimal list-outside ml-4 space-y-1 py-2">
+                  {ref.supporting_quotes.map((quote, index) => (
+                    <li key={index} className="text-sm text-foreground-tertiary">
+                      &quot;{quote}&quot;
+                    </li>
+                  ))}
+                </ol>
               )}
-            </div>
-            {ref.supporting_quotes && ref.supporting_quotes.length > 0 && (
-              <ol className="list-decimal list-outside ml-4 space-y-1 py-2">
-                {ref.supporting_quotes.map((quote, index) => (
-                  <li key={index} className="text-sm text-foreground-tertiary">
-                    &quot;{quote}&quot;
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
-        ))}
+            </SourceItem>
+          )
+        })}
     </div>
   )
 }
