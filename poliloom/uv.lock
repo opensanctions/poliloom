@@ -2055,11 +2055,11 @@ wheels = [
 
 [[package]]
 name = "unmhtml"
-version = "0.2.0"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/86/5f/e4afd463b3bc0378b747ae83af196123c56d9b0ed648bd5c836a8a2408f5/unmhtml-0.2.0.tar.gz", hash = "sha256:48df3a83aafd2af7e20f2bdde4ae335771b85384302f86daea53c6baf0f88b8c", size = 55542, upload-time = "2025-08-06T14:08:35.172Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f2/d1/2d9a5e857b8d56d99116b5313d61349f6cf05ea0a5edf4e768b758ce828f/unmhtml-0.3.0.tar.gz", hash = "sha256:8c0209465c1840f11c0fc6d2a136ac7cd209dfbbbd3dbae9756b12c85f8ff81b", size = 55123, upload-time = "2026-03-23T15:20:51.276Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4a/96/77a68362a1d91a0ad7d767e8cabfe4524aa48866dfe8a90a862b13895a2f/unmhtml-0.2.0-py3-none-any.whl", hash = "sha256:cc6c212cbdb87fb9e6b77b1c635accf3516ba12cd92441c97a7ee7c4910d0cc5", size = 15505, upload-time = "2025-08-06T14:08:34.129Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/c4/8abc21707b5a1dd6f8fae2c37c4c9da68d4050426f1d53241bd527b72d6c/unmhtml-0.3.0-py3-none-any.whl", hash = "sha256:b008fde92d8f070abd32d76ec323dc765e47ef429726f61d9c0c2bafb2dc06e4", size = 14533, upload-time = "2026-03-23T15:20:49.825Z" },
 ]
 
 [[package]]
