@@ -22,9 +22,10 @@ export function StatementSource({
 
   return (
     <div className="space-y-2" onMouseEnter={onHover}>
-      {sources.map((ref) => {
-        const page = sourceById.get(ref.source_id)
-        return (
+      {sources
+        .map((ref) => ({ ref, page: sourceById.get(ref.source_id) }))
+        .sort((a, b) => (a.page?.url ?? '').localeCompare(b.page?.url ?? ''))
+        .map(({ ref, page }) => (
           <div key={ref.id} className="space-y-1">
             <div className="flex items-center gap-2">
               <Button
@@ -59,8 +60,7 @@ export function StatementSource({
               </ol>
             )}
           </div>
-        )
-      })}
+        ))}
     </div>
   )
 }

@@ -92,14 +92,16 @@ export function SourcesList({
     <div className="mb-8">
       <h2 className="text-xl font-semibold text-foreground mb-4">Sources</h2>
       <div className="space-y-2">
-        {sources.map((page) => (
-          <SourceItem
-            key={page.id}
-            page={page}
-            isActive={activeSourceId === page.id}
-            onViewSource={onViewSource}
-          />
-        ))}
+        {[...sources]
+          .sort((a, b) => a.url.localeCompare(b.url))
+          .map((page) => (
+            <SourceItem
+              key={page.id}
+              page={page}
+              isActive={activeSourceId === page.id}
+              onViewSource={onViewSource}
+            />
+          ))}
       </div>
       {onAddSource && politicianQid && isAdvancedMode && (
         <div className="mt-4">
