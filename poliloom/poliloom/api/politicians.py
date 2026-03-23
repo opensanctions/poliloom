@@ -106,7 +106,7 @@ def build_politician_response(politician) -> PoliticianResponse:
             SourceResponse(
                 id=s.id,
                 url=s.url,
-                content_hash=s.content_hash,
+                url_hash=s.url_hash,
                 fetch_timestamp=s.fetch_timestamp,
                 status=s.status.value,
                 error=s.error.value if s.error else None,

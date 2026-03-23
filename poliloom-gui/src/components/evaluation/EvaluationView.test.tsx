@@ -14,7 +14,7 @@ vi.mock('@/contexts/UserPreferencesContext', () => ({
 const source1: SourceResponse = {
   id: 'archived-1',
   url: 'https://en.wikipedia.org/wiki/Test',
-  content_hash: 'abc',
+  url_hash: 'abc',
   fetch_timestamp: '2024-01-01T00:00:00Z',
   status: 'done',
 }
@@ -22,7 +22,7 @@ const source1: SourceResponse = {
 const source2: SourceResponse = {
   id: 'archived-2',
   url: 'https://gov.example.com/official',
-  content_hash: 'def',
+  url_hash: 'def',
   fetch_timestamp: '2024-02-01T00:00:00Z',
   status: 'done',
 }
@@ -30,7 +30,7 @@ const source2: SourceResponse = {
 const source3: SourceResponse = {
   id: 'archived-3',
   url: 'https://news.example.com/bio',
-  content_hash: 'ghi',
+  url_hash: 'ghi',
   fetch_timestamp: '2024-03-01T00:00:00Z',
   status: 'done',
 }

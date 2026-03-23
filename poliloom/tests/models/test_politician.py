@@ -497,12 +497,12 @@ class TestPoliticianFilterByUnevaluated:
         # Create sources with language associations
         en_page = create_source(
             url="https://en.example.com/test",
-            content_hash="en123",
+            url_hash="en123",
             languages=[sample_language],
         )
         de_page = create_source(
             url="https://de.example.com/test",
-            content_hash="de123",
+            url_hash="de123",
             languages=[sample_german_language],
         )
 

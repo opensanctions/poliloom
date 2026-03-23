@@ -4,7 +4,7 @@ import { SourceResponse, Politician, Property, PropertyReference, PropertyType }
 const page1: SourceResponse = {
   id: 'tutorial-page-1',
   url: 'https://example.parliament.gov/members/jane-doe',
-  content_hash: 'tutorial-hash-1',
+  url_hash: 'tutorial-hash-1',
   fetch_timestamp: '2024-01-15T10:00:00Z',
   status: 'done',
 }
@@ -12,7 +12,7 @@ const page1: SourceResponse = {
 const page2: SourceResponse = {
   id: 'tutorial-page-2',
   url: 'https://en.wikipedia.org/wiki/Jane_Doe_(politician)',
-  content_hash: 'tutorial-hash-2',
+  url_hash: 'tutorial-hash-2',
   fetch_timestamp: '2024-01-15T10:00:00Z',
   status: 'done',
 }

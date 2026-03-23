@@ -3,7 +3,7 @@ export type SourceStatus = 'pending' | 'processing' | 'done'
 export interface SourceResponse {
   id: string
   url: string
-  content_hash: string | null
+  url_hash: string | null
   fetch_timestamp: string | null
   status: SourceStatus
   error?: string | null

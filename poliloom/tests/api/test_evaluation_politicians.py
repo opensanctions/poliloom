@@ -16,7 +16,7 @@ def politician_with_evaluated_data(db_session, create_birth_date):
     """Create a politician with only evaluated extracted data (should be excluded)."""
     source = Source(
         url="https://example.com/test2",
-        content_hash="test456",
+        url_hash="test456",
     )
     db_session.add(source)
 
@@ -154,7 +154,7 @@ class TestGetPoliticianEndpointProperties:
         ]
         source = Source(
             url="https://example.com/test",
-            content_hash="test123",
+            url_hash="test123",
         )
         db_session.add(source)
         db_session.flush()
@@ -246,7 +246,7 @@ class TestGetPoliticianEndpointProperties:
         """Test politician with mix of evaluated and unevaluated data."""
         source = Source(
             url="https://example.com/mixed",
-            content_hash="mixed123",
+            url_hash="mixed123",
         )
         db_session.add(source)
 
@@ -301,12 +301,12 @@ class TestGetPoliticianEndpointProperties:
         """Test that when filtering by language, only properties from that language's sources are returned."""
         english_page = create_source(
             url="https://en.wikipedia.org/test",
-            content_hash="en123",
+            url_hash="en123",
             languages=[sample_language],
         )
         german_page = create_source(
             url="https://de.wikipedia.org/test",
-            content_hash="de123",
+            url_hash="de123",
             languages=[sample_german_language],
         )
 
@@ -442,12 +442,12 @@ class TestNextEndpointLanguageFiltering:
         """Test filtering politicians by language QIDs."""
         english_page = create_source(
             url="https://en.example.com/test",
-            content_hash="en123",
+            url_hash="en123",
             languages=[sample_language],
         )
         german_page = create_source(
             url="https://de.example.com/test",
-            content_hash="de123",
+            url_hash="de123",
             languages=[sample_german_language],
         )
 
@@ -496,7 +496,7 @@ class TestNextEndpointLanguageFiltering:
         """Test filtering politicians by country QIDs."""
         source = Source(
             url="https://example.com/test",
-            content_hash="test123",
+            url_hash="test123",
         )
         db_session.add(source)
         db_session.flush()

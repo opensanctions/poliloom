@@ -22,7 +22,7 @@ class SourceResponse(UUIDBaseModel):
 
     id: UUID
     url: str
-    content_hash: Optional[str] = None
+    url_hash: Optional[str] = None
     fetch_timestamp: Optional[datetime] = None
     status: str
     error: Optional[str] = None

@@ -46,7 +46,7 @@ vi.spyOn(console, 'error').mockImplementation(() => {})
 const testSource: SourceResponse = {
   id: 'archived-1',
   url: 'https://en.wikipedia.org/wiki/Test',
-  content_hash: 'abc',
+  url_hash: 'abc',
   fetch_timestamp: '2024-01-01T00:00:00Z',
   status: 'done',
 }

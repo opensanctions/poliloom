@@ -16,7 +16,7 @@ const mockOnHover = vi.fn()
 const mockSource: SourceResponse = {
   id: 'archived-1',
   url: 'https://en.wikipedia.org/wiki/Test_Politician',
-  content_hash: 'abc123',
+  url_hash: 'abc123',
   fetch_timestamp: '2024-01-01T00:00:00Z',
   status: 'done',
 }

@@ -262,7 +262,7 @@ def sample_source(db_session):
     """Return a created source entity."""
     source = Source(
         url="https://en.wikipedia.org/wiki/Test_Page",
-        content_hash="test123",
+        url_hash="test123",
         fetch_timestamp=datetime.now(timezone.utc),
     )
     db_session.add(source)
@@ -277,12 +277,12 @@ def create_source(db_session):
     Returns a function that creates a Source with optional language associations.
     """
 
-    def _create_source(url, content_hash=None, languages=None):
+    def _create_source(url, url_hash=None, languages=None):
         """Create a source with optional language links.
 
         Args:
             url: Page URL
-            content_hash: Optional content hash (auto-generated if not provided)
+            url_hash: Optional content hash (auto-generated if not provided)
             languages: Optional list of Language entities to link to this source
 
         Returns:
@@ -290,7 +290,7 @@ def create_source(db_session):
         """
         source = Source(
             url=url,
-            content_hash=content_hash,
+            url_hash=url_hash,
             fetch_timestamp=datetime.now(timezone.utc),
         )
         db_session.add(source)

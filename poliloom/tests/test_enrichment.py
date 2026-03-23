@@ -494,7 +494,7 @@ class TestCountPoliticiansWithUnevaluated:
         # Create English source
         en_page = create_source(
             url="https://en.example.com/test",
-            content_hash="en123",
+            url_hash="en123",
             languages=[sample_language],
         )
 

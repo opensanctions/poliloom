@@ -96,7 +96,7 @@ class Source(Base, TimestampMixin):
     )
     url = Column(String, nullable=False)
     permanent_url = Column(String, nullable=True)  # Wikipedia oldid URL for references
-    content_hash = Column(
+    url_hash = Column(
         String, nullable=True, index=True
     )  # SHA256 hash for deduplication, null while pending
     fetch_timestamp = Column(
@@ -146,15 +146,15 @@ class Source(Base, TimestampMixin):
     wikipedia_project = relationship("WikipediaProject")
 
     @staticmethod
-    def _generate_content_hash(url: str) -> str:
-        """Generate a content hash for a URL."""
+    def _generate_url_hash(url: str) -> str:
+        """Generate a hash of the URL for deduplication and storage paths."""
         return hashlib.sha256(url.encode()).hexdigest()[:16]
 
     @property
     def path_root(self) -> str:
-        """Get the path root (timestamp/content_hash structure) for this source."""
+        """Get the path root (timestamp/url_hash structure) for this source."""
         date_path = f"{self.fetch_timestamp.year:04d}/{self.fetch_timestamp.month:02d}/{self.fetch_timestamp.day:02d}"
-        return f"{date_path}/{self.content_hash}"
+        return f"{date_path}/{self.url_hash}"
 
     def link_languages_from_project(self, db) -> None:
         """Link languages from Wikipedia project's LANGUAGE_OF_WORK relations.
@@ -231,11 +231,11 @@ class Source(Base, TimestampMixin):
 
 
 @event.listens_for(Source, "before_insert")
-def generate_source_content_hash(mapper, connection, target):
-    """Auto-generate content_hash before inserting Source."""
-    if target.url and not target.content_hash:
-        # Generate content hash from URL
-        target.content_hash = Source._generate_content_hash(target.url)
+def generate_source_url_hash(mapper, connection, target):
+    """Auto-generate url_hash before inserting Source."""
+    if target.url and not target.url_hash:
+        # Generate hash from URL
+        target.url_hash = Source._generate_url_hash(target.url)
 
 
 @event.listens_for(Session, "after_flush")

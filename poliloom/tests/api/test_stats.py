@@ -148,7 +148,7 @@ class TestStatsEndpoint:
         source = Source(
             id=uuid4(),
             url="https://example.com/politician",
-            content_hash="test_hash",
+            url_hash="test_hash",
             fetch_timestamp=datetime.now(timezone.utc),
         )
         db_session.add(source)
@@ -215,7 +215,7 @@ class TestStatsEndpoint:
         source = Source(
             id=uuid4(),
             url="https://example.com/politician",
-            content_hash="test_hash",
+            url_hash="test_hash",
             fetch_timestamp=datetime.now(timezone.utc),
         )
         db_session.add(source)
@@ -291,7 +291,7 @@ class TestStatsEndpoint:
         source = Source(
             id=uuid4(),
             url="https://example.com/politician",
-            content_hash="test_hash",
+            url_hash="test_hash",
             fetch_timestamp=datetime.now(timezone.utc) - timedelta(days=400),
         )
         db_session.add(source)
@@ -374,7 +374,7 @@ class TestStatsEndpoint:
         source = Source(
             id=uuid4(),
             url="https://example.com/politician",
-            content_hash="test_hash",
+            url_hash="test_hash",
             fetch_timestamp=datetime.now(timezone.utc),
         )
         db_session.add(source)

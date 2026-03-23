@@ -150,7 +150,7 @@ def read_archived_content(path_root: str, extension: str) -> str:
     """Read content for a source.
 
     Args:
-        path_root: The path root (timestamp/content_hash) from Source.path_root
+        path_root: The path root (timestamp/url_hash) from Source.path_root
         extension: File extension (e.g., 'md', 'html', 'mhtml')
 
     Returns:
@@ -179,7 +179,7 @@ def save_archived_content(
     """Save content for a source.
 
     Args:
-        path_root: The path root (timestamp/content_hash) from Source.path_root
+        path_root: The path root (timestamp/url_hash) from Source.path_root
         extension: File extension (e.g., 'md', 'html', 'mhtml')
         content: The content to save
 
@@ -256,7 +256,7 @@ async def process_source(db: Session, source: Source, politician: Politician) ->
                 logger.info(f"Extracted permanent URL: {permanent_url}")
                 source.permanent_url = permanent_url
 
-        source.content_hash = Source._generate_content_hash(source.url)
+        source.url_hash = Source._generate_url_hash(source.url)
         source.fetch_timestamp = now
         db.flush()
 

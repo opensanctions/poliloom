@@ -151,7 +151,7 @@ class TestGetSourcePage:
         # Create a second source
         other_page = Source(
             url="https://example.com/other",
-            content_hash="other123",
+            url_hash="other123",
             fetch_timestamp=datetime.now(timezone.utc),
         )
         db_session.add(other_page)
