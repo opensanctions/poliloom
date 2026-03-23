@@ -114,7 +114,7 @@ class Source(Base, TimestampMixin):
     status = Column(
         SQLEnum(SourceStatus, name="sourcestatus"),
         nullable=False,
-        server_default="PENDING",
+        server_default="PROCESSING",
     )
     error = Column(
         SQLEnum(SourceError, name="sourceerror"),

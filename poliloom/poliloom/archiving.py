@@ -246,9 +246,6 @@ async def process_source(db: Session, source: Source, politician: Politician) ->
         Number of properties extracted (0 on error or empty content).
     """
     try:
-        source.status = SourceStatus.PROCESSING
-        db.commit()
-
         # Fetch & archive
         fetched = await fetch_page(source.url)
         now = datetime.now(timezone.utc)
@@ -410,7 +407,6 @@ def schedule_enrichment(
             source = Source(
                 url=url,
                 wikipedia_project_id=wikipedia_project_id,
-                status=SourceStatus.PENDING,
             )
             db.add(source)
             db.flush()
