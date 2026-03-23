@@ -129,43 +129,14 @@ export function EvaluationView({
     }
   }
 
-  // Collect unique sources across all politicians' property sources + top-level
-  const sourcesByPolitician = useMemo(() => {
-    const result = new Map<string, SourceResponse[]>()
-    for (const politician of politicians) {
-      const seen = new Map<string, SourceResponse>()
-      // Top-level sources linked directly to politician
-      for (const page of politician.sources || []) {
-        if (!seen.has(page.id)) {
-          seen.set(page.id, page)
-        }
-      }
-      // Pages from property references (look up from top-level list)
-      for (const prop of politician.properties) {
-        for (const ref of prop.sources) {
-          if (!seen.has(ref.source_id)) {
-            const page = sourceById.get(ref.source_id)
-            if (page) {
-              seen.set(ref.source_id, page)
-            }
-          }
-        }
-      }
-      result.set(politician.id, Array.from(seen.values()))
-    }
-    return result
-  }, [politicians, sourceById])
-
   const leftPanel = (
     <div className="grid grid-rows-[1fr_auto] h-full">
       <div className="overflow-y-auto min-h-0 p-6" ref={propertiesRef}>
         {politicians.map((politician) => {
-          const key = politician.id
-          const properties = displayPropertiesByPolitician.get(key) || []
-          const sources = sourcesByPolitician.get(key) || []
+          const properties = displayPropertiesByPolitician.get(politician.id) || []
 
           return (
-            <div key={key} className="mb-8">
+            <div key={politician.id} className="mb-8">
               <div className="mb-6">
                 <PoliticianHeader
                   name={politician.name}
@@ -177,7 +148,7 @@ export function EvaluationView({
               </div>
 
               <SourcesList
-                sources={sources}
+                sources={politician.sources}
                 activeSourceId={selectedSource?.id || null}
                 onViewSource={handleViewSource}
                 politicianQid={politician.wikidata_id ?? undefined}
@@ -186,12 +157,12 @@ export function EvaluationView({
 
               <PropertiesEvaluation
                 properties={properties}
-                onAction={(id, action) => handleAction(key, id, action)}
+                onAction={(id, action) => handleAction(politician.id, id, action)}
                 onViewSource={handleViewSource}
                 onHover={handlePropertyHover}
                 activeSourceId={selectedSource?.id || null}
                 sourceById={sourceById}
-                onAddProperty={(item) => handleAddProperty(key, item)}
+                onAddProperty={(item) => handleAddProperty(politician.id, item)}
               />
             </div>
           )
