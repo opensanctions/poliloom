@@ -320,7 +320,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <EvaluationView
         key={`birth-date-${birthDateKey}`}
         politicians={[birthDatePolitician]}
-        footer={(actionsByPolitician) => {
+        footer={({ actionsByPolitician }) => {
           const actions = actionsByPolitician.get(birthDatePolitician.id) || []
           return (
             <TutorialFooter
@@ -391,7 +391,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <EvaluationView
         key={`multiple-sources-${multipleSourcesKey}`}
         politicians={[multipleSourcesPolitician]}
-        footer={(actionsByPolitician) => {
+        footer={({ actionsByPolitician }) => {
           const actions = actionsByPolitician.get(multipleSourcesPolitician.id) || []
           return (
             <TutorialFooter
@@ -462,7 +462,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <EvaluationView
         key={`generic-vs-specific-${genericVsSpecificKey}`}
         politicians={[genericVsSpecificPolitician]}
-        footer={(actionsByPolitician) => {
+        footer={({ actionsByPolitician }) => {
           const actions = actionsByPolitician.get(genericVsSpecificPolitician.id) || []
           return (
             <TutorialFooter
@@ -609,7 +609,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <EvaluationView
         key={`deprecate-simple-${deprecateSimpleKey}`}
         politicians={[deprecateSimplePolitician]}
-        footer={(actionsByPolitician) => {
+        footer={({ actionsByPolitician }) => {
           const actions = actionsByPolitician.get(deprecateSimplePolitician.id) || []
           return (
             <TutorialFooter
@@ -682,7 +682,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <EvaluationView
         key={`deprecate-metadata-${deprecateWithMetadataKey}`}
         politicians={[deprecateWithMetadataPolitician]}
-        footer={(actionsByPolitician) => {
+        footer={({ actionsByPolitician }) => {
           const actions = actionsByPolitician.get(deprecateWithMetadataPolitician.id) || []
           return (
             <TutorialFooter

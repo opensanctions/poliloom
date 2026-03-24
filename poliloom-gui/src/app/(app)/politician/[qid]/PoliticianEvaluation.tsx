@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Politician,
@@ -14,7 +14,7 @@ import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { useEventStream } from '@/contexts/EventStreamContext'
 import { Button } from '@/components/ui/Button'
-import { EvaluationView } from '@/components/evaluation/EvaluationView'
+import { EvaluationView, FooterContext } from '@/components/evaluation/EvaluationView'
 
 interface PoliticianEvaluationProps {
   politician: Politician
@@ -30,7 +30,6 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
     advanceNext,
     loading: nextLoading,
   } = useNextPoliticianContext()
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [politician, setPolitician] = useState<Politician>(initialPolitician)
 
   // Mark tutorials complete and prefetch next politician on mount
@@ -62,96 +61,74 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
     [politician.id, refetchPolitician],
   )
 
-  const handleSubmit = async (actions: PropertyActionItem[]) => {
-    setIsSubmitting(true)
+  const handleSubmit = async (actionsByPolitician: Map<string, PropertyActionItem[]>) => {
+    const actions = actionsByPolitician.get(politician.id) || []
+    const requestData: PatchPropertiesRequest = { items: actions }
+    const response = await fetch(`/api/politicians/${politician.wikidata_id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestData),
+    })
 
-    try {
-      const requestData: PatchPropertiesRequest = { items: actions }
-      const response = await fetch(`/api/politicians/${politician.wikidata_id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestData),
-      })
+    if (!response.ok) {
+      throw new Error(`Failed to submit evaluations: ${response.statusText}`)
+    }
 
-      if (!response.ok) {
-        throw new Error(`Failed to submit evaluations: ${response.statusText}`)
+    const result: PatchPropertiesResponse = await response.json()
+    if (!result.success) {
+      console.error('Evaluation errors:', result.errors)
+      throw new Error(`Error submitting evaluations: ${result.message}`)
+    }
+
+    refetchPolitician()
+
+    if (isSessionActive) {
+      const { sessionComplete } = submitAndAdvance()
+      if (sessionComplete) {
+        router.push(statsUnlocked ? '/session/complete' : '/session/unlocked')
+      } else {
+        router.push(nextPoliticianHref ?? '/session/enriching')
       }
-
-      const result: PatchPropertiesResponse = await response.json()
-      if (!result.success) {
-        console.error('Evaluation errors:', result.errors)
-        alert(`Error submitting evaluations: ${result.message}`)
-        return
-      }
-
-      if (!isSessionActive) {
-        refetchPolitician()
-      }
-
-      if (isSessionActive) {
-        const { sessionComplete } = submitAndAdvance()
-        if (sessionComplete) {
-          router.push(statsUnlocked ? '/session/complete' : '/session/unlocked')
-        } else {
-          router.push(nextPoliticianHref ?? '/session/enriching')
-        }
-      }
-    } catch (error) {
-      console.error('Submission failed:', error)
-      alert('Error submitting evaluations. Please try again.')
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
-  const getActions = (actionsByPolitician: Map<string, PropertyActionItem[]>) =>
-    actionsByPolitician.get(politician.id) || []
-
-  // Session mode footer
-  const sessionFooter = (actionsByPolitician: Map<string, PropertyActionItem[]>) => {
-    const actions = getActions(actionsByPolitician)
+  const footer = ({ actionsByPolitician, isSubmitting, submit }: FooterContext) => {
+    const actions = actionsByPolitician.get(politician.id) || []
+    const hasActions = actions.length > 0
     return (
       <div className="flex justify-between items-center">
-        <div className="text-base text-foreground">
-          Progress:{' '}
-          <strong>
-            {completedCount} / {sessionGoal}
-          </strong>{' '}
-          politicians evaluated
-        </div>
-        {actions.length === 0 ? (
-          <Button
-            href={nextPoliticianHref ?? (nextLoading ? undefined : '/session/enriching')}
-            disabled={nextLoading}
-            className="px-6 py-3"
-          >
-            Skip Politician
-          </Button>
-        ) : (
-          <Button
-            onClick={() => handleSubmit(actions)}
-            disabled={isSubmitting || nextLoading}
-            className="px-6 py-3"
-          >
-            {isSubmitting ? 'Submitting...' : 'Submit Evaluations & Next'}
-          </Button>
+        {isSessionActive && (
+          <div className="text-base text-foreground">
+            Progress:{' '}
+            <strong>
+              {completedCount} / {sessionGoal}
+            </strong>{' '}
+            politicians evaluated
+          </div>
         )}
-      </div>
-    )
-  }
-
-  // Standalone mode footer
-  const standaloneFooter = (actionsByPolitician: Map<string, PropertyActionItem[]>) => {
-    const actions = getActions(actionsByPolitician)
-    return (
-      <div className="flex justify-end items-center">
-        <Button
-          onClick={() => handleSubmit(actions)}
-          disabled={isSubmitting || actions.length === 0}
-          className="px-6 py-3"
-        >
-          {isSubmitting ? 'Submitting...' : 'Submit Evaluations'}
-        </Button>
+        <div className="ml-auto">
+          {isSessionActive && !hasActions ? (
+            <Button
+              href={nextPoliticianHref ?? (nextLoading ? undefined : '/session/enriching')}
+              disabled={nextLoading}
+              className="px-6 py-3"
+            >
+              Skip Politician
+            </Button>
+          ) : (
+            <Button
+              onClick={submit}
+              disabled={isSubmitting || !hasActions || (isSessionActive && nextLoading)}
+              className="px-6 py-3"
+            >
+              {isSubmitting
+                ? 'Submitting...'
+                : isSessionActive
+                  ? 'Submit Evaluations & Next'
+                  : 'Submit Evaluations'}
+            </Button>
+          )}
+        </div>
       </div>
     )
   }
@@ -159,7 +136,8 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
   return (
     <EvaluationView
       politicians={[politician]}
-      footer={isSessionActive ? sessionFooter : standaloneFooter}
+      onSubmit={handleSubmit}
+      footer={footer}
       onSourceAdded={refetchPolitician}
     />
   )

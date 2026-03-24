@@ -18,9 +18,16 @@ import { PoliticianHeader } from './PoliticianHeader'
 import { SourceViewer } from './SourceViewer'
 import { SourcesList } from './SourcesList'
 
+export interface FooterContext {
+  actionsByPolitician: Map<string, PropertyActionItem[]>
+  isSubmitting: boolean
+  submit: () => void
+}
+
 interface EvaluationViewProps {
   politicians: Politician[]
-  footer: (actionsByPolitician: Map<string, PropertyActionItem[]>) => ReactNode
+  onSubmit?: (actionsByPolitician: Map<string, PropertyActionItem[]>) => Promise<void>
+  footer: (context: FooterContext) => ReactNode
   sourcesApiPath?: string
   onNameChange?: (politicianId: string, name: string) => void
   onSourceAdded?: () => void
@@ -28,11 +35,13 @@ interface EvaluationViewProps {
 
 export function EvaluationView({
   politicians,
+  onSubmit,
   footer,
   sourcesApiPath = '/api/sources',
   onNameChange,
   onSourceAdded,
 }: EvaluationViewProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [actionsByPolitician, setActionsByPolitician] = useState<Map<string, PropertyActionItem[]>>(
     () => {
       const map = new Map<string, PropertyActionItem[]>()
@@ -91,6 +100,32 @@ export function EvaluationView({
       return next
     })
   }
+
+  const clearActions = useCallback(() => {
+    setActionsByPolitician(() => {
+      const map = new Map<string, PropertyActionItem[]>()
+      for (const politician of politicians) {
+        map.set(politician.id, [])
+      }
+      return map
+    })
+  }, [politicians])
+
+  const submit = useCallback(async () => {
+    if (!onSubmit) return
+    setIsSubmitting(true)
+    try {
+      await onSubmit(actionsByPolitician)
+      clearActions()
+    } catch (error) {
+      console.error('Submission failed:', error)
+      alert(
+        error instanceof Error ? error.message : 'Error submitting evaluations. Please try again.',
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [onSubmit, actionsByPolitician, clearActions])
 
   const handleAddProperty = (politicianKey: string, item: CreatePropertyItem) => {
     setActionsByPolitician((prev) => {
@@ -169,7 +204,9 @@ export function EvaluationView({
         })}
       </div>
 
-      <div className="p-6 border-t border-border">{footer(actionsByPolitician)}</div>
+      <div className="p-6 border-t border-border">
+        {footer({ actionsByPolitician, isSubmitting, submit })}
+      </div>
     </div>
   )
 

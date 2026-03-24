@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import {
   Politician,
@@ -9,7 +8,7 @@ import {
   PropertyActionItem,
 } from '@/types'
 import { Button } from '@/components/ui/Button'
-import { EvaluationView } from '@/components/evaluation/EvaluationView'
+import { EvaluationView, FooterContext } from '@/components/evaluation/EvaluationView'
 
 interface SourceEvaluationProps {
   politicians: Politician[]
@@ -17,11 +16,8 @@ interface SourceEvaluationProps {
 
 export function SourceEvaluation({ politicians }: SourceEvaluationProps) {
   const { id } = useParams<{ id: string }>()
-  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (actionsByPolitician: Map<string, PropertyActionItem[]>) => {
-    setIsSubmitting(true)
-
     const items: Record<string, PropertyActionItem[]> = {}
 
     for (const [id, actions] of actionsByPolitician) {
@@ -30,29 +26,21 @@ export function SourceEvaluation({ politicians }: SourceEvaluationProps) {
       }
     }
 
-    try {
-      const requestData: SourcePatchPropertiesRequest = { items }
-      const response = await fetch(`/api/sources/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestData),
-      })
+    const requestData: SourcePatchPropertiesRequest = { items }
+    const response = await fetch(`/api/sources/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestData),
+    })
 
-      if (!response.ok) {
-        throw new Error(`Failed to submit evaluations: ${response.statusText}`)
-      }
+    if (!response.ok) {
+      throw new Error(`Failed to submit evaluations: ${response.statusText}`)
+    }
 
-      const result: PatchPropertiesResponse = await response.json()
-      if (!result.success) {
-        console.error('Evaluation errors:', result.errors)
-        alert(`Error submitting evaluations: ${result.message}`)
-        return
-      }
-    } catch (error) {
-      console.error('Submission failed:', error)
-      alert('Error submitting evaluations. Please try again.')
-    } finally {
-      setIsSubmitting(false)
+    const result: PatchPropertiesResponse = await response.json()
+    if (!result.success) {
+      console.error('Evaluation errors:', result.errors)
+      throw new Error(`Error submitting evaluations: ${result.message}`)
     }
   }
 
@@ -63,10 +51,10 @@ export function SourceEvaluation({ politicians }: SourceEvaluationProps) {
     return false
   }
 
-  const footer = (actionsByPolitician: Map<string, PropertyActionItem[]>) => (
+  const footer = ({ actionsByPolitician, isSubmitting, submit }: FooterContext) => (
     <div className="flex justify-end items-center">
       <Button
-        onClick={() => handleSubmit(actionsByPolitician)}
+        onClick={submit}
         disabled={isSubmitting || !hasChanges(actionsByPolitician)}
         className="px-6 py-3"
       >
@@ -75,5 +63,5 @@ export function SourceEvaluation({ politicians }: SourceEvaluationProps) {
     </div>
   )
 
-  return <EvaluationView politicians={politicians} footer={footer} />
+  return <EvaluationView politicians={politicians} onSubmit={handleSubmit} footer={footer} />
 }

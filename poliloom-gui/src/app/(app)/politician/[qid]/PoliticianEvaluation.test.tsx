@@ -210,9 +210,18 @@ describe('PoliticianEvaluation', () => {
     mockSubmitAndAdvance.mockClear()
     mockRouterPush.mockClear()
     mockFetch.mockClear()
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, message: 'OK', errors: [] }),
+    mockFetch.mockImplementation((_url: string, options?: RequestInit) => {
+      if (options?.method === 'PATCH') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ success: true, message: 'OK', errors: [] }),
+        })
+      }
+      // GET requests (e.g. refetchPolitician) return the politician data
+      return Promise.resolve({
+        ok: true,
+        json: async () => politician,
+      })
     })
     mockUseNextPoliticianContext.mockReturnValue(defaultNextPolitician)
   })
@@ -280,10 +289,6 @@ describe('PoliticianEvaluation', () => {
   })
 
   it('submits evaluations via API and advances session', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, message: 'OK', errors: [] }),
-    })
     mockSubmitAndAdvance.mockReturnValue({ sessionComplete: false })
 
     render(<PoliticianEvaluation politician={politician} />)
@@ -306,10 +311,6 @@ describe('PoliticianEvaluation', () => {
   })
 
   it('redirects to /session/complete on session completion when stats unlocked', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, message: 'OK', errors: [] }),
-    })
     mockSubmitAndAdvance.mockReturnValue({ sessionComplete: true })
 
     render(<PoliticianEvaluation politician={politician} />)
@@ -362,9 +363,17 @@ describe('PoliticianEvaluation - no next politician', () => {
     mockSubmitAndAdvance.mockClear()
     mockRouterPush.mockClear()
     mockFetch.mockClear()
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, message: 'OK', errors: [] }),
+    mockFetch.mockImplementation((_url: string, options?: RequestInit) => {
+      if (options?.method === 'PATCH') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ success: true, message: 'OK', errors: [] }),
+        })
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => politician,
+      })
     })
   })
 
