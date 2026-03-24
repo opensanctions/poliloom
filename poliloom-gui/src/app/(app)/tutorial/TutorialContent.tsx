@@ -91,14 +91,40 @@ function checkEvaluations(
   }
 }
 
+// Tutorial steps as an enum so we can reorder/insert without renumbering
+export enum TutorialStep {
+  // Basic tutorial
+  Welcome,
+  WhyYourHelpMatters,
+  SourceDocuments,
+  ExtractedData,
+  GiveItATry,
+  BirthDateEvaluation,
+  BirthDateFeedback,
+  MultipleSources,
+  MultipleSourcesEvaluation,
+  MultipleSourcesFeedback,
+  SpecificOverGeneric,
+  SpecificOverGenericEvaluation,
+  SpecificOverGenericFeedback,
+  BasicKeyTakeaways,
+  // Advanced tutorial
+  AdvancedWelcome,
+  ReplacingGenericData,
+  DeprecateSimpleEvaluation,
+  DataWithMetadata,
+  DataWithMetadataEvaluation,
+  AdvancedKeyTakeaways,
+}
+
 // Step ranges
-const BASIC_START = 0
-const BASIC_END = 13 // Last basic step
-const ADVANCED_START = 14
-const ADVANCED_END = 19 // Last advanced step
+const BASIC_START = TutorialStep.Welcome
+const BASIC_END = TutorialStep.BasicKeyTakeaways
+const ADVANCED_START = TutorialStep.AdvancedWelcome
+const ADVANCED_END = TutorialStep.AdvancedKeyTakeaways
 
 export interface TutorialContentProps {
-  initialStep?: number // For testing - allows starting at any step
+  initialStep?: TutorialStep // For testing - allows starting at any step
 }
 
 export function TutorialContent({ initialStep }: TutorialContentProps) {
@@ -186,7 +212,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === 0) {
+  if (step === TutorialStep.Welcome) {
     // Welcome
     return (
       <CenteredCard emoji="👋" title="Welcome to PoliLoom!">
@@ -204,7 +230,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === 1) {
+  if (step === TutorialStep.WhyYourHelpMatters) {
     // Why your help matters
     return (
       <CenteredCard emoji="🤖" title="Why Your Help Matters">
@@ -222,7 +248,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === 2) {
+  if (step === TutorialStep.SourceDocuments) {
     // Show source (explanation left, iframe right)
     return (
       <TwoPanel
@@ -251,7 +277,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === 3) {
+  if (step === TutorialStep.ExtractedData) {
     // Show extracted data (properties left, explanation right)
     return (
       <TwoPanel
@@ -296,7 +322,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === 4) {
+  if (step === TutorialStep.GiveItATry) {
     // Let's try it
     return (
       <CenteredCard emoji="🎯" title="Give It a Try">
@@ -314,7 +340,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === 5) {
+  if (step === TutorialStep.BirthDateEvaluation) {
     // Interactive: birth date evaluation
     return (
       <EvaluationView
@@ -333,7 +359,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                 setBirthDateResult(result)
                 nextStep()
               }}
-              onBack={() => setStep(4)}
+              onBack={() => setStep(TutorialStep.GiveItATry)}
             />
           )
         }}
@@ -342,7 +368,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === 6) {
+  if (step === TutorialStep.BirthDateFeedback) {
     // Birth date result/feedback
     if (birthDateResult?.isCorrect) {
       return (
@@ -361,13 +387,13 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         onRetry={() => {
           setBirthDateKey((k) => k + 1)
           setBirthDateResult(null)
-          setStep(5)
+          setStep(TutorialStep.BirthDateEvaluation)
         }}
       />
     )
   }
 
-  if (step === 7) {
+  if (step === TutorialStep.MultipleSources) {
     // Multiple sources explanation
     return (
       <CenteredCard emoji="📚" title="Multiple Sources">
@@ -385,7 +411,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === 8) {
+  if (step === TutorialStep.MultipleSourcesEvaluation) {
     // Interactive: positions evaluation
     return (
       <EvaluationView
@@ -404,7 +430,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                 setMultipleSourcesResult(result)
                 nextStep()
               }}
-              onBack={() => setStep(7)}
+              onBack={() => setStep(TutorialStep.MultipleSources)}
             />
           )
         }}
@@ -413,7 +439,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === 9) {
+  if (step === TutorialStep.MultipleSourcesFeedback) {
     // Multiple sources result/feedback
     if (multipleSourcesResult?.isCorrect) {
       return (
@@ -432,13 +458,13 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         onRetry={() => {
           setMultipleSourcesKey((k) => k + 1)
           setMultipleSourcesResult(null)
-          setStep(8)
+          setStep(TutorialStep.MultipleSourcesEvaluation)
         }}
       />
     )
   }
 
-  if (step === 10) {
+  if (step === TutorialStep.SpecificOverGeneric) {
     // Generic vs specific explanation
     return (
       <CenteredCard emoji="🎯" title="Specific Over Generic">
@@ -456,7 +482,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === 11) {
+  if (step === TutorialStep.SpecificOverGenericEvaluation) {
     // Interactive: generic vs specific evaluation
     return (
       <EvaluationView
@@ -475,7 +501,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                 setGenericVsSpecificResult(result)
                 nextStep()
               }}
-              onBack={() => setStep(10)}
+              onBack={() => setStep(TutorialStep.SpecificOverGeneric)}
             />
           )
         }}
@@ -484,7 +510,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === 12) {
+  if (step === TutorialStep.SpecificOverGenericFeedback) {
     // Generic vs specific result/feedback
     if (genericVsSpecificResult?.isCorrect) {
       return (
@@ -503,13 +529,13 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         onRetry={() => {
           setGenericVsSpecificKey((k) => k + 1)
           setGenericVsSpecificResult(null)
-          setStep(11)
+          setStep(TutorialStep.SpecificOverGenericEvaluation)
         }}
       />
     )
   }
 
-  if (step === 13) {
+  if (step === TutorialStep.BasicKeyTakeaways) {
     // Basic tutorial key takeaways
     return (
       <CenteredCard emoji="💡" title="Key Takeaways">
@@ -533,8 +559,8 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  // ============ ADVANCED TUTORIAL STEPS (14-19) ============
-  if (step === 14) {
+  // ============ ADVANCED TUTORIAL STEPS ============
+  if (step === TutorialStep.AdvancedWelcome) {
     // Advanced mode welcome
     return (
       <CenteredCard emoji="⚡" title="Advanced Mode Tutorial">
@@ -555,7 +581,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === 15) {
+  if (step === TutorialStep.ReplacingGenericData) {
     // Chapter 1: Deprecating simple existing data
     return (
       <CenteredCard emoji="🔄" title="Replacing Generic Data">
@@ -579,7 +605,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === 16) {
+  if (step === TutorialStep.DeprecateSimpleEvaluation) {
     // Interactive: deprecate simple existing data
     if (deprecateSimpleResult?.isCorrect) {
       return (
@@ -621,7 +647,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                 const result = checkEvaluations(actions, deprecateSimpleExpected)
                 setDeprecateSimpleResult(result)
               }}
-              onBack={() => setStep(15)}
+              onBack={() => setStep(TutorialStep.ReplacingGenericData)}
             />
           )
         }}
@@ -630,7 +656,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === 17) {
+  if (step === TutorialStep.DataWithMetadata) {
     // Chapter 2: Deprecating data with qualifiers/references
     return (
       <CenteredCard emoji="⚠️" title="Data With Metadata">
@@ -654,7 +680,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === 18) {
+  if (step === TutorialStep.DataWithMetadataEvaluation) {
     // Interactive: data with metadata - accept the new data AND keep the existing data
     if (deprecateWithMetadataResult?.isCorrect) {
       return (
@@ -694,7 +720,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                 const result = checkEvaluations(actions, deprecateWithMetadataExpected)
                 setDeprecateWithMetadataResult(result)
               }}
-              onBack={() => setStep(17)}
+              onBack={() => setStep(TutorialStep.DataWithMetadata)}
             />
           )
         }}
@@ -703,7 +729,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === 19) {
+  if (step === TutorialStep.AdvancedKeyTakeaways) {
     // Advanced tutorial summary
     return (
       <CenteredCard emoji="💡" title="Key Takeaways">

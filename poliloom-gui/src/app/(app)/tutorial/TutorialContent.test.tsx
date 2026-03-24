@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, render } from '@testing-library/react'
 import '@/test/test-utils'
-import { TutorialContent } from './TutorialContent'
+import { TutorialContent, TutorialStep } from './TutorialContent'
 
 vi.mock('@/contexts/NextPoliticianContext', () => ({
   useNextPoliticianContext: () => ({
@@ -120,7 +120,7 @@ describe('Tutorial Page', () => {
 
   describe('Step 1 - Why Your Help Matters', () => {
     it('renders explanation about AI extraction validation', () => {
-      render(<TutorialContent initialStep={1} />)
+      render(<TutorialContent initialStep={TutorialStep.WhyYourHelpMatters} />)
 
       expect(screen.getByText('Why Your Help Matters')).toBeInTheDocument()
       expect(
@@ -132,7 +132,7 @@ describe('Tutorial Page', () => {
     })
 
     it('advances to step 2 when clicking "Got It"', () => {
-      render(<TutorialContent initialStep={1} />)
+      render(<TutorialContent initialStep={TutorialStep.WhyYourHelpMatters} />)
       fireEvent.click(screen.getByRole('button', { name: 'Got It' }))
 
       expect(screen.getByText('Source Documents')).toBeInTheDocument()
@@ -141,7 +141,7 @@ describe('Tutorial Page', () => {
 
   describe('Step 2 - Source Documents', () => {
     it('renders source documents explanation with source viewer', () => {
-      render(<TutorialContent initialStep={2} />)
+      render(<TutorialContent initialStep={TutorialStep.SourceDocuments} />)
 
       expect(screen.getByText('Source Documents')).toBeInTheDocument()
       expect(
@@ -155,7 +155,7 @@ describe('Tutorial Page', () => {
     })
 
     it('advances to step 3 when clicking "Next"', () => {
-      render(<TutorialContent initialStep={2} />)
+      render(<TutorialContent initialStep={TutorialStep.SourceDocuments} />)
       fireEvent.click(screen.getByRole('button', { name: 'Next' }))
 
       expect(screen.getByText('Extracted Data')).toBeInTheDocument()
@@ -164,7 +164,7 @@ describe('Tutorial Page', () => {
 
   describe('Step 3 - Extracted Data', () => {
     it('renders extracted data explanation with properties panel', () => {
-      render(<TutorialContent initialStep={3} />)
+      render(<TutorialContent initialStep={TutorialStep.ExtractedData} />)
 
       expect(screen.getByText('Extracted Data')).toBeInTheDocument()
       expect(
@@ -177,7 +177,7 @@ describe('Tutorial Page', () => {
     })
 
     it('advances to step 4 when clicking "Next"', () => {
-      render(<TutorialContent initialStep={3} />)
+      render(<TutorialContent initialStep={TutorialStep.ExtractedData} />)
       fireEvent.click(screen.getByRole('button', { name: 'Next' }))
 
       expect(screen.getByText('Give It a Try')).toBeInTheDocument()
@@ -186,7 +186,7 @@ describe('Tutorial Page', () => {
 
   describe('Step 4 - Give It a Try', () => {
     it('renders teaser for interactive evaluation', () => {
-      render(<TutorialContent initialStep={4} />)
+      render(<TutorialContent initialStep={TutorialStep.GiveItATry} />)
 
       expect(screen.getByText('Give It a Try')).toBeInTheDocument()
       expect(
@@ -198,7 +198,7 @@ describe('Tutorial Page', () => {
     })
 
     it('advances to step 5 (birth date evaluation) when clicking "Let\'s do it"', () => {
-      render(<TutorialContent initialStep={4} />)
+      render(<TutorialContent initialStep={TutorialStep.GiveItATry} />)
       fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
 
       // Step 5 shows the interactive birth date evaluation
@@ -209,7 +209,7 @@ describe('Tutorial Page', () => {
 
   describe('Step 5 - Birth Date Evaluation (Interactive)', () => {
     it('renders birth date evaluation with two dates', () => {
-      render(<TutorialContent initialStep={5} />)
+      render(<TutorialContent initialStep={TutorialStep.BirthDateEvaluation} />)
 
       // Should show Jane Doe and Properties section
       expect(screen.getByText('Jane Doe')).toBeInTheDocument()
@@ -220,14 +220,14 @@ describe('Tutorial Page', () => {
     })
 
     it('has Check Answers button disabled until both dates are evaluated', () => {
-      render(<TutorialContent initialStep={5} />)
+      render(<TutorialContent initialStep={TutorialStep.BirthDateEvaluation} />)
 
       const checkButton = screen.getByRole('button', { name: 'Check Answers' })
       expect(checkButton).toBeDisabled()
     })
 
     it('enables Check Answers after both dates are evaluated', () => {
-      render(<TutorialContent initialStep={5} />)
+      render(<TutorialContent initialStep={TutorialStep.BirthDateEvaluation} />)
 
       // Find all accept/reject buttons - there should be 2 of each (for each date)
       const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
@@ -242,7 +242,7 @@ describe('Tutorial Page', () => {
     })
 
     it('goes back to step 4 when clicking "Go Back"', () => {
-      render(<TutorialContent initialStep={5} />)
+      render(<TutorialContent initialStep={TutorialStep.BirthDateEvaluation} />)
 
       fireEvent.click(screen.getByRole('button', { name: 'Go Back' }))
 
@@ -251,7 +251,7 @@ describe('Tutorial Page', () => {
 
     describe('Input combinations', () => {
       it('shows success when accepting correct date and rejecting incorrect date', () => {
-        render(<TutorialContent initialStep={5} />)
+        render(<TutorialContent initialStep={TutorialStep.BirthDateEvaluation} />)
 
         const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
         const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
@@ -269,7 +269,7 @@ describe('Tutorial Page', () => {
       })
 
       it('shows error when rejecting correct date and accepting incorrect date', () => {
-        render(<TutorialContent initialStep={5} />)
+        render(<TutorialContent initialStep={TutorialStep.BirthDateEvaluation} />)
 
         const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
         const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
@@ -285,7 +285,7 @@ describe('Tutorial Page', () => {
       })
 
       it('shows error when accepting both dates', () => {
-        render(<TutorialContent initialStep={5} />)
+        render(<TutorialContent initialStep={TutorialStep.BirthDateEvaluation} />)
 
         const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
 
@@ -299,7 +299,7 @@ describe('Tutorial Page', () => {
       })
 
       it('shows error when rejecting both dates', () => {
-        render(<TutorialContent initialStep={5} />)
+        render(<TutorialContent initialStep={TutorialStep.BirthDateEvaluation} />)
 
         const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
 
@@ -317,7 +317,7 @@ describe('Tutorial Page', () => {
   describe('Step 6 - Birth Date Feedback', () => {
     // Helper to complete step 5 with correct answers and advance to step 6
     const goToStep6WithSuccess = () => {
-      render(<TutorialContent initialStep={5} />)
+      render(<TutorialContent initialStep={TutorialStep.BirthDateEvaluation} />)
       const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
       const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
       // Correct: Reject first (1952 - mother's), Accept second (1975 - Jane's)
@@ -328,7 +328,7 @@ describe('Tutorial Page', () => {
 
     // Helper to complete step 5 with wrong answers and advance to step 6
     const goToStep6WithError = () => {
-      render(<TutorialContent initialStep={5} />)
+      render(<TutorialContent initialStep={TutorialStep.BirthDateEvaluation} />)
       const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
       fireEvent.click(acceptButtons[0])
       fireEvent.click(acceptButtons[1])
@@ -373,7 +373,7 @@ describe('Tutorial Page', () => {
 
   describe('Step 7 - Multiple Sources', () => {
     it('renders multiple sources explanation', () => {
-      render(<TutorialContent initialStep={7} />)
+      render(<TutorialContent initialStep={TutorialStep.MultipleSources} />)
 
       expect(screen.getByText('Multiple Sources')).toBeInTheDocument()
       expect(
@@ -383,7 +383,7 @@ describe('Tutorial Page', () => {
     })
 
     it('advances to step 8 when clicking "Let\'s do it"', () => {
-      render(<TutorialContent initialStep={7} />)
+      render(<TutorialContent initialStep={TutorialStep.MultipleSources} />)
 
       fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
 
@@ -421,7 +421,7 @@ describe('Tutorial Page', () => {
     }
 
     it('renders two political positions from different sources', () => {
-      render(<TutorialContent initialStep={8} />)
+      render(<TutorialContent initialStep={TutorialStep.MultipleSourcesEvaluation} />)
 
       expect(screen.getByText('Political Positions')).toBeInTheDocument()
       expect(screen.getByText('Member of Springfield Parliament')).toBeInTheDocument()
@@ -429,13 +429,13 @@ describe('Tutorial Page', () => {
     })
 
     it('has Check Answers button disabled until both positions are evaluated', () => {
-      render(<TutorialContent initialStep={8} />)
+      render(<TutorialContent initialStep={TutorialStep.MultipleSourcesEvaluation} />)
 
       expect(screen.getByRole('button', { name: 'Check Answers' })).toBeDisabled()
     })
 
     it('goes back to step 7 when clicking "Go Back"', () => {
-      render(<TutorialContent initialStep={8} />)
+      render(<TutorialContent initialStep={TutorialStep.MultipleSourcesEvaluation} />)
 
       fireEvent.click(screen.getByRole('button', { name: 'Go Back' }))
 
@@ -444,7 +444,7 @@ describe('Tutorial Page', () => {
 
     describe('Input combinations', () => {
       it('shows success when accepting both positions', () => {
-        render(<TutorialContent initialStep={8} />)
+        render(<TutorialContent initialStep={TutorialStep.MultipleSourcesEvaluation} />)
 
         evaluateBothPositions('accept', 'accept')
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
@@ -453,7 +453,7 @@ describe('Tutorial Page', () => {
       })
 
       it('shows error when rejecting both positions', () => {
-        render(<TutorialContent initialStep={8} />)
+        render(<TutorialContent initialStep={TutorialStep.MultipleSourcesEvaluation} />)
 
         evaluateBothPositions('reject', 'reject')
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
@@ -462,7 +462,7 @@ describe('Tutorial Page', () => {
       })
 
       it('shows error when accepting first and rejecting second', () => {
-        render(<TutorialContent initialStep={8} />)
+        render(<TutorialContent initialStep={TutorialStep.MultipleSourcesEvaluation} />)
 
         evaluateBothPositions('accept', 'reject')
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
@@ -471,7 +471,7 @@ describe('Tutorial Page', () => {
       })
 
       it('shows error when rejecting first and accepting second', () => {
-        render(<TutorialContent initialStep={8} />)
+        render(<TutorialContent initialStep={TutorialStep.MultipleSourcesEvaluation} />)
 
         evaluateBothPositions('reject', 'accept')
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
@@ -484,7 +484,7 @@ describe('Tutorial Page', () => {
   describe('Step 9 - Multiple Sources Feedback', () => {
     // Helper to complete step 8 with correct answers
     const goToStep9WithSuccess = () => {
-      render(<TutorialContent initialStep={8} />)
+      render(<TutorialContent initialStep={TutorialStep.MultipleSourcesEvaluation} />)
       // Accept both positions (first is auto-loaded, second needs View click)
       fireEvent.click(screen.getByRole('button', { name: /Accept/ }))
       const viewButtons = screen.getAllByRole('button', { name: /View/ })
@@ -506,14 +506,14 @@ describe('Tutorial Page', () => {
 
   describe('Step 10 - Specific Over Generic', () => {
     it('renders specific over generic explanation', () => {
-      render(<TutorialContent initialStep={10} />)
+      render(<TutorialContent initialStep={TutorialStep.SpecificOverGeneric} />)
 
       expect(screen.getByText('Specific Over Generic')).toBeInTheDocument()
       expect(screen.getByText(/Specific data is better than generic data/)).toBeInTheDocument()
     })
 
     it('advances to step 11 when clicking "Let\'s do it"', () => {
-      render(<TutorialContent initialStep={10} />)
+      render(<TutorialContent initialStep={TutorialStep.SpecificOverGeneric} />)
 
       fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
 
@@ -523,7 +523,7 @@ describe('Tutorial Page', () => {
 
   describe('Step 11 - Generic vs Specific Evaluation (Interactive)', () => {
     it('renders generic and specific positions', () => {
-      render(<TutorialContent initialStep={11} />)
+      render(<TutorialContent initialStep={TutorialStep.SpecificOverGenericEvaluation} />)
 
       expect(screen.getByText('Political Positions')).toBeInTheDocument()
       // Existing specific data
@@ -533,7 +533,7 @@ describe('Tutorial Page', () => {
     })
 
     it('only requires evaluation of new data (generic position)', () => {
-      render(<TutorialContent initialStep={11} />)
+      render(<TutorialContent initialStep={TutorialStep.SpecificOverGenericEvaluation} />)
 
       // Only the generic position needs to be evaluated, not the existing specific one
       // Find the Reject button for the generic position (has supporting quotes)
@@ -545,7 +545,7 @@ describe('Tutorial Page', () => {
     })
 
     it('goes back to step 10 when clicking "Go Back"', () => {
-      render(<TutorialContent initialStep={11} />)
+      render(<TutorialContent initialStep={TutorialStep.SpecificOverGenericEvaluation} />)
 
       fireEvent.click(screen.getByRole('button', { name: 'Go Back' }))
 
@@ -554,7 +554,7 @@ describe('Tutorial Page', () => {
 
     describe('Input combinations', () => {
       it('shows success when rejecting generic position', () => {
-        render(<TutorialContent initialStep={11} />)
+        render(<TutorialContent initialStep={TutorialStep.SpecificOverGenericEvaluation} />)
 
         // Reject the generic "Member of Parliament"
         const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
@@ -565,7 +565,7 @@ describe('Tutorial Page', () => {
       })
 
       it('shows error when accepting generic position', () => {
-        render(<TutorialContent initialStep={11} />)
+        render(<TutorialContent initialStep={TutorialStep.SpecificOverGenericEvaluation} />)
 
         // Accept the generic "Member of Parliament" - wrong
         const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
@@ -593,7 +593,7 @@ describe('Tutorial Page', () => {
       })
 
       it('shows success when rejecting generic and keeping existing specific', () => {
-        render(<TutorialContent initialStep={11} />)
+        render(<TutorialContent initialStep={TutorialStep.SpecificOverGenericEvaluation} />)
 
         // Reject the generic position, don't touch the existing specific
         const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
@@ -604,7 +604,7 @@ describe('Tutorial Page', () => {
       })
 
       it('shows error when rejecting generic and deprecating existing specific', () => {
-        render(<TutorialContent initialStep={11} />)
+        render(<TutorialContent initialStep={TutorialStep.SpecificOverGenericEvaluation} />)
 
         // Reject the generic position
         const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
@@ -620,7 +620,7 @@ describe('Tutorial Page', () => {
       })
 
       it('shows error when accepting generic and deprecating existing specific', () => {
-        render(<TutorialContent initialStep={11} />)
+        render(<TutorialContent initialStep={TutorialStep.SpecificOverGenericEvaluation} />)
 
         // Accept the generic position - wrong
         const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
@@ -640,7 +640,7 @@ describe('Tutorial Page', () => {
   describe('Step 12 - Generic vs Specific Feedback', () => {
     // Helper to complete step 11 with correct answers
     const goToStep12WithSuccess = () => {
-      render(<TutorialContent initialStep={11} />)
+      render(<TutorialContent initialStep={TutorialStep.SpecificOverGenericEvaluation} />)
       const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
       fireEvent.click(rejectButtons[0])
       fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
@@ -659,7 +659,7 @@ describe('Tutorial Page', () => {
 
   describe('Step 13 - Basic Key Takeaways', () => {
     it('renders key takeaways with skip explanation', () => {
-      render(<TutorialContent initialStep={13} />)
+      render(<TutorialContent initialStep={TutorialStep.BasicKeyTakeaways} />)
 
       expect(screen.getByText('Key Takeaways')).toBeInTheDocument()
       expect(screen.getByText(/Accept data that matches the source/)).toBeInTheDocument()
@@ -670,7 +670,7 @@ describe('Tutorial Page', () => {
     })
 
     it('completes basic tutorial and shows completion screen', () => {
-      render(<TutorialContent initialStep={13} />)
+      render(<TutorialContent initialStep={TutorialStep.BasicKeyTakeaways} />)
 
       fireEvent.click(screen.getByRole('button', { name: 'Got It!' }))
 
@@ -682,7 +682,7 @@ describe('Tutorial Page', () => {
   describe('Tutorial Completion (Basic Mode)', () => {
     it('shows completion screen with link to evaluate page', () => {
       // Use initialStep=14 which triggers completion screen in basic mode
-      render(<TutorialContent initialStep={14} />)
+      render(<TutorialContent initialStep={TutorialStep.AdvancedWelcome} />)
 
       expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
       expect(
@@ -713,7 +713,7 @@ describe('Tutorial Page', () => {
 
     describe('Step 14 - Advanced Mode Welcome', () => {
       it('shows advanced mode welcome after basic tutorial', () => {
-        render(<TutorialContent initialStep={14} />)
+        render(<TutorialContent initialStep={TutorialStep.AdvancedWelcome} />)
 
         expect(screen.getByText('Advanced Mode Tutorial')).toBeInTheDocument()
         expect(
@@ -723,7 +723,7 @@ describe('Tutorial Page', () => {
       })
 
       it('advances to step 15 when clicking "Let\'s Advance"', () => {
-        render(<TutorialContent initialStep={14} />)
+        render(<TutorialContent initialStep={TutorialStep.AdvancedWelcome} />)
 
         fireEvent.click(screen.getByRole('button', { name: "Let's Advance" }))
 
@@ -733,7 +733,7 @@ describe('Tutorial Page', () => {
 
     describe('Step 15 - Replacing Generic Data', () => {
       it('renders replacing generic data explanation', () => {
-        render(<TutorialContent initialStep={15} />)
+        render(<TutorialContent initialStep={TutorialStep.ReplacingGenericData} />)
 
         expect(screen.getByText('Replacing Generic Data')).toBeInTheDocument()
         expect(
@@ -746,7 +746,7 @@ describe('Tutorial Page', () => {
 
     describe('Step 16 - Deprecate Simple Existing Data (Interactive)', () => {
       it('renders existing generic and new specific positions', () => {
-        render(<TutorialContent initialStep={16} />)
+        render(<TutorialContent initialStep={TutorialStep.DeprecateSimpleEvaluation} />)
 
         expect(screen.getByText('Political Positions')).toBeInTheDocument()
         // Existing generic data (no supporting quotes)
@@ -756,7 +756,7 @@ describe('Tutorial Page', () => {
       })
 
       it('goes back to step 15 when clicking "Go Back"', () => {
-        render(<TutorialContent initialStep={16} />)
+        render(<TutorialContent initialStep={TutorialStep.DeprecateSimpleEvaluation} />)
 
         fireEvent.click(screen.getByRole('button', { name: 'Go Back' }))
 
@@ -765,7 +765,7 @@ describe('Tutorial Page', () => {
 
       describe('Input combinations', () => {
         it('shows success when deprecating generic and accepting specific', () => {
-          render(<TutorialContent initialStep={16} />)
+          render(<TutorialContent initialStep={TutorialStep.DeprecateSimpleEvaluation} />)
 
           // Find deprecate button for existing data
           const deprecateButtons = screen.getAllByRole('button', { name: /Deprecate/ })
@@ -782,7 +782,7 @@ describe('Tutorial Page', () => {
         })
 
         it('shows error when keeping generic and accepting specific', () => {
-          render(<TutorialContent initialStep={16} />)
+          render(<TutorialContent initialStep={TutorialStep.DeprecateSimpleEvaluation} />)
 
           // Only accept the new specific (don't touch existing)
           const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
@@ -794,7 +794,7 @@ describe('Tutorial Page', () => {
         })
 
         it('shows error when deprecating generic and rejecting specific', () => {
-          render(<TutorialContent initialStep={16} />)
+          render(<TutorialContent initialStep={TutorialStep.DeprecateSimpleEvaluation} />)
 
           const deprecateButtons = screen.getAllByRole('button', { name: /Deprecate/ })
           const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
@@ -808,7 +808,7 @@ describe('Tutorial Page', () => {
         })
 
         it('shows error when keeping generic and rejecting specific', () => {
-          render(<TutorialContent initialStep={16} />)
+          render(<TutorialContent initialStep={TutorialStep.DeprecateSimpleEvaluation} />)
 
           const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
           fireEvent.click(rejectButtons[0])
@@ -822,7 +822,7 @@ describe('Tutorial Page', () => {
 
     describe('Step 17 - Data With Metadata', () => {
       it('renders data with metadata explanation', () => {
-        render(<TutorialContent initialStep={17} />)
+        render(<TutorialContent initialStep={TutorialStep.DataWithMetadata} />)
 
         expect(screen.getByText('Data With Metadata')).toBeInTheDocument()
         expect(
@@ -833,7 +833,7 @@ describe('Tutorial Page', () => {
 
     describe('Step 18 - Deprecate With Metadata (Interactive)', () => {
       it('renders existing data with metadata and new specific data', () => {
-        render(<TutorialContent initialStep={18} />)
+        render(<TutorialContent initialStep={TutorialStep.DataWithMetadataEvaluation} />)
 
         expect(screen.getByText('Political Positions')).toBeInTheDocument()
         expect(screen.getByText('Member of Parliament')).toBeInTheDocument()
@@ -841,7 +841,7 @@ describe('Tutorial Page', () => {
       })
 
       it('goes back to step 17 when clicking "Go Back"', () => {
-        render(<TutorialContent initialStep={18} />)
+        render(<TutorialContent initialStep={TutorialStep.DataWithMetadataEvaluation} />)
 
         fireEvent.click(screen.getByRole('button', { name: 'Go Back' }))
 
@@ -850,7 +850,7 @@ describe('Tutorial Page', () => {
 
       describe('Input combinations', () => {
         it('shows success when accepting new and keeping existing with metadata', () => {
-          render(<TutorialContent initialStep={18} />)
+          render(<TutorialContent initialStep={TutorialStep.DataWithMetadataEvaluation} />)
 
           // Just accept the new specific data (keep existing with metadata)
           const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
@@ -862,7 +862,7 @@ describe('Tutorial Page', () => {
         })
 
         it('shows error when deprecating existing with metadata', () => {
-          render(<TutorialContent initialStep={18} />)
+          render(<TutorialContent initialStep={TutorialStep.DataWithMetadataEvaluation} />)
 
           const deprecateButtons = screen.getAllByRole('button', { name: /Deprecate/ })
           const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
@@ -878,7 +878,7 @@ describe('Tutorial Page', () => {
         })
 
         it('shows error when rejecting new data', () => {
-          render(<TutorialContent initialStep={18} />)
+          render(<TutorialContent initialStep={TutorialStep.DataWithMetadataEvaluation} />)
 
           const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
           fireEvent.click(rejectButtons[0])
@@ -892,7 +892,7 @@ describe('Tutorial Page', () => {
 
     describe('Step 19 - Key Takeaways', () => {
       it('renders key takeaways', () => {
-        render(<TutorialContent initialStep={19} />)
+        render(<TutorialContent initialStep={TutorialStep.AdvancedKeyTakeaways} />)
 
         expect(screen.getByText('Key Takeaways')).toBeInTheDocument()
         expect(
@@ -905,7 +905,7 @@ describe('Tutorial Page', () => {
       })
 
       it('completes advanced tutorial and shows completion screen', () => {
-        render(<TutorialContent initialStep={19} />)
+        render(<TutorialContent initialStep={TutorialStep.AdvancedKeyTakeaways} />)
 
         fireEvent.click(screen.getByRole('button', { name: 'Got It!' }))
 
@@ -967,7 +967,7 @@ describe('Tutorial Page', () => {
   describe('Basic mode shows only basic tutorial', () => {
     it('shows completion screen after step 13 when not in advanced mode', () => {
       // Basic mode (isAdvancedMode: false) - default from beforeEach
-      render(<TutorialContent initialStep={13} />)
+      render(<TutorialContent initialStep={TutorialStep.BasicKeyTakeaways} />)
 
       // Click "Got It!" on key takeaways
       fireEvent.click(screen.getByRole('button', { name: 'Got It!' }))
@@ -980,7 +980,7 @@ describe('Tutorial Page', () => {
 
     it('does not continue to advanced tutorial in basic mode', () => {
       // Explicitly test that completion happens
-      render(<TutorialContent initialStep={14} />)
+      render(<TutorialContent initialStep={TutorialStep.AdvancedWelcome} />)
 
       // In basic mode, step 14 should show completion (not advanced welcome)
       expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
@@ -1020,7 +1020,7 @@ describe('Tutorial Page', () => {
     })
 
     it('advances to advanced tutorial (step 14) after completing basic tutorial in advanced mode', () => {
-      render(<TutorialContent initialStep={13} />)
+      render(<TutorialContent initialStep={TutorialStep.BasicKeyTakeaways} />)
 
       // Click "Got It!" on basic key takeaways
       fireEvent.click(screen.getByRole('button', { name: 'Got It!' }))
@@ -1042,7 +1042,7 @@ describe('Tutorial Page', () => {
         unlockStats: vi.fn(),
       })
 
-      render(<TutorialContent initialStep={19} />)
+      render(<TutorialContent initialStep={TutorialStep.AdvancedKeyTakeaways} />)
 
       // Click "Got It!" on advanced key takeaways
       fireEvent.click(screen.getByRole('button', { name: 'Got It!' }))
