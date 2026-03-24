@@ -25,70 +25,19 @@ export function parseWikidataDate(dateString: string, precision: number): Parsed
 
   let display: string
 
-  switch (precision) {
-    case 9: // Year only
-      display = year.toString()
-      break
-    case 10: // Month and year
-      if (month) {
-        const monthNames = [
-          'January',
-          'February',
-          'March',
-          'April',
-          'May',
-          'June',
-          'July',
-          'August',
-          'September',
-          'October',
-          'November',
-          'December',
-        ]
-        display = `${monthNames[month - 1]} ${year}`
-      } else {
-        display = year.toString()
-      }
-      break
-    case 11: // Full date
-      if (month && day) {
-        const monthNames = [
-          'January',
-          'February',
-          'March',
-          'April',
-          'May',
-          'June',
-          'July',
-          'August',
-          'September',
-          'October',
-          'November',
-          'December',
-        ]
-        display = `${monthNames[month - 1]} ${day}, ${year}`
-      } else if (month) {
-        const monthNames = [
-          'January',
-          'February',
-          'March',
-          'April',
-          'May',
-          'June',
-          'July',
-          'August',
-          'September',
-          'October',
-          'November',
-          'December',
-        ]
-        display = `${monthNames[month - 1]} ${year}`
-      } else {
-        display = year.toString()
-      }
-      break
-    default:
-      display = year.toString()
+  if (precision >= 11 && month && day) {
+    display = new Date(year, month - 1, day).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+  } else if (precision >= 10 && month) {
+    display = new Date(year, month - 1).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+    })
+  } else {
+    display = year.toString()
   }
 
   return {
