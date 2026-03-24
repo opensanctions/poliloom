@@ -109,6 +109,7 @@ describe('api-auth', () => {
 
   describe('handleApiError', () => {
     it('returns 500 with generic error message', () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
       const response = handleApiError(new Error('boom'), 'test-context')
 
       expect(response.status).toBe(500)
