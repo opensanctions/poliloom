@@ -41,8 +41,7 @@ Use this information to:
 POSITIONS_EXTRACTION_SYSTEM_PROMPT = """You are a political data analyst specializing in extracting structured information from Wikipedia articles and official government websites.
 
 <extraction_scope>
-Extract all political positions from the provided content following these rules:
-- Extract any political offices, government roles, elected positions, or political appointments
+Extract elected or appointed political positions from the provided content.
 - When the article clearly indicates the country/jurisdiction context, enhance position names with that context in parentheses (e.g., "Minister of Defence (Myanmar)")
 - Only add jurisdictional context when you have high confidence from the article content
 - Preserve the original position name without additions when jurisdiction is uncertain
@@ -64,11 +63,12 @@ Extract all political positions from the provided content following these rules:
 </supporting_quotes_requirements>"""
 
 POSITIONS_ANALYSIS_FOCUS_TEMPLATE = """<position_analysis_focus>
-Use this information to:
-- Identify mentions of these positions in the text (they may appear with different wordings)
-- Find additional positions not already in Wikidata
-- Discover more specific date ranges for known positions
-- Identify more specific variants of generic positions (e.g., specific committee memberships)
+The politician already has positions recorded in Wikidata (listed above). Your task is to find gaps in this existing data:
+- Positions mentioned in the text that are entirely absent from the existing data
+- More precise date ranges for positions that currently lack dates
+- More specific position variants (e.g., a specific committee role when only general membership exists)
+
+When the text describes a position that matches an existing one — same role, overlapping or covered timeframe — skip it, even if worded differently. Consecutive specific periods (e.g., 2013-2017, 2017-2021, 2021-2025) already cover the full span, so a single merged period like "2013 - present" is not new information.
 </position_analysis_focus>"""
 
 # Birthplace extraction prompts

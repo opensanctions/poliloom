@@ -202,13 +202,13 @@ async def extract_properties_generic(
         logger.debug(f"Extracting {config.property_types} for {politician.name}")
 
         response = await openai_client.responses.parse(
-            model="gpt-5",
+            model=os.getenv("OPENAI_MODEL", "gpt-5.4-mini"),
             input=[
                 {"role": "system", "content": config.system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             text_format=config.result_model,
-            reasoning={"effort": "minimal"},
+            reasoning={"effort": os.getenv("OPENAI_REASONING_EFFORT", "none")},
         )
 
         if response.output_parsed is None:
@@ -448,13 +448,15 @@ Candidate Wikidata {entity_type.title()}s:
 Select the best matching QID or None if no good match exists."""
 
         response = await openai_client.responses.parse(
-            model="gpt-5",
+            model=os.getenv("OPENAI_MODEL", "gpt-5.4-mini"),
             input=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             text_format=DynamicMappingResult,
-            reasoning={"effort": "minimal"},
+            reasoning={
+                "effort": os.getenv("OPENAI_MAPPING_REASONING_EFFORT", "medium")
+            },
         )
 
         if response.output_parsed is None:

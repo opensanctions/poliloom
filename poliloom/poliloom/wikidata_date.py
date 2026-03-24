@@ -122,6 +122,19 @@ class WikidataDate:
             },
         }
 
+    def to_display_string(self) -> str:
+        """Format the date at its stored precision level.
+
+        Returns:
+            YYYY, YYYY-MM, or YYYY-MM-DD depending on precision.
+        """
+        year, month, day = self.extract_date_parts()
+        if self.precision >= 11 and month and day:
+            return f"{year:04d}-{month:02d}-{day:02d}"
+        elif self.precision >= 10 and month:
+            return f"{year:04d}-{month:02d}"
+        return f"{year:04d}"
+
     def extract_date_parts(self) -> tuple[int, Optional[int], Optional[int]]:
         """Extract year, month, day from the date string.
 

@@ -811,39 +811,25 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         """Extract formatted date range from qualifiers_json.
 
         Returns:
-            Formatted date range string like " (2020 - 2023)" or empty string
+            Formatted date range string like " (2020-01-15 - 2023-06-30)" or empty string.
+            Precision-aware: shows YYYY, YYYY-MM, or YYYY-MM-DD as stored in Wikidata.
         """
         if not self.qualifiers_json:
             return ""
 
-        start_date = None
-        end_date = None
-
-        # Extract P580 (start date) and P582 (end date) from qualifiers
-        if "P580" in self.qualifiers_json:
-            start_qual = self.qualifiers_json["P580"][0]
-            if "datavalue" in start_qual and "value" in start_qual["datavalue"]:
-                time_val = start_qual["datavalue"]["value"]["time"]
-                # Parse time format like "+2020-01-00T00:00:00Z"
-                if time_val.startswith("+"):
-                    start_date = time_val[1:5]  # Extract year
-
-        if "P582" in self.qualifiers_json:
-            end_qual = self.qualifiers_json["P582"][0]
-            if "datavalue" in end_qual and "value" in end_qual["datavalue"]:
-                time_val = end_qual["datavalue"]["value"]["time"]
-                if time_val.startswith("+"):
-                    end_date = time_val[1:5]  # Extract year
+        start_date, end_date = self._extract_timeframe_from_qualifiers(
+            self.qualifiers_json
+        )
 
         if start_date:
-            date_range = f" ({start_date}"
+            date_range = f" ({start_date.to_display_string()}"
             if end_date:
-                date_range += f" - {end_date})"
+                date_range += f" - {end_date.to_display_string()})"
             else:
                 date_range += " - present)"
             return date_range
         elif end_date:
-            return f" (until {end_date})"
+            return f" (until {end_date.to_display_string()})"
 
         return ""
 
