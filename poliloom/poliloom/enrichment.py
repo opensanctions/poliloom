@@ -208,7 +208,7 @@ async def extract_properties_generic(
                 {"role": "user", "content": user_prompt},
             ],
             text_format=config.result_model,
-            reasoning={"effort": os.getenv("OPENAI_REASONING_EFFORT", "none")},
+            reasoning={"effort": os.getenv("OPENAI_REASONING_EFFORT", "low")},
         )
 
         if response.output_parsed is None:
