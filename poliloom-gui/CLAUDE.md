@@ -2,141 +2,57 @@
 
 ## Project Purpose
 
-The PoliLoom GUI is a web application that provides a user interface for confirming the accuracy of politician metadata automatically extracted by the PoliLoom project. Users review and validate properties (birth dates, birthplaces) and political positions extracted by LLMs from government portals, Wikipedia, and other web sources before the data is submitted to Wikidata.
+The PoliLoom GUI is a web application for reviewing and validating politician metadata automatically extracted by the PoliLoom project. Users evaluate properties (birth dates, birthplaces, positions, citizenship) extracted by LLMs from web sources (Wikipedia, government portals, etc.) before the data is submitted to Wikidata.
 
 ## Technical Requirements
 
-- Modern web application using Next.js with App Router
-- React-based user interface with TypeScript
-- Responsive design with Tailwind CSS
-- MediaWiki OAuth integration for authentication
-- RESTful API integration with the PoliLoom backend
+- Next.js with App Router, React, TypeScript
+- Tailwind CSS for styling
+- MediaWiki OAuth for authentication
+- RESTful API integration with the PoliLoom backend (proxied via Next.js API routes)
+- Vitest + React Testing Library for testing
 
 ## Core Features
 
-### 1. Authentication
+### Authentication
 
-- **MediaWiki OAuth Integration**: Users authenticate using their Wikipedia/MediaWiki accounts
-- **Session Management**: Secure session handling with proper token management
-- **Protected Routes**: All confirmation pages require authentication
+- MediaWiki OAuth login, session management, protected routes
 
-### 2. Data Evaluation Interface
+### Evaluation Interface
 
-- **Single Politician View**: Show one politician at a time with their extracted data
-- **Sequential Navigation**: Move through politicians one by one
-- **Individual Item Actions**: Evaluate each property individually (birth dates, positions, birthplaces, etc. are all property types)
-- **Batch Evaluation**: Submit multiple evaluations in a single request
-- **Sources**: Access and display archived web pages from government portals, Wikipedia, and other sources for verification
-- **Text Highlighting**: Automatic highlighting of proof text within sources using CSS Custom Highlight API
+- **Politician view** (`/politician/[qid]`): Single politician with all extracted properties, grouped by type. Accept/reject individual properties.
+- **Source view** (`/sources/[id]`): Evaluate properties from a specific source's perspective. Archived HTML displayed in iframe with CSS Custom Highlight API for proof text.
+- **Session flow** (`/session/enriching`, `/session/unlocked`, `/session/complete`): Guides users through the evaluation session lifecycle.
+- **OmniBox**: Search/navigate to politicians, with option to create new entries.
 
-### 3. User Experience
+### Real-time Updates
 
-- **Minimal, Clean UI**: Simple interface focused on data verification
-- **Single-Task Focus**: Show one politician at a time to avoid cognitive overload
-- **Loading States**: Clear feedback during API operations
-- **Error Handling**: Graceful error handling with user-friendly messages
+- Server-sent events (EventStreamContext) for live evaluation count updates and enrichment progress notifications.
 
-## API Integration Requirements
+### User-Added Data
 
-The application integrates with the PoliLoom API backend to:
-
-- Fetch unconfirmed politician data with pagination support
-- Submit evaluation decisions for extracted data
-- Handle authentication via MediaWiki OAuth tokens
-- Support configurable API base URL for different environments
-- Retrieve archived web pages from various sources for context and verification
-
-The API specification is available via OpenAPI documentation from the backend service. The backend server is likely running at `http://localhost:8000` in the development environment. You can fetch the OpenAPI spec with:
-
-```bash
-curl http://localhost:8000/openapi.json
-```
+- Users can add new properties (dates, entities, positions) and sources via dedicated forms.
 
 ## Data Model
 
-### Core Entities
+**Politicians**: ID, name, Wikidata QID, unified `properties` array of extracted data.
 
-**Politicians**: Each politician contains:
+**Properties**: Each has a `type` (P569 birth date, P570 death date, P19 birthplace, P39 position, P27 citizenship), optional qualifiers (start/end dates), supporting quotes, and source references.
 
-- Basic identification (ID, name, Wikidata ID)
-- A unified `properties` array containing all extracted data
+**Sources**: Archived web pages (MHTML) linked to politicians. Displayed in iframe with highlighted proof text.
 
-**Properties**: Each property has a `type` field indicating what kind of data it represents:
+**Evaluations**: Accept/reject individual properties, submitted in batches via `PATCH /politicians/{qid}/properties`.
 
-- `P569` - Birth date (with optional precision)
-- `P570` - Death date (with optional precision)
-- `P19` - Birthplace (with entity ID and name)
-- `P39` - Political position (with entity ID, name, and date qualifiers)
-- `P27` - Citizenship (with entity ID and name)
+## Key Architecture
 
-Properties may include supporting quotes, an attached source for verification, and qualifiers (start/end dates for positions).
+- **Contexts**: `EvaluationSessionContext` (batch evaluation state), `EventStreamContext` (SSE), `NextPoliticianContext` (prefetch next politician), `UserPreferencesContext` (advanced mode, filters)
+- **API proxy**: Next.js API routes in `src/app/api/` proxy to backend, attaching auth tokens
+- **Route groups**: `(app)/` for authenticated routes, `(public)/` for login
 
-**Evaluations**: Users accept or reject individual properties:
+## Testing
 
-- Property ID reference
-- Evaluation result (accepted/rejected)
-- Batch submission support (multiple evaluations in one request)
+**Framework**: Vitest + React Testing Library
 
-## Application Architecture
+**Approach**: Minimal, behavior-focused. Test user-facing behavior, not implementation details.
 
-- **Evaluation Components**: Individual UI for confirming properties (grouped by type in the interface)
-- **Navigation**: Simple sequential navigation between politicians
-- **Text Highlighting System**: CSS Custom Highlight API implementation for highlighting proof text in sources
-- **Iframe Integration**: Secure display of source pages with automatic highlighting
-- **Protected Routes**: All evaluation pages require authentication
-
-## User Interface Requirements
-
-### Main Evaluation Interface
-
-- Display one politician at a time with all extracted data
-- Individual accept/reject actions for each data item
-- Sequential navigation between politicians
-- Progress indicator showing current position
-- Links to external resources (Wikipedia/Wikidata)
-- Embedded archived web pages with highlighted proof text for source verification
-
-### Authentication Interface
-
-- MediaWiki OAuth login integration
-- Clear explanation of the tool's purpose
-- Minimal, focused login experience
-
-## User Experience Requirements
-
-### Design Principles
-
-- Clean, professional interface suitable for data verification
-- Clear visual hierarchy with proper spacing
-- Accessible design with good color contrast
-- Clear call-to-action buttons for accept/reject actions
-
-### Usability Requirements
-
-- **Clarity**: Show source context for extracted data
-- **Efficiency**: Minimize clicks for common evaluation actions
-- **Safety**: Clear feedback before irreversible actions
-- **Responsiveness**: Responsive design optimized for desktop use
-
-### Target Platform
-
-- Support modern browsers only, no legacy fallbacks
-
-## Testing Strategy
-
-**Framework**: Vitest + React Testing Library for fast, modern testing with excellent TypeScript support.
-
-**Approach**: Minimal, behavior-focused testing that covers critical functionality without over-engineering.
-
-**Testing Priorities**:
-
-- Authentication flow (OAuth login/logout)
-- Core evaluation workflow (accept/reject actions)
-- Politician data display and navigation
-- API integration and error handling
-
-**Testing Scope**:
-
-- Focus on user-facing behavior rather than implementation details
-- Automated testing for core evaluation components using Vitest
-- Basic error scenario coverage
+**Priorities**: Auth flow, core evaluation workflow, politician display/navigation, API integration, error handling.

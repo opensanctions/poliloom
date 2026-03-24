@@ -1,30 +1,20 @@
 # PoliLoom
 
-Open-source tool to build the world's largest open database of politicians. Extracts politician data from Wikipedia using AI, verifies it through community review, and submits to Wikidata.
+Open-source tool to build the world's largest open database of politicians. Extracts politician data from web sources (Wikipedia, government portals, etc.) using AI, verifies it through community review, and submits to Wikidata.
 
 ## Project Structure
 
 ```
-poliloom/                        # Backend project root (pyproject.toml, Dockerfile)
-  poliloom/                      # Python package (source code lives here)
-    api/                         # FastAPI endpoints
-    models/                      # SQLAlchemy models
-    importer/                    # Wikidata dump processing
-    cli.py, enrichment.py, ...
-  alembic/                       # DB migrations
-  tests/
-poliloom-gui/                    # Frontend project root
-  src/
-    app/                         # Next.js App Router pages
-    components/                  # Reusable React components
-    types/                       # TypeScript definitions
+poliloom/                        # Backend (Python package, pyproject.toml, Dockerfile)
+poliloom-gui/                    # Frontend (Next.js, package.json)
 docker-compose.yml               # Services: postgres, api, gui
 ```
 
 ## Tech Stack
 
-**Backend**: Python 3.12+, FastAPI, SQLAlchemy, PostgreSQL (pgvector), OpenAI API, SentenceTransformers
+**Backend**: Python 3.12+, FastAPI, SQLAlchemy, PostgreSQL (pgvector), OpenAI API, Meilisearch (hybrid search with OpenAI embeddings)
 **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS, NextAuth.js
+**Infrastructure**: Meilisearch (entity search + semantic similarity), Playwright (web page archiving)
 **Package Managers**: uv (Python), npm (Node.js)
 
 ## Development Environment
@@ -53,29 +43,35 @@ npm run test                     # Run tests
 ## Key Backend Files
 
 - `poliloom/poliloom/cli.py` - CLI commands (import, enrich, embed)
-- `poliloom/poliloom/api/` - FastAPI endpoints
-- `poliloom/poliloom/models/` - SQLAlchemy models (Politician, Property, Position, etc.)
+- `poliloom/poliloom/api/` - FastAPI endpoints (politicians, sources, events, stats, auth)
+- `poliloom/poliloom/models/` - SQLAlchemy models (Politician, Source, Property, etc.)
 - `poliloom/poliloom/importer/` - Wikidata dump processing
-- `poliloom/poliloom/enrichment.py` - AI-powered data extraction
+- `poliloom/poliloom/enrichment.py` - AI-powered data extraction from web sources
+- `poliloom/poliloom/archiving.py` - Web page fetching and MHTML archiving via Playwright
+- `poliloom/poliloom/sse.py` - Server-sent events bus for real-time updates
 
 ## Key Frontend Files
 
-- `poliloom-gui/src/app/` - Next.js App Router pages
-- `poliloom-gui/src/app/evaluate/` - Main evaluation interface
-- `poliloom-gui/src/components/` - Reusable React components
+- `poliloom-gui/src/app/(app)/politician/[qid]/` - Single politician evaluation view
+- `poliloom-gui/src/app/(app)/sources/[id]/` - Source evaluation view
+- `poliloom-gui/src/app/(app)/session/` - Session flow (enriching, unlocked, complete)
+- `poliloom-gui/src/components/evaluation/` - Evaluation UI (property display, source viewer, forms)
+- `poliloom-gui/src/components/ui/` - Generic UI components (entity search, date picker, etc.)
+- `poliloom-gui/src/contexts/` - React contexts (EvaluationSession, EventStream, NextPolitician, etc.)
 - `poliloom-gui/src/types/` - TypeScript definitions
 
 ## Data Pipeline
 
 1. Download Wikidata dump → Extract hierarchy (P279 relationships)
-2. Import positions, locations, countries
+2. Import positions, locations, countries → Index entities to Meilisearch
 3. Import politicians with entity links
-4. Generate embeddings for similarity search
-5. AI extraction from Wikipedia → Community verification → Wikidata submission
+4. Archive web sources (Wikipedia, government portals) as MHTML via Playwright
+5. AI extraction from web sources (two-stage: free-form extraction → Meilisearch entity mapping)
+6. Community evaluation → Wikidata submission
 
 ## Environment Variables
 
-Backend (`.env`): DB_*, OPENAI_API_KEY, MEDIAWIKI_CONSUMER_*, GOOGLE_APPLICATION_CREDENTIALS
+Backend (`.env`): DB_*, OPENAI_API_KEY, OPENAI_MODEL, OPENAI_REASONING_EFFORT, MEDIAWIKI_CONSUMER_*, GOOGLE_APPLICATION_CREDENTIALS, MEILI_URL, MEILI_MASTER_KEY, POLILOOM_ARCHIVE_ROOT, WIKIDATA_API_ROOT, MIN_UNEVALUATED_POLITICIANS
 Frontend (`.env.local`): AUTH_SECRET, MEDIAWIKI_OAUTH_*, API_BASE_URL
 
 ## Code Style

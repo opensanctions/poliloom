@@ -30,7 +30,7 @@ This document outlines the high-level architecture and strategy for the PoliLoom
 
 ### **Entity-Oriented Design**
 
-Each Wikidata entity type has a dedicated class (`WikidataPolitician`, `WikidataPosition`, `WikidataLocation`, `WikidataCountry`) handling its complete lifecycle. Uses `WikidataEntityFactory` for type detection and creation.
+Each Wikidata entity type has a dedicated class (`WikidataPolitician`, `WikidataPosition`, `WikidataLocation`, `WikidataCountry`) handling its complete lifecycle. Uses `WikidataEntityProcessor` for type detection and processing.
 
 ### **Three-Pass Dump Processing Strategy**
 
@@ -56,15 +56,17 @@ For entity-linked properties (OpenAI's 500 enum limit):
 
 ### **Enrichment Pipeline**
 
-- **Wikipedia Content:** Fetch and process linked articles
+- **Web Source Archiving:** Fetch and archive web pages (Wikipedia, government portals) as MHTML via Playwright (`archiving.py`)
 - **LLM Extraction:** OpenAI structured data API for politician properties
 - **Conflict Detection:** Flag discrepancies between extracted and existing Wikidata values
 - **Similarity Search:** Match unlinked entities using Meilisearch hybrid search
+- **Real-time Updates:** SSE events broadcast enrichment progress and evaluation count changes (`sse.py`)
 
 ### **API Endpoints**
 
-- **GET /politicians:** Retrieve politicians with unevaluated extractions
-- **POST /evaluate:** Submit evaluation results (accept/reject/deprecate)
+- **Politicians:** `GET /politicians/next` (next unevaluated), `GET /politicians/{qid}`, `GET /politicians/search`, `POST /politicians` (create), `PATCH /politicians/{qid}/properties` (submit evaluations), `POST /politicians/{qid}/sources` (add source)
+- **Sources:** `GET /sources/{id}` (politicians for source), `GET /sources/{id}.html` (archived HTML), `PATCH /sources/{id}/properties` (evaluate from source view)
+- **Events:** `GET /events` (SSE stream for real-time updates: evaluation counts, enrichment progress)
 - **Authentication:** MediaWiki OAuth 2.0 JWT tokens
 
 ### **CLI Structure**
@@ -103,18 +105,15 @@ _Use `--help` for detailed command documentation._
 - **Google Cloud Storage:** Large file processing and storage
 - **OpenAI API:** All LLM-based extraction
 - **MediaWiki OAuth 2.0:** User authentication for API
-- **Wikipedia API:** Article content fetching
+- **Playwright:** Web page fetching and MHTML archiving
 
 ## **7. Common Commands**
 
 ### **Development Setup**
 
 ```bash
-# Sync dependencies (CPU-only for Docker)
-uv sync --extra cpu
-
-# Sync for GPU development
-uv sync --extra cu128
+# Sync dependencies
+uv sync
 
 # Install pre-commit hooks
 uv run pre-commit install
@@ -136,7 +135,7 @@ uv run pytest tests/models/test_politician.py
 uv run pytest -v
 
 # Run specific test method
-uv run pytest tests/test_entity_classes.py::TestWikidataPolitician::test_politician_creation
+uv run pytest tests/models/test_politician.py::TestPolitician -k test_name
 ```
 
 ### **Database Operations**
@@ -163,11 +162,18 @@ uv run poliloom import-entities --file ./dump.json
 uv run poliloom import-politicians --file ./dump.json
 
 # Enrich politician data
-uv run poliloom enrich-wikipedia --id Q6279
-uv run poliloom enrich-wikipedia --limit 100
+uv run poliloom enrich-wikipedia --count 20
+uv run poliloom enrich-wikipedia --count 10 --countries Q30
+
+# Meilisearch index management
+uv run poliloom index-create
+uv run poliloom index-build
+uv run poliloom index-stats
 
 # Maintenance operations
 uv run poliloom garbage-collect
+uv run poliloom clean-entities
+uv run poliloom clean-properties
 ```
 
 ## **8. Code Style & Development Practices**
@@ -208,6 +214,5 @@ repos:
 ## **9. Important Notes**
 
 - **Always use `uv`** for Python execution and dependency management
-- **Web Crawling**: Uses playwright directly for page fetching and MHTML capture
-- **PyTorch Extras**: cpu/cu128 extras are mutually exclusive (configured in pyproject.toml)
+- **Web Crawling**: Uses Playwright directly for page fetching and MHTML capture
 - **Test Database**: Uses port 5433 to avoid conflicts with main database (port 5432)
