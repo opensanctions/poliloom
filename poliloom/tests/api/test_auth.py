@@ -96,7 +96,7 @@ class TestAuthDependencies:
     @patch("poliloom.api.auth.get_oauth_handler")
     async def test_get_current_user_success(self, mock_get_oauth_handler):
         """Test successful user authentication."""
-        expected_user = User(user_id=12345)
+        expected_user = User(user_id=12345, jwt_token="jwt_token_here")
         mock_oauth_handler = Mock()
         mock_oauth_handler.verify_jwt_token = AsyncMock(return_value=expected_user)
         mock_get_oauth_handler.return_value = mock_oauth_handler
@@ -174,7 +174,7 @@ class TestAuthDependencies:
     @patch("poliloom.api.auth.get_current_user")
     async def test_get_optional_user_success(self, mock_get_current_user):
         """Test optional authentication with valid credentials."""
-        expected_user = User(user_id=12345)
+        expected_user = User(user_id=12345, jwt_token="jwt_token_here")
         mock_get_current_user.return_value = expected_user
 
         credentials = HTTPAuthorizationCredentials(

@@ -464,21 +464,17 @@ async def process_property_actions(
     # Push evaluations to Wikidata (don't rollback local changes on failure)
     wikidata_errors = []
 
-    jwt_token = current_user.jwt_token
-    if not jwt_token:
-        wikidata_errors.append("No JWT token available for Wikidata API calls")
-    else:
-        for evaluation in all_evaluations:
-            try:
-                success = await push_evaluation(evaluation, jwt_token, db)
-                if not success:
-                    wikidata_errors.append(
-                        f"Failed to process evaluation {evaluation.id} in Wikidata"
-                    )
-            except Exception as e:
+    for evaluation in all_evaluations:
+        try:
+            success = await push_evaluation(evaluation, current_user.jwt_token, db)
+            if not success:
                 wikidata_errors.append(
-                    f"Error processing evaluation {evaluation.id} in Wikidata: {str(e)}"
+                    f"Failed to process evaluation {evaluation.id} in Wikidata"
                 )
+        except Exception as e:
+            wikidata_errors.append(
+                f"Error processing evaluation {evaluation.id} in Wikidata: {str(e)}"
+            )
 
     if wikidata_errors:
         errors.extend(wikidata_errors)

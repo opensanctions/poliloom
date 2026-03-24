@@ -13,7 +13,7 @@ class User(BaseModel):
     """User model for authenticated users."""
 
     user_id: int
-    jwt_token: Optional[str] = None  # Store the raw JWT token for Wikidata API calls
+    jwt_token: str  # Raw JWT token for Wikidata API calls
 
 
 class MediaWikiOAuth:

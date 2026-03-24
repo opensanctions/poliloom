@@ -84,6 +84,10 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
         return
       }
 
+      if (!isSessionActive) {
+        refetchPolitician()
+      }
+
       if (isSessionActive) {
         const { sessionComplete } = submitAndAdvance()
         if (sessionComplete) {

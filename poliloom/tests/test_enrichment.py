@@ -405,6 +405,155 @@ class TestEnrichment:
         assert ref is not None
         assert ref.source_id == sample_source.id
 
+    def test_store_extracted_data_existing_match_adds_reference(
+        self,
+        db_session,
+        sample_source,
+        sample_country,
+        sample_politician,
+        sample_wikipedia_link,
+        create_citizenship,
+        create_source,
+        create_birth_date,
+    ):
+        """Test that store_extracted_data adds a reference to an existing matching property."""
+        create_citizenship(sample_politician, sample_country)
+
+        # Create an existing birth date property from a first source
+        existing_prop = create_birth_date(
+            sample_politician,
+            value="+1970-01-15T00:00:00Z",
+            source=sample_source,
+            supporting_quotes=["born January 15, 1970"],
+        )
+        db_session.flush()
+
+        # Create a second source
+        second_source = create_source(url="https://example.com/other-article")
+
+        # Extract the same birth date from the second source
+        properties = [
+            ExtractedProperty(
+                type=PropertyType.BIRTH_DATE,
+                value="1970-01-15",
+                supporting_quotes=["He was born on 15 January 1970"],
+            )
+        ]
+
+        success = store_extracted_data(
+            db_session,
+            sample_politician,
+            second_source,
+            properties,
+            None,
+            None,
+            None,
+        )
+
+        assert success is True
+
+        # Should NOT create a new property — still just the one
+        all_birth_dates = (
+            db_session.query(Property)
+            .filter_by(politician_id=sample_politician.id, type=PropertyType.BIRTH_DATE)
+            .all()
+        )
+        assert len(all_birth_dates) == 1
+        assert all_birth_dates[0].id == existing_prop.id
+
+        # Should have two references: one from each source
+        refs = (
+            db_session.query(PropertyReference)
+            .filter_by(property_id=existing_prop.id)
+            .all()
+        )
+        assert len(refs) == 2
+        source_ids = {ref.source_id for ref in refs}
+        assert sample_source.id in source_ids
+        assert second_source.id in source_ids
+
+    def test_store_extracted_data_existing_position_adds_reference(
+        self,
+        db_session,
+        sample_source,
+        sample_country,
+        sample_politician,
+        sample_position,
+        sample_wikipedia_link,
+        create_citizenship,
+        create_source,
+        create_position,
+    ):
+        """Test that store_extracted_data adds a reference to an existing matching position."""
+        create_citizenship(sample_politician, sample_country)
+
+        qualifiers = {
+            "P580": [
+                {
+                    "datavalue": {
+                        "value": {"time": "+2020-00-00T00:00:00Z", "precision": 9}
+                    }
+                }
+            ],
+            "P582": [
+                {
+                    "datavalue": {
+                        "value": {"time": "+2024-00-00T00:00:00Z", "precision": 9}
+                    }
+                }
+            ],
+        }
+        existing_prop = create_position(
+            sample_politician,
+            sample_position,
+            source=sample_source,
+            qualifiers_json=qualifiers,
+        )
+        db_session.flush()
+
+        second_source = create_source(url="https://example.com/other-article")
+
+        positions = [
+            ExtractedPosition(
+                wikidata_id="Q30185",
+                start_date="2020",
+                end_date="2024",
+                supporting_quotes=["served as Mayor from 2020 to 2024"],
+            )
+        ]
+
+        success = store_extracted_data(
+            db_session,
+            sample_politician,
+            second_source,
+            None,
+            positions,
+            None,
+            None,
+        )
+
+        assert success is True
+
+        # Should NOT create a new property
+        all_positions = (
+            db_session.query(Property)
+            .filter_by(
+                politician_id=sample_politician.id,
+                type=PropertyType.POSITION,
+                entity_id=sample_position.wikidata_id,
+            )
+            .all()
+        )
+        assert len(all_positions) == 1
+
+        # Should have two references
+        refs = (
+            db_session.query(PropertyReference)
+            .filter_by(property_id=existing_prop.id)
+            .all()
+        )
+        assert len(refs) == 2
+
     def test_store_extracted_data_error_handling(
         self,
         db_session,
