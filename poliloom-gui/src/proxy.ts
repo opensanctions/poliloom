@@ -4,9 +4,11 @@ export default auth((req) => {
   const isAuthenticated = !!req.auth && !req.auth.error
   const pathname = req.nextUrl.pathname
 
-  // Redirect unauthenticated users to login
+  // Redirect unauthenticated users to login, preserving the original URL
   if (!isAuthenticated && pathname !== '/login') {
-    return Response.redirect(new URL('/login', req.nextUrl.origin))
+    const loginUrl = new URL('/login', req.nextUrl.origin)
+    loginUrl.searchParams.set('redirect', req.nextUrl.pathname + req.nextUrl.search)
+    return Response.redirect(loginUrl)
   }
 
   // Redirect authenticated users without a Wikidata account to setup
