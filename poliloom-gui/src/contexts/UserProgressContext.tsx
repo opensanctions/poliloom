@@ -94,8 +94,3 @@ export function useUserProgress() {
   }
   return context
 }
-
-// Backwards compatibility aliases
-export const TutorialContext = UserProgressContext
-export const TutorialProvider = UserProgressProvider
-export const useTutorial = useUserProgress

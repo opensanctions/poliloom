@@ -219,7 +219,3 @@ export function useUserPreferences() {
   }
   return context
 }
-
-// Backwards compatibility alias
-export const useEvaluationFilters = useUserPreferences
-export const EvaluationFiltersProvider = UserPreferencesProvider

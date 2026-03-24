@@ -3,7 +3,6 @@ import { SourceResponse } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { AddSourceForm } from './AddSourceForm'
 import { SourceItem } from './SourceItem'
-import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 
 interface SourcesListProps {
   sources: SourceResponse[]
@@ -20,7 +19,6 @@ export function SourcesList({
   politicianQid,
   onAddSource,
 }: SourcesListProps) {
-  const { isAdvancedMode } = useUserPreferences()
   const [isAdding, setIsAdding] = useState(false)
 
   const handleAdd = () => {
@@ -43,7 +41,7 @@ export function SourcesList({
             />
           ))}
       </div>
-      {onAddSource && politicianQid && isAdvancedMode && (
+      {onAddSource && politicianQid && (
         <div className="mt-4">
           {isAdding ? (
             <AddSourceForm

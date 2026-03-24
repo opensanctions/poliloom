@@ -147,7 +147,7 @@ export default function Home() {
               <span>
                 Advanced mode{' '}
                 <span className="text-foreground-subtle">
-                  — enables deprecating existing Wikidata statements
+                  — enables creating new and deprecating existing Wikidata statements
                 </span>
               </span>
             </label>
