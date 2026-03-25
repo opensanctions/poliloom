@@ -61,6 +61,7 @@ const birthDate: Property = {
 
 export const extractedDataPolitician: Politician = {
   ...politicianBase,
+  sources: [page1],
   properties: [
     birthDate,
     {
@@ -77,6 +78,7 @@ export const extractedDataPolitician: Politician = {
 
 export const birthDatePolitician: Politician = {
   ...politicianBase,
+  sources: [page1],
   properties: [
     {
       id: 'tutorial-birth-date-incorrect',

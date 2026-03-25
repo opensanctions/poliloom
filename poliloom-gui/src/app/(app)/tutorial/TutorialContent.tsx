@@ -8,6 +8,7 @@ import { EvaluationView } from '@/components/evaluation/EvaluationView'
 import { PoliticianHeader } from '@/components/evaluation/PoliticianHeader'
 import { SourceViewer } from '@/components/evaluation/SourceViewer'
 import { PropertiesEvaluation } from '@/components/evaluation/PropertiesEvaluation'
+import { SourcesList } from '@/components/evaluation/SourcesList'
 import { TutorialActions } from './_components/TutorialActions'
 import { TutorialFooter } from './_components/TutorialFooter'
 import { SuccessFeedback } from './_components/SuccessFeedback'
@@ -16,7 +17,7 @@ import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
-import { PropertyActionItem } from '@/types'
+import { PropertyActionItem, SourceResponse } from '@/types'
 import { actionToEvaluation } from '@/lib/evaluation'
 import {
   extractedDataPolitician,
@@ -25,6 +26,7 @@ import {
   genericVsSpecificPolitician,
   deprecateSimplePolitician,
   deprecateWithMetadataPolitician,
+  tutorialSources,
 } from './tutorialData'
 
 // Expected answers for each evaluation step
@@ -139,6 +141,11 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   const { nextHref, loading: nextLoading } = useNextPoliticianContext()
 
   const startHref = !nextLoading ? (nextHref ?? undefined) : undefined
+
+  const sourceById = new Map<string, SourceResponse>([
+    [tutorialSources.page1.id, tutorialSources.page1],
+    [tutorialSources.page2.id, tutorialSources.page2],
+  ])
 
   // Determine starting step based on completion status
   const getStartingStep = (): number => {
@@ -289,12 +296,18 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                 wikidataId={extractedDataPolitician.wikidata_id ?? undefined}
               />
             </div>
+            <SourcesList
+              sources={extractedDataPolitician.sources}
+              activeSourceId={null}
+              onViewSource={() => {}}
+            />
             <PropertiesEvaluation
               properties={extractedDataPolitician.properties}
               onAction={() => {}}
               onViewSource={() => {}}
               onHover={() => {}}
               activeSourceId={null}
+              sourceById={sourceById}
             />
           </div>
         }
