@@ -236,9 +236,9 @@ export function PropertiesEvaluation({
   }
 
   return (
-    <div className="space-y-8">
+    <>
       {sections.map((section) => (
-        <div key={section.title} className="mb-8">
+        <div key={section.title}>
           <h2 className="text-xl font-semibold text-foreground mb-4">{section.title}</h2>
           <div className="space-y-4">
             {section.items.map((item) => {
@@ -291,6 +291,6 @@ export function PropertiesEvaluation({
           )}
         </div>
       ))}
-    </div>
+    </>
   )
 }

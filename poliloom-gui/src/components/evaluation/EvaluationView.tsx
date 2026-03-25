@@ -16,8 +16,7 @@ import { CenteredCard } from '@/components/ui/CenteredCard'
 import { PropertiesEvaluation } from './PropertiesEvaluation'
 import { PoliticianHeader } from './PoliticianHeader'
 import { SourceViewer } from './SourceViewer'
-import { SourcesList } from './SourcesList'
-import { AddSourceForm } from './AddSourceForm'
+import { SourcesSection } from './SourcesSection'
 
 interface SourceSelection {
   source: SourceResponse
@@ -177,27 +176,25 @@ export function EvaluationView({
           const properties = displayPropertiesByPolitician.get(politician.id) || []
 
           return (
-            <div key={politician.id} className="mb-8">
-              <div className="mb-6">
-                <PoliticianHeader
-                  name={politician.name}
-                  wikidataId={politician.wikidata_id ?? undefined}
-                  onNameChange={
-                    onNameChange ? (name) => onNameChange(politician.id, name) : undefined
-                  }
-                />
-              </div>
+            <div key={politician.id} className="flex flex-col gap-8">
+              <PoliticianHeader
+                name={politician.name}
+                wikidataId={politician.wikidata_id ?? undefined}
+                onNameChange={
+                  onNameChange ? (name) => onNameChange(politician.id, name) : undefined
+                }
+              />
 
-              <SourcesList
+              <SourcesSection
                 sources={politician.sources}
                 activeSourceId={activeSourceId}
                 onViewSource={handleViewSource}
+                onAddSource={
+                  onAddSource && politician.wikidata_id
+                    ? (url) => onAddSource(politician.wikidata_id!, url)
+                    : undefined
+                }
               />
-              {onAddSource && politician.wikidata_id && (
-                <div className="mb-8">
-                  <AddSourceForm onSubmit={(url) => onAddSource(politician.wikidata_id!, url)} />
-                </div>
-              )}
 
               <PropertiesEvaluation
                 properties={properties}

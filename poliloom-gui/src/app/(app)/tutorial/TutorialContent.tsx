@@ -8,8 +8,7 @@ import { EvaluationView } from '@/components/evaluation/EvaluationView'
 import { PoliticianHeader } from '@/components/evaluation/PoliticianHeader'
 import { SourceViewer } from '@/components/evaluation/SourceViewer'
 import { PropertiesEvaluation } from '@/components/evaluation/PropertiesEvaluation'
-import { SourcesList } from '@/components/evaluation/SourcesList'
-import { AddSourceForm } from '@/components/evaluation/AddSourceForm'
+import { SourcesSection } from '@/components/evaluation/SourcesSection'
 import { TutorialActions } from './_components/TutorialActions'
 import { TutorialFooter } from './_components/TutorialFooter'
 import { SuccessFeedback } from './_components/SuccessFeedback'
@@ -266,13 +265,10 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           <CenteredCard emoji="📄" title="Source Documents">
             <div className="mb-8 space-y-4">
               <p>
-                Let&apos;s start with Jane Doe. On the right is an archived web page about her from
-                a government portal.
+                On the right you&apos;ll see archived web pages from government portals, Wikipedia,
+                and other official sources.
               </p>
-              <p>
-                We save copies of these pages so you can verify the data even if the original page
-                changes.
-              </p>
+              <p>We save copies so you can verify the data even if the original page changes.</p>
             </div>
             <TutorialActions
               skipHref={startHref}
@@ -292,29 +288,30 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     return (
       <TwoPanel
         left={
-          <div className="overflow-y-auto p-6 h-full">
-            <div className="mb-6">
-              <PoliticianHeader
-                name={extractedDataPolitician.name}
-                wikidataId={extractedDataPolitician.wikidata_id ?? undefined}
-              />
-            </div>
-            <SourcesList
+          <div className="overflow-y-auto p-6 h-full flex flex-col gap-8">
+            <PoliticianHeader
+              name={extractedDataPolitician.name}
+              wikidataId={extractedDataPolitician.wikidata_id ?? undefined}
+            />
+            <SourcesSection
               sources={[tutorialSources.page1]}
               activeSourceId={null}
               onViewSource={() => {}}
+              onAddSource={async () => {}}
             />
-            <AddSourceForm onSubmit={async () => {}} />
           </div>
         }
         right={
           <CenteredCard emoji="🔗" title="Linked Sources">
             <div className="mb-8 space-y-4">
               <p>
-                On the left are the sources linked to Jane. We automatically find and archive what
-                we can, but you can always add more yourself.
+                On the left you&apos;ll see what sources we have for each politician. We find and
+                archive these automatically, but you can add your own too.
               </p>
-              <p>Just paste a URL and we&apos;ll archive the page and extract data from it too.</p>
+              <p>
+                Just paste a URL — we&apos;ll do our best to archive the page and extract data from
+                it.
+              </p>
             </div>
             <TutorialActions
               skipHref={startHref}
@@ -333,17 +330,16 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     return (
       <TwoPanel
         left={
-          <div className="overflow-y-auto p-6 h-full">
-            <div className="mb-6">
-              <PoliticianHeader
-                name={extractedDataPolitician.name}
-                wikidataId={extractedDataPolitician.wikidata_id ?? undefined}
-              />
-            </div>
-            <SourcesList
+          <div className="overflow-y-auto p-6 h-full flex flex-col gap-8">
+            <PoliticianHeader
+              name={extractedDataPolitician.name}
+              wikidataId={extractedDataPolitician.wikidata_id ?? undefined}
+            />
+            <SourcesSection
               sources={extractedDataPolitician.sources}
               activeSourceId={null}
               onViewSource={() => {}}
+              onAddSource={async () => {}}
             />
             <PropertiesEvaluation
               properties={extractedDataPolitician.properties}
@@ -358,12 +354,12 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           <CenteredCard emoji="🗂️" title="Extracted Data">
             <div className="mb-8 space-y-4">
               <p>
-                Also on the left, you&apos;ll see data automatically extracted from those sources,
-                alongside existing data already known.
+                Below the sources is data automatically extracted from those documents, alongside
+                what Wikidata already has.
               </p>
               <p>
-                New items show the source text that was used as evidence for the extraction, and
-                allow you to view the source document.
+                Each new item includes the source text used as evidence, and a link to view the full
+                document.
               </p>
             </div>
             <TutorialActions
