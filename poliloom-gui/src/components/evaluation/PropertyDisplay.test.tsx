@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { PropertyDisplay } from './PropertyDisplay'
-import { PropertyType, Property, SourceResponse } from '@/types'
+import { PropertyType, Property } from '@/types'
 import { vi } from 'vitest'
 
 vi.mock('@/contexts/UserPreferencesContext', () => ({
@@ -13,15 +13,13 @@ const mockOnAction = vi.fn()
 const mockOnShowSource = vi.fn()
 const mockOnHover = vi.fn()
 
-const mockSource: SourceResponse = {
+const mockSource = {
   id: 'archived-1',
   url: 'https://en.wikipedia.org/wiki/Test_Politician',
   url_hash: 'abc123',
   fetch_timestamp: '2024-01-01T00:00:00Z',
-  status: 'done',
+  status: 'done' as const,
 }
-
-const sourceById = new Map([['archived-1', mockSource]])
 
 const baseProperty: Property = {
   id: 'test-1',
@@ -141,7 +139,7 @@ describe('PropertyDisplay', () => {
       sources: [
         {
           id: 'ref-1',
-          source_id: mockSource.id,
+          source: mockSource,
           supporting_quotes: ['Test proof line'],
         },
       ],
@@ -154,7 +152,6 @@ describe('PropertyDisplay', () => {
         onViewSource={mockOnShowSource}
         onHover={mockOnHover}
         activeSourceId={null}
-        sourceById={sourceById}
       />,
     )
 
@@ -229,19 +226,14 @@ describe('PropertyDisplay', () => {
         sources: [
           {
             id: 'ref-1',
-            source_id: mockSource.id,
+            source: mockSource,
             supporting_quotes: [],
           },
         ],
       }
 
       render(
-        <PropertyDisplay
-          property={property}
-          onAction={mockOnAction}
-          activeSourceId="archived-1"
-          sourceById={sourceById}
-        />,
+        <PropertyDisplay property={property} onAction={mockOnAction} activeSourceId="archived-1" />,
       )
 
       expect(screen.getByRole('button', { name: /Accept/ })).toBeInTheDocument()
@@ -254,19 +246,14 @@ describe('PropertyDisplay', () => {
         sources: [
           {
             id: 'ref-1',
-            source_id: mockSource.id,
+            source: mockSource,
             supporting_quotes: [],
           },
         ],
       }
 
       render(
-        <PropertyDisplay
-          property={property}
-          onAction={mockOnAction}
-          activeSourceId="other-page"
-          sourceById={sourceById}
-        />,
+        <PropertyDisplay property={property} onAction={mockOnAction} activeSourceId="other-page" />,
       )
 
       expect(screen.queryByRole('button', { name: /Accept/ })).not.toBeInTheDocument()

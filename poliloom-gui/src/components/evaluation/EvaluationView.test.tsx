@@ -47,7 +47,7 @@ const politicianWithDifferentSources: Politician = {
       value: '+1975-06-15T00:00:00Z',
       value_precision: 11,
       statement_id: null,
-      sources: [{ id: 'ref-1', source_id: source1.id, supporting_quotes: ['born June 15'] }],
+      sources: [{ id: 'ref-1', source: source1, supporting_quotes: ['born June 15'] }],
     },
     {
       id: 'prop-2',
@@ -61,7 +61,7 @@ const politicianWithDifferentSources: Politician = {
       sources: [
         {
           id: 'ref-2',
-          source_id: source2.id,
+          source: source2,
           supporting_quotes: ['elected governor'],
         },
       ],
@@ -75,7 +75,7 @@ const politicianWithDifferentSources: Politician = {
       sources: [
         {
           id: 'ref-3',
-          source_id: source3.id,
+          source: source3,
           supporting_quotes: ['born in Capital City'],
         },
       ],
@@ -95,7 +95,7 @@ const politicianWithEdgeCases: Politician = {
       value: '+1980-01-01T00:00:00Z',
       value_precision: 11,
       statement_id: 'Q101$some-uuid',
-      sources: [{ id: 'ref-w', source_id: source1.id, supporting_quotes: ['born 1980'] }],
+      sources: [{ id: 'ref-w', source: source1, supporting_quotes: ['born 1980'] }],
     },
     {
       id: 'prop-extracted',
@@ -103,7 +103,7 @@ const politicianWithEdgeCases: Politician = {
       value: '+1980-01-02T00:00:00Z',
       value_precision: 11,
       statement_id: null,
-      sources: [{ id: 'ref-e', source_id: source1.id, supporting_quotes: ['born Jan 2'] }],
+      sources: [{ id: 'ref-e', source: source1, supporting_quotes: ['born Jan 2'] }],
     },
     {
       id: 'pos-wikidata',
@@ -141,7 +141,7 @@ const sourcePoliticians: Politician[] = [
         value: '+1970-01-01T00:00:00Z',
         value_precision: 11,
         statement_id: null,
-        sources: [{ id: 'sr-1', source_id: source1.id, supporting_quotes: ['born 1970'] }],
+        sources: [{ id: 'sr-1', source: source1, supporting_quotes: ['born 1970'] }],
       },
       {
         id: 'sp-2',
@@ -152,7 +152,7 @@ const sourcePoliticians: Politician[] = [
         sources: [
           {
             id: 'sr-2',
-            source_id: source1.id,
+            source: source1,
             supporting_quotes: ['served as mayor'],
           },
         ],
@@ -174,7 +174,7 @@ const sourcePoliticians: Politician[] = [
         sources: [
           {
             id: 'sr-3',
-            source_id: source1.id,
+            source: source1,
             supporting_quotes: ['French citizen'],
           },
         ],

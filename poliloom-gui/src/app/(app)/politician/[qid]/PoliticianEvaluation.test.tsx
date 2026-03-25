@@ -66,7 +66,7 @@ const politician: Politician = {
       sources: [
         {
           id: 'ref-1',
-          source_id: testSource.id,
+          source: testSource,
           supporting_quotes: ['born on January 1, 1970'],
         },
       ],
@@ -84,7 +84,7 @@ const politician: Politician = {
       sources: [
         {
           id: 'ref-2',
-          source_id: testSource.id,
+          source: testSource,
           supporting_quotes: ['served as mayor from 2020 to 2024'],
         },
       ],
@@ -98,7 +98,7 @@ const politician: Politician = {
       sources: [
         {
           id: 'ref-3',
-          source_id: testSource.id,
+          source: testSource,
           supporting_quotes: ['was born in Test City'],
         },
       ],
@@ -118,7 +118,7 @@ const politicianWithConflicts: Politician = {
       value: '+1970-01-02T00:00:00Z',
       value_precision: 11,
       statement_id: null,
-      sources: [{ id: 'ref-c1', source_id: testSource.id, supporting_quotes: ['born January 2'] }],
+      sources: [{ id: 'ref-c1', source: testSource, supporting_quotes: ['born January 2'] }],
     },
     {
       id: 'prop-c2',
@@ -129,7 +129,7 @@ const politicianWithConflicts: Politician = {
       sources: [
         {
           id: 'ref-c2',
-          source_id: testSource.id,
+          source: testSource,
           supporting_quotes: ['French politician'],
         },
       ],
@@ -144,7 +144,7 @@ const politicianWithConflicts: Politician = {
         P580: [{ datavalue: { value: { time: '+2020-01-01T00:00:00Z', precision: 11 } } }],
         P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }],
       },
-      sources: [{ id: 'ref-c3', source_id: testSource.id, supporting_quotes: ['served as mayor'] }],
+      sources: [{ id: 'ref-c3', source: testSource, supporting_quotes: ['served as mayor'] }],
     },
     {
       id: 'pos-c2',
@@ -158,7 +158,7 @@ const politicianWithConflicts: Politician = {
       sources: [
         {
           id: 'ref-c4',
-          source_id: testSource.id,
+          source: testSource,
           supporting_quotes: ['council member since 2018'],
         },
       ],
@@ -172,7 +172,7 @@ const politicianWithConflicts: Politician = {
       sources: [
         {
           id: 'ref-c5',
-          source_id: testSource.id,
+          source: testSource,
           supporting_quotes: ['born in Test City'],
         },
       ],
@@ -186,7 +186,7 @@ const politicianWithConflicts: Politician = {
       sources: [
         {
           id: 'ref-c6',
-          source_id: testSource.id,
+          source: testSource,
           supporting_quotes: ['born in New City'],
         },
       ],

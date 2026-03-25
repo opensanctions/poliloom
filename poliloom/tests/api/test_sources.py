@@ -57,7 +57,7 @@ class TestGetSourcePage:
         assert prop["value"] == "1980-01-01"
         assert len(prop["sources"]) == 1
         assert prop["sources"][0]["supporting_quotes"] == ["born in 1980"]
-        assert prop["sources"][0]["source_id"] == str(sample_source.id)
+        assert prop["sources"][0]["source"]["id"] == str(sample_source.id)
 
     def test_multiple_properties_grouped_under_one_politician(
         self,
@@ -179,7 +179,7 @@ class TestGetSourcePage:
         assert len(politicians) == 1
         prop_data = politicians[0]["properties"][0]
         assert len(prop_data["sources"]) == 1
-        assert prop_data["sources"][0]["source_id"] == str(sample_source.id)
+        assert prop_data["sources"][0]["source"]["id"] == str(sample_source.id)
 
 
 class TestPatchSourceProperties:

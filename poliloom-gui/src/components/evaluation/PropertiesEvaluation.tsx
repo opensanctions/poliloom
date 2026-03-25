@@ -16,10 +16,9 @@ type SectionType = 'date' | PropertyType.P39 | PropertyType.P19 | PropertyType.P
 interface PropertiesEvaluationProps {
   properties: Property[]
   onAction: (propertyId: string, action: 'accept' | 'reject') => void
-  onViewSource: (sourceId: string, quotes?: string[]) => void
+  onViewSource: (source: SourceResponse, quotes?: string[]) => void
   onHover: (property: Property) => void
   activeSourceId: string | null
-  sourceById?: Map<string, SourceResponse>
   onAddProperty?: (property: CreatePropertyItem) => void
 }
 
@@ -29,7 +28,6 @@ export function PropertiesEvaluation({
   onViewSource,
   onHover,
   activeSourceId,
-  sourceById = new Map(),
   onAddProperty,
 }: PropertiesEvaluationProps) {
   const { isAdvancedMode } = useUserPreferences()
@@ -267,7 +265,6 @@ export function PropertiesEvaluation({
                           onViewSource={onViewSource}
                           onHover={onHover}
                           activeSourceId={activeSourceId}
-                          sourceById={sourceById}
                           shouldAutoOpen={true}
                         />
                       </Fragment>

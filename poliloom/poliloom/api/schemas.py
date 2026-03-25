@@ -33,7 +33,7 @@ class PropertyReferenceResponse(UUIDBaseModel):
     """Schema for a property reference (evidence source)."""
 
     id: UUID
-    source_id: str
+    source: SourceResponse
     supporting_quotes: Optional[List[str]] = None
 
 

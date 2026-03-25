@@ -7,7 +7,7 @@ import { SourceItem } from './SourceItem'
 interface SourcesListProps {
   sources: SourceResponse[]
   activeSourceId: string | null
-  onViewSource: (sourceId: string) => void
+  onViewSource: (source: SourceResponse) => void
   politicianQid?: string
   onAddSource?: () => void
 }
@@ -37,7 +37,7 @@ export function SourcesList({
               key={page.id}
               page={page}
               isActive={activeSourceId === page.id}
-              onView={() => onViewSource(page.id)}
+              onView={() => onViewSource(page)}
             />
           ))}
       </div>

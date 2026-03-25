@@ -186,7 +186,7 @@ class TestGetPoliticianEndpointProperties:
         assert birth_dates[0]["sources"][0]["supporting_quotes"] == [
             "Born on January 15, 1970"
         ]
-        assert birth_dates[0]["sources"][0]["source_id"] is not None
+        assert birth_dates[0]["sources"][0]["source"]["id"] is not None
 
         positions = [p for p in extracted if p["type"] == "P39"]
         assert len(positions) == 1

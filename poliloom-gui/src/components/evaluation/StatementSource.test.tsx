@@ -14,17 +14,15 @@ const mockSource: SourceResponse = {
   status: 'done',
 }
 
-const sourceById = new Map([['archived-1', mockSource]])
-
 const mockRef: PropertyReference = {
   id: 'ref-1',
-  source_id: mockSource.id,
+  source: mockSource,
   supporting_quotes: ['test quote'],
 }
 
 const mockRefNoQuotes: PropertyReference = {
   id: 'ref-2',
-  source_id: mockSource.id,
+  source: mockSource,
 }
 
 describe('StatementSource', () => {
@@ -36,7 +34,6 @@ describe('StatementSource', () => {
           activeSourceId={null}
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
-          sourceById={sourceById}
         />,
       )
 
@@ -52,7 +49,6 @@ describe('StatementSource', () => {
           activeSourceId="archived-1"
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
-          sourceById={sourceById}
         />,
       )
 
@@ -68,7 +64,6 @@ describe('StatementSource', () => {
           activeSourceId="other-page"
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
-          sourceById={sourceById}
         />,
       )
 
@@ -84,7 +79,6 @@ describe('StatementSource', () => {
           activeSourceId={null}
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
-          sourceById={sourceById}
         />,
       )
 
@@ -92,7 +86,7 @@ describe('StatementSource', () => {
       fireEvent.click(viewButton)
 
       expect(mockOnShowSource).toHaveBeenCalledTimes(1)
-      expect(mockOnShowSource).toHaveBeenCalledWith(mockRef.source_id, mockRef.supporting_quotes)
+      expect(mockOnShowSource).toHaveBeenCalledWith(mockRef.source, mockRef.supporting_quotes)
     })
 
     it('does not render when sources is empty', () => {
@@ -102,7 +96,6 @@ describe('StatementSource', () => {
           activeSourceId={null}
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
-          sourceById={sourceById}
         />,
       )
 
@@ -116,7 +109,6 @@ describe('StatementSource', () => {
           activeSourceId="archived-1"
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
-          sourceById={sourceById}
         />,
       )
 
@@ -129,7 +121,7 @@ describe('StatementSource', () => {
     it('renders supporting quotes when provided', () => {
       const sourceWithQuotes: PropertyReference = {
         id: 'ref-quotes',
-        source_id: mockSource.id,
+        source: mockSource,
         supporting_quotes: ['first quote', 'second quote'],
       }
 
@@ -139,7 +131,6 @@ describe('StatementSource', () => {
           activeSourceId={null}
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
-          sourceById={sourceById}
         />,
       )
 
@@ -154,7 +145,6 @@ describe('StatementSource', () => {
           activeSourceId={null}
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
-          sourceById={sourceById}
         />,
       )
 
@@ -165,7 +155,7 @@ describe('StatementSource', () => {
     it('does not render quotes section when supportingQuotes is empty', () => {
       const sourceEmptyQuotes: PropertyReference = {
         id: 'ref-empty',
-        source_id: mockSource.id,
+        source: mockSource,
         supporting_quotes: [],
       }
 
@@ -175,7 +165,6 @@ describe('StatementSource', () => {
           activeSourceId={null}
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
-          sourceById={sourceById}
         />,
       )
 
@@ -192,7 +181,6 @@ describe('StatementSource', () => {
           activeSourceId={null}
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
-          sourceById={sourceById}
         />,
       )
 
@@ -211,7 +199,6 @@ describe('StatementSource', () => {
           activeSourceId={null}
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
-          sourceById={sourceById}
         />,
       )
 

@@ -35,7 +35,19 @@ const politician: Politician = {
       value: '+1990-05-15T00:00:00Z',
       value_precision: 11,
       statement_id: null,
-      sources: [{ id: 'ref-1', source_id: 'src-1', supporting_quotes: ['born May 15'] }],
+      sources: [
+        {
+          id: 'ref-1',
+          source: {
+            id: 'src-1',
+            url: 'https://example.com',
+            url_hash: 'abc',
+            fetch_timestamp: '2024-01-01T00:00:00Z',
+            status: 'done' as const,
+          },
+          supporting_quotes: ['born May 15'],
+        },
+      ],
     },
   ],
 }

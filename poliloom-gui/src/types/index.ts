@@ -38,7 +38,7 @@ export interface PropertyQualifiers {
 
 export interface PropertyReference {
   id: string
-  source_id: string
+  source: SourceResponse
   supporting_quotes?: string[]
 }
 

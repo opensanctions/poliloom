@@ -25,11 +25,10 @@ interface SourceSelection {
 
 function findInitialSource(politicians: Politician[]): SourceSelection | null {
   for (const politician of politicians) {
-    const sourceMap = new Map(politician.sources.map((s) => [s.id, s]))
     const prop = politician.properties.find((p) => p.sources.length > 0 && !p.statement_id)
     if (prop) {
-      const source = sourceMap.get(prop.sources[0].source_id)
-      if (source) return { source, quotes: prop.sources[0].supporting_quotes ?? null }
+      const ref = prop.sources[0]
+      if (ref.source) return { source: ref.source, quotes: ref.supporting_quotes ?? null }
     }
   }
   return null
@@ -154,30 +153,15 @@ export function EvaluationView({
     })
   }
 
-  // Build a lookup map of all sources by ID across all politicians
-  const sourceById = useMemo(() => {
-    const map = new Map<string, SourceResponse>()
-    for (const politician of politicians) {
-      for (const page of politician.sources || []) {
-        map.set(page.id, page)
-      }
-    }
-    return map
-  }, [politicians])
-
-  const handleViewSource = useCallback(
-    (sourceId: string, quotes?: string[]) => {
-      const source = sourceById.get(sourceId)
-      if (source) setSelection({ source, quotes: quotes ?? null })
-    },
-    [sourceById],
-  )
+  const handleViewSource = useCallback((source: SourceResponse, quotes?: string[]) => {
+    setSelection({ source, quotes: quotes ?? null })
+  }, [])
 
   // Unified hover handler for all property types
   const handlePropertyHover = (property: Property) => {
     setSelection((prev) => {
       if (!prev) return prev
-      const matchingRef = property.sources.find((s) => prev.source.id === s.source_id)
+      const matchingRef = property.sources.find((s) => prev.source.id === s.source.id)
       if (!matchingRef?.supporting_quotes?.length) return prev
       return { ...prev, quotes: matchingRef.supporting_quotes }
     })
@@ -217,7 +201,6 @@ export function EvaluationView({
                 onViewSource={handleViewSource}
                 onHover={handlePropertyHover}
                 activeSourceId={activeSourceId}
-                sourceById={sourceById}
                 onAddProperty={(item) => handleAddProperty(politician.id, item)}
               />
             </div>

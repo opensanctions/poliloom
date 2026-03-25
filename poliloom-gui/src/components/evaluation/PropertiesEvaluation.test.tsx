@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { PropertiesEvaluation } from './PropertiesEvaluation'
-import { PropertyType, Property } from '@/types'
+import { PropertyType, Property, SourceResponse } from '@/types'
 
 let mockAdvancedMode = false
 
@@ -16,13 +16,21 @@ const mockOnViewSource = vi.fn()
 const mockOnHover = vi.fn()
 const mockOnAddProperty = vi.fn()
 
+const mockSource: SourceResponse = {
+  id: 'src-1',
+  url: 'https://example.com',
+  url_hash: 'abc',
+  fetch_timestamp: '2024-01-01T00:00:00Z',
+  status: 'done',
+}
+
 const birthDate: Property = {
   id: 'prop-1',
   type: PropertyType.P569,
   value: '+1990-05-15T00:00:00Z',
   value_precision: 11,
   statement_id: null,
-  sources: [{ id: 'ref-1', source_id: 'src-1', supporting_quotes: ['born May 15'] }],
+  sources: [{ id: 'ref-1', source: mockSource, supporting_quotes: ['born May 15'] }],
 }
 
 const deathDate: Property = {
@@ -43,7 +51,7 @@ const position: Property = {
   qualifiers: {
     P580: [{ datavalue: { value: { time: '+2018-01-01T00:00:00Z', precision: 11 } } }],
   },
-  sources: [{ id: 'ref-2', source_id: 'src-1' }],
+  sources: [{ id: 'ref-2', source: mockSource }],
 }
 
 const birthplace: Property = {
@@ -102,20 +110,6 @@ describe('PropertiesEvaluation', () => {
     expect(screen.getByText('Properties')).toBeInTheDocument()
     // Should not show position/birthplace sections
     expect(screen.queryByText('Political Positions')).not.toBeInTheDocument()
-  })
-
-  it('calls onViewSource for first property with sources on mount', () => {
-    render(
-      <PropertiesEvaluation
-        properties={[birthDate, position]}
-        onAction={mockOnAction}
-        onViewSource={mockOnViewSource}
-        onHover={mockOnHover}
-        activeSourceId={null}
-      />,
-    )
-
-    expect(mockOnViewSource).toHaveBeenCalledWith('src-1', ['born May 15'])
   })
 
   it('shows add buttons in advanced mode', () => {

@@ -21,7 +21,7 @@ export const tutorialSources = { page1, page2 }
 
 // Helper to create a reference to page1
 function ref(id: string, quotes: string[]): PropertyReference {
-  return { id, source_id: page1.id, supporting_quotes: quotes }
+  return { id, source: page1, supporting_quotes: quotes }
 }
 
 // Shared politician identity
@@ -120,7 +120,7 @@ export const multipleSourcesPolitician: Politician = {
       sources: [
         {
           id: 'ref-tutorial-5',
-          source_id: page2.id,
+          source: page2,
           supporting_quotes: [
             'She was appointed Minister of Education in June 2022.',
             'Current Minister of Education since 2022',

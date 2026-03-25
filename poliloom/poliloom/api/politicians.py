@@ -75,10 +75,21 @@ def build_politician_response(politician) -> PoliticianResponse:
 
         refs = []
         for ref in prop.property_references:
+            source = ref.source
+            if not source:
+                continue
             refs.append(
                 PropertyReferenceResponse(
                     id=ref.id,
-                    source_id=str(ref.source_id),
+                    source=SourceResponse(
+                        id=source.id,
+                        url=source.url,
+                        url_hash=source.url_hash,
+                        fetch_timestamp=source.fetch_timestamp,
+                        status=source.status.value,
+                        error=source.error.value if source.error else None,
+                        http_status_code=source.http_status_code,
+                    ),
                     supporting_quotes=ref.supporting_quotes,
                 )
             )
@@ -283,7 +294,9 @@ async def search_politicians(
                 Politician.properties.and_(Property.deleted_at.is_(None))
             ).options(
                 selectinload(Property.entity),
-                selectinload(Property.property_references),
+                selectinload(Property.property_references).selectinload(
+                    PropertyReference.source
+                ),
             ),
         )
     )
@@ -335,7 +348,9 @@ async def get_politician(
         query = query.options(
             selectinload(Politician.properties.and_(property_filter)).options(
                 selectinload(Property.entity),
-                selectinload(Property.property_references),
+                selectinload(Property.property_references).selectinload(
+                    PropertyReference.source
+                ),
             ),
             selectinload(Politician.sources),
         )
@@ -345,7 +360,9 @@ async def get_politician(
                 Politician.properties.and_(Property.deleted_at.is_(None))
             ).options(
                 selectinload(Property.entity),
-                selectinload(Property.property_references),
+                selectinload(Property.property_references).selectinload(
+                    PropertyReference.source
+                ),
             ),
             selectinload(Politician.sources),
         )

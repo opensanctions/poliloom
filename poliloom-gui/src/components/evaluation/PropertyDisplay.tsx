@@ -11,10 +11,9 @@ import { WikidataMetadataButtons, WikidataMetadataPanel } from './WikidataMetada
 interface PropertyDisplayProps {
   property: Property
   onAction?: (propertyId: string, action: 'accept' | 'reject') => void
-  onViewSource?: (sourceId: string, quotes?: string[]) => void
+  onViewSource?: (source: SourceResponse, quotes?: string[]) => void
   onHover?: (property: Property) => void
   activeSourceId?: string | null
-  sourceById?: Map<string, SourceResponse>
   shouldAutoOpen?: boolean
 }
 
@@ -24,7 +23,6 @@ export function PropertyDisplay({
   onViewSource,
   onHover,
   activeSourceId,
-  sourceById = new Map(),
   shouldAutoOpen,
 }: PropertyDisplayProps) {
   const { isAdvancedMode } = useUserPreferences()
@@ -39,7 +37,7 @@ export function PropertyDisplay({
   const isUserAdded = !!property.userAdded
   const isAccepted = property.evaluation ?? null
   const isSourceVisible =
-    property.sources.length === 0 || property.sources.some((s) => activeSourceId === s.source_id)
+    property.sources.length === 0 || property.sources.some((s) => activeSourceId === s.source.id)
 
   // Auto-open panel when discarding existing Wikidata statements (to show what metadata will be lost)
   useLayoutEffect(() => {
@@ -126,7 +124,6 @@ export function PropertyDisplay({
         <StatementSource
           sources={property.sources}
           activeSourceId={activeSourceId}
-          sourceById={sourceById}
           onViewSource={onViewSource}
           onHover={() => onHover?.(property)}
         />
