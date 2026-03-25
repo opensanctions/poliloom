@@ -133,6 +133,7 @@ export const multipleSourcesPolitician: Politician = {
 
 export const genericVsSpecificPolitician: Politician = {
   ...politicianBase,
+  sources: [page1],
   properties: [
     {
       id: 'tutorial-existing-specific-position',

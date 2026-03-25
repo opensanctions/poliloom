@@ -5,12 +5,11 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 
 interface AddSourceFormProps {
-  politicianQid: string
-  onAdd: () => void
-  onCancel: () => void
+  onSubmit: (url: string) => Promise<void>
 }
 
-export function AddSourceForm({ politicianQid, onAdd, onCancel }: AddSourceFormProps) {
+export function AddSourceForm({ onSubmit }: AddSourceFormProps) {
+  const [isOpen, setIsOpen] = useState(false)
   const [url, setUrl] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -30,24 +29,22 @@ export function AddSourceForm({ politicianQid, onAdd, onCancel }: AddSourceFormP
     setError(null)
 
     try {
-      const response = await fetch(`/api/politicians/${politicianQid}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => null)
-        throw new Error(data?.detail || `Failed to add source: ${response.statusText}`)
-      }
-
-      await response.json()
-      onAdd()
-      setIsSubmitting(false)
+      await onSubmit(url)
+      setUrl('')
+      setIsOpen(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to add source')
+    } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (!isOpen) {
+    return (
+      <Button variant="secondary" size="small" onClick={() => setIsOpen(true)}>
+        + Add Source
+      </Button>
+    )
   }
 
   return (
@@ -63,7 +60,12 @@ export function AddSourceForm({ politicianQid, onAdd, onCancel }: AddSourceFormP
         <Button size="small" onClick={handleSubmit} disabled={!isValidUrl || isSubmitting}>
           {isSubmitting ? 'Adding...' : '+ Add'}
         </Button>
-        <Button size="small" variant="secondary" onClick={onCancel} disabled={isSubmitting}>
+        <Button
+          size="small"
+          variant="secondary"
+          onClick={() => setIsOpen(false)}
+          disabled={isSubmitting}
+        >
           Cancel
         </Button>
       </div>

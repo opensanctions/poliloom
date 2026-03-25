@@ -9,6 +9,7 @@ import { PoliticianHeader } from '@/components/evaluation/PoliticianHeader'
 import { SourceViewer } from '@/components/evaluation/SourceViewer'
 import { PropertiesEvaluation } from '@/components/evaluation/PropertiesEvaluation'
 import { SourcesList } from '@/components/evaluation/SourcesList'
+import { AddSourceForm } from '@/components/evaluation/AddSourceForm'
 import { TutorialActions } from './_components/TutorialActions'
 import { TutorialFooter } from './_components/TutorialFooter'
 import { SuccessFeedback } from './_components/SuccessFeedback'
@@ -20,6 +21,7 @@ import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { PropertyActionItem } from '@/types'
 import { actionToEvaluation } from '@/lib/evaluation'
 import {
+  tutorialSources,
   extractedDataPolitician,
   birthDatePolitician,
   multipleSourcesPolitician,
@@ -98,6 +100,7 @@ export enum TutorialStep {
   Welcome,
   WhyYourHelpMatters,
   SourceDocuments,
+  SourcesAndAddSource,
   ExtractedData,
   GiveItATry,
   BirthDateEvaluation,
@@ -235,10 +238,16 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     // Why your help matters
     return (
       <CenteredCard emoji="🤖" title="Why Your Help Matters">
-        <p className="mb-8">
-          Your role is to check whether what the AI extracted actually matches what&apos;s written
-          in the source document.
-        </p>
+        <div className="mb-8 space-y-4">
+          <p>
+            We&apos;ll show you a politician, their source documents, and data that AI extracted
+            from those sources.
+          </p>
+          <p>
+            Your role is to check whether what the AI extracted actually matches what&apos;s written
+            in the source document.
+          </p>
+        </div>
         <TutorialActions
           skipHref={startHref}
           onSkip={() => startSession()}
@@ -257,12 +266,12 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           <CenteredCard emoji="📄" title="Source Documents">
             <div className="mb-8 space-y-4">
               <p>
-                On the right side, you&apos;ll see archived web pages from government portals,
-                Wikipedia, and other official sources.
+                Let&apos;s start with Jane Doe. On the right is an archived web page about her from
+                a government portal.
               </p>
               <p>
-                These are the original documents where we found information about politicians. We
-                save copies so you can verify the data even if the original page changes.
+                We save copies of these pages so you can verify the data even if the original page
+                changes.
               </p>
             </div>
             <TutorialActions
@@ -274,6 +283,47 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           </CenteredCard>
         }
         right={<SourceViewer pageId="tutorial-page-1" apiBasePath="/api/tutorial-pages" />}
+      />
+    )
+  }
+
+  if (step === TutorialStep.SourcesAndAddSource) {
+    // Show sources list with add source form (left), explanation (right)
+    return (
+      <TwoPanel
+        left={
+          <div className="overflow-y-auto p-6 h-full">
+            <div className="mb-6">
+              <PoliticianHeader
+                name={extractedDataPolitician.name}
+                wikidataId={extractedDataPolitician.wikidata_id ?? undefined}
+              />
+            </div>
+            <SourcesList
+              sources={[tutorialSources.page1]}
+              activeSourceId={null}
+              onViewSource={() => {}}
+            />
+            <AddSourceForm onSubmit={async () => {}} />
+          </div>
+        }
+        right={
+          <CenteredCard emoji="🔗" title="Linked Sources">
+            <div className="mb-8 space-y-4">
+              <p>
+                On the left are the sources linked to Jane. We automatically find and archive what
+                we can, but you can always add more yourself.
+              </p>
+              <p>Just paste a URL and we&apos;ll archive the page and extract data from it too.</p>
+            </div>
+            <TutorialActions
+              skipHref={startHref}
+              onSkip={() => startSession()}
+              buttonText="Next"
+              onNext={nextStep}
+            />
+          </CenteredCard>
+        }
       />
     )
   }
@@ -308,8 +358,8 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           <CenteredCard emoji="🗂️" title="Extracted Data">
             <div className="mb-8 space-y-4">
               <p>
-                On the left, you&apos;ll see data automatically extracted from those source
-                documents, alongside existing data already known.
+                Also on the left, you&apos;ll see data automatically extracted from those sources,
+                alongside existing data already known.
               </p>
               <p>
                 New items show the source text that was used as evidence for the extraction, and

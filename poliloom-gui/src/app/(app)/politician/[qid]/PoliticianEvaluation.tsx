@@ -138,7 +138,19 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
       politicians={[politician]}
       onSubmit={handleSubmit}
       footer={footer}
-      onSourceAdded={refetchPolitician}
+      onAddSource={async (qid, url) => {
+        const response = await fetch(`/api/politicians/${qid}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        })
+        if (!response.ok) {
+          const data = await response.json().catch(() => null)
+          throw new Error(data?.detail || `Failed to add source: ${response.statusText}`)
+        }
+        await response.json()
+        refetchPolitician()
+      }}
     />
   )
 }

@@ -17,6 +17,7 @@ import { PropertiesEvaluation } from './PropertiesEvaluation'
 import { PoliticianHeader } from './PoliticianHeader'
 import { SourceViewer } from './SourceViewer'
 import { SourcesList } from './SourcesList'
+import { AddSourceForm } from './AddSourceForm'
 
 interface SourceSelection {
   source: SourceResponse
@@ -46,7 +47,7 @@ interface EvaluationViewProps {
   footer: (context: FooterContext) => ReactNode
   sourcesApiPath?: string
   onNameChange?: (politicianId: string, name: string) => void
-  onSourceAdded?: () => void
+  onAddSource?: (politicianQid: string, url: string) => Promise<void>
 }
 
 export function EvaluationView({
@@ -55,7 +56,7 @@ export function EvaluationView({
   footer,
   sourcesApiPath = '/api/sources',
   onNameChange,
-  onSourceAdded,
+  onAddSource,
 }: EvaluationViewProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [actionsByPolitician, setActionsByPolitician] = useState<Map<string, PropertyActionItem[]>>(
@@ -191,9 +192,12 @@ export function EvaluationView({
                 sources={politician.sources}
                 activeSourceId={activeSourceId}
                 onViewSource={handleViewSource}
-                politicianQid={politician.wikidata_id ?? undefined}
-                onAddSource={onSourceAdded}
               />
+              {onAddSource && politician.wikidata_id && (
+                <div className="mb-8">
+                  <AddSourceForm onSubmit={(url) => onAddSource(politician.wikidata_id!, url)} />
+                </div>
+              )}
 
               <PropertiesEvaluation
                 properties={properties}

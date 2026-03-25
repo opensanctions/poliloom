@@ -1,33 +1,15 @@
-import { useState } from 'react'
 import { SourceResponse } from '@/types'
-import { Button } from '@/components/ui/Button'
-import { AddSourceForm } from './AddSourceForm'
 import { SourceItem } from './SourceItem'
 
 interface SourcesListProps {
   sources: SourceResponse[]
   activeSourceId: string | null
   onViewSource: (source: SourceResponse) => void
-  politicianQid?: string
-  onAddSource?: () => void
 }
 
-export function SourcesList({
-  sources,
-  activeSourceId,
-  onViewSource,
-  politicianQid,
-  onAddSource,
-}: SourcesListProps) {
-  const [isAdding, setIsAdding] = useState(false)
-
-  const handleAdd = () => {
-    onAddSource?.()
-    setIsAdding(false)
-  }
-
+export function SourcesList({ sources, activeSourceId, onViewSource }: SourcesListProps) {
   return (
-    <div className="mb-8">
+    <div className="mb-4">
       <h2 className="text-xl font-semibold text-foreground mb-4">Sources</h2>
       <div className="space-y-2">
         {[...sources]
@@ -41,21 +23,6 @@ export function SourcesList({
             />
           ))}
       </div>
-      {onAddSource && politicianQid && (
-        <div className="mt-4">
-          {isAdding ? (
-            <AddSourceForm
-              politicianQid={politicianQid}
-              onAdd={handleAdd}
-              onCancel={() => setIsAdding(false)}
-            />
-          ) : (
-            <Button variant="secondary" size="small" onClick={() => setIsAdding(true)}>
-              + Add Source
-            </Button>
-          )}
-        </div>
-      )}
     </div>
   )
 }

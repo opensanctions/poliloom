@@ -144,32 +144,46 @@ describe('Tutorial Page', () => {
       render(<TutorialContent initialStep={TutorialStep.SourceDocuments} />)
 
       expect(screen.getByText('Source Documents')).toBeInTheDocument()
-      expect(
-        screen.getByText(
-          /On the right side, you'll see archived web pages from government portals/,
-        ),
-      ).toBeInTheDocument()
+      expect(screen.getByText(/Let's start with Jane Doe/)).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
       // Check iframe exists
       expect(screen.getByTitle('Source')).toBeInTheDocument()
     })
 
-    it('advances to step 3 when clicking "Next"', () => {
+    it('advances to sources & add source step when clicking "Next"', () => {
       render(<TutorialContent initialStep={TutorialStep.SourceDocuments} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+      expect(screen.getByText('Linked Sources')).toBeInTheDocument()
+    })
+  })
+
+  describe('Step 3 - Linked Sources', () => {
+    it('renders sources list with add source button', () => {
+      render(<TutorialContent initialStep={TutorialStep.SourcesAndAddSource} />)
+
+      expect(screen.getByText('Linked Sources')).toBeInTheDocument()
+      expect(screen.getByText('Sources')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '+ Add Source' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
+    })
+
+    it('advances to extracted data when clicking "Next"', () => {
+      render(<TutorialContent initialStep={TutorialStep.SourcesAndAddSource} />)
       fireEvent.click(screen.getByRole('button', { name: 'Next' }))
 
       expect(screen.getByText('Extracted Data')).toBeInTheDocument()
     })
   })
 
-  describe('Step 3 - Extracted Data', () => {
+  describe('Step 4 - Extracted Data', () => {
     it('renders extracted data explanation with properties panel', () => {
       render(<TutorialContent initialStep={TutorialStep.ExtractedData} />)
 
       expect(screen.getByText('Extracted Data')).toBeInTheDocument()
       expect(
         screen.getByText(
-          /On the left, you'll see data automatically extracted from those source documents/,
+          /Also on the left, you'll see data automatically extracted from those sources/,
         ),
       ).toBeInTheDocument()
       expect(screen.getByText('Jane Doe')).toBeInTheDocument()

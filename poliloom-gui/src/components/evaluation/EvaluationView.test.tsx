@@ -294,6 +294,78 @@ describe('EvaluationView', () => {
     })
   })
 
+  describe('add source', () => {
+    it('shows "+ Add Source" button when onAddSource is provided', () => {
+      render(
+        <EvaluationView
+          politicians={[politicianWithDifferentSources]}
+          footer={() => <div>Footer</div>}
+          onAddSource={async () => {}}
+        />,
+      )
+
+      expect(screen.getByRole('button', { name: '+ Add Source' })).toBeInTheDocument()
+    })
+
+    it('does not show "+ Add Source" button when onAddSource is not provided', () => {
+      render(
+        <EvaluationView
+          politicians={[politicianWithDifferentSources]}
+          footer={() => <div>Footer</div>}
+        />,
+      )
+
+      expect(screen.queryByRole('button', { name: '+ Add Source' })).not.toBeInTheDocument()
+    })
+
+    it('does not show "+ Add Source" button when politician has no wikidata_id', () => {
+      const politicianNoQid: Politician = {
+        ...politicianWithDifferentSources,
+        wikidata_id: null,
+      }
+      render(
+        <EvaluationView
+          politicians={[politicianNoQid]}
+          footer={() => <div>Footer</div>}
+          onAddSource={async () => {}}
+        />,
+      )
+
+      expect(screen.queryByRole('button', { name: '+ Add Source' })).not.toBeInTheDocument()
+    })
+
+    it('shows add source form when clicking "+ Add Source"', () => {
+      render(
+        <EvaluationView
+          politicians={[politicianWithDifferentSources]}
+          footer={() => <div>Footer</div>}
+          onAddSource={async () => {}}
+        />,
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: '+ Add Source' }))
+
+      expect(screen.getByPlaceholderText('https://...')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '+ Add Source' })).not.toBeInTheDocument()
+    })
+
+    it('hides add source form when clicking "Cancel"', () => {
+      render(
+        <EvaluationView
+          politicians={[politicianWithDifferentSources]}
+          footer={() => <div>Footer</div>}
+          onAddSource={async () => {}}
+        />,
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: '+ Add Source' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      expect(screen.queryByPlaceholderText('https://...')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '+ Add Source' })).toBeInTheDocument()
+    })
+  })
+
   describe('multiple politicians', () => {
     it('renders multiple politicians with headers', () => {
       render(<EvaluationView politicians={sourcePoliticians} footer={() => <div>Footer</div>} />)
