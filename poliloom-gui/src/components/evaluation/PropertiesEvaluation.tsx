@@ -1,4 +1,4 @@
-import { ReactNode, Fragment, useEffect, useMemo, useState } from 'react'
+import { ReactNode, Fragment, useMemo, useState } from 'react'
 import { Property, PropertyType, CreatePropertyItem, SourceResponse } from '@/types'
 import { HeaderedBox } from '@/components/ui/HeaderedBox'
 import { PropertyDisplay } from './PropertyDisplay'
@@ -206,20 +206,6 @@ export function PropertiesEvaluation({
 
     return result
   }, [properties, isAdvancedMode])
-
-  // Select the first property with sources when properties change
-  useEffect(() => {
-    for (const section of sections) {
-      for (const item of section.items) {
-        const firstWithSource = item.properties.find((p) => p.sources.length > 0 && !p.statement_id)
-        if (firstWithSource) {
-          const ref = firstWithSource.sources[0]
-          onViewSource(ref.source_id, ref.supporting_quotes)
-          return
-        }
-      }
-    }
-  }, [sections, onViewSource])
 
   const handleAdd = (property: CreatePropertyItem) => {
     onAddProperty?.(property)

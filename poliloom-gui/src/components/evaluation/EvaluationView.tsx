@@ -18,6 +18,23 @@ import { PoliticianHeader } from './PoliticianHeader'
 import { SourceViewer } from './SourceViewer'
 import { SourcesList } from './SourcesList'
 
+interface SourceSelection {
+  source: SourceResponse
+  quotes: string[] | null
+}
+
+function findInitialSource(politicians: Politician[]): SourceSelection | null {
+  for (const politician of politicians) {
+    const sourceMap = new Map(politician.sources.map((s) => [s.id, s]))
+    const prop = politician.properties.find((p) => p.sources.length > 0 && !p.statement_id)
+    if (prop) {
+      const source = sourceMap.get(prop.sources[0].source_id)
+      if (source) return { source, quotes: prop.sources[0].supporting_quotes ?? null }
+    }
+  }
+  return null
+}
+
 export interface FooterContext {
   actionsByPolitician: Map<string, PropertyActionItem[]>
   isSubmitting: boolean
@@ -69,28 +86,29 @@ export function EvaluationView({
     return result
   }, [politicians, actionsByPolitician])
 
-  // Initial selection is handled by PropertiesEvaluation calling onShowSource on mount
-  const [selectedSource, setSelectedSource] = useState<SourceResponse | null>(null)
-  const [selectedQuotes, setSelectedQuotes] = useState<string[] | null>(null)
+  const [selection, setSelection] = useState<SourceSelection | null>(() =>
+    findInitialSource(politicians),
+  )
 
   // Refs and hooks for highlighting
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const propertiesRef = useRef<HTMLDivElement | null>(null)
+  const quotes = selection?.quotes ?? null
   const { isIframeLoaded, handleIframeLoad, handleQuotesChange } = useIframeAutoHighlight(
     iframeRef,
-    selectedQuotes,
+    quotes,
   )
 
   // Update highlighting when supporting quotes change
   useEffect(() => {
-    if (propertiesRef.current && selectedQuotes && selectedQuotes.length > 0) {
-      highlightTextInScope(document, propertiesRef.current, selectedQuotes)
+    if (propertiesRef.current && quotes && quotes.length > 0) {
+      highlightTextInScope(document, propertiesRef.current, quotes)
     }
 
-    if (isIframeLoaded && selectedQuotes && selectedQuotes.length > 0) {
-      handleQuotesChange(selectedQuotes)
+    if (isIframeLoaded && quotes && quotes.length > 0) {
+      handleQuotesChange(quotes)
     }
-  }, [selectedQuotes, isIframeLoaded, handleQuotesChange])
+  }, [quotes, isIframeLoaded, handleQuotesChange])
 
   const handleAction = (politicianKey: string, id: string, action: 'accept' | 'reject') => {
     setActionsByPolitician((prev) => {
@@ -150,19 +168,22 @@ export function EvaluationView({
   const handleViewSource = useCallback(
     (sourceId: string, quotes?: string[]) => {
       const source = sourceById.get(sourceId)
-      if (source) setSelectedSource(source)
-      setSelectedQuotes(quotes || null)
+      if (source) setSelection({ source, quotes: quotes ?? null })
     },
     [sourceById],
   )
 
   // Unified hover handler for all property types
   const handlePropertyHover = (property: Property) => {
-    const matchingRef = property.sources.find((s) => selectedSource?.id === s.source_id)
-    if (matchingRef?.supporting_quotes && matchingRef.supporting_quotes.length > 0) {
-      setSelectedQuotes(matchingRef.supporting_quotes)
-    }
+    setSelection((prev) => {
+      if (!prev) return prev
+      const matchingRef = property.sources.find((s) => prev.source.id === s.source_id)
+      if (!matchingRef?.supporting_quotes?.length) return prev
+      return { ...prev, quotes: matchingRef.supporting_quotes }
+    })
   }
+
+  const activeSourceId = selection?.source.id ?? null
 
   const leftPanel = (
     <div className="grid grid-rows-[1fr_auto] h-full">
@@ -184,7 +205,7 @@ export function EvaluationView({
 
               <SourcesList
                 sources={politician.sources}
-                activeSourceId={selectedSource?.id || null}
+                activeSourceId={activeSourceId}
                 onViewSource={handleViewSource}
                 politicianQid={politician.wikidata_id ?? undefined}
                 onAddSource={onSourceAdded}
@@ -195,7 +216,7 @@ export function EvaluationView({
                 onAction={(id, action) => handleAction(politician.id, id, action)}
                 onViewSource={handleViewSource}
                 onHover={handlePropertyHover}
-                activeSourceId={selectedSource?.id || null}
+                activeSourceId={activeSourceId}
                 sourceById={sourceById}
                 onAddProperty={(item) => handleAddProperty(politician.id, item)}
               />
@@ -210,9 +231,9 @@ export function EvaluationView({
     </div>
   )
 
-  const rightPanel = selectedSource ? (
+  const rightPanel = selection ? (
     <SourceViewer
-      pageId={selectedSource.id}
+      pageId={selection.source.id}
       apiBasePath={sourcesApiPath}
       iframeRef={iframeRef}
       onLoad={handleIframeLoad}
