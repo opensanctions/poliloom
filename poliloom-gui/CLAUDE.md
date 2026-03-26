@@ -45,7 +45,7 @@ The PoliLoom GUI is a web application for reviewing and validating politician me
 
 ## Key Architecture
 
-- **Contexts**: `EvaluationSessionContext` (batch evaluation state), `EventStreamContext` (SSE), `NextPoliticianContext` (prefetch next politician), `UserPreferencesContext` (advanced mode, filters)
+- **Contexts**: `EvaluationSessionContext` (batch evaluation state), `EventStreamContext` (SSE), `NextPoliticianContext` (prefetch next politician), `UserPreferencesContext` (advanced mode, filters), `EvaluationCountContext` (evaluation counts via SSE), `UserProgressContext` (tutorial completion, stats unlocking), `ThemeContext` (theme switching)
 - **API proxy**: Next.js API routes in `src/app/api/` proxy to backend, attaching auth tokens
 - **Route groups**: `(app)/` for authenticated routes, `(public)/` for login
 
