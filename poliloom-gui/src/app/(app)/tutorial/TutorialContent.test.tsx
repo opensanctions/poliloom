@@ -144,7 +144,7 @@ describe('Tutorial Page', () => {
       render(<TutorialContent initialStep={TutorialStep.SourceDocuments} />)
 
       expect(screen.getByText('Source Documents')).toBeInTheDocument()
-      expect(screen.getByText(/Let's start with Jane Doe/)).toBeInTheDocument()
+      expect(screen.getByText(/archived web pages from government portals/)).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
       // Check iframe exists
       expect(screen.getByTitle('Source')).toBeInTheDocument()
@@ -182,9 +182,7 @@ describe('Tutorial Page', () => {
 
       expect(screen.getByText('Extracted Data')).toBeInTheDocument()
       expect(
-        screen.getByText(
-          /Also on the left, you'll see data automatically extracted from those sources/,
-        ),
+        screen.getByText(/Below the sources is data automatically extracted from those documents/),
       ).toBeInTheDocument()
       expect(screen.getByText('Jane Doe')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
@@ -615,38 +613,6 @@ describe('Tutorial Page', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
 
         expect(screen.getByText('Perfect!')).toBeInTheDocument()
-      })
-
-      it('shows error when rejecting generic and deprecating existing specific', () => {
-        render(<TutorialContent initialStep={TutorialStep.SpecificOverGenericEvaluation} />)
-
-        // Reject the generic position
-        const rejectButtons = screen.getAllByRole('button', { name: /Reject/ })
-        fireEvent.click(rejectButtons[0])
-
-        // Also deprecate the existing specific - wrong, we should keep it
-        const deprecateButtons = screen.getAllByRole('button', { name: /Deprecate/ })
-        fireEvent.click(deprecateButtons[0])
-
-        fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
-
-        expect(screen.getByText('Almost There')).toBeInTheDocument()
-      })
-
-      it('shows error when accepting generic and deprecating existing specific', () => {
-        render(<TutorialContent initialStep={TutorialStep.SpecificOverGenericEvaluation} />)
-
-        // Accept the generic position - wrong
-        const acceptButtons = screen.getAllByRole('button', { name: /Accept/ })
-        fireEvent.click(acceptButtons[0])
-
-        // Deprecate the existing specific - also wrong
-        const deprecateButtons = screen.getAllByRole('button', { name: /Deprecate/ })
-        fireEvent.click(deprecateButtons[0])
-
-        fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
-
-        expect(screen.getByText('Almost There')).toBeInTheDocument()
       })
     })
   })

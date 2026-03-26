@@ -420,4 +420,48 @@ describe('EvaluationView', () => {
       expect(screen.getByText('Custom Footer')).toBeInTheDocument()
     })
   })
+
+  describe('advanced mode - add property', () => {
+    it('shows add buttons when isAdvancedMode is true', () => {
+      render(
+        <EvaluationView
+          politicians={[politicianWithDifferentSources]}
+          footer={() => <div>Footer</div>}
+          isAdvancedMode={true}
+        />,
+      )
+
+      expect(screen.getByText('+ Add Date')).toBeInTheDocument()
+      expect(screen.getByText('+ Add Position')).toBeInTheDocument()
+      expect(screen.getByText('+ Add Birthplace')).toBeInTheDocument()
+    })
+
+    it('hides add buttons when isAdvancedMode is false', () => {
+      render(
+        <EvaluationView
+          politicians={[politicianWithDifferentSources]}
+          footer={() => <div>Footer</div>}
+          isAdvancedMode={false}
+        />,
+      )
+
+      expect(screen.queryByText('+ Add Date')).not.toBeInTheDocument()
+      expect(screen.queryByText('+ Add Position')).not.toBeInTheDocument()
+    })
+
+    it('opens add form when add button is clicked', () => {
+      render(
+        <EvaluationView
+          politicians={[politicianWithDifferentSources]}
+          footer={() => <div>Footer</div>}
+          isAdvancedMode={true}
+        />,
+      )
+
+      fireEvent.click(screen.getByText('+ Add Date'))
+
+      // The add button should be replaced by the form
+      expect(screen.queryByText('+ Add Date')).not.toBeInTheDocument()
+    })
+  })
 })

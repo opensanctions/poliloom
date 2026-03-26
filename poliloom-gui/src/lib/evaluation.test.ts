@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { actionToEvaluation, applyAction, createPropertyFromAction } from './evaluation'
-import type { PropertyActionItem, CreatePropertyItem } from '@/types'
+import {
+  actionToEvaluation,
+  applyAction,
+  createPropertyFromAction,
+  groupPropertiesIntoSections,
+} from './evaluation'
+import type { PropertyActionItem, CreatePropertyItem, Property, SourceResponse } from '@/types'
 import { PropertyType } from '@/types'
 
 describe('actionToEvaluation', () => {
@@ -158,5 +163,122 @@ describe('createPropertyFromAction', () => {
 
     expect(property.type).toBe(PropertyType.P39)
     expect(property.qualifiers).toEqual(qualifiers)
+  })
+})
+
+// --- groupPropertiesIntoSections ---
+
+const mockSource: SourceResponse = {
+  id: 'src-1',
+  url: 'https://example.com',
+  url_hash: 'abc',
+  fetch_timestamp: '2024-01-01T00:00:00Z',
+  status: 'done',
+}
+
+const birthDate: Property = {
+  id: 'prop-1',
+  type: PropertyType.P569,
+  value: '+1990-05-15T00:00:00Z',
+  value_precision: 11,
+  statement_id: null,
+  sources: [{ id: 'ref-1', source: mockSource, supporting_quotes: ['born May 15'] }],
+}
+
+const deathDate: Property = {
+  id: 'prop-2',
+  type: PropertyType.P570,
+  value: '+2020-01-01T00:00:00Z',
+  value_precision: 11,
+  statement_id: null,
+  sources: [],
+}
+
+const position: Property = {
+  id: 'prop-3',
+  type: PropertyType.P39,
+  entity_id: 'Q200',
+  entity_name: 'Governor',
+  statement_id: null,
+  qualifiers: {
+    P580: [{ datavalue: { value: { time: '+2018-01-01T00:00:00Z', precision: 11 } } }],
+  },
+  sources: [{ id: 'ref-2', source: mockSource }],
+}
+
+const birthplace: Property = {
+  id: 'prop-4',
+  type: PropertyType.P19,
+  entity_id: 'Q300',
+  entity_name: 'Capital City',
+  statement_id: null,
+  sources: [],
+}
+
+const citizenship: Property = {
+  id: 'prop-5',
+  type: PropertyType.P27,
+  entity_id: 'Q400',
+  entity_name: 'Testland',
+  statement_id: null,
+  sources: [],
+}
+
+describe('groupPropertiesIntoSections', () => {
+  it('returns sections with correct titles', () => {
+    const sections = groupPropertiesIntoSections([birthDate, position, birthplace, citizenship])
+
+    expect(sections.map((s) => s.title)).toEqual([
+      'Properties',
+      'Political Positions',
+      'Birthplaces',
+      'Citizenships',
+    ])
+  })
+
+  it('groups birth and death dates under Properties section', () => {
+    const sections = groupPropertiesIntoSections([birthDate, deathDate])
+
+    expect(sections).toHaveLength(1)
+    expect(sections[0].title).toBe('Properties')
+    expect(sections[0].groups).toHaveLength(2)
+  })
+
+  it('groups entity properties by entity_id', () => {
+    const position2: Property = {
+      ...position,
+      id: 'prop-3b',
+      qualifiers: {
+        P580: [{ datavalue: { value: { time: '+2022-01-01T00:00:00Z', precision: 11 } } }],
+      },
+    }
+    const sections = groupPropertiesIntoSections([position, position2])
+
+    expect(sections).toHaveLength(1)
+    expect(sections[0].groups).toHaveLength(1)
+    expect(sections[0].groups[0].properties).toHaveLength(2)
+  })
+
+  it('omits empty sections by default', () => {
+    const sections = groupPropertiesIntoSections([birthDate])
+
+    expect(sections).toHaveLength(1)
+    expect(sections[0].title).toBe('Properties')
+  })
+
+  it('includes empty sections when showEmptySections is true', () => {
+    const sections = groupPropertiesIntoSections([birthDate], { showEmptySections: true })
+
+    expect(sections.map((s) => s.title)).toEqual([
+      'Properties',
+      'Political Positions',
+      'Birthplaces',
+      'Citizenships',
+    ])
+    expect(sections[1].groups).toHaveLength(0)
+  })
+
+  it('returns empty array for no properties', () => {
+    expect(groupPropertiesIntoSections([])).toEqual([])
   })
 })

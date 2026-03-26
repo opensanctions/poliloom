@@ -1,13 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { TwoPanel } from '@/components/layout/TwoPanel'
 import { Button } from '@/components/ui/Button'
 import { CenteredCard } from '@/components/ui/CenteredCard'
+import { HeaderedBox } from '@/components/ui/HeaderedBox'
 import { EvaluationView } from '@/components/evaluation/EvaluationView'
 import { PoliticianHeader } from '@/components/evaluation/PoliticianHeader'
 import { SourceViewer } from '@/components/evaluation/SourceViewer'
-import { PropertiesEvaluation } from '@/components/evaluation/PropertiesEvaluation'
+import { GroupTitle } from '@/components/evaluation/GroupTitle'
+import { PropertyDisplay } from '@/components/evaluation/PropertyDisplay'
 import { SourcesSection } from '@/components/evaluation/SourcesSection'
 import { TutorialActions } from './_components/TutorialActions'
 import { TutorialFooter } from './_components/TutorialFooter'
@@ -18,7 +20,7 @@ import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { PropertyActionItem } from '@/types'
-import { actionToEvaluation } from '@/lib/evaluation'
+import { actionToEvaluation, groupPropertiesIntoSections } from '@/lib/evaluation'
 import {
   tutorialSources,
   extractedDataPolitician,
@@ -341,13 +343,35 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
               onViewSource={() => {}}
               onAddSource={async () => {}}
             />
-            <PropertiesEvaluation
-              properties={extractedDataPolitician.properties}
-              onAction={() => {}}
-              onViewSource={() => {}}
-              onHover={() => {}}
-              activeSourceId={null}
-            />
+            {groupPropertiesIntoSections(extractedDataPolitician.properties).map((section) => (
+              <div key={section.title}>
+                <h2 className="text-xl font-semibold text-foreground mb-4">{section.title}</h2>
+                <div className="space-y-4">
+                  {section.groups.map((group) => (
+                    <HeaderedBox
+                      key={group.key}
+                      title={<GroupTitle property={group.properties[0]} />}
+                    >
+                      <div className="space-y-3">
+                        {group.properties.map((property, index) => (
+                          <Fragment key={property.id}>
+                            {index > 0 && <hr className="border-border-muted my-3" />}
+                            <PropertyDisplay
+                              property={property}
+                              onAction={() => {}}
+                              onViewSource={() => {}}
+                              onHover={() => {}}
+                              activeSourceId={null}
+                              shouldAutoOpen={true}
+                            />
+                          </Fragment>
+                        ))}
+                      </div>
+                    </HeaderedBox>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         }
         right={
