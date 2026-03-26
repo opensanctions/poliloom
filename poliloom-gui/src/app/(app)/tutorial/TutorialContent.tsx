@@ -126,13 +126,10 @@ export enum TutorialStep {
   ExtractedData,
   GiveItATry,
   BirthDateEvaluation,
-  BirthDateFeedback,
   MultipleSources,
   MultipleSourcesEvaluation,
-  MultipleSourcesFeedback,
   SpecificOverGeneric,
   SpecificOverGenericEvaluation,
-  SpecificOverGenericFeedback,
   BasicKeyTakeaways,
   // Advanced tutorial
   AdvancedWelcome,
@@ -178,27 +175,13 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
 
   const [step, setStep] = useState(getStartingStep)
 
-  // Track evaluation results for each interactive step
-  const [birthDateResult, setBirthDateResult] = useState<EvaluationResult | null>(null)
-  const [multipleSourcesResult, setMultipleSourcesResult] = useState<EvaluationResult | null>(null)
-  const [genericVsSpecificResult, setGenericVsSpecificResult] = useState<EvaluationResult | null>(
-    null,
-  )
-  // Advanced tutorial results
-  const [addNewDataResult, setAddNewDataResult] = useState<EvaluationResult | null>(null)
-  const [deprecateSimpleResult, setDeprecateSimpleResult] = useState<EvaluationResult | null>(null)
-  const [deprecateWithMetadataResult, setDeprecateWithMetadataResult] =
-    useState<EvaluationResult | null>(null)
+  // Single state for the result of the current interactive step's "Check Answers"
+  const [checkResult, setCheckResult] = useState<EvaluationResult | null>(null)
 
-  // Keys to force remount of evaluation components on retry
-  const [birthDateKey, setBirthDateKey] = useState(0)
-  const [multipleSourcesKey, setMultipleSourcesKey] = useState(0)
-  const [genericVsSpecificKey, setGenericVsSpecificKey] = useState(0)
-  const [addNewDataKey, setAddNewDataKey] = useState(0)
-  const [deprecateSimpleKey, setDeprecateSimpleKey] = useState(0)
-  const [deprecateWithMetadataKey, setDeprecateWithMetadataKey] = useState(0)
-
-  const nextStep = () => setStep(step + 1)
+  const advance = () => {
+    setCheckResult(null)
+    setStep((s) => s + 1)
+  }
 
   // Handle tutorial completion
   useEffect(() => {
@@ -243,7 +226,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   }
 
   if (step === TutorialStep.Welcome) {
-    // Welcome
     return (
       <CenteredCard emoji="👋" title="Welcome to PoliLoom!">
         <p className="mb-8">
@@ -254,14 +236,13 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           skipHref={startHref}
           onSkip={() => startSession()}
           buttonText="Let's Go"
-          onNext={nextStep}
+          onNext={advance}
         />
       </CenteredCard>
     )
   }
 
   if (step === TutorialStep.WhyYourHelpMatters) {
-    // Why your help matters
     return (
       <CenteredCard emoji="🤖" title="Why Your Help Matters">
         <div className="mb-8 space-y-4">
@@ -278,14 +259,13 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           skipHref={startHref}
           onSkip={() => startSession()}
           buttonText="Got It"
-          onNext={nextStep}
+          onNext={advance}
         />
       </CenteredCard>
     )
   }
 
   if (step === TutorialStep.SourceDocuments) {
-    // Show source (explanation left, iframe right)
     return (
       <TwoPanel
         left={
@@ -301,7 +281,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
               skipHref={startHref}
               onSkip={() => startSession()}
               buttonText="Next"
-              onNext={nextStep}
+              onNext={advance}
             />
           </CenteredCard>
         }
@@ -311,7 +291,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   }
 
   if (step === TutorialStep.SourcesAndAddSource) {
-    // Show sources list with add source form (left), explanation (right)
     return (
       <TwoPanel
         left={
@@ -344,7 +323,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
               skipHref={startHref}
               onSkip={() => startSession()}
               buttonText="Next"
-              onNext={nextStep}
+              onNext={advance}
             />
           </CenteredCard>
         }
@@ -353,7 +332,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   }
 
   if (step === TutorialStep.ExtractedData) {
-    // Show extracted data (properties left, explanation right)
     return (
       <TwoPanel
         left={
@@ -415,7 +393,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
               skipHref={startHref}
               onSkip={() => startSession()}
               buttonText="Next"
-              onNext={nextStep}
+              onNext={advance}
             />
           </CenteredCard>
         }
@@ -424,7 +402,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   }
 
   if (step === TutorialStep.GiveItATry) {
-    // Let's try it
     return (
       <CenteredCard emoji="🎯" title="Give It a Try">
         <p className="mb-8">
@@ -435,17 +412,34 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           skipHref={startHref}
           onSkip={() => startSession()}
           buttonText="Let's do it"
-          onNext={nextStep}
+          onNext={advance}
         />
       </CenteredCard>
     )
   }
 
   if (step === TutorialStep.BirthDateEvaluation) {
-    // Interactive: birth date evaluation
+    if (checkResult?.isCorrect) {
+      return (
+        <SuccessFeedback
+          title="Excellent!"
+          message="You correctly identified that March 15, 1975 matches the source, while June 8, 1952 was actually the mother's birth date. Reading carefully makes all the difference!"
+          onNext={advance}
+        />
+      )
+    }
+    if (checkResult) {
+      return (
+        <ErrorFeedback
+          title="Not Quite Right"
+          message="Take another look at the source document. One birth date belongs to Jane Doe, and the other belongs to someone else mentioned in the text."
+          hint="Hint: Look carefully at who each date refers to in the source text."
+          onRetry={() => setCheckResult(null)}
+        />
+      )
+    }
     return (
       <EvaluationView
-        key={`birth-date-${birthDateKey}`}
         politicians={[birthDatePolitician]}
         footer={({ actionsByPolitician }) => {
           const actions = actionsByPolitician.get(birthDatePolitician.id) || []
@@ -454,11 +448,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
               skipHref={startHref}
               onSkip={() => startSession()}
               isComplete={hasActionsForKeys(actions, Object.keys(birthDateExpected))}
-              onSubmit={() => {
-                const result = checkEvaluations(actions, birthDateExpected)
-                setBirthDateResult(result)
-                nextStep()
-              }}
+              onSubmit={() => setCheckResult(checkEvaluations(actions, birthDateExpected))}
               onBack={() => setStep(TutorialStep.GiveItATry)}
             />
           )
@@ -469,33 +459,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === TutorialStep.BirthDateFeedback) {
-    // Birth date result/feedback
-    if (birthDateResult?.isCorrect) {
-      return (
-        <SuccessFeedback
-          title="Excellent!"
-          message="You correctly identified that March 15, 1975 matches the source, while June 8, 1952 was actually the mother's birth date. Reading carefully makes all the difference!"
-          onNext={nextStep}
-        />
-      )
-    }
-    return (
-      <ErrorFeedback
-        title="Not Quite Right"
-        message="Take another look at the source document. One birth date belongs to Jane Doe, and the other belongs to someone else mentioned in the text."
-        hint="Hint: Look carefully at who each date refers to in the source text."
-        onRetry={() => {
-          setBirthDateKey((k) => k + 1)
-          setBirthDateResult(null)
-          setStep(TutorialStep.BirthDateEvaluation)
-        }}
-      />
-    )
-  }
-
   if (step === TutorialStep.MultipleSources) {
-    // Multiple sources explanation
     return (
       <CenteredCard emoji="📚" title="Multiple Sources">
         <p className="mb-8">
@@ -506,17 +470,34 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           skipHref={startHref}
           onSkip={() => startSession()}
           buttonText="Let's do it"
-          onNext={nextStep}
+          onNext={advance}
         />
       </CenteredCard>
     )
   }
 
   if (step === TutorialStep.MultipleSourcesEvaluation) {
-    // Interactive: positions evaluation
+    if (checkResult?.isCorrect) {
+      return (
+        <SuccessFeedback
+          title="Great Job!"
+          message="You correctly verified both positions from their respective source documents. Being able to work with multiple sources is an important skill!"
+          onNext={advance}
+        />
+      )
+    }
+    if (checkResult) {
+      return (
+        <ErrorFeedback
+          title="Let's Try Again"
+          message={`Make sure to check each position against its source document. Click "View" to switch between sources and verify each extraction.`}
+          hint="Hint: Both positions are correctly extracted from their sources in this example."
+          onRetry={() => setCheckResult(null)}
+        />
+      )
+    }
     return (
       <EvaluationView
-        key={`multiple-sources-${multipleSourcesKey}`}
         politicians={[multipleSourcesPolitician]}
         footer={({ actionsByPolitician }) => {
           const actions = actionsByPolitician.get(multipleSourcesPolitician.id) || []
@@ -525,11 +506,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
               skipHref={startHref}
               onSkip={() => startSession()}
               isComplete={hasActionsForKeys(actions, Object.keys(multipleSourcesExpected))}
-              onSubmit={() => {
-                const result = checkEvaluations(actions, multipleSourcesExpected)
-                setMultipleSourcesResult(result)
-                nextStep()
-              }}
+              onSubmit={() => setCheckResult(checkEvaluations(actions, multipleSourcesExpected))}
               onBack={() => setStep(TutorialStep.MultipleSources)}
             />
           )
@@ -540,33 +517,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === TutorialStep.MultipleSourcesFeedback) {
-    // Multiple sources result/feedback
-    if (multipleSourcesResult?.isCorrect) {
-      return (
-        <SuccessFeedback
-          title="Great Job!"
-          message="You correctly verified both positions from their respective source documents. Being able to work with multiple sources is an important skill!"
-          onNext={nextStep}
-        />
-      )
-    }
-    return (
-      <ErrorFeedback
-        title="Let's Try Again"
-        message={`Make sure to check each position against its source document. Click "View" to switch between sources and verify each extraction.`}
-        hint="Hint: Both positions are correctly extracted from their sources in this example."
-        onRetry={() => {
-          setMultipleSourcesKey((k) => k + 1)
-          setMultipleSourcesResult(null)
-          setStep(TutorialStep.MultipleSourcesEvaluation)
-        }}
-      />
-    )
-  }
-
   if (step === TutorialStep.SpecificOverGeneric) {
-    // Generic vs specific explanation
     return (
       <CenteredCard emoji="🎯" title="Specific Over Generic">
         <p className="mb-8">
@@ -577,17 +528,34 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           skipHref={startHref}
           onSkip={() => startSession()}
           buttonText="Let's do it"
-          onNext={nextStep}
+          onNext={advance}
         />
       </CenteredCard>
     )
   }
 
   if (step === TutorialStep.SpecificOverGenericEvaluation) {
-    // Interactive: generic vs specific evaluation
+    if (checkResult?.isCorrect) {
+      return (
+        <SuccessFeedback
+          title="Perfect!"
+          message={`You correctly rejected the generic "Member of Parliament" because the more specific "Member of Springfield Parliament" already exists. Quality over quantity!`}
+          onNext={advance}
+        />
+      )
+    }
+    if (checkResult) {
+      return (
+        <ErrorFeedback
+          title="Almost There"
+          message="Remember: when we already have specific data, we don't need a generic version. Look at what data already exists before accepting new extractions."
+          hint={`Hint: "Member of Springfield Parliament" is more specific than "Member of Parliament".`}
+          onRetry={() => setCheckResult(null)}
+        />
+      )
+    }
     return (
       <EvaluationView
-        key={`generic-vs-specific-${genericVsSpecificKey}`}
         politicians={[genericVsSpecificPolitician]}
         footer={({ actionsByPolitician }) => {
           const actions = actionsByPolitician.get(genericVsSpecificPolitician.id) || []
@@ -596,11 +564,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
               skipHref={startHref}
               onSkip={() => startSession()}
               isComplete={hasActionsForKeys(actions, genericVsSpecificRequiredKeys)}
-              onSubmit={() => {
-                const result = checkEvaluations(actions, genericVsSpecificExpected)
-                setGenericVsSpecificResult(result)
-                nextStep()
-              }}
+              onSubmit={() => setCheckResult(checkEvaluations(actions, genericVsSpecificExpected))}
               onBack={() => setStep(TutorialStep.SpecificOverGeneric)}
             />
           )
@@ -611,33 +575,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === TutorialStep.SpecificOverGenericFeedback) {
-    // Generic vs specific result/feedback
-    if (genericVsSpecificResult?.isCorrect) {
-      return (
-        <SuccessFeedback
-          title="Perfect!"
-          message={`You correctly rejected the generic "Member of Parliament" because the more specific "Member of Springfield Parliament" already exists. Quality over quantity!`}
-          onNext={nextStep}
-        />
-      )
-    }
-    return (
-      <ErrorFeedback
-        title="Almost There"
-        message="Remember: when we already have specific data, we don't need a generic version. Look at what data already exists before accepting new extractions."
-        hint={`Hint: "Member of Springfield Parliament" is more specific than "Member of Parliament".`}
-        onRetry={() => {
-          setGenericVsSpecificKey((k) => k + 1)
-          setGenericVsSpecificResult(null)
-          setStep(TutorialStep.SpecificOverGenericEvaluation)
-        }}
-      />
-    )
-  }
-
   if (step === TutorialStep.BasicKeyTakeaways) {
-    // Basic tutorial key takeaways
     return (
       <CenteredCard emoji="💡" title="Key Takeaways">
         <div className="mb-8 space-y-4">
@@ -654,7 +592,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           skipHref={startHref}
           onSkip={() => startSession()}
           buttonText="Got It!"
-          onNext={nextStep}
+          onNext={advance}
         />
       </CenteredCard>
     )
@@ -662,7 +600,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
 
   // ============ ADVANCED TUTORIAL STEPS ============
   if (step === TutorialStep.AdvancedWelcome) {
-    // Advanced mode welcome
     return (
       <CenteredCard emoji="⚡" title="Advanced Mode Tutorial">
         <div className="mb-8 space-y-4">
@@ -679,7 +616,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           skipHref={startHref}
           onSkip={() => startSession()}
           buttonText="Let's Advance"
-          onNext={nextStep}
+          onNext={advance}
         />
       </CenteredCard>
     )
@@ -696,38 +633,34 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           skipHref={startHref}
           onSkip={() => startSession()}
           buttonText="Let's do it"
-          onNext={nextStep}
+          onNext={advance}
         />
       </CenteredCard>
     )
   }
 
   if (step === TutorialStep.AddNewDataEvaluation) {
-    if (addNewDataResult?.isCorrect) {
+    if (checkResult?.isCorrect) {
       return (
         <SuccessFeedback
           title="Nice Work!"
           message='You correctly identified that Jane Doe is a "Member of Springfield Parliament" and added it as new data. This is how you can fill in gaps in the extracted data!'
-          onNext={nextStep}
+          onNext={advance}
         />
       )
     }
-    if (addNewDataResult) {
+    if (checkResult) {
       return (
         <ErrorFeedback
           title="Not Quite Right"
           message="Check the source document — it's a directory of Springfield Parliament members. Jane Doe needs a position that matches."
           hint='Hint: Click "+ Add Position", search for "Member of Springfield Parliament", and add it.'
-          onRetry={() => {
-            setAddNewDataKey((k) => k + 1)
-            setAddNewDataResult(null)
-          }}
+          onRetry={() => setCheckResult(null)}
         />
       )
     }
     return (
       <EvaluationView
-        key={`add-new-data-${addNewDataKey}`}
         politicians={[addNewDataPolitician]}
         footer={({ actionsByPolitician }) => {
           const actions = actionsByPolitician.get(addNewDataPolitician.id) || []
@@ -736,10 +669,9 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
               skipHref={startHref}
               onSkip={() => startSession()}
               isComplete={actions.some((a) => a.action === 'create' && a.type === PropertyType.P39)}
-              onSubmit={() => {
-                const result = checkCreateAction(actions, PropertyType.P39, 'Q1343573')
-                setAddNewDataResult(result)
-              }}
+              onSubmit={() =>
+                setCheckResult(checkCreateAction(actions, PropertyType.P39, 'Q1343573'))
+              }
               onBack={() => setStep(TutorialStep.AddingNewData)}
             />
           )
@@ -752,7 +684,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   }
 
   if (step === TutorialStep.ReplacingGenericData) {
-    // Deprecating simple existing data
     return (
       <CenteredCard emoji="🔄" title="Replacing Generic Data">
         <div className="mb-8 space-y-4">
@@ -769,41 +700,36 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           skipHref={startHref}
           onSkip={() => startSession()}
           buttonText="Let's do it"
-          onNext={nextStep}
+          onNext={advance}
         />
       </CenteredCard>
     )
   }
 
   if (step === TutorialStep.DeprecateSimpleEvaluation) {
-    // Interactive: deprecate simple existing data
-    if (deprecateSimpleResult?.isCorrect) {
+    if (checkResult?.isCorrect) {
       return (
         <SuccessFeedback
           title="Well Done!"
           message={
             'You correctly deprecated the generic "Member of Parliament" and accepted the more specific "Member of Springfield Parliament". Nice work!'
           }
-          onNext={nextStep}
+          onNext={advance}
         />
       )
     }
-    if (deprecateSimpleResult) {
+    if (checkResult) {
       return (
         <ErrorFeedback
           title="Not Quite Right"
           message={`The existing "Member of Parliament" is generic. The new extraction gives us more specific information - deprecate the old and accept the new.`}
           hint="Hint: Deprecate the generic existing data and accept the specific new extraction."
-          onRetry={() => {
-            setDeprecateSimpleKey((k) => k + 1)
-            setDeprecateSimpleResult(null)
-          }}
+          onRetry={() => setCheckResult(null)}
         />
       )
     }
     return (
       <EvaluationView
-        key={`deprecate-simple-${deprecateSimpleKey}`}
         politicians={[deprecateSimplePolitician]}
         footer={({ actionsByPolitician }) => {
           const actions = actionsByPolitician.get(deprecateSimplePolitician.id) || []
@@ -812,10 +738,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
               skipHref={startHref}
               onSkip={() => startSession()}
               isComplete={hasActionsForKeys(actions, deprecateSimpleRequiredKeys)}
-              onSubmit={() => {
-                const result = checkEvaluations(actions, deprecateSimpleExpected)
-                setDeprecateSimpleResult(result)
-              }}
+              onSubmit={() => setCheckResult(checkEvaluations(actions, deprecateSimpleExpected))}
               onBack={() => setStep(TutorialStep.ReplacingGenericData)}
             />
           )
@@ -827,7 +750,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   }
 
   if (step === TutorialStep.DataWithMetadata) {
-    // Chapter 2: Deprecating data with qualifiers/references
     return (
       <CenteredCard emoji="⚠️" title="Data With Metadata">
         <div className="mb-8 space-y-4">
@@ -844,39 +766,34 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           skipHref={startHref}
           onSkip={() => startSession()}
           buttonText="Let's do it"
-          onNext={nextStep}
+          onNext={advance}
         />
       </CenteredCard>
     )
   }
 
   if (step === TutorialStep.DataWithMetadataEvaluation) {
-    // Interactive: data with metadata - accept the new data AND keep the existing data
-    if (deprecateWithMetadataResult?.isCorrect) {
+    if (checkResult?.isCorrect) {
       return (
         <SuccessFeedback
           title="Great Choice!"
           message="You accepted the new specific data and kept the existing data with its valuable metadata. Well done!"
-          onNext={nextStep}
+          onNext={advance}
         />
       )
     }
-    if (deprecateWithMetadataResult) {
+    if (checkResult) {
       return (
         <ErrorFeedback
           title="Let's Reconsider"
           message="The new data is good, but the existing data has rich metadata attached. Deprecating it means losing all of that."
           hint="Hint: Accept the new extraction and keep the existing. Merge them manually in Wikidata later."
-          onRetry={() => {
-            setDeprecateWithMetadataKey((k) => k + 1)
-            setDeprecateWithMetadataResult(null)
-          }}
+          onRetry={() => setCheckResult(null)}
         />
       )
     }
     return (
       <EvaluationView
-        key={`deprecate-metadata-${deprecateWithMetadataKey}`}
         politicians={[deprecateWithMetadataPolitician]}
         footer={({ actionsByPolitician }) => {
           const actions = actionsByPolitician.get(deprecateWithMetadataPolitician.id) || []
@@ -885,10 +802,9 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
               skipHref={startHref}
               onSkip={() => startSession()}
               isComplete={hasActionsForKeys(actions, deprecateWithMetadataRequiredKeys)}
-              onSubmit={() => {
-                const result = checkEvaluations(actions, deprecateWithMetadataExpected)
-                setDeprecateWithMetadataResult(result)
-              }}
+              onSubmit={() =>
+                setCheckResult(checkEvaluations(actions, deprecateWithMetadataExpected))
+              }
               onBack={() => setStep(TutorialStep.DataWithMetadata)}
             />
           )
@@ -900,7 +816,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   }
 
   if (step === TutorialStep.AdvancedKeyTakeaways) {
-    // Advanced tutorial summary
     return (
       <CenteredCard emoji="💡" title="Key Takeaways">
         <div className="mb-8 space-y-4">
@@ -922,7 +837,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           skipHref={startHref}
           onSkip={() => startSession()}
           buttonText="Got It!"
-          onNext={nextStep}
+          onNext={advance}
         />
       </CenteredCard>
     )

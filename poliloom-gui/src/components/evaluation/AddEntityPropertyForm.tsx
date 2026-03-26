@@ -32,7 +32,7 @@ function entitySearch(searchType: string): SearchFn {
   }
 }
 
-export const DEFAULT_ENTITY_SEARCHES: Record<EntityPropertyType, SearchFn> = {
+const DEFAULT_ENTITY_SEARCHES: Record<EntityPropertyType, SearchFn> = {
   [PropertyType.P19]: entitySearch('location'),
   [PropertyType.P27]: entitySearch('country'),
   [PropertyType.P39]: entitySearch('position'),
@@ -42,7 +42,7 @@ interface AddEntityPropertyFormProps {
   type: EntityPropertyType
   onAdd: (property: CreatePropertyItem) => void
   onCancel: () => void
-  onSearch: SearchFn
+  onSearch?: SearchFn
 }
 
 function buildDateQualifier(date: DatePrecisionValue) {
@@ -64,6 +64,7 @@ export function AddEntityPropertyForm({
   onCancel,
   onSearch,
 }: AddEntityPropertyFormProps) {
+  const search = onSearch ?? DEFAULT_ENTITY_SEARCHES[type]
   const showDates = type === PropertyType.P39
 
   const [selectedEntity, setSelectedEntity] = useState<{
@@ -99,7 +100,7 @@ export function AddEntityPropertyForm({
   return (
     <div className="border border-border rounded-lg px-6 py-5 space-y-3">
       <EntitySelector
-        onSearch={onSearch}
+        onSearch={search}
         onSelect={setSelectedEntity}
         onClear={() => setSelectedEntity(null)}
         selectedEntity={selectedEntity}
