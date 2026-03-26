@@ -3,12 +3,6 @@ import { PropertyDisplay } from './PropertyDisplay'
 import { PropertyType, Property } from '@/types'
 import { vi } from 'vitest'
 
-vi.mock('@/contexts/UserPreferencesContext', () => ({
-  useUserPreferences: () => ({
-    isAdvancedMode: false,
-  }),
-}))
-
 const mockOnAction = vi.fn()
 const mockOnShowSource = vi.fn()
 const mockOnHover = vi.fn()
@@ -205,7 +199,7 @@ describe('PropertyDisplay', () => {
   })
 
   describe('Wikidata statements', () => {
-    it('hides Deprecate button when not in advanced mode', () => {
+    it('hides Deprecate button when showExistingStatementActions is false', () => {
       const property: Property = {
         ...baseProperty,
         statement_id: 'Q123$abc-def',

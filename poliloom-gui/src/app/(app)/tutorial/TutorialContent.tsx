@@ -416,6 +416,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           )
         }}
         sourcesApiPath="/api/tutorial-pages"
+        isAdvancedMode={false}
       />
     )
   }
@@ -487,6 +488,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           )
         }}
         sourcesApiPath="/api/tutorial-pages"
+        isAdvancedMode={false}
       />
     )
   }
@@ -558,6 +560,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           )
         }}
         sourcesApiPath="/api/tutorial-pages"
+        isAdvancedMode={false}
       />
     )
   }
@@ -704,6 +707,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           )
         }}
         sourcesApiPath="/api/tutorial-pages"
+        isAdvancedMode={true}
       />
     )
   }
@@ -777,6 +781,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           )
         }}
         sourcesApiPath="/api/tutorial-pages"
+        isAdvancedMode={true}
       />
     )
   }

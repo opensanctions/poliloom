@@ -7,7 +7,6 @@ import { AddPositionPropertyForm } from './AddPositionPropertyForm'
 import { AddEntityPropertyForm } from './AddEntityPropertyForm'
 import { EntityLink } from '@/components/ui/EntityLink'
 import { Button } from '@/components/ui/Button'
-import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { parsePositionQualifiers, compareDates } from '@/lib/wikidata/qualifierParser'
 import { parseWikidataDate } from '@/lib/wikidata/dateParser'
 
@@ -20,6 +19,8 @@ interface PropertiesEvaluationProps {
   onHover: (property: Property) => void
   activeSourceId: string | null
   onAddProperty?: (property: CreatePropertyItem) => void
+  showEmptySections?: boolean
+  showExistingStatementActions?: boolean
 }
 
 export function PropertiesEvaluation({
@@ -29,8 +30,9 @@ export function PropertiesEvaluation({
   onHover,
   activeSourceId,
   onAddProperty,
+  showEmptySections = false,
+  showExistingStatementActions = false,
 }: PropertiesEvaluationProps) {
-  const { isAdvancedMode } = useUserPreferences()
   const [addingSection, setAddingSection] = useState<SectionType | null>(null)
 
   const getPropertyTitle = (property: Property): ReactNode => {
@@ -158,7 +160,7 @@ export function PropertiesEvaluation({
         key: type,
       }))
       result.push({ title: 'Properties', sectionType: 'date', items })
-    } else if (isAdvancedMode) {
+    } else if (showEmptySections) {
       result.push({ title: 'Properties', sectionType: 'date', items: [] })
     }
 
@@ -168,7 +170,7 @@ export function PropertiesEvaluation({
     orderedPropertyTypes.forEach((propertyType) => {
       const typeProperties = entityBasedProps.get(propertyType)
       if (!typeProperties) {
-        if (isAdvancedMode) {
+        if (showEmptySections) {
           result.push({
             title: getSectionTitle(propertyType),
             sectionType: propertyType,
@@ -203,7 +205,7 @@ export function PropertiesEvaluation({
     })
 
     return result
-  }, [properties, isAdvancedMode])
+  }, [properties, showEmptySections])
 
   const handleAdd = (property: CreatePropertyItem) => {
     onAddProperty?.(property)
@@ -266,6 +268,7 @@ export function PropertiesEvaluation({
                           onHover={onHover}
                           activeSourceId={activeSourceId}
                           shouldAutoOpen={true}
+                          showExistingStatementActions={showExistingStatementActions}
                         />
                       </Fragment>
                     ))}
@@ -274,7 +277,7 @@ export function PropertiesEvaluation({
               )
             })}
           </div>
-          {onAddProperty && isAdvancedMode && (
+          {onAddProperty && (
             <div className="mt-4">
               {addingSection === section.sectionType ? (
                 renderAddForm(section.sectionType)

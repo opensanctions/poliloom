@@ -3,14 +3,6 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { PropertiesEvaluation } from './PropertiesEvaluation'
 import { PropertyType, Property, SourceResponse } from '@/types'
 
-let mockAdvancedMode = false
-
-vi.mock('@/contexts/UserPreferencesContext', () => ({
-  useUserPreferences: () => ({
-    isAdvancedMode: mockAdvancedMode,
-  }),
-}))
-
 const mockOnAction = vi.fn()
 const mockOnViewSource = vi.fn()
 const mockOnHover = vi.fn()
@@ -74,7 +66,6 @@ const citizenship: Property = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockAdvancedMode = false
 })
 
 describe('PropertiesEvaluation', () => {
@@ -112,9 +103,7 @@ describe('PropertiesEvaluation', () => {
     expect(screen.queryByText('Political Positions')).not.toBeInTheDocument()
   })
 
-  it('shows add buttons in advanced mode', () => {
-    mockAdvancedMode = true
-
+  it('shows add buttons when onAddProperty is provided', () => {
     render(
       <PropertiesEvaluation
         properties={[birthDate]}
@@ -129,7 +118,7 @@ describe('PropertiesEvaluation', () => {
     expect(screen.getByText('+ Add Date')).toBeInTheDocument()
   })
 
-  it('hides add buttons when not in advanced mode', () => {
+  it('hides add buttons when onAddProperty is not provided', () => {
     render(
       <PropertiesEvaluation
         properties={[birthDate]}
@@ -137,16 +126,13 @@ describe('PropertiesEvaluation', () => {
         onViewSource={mockOnViewSource}
         onHover={mockOnHover}
         activeSourceId={null}
-        onAddProperty={mockOnAddProperty}
       />,
     )
 
     expect(screen.queryByText('+ Add Date')).not.toBeInTheDocument()
   })
 
-  it('shows empty sections in advanced mode', () => {
-    mockAdvancedMode = true
-
+  it('shows empty sections when showEmptySections is true', () => {
     render(
       <PropertiesEvaluation
         properties={[birthDate]}
@@ -155,17 +141,16 @@ describe('PropertiesEvaluation', () => {
         onHover={mockOnHover}
         activeSourceId={null}
         onAddProperty={mockOnAddProperty}
+        showEmptySections
       />,
     )
 
-    // Empty sections should still appear in advanced mode
+    // Empty sections should still appear
     expect(screen.getByText('Political Positions')).toBeInTheDocument()
     expect(screen.getByText('+ Add Position')).toBeInTheDocument()
   })
 
   it('opens add form when add button is clicked', () => {
-    mockAdvancedMode = true
-
     render(
       <PropertiesEvaluation
         properties={[birthDate]}

@@ -47,6 +47,7 @@ interface EvaluationViewProps {
   sourcesApiPath?: string
   onNameChange?: (politicianId: string, name: string) => void
   onAddSource?: (politicianQid: string, url: string) => Promise<void>
+  isAdvancedMode?: boolean
 }
 
 export function EvaluationView({
@@ -56,6 +57,7 @@ export function EvaluationView({
   sourcesApiPath = '/api/sources',
   onNameChange,
   onAddSource,
+  isAdvancedMode = false,
 }: EvaluationViewProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [actionsByPolitician, setActionsByPolitician] = useState<Map<string, PropertyActionItem[]>>(
@@ -202,7 +204,11 @@ export function EvaluationView({
                 onViewSource={handleViewSource}
                 onHover={handlePropertyHover}
                 activeSourceId={activeSourceId}
-                onAddProperty={(item) => handleAddProperty(politician.id, item)}
+                onAddProperty={
+                  isAdvancedMode ? (item) => handleAddProperty(politician.id, item) : undefined
+                }
+                showEmptySections={isAdvancedMode}
+                showExistingStatementActions={isAdvancedMode}
               />
             </div>
           )

@@ -138,6 +138,7 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
       politicians={[politician]}
       onSubmit={handleSubmit}
       footer={footer}
+      isAdvancedMode={isAdvancedMode}
       onAddSource={async (qid, url) => {
         const response = await fetch(`/api/politicians/${qid}`, {
           method: 'POST',

@@ -9,6 +9,7 @@ import {
 } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { EvaluationView, FooterContext } from '@/components/evaluation/EvaluationView'
+import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 
 interface SourceEvaluationProps {
   politicians: Politician[]
@@ -16,6 +17,7 @@ interface SourceEvaluationProps {
 
 export function SourceEvaluation({ politicians }: SourceEvaluationProps) {
   const { id } = useParams<{ id: string }>()
+  const { isAdvancedMode } = useUserPreferences()
 
   const handleSubmit = async (actionsByPolitician: Map<string, PropertyActionItem[]>) => {
     const items: Record<string, PropertyActionItem[]> = {}
@@ -63,5 +65,12 @@ export function SourceEvaluation({ politicians }: SourceEvaluationProps) {
     </div>
   )
 
-  return <EvaluationView politicians={politicians} onSubmit={handleSubmit} footer={footer} />
+  return (
+    <EvaluationView
+      politicians={politicians}
+      onSubmit={handleSubmit}
+      footer={footer}
+      isAdvancedMode={isAdvancedMode}
+    />
+  )
 }

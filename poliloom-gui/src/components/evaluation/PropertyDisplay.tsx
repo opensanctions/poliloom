@@ -2,7 +2,6 @@ import { useState, useLayoutEffect } from 'react'
 import { Property, PropertyType, SourceResponse } from '@/types'
 import { parseWikidataDate } from '@/lib/wikidata/dateParser'
 import { parsePositionQualifiers, formatPositionDates } from '@/lib/wikidata/qualifierParser'
-import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { Button } from '@/components/ui/Button'
 import { DataLabel } from '@/components/ui/DataLabel'
 import { StatementSource } from './StatementSource'
@@ -15,6 +14,7 @@ interface PropertyDisplayProps {
   onHover?: (property: Property) => void
   activeSourceId?: string | null
   shouldAutoOpen?: boolean
+  showExistingStatementActions?: boolean
 }
 
 export function PropertyDisplay({
@@ -24,8 +24,8 @@ export function PropertyDisplay({
   onHover,
   activeSourceId,
   shouldAutoOpen,
+  showExistingStatementActions = false,
 }: PropertyDisplayProps) {
-  const { isAdvancedMode } = useUserPreferences()
   const [openSection, setOpenSection] = useState<'qualifiers' | 'references' | null>(null)
   const [wasAutoOpened, setWasAutoOpened] = useState(false)
 
@@ -108,7 +108,7 @@ export function PropertyDisplay({
     }
   }
 
-  const showButtons = isWikidataStatement ? isAdvancedMode : isSourceVisible
+  const showButtons = isWikidataStatement ? showExistingStatementActions : isSourceVisible
 
   const hasContent =
     property.type === PropertyType.P569 ||
