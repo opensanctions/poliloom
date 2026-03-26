@@ -19,127 +19,67 @@ import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
-import { PropertyActionItem, CreatePropertyItem, PropertyType } from '@/types'
+import { PropertyActionItem, CreatePropertyItem } from '@/types'
 import { actionToEvaluation, groupPropertiesIntoSections } from '@/lib/evaluation'
 import {
+  TutorialStep,
+  TutorialEvaluationStep,
+  tutorialEvaluationSteps,
   tutorialSources,
   extractedDataPolitician,
-  birthDatePolitician,
-  multipleSourcesPolitician,
-  genericVsSpecificPolitician,
-  deprecateSimplePolitician,
-  deprecateWithMetadataPolitician,
-  addNewDataPolitician,
-  tutorialEntitySearches,
 } from './tutorialData'
-
-// Expected answers for each evaluation step
-type ExpectedEvaluations = Record<string, boolean>
-
-const birthDateExpected: ExpectedEvaluations = {
-  'tutorial-birth-date': true, // Accept - March 15, 1975 is correct
-  'tutorial-birth-date-incorrect': false, // Reject - June 8, 1952 is the mother's birth date
-}
-
-const multipleSourcesExpected: ExpectedEvaluations = {
-  'tutorial-position-1': true, // Accept - Member of Parliament
-  'tutorial-position-2': true, // Accept - Minister of Education
-}
-
-const genericVsSpecificExpected: ExpectedEvaluations = {
-  'tutorial-generic-position': false, // Reject - generic "Member of Parliament" when specific exists
-  'tutorial-existing-specific-position': true, // Keep - don't deprecate the existing specific data
-}
-const genericVsSpecificRequiredKeys = ['tutorial-generic-position']
-
-// Advanced tutorial expected answers
-const deprecateSimpleExpected: ExpectedEvaluations = {
-  'tutorial-existing-generic-no-metadata': false, // Deprecate - generic with no metadata
-  'tutorial-new-specific-position': true, // Accept - specific replacement
-}
-const deprecateSimpleRequiredKeys = ['tutorial-new-specific-position']
-
-const deprecateWithMetadataExpected: ExpectedEvaluations = {
-  'tutorial-new-specific-with-source': true, // Accept the new specific data
-  'tutorial-existing-with-metadata': true, // Keep - don't deprecate (metadata is valuable)
-}
-const deprecateWithMetadataRequiredKeys = ['tutorial-new-specific-with-source']
-
-/** Check whether all required property keys have been acted on (accept/reject/deprecate). */
-function hasActionsForKeys(actions: PropertyActionItem[], keys: string[]): boolean {
-  return keys.every((key) => actions.some((a) => a.action !== 'create' && a.id === key))
-}
+export { TutorialStep }
 
 interface EvaluationResult {
   isCorrect: boolean
   mistakes: string[]
 }
 
-function checkEvaluations(
+/** Check whether the user has done enough to submit (required evaluations + creates). */
+function isStepComplete(actions: PropertyActionItem[], stepData: TutorialEvaluationStep): boolean {
+  const requiredProps = stepData.politician.properties.filter(
+    (p) => p.expectedEvaluation !== undefined && (p.required ?? true),
+  )
+  const hasEvals = requiredProps.every((p) =>
+    actions.some((a) => a.action !== 'create' && a.id === p.id),
+  )
+  const hasCreates =
+    !stepData.expectedCreates ||
+    stepData.expectedCreates.every((c) =>
+      actions.some((a) => a.action === 'create' && a.type === c.type),
+    )
+  return hasEvals && hasCreates
+}
+
+/** Validate all actions against expected evaluations and creates. */
+function checkStep(
   actions: PropertyActionItem[],
-  expected: ExpectedEvaluations,
+  stepData: TutorialEvaluationStep,
 ): EvaluationResult {
   const mistakes: string[] = []
 
-  for (const [key, expectedValue] of Object.entries(expected)) {
-    const actualValue = actionToEvaluation(actions, key)
-    // For existing data (where expected is true = keep), only count as mistake if user deprecated it
-    // If the key has no action, that means "keep" which is correct
-    if (expectedValue === true && actualValue === undefined) {
-      continue
+  for (const prop of stepData.politician.properties) {
+    if (prop.expectedEvaluation === undefined) continue
+    const actual = actionToEvaluation(actions, prop.id)
+    // No action on an expected-true property means "keep", which is correct
+    if (prop.expectedEvaluation === true && actual === undefined) continue
+    if (actual !== prop.expectedEvaluation) mistakes.push(prop.id)
+  }
+
+  if (stepData.expectedCreates) {
+    for (const create of stepData.expectedCreates) {
+      const action = actions.find(
+        (a): a is CreatePropertyItem => a.action === 'create' && a.type === create.type,
+      )
+      if (!action) {
+        mistakes.push('no-create')
+      } else if (action.entity_id !== create.entity_id) {
+        mistakes.push('wrong-entity')
+      }
     }
-    if (actualValue !== expectedValue) {
-      mistakes.push(key)
-    }
   }
 
-  return {
-    isCorrect: mistakes.length === 0,
-    mistakes,
-  }
-}
-
-function checkCreateAction(
-  actions: PropertyActionItem[],
-  expectedType: string,
-  expectedEntityId: string,
-): EvaluationResult {
-  const createAction = actions.find(
-    (a): a is CreatePropertyItem => a.action === 'create' && a.type === expectedType,
-  )
-  if (!createAction) {
-    return { isCorrect: false, mistakes: ['no-create'] }
-  }
-  if (createAction.entity_id !== expectedEntityId) {
-    return { isCorrect: false, mistakes: ['wrong-entity'] }
-  }
-  return { isCorrect: true, mistakes: [] }
-}
-
-// Tutorial steps as an enum so we can reorder/insert without renumbering
-export enum TutorialStep {
-  // Basic tutorial
-  Welcome,
-  WhyYourHelpMatters,
-  SourceDocuments,
-  SourcesAndAddSource,
-  ExtractedData,
-  GiveItATry,
-  BirthDateEvaluation,
-  MultipleSources,
-  MultipleSourcesEvaluation,
-  SpecificOverGeneric,
-  SpecificOverGenericEvaluation,
-  BasicKeyTakeaways,
-  // Advanced tutorial
-  AdvancedWelcome,
-  AddingNewData,
-  AddNewDataEvaluation,
-  ReplacingGenericData,
-  DeprecateSimpleEvaluation,
-  DataWithMetadata,
-  DataWithMetadataEvaluation,
-  AdvancedKeyTakeaways,
+  return { isCorrect: mistakes.length === 0, mistakes }
 }
 
 // Step ranges
@@ -166,7 +106,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   const startHref = !nextLoading ? (nextHref ?? undefined) : undefined
 
   // Determine starting step based on completion status
-  const getStartingStep = (): number => {
+  const getStartingStep = (): TutorialStep => {
     if (initialStep !== undefined) return initialStep
     if (!hasCompletedBasicTutorial) return BASIC_START
     if (isAdvancedMode && !hasCompletedAdvancedTutorial) return ADVANCED_START
@@ -418,12 +358,14 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === TutorialStep.BirthDateEvaluation) {
+  // Interactive evaluation steps — all share the same structure
+  const evalStep = tutorialEvaluationSteps[step]
+  if (evalStep) {
     if (checkResult?.isCorrect) {
       return (
         <SuccessFeedback
-          title="Excellent!"
-          message="You correctly identified that March 15, 1975 matches the source, while June 8, 1952 was actually the mother's birth date. Reading carefully makes all the difference!"
+          title={evalStep.success.title}
+          message={evalStep.success.message}
           onNext={advance}
         />
       )
@@ -431,30 +373,31 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     if (checkResult) {
       return (
         <ErrorFeedback
-          title="Not Quite Right"
-          message="Take another look at the source document. One birth date belongs to Jane Doe, and the other belongs to someone else mentioned in the text."
-          hint="Hint: Look carefully at who each date refers to in the source text."
+          title={evalStep.error.title}
+          message={evalStep.error.message}
+          hint={evalStep.error.hint}
           onRetry={() => setCheckResult(null)}
         />
       )
     }
     return (
       <EvaluationView
-        politicians={[birthDatePolitician]}
+        politicians={[evalStep.politician]}
         footer={({ actionsByPolitician }) => {
-          const actions = actionsByPolitician.get(birthDatePolitician.id) || []
+          const actions = actionsByPolitician.get(evalStep.politician.id) || []
           return (
             <TutorialFooter
               skipHref={startHref}
               onSkip={() => startSession()}
-              isComplete={hasActionsForKeys(actions, Object.keys(birthDateExpected))}
-              onSubmit={() => setCheckResult(checkEvaluations(actions, birthDateExpected))}
-              onBack={() => setStep(TutorialStep.GiveItATry)}
+              isComplete={isStepComplete(actions, evalStep)}
+              onSubmit={() => setCheckResult(checkStep(actions, evalStep))}
+              onBack={() => setStep(evalStep.backStep)}
             />
           )
         }}
         sourcesApiPath="/api/tutorial-pages"
-        isAdvancedMode={false}
+        isAdvancedMode={evalStep.isAdvancedMode}
+        entitySearches={evalStep.entitySearches}
       />
     )
   }
@@ -476,47 +419,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === TutorialStep.MultipleSourcesEvaluation) {
-    if (checkResult?.isCorrect) {
-      return (
-        <SuccessFeedback
-          title="Great Job!"
-          message="You correctly verified both positions from their respective source documents. Being able to work with multiple sources is an important skill!"
-          onNext={advance}
-        />
-      )
-    }
-    if (checkResult) {
-      return (
-        <ErrorFeedback
-          title="Let's Try Again"
-          message={`Make sure to check each position against its source document. Click "View" to switch between sources and verify each extraction.`}
-          hint="Hint: Read each source carefully — does the extracted data match what's written?"
-          onRetry={() => setCheckResult(null)}
-        />
-      )
-    }
-    return (
-      <EvaluationView
-        politicians={[multipleSourcesPolitician]}
-        footer={({ actionsByPolitician }) => {
-          const actions = actionsByPolitician.get(multipleSourcesPolitician.id) || []
-          return (
-            <TutorialFooter
-              skipHref={startHref}
-              onSkip={() => startSession()}
-              isComplete={hasActionsForKeys(actions, Object.keys(multipleSourcesExpected))}
-              onSubmit={() => setCheckResult(checkEvaluations(actions, multipleSourcesExpected))}
-              onBack={() => setStep(TutorialStep.MultipleSources)}
-            />
-          )
-        }}
-        sourcesApiPath="/api/tutorial-pages"
-        isAdvancedMode={false}
-      />
-    )
-  }
-
   if (step === TutorialStep.SpecificOverGeneric) {
     return (
       <CenteredCard emoji="🎯" title="Specific Over Generic">
@@ -531,47 +433,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           onNext={advance}
         />
       </CenteredCard>
-    )
-  }
-
-  if (step === TutorialStep.SpecificOverGenericEvaluation) {
-    if (checkResult?.isCorrect) {
-      return (
-        <SuccessFeedback
-          title="Perfect!"
-          message={`You correctly rejected the generic "Member of Parliament" because the more specific "Member of Springfield Parliament" already exists. Quality over quantity!`}
-          onNext={advance}
-        />
-      )
-    }
-    if (checkResult) {
-      return (
-        <ErrorFeedback
-          title="Almost There"
-          message="Remember: when we already have specific data, we don't need a generic version. Look at what data already exists before accepting new extractions."
-          hint={`Hint: "Member of Springfield Parliament" is more specific than "Member of Parliament".`}
-          onRetry={() => setCheckResult(null)}
-        />
-      )
-    }
-    return (
-      <EvaluationView
-        politicians={[genericVsSpecificPolitician]}
-        footer={({ actionsByPolitician }) => {
-          const actions = actionsByPolitician.get(genericVsSpecificPolitician.id) || []
-          return (
-            <TutorialFooter
-              skipHref={startHref}
-              onSkip={() => startSession()}
-              isComplete={hasActionsForKeys(actions, genericVsSpecificRequiredKeys)}
-              onSubmit={() => setCheckResult(checkEvaluations(actions, genericVsSpecificExpected))}
-              onBack={() => setStep(TutorialStep.SpecificOverGeneric)}
-            />
-          )
-        }}
-        sourcesApiPath="/api/tutorial-pages"
-        isAdvancedMode={false}
-      />
     )
   }
 
@@ -639,50 +500,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === TutorialStep.AddNewDataEvaluation) {
-    if (checkResult?.isCorrect) {
-      return (
-        <SuccessFeedback
-          title="Nice Work!"
-          message='You correctly identified that Jane Doe is a "Member of Springfield Parliament" and added it as new data. This is how you can fill in gaps in the extracted data!'
-          onNext={advance}
-        />
-      )
-    }
-    if (checkResult) {
-      return (
-        <ErrorFeedback
-          title="Not Quite Right"
-          message="Check the source document — it's a directory of Springfield Parliament members. Jane Doe needs a position that matches."
-          hint="Hint: Look at the page title — what role do all the people listed there share?"
-          onRetry={() => setCheckResult(null)}
-        />
-      )
-    }
-    return (
-      <EvaluationView
-        politicians={[addNewDataPolitician]}
-        footer={({ actionsByPolitician }) => {
-          const actions = actionsByPolitician.get(addNewDataPolitician.id) || []
-          return (
-            <TutorialFooter
-              skipHref={startHref}
-              onSkip={() => startSession()}
-              isComplete={actions.some((a) => a.action === 'create' && a.type === PropertyType.P39)}
-              onSubmit={() =>
-                setCheckResult(checkCreateAction(actions, PropertyType.P39, 'Q1343573'))
-              }
-              onBack={() => setStep(TutorialStep.AddingNewData)}
-            />
-          )
-        }}
-        sourcesApiPath="/api/tutorial-pages"
-        isAdvancedMode={true}
-        entitySearches={tutorialEntitySearches}
-      />
-    )
-  }
-
   if (step === TutorialStep.ReplacingGenericData) {
     return (
       <CenteredCard emoji="🔄" title="Replacing Generic Data">
@@ -706,49 +523,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === TutorialStep.DeprecateSimpleEvaluation) {
-    if (checkResult?.isCorrect) {
-      return (
-        <SuccessFeedback
-          title="Well Done!"
-          message={
-            'You correctly deprecated the generic "Member of Parliament" and accepted the more specific "Member of Springfield Parliament". Nice work!'
-          }
-          onNext={advance}
-        />
-      )
-    }
-    if (checkResult) {
-      return (
-        <ErrorFeedback
-          title="Not Quite Right"
-          message={`The existing "Member of Parliament" is generic. The new extraction gives us more specific information - deprecate the old and accept the new.`}
-          hint={`Hint: Is "Member of Parliament" adding anything that "Member of Springfield Parliament" doesn't already cover?`}
-          onRetry={() => setCheckResult(null)}
-        />
-      )
-    }
-    return (
-      <EvaluationView
-        politicians={[deprecateSimplePolitician]}
-        footer={({ actionsByPolitician }) => {
-          const actions = actionsByPolitician.get(deprecateSimplePolitician.id) || []
-          return (
-            <TutorialFooter
-              skipHref={startHref}
-              onSkip={() => startSession()}
-              isComplete={hasActionsForKeys(actions, deprecateSimpleRequiredKeys)}
-              onSubmit={() => setCheckResult(checkEvaluations(actions, deprecateSimpleExpected))}
-              onBack={() => setStep(TutorialStep.ReplacingGenericData)}
-            />
-          )
-        }}
-        sourcesApiPath="/api/tutorial-pages"
-        isAdvancedMode={true}
-      />
-    )
-  }
-
   if (step === TutorialStep.DataWithMetadata) {
     return (
       <CenteredCard emoji="⚠️" title="Data With Metadata">
@@ -769,49 +543,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           onNext={advance}
         />
       </CenteredCard>
-    )
-  }
-
-  if (step === TutorialStep.DataWithMetadataEvaluation) {
-    if (checkResult?.isCorrect) {
-      return (
-        <SuccessFeedback
-          title="Great Choice!"
-          message="You accepted the new specific data and kept the existing data with its valuable metadata. Well done!"
-          onNext={advance}
-        />
-      )
-    }
-    if (checkResult) {
-      return (
-        <ErrorFeedback
-          title="Let's Reconsider"
-          message="The new data is good, but the existing data has rich metadata attached. Deprecating it means losing all of that."
-          hint="Hint: Notice the references and qualifiers on the existing data — what happens to those if you deprecate it?"
-          onRetry={() => setCheckResult(null)}
-        />
-      )
-    }
-    return (
-      <EvaluationView
-        politicians={[deprecateWithMetadataPolitician]}
-        footer={({ actionsByPolitician }) => {
-          const actions = actionsByPolitician.get(deprecateWithMetadataPolitician.id) || []
-          return (
-            <TutorialFooter
-              skipHref={startHref}
-              onSkip={() => startSession()}
-              isComplete={hasActionsForKeys(actions, deprecateWithMetadataRequiredKeys)}
-              onSubmit={() =>
-                setCheckResult(checkEvaluations(actions, deprecateWithMetadataExpected))
-              }
-              onBack={() => setStep(TutorialStep.DataWithMetadata)}
-            />
-          )
-        }}
-        sourcesApiPath="/api/tutorial-pages"
-        isAdvancedMode={true}
-      />
     )
   }
 
