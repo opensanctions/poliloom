@@ -18,6 +18,8 @@ export enum PropertyType {
   P27 = 'P27', // Citizenship
 }
 
+export type EntityPropertyType = PropertyType.P19 | PropertyType.P27 | PropertyType.P39
+
 // Qualifier types for Wikidata date values
 export interface WikidataDateValue {
   time: string

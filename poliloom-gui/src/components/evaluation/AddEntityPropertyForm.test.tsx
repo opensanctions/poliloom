@@ -44,7 +44,14 @@ function selectDate(
 describe('AddEntityPropertyForm', () => {
   describe('position (P39)', () => {
     it('renders search input and date pickers', () => {
-      render(<AddEntityPropertyForm type={PropertyType.P39} onAdd={vi.fn()} onCancel={vi.fn()} />)
+      render(
+        <AddEntityPropertyForm
+          type={PropertyType.P39}
+          onAdd={vi.fn()}
+          onCancel={vi.fn()}
+          onSearch={vi.fn()}
+        />,
+      )
 
       expect(screen.getByPlaceholderText('Search for a position...')).toBeInTheDocument()
       expect(screen.getByText('Start')).toBeInTheDocument()
@@ -170,7 +177,14 @@ describe('AddEntityPropertyForm', () => {
 
   describe('location (P19)', () => {
     it('renders search input without date pickers', () => {
-      render(<AddEntityPropertyForm type={PropertyType.P19} onAdd={vi.fn()} onCancel={vi.fn()} />)
+      render(
+        <AddEntityPropertyForm
+          type={PropertyType.P19}
+          onAdd={vi.fn()}
+          onCancel={vi.fn()}
+          onSearch={vi.fn()}
+        />,
+      )
 
       expect(screen.getByPlaceholderText('Search for a location...')).toBeInTheDocument()
       expect(screen.queryByText('Start')).not.toBeInTheDocument()
@@ -233,7 +247,14 @@ describe('AddEntityPropertyForm', () => {
 
   describe('country (P27)', () => {
     it('renders search input without date pickers', () => {
-      render(<AddEntityPropertyForm type={PropertyType.P27} onAdd={vi.fn()} onCancel={vi.fn()} />)
+      render(
+        <AddEntityPropertyForm
+          type={PropertyType.P27}
+          onAdd={vi.fn()}
+          onCancel={vi.fn()}
+          onSearch={vi.fn()}
+        />,
+      )
 
       expect(screen.getByPlaceholderText('Search for a country...')).toBeInTheDocument()
       expect(screen.queryByText('Start')).not.toBeInTheDocument()
@@ -272,14 +293,28 @@ describe('AddEntityPropertyForm', () => {
   })
 
   it('disables Add button when no entity is selected', () => {
-    render(<AddEntityPropertyForm type={PropertyType.P19} onAdd={vi.fn()} onCancel={vi.fn()} />)
+    render(
+      <AddEntityPropertyForm
+        type={PropertyType.P19}
+        onAdd={vi.fn()}
+        onCancel={vi.fn()}
+        onSearch={vi.fn()}
+      />,
+    )
 
     expect(screen.getByText('+ Add')).toBeDisabled()
   })
 
   it('calls onCancel when Cancel button is clicked', () => {
     const onCancel = vi.fn()
-    render(<AddEntityPropertyForm type={PropertyType.P19} onAdd={vi.fn()} onCancel={onCancel} />)
+    render(
+      <AddEntityPropertyForm
+        type={PropertyType.P19}
+        onAdd={vi.fn()}
+        onCancel={onCancel}
+        onSearch={vi.fn()}
+      />,
+    )
 
     fireEvent.click(screen.getByText('Cancel'))
 

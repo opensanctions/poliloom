@@ -5,6 +5,7 @@ import {
   Politician,
   Property,
   PropertyType,
+  EntityPropertyType,
   PropertyActionItem,
   CreatePropertyItem,
   SourceResponse,
@@ -27,7 +28,7 @@ import { Button } from '@/components/ui/Button'
 import { GroupTitle } from './GroupTitle'
 import { PropertyDisplay } from './PropertyDisplay'
 import { AddDatePropertyForm } from './AddDatePropertyForm'
-import { AddEntityPropertyForm } from './AddEntityPropertyForm'
+import { AddEntityPropertyForm, DEFAULT_ENTITY_SEARCHES } from './AddEntityPropertyForm'
 import { PoliticianHeader } from './PoliticianHeader'
 import { SourceViewer } from './SourceViewer'
 import { SourcesSection } from './SourcesSection'
@@ -62,7 +63,7 @@ interface EvaluationViewProps {
   onNameChange?: (politicianId: string, name: string) => void
   onAddSource?: (politicianQid: string, url: string) => Promise<void>
   isAdvancedMode?: boolean
-  onSearch?: SearchFn
+  entitySearches?: Record<EntityPropertyType, SearchFn>
 }
 
 export function EvaluationView({
@@ -73,7 +74,7 @@ export function EvaluationView({
   onNameChange,
   onAddSource,
   isAdvancedMode = false,
-  onSearch,
+  entitySearches = DEFAULT_ENTITY_SEARCHES,
 }: EvaluationViewProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [actionsByPolitician, setActionsByPolitician] = useState<Map<string, PropertyActionItem[]>>(
@@ -209,7 +210,7 @@ export function EvaluationView({
             type={sectionType}
             onAdd={onAdd}
             onCancel={onCancel}
-            onSearch={onSearch}
+            onSearch={entitySearches[sectionType]}
           />
         )
     }

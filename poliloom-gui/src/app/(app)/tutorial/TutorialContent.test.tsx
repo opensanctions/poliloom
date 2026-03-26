@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, fireEvent, render } from '@testing-library/react'
+import { screen, fireEvent, render, waitFor } from '@testing-library/react'
 import '@/test/test-utils'
 import { TutorialContent, TutorialStep } from './TutorialContent'
 
@@ -691,23 +691,102 @@ describe('Tutorial Page', () => {
       })
     })
 
-    describe('Step 14 - Advanced Mode Welcome', () => {
+    describe('Advanced Mode Welcome', () => {
       it('shows advanced mode welcome after basic tutorial', () => {
         render(<TutorialContent initialStep={TutorialStep.AdvancedWelcome} />)
 
         expect(screen.getByText('Advanced Mode Tutorial')).toBeInTheDocument()
-        expect(
-          screen.getByText(/You now have the power to deprecate existing data/),
-        ).toBeInTheDocument()
+        expect(screen.getByText(/add new data and deprecate existing data/)).toBeInTheDocument()
         expect(screen.getByRole('button', { name: "Let's Advance" })).toBeInTheDocument()
       })
 
-      it('advances to step 15 when clicking "Let\'s Advance"', () => {
+      it('advances to Adding New Data when clicking "Let\'s Advance"', () => {
         render(<TutorialContent initialStep={TutorialStep.AdvancedWelcome} />)
 
         fireEvent.click(screen.getByRole('button', { name: "Let's Advance" }))
 
-        expect(screen.getByText('Replacing Generic Data')).toBeInTheDocument()
+        expect(screen.getByText('Adding New Data')).toBeInTheDocument()
+      })
+    })
+
+    describe('Adding New Data', () => {
+      it('renders explanation', () => {
+        render(<TutorialContent initialStep={TutorialStep.AddingNewData} />)
+
+        expect(screen.getByText('Adding New Data')).toBeInTheDocument()
+        expect(
+          screen.getByText(/source implies data that wasn't automatically extracted/),
+        ).toBeInTheDocument()
+      })
+
+      it('advances to AddNewDataEvaluation', () => {
+        render(<TutorialContent initialStep={TutorialStep.AddingNewData} />)
+
+        fireEvent.click(screen.getByRole('button', { name: "Let's do it" }))
+
+        expect(screen.getByText('Political Positions')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: '+ Add Position' })).toBeInTheDocument()
+      })
+    })
+
+    describe('Add New Data Evaluation (Interactive)', () => {
+      it('renders empty positions section with add button', () => {
+        render(<TutorialContent initialStep={TutorialStep.AddNewDataEvaluation} />)
+
+        expect(screen.getByText('Political Positions')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: '+ Add Position' })).toBeInTheDocument()
+      })
+
+      it('has Check Answers disabled initially', () => {
+        render(<TutorialContent initialStep={TutorialStep.AddNewDataEvaluation} />)
+
+        expect(screen.getByRole('button', { name: 'Check Answers' })).toBeDisabled()
+      })
+
+      it('goes back to Adding New Data when clicking Go Back', () => {
+        render(<TutorialContent initialStep={TutorialStep.AddNewDataEvaluation} />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Go Back' }))
+
+        expect(screen.getByText('Adding New Data')).toBeInTheDocument()
+      })
+
+      it('shows success when adding correct position', async () => {
+        render(<TutorialContent initialStep={TutorialStep.AddNewDataEvaluation} />)
+
+        fireEvent.click(screen.getByRole('button', { name: '+ Add Position' }))
+
+        const input = screen.getByPlaceholderText('Search for a position...')
+        fireEvent.change(input, { target: { value: 'Springfield' } })
+
+        await waitFor(() => {
+          expect(screen.getByText('Member of Springfield Parliament')).toBeInTheDocument()
+        })
+        fireEvent.click(screen.getByText('Member of Springfield Parliament'))
+        fireEvent.click(screen.getByRole('button', { name: '+ Add' }))
+
+        fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
+
+        expect(screen.getByText('Nice Work!')).toBeInTheDocument()
+      })
+
+      it('shows error when adding wrong position', async () => {
+        render(<TutorialContent initialStep={TutorialStep.AddNewDataEvaluation} />)
+
+        fireEvent.click(screen.getByRole('button', { name: '+ Add Position' }))
+
+        const input = screen.getByPlaceholderText('Search for a position...')
+        fireEvent.change(input, { target: { value: 'Mayor' } })
+
+        await waitFor(() => {
+          expect(screen.getByText('Mayor of Springfield')).toBeInTheDocument()
+        })
+        fireEvent.click(screen.getByText('Mayor of Springfield'))
+        fireEvent.click(screen.getByRole('button', { name: '+ Add' }))
+
+        fireEvent.click(screen.getByRole('button', { name: 'Check Answers' }))
+
+        expect(screen.getByText('Not Quite Right')).toBeInTheDocument()
       })
     })
 
@@ -870,11 +949,14 @@ describe('Tutorial Page', () => {
       })
     })
 
-    describe('Step 19 - Key Takeaways', () => {
+    describe('Advanced Key Takeaways', () => {
       it('renders key takeaways', () => {
         render(<TutorialContent initialStep={TutorialStep.AdvancedKeyTakeaways} />)
 
         expect(screen.getByText('Key Takeaways')).toBeInTheDocument()
+        expect(
+          screen.getByText(/use the "\+ Add" buttons to create it yourself/),
+        ).toBeInTheDocument()
         expect(
           screen.getByText(/Feel free to deprecate generic or incorrect existing data/),
         ).toBeInTheDocument()

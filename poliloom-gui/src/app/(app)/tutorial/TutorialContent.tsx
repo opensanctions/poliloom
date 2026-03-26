@@ -19,7 +19,7 @@ import { useUserProgress } from '@/contexts/UserProgressContext'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
-import { PropertyActionItem } from '@/types'
+import { PropertyActionItem, CreatePropertyItem, PropertyType } from '@/types'
 import { actionToEvaluation, groupPropertiesIntoSections } from '@/lib/evaluation'
 import {
   tutorialSources,
@@ -29,6 +29,8 @@ import {
   genericVsSpecificPolitician,
   deprecateSimplePolitician,
   deprecateWithMetadataPolitician,
+  addNewDataPolitician,
+  tutorialEntitySearches,
 } from './tutorialData'
 
 // Expected answers for each evaluation step
@@ -48,23 +50,25 @@ const genericVsSpecificExpected: ExpectedEvaluations = {
   'tutorial-generic-position': false, // Reject - generic "Member of Parliament" when specific exists
   'tutorial-existing-specific-position': true, // Keep - don't deprecate the existing specific data
 }
-// Only new data keys are required for the submit button
-const genericVsSpecificRequiredKeys: string[] = ['tutorial-generic-position']
+const genericVsSpecificRequiredKeys = ['tutorial-generic-position']
 
 // Advanced tutorial expected answers
 const deprecateSimpleExpected: ExpectedEvaluations = {
   'tutorial-existing-generic-no-metadata': false, // Deprecate - generic with no metadata
   'tutorial-new-specific-position': true, // Accept - specific replacement
 }
-// Only new data keys are required for the submit button (existing data is optional to interact with)
-const deprecateSimpleRequiredKeys: string[] = ['tutorial-new-specific-position']
+const deprecateSimpleRequiredKeys = ['tutorial-new-specific-position']
 
 const deprecateWithMetadataExpected: ExpectedEvaluations = {
   'tutorial-new-specific-with-source': true, // Accept the new specific data
   'tutorial-existing-with-metadata': true, // Keep - don't deprecate (metadata is valuable)
 }
-// Only new data keys are required for the submit button
-const deprecateWithMetadataRequiredKeys: string[] = ['tutorial-new-specific-with-source']
+const deprecateWithMetadataRequiredKeys = ['tutorial-new-specific-with-source']
+
+/** Check whether all required property keys have been acted on (accept/reject/deprecate). */
+function hasActionsForKeys(actions: PropertyActionItem[], keys: string[]): boolean {
+  return keys.every((key) => actions.some((a) => a.action !== 'create' && a.id === key))
+}
 
 interface EvaluationResult {
   isCorrect: boolean
@@ -95,6 +99,23 @@ function checkEvaluations(
   }
 }
 
+function checkCreateAction(
+  actions: PropertyActionItem[],
+  expectedType: string,
+  expectedEntityId: string,
+): EvaluationResult {
+  const createAction = actions.find(
+    (a): a is CreatePropertyItem => a.action === 'create' && a.type === expectedType,
+  )
+  if (!createAction) {
+    return { isCorrect: false, mistakes: ['no-create'] }
+  }
+  if (createAction.entity_id !== expectedEntityId) {
+    return { isCorrect: false, mistakes: ['wrong-entity'] }
+  }
+  return { isCorrect: true, mistakes: [] }
+}
+
 // Tutorial steps as an enum so we can reorder/insert without renumbering
 export enum TutorialStep {
   // Basic tutorial
@@ -115,6 +136,8 @@ export enum TutorialStep {
   BasicKeyTakeaways,
   // Advanced tutorial
   AdvancedWelcome,
+  AddingNewData,
+  AddNewDataEvaluation,
   ReplacingGenericData,
   DeprecateSimpleEvaluation,
   DataWithMetadata,
@@ -162,6 +185,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     null,
   )
   // Advanced tutorial results
+  const [addNewDataResult, setAddNewDataResult] = useState<EvaluationResult | null>(null)
   const [deprecateSimpleResult, setDeprecateSimpleResult] = useState<EvaluationResult | null>(null)
   const [deprecateWithMetadataResult, setDeprecateWithMetadataResult] =
     useState<EvaluationResult | null>(null)
@@ -170,6 +194,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   const [birthDateKey, setBirthDateKey] = useState(0)
   const [multipleSourcesKey, setMultipleSourcesKey] = useState(0)
   const [genericVsSpecificKey, setGenericVsSpecificKey] = useState(0)
+  const [addNewDataKey, setAddNewDataKey] = useState(0)
   const [deprecateSimpleKey, setDeprecateSimpleKey] = useState(0)
   const [deprecateWithMetadataKey, setDeprecateWithMetadataKey] = useState(0)
 
@@ -428,8 +453,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             <TutorialFooter
               skipHref={startHref}
               onSkip={() => startSession()}
-              actions={actions}
-              requiredKeys={Object.keys(birthDateExpected)}
+              isComplete={hasActionsForKeys(actions, Object.keys(birthDateExpected))}
               onSubmit={() => {
                 const result = checkEvaluations(actions, birthDateExpected)
                 setBirthDateResult(result)
@@ -500,8 +524,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             <TutorialFooter
               skipHref={startHref}
               onSkip={() => startSession()}
-              actions={actions}
-              requiredKeys={Object.keys(multipleSourcesExpected)}
+              isComplete={hasActionsForKeys(actions, Object.keys(multipleSourcesExpected))}
               onSubmit={() => {
                 const result = checkEvaluations(actions, multipleSourcesExpected)
                 setMultipleSourcesResult(result)
@@ -572,8 +595,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             <TutorialFooter
               skipHref={startHref}
               onSkip={() => startSession()}
-              actions={actions}
-              requiredKeys={genericVsSpecificRequiredKeys}
+              isComplete={hasActionsForKeys(actions, genericVsSpecificRequiredKeys)}
               onSubmit={() => {
                 const result = checkEvaluations(actions, genericVsSpecificExpected)
                 setGenericVsSpecificResult(result)
@@ -644,10 +666,13 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     return (
       <CenteredCard emoji="⚡" title="Advanced Mode Tutorial">
         <div className="mb-8 space-y-4">
-          <p>Welcome to advanced mode! You now have the power to deprecate existing data.</p>
           <p>
-            This is useful when you find more specific or accurate data that should replace
-            what&apos;s currently in Wikidata.
+            Welcome to advanced mode! You now have the power to add new data and deprecate existing
+            data.
+          </p>
+          <p>
+            This lets you fill in gaps in the extracted data and replace generic data with more
+            specific information.
           </p>
         </div>
         <TutorialActions
@@ -660,8 +685,74 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
+  if (step === TutorialStep.AddingNewData) {
+    return (
+      <CenteredCard emoji="➕" title="Adding New Data">
+        <p className="mb-8">
+          Sometimes a source implies data that wasn&apos;t automatically extracted. Next, try adding
+          the missing data yourself.
+        </p>
+        <TutorialActions
+          skipHref={startHref}
+          onSkip={() => startSession()}
+          buttonText="Let's do it"
+          onNext={nextStep}
+        />
+      </CenteredCard>
+    )
+  }
+
+  if (step === TutorialStep.AddNewDataEvaluation) {
+    if (addNewDataResult?.isCorrect) {
+      return (
+        <SuccessFeedback
+          title="Nice Work!"
+          message='You correctly identified that Jane Doe is a "Member of Springfield Parliament" and added it as new data. This is how you can fill in gaps in the extracted data!'
+          onNext={nextStep}
+        />
+      )
+    }
+    if (addNewDataResult) {
+      return (
+        <ErrorFeedback
+          title="Not Quite Right"
+          message="Check the source document — it's a directory of Springfield Parliament members. Jane Doe needs a position that matches."
+          hint='Hint: Click "+ Add Position", search for "Member of Springfield Parliament", and add it.'
+          onRetry={() => {
+            setAddNewDataKey((k) => k + 1)
+            setAddNewDataResult(null)
+          }}
+        />
+      )
+    }
+    return (
+      <EvaluationView
+        key={`add-new-data-${addNewDataKey}`}
+        politicians={[addNewDataPolitician]}
+        footer={({ actionsByPolitician }) => {
+          const actions = actionsByPolitician.get(addNewDataPolitician.id) || []
+          return (
+            <TutorialFooter
+              skipHref={startHref}
+              onSkip={() => startSession()}
+              isComplete={actions.some((a) => a.action === 'create' && a.type === PropertyType.P39)}
+              onSubmit={() => {
+                const result = checkCreateAction(actions, PropertyType.P39, 'Q1343573')
+                setAddNewDataResult(result)
+              }}
+              onBack={() => setStep(TutorialStep.AddingNewData)}
+            />
+          )
+        }}
+        sourcesApiPath="/api/tutorial-pages"
+        isAdvancedMode={true}
+        entitySearches={tutorialEntitySearches}
+      />
+    )
+  }
+
   if (step === TutorialStep.ReplacingGenericData) {
-    // Chapter 1: Deprecating simple existing data
+    // Deprecating simple existing data
     return (
       <CenteredCard emoji="🔄" title="Replacing Generic Data">
         <div className="mb-8 space-y-4">
@@ -720,8 +811,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             <TutorialFooter
               skipHref={startHref}
               onSkip={() => startSession()}
-              actions={actions}
-              requiredKeys={deprecateSimpleRequiredKeys}
+              isComplete={hasActionsForKeys(actions, deprecateSimpleRequiredKeys)}
               onSubmit={() => {
                 const result = checkEvaluations(actions, deprecateSimpleExpected)
                 setDeprecateSimpleResult(result)
@@ -794,8 +884,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             <TutorialFooter
               skipHref={startHref}
               onSkip={() => startSession()}
-              actions={actions}
-              requiredKeys={deprecateWithMetadataRequiredKeys}
+              isComplete={hasActionsForKeys(actions, deprecateWithMetadataRequiredKeys)}
               onSubmit={() => {
                 const result = checkEvaluations(actions, deprecateWithMetadataExpected)
                 setDeprecateWithMetadataResult(result)
@@ -815,6 +904,10 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     return (
       <CenteredCard emoji="💡" title="Key Takeaways">
         <div className="mb-8 space-y-4">
+          <p>
+            If a source implies data that wasn&apos;t extracted, use the &quot;+ Add&quot; buttons
+            to create it yourself.
+          </p>
           <p>
             Feel free to deprecate generic or incorrect existing data when you have better, more
             specific information.

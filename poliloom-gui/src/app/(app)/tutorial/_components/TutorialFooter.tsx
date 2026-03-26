@@ -1,9 +1,7 @@
-import { PropertyActionItem } from '@/types'
 import { Button } from '@/components/ui/Button'
 
 interface TutorialFooterProps {
-  actions: PropertyActionItem[]
-  requiredKeys: string[]
+  isComplete: boolean
   onSubmit: () => void
   onBack: () => void
   skipHref?: string
@@ -11,17 +9,12 @@ interface TutorialFooterProps {
 }
 
 export function TutorialFooter({
-  actions,
-  requiredKeys,
+  isComplete,
   onSubmit,
   onBack,
   skipHref,
   onSkip,
 }: TutorialFooterProps) {
-  const isComplete = requiredKeys.every((key) =>
-    actions.some((a) => a.action !== 'create' && a.id === key),
-  )
-
   return (
     <div className="flex justify-between items-center">
       <Button href={skipHref} variant="secondary" onClick={onSkip} disabled={!skipHref}>

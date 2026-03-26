@@ -1,4 +1,15 @@
-import { SourceResponse, Politician, Property, PropertyReference, PropertyType } from '@/types'
+import {
+  SourceResponse,
+  Politician,
+  Property,
+  PropertyReference,
+  PropertyType,
+  EntityPropertyType,
+  SearchFn,
+  SearchEntity,
+} from '@/types'
+
+export const TUTORIAL_PAGE_IDS = ['tutorial-page-1', 'tutorial-page-2', 'tutorial-page-3'] as const
 
 // Shared sources
 const page1: SourceResponse = {
@@ -17,11 +28,18 @@ const page2: SourceResponse = {
   status: 'done',
 }
 
-export const tutorialSources = { page1, page2 }
+const page3: SourceResponse = {
+  id: 'tutorial-page-3',
+  url: 'https://parliament.springfield.gov/members',
+  url_hash: 'tutorial-hash-3',
+  fetch_timestamp: '2024-01-15T10:00:00Z',
+  status: 'done',
+}
 
-// Helper to create a reference to page1
-function ref(id: string, quotes: string[]): PropertyReference {
-  return { id, source: page1, supporting_quotes: quotes }
+export const tutorialSources = { page1, page2, page3 }
+
+function ref(id: string, source: SourceResponse, quotes: string[]): PropertyReference {
+  return { id, source, supporting_quotes: quotes }
 }
 
 // Shared politician identity
@@ -50,7 +68,7 @@ const birthDate: Property = {
   value: '+1975-03-15T00:00:00Z',
   value_precision: 11,
   sources: [
-    ref('ref-tutorial-1', [
+    ref('ref-tutorial-1', page1, [
       'Jane Doe was born on March 15, 1975 in Springfield.',
       'Born: March 15, 1975',
     ]),
@@ -86,14 +104,14 @@ export const birthDatePolitician: Politician = {
       value: '+1952-06-08T00:00:00Z',
       value_precision: 11,
       sources: [
-        ref('ref-tutorial-2', [
+        ref('ref-tutorial-2', page1, [
           'Following in the footsteps of her mother Mary Doe (born June 8, 1952), she pursued a career in public service.',
         ]),
       ],
     },
     {
       ...birthDate,
-      sources: [ref('ref-tutorial-3', birthDate.sources[0].supporting_quotes!)],
+      sources: [ref('ref-tutorial-3', page1, birthDate.sources[0].supporting_quotes!)],
     },
   ],
 }
@@ -107,7 +125,7 @@ export const multipleSourcesPolitician: Politician = {
       entity_id: 'Q1343573',
       entity_name: 'Member of Springfield Parliament',
       qualifiers: startDate('+2020-01-01T00:00:00Z', 11),
-      sources: [ref('ref-tutorial-4', springfieldMemberQuotes)],
+      sources: [ref('ref-tutorial-4', page1, springfieldMemberQuotes)],
     },
     {
       id: 'tutorial-position-2',
@@ -150,7 +168,7 @@ export const genericVsSpecificPolitician: Politician = {
       entity_id: 'Q486839',
       entity_name: 'Member of Parliament',
       qualifiers: startDate('+2020-01-01T00:00:00Z', 11),
-      sources: [ref('ref-tutorial-6', springfieldMemberQuotes)],
+      sources: [ref('ref-tutorial-6', page1, springfieldMemberQuotes)],
     },
   ],
 }
@@ -172,7 +190,7 @@ export const deprecateSimplePolitician: Politician = {
       entity_id: 'Q1343573',
       entity_name: 'Member of Springfield Parliament',
       qualifiers: startDate('+2020-01-01T00:00:00Z', 11),
-      sources: [ref('ref-tutorial-7', springfieldMemberQuotes)],
+      sources: [ref('ref-tutorial-7', page1, springfieldMemberQuotes)],
     },
   ],
 }
@@ -227,7 +245,57 @@ export const deprecateWithMetadataPolitician: Politician = {
       entity_id: 'Q1343573',
       entity_name: 'Member of Springfield Parliament',
       qualifiers: startDate('+2020-01-01T00:00:00Z', 11),
-      sources: [ref('ref-tutorial-8', springfieldMemberQuotes)],
+      sources: [ref('ref-tutorial-8', page1, springfieldMemberQuotes)],
     },
   ],
+}
+
+// --- Add new data tutorial ---
+
+export const addNewDataPolitician: Politician = {
+  ...politicianBase,
+  sources: [page3],
+  properties: [
+    {
+      ...birthDate,
+      sources: [
+        ref('ref-tutorial-9', page3, ['Jane Doe was born on March 15, 1975 in Springfield.']),
+      ],
+    },
+  ],
+}
+
+const TUTORIAL_POSITIONS: SearchEntity[] = [
+  {
+    wikidata_id: 'Q1343573',
+    name: 'Member of Springfield Parliament',
+    description: 'member of the Springfield Parliament',
+  },
+  {
+    wikidata_id: 'Q486839',
+    name: 'Member of Parliament',
+    description: 'member of a parliament',
+  },
+  {
+    wikidata_id: 'Q999002',
+    name: 'Mayor of Springfield',
+    description: 'head of government of Springfield',
+  },
+]
+
+const tutorialPositionSearch: SearchFn = async (query: string) => {
+  const lower = query.toLowerCase()
+  return TUTORIAL_POSITIONS.filter(
+    (p) =>
+      p.name.toLowerCase().includes(lower) ||
+      (p.description?.toLowerCase().includes(lower) ?? false),
+  )
+}
+
+const emptySearch: SearchFn = async () => []
+
+export const tutorialEntitySearches: Record<EntityPropertyType, SearchFn> = {
+  [PropertyType.P39]: tutorialPositionSearch,
+  [PropertyType.P19]: emptySearch,
+  [PropertyType.P27]: emptySearch,
 }
