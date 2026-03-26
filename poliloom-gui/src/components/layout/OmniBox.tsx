@@ -1,13 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { EntitySearch } from '@/components/ui/EntitySearch'
-import { CreatePoliticianResponse } from '@/types'
+import { CreatePoliticianResponse, SearchEntity } from '@/types'
 
 export function OmniBox() {
   const router = useRouter()
   const [isCreating, setIsCreating] = useState(false)
+
+  const onSearch = useCallback(async (query: string): Promise<SearchEntity[]> => {
+    const res = await fetch(`/api/politicians/search?q=${encodeURIComponent(query)}`)
+    if (!res.ok) throw new Error('Search failed')
+    return res.json()
+  }, [])
 
   const handleCreate = async (name: string) => {
     setIsCreating(true)
@@ -36,7 +42,7 @@ export function OmniBox() {
   return (
     <div className="w-96">
       <EntitySearch
-        searchEndpoint="/api/politicians/search"
+        onSearch={onSearch}
         onSelect={(entity) => router.push(`/politician/${entity.wikidata_id}`)}
         onCreate={handleCreate}
         placeholder="Search politicians..."

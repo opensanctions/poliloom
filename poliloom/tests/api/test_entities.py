@@ -1,5 +1,7 @@
 """Tests for the entities API endpoints (languages, countries, positions, locations)."""
 
+import pytest
+
 
 class TestGetLanguages:
     """Test the GET /languages endpoint."""
@@ -274,126 +276,68 @@ class TestGetCountries:
         assert response.status_code == 401
 
 
-class TestSearchEndpoints:
-    """Test the search endpoints for positions, locations, and countries."""
+class TestEntitySearch:
+    """Test the unified /entities/search endpoint."""
 
-    def test_positions_search_with_query(self, client, mock_auth, db_session):
-        """Should search positions by name."""
-        from poliloom.models import Position
+    @pytest.mark.parametrize(
+        "entity_type,model_name,names,query",
+        [
+            (
+                "position",
+                "Position",
+                ["Mayor of Springfield", "Governor of California"],
+                "springfield",
+            ),
+            (
+                "location",
+                "Location",
+                ["Springfield, Illinois", "Los Angeles"],
+                "springfield",
+            ),
+            ("country", "Country", ["United States of America", "Germany"], "united"),
+        ],
+    )
+    def test_search_by_type(
+        self, client, mock_auth, db_session, entity_type, model_name, names, query
+    ):
+        """Should search entities by type and return matches."""
+        import poliloom.models as models
 
-        Position.create_with_entity(
-            db_session,
-            "Q1",
-            "Mayor of Springfield",
-            labels=["Mayor of Springfield", "Springfield Mayor"],
-        )
-        Position.create_with_entity(
-            db_session,
-            "Q2",
-            "Governor of California",
-            labels=["Governor of California", "CA Governor"],
-        )
+        model_class = getattr(models, model_name)
+        for i, name in enumerate(names):
+            model_class.create_with_entity(db_session, f"Q{i + 1}", name, labels=[name])
         db_session.flush()
 
-        # Search for "Springfield"
-        response = client.get("/positions/search?q=springfield", headers=mock_auth)
+        response = client.get(
+            f"/entities/search?type={entity_type}&q={query}",
+            headers=mock_auth,
+        )
         assert response.status_code == 200
 
-        positions = response.json()
-        # Should find only Springfield position
-        assert len(positions) == 1
-        assert positions[0]["wikidata_id"] == "Q1"
+        results = response.json()
+        assert len(results) == 1
+        assert results[0]["wikidata_id"] == "Q1"
 
-    def test_positions_search_requires_query(self, client, mock_auth):
-        """Should return 422 when query is missing."""
-        response = client.get("/positions/search", headers=mock_auth)
+    def test_unknown_type_returns_422(self, client, mock_auth):
+        """Should return 422 for unknown entity type."""
+        response = client.get("/entities/search?type=bogus&q=test", headers=mock_auth)
         assert response.status_code == 422
 
-    def test_positions_search_requires_authentication(self, client):
-        """Endpoint should require authentication."""
-        response = client.get("/positions/search?q=test")
-        assert response.status_code == 401
-
-    def test_locations_search_with_query(self, client, mock_auth, db_session):
-        """Should search locations by name."""
-        from poliloom.models import Location
-
-        Location.create_with_entity(
-            db_session,
-            "Q1",
-            "Springfield, Illinois",
-            labels=["Springfield", "Springfield IL"],
-        )
-        Location.create_with_entity(
-            db_session,
-            "Q2",
-            "Los Angeles",
-            labels=["LA", "City of Angels"],
-        )
-        db_session.flush()
-
-        # Search for "springfield"
-        response = client.get("/locations/search?q=springfield", headers=mock_auth)
-        assert response.status_code == 200
-
-        locations = response.json()
-        # Should find only Springfield
-        assert len(locations) == 1
-        assert locations[0]["wikidata_id"] == "Q1"
-
-    def test_locations_search_requires_query(self, client, mock_auth):
+    def test_requires_query(self, client, mock_auth):
         """Should return 422 when query is missing."""
-        response = client.get("/locations/search", headers=mock_auth)
+        response = client.get("/entities/search?type=position", headers=mock_auth)
         assert response.status_code == 422
 
-    def test_locations_search_requires_authentication(self, client):
+    def test_requires_authentication(self, client):
         """Endpoint should require authentication."""
-        response = client.get("/locations/search?q=test")
+        response = client.get("/entities/search?type=position&q=test")
         assert response.status_code == 401
 
-    def test_countries_search_with_query(self, client, mock_auth, db_session):
-        """Should search countries by name."""
-        from poliloom.models import Country
-
-        Country.create_with_entity(
-            db_session,
-            "Q1",
-            "United States of America",
-            labels=["USA", "United States"],
-        )
-        Country.create_with_entity(
-            db_session,
-            "Q2",
-            "Germany",
-            labels=["Deutschland", "Federal Republic of Germany"],
-        )
-        db_session.flush()
-
-        # Search for "United"
-        response = client.get("/countries/search?q=united", headers=mock_auth)
-        assert response.status_code == 200
-
-        countries = response.json()
-        # Should find only USA
-        assert len(countries) == 1
-        assert countries[0]["wikidata_id"] == "Q1"
-
-    def test_countries_search_requires_query(self, client, mock_auth):
-        """Should return 422 when query is missing."""
-        response = client.get("/countries/search", headers=mock_auth)
-        assert response.status_code == 422
-
-    def test_countries_search_requires_authentication(self, client):
-        """Endpoint should require authentication."""
-        response = client.get("/countries/search?q=test")
-        assert response.status_code == 401
-
-    def test_search_filters_soft_deleted(self, client, mock_auth, db_session):
+    def test_filters_soft_deleted(self, client, mock_auth, db_session):
         """Should filter out soft-deleted entities from search results."""
         from poliloom.models import Position
         from datetime import datetime, timezone
 
-        # Create two positions
         Position.create_with_entity(
             db_session, "Q1", "Active Position", labels=["Active Position"]
         )
@@ -402,30 +346,32 @@ class TestSearchEndpoints:
         )
         db_session.flush()
 
-        # Soft delete pos2
         pos2.wikidata_entity.deleted_at = datetime.now(timezone.utc)
         db_session.flush()
 
-        response = client.get("/positions/search?q=position", headers=mock_auth)
+        response = client.get(
+            "/entities/search?type=position&q=position", headers=mock_auth
+        )
         assert response.status_code == 200
 
-        positions = response.json()
-        assert len(positions) == 1
-        assert positions[0]["wikidata_id"] == "Q1"
+        results = response.json()
+        assert len(results) == 1
+        assert results[0]["wikidata_id"] == "Q1"
 
-    def test_search_respects_limit(self, client, mock_auth, db_session):
+    def test_respects_limit(self, client, mock_auth, db_session):
         """Should respect limit parameter."""
         from poliloom.models import Position
 
-        # Create 5 positions
         for i in range(5):
             Position.create_with_entity(
                 db_session, f"Q{i}", f"Test Position {i}", labels=[f"Test Position {i}"]
             )
         db_session.flush()
 
-        response = client.get("/positions/search?q=test&limit=3", headers=mock_auth)
+        response = client.get(
+            "/entities/search?type=position&q=test&limit=3", headers=mock_auth
+        )
         assert response.status_code == 200
 
-        positions = response.json()
-        assert len(positions) == 3
+        results = response.json()
+        assert len(results) == 3

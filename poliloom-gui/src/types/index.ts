@@ -128,6 +128,12 @@ export interface WikidataEntity {
   name: string
 }
 
+export interface SearchEntity extends WikidataEntity {
+  description?: string
+}
+
+export type SearchFn = (query: string) => Promise<SearchEntity[]>
+
 export interface PreferenceResponse extends WikidataEntity {
   preference_type: string
 }

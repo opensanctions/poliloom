@@ -3,25 +3,20 @@
 import { useState, useRef, useEffect } from 'react'
 import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
-
-interface Entity {
-  wikidata_id: string
-  name: string
-  description?: string
-}
+import { SearchEntity, SearchFn } from '@/types'
 
 class CreateItem {
   constructor(public name: string) {}
 }
 
 class SelectItem {
-  constructor(public entity: Entity) {}
+  constructor(public entity: SearchEntity) {}
 }
 
 type DropdownItem = CreateItem | SelectItem
 
 export interface EntitySearchProps {
-  searchEndpoint: string
+  onSearch: SearchFn
   onSelect: (entity: { wikidata_id: string; name: string }) => void
   onCreate?: (name: string) => void
   placeholder?: string
@@ -29,14 +24,14 @@ export interface EntitySearchProps {
 }
 
 export function EntitySearch({
-  searchEndpoint,
+  onSearch,
   onSelect,
   onCreate,
   placeholder = 'Search...',
   disabled = false,
 }: EntitySearchProps) {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<Entity[]>([])
+  const [results, setResults] = useState<SearchEntity[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
@@ -67,9 +62,7 @@ export function EntitySearch({
     async function search() {
       setIsLoading(true)
       try {
-        const res = await fetch(`${searchEndpoint}?q=${encodeURIComponent(query)}`)
-        if (!res.ok) throw new Error('Search failed')
-        const data = await res.json()
+        const data = await onSearch(query)
         if (!cancelled) {
           setResults(data)
           setIsOpen(true)
@@ -81,6 +74,7 @@ export function EntitySearch({
       } finally {
         if (!cancelled) {
           setIsLoading(false)
+          setActiveIndex(-1)
         }
       }
     }
@@ -90,16 +84,12 @@ export function EntitySearch({
     return () => {
       cancelled = true
     }
-  }, [query, searchEndpoint])
+  }, [query, onSearch])
 
   const items: DropdownItem[] = [
     ...(onCreate && query.trim() ? [new CreateItem(query.trim())] : []),
     ...results.map((entity) => new SelectItem(entity)),
   ]
-
-  useEffect(() => {
-    setActiveIndex(-1)
-  }, [results])
 
   useEffect(() => {
     if (activeIndex >= 0) {

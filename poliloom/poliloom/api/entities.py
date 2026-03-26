@@ -1,6 +1,7 @@
 """API endpoints for entities like languages and countries."""
 
-from typing import List, Type, Callable
+from enum import Enum
+from typing import List, Type
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, func, and_, case
@@ -22,8 +23,7 @@ from ..models.base import PropertyType, RelationType
 from .schemas import (
     LanguageResponse,
     CountryResponse,
-    PositionResponse,
-    LocationResponse,
+    EntitySearchResponse,
 )
 from .auth import get_current_user, User
 
@@ -149,108 +149,62 @@ async def get_countries(
 # =============================================================================
 
 
-def create_search_endpoint(
-    model_class: Type,
-    response_mapper: Callable,
+class EntityType(str, Enum):
+    position = "position"
+    location = "location"
+    country = "country"
+
+
+ENTITY_TYPE_MODELS: dict[EntityType, Type] = {
+    EntityType.position: Position,
+    EntityType.location: Location,
+    EntityType.country: Country,
+}
+
+
+@router.get("/entities/search", response_model=List[EntitySearchResponse])
+async def search_entities(
+    q: str = Query(..., min_length=1, description="Search query"),
+    type: EntityType = Query(..., description="Entity type"),
+    limit: int = Query(default=50, le=100, description="Maximum number of results"),
+    db: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Factory function to create a search endpoint with required q parameter.
+    """Search entities by name/label using semantic similarity."""
+    model_class = ENTITY_TYPE_MODELS[type]
 
-    Args:
-        model_class: The SQLAlchemy model class (e.g., Country, Position)
-        response_mapper: Function to map model instance to response schema
-    """
-    entity_name = model_class.__tablename__
+    search_service = SearchService()
+    entity_ids = model_class.find_similar(q, search_service, limit=limit)
+    if not entity_ids:
+        return []
 
-    async def endpoint(
-        q: str = Query(
-            ...,
-            min_length=1,
-            description=f"Search query for {entity_name}",
-        ),
-        limit: int = Query(
-            default=50,
-            le=100,
-            description=f"Maximum number of {entity_name} to return",
-        ),
-        db: Session = Depends(get_db_session),
-        current_user: User = Depends(get_current_user),
-    ):
-        f"""
-        Search {entity_name} by name/label using semantic similarity.
+    ordering = case(
+        {eid: idx for idx, eid in enumerate(entity_ids)},
+        value=model_class.wikidata_id,
+    )
 
-        Returns matching {entity_name} ranked by relevance with hierarchy data.
-        """
-        search_service = SearchService()
-        entity_ids = model_class.find_similar(q, search_service, limit=limit)
-        if not entity_ids:
-            return []
-
-        # Preserve search ranking order
-        ordering = case(
-            {eid: idx for idx, eid in enumerate(entity_ids)},
-            value=model_class.wikidata_id,
+    query = (
+        select(model_class)
+        .join(
+            WikidataEntity,
+            model_class.wikidata_id == WikidataEntity.wikidata_id,
         )
-
-        query = (
-            select(model_class)
-            .join(
-                WikidataEntity,
-                model_class.wikidata_id == WikidataEntity.wikidata_id,
-            )
-            .where(WikidataEntity.deleted_at.is_(None))
-            .where(model_class.wikidata_id.in_(entity_ids))
-            .order_by(ordering)
-            .options(
-                selectinload(model_class.wikidata_entity)
-                .selectinload(WikidataEntity.parent_relations)
-                .selectinload(WikidataRelation.parent_entity)
-            )
+        .where(WikidataEntity.deleted_at.is_(None))
+        .where(model_class.wikidata_id.in_(entity_ids))
+        .order_by(ordering)
+        .options(
+            selectinload(model_class.wikidata_entity)
+            .selectinload(WikidataEntity.parent_relations)
+            .selectinload(WikidataRelation.parent_entity)
         )
-
-        entities = db.execute(query).scalars().all()
-        return [response_mapper(entity) for entity in entities]
-
-    return endpoint
-
-
-search_countries = router.get(
-    "/countries/search", response_model=List[CountryResponse]
-)(
-    create_search_endpoint(
-        model_class=Country,
-        response_mapper=lambda country: CountryResponse(
-            wikidata_id=country.wikidata_id,
-            name=country.name,
-            description=country.description,
-            iso_code=country.iso_code,
-            citizenships_count=0,
-        ),
     )
-)
 
-search_positions = router.get(
-    "/positions/search", response_model=List[PositionResponse]
-)(
-    create_search_endpoint(
-        model_class=Position,
-        response_mapper=lambda position: PositionResponse(
-            wikidata_id=position.wikidata_id,
-            name=position.name,
-            description=position.description,
-        ),
-    )
-)
-
-search_locations = router.get(
-    "/locations/search", response_model=List[LocationResponse]
-)(
-    create_search_endpoint(
-        model_class=Location,
-        response_mapper=lambda location: LocationResponse(
-            wikidata_id=location.wikidata_id,
-            name=location.name,
-            description=location.description,
-        ),
-    )
-)
+    entities = db.execute(query).scalars().all()
+    return [
+        EntitySearchResponse(
+            wikidata_id=e.wikidata_id,
+            name=e.name,
+            description=e.description,
+        )
+        for e in entities
+    ]

@@ -1,22 +1,18 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { EntitySearch } from './EntitySearch'
+import { SearchFn } from '@/types'
 
 const mockResults = [
   { wikidata_id: 'Q64', name: 'Berlin', description: 'capital of Germany' },
   { wikidata_id: 'Q65', name: 'Los Angeles', description: 'city in California' },
 ]
 
-function mockFetchSuccess(results = mockResults) {
-  ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-    ok: true,
-    json: async () => results,
-  })
+function createMockSearch(results = mockResults): SearchFn {
+  return vi.fn().mockResolvedValue(results)
 }
 
-function mockFetchFailure() {
-  ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-    ok: false,
-  })
+function createFailingSearch(): SearchFn {
+  return vi.fn().mockRejectedValue(new Error('Search failed'))
 }
 
 beforeAll(() => {
@@ -29,7 +25,7 @@ describe('EntitySearch', () => {
   it('renders search input with placeholder', () => {
     render(
       <EntitySearch
-        searchEndpoint="/api/locations/search"
+        onSearch={createMockSearch()}
         onSelect={mockOnSelect}
         placeholder="Search for a location..."
       />,
@@ -39,9 +35,9 @@ describe('EntitySearch', () => {
   })
 
   it('shows search results when typing', async () => {
-    mockFetchSuccess()
+    const mockSearch = createMockSearch()
 
-    render(<EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />)
+    render(<EntitySearch onSearch={mockSearch} onSelect={mockOnSelect} />)
 
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Ber' } })
 
@@ -50,13 +46,11 @@ describe('EntitySearch', () => {
       expect(screen.getByText('Los Angeles')).toBeInTheDocument()
     })
 
-    expect(global.fetch).toHaveBeenCalledWith('/api/locations/search?q=Ber')
+    expect(mockSearch).toHaveBeenCalledWith('Ber')
   })
 
   it('shows description and QID in results', async () => {
-    mockFetchSuccess()
-
-    render(<EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />)
+    render(<EntitySearch onSearch={createMockSearch()} onSelect={mockOnSelect} />)
 
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Ber' } })
 
@@ -66,9 +60,7 @@ describe('EntitySearch', () => {
   })
 
   it('calls onSelect when a result is clicked', async () => {
-    mockFetchSuccess()
-
-    render(<EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />)
+    render(<EntitySearch onSearch={createMockSearch()} onSelect={mockOnSelect} />)
 
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Ber' } })
 
@@ -82,12 +74,10 @@ describe('EntitySearch', () => {
   })
 
   it('closes dropdown on click outside', async () => {
-    mockFetchSuccess()
-
     render(
       <div>
         <div data-testid="outside">Outside</div>
-        <EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />
+        <EntitySearch onSearch={createMockSearch()} onSelect={mockOnSelect} />
       </div>,
     )
 
@@ -105,15 +95,13 @@ describe('EntitySearch', () => {
   })
 
   it('does not show dropdown when query is empty', () => {
-    render(<EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />)
+    render(<EntitySearch onSearch={createMockSearch()} onSelect={mockOnSelect} />)
 
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
-  it('handles fetch errors gracefully', async () => {
-    mockFetchFailure()
-
-    render(<EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />)
+  it('handles search errors gracefully', async () => {
+    render(<EntitySearch onSearch={createFailingSearch()} onSelect={mockOnSelect} />)
 
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Ber' } })
 
@@ -124,8 +112,7 @@ describe('EntitySearch', () => {
 
   describe('keyboard navigation', () => {
     async function openDropdown() {
-      mockFetchSuccess()
-      render(<EntitySearch searchEndpoint="/api/locations/search" onSelect={mockOnSelect} />)
+      render(<EntitySearch onSearch={createMockSearch()} onSelect={mockOnSelect} />)
       const input = screen.getByRole('combobox')
       fireEvent.change(input, { target: { value: 'Ber' } })
       await waitFor(() => expect(screen.getByText('Berlin')).toBeInTheDocument())
@@ -178,11 +165,10 @@ describe('EntitySearch', () => {
 
     it('navigates create option with arrow keys', async () => {
       const mockOnCreate = vi.fn()
-      mockFetchSuccess()
 
       render(
         <EntitySearch
-          searchEndpoint="/api/locations/search"
+          onSearch={createMockSearch()}
           onSelect={mockOnSelect}
           onCreate={mockOnCreate}
         />,

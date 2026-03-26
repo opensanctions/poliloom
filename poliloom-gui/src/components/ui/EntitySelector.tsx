@@ -1,9 +1,10 @@
 'use client'
 
 import { EntitySearch } from '@/components/ui/EntitySearch'
+import { SearchFn } from '@/types'
 
 export interface EntitySelectorProps {
-  searchEndpoint: string
+  onSearch: SearchFn
   onSelect: (entity: { wikidata_id: string; name: string }) => void
   onClear: () => void
   selectedEntity: { wikidata_id: string; name: string } | null
@@ -12,7 +13,7 @@ export interface EntitySelectorProps {
 }
 
 export function EntitySelector({
-  searchEndpoint,
+  onSearch,
   onSelect,
   onClear,
   selectedEntity,
@@ -40,7 +41,7 @@ export function EntitySelector({
 
   return (
     <EntitySearch
-      searchEndpoint={searchEndpoint}
+      onSearch={onSearch}
       onSelect={onSelect}
       placeholder={placeholder}
       disabled={disabled}

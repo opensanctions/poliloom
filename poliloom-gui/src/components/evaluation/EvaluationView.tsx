@@ -8,6 +8,7 @@ import {
   PropertyActionItem,
   CreatePropertyItem,
   SourceResponse,
+  SearchFn,
 } from '@/types'
 import {
   actionToEvaluation,
@@ -26,7 +27,6 @@ import { Button } from '@/components/ui/Button'
 import { GroupTitle } from './GroupTitle'
 import { PropertyDisplay } from './PropertyDisplay'
 import { AddDatePropertyForm } from './AddDatePropertyForm'
-import { AddPositionPropertyForm } from './AddPositionPropertyForm'
 import { AddEntityPropertyForm } from './AddEntityPropertyForm'
 import { PoliticianHeader } from './PoliticianHeader'
 import { SourceViewer } from './SourceViewer'
@@ -62,6 +62,7 @@ interface EvaluationViewProps {
   onNameChange?: (politicianId: string, name: string) => void
   onAddSource?: (politicianQid: string, url: string) => Promise<void>
   isAdvancedMode?: boolean
+  onSearch?: SearchFn
 }
 
 export function EvaluationView({
@@ -72,6 +73,7 @@ export function EvaluationView({
   onNameChange,
   onAddSource,
   isAdvancedMode = false,
+  onSearch,
 }: EvaluationViewProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [actionsByPolitician, setActionsByPolitician] = useState<Map<string, PropertyActionItem[]>>(
@@ -200,11 +202,16 @@ export function EvaluationView({
       case 'date':
         return <AddDatePropertyForm onAdd={onAdd} onCancel={onCancel} />
       case PropertyType.P39:
-        return <AddPositionPropertyForm onAdd={onAdd} onCancel={onCancel} />
       case PropertyType.P19:
-        return <AddEntityPropertyForm type={PropertyType.P19} onAdd={onAdd} onCancel={onCancel} />
       case PropertyType.P27:
-        return <AddEntityPropertyForm type={PropertyType.P27} onAdd={onAdd} onCancel={onCancel} />
+        return (
+          <AddEntityPropertyForm
+            type={sectionType}
+            onAdd={onAdd}
+            onCancel={onCancel}
+            onSearch={onSearch}
+          />
+        )
     }
   }
 
