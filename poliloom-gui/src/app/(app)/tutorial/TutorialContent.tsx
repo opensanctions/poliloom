@@ -491,7 +491,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         <ErrorFeedback
           title="Let's Try Again"
           message={`Make sure to check each position against its source document. Click "View" to switch between sources and verify each extraction.`}
-          hint="Hint: Both positions are correctly extracted from their sources in this example."
+          hint="Hint: Read each source carefully — does the extracted data match what's written?"
           onRetry={() => setCheckResult(null)}
         />
       )
@@ -624,7 +624,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
 
   if (step === TutorialStep.AddingNewData) {
     return (
-      <CenteredCard emoji="➕" title="Adding New Data">
+      <CenteredCard emoji="🫥" title="Adding New Data">
         <p className="mb-8">
           Sometimes a source implies data that wasn&apos;t automatically extracted. Next, try adding
           the missing data yourself.
@@ -654,7 +654,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         <ErrorFeedback
           title="Not Quite Right"
           message="Check the source document — it's a directory of Springfield Parliament members. Jane Doe needs a position that matches."
-          hint='Hint: Click "+ Add Position", search for "Member of Springfield Parliament", and add it.'
+          hint="Hint: Look at the page title — what role do all the people listed there share?"
           onRetry={() => setCheckResult(null)}
         />
       )
@@ -723,7 +723,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         <ErrorFeedback
           title="Not Quite Right"
           message={`The existing "Member of Parliament" is generic. The new extraction gives us more specific information - deprecate the old and accept the new.`}
-          hint="Hint: Deprecate the generic existing data and accept the specific new extraction."
+          hint={`Hint: Is "Member of Parliament" adding anything that "Member of Springfield Parliament" doesn't already cover?`}
           onRetry={() => setCheckResult(null)}
         />
       )
@@ -787,7 +787,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         <ErrorFeedback
           title="Let's Reconsider"
           message="The new data is good, but the existing data has rich metadata attached. Deprecating it means losing all of that."
-          hint="Hint: Accept the new extraction and keep the existing. Merge them manually in Wikidata later."
+          hint="Hint: Notice the references and qualifiers on the existing data — what happens to those if you deprecate it?"
           onRetry={() => setCheckResult(null)}
         />
       )

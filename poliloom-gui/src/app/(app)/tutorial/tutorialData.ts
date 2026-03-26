@@ -259,7 +259,9 @@ export const addNewDataPolitician: Politician = {
     {
       ...birthDate,
       sources: [
-        ref('ref-tutorial-9', page3, ['Jane Doe was born on March 15, 1975 in Springfield.']),
+        ref('ref-tutorial-9', page3, [
+          'Jane Doe Springfield Central Democratic Alliance March 15, 1975',
+        ]),
       ],
     },
   ],
