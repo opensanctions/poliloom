@@ -138,11 +138,15 @@ class SearchService:
         task = index.add_documents(documents)
         return task.task_uid
 
-    def delete_documents(self, document_ids: list[str]) -> int:
+    def delete_documents(self, document_ids: list[str], batch_size: int = 10000) -> int:
         """Delete documents from Meilisearch by ID.
+
+        Sends deletes in batches without waiting, matching the fire-and-forget
+        pattern used by index_documents and letting Meilisearch auto-batch.
 
         Args:
             document_ids: List of document IDs (wikidata_ids) to delete
+            batch_size: Number of IDs per batch (default 10000)
 
         Returns:
             Number of documents requested for deletion
@@ -151,8 +155,9 @@ class SearchService:
             return 0
 
         index = self.client.index(INDEX_NAME)
-        task = index.delete_documents(document_ids)
-        self.client.wait_for_task(task.task_uid, timeout_in_ms=60000)
+        for i in range(0, len(document_ids), batch_size):
+            batch = document_ids[i : i + batch_size]
+            index.delete_documents(batch)
 
         return len(document_ids)
 
