@@ -1,27 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, render } from '@testing-library/react'
-import { mockRouterPush } from '@/test/test-utils'
+import { mockRouterPush, mockUseNextPoliticianContext, defaultNextPolitician } from '@/test/mocks'
 import EnrichingPage from './page'
 
-const mockUseNextPoliticianContext = vi.fn()
-vi.mock('@/contexts/NextPoliticianContext', () => ({
-  useNextPoliticianContext: () => mockUseNextPoliticianContext(),
-}))
-
-const defaultNextPolitician = {
-  nextHref: '/session/enriching',
-  politicianReady: false,
-
-  allCaughtUp: false,
-  loading: false,
-  languageFilters: [],
-  countryFilters: [],
-  advanceNext: vi.fn(),
-}
-
 beforeEach(() => {
-  mockUseNextPoliticianContext.mockReturnValue(defaultNextPolitician)
-  mockRouterPush.mockClear()
+  mockUseNextPoliticianContext.mockReturnValue({
+    ...defaultNextPolitician,
+    nextHref: '/session/enriching',
+    politicianReady: false,
+  })
 })
 
 describe('Enriching Page', () => {
@@ -58,7 +45,6 @@ describe('Enriching Page - all caught up', () => {
     mockUseNextPoliticianContext.mockReturnValue({
       ...defaultNextPolitician,
       nextHref: '/',
-
       allCaughtUp: true,
     })
 

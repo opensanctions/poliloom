@@ -36,6 +36,28 @@ vi.mock('@/auth', () => ({
   handlers: { GET: vi.fn(), POST: vi.fn() },
 }))
 
+// --- CSS Custom Highlight API polyfills ---
+
+global.CSS = {
+  highlights: new Map(),
+} as typeof CSS
+
+global.Highlight = class MockHighlight {
+  private ranges: Range[]
+
+  constructor(...ranges: Range[]) {
+    this.ranges = ranges
+  }
+
+  get size() {
+    return this.ranges.length
+  }
+
+  values() {
+    return this.ranges[Symbol.iterator]()
+  }
+} as unknown as typeof Highlight
+
 // Neither fetch nor EventSource exist in jsdom, so vi.spyOn is not possible.
 global.fetch = vi.fn()
 

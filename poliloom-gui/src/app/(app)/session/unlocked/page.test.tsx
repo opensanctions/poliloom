@@ -1,38 +1,7 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { screen, render } from '@testing-library/react'
-import '@/test/test-utils'
+import '@/test/mocks'
 import UnlockedPage from './page'
-
-vi.mock('@/contexts/NextPoliticianContext', () => ({
-  useNextPoliticianContext: () => ({
-    nextHref: '/politician/Q12345',
-    politicianReady: true,
-
-    allCaughtUp: false,
-    loading: false,
-    languageFilters: [],
-    countryFilters: [],
-    advanceNext: vi.fn(),
-  }),
-}))
-
-vi.mock('@/contexts/EvaluationSessionContext', () => ({
-  useEvaluationSession: () => ({
-    isSessionActive: false,
-    completedCount: 0,
-    sessionGoal: 5,
-    startSession: vi.fn(),
-    submitAndAdvance: vi.fn(),
-    endSession: vi.fn(),
-  }),
-}))
-
-vi.mock('@/contexts/UserProgressContext', () => ({
-  useUserProgress: () => ({
-    statsUnlocked: true,
-    unlockStats: vi.fn(),
-  }),
-}))
 
 describe('Unlocked Page', () => {
   it('shows stats unlocked message', () => {

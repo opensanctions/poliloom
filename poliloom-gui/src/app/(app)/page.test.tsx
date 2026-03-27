@@ -1,17 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor, act, render } from '@testing-library/react'
-import '@/test/test-utils'
+import {
+  mockUseNextPoliticianContext,
+  mockUseUserProgress,
+  mockUseUserPreferences,
+  defaultNextPolitician,
+  defaultUserProgress,
+  defaultUserPreferences,
+} from '@/test/mocks'
 import Home from './page'
-
-const mockUseNextPoliticianContext = vi.fn()
-vi.mock('@/contexts/NextPoliticianContext', () => ({
-  useNextPoliticianContext: () => mockUseNextPoliticianContext(),
-}))
-
-const mockUseEvaluationSession = vi.fn()
-vi.mock('@/contexts/EvaluationSessionContext', () => ({
-  useEvaluationSession: () => mockUseEvaluationSession(),
-}))
 
 const mockUseSession = vi.fn()
 const mockSignIn = vi.fn()
@@ -19,27 +16,6 @@ vi.mock('next-auth/react', () => ({
   useSession: () => mockUseSession(),
   signIn: (...args: unknown[]) => mockSignIn(...args),
 }))
-
-const mockUseUserProgress = vi.fn()
-vi.mock('@/contexts/UserProgressContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/contexts/UserProgressContext')>()
-  return {
-    ...actual,
-    useUserProgress: () => mockUseUserProgress(),
-  }
-})
-
-const mockUseUserPreferences = vi.fn()
-vi.mock('@/contexts/UserPreferencesContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/contexts/UserPreferencesContext')>()
-  return {
-    ...actual,
-    useUserPreferences: () => mockUseUserPreferences(),
-  }
-})
-
-// Mock fetch for API calls
-global.fetch = vi.fn()
 
 // Mock navigator.languages for browser language detection
 Object.defineProperty(navigator, 'languages', {
@@ -52,65 +28,19 @@ Object.defineProperty(navigator, 'language', {
   writable: true,
 })
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    prefetch: vi.fn(),
-    back: vi.fn(),
-    forward: vi.fn(),
-    refresh: vi.fn(),
-  }),
-  usePathname: () => '/',
-  useSearchParams: () => new URLSearchParams(),
-}))
-
-const defaultNextPolitician = {
-  nextHref: '/',
-  politicianReady: false,
-
-  allCaughtUp: false,
-  loading: false,
-  languageFilters: [],
-  countryFilters: [],
-  advanceNext: vi.fn(),
-}
-
-const defaultEvaluationSession = {
-  isSessionActive: false,
-  completedCount: 0,
-  sessionGoal: 5,
-  startSession: vi.fn(),
-  submitAndAdvance: vi.fn(),
-  endSession: vi.fn(),
-}
-
-const defaultUserProgress = {
-  hasCompletedBasicTutorial: false,
-  hasCompletedAdvancedTutorial: false,
-  statsUnlocked: false,
-  completeBasicTutorial: vi.fn(),
-  completeAdvancedTutorial: vi.fn(),
-  unlockStats: vi.fn(),
-}
-
-const defaultUserPreferences = {
-  filters: [],
-  languages: [],
-  countries: [],
-  loadingLanguages: false,
-  loadingCountries: false,
-  updateFilters: vi.fn(),
-  isAdvancedMode: false,
-  setAdvancedMode: vi.fn(),
-}
-
 beforeEach(() => {
-  mockUseNextPoliticianContext.mockReturnValue(defaultNextPolitician)
-  mockUseEvaluationSession.mockReturnValue(defaultEvaluationSession)
+  mockUseNextPoliticianContext.mockReturnValue({
+    ...defaultNextPolitician,
+    nextHref: '/',
+    politicianReady: false,
+  })
   mockUseSession.mockReturnValue({ data: null, status: 'loading' })
-  mockUseUserProgress.mockReturnValue(defaultUserProgress)
-  mockUseUserPreferences.mockReturnValue(defaultUserPreferences)
+  mockUseUserProgress.mockReturnValue({
+    ...defaultUserProgress,
+    hasCompletedBasicTutorial: false,
+    hasCompletedAdvancedTutorial: false,
+    statsUnlocked: false,
+  })
 
   vi.mocked(fetch).mockImplementation((url) => {
     const urlStr = url.toString()
@@ -156,7 +86,8 @@ describe('Home Page - waiting for enrichment', () => {
     })
     mockUseUserProgress.mockReturnValue({
       ...defaultUserProgress,
-      hasCompletedBasicTutorial: true,
+      hasCompletedAdvancedTutorial: false,
+      statsUnlocked: false,
     })
 
     await act(async () => {
@@ -202,7 +133,8 @@ describe('Home Page (Filter Selection)', () => {
   it('shows Begin Evaluation Session button when basic tutorial completed in basic mode', async () => {
     mockUseUserProgress.mockReturnValue({
       ...defaultUserProgress,
-      hasCompletedBasicTutorial: true,
+      hasCompletedAdvancedTutorial: false,
+      statsUnlocked: false,
     })
 
     await act(async () => {
@@ -217,7 +149,8 @@ describe('Home Page (Filter Selection)', () => {
   it('shows Start Advanced Tutorial button when basic completed but advanced not completed in advanced mode', async () => {
     mockUseUserProgress.mockReturnValue({
       ...defaultUserProgress,
-      hasCompletedBasicTutorial: true,
+      hasCompletedAdvancedTutorial: false,
+      statsUnlocked: false,
     })
     mockUseUserPreferences.mockReturnValue({
       ...defaultUserPreferences,
@@ -234,12 +167,7 @@ describe('Home Page (Filter Selection)', () => {
   })
 
   it('shows Begin Evaluation Session button when both tutorials completed in advanced mode', async () => {
-    mockUseUserProgress.mockReturnValue({
-      ...defaultUserProgress,
-      hasCompletedBasicTutorial: true,
-      hasCompletedAdvancedTutorial: true,
-      statsUnlocked: true,
-    })
+    mockUseUserProgress.mockReturnValue(defaultUserProgress)
     mockUseUserPreferences.mockReturnValue({
       ...defaultUserPreferences,
       isAdvancedMode: true,
@@ -255,6 +183,12 @@ describe('Home Page (Filter Selection)', () => {
   })
 
   it('shows Start Tutorial button when no tutorials completed in advanced mode', async () => {
+    mockUseUserProgress.mockReturnValue({
+      ...defaultUserProgress,
+      hasCompletedBasicTutorial: false,
+      hasCompletedAdvancedTutorial: false,
+      statsUnlocked: false,
+    })
     mockUseUserPreferences.mockReturnValue({
       ...defaultUserPreferences,
       isAdvancedMode: true,

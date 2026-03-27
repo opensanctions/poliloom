@@ -1,15 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { screen, fireEvent, render } from '@testing-library/react'
-import '@/test/highlight-mocks'
+import '@/test/mocks'
 import { EvaluationView } from './EvaluationView'
 import type { Politician, SourceResponse } from '@/types'
 import { PropertyType } from '@/types'
-
-vi.mock('@/contexts/UserPreferencesContext', () => ({
-  useUserPreferences: () => ({
-    isAdvancedMode: false,
-  }),
-}))
 
 const source1: SourceResponse = {
   id: 'archived-1',

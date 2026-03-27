@@ -14,11 +14,6 @@ vi.stubGlobal('fetch', mockFetch)
 import { fetchWithAuth, handleApiError, proxyToBackend } from './api-auth'
 
 describe('api-auth', () => {
-  beforeEach(() => {
-    mockAuth.mockReset()
-    mockFetch.mockReset()
-  })
-
   describe('fetchWithAuth', () => {
     it('returns 401 when session has no access token', async () => {
       mockAuth.mockResolvedValue({ accessToken: null })

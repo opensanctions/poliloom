@@ -1,19 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import '@/test/highlight-mocks'
+import { mockUseParams } from '@/test/mocks'
 import { SourceEvaluation } from './SourceEvaluation'
 import type { Politician } from '@/types'
 import { PropertyType } from '@/types'
-
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ id: 'source-42' }),
-}))
-
-vi.mock('@/contexts/UserPreferencesContext', () => ({
-  useUserPreferences: () => ({
-    isAdvancedMode: false,
-  }),
-}))
 
 const politician: Politician = {
   id: 'pol-1',
@@ -53,7 +43,7 @@ const politician: Politician = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  mockUseParams.mockReturnValue({ id: 'source-42' })
   global.fetch = vi.fn()
 })
 

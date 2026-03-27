@@ -1,27 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor, render } from '@testing-library/react'
-import '@/test/test-utils'
+import { mockUseUserProgress, defaultUserProgress } from '@/test/mocks'
 import StatsPage from './page'
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: vi.fn(),
-  }),
-}))
-
-const mockUseUserProgress = vi.fn()
-vi.mock('@/contexts/UserProgressContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/contexts/UserProgressContext')>()
-  return {
-    ...actual,
-    useUserProgress: () => mockUseUserProgress(),
-  }
-})
 
 describe('Stats Page', () => {
   describe('when stats are locked', () => {
     beforeEach(() => {
       mockUseUserProgress.mockReturnValue({
+        ...defaultUserProgress,
         statsUnlocked: false,
       })
     })
@@ -53,10 +39,6 @@ describe('Stats Page', () => {
 
   describe('when stats are unlocked', () => {
     beforeEach(() => {
-      mockUseUserProgress.mockReturnValue({
-        statsUnlocked: true,
-      })
-
       vi.spyOn(global, 'fetch').mockResolvedValue({
         ok: true,
         json: async () => ({

@@ -1,45 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, waitFor, render } from '@testing-library/react'
-import { mockSubmitAndAdvance, mockRouterPush, mockFetch } from '@/test/test-utils'
+import {
+  mockSubmitAndAdvance,
+  mockRouterPush,
+  mockFetch,
+  mockUseNextPoliticianContext,
+  mockUseEvaluationSession,
+  defaultNextPolitician,
+  defaultEvaluationSession,
+} from '@/test/mocks'
 import { PoliticianEvaluation } from './PoliticianEvaluation'
 import type { SourceResponse, Politician } from '@/types'
 import { PropertyType } from '@/types'
-
-const mockAdvanceNext = vi.fn()
-const mockUseNextPoliticianContext = vi.fn()
-vi.mock('@/contexts/NextPoliticianContext', () => ({
-  useNextPoliticianContext: () => mockUseNextPoliticianContext(),
-}))
-
-vi.mock('@/contexts/EvaluationSessionContext', () => ({
-  useEvaluationSession: () => ({
-    isSessionActive: true,
-    completedCount: 0,
-    sessionGoal: 5,
-    startSession: vi.fn(),
-    submitAndAdvance: mockSubmitAndAdvance,
-    endSession: vi.fn(),
-  }),
-}))
-
-vi.mock('@/contexts/UserProgressContext', () => ({
-  useUserProgress: () => ({
-    hasCompletedBasicTutorial: true,
-    hasCompletedAdvancedTutorial: true,
-    statsUnlocked: true,
-    completeBasicTutorial: vi.fn(),
-    completeAdvancedTutorial: vi.fn(),
-    unlockStats: vi.fn(),
-  }),
-}))
-
-vi.mock('@/contexts/UserPreferencesContext', () => ({
-  useUserPreferences: () => ({
-    isAdvancedMode: false,
-  }),
-}))
-
-import '@/test/highlight-mocks'
 
 vi.spyOn(console, 'error').mockImplementation(() => {})
 
@@ -194,37 +166,23 @@ const politicianWithConflicts: Politician = {
   ],
 }
 
-const defaultNextPolitician = {
-  nextHref: '/politician/Q99999',
-  politicianReady: true,
-
-  allCaughtUp: false,
-  loading: false,
-  languageFilters: [],
-  countryFilters: [],
-  advanceNext: mockAdvanceNext,
-}
-
 describe('PoliticianEvaluation', () => {
   beforeEach(() => {
     CSS.highlights.clear()
-    mockSubmitAndAdvance.mockClear()
-    mockRouterPush.mockClear()
-    mockFetch.mockClear()
-    mockFetch.mockImplementation((_url: string, options?: RequestInit) => {
+    mockUseEvaluationSession.mockReturnValue({ ...defaultEvaluationSession, isSessionActive: true })
+    mockFetch.mockImplementation((_url, options) => {
       if (options?.method === 'PATCH') {
         return Promise.resolve({
           ok: true,
           json: async () => ({ success: true, message: 'OK', errors: [] }),
-        })
+        } as Response)
       }
       // GET requests (e.g. refetchPolitician) return the politician data
       return Promise.resolve({
         ok: true,
         json: async () => politician,
-      })
+      } as Response)
     })
-    mockUseNextPoliticianContext.mockReturnValue(defaultNextPolitician)
   })
 
   it('renders politician name and wikidata id', () => {
@@ -360,21 +318,18 @@ describe('PoliticianEvaluation - no next politician', () => {
       nextHref: '/session/enriching',
       politicianReady: false,
     })
-
-    mockSubmitAndAdvance.mockClear()
-    mockRouterPush.mockClear()
-    mockFetch.mockClear()
-    mockFetch.mockImplementation((_url: string, options?: RequestInit) => {
+    mockUseEvaluationSession.mockReturnValue({ ...defaultEvaluationSession, isSessionActive: true })
+    mockFetch.mockImplementation((_url, options) => {
       if (options?.method === 'PATCH') {
         return Promise.resolve({
           ok: true,
           json: async () => ({ success: true, message: 'OK', errors: [] }),
-        })
+        } as Response)
       }
       return Promise.resolve({
         ok: true,
         json: async () => politician,
-      })
+      } as Response)
     })
   })
 

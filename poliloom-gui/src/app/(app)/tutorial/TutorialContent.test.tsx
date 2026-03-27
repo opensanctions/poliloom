@@ -1,99 +1,37 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, render, waitFor } from '@testing-library/react'
-import '@/test/test-utils'
+import {
+  mockUseUserProgress,
+  mockUseUserPreferences,
+  mockUsePathname,
+  defaultUserProgress,
+  defaultUserPreferences,
+} from '@/test/mocks'
 import { TutorialContent, TutorialStep } from './TutorialContent'
-
-vi.mock('@/contexts/NextPoliticianContext', () => ({
-  useNextPoliticianContext: () => ({
-    nextHref: '/politician/Q99999',
-    politicianReady: true,
-
-    allCaughtUp: false,
-    loading: false,
-    languageFilters: [],
-    countryFilters: [],
-    advanceNext: vi.fn(),
-  }),
-}))
-
-vi.mock('@/contexts/EvaluationSessionContext', () => ({
-  useEvaluationSession: () => ({
-    isSessionActive: false,
-    completedCount: 0,
-    sessionGoal: 5,
-    startSession: vi.fn(),
-    submitAndAdvance: vi.fn(),
-    endSession: vi.fn(),
-  }),
-}))
-
-import '@/test/highlight-mocks'
 
 vi.mock('@/components/layout/Header', () => ({
   Header: () => <div data-testid="header">Header</div>,
 }))
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    prefetch: vi.fn(),
-    back: vi.fn(),
-    forward: vi.fn(),
-    refresh: vi.fn(),
-  }),
-  usePathname: () => '/tutorial',
-  useSearchParams: () => new URLSearchParams(),
-}))
-
-// Mock user progress context
 const mockCompleteBasicTutorial = vi.fn()
 const mockCompleteAdvancedTutorial = vi.fn()
-const mockUseUserProgress = vi.fn()
-
-vi.mock('@/contexts/UserProgressContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/contexts/UserProgressContext')>()
-  return {
-    ...actual,
-    useUserProgress: () => mockUseUserProgress(),
-  }
-})
-
-// Mock user preferences context
-const mockUseUserPreferences = vi.fn()
-
-vi.mock('@/contexts/UserPreferencesContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/contexts/UserPreferencesContext')>()
-  return {
-    ...actual,
-    useUserPreferences: () => mockUseUserPreferences(),
-  }
-})
 
 describe('Tutorial Page', () => {
   beforeEach(() => {
     CSS.highlights.clear()
+    mockUsePathname.mockReturnValue('/tutorial')
 
     // Default: basic mode, not completed
     mockUseUserProgress.mockReturnValue({
+      ...defaultUserProgress,
       hasCompletedBasicTutorial: false,
       hasCompletedAdvancedTutorial: false,
       statsUnlocked: false,
       completeBasicTutorial: mockCompleteBasicTutorial,
       completeAdvancedTutorial: mockCompleteAdvancedTutorial,
-      unlockStats: vi.fn(),
     })
 
-    mockUseUserPreferences.mockReturnValue({
-      filters: [],
-      languages: [],
-      countries: [],
-      loadingLanguages: false,
-      loadingCountries: false,
-      updateFilters: vi.fn(),
-      isAdvancedMode: false,
-      setAdvancedMode: vi.fn(),
-    })
+    mockUseUserPreferences.mockReturnValue(defaultUserPreferences)
   })
 
   describe('Welcome', () => {
@@ -533,15 +471,8 @@ describe('Tutorial Page', () => {
     describe('Advanced Mode', () => {
       beforeEach(() => {
         mockUseUserPreferences.mockReturnValue({
-          filters: [],
-          languages: [],
-          countries: [],
-          loadingLanguages: false,
-          loadingCountries: false,
-          initialized: true,
-          updateFilters: vi.fn(),
+          ...defaultUserPreferences,
           isAdvancedMode: true,
-          setAdvancedMode: vi.fn(),
         })
       })
 
@@ -589,7 +520,7 @@ describe('Tutorial Page', () => {
       ).toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Start Evaluating' })).toHaveAttribute(
         'href',
-        '/politician/Q99999',
+        '/politician/Q12345',
       )
     })
   })
@@ -597,15 +528,8 @@ describe('Tutorial Page', () => {
   describe('Advanced Mode Tutorial', () => {
     beforeEach(() => {
       mockUseUserPreferences.mockReturnValue({
-        filters: [],
-        languages: [],
-        countries: [],
-        loadingLanguages: false,
-        loadingCountries: false,
-        initialized: true,
-        updateFilters: vi.fn(),
+        ...defaultUserPreferences,
         isAdvancedMode: true,
-        setAdvancedMode: vi.fn(),
       })
     })
 
@@ -898,31 +822,23 @@ describe('Tutorial Page', () => {
       render(<TutorialContent />)
 
       const skipLink = screen.getByRole('link', { name: 'Skip Tutorial' })
-      expect(skipLink).toHaveAttribute('href', '/politician/Q99999')
+      expect(skipLink).toHaveAttribute('href', '/politician/Q12345')
     })
   })
 
   describe('Starting from advanced tutorial when basic is completed', () => {
     it('starts at advanced welcome when basic is completed and advanced mode enabled', () => {
       mockUseUserProgress.mockReturnValue({
-        hasCompletedBasicTutorial: true,
+        ...defaultUserProgress,
         hasCompletedAdvancedTutorial: false,
         statsUnlocked: false,
         completeBasicTutorial: mockCompleteBasicTutorial,
         completeAdvancedTutorial: mockCompleteAdvancedTutorial,
-        unlockStats: vi.fn(),
       })
 
       mockUseUserPreferences.mockReturnValue({
-        filters: [],
-        languages: [],
-        countries: [],
-        loadingLanguages: false,
-        loadingCountries: false,
-        initialized: true,
-        updateFilters: vi.fn(),
+        ...defaultUserPreferences,
         isAdvancedMode: true,
-        setAdvancedMode: vi.fn(),
       })
 
       render(<TutorialContent />)
@@ -953,24 +869,17 @@ describe('Tutorial Page', () => {
   describe('Advanced mode runs both tutorials in succession', () => {
     beforeEach(() => {
       mockUseUserProgress.mockReturnValue({
+        ...defaultUserProgress,
         hasCompletedBasicTutorial: false,
         hasCompletedAdvancedTutorial: false,
         statsUnlocked: false,
         completeBasicTutorial: mockCompleteBasicTutorial,
         completeAdvancedTutorial: mockCompleteAdvancedTutorial,
-        unlockStats: vi.fn(),
       })
 
       mockUseUserPreferences.mockReturnValue({
-        filters: [],
-        languages: [],
-        countries: [],
-        loadingLanguages: false,
-        loadingCountries: false,
-        initialized: true,
-        updateFilters: vi.fn(),
+        ...defaultUserPreferences,
         isAdvancedMode: true,
-        setAdvancedMode: vi.fn(),
       })
     })
 
@@ -992,12 +901,11 @@ describe('Tutorial Page', () => {
 
     it('shows completion screen after completing advanced tutorial', () => {
       mockUseUserProgress.mockReturnValue({
-        hasCompletedBasicTutorial: true,
+        ...defaultUserProgress,
         hasCompletedAdvancedTutorial: false,
         statsUnlocked: false,
         completeBasicTutorial: mockCompleteBasicTutorial,
         completeAdvancedTutorial: mockCompleteAdvancedTutorial,
-        unlockStats: vi.fn(),
       })
 
       render(<TutorialContent initialStep={TutorialStep.AdvancedKeyTakeaways} />)
