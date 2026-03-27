@@ -769,7 +769,7 @@ def clean_entities(dry_run):
                 click.echo("\n✅ Clean-up completed successfully")
                 if any_removed:
                     click.echo(
-                        "\n⚠️ Run 'poliloom dump build-trees' to rebuild the hierarchy."
+                        "\n⚠️ Run 'poliloom import-hierarchy' to rebuild the hierarchy."
                     )
             else:
                 click.echo("\n✅ Dry run completed - no changes made")
