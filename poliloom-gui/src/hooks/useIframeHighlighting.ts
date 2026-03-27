@@ -16,19 +16,11 @@ function useIframeHighlighter(iframeRef: RefObject<HTMLIFrameElement | null>) {
       try {
         const document = iframeRef.current.contentDocument
         const texts = Array.isArray(searchTexts) ? searchTexts : [searchTexts]
-        const hasValidText = texts.some((t) => t.trim())
+        const root = document.body || document.documentElement
+        const matchCount = highlightTextInScope(document, root, texts)
 
-        let matchCount = 0
-
-        if (hasValidText) {
-          // Add new highlights - use the iframe's body as the scope
-          const root = document.body || document.documentElement
-          matchCount = highlightTextInScope(document, root, texts)
-
-          // Scroll to first match if any found
-          if (matchCount > 0) {
-            scrollToFirstHighlight(document)
-          }
+        if (matchCount > 0) {
+          scrollToFirstHighlight(document)
         }
 
         return matchCount
@@ -58,27 +50,12 @@ export function useIframeAutoHighlight(
   const handleIframeLoad = useCallback(() => {
     setIsIframeLoaded(true)
 
-    // Auto-highlight if supporting quotes are available
-    if (supportingQuotes && supportingQuotes.length > 0) {
-      highlightText(supportingQuotes)
-    }
+    highlightText(supportingQuotes ?? [])
   }, [supportingQuotes, highlightText])
-
-  /**
-   * Handler when supporting quotes change
-   */
-  const handleQuotesChange = useCallback(
-    (newQuotes: string[] | null) => {
-      if (isIframeLoaded && newQuotes && newQuotes.length > 0) {
-        highlightText(newQuotes)
-      }
-    },
-    [isIframeLoaded, highlightText],
-  )
 
   return {
     isIframeLoaded,
     handleIframeLoad,
-    handleQuotesChange,
+    highlightText,
   }
 }

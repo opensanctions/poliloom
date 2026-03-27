@@ -286,9 +286,9 @@ export function highlightTextInScope(
   scope: Element,
   searchTexts: string | string[],
 ): number {
+  const documentCSS = document.defaultView?.CSS || CSS
   const texts = Array.isArray(searchTexts) ? searchTexts : [searchTexts]
   const validTexts = texts.filter((t) => t.trim())
-  if (validTexts.length === 0) return 0
 
   const allRanges: Range[] = []
   for (const text of validTexts) {
@@ -297,9 +297,9 @@ export function highlightTextInScope(
   }
 
   if (allRanges.length > 0) {
-    const highlight = new Highlight(...allRanges)
-    const documentCSS = document.defaultView?.CSS || CSS
-    documentCSS.highlights.set(HIGHLIGHT_NAME, highlight)
+    documentCSS.highlights.set(HIGHLIGHT_NAME, new Highlight(...allRanges))
+  } else {
+    documentCSS.highlights.delete(HIGHLIGHT_NAME)
   }
   return allRanges.length
 }

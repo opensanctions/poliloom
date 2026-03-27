@@ -25,6 +25,6 @@ vi.mock('@/hooks/useIframeHighlighting', () => ({
   useIframeAutoHighlight: () => ({
     isIframeLoaded: true,
     handleIframeLoad: vi.fn(),
-    handleQuotesChange: vi.fn(),
+    highlightText: vi.fn(),
   }),
 }))

@@ -112,21 +112,21 @@ export function EvaluationView({
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const propertiesRef = useRef<HTMLDivElement | null>(null)
   const quotes = selection?.quotes ?? null
-  const { isIframeLoaded, handleIframeLoad, handleQuotesChange } = useIframeAutoHighlight(
+  const { isIframeLoaded, handleIframeLoad, highlightText } = useIframeAutoHighlight(
     iframeRef,
     quotes,
   )
 
   // Update highlighting when supporting quotes change
   useEffect(() => {
-    if (propertiesRef.current && quotes && quotes.length > 0) {
-      highlightTextInScope(document, propertiesRef.current, quotes)
+    if (propertiesRef.current) {
+      highlightTextInScope(document, propertiesRef.current, quotes ?? [])
     }
 
-    if (isIframeLoaded && quotes && quotes.length > 0) {
-      handleQuotesChange(quotes)
+    if (isIframeLoaded) {
+      highlightText(quotes ?? [])
     }
-  }, [quotes, isIframeLoaded, handleQuotesChange])
+  }, [quotes, isIframeLoaded, highlightText])
 
   const handleAction = (politicianKey: string, id: string, action: 'accept' | 'reject') => {
     setActionsByPolitician((prev) => {
