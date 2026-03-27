@@ -35,8 +35,8 @@ PoliLoom uses a three-pass strategy to process the Wikidata dump:
 
 ```bash
 # Download and extract (one-time, ~100GB download → ~2TB extracted)
-make download-wikidata-dump
-make extract-wikidata-dump
+uv run poliloom dump-download --output ./dump.json.bz2
+uv run poliloom dump-extract --input ./dump.json.bz2 --output ./dump.json
 
 # Import in order
 uv run poliloom import-hierarchy      # Build entity relationship trees
@@ -48,13 +48,13 @@ uv run poliloom import-politicians    # Import politicians
 
 ```bash
 # Enrich 20 politicians from any country/language
-poliloom enrich-wikipedia --count 20
+uv run poliloom enrich-wikipedia --count 20
 
 # Enrich 10 politicians from the US (Q30) or Italy (Q38)
-poliloom enrich-wikipedia --count 10 --countries Q30 --countries Q38
+uv run poliloom enrich-wikipedia --count 10 --countries Q30 --countries Q38
 
 # Enrich 5 politicians with English (Q1860) or French (Q150) Wikipedia sources
-poliloom enrich-wikipedia --count 5 --languages Q1860 --languages Q150
+uv run poliloom enrich-wikipedia --count 5 --languages Q1860 --languages Q150
 ```
 
 ### Run the API server
@@ -65,30 +65,7 @@ uv run uvicorn poliloom.api:app --reload
 
 API documentation available at http://localhost:8000/docs
 
-## CLI Reference
-
-| Command                       | Description                                           |
-| ----------------------------- | ----------------------------------------------------- |
-| `poliloom import-hierarchy`   | Build position/location hierarchy trees from Wikidata |
-| `poliloom import-entities`    | Import positions, locations, and countries            |
-| `poliloom import-politicians` | Import politicians linking to existing entities       |
-| `poliloom enrich-wikipedia`   | Extract politician data from Wikipedia using AI       |
-| `poliloom garbage-collect`    | Remove entities deleted from Wikidata                 |
-| `poliloom index-build`        | Build Meilisearch index (`--rebuild` to start fresh)    |
-| `poliloom index-delete`       | Delete the Meilisearch index                          |
-| `poliloom index-stats`        | Show index status and task progress                   |
-
-Use `--help` on any command for detailed options.
-
-## Configuration
-
-Key environment variables (see `.env.example`):
-
-| Variable                                                     | Description                       |
-| ------------------------------------------------------------ | --------------------------------- |
-| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`    | PostgreSQL connection             |
-| `OPENAI_API_KEY`                                             | Required for Wikipedia enrichment |
-| `MEDIAWIKI_OAUTH_CLIENT_ID`, `MEDIAWIKI_OAUTH_CLIENT_SECRET` | For user authentication           |
+All CLI commands support `--help` for detailed options. See `.env.example` for configuration.
 
 ## Development
 

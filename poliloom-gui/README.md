@@ -27,15 +27,7 @@ npm run dev
 
 Visit http://localhost:3000
 
-## Configuration
-
-Key environment variables (see `.env.example`):
-
-| Variable                                         | Description                                      |
-| ------------------------------------------------ | ------------------------------------------------ |
-| `NEXT_PUBLIC_API_URL`                            | Backend API URL (default: http://localhost:8000) |
-| `NEXTAUTH_SECRET`                                | Random string for session encryption             |
-| `MEDIAWIKI_CLIENT_ID`, `MEDIAWIKI_CLIENT_SECRET` | OAuth credentials from Meta Wiki                 |
+See `.env.example` for configuration.
 
 ## Development
 
@@ -48,8 +40,7 @@ npm run lint     # Lint code
 
 ## Architecture
 
-- **Next.js 15** with App Router
+- **Next.js 16** with App Router
 - **React 19** with TypeScript
 - **Tailwind CSS** for styling
 - **NextAuth.js** for MediaWiki OAuth
-- **SWR** for data fetching

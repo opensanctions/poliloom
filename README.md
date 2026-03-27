@@ -41,7 +41,7 @@ PoliLoom combines large-scale data processing with AI extraction:
 - Matches extracted text to Wikidata entities using semantic search
 - All extracted data requires human verification before submission
 
-**Backend** ([poliloom/](./poliloom/)): Python, FastAPI, PostgreSQL with pgvector, SQLAlchemy
+**Backend** ([poliloom/](./poliloom/)): Python, FastAPI, PostgreSQL, SQLAlchemy, Meilisearch
 
 **Frontend** ([poliloom-gui/](./poliloom-gui/)): Next.js, React, TypeScript, Tailwind CSS
 

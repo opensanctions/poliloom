@@ -70,16 +70,14 @@ run-download-pipeline:
 # Run complete import pipeline for wikidata dump
 run-import-pipeline:
 	@echo "Running complete import pipeline..."
-	@echo "This will run: hierarchy → entities → politicians → embeddings"
+	@echo "This will run: hierarchy → entities → politicians"
 	@. ./.env && echo "Using extracted dump from .env: $$WIKIDATA_DUMP_EXTRACTED"
-	@echo "⏳ Step 1/4: Importing hierarchy trees..."
+	@echo "⏳ Step 1/3: Importing hierarchy trees..."
 	@. ./.env && docker compose run --rm api poliloom import-hierarchy --file $$WIKIDATA_DUMP_EXTRACTED
-	@echo "⏳ Step 2/4: Importing entities..."
+	@echo "⏳ Step 2/3: Importing entities..."
 	@. ./.env && docker compose run --rm api poliloom import-entities --file $$WIKIDATA_DUMP_EXTRACTED
-	@echo "⏳ Step 3/4: Importing politicians..."
+	@echo "⏳ Step 3/3: Importing politicians..."
 	@. ./.env && docker compose run --rm api poliloom import-politicians --file $$WIKIDATA_DUMP_EXTRACTED
-	@echo "⏳ Step 4/4: Generating embeddings..."
-	@docker compose run --rm api poliloom embed-entities
 	@echo "✅ Import pipeline completed successfully!"
 
 # Export all positions to CSV file
