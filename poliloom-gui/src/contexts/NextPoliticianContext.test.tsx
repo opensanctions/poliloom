@@ -40,12 +40,12 @@ describe('NextPoliticianContext', () => {
     const { result } = renderHook(() => useNextPoliticianContext(), { wrapper })
 
     await waitFor(() => {
-      expect(result.current.nextQid).toBe('Q12345')
+      expect(result.current.politicianReady).toBe(true)
     })
 
     expect(result.current.nextHref).toBe('/politician/Q12345')
     expect(result.current.loading).toBe(false)
-    expect(result.current.enrichmentMeta).toEqual(nextResponse.meta)
+    expect(result.current.allCaughtUp).toBe(false)
   })
 
   it('passes language and country filters as query params', async () => {
@@ -87,7 +87,7 @@ describe('NextPoliticianContext', () => {
     const { result } = renderHook(() => useNextPoliticianContext(), { wrapper })
 
     await waitFor(() => {
-      expect(result.current.nextQid).toBe('Q12345')
+      expect(result.current.politicianReady).toBe(true)
     })
 
     await act(async () => {
@@ -95,14 +95,14 @@ describe('NextPoliticianContext', () => {
     })
 
     await waitFor(() => {
-      expect(result.current.nextQid).toBe('Q67890')
+      expect(result.current.politicianReady).toBe(true)
     })
 
     const secondUrl = vi.mocked(fetch).mock.calls[1][0] as string
     expect(secondUrl).toContain('exclude_ids=Q12345')
   })
 
-  it('ignores enrichment_complete event when nextQid is already set', async () => {
+  it('ignores enrichment_complete event when politician is already ready', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       json: async () => nextResponse,
@@ -126,7 +126,7 @@ describe('NextPoliticianContext', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
-  it('fetches on enrichment_complete event when nextQid is null', async () => {
+  it('fetches on enrichment_complete event when no politician is ready', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -140,7 +140,7 @@ describe('NextPoliticianContext', () => {
     await waitFor(() => {
       expect(result.current.loading).toBe(false)
     })
-    expect(result.current.nextQid).toBeNull()
+    expect(result.current.politicianReady).toBe(false)
 
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
@@ -157,7 +157,7 @@ describe('NextPoliticianContext', () => {
     })
 
     await waitFor(() => {
-      expect(result.current.nextQid).toBe('Q12345')
+      expect(result.current.politicianReady).toBe(true)
     })
   })
 
@@ -226,7 +226,7 @@ describe('NextPoliticianContext', () => {
     })
 
     await waitFor(() => {
-      expect(result.current.nextQid).toBe('Q12345')
+      expect(result.current.politicianReady).toBe(true)
     })
   })
 

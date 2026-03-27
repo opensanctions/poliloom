@@ -6,9 +6,10 @@ import { TutorialContent, TutorialStep } from './TutorialContent'
 vi.mock('@/contexts/NextPoliticianContext', () => ({
   useNextPoliticianContext: () => ({
     nextHref: '/politician/Q99999',
-    nextQid: 'Q99999',
+    politicianReady: true,
+
+    allCaughtUp: false,
     loading: false,
-    enrichmentMeta: null,
     languageFilters: [],
     countryFilters: [],
     advanceNext: vi.fn(),

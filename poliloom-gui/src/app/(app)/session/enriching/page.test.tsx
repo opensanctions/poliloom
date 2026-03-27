@@ -9,10 +9,11 @@ vi.mock('@/contexts/NextPoliticianContext', () => ({
 }))
 
 const defaultNextPolitician = {
-  nextHref: null,
-  nextQid: null,
+  nextHref: '/session/enriching',
+  politicianReady: false,
+
+  allCaughtUp: false,
   loading: false,
-  enrichmentMeta: { has_enrichable_politicians: true },
   languageFilters: [],
   countryFilters: [],
   advanceNext: vi.fn(),
@@ -43,8 +44,7 @@ describe('Enriching Page - politician available', () => {
     mockUseNextPoliticianContext.mockReturnValue({
       ...defaultNextPolitician,
       nextHref: '/politician/Q12345',
-      nextQid: 'Q12345',
-      enrichmentMeta: null,
+      politicianReady: true,
     })
 
     render(<EnrichingPage />)
@@ -57,7 +57,9 @@ describe('Enriching Page - all caught up', () => {
   it('shows all caught up message when no enrichable politicians', () => {
     mockUseNextPoliticianContext.mockReturnValue({
       ...defaultNextPolitician,
-      enrichmentMeta: { has_enrichable_politicians: false },
+      nextHref: '/',
+
+      allCaughtUp: true,
     })
 
     render(<EnrichingPage />)

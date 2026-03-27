@@ -6,10 +6,10 @@ import { useEventStream } from '@/contexts/EventStreamContext'
 import { NextPoliticianResponse, PreferenceType, EnrichmentMetadata } from '@/types'
 
 interface NextPoliticianContextType {
-  nextQid: string | null
-  nextHref: string | null
+  nextHref: string
+  politicianReady: boolean
+  allCaughtUp: boolean
   loading: boolean
-  enrichmentMeta: EnrichmentMetadata | null
   languageFilters: string[]
   countryFilters: string[]
   advanceNext: () => void
@@ -94,13 +94,18 @@ export function NextPoliticianProvider({ children }: { children: React.ReactNode
     fetchNext(nextQid ?? undefined)
   }, [fetchNext, nextQid])
 
-  const nextHref = nextQid ? `/politician/${nextQid}` : null
+  const politicianReady = nextQid !== null
+  const hasEnrichablePoliticians = enrichmentMeta?.has_enrichable_politicians ?? false
+  const politicianHref = nextQid ? `/politician/${nextQid}` : null
+  const nextHref = politicianHref ?? (hasEnrichablePoliticians ? '/session/enriching' : '/')
+
+  const allCaughtUp = !loading && !politicianReady && !hasEnrichablePoliticians
 
   const value: NextPoliticianContextType = {
-    nextQid,
     nextHref,
+    politicianReady,
+    allCaughtUp,
     loading,
-    enrichmentMeta,
     languageFilters,
     countryFilters,
     advanceNext,

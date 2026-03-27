@@ -6,9 +6,10 @@ import UnlockedPage from './page'
 vi.mock('@/contexts/NextPoliticianContext', () => ({
   useNextPoliticianContext: () => ({
     nextHref: '/politician/Q12345',
-    nextQid: 'Q12345',
+    politicianReady: true,
+
+    allCaughtUp: false,
     loading: false,
-    enrichmentMeta: null,
     languageFilters: [],
     countryFilters: [],
     advanceNext: vi.fn(),

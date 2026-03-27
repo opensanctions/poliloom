@@ -196,9 +196,10 @@ const politicianWithConflicts: Politician = {
 
 const defaultNextPolitician = {
   nextHref: '/politician/Q99999',
-  nextQid: 'Q99999',
+  politicianReady: true,
+
+  allCaughtUp: false,
   loading: false,
-  enrichmentMeta: null,
   languageFilters: [],
   countryFilters: [],
   advanceNext: mockAdvanceNext,
@@ -356,8 +357,8 @@ describe('PoliticianEvaluation - no next politician', () => {
   beforeEach(() => {
     mockUseNextPoliticianContext.mockReturnValue({
       ...defaultNextPolitician,
-      nextHref: null,
-      nextQid: null,
+      nextHref: '/session/enriching',
+      politicianReady: false,
     })
 
     mockSubmitAndAdvance.mockClear()

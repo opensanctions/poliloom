@@ -12,6 +12,13 @@ import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { PreferenceType, WikidataEntity } from '@/types'
 
+interface CtaState {
+  href?: string
+  text: string
+  disabled?: boolean
+  startSession?: boolean
+}
+
 export default function Home() {
   const {
     languages,
@@ -26,8 +33,9 @@ export default function Home() {
   const { startSession } = useEvaluationSession()
   const {
     nextHref,
+    politicianReady,
+    allCaughtUp,
     loading: loadingNext,
-    enrichmentMeta,
     languageFilters,
     countryFilters,
   } = useNextPoliticianContext()
@@ -36,22 +44,13 @@ export default function Home() {
   const needsTutorial = !hasCompletedBasicTutorial
   const needsAdvancedTutorial = isAdvancedMode && !hasCompletedAdvancedTutorial
 
-  const { ctaHref, ctaText, shouldStartSession } = useMemo(() => {
-    if (needsTutorial) {
-      return { ctaHref: '/tutorial', ctaText: 'Start Tutorial', shouldStartSession: false }
-    }
-    if (needsAdvancedTutorial) {
-      return { ctaHref: '/tutorial', ctaText: 'Start Advanced Tutorial', shouldStartSession: false }
-    }
-    if (nextHref) {
-      return { ctaHref: nextHref, ctaText: 'Start Your Session', shouldStartSession: true }
-    }
-    return { ctaHref: null, ctaText: 'Start Your Session', shouldStartSession: false }
-  }, [needsTutorial, needsAdvancedTutorial, nextHref])
-
-  const isWaitingForEnrichment = !nextHref && enrichmentMeta?.has_enrichable_politicians === true
-  const isAllCaughtUp =
-    !nextHref && !loadingNext && enrichmentMeta?.has_enrichable_politicians === false
+  const cta = useMemo<CtaState>(() => {
+    if (needsTutorial) return { href: '/tutorial', text: 'Start Tutorial' }
+    if (needsAdvancedTutorial) return { href: '/tutorial', text: 'Start Advanced Tutorial' }
+    if (loadingNext) return { text: 'Start Your Session', disabled: true }
+    if (!allCaughtUp) return { href: nextHref, text: 'Start Your Session', startSession: true }
+    return { text: 'Start Your Session', disabled: true }
+  }, [needsTutorial, needsAdvancedTutorial, loadingNext, nextHref, allCaughtUp])
 
   // Convert to MultiSelectOption format with counts
   const languageOptions: MultiSelectOption[] = languages.map((lang) => ({
@@ -113,11 +112,13 @@ export default function Home() {
         <Box className="mt-12 p-8">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">Ready to start?</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                {allCaughtUp ? 'All Caught Up!' : 'Ready to start?'}
+              </h3>
               <p className="text-foreground-tertiary">
-                {isAllCaughtUp
+                {allCaughtUp
                   ? 'No more politicians to evaluate for your current filters. Try different filters to continue contributing.'
-                  : isWaitingForEnrichment
+                  : !politicianReady && !loadingNext
                     ? "Our AI is reading Wikipedia so you don't have to. Hang tight!"
                     : languageFilters.length > 0 || countryFilters.length > 0
                       ? 'Your filters are set. Begin evaluating politicians that match your criteria.'
@@ -125,15 +126,13 @@ export default function Home() {
               </p>
             </div>
             <Button
-              href={isWaitingForEnrichment ? '/session/enriching' : (ctaHref ?? undefined)}
-              disabled={isWaitingForEnrichment ? false : !ctaHref || loadingNext}
+              href={cta.href}
+              disabled={cta.disabled}
               size="xlarge"
               className="shrink-0"
-              onClick={
-                isWaitingForEnrichment || shouldStartSession ? () => startSession() : undefined
-              }
+              onClick={cta.startSession ? () => startSession() : undefined}
             >
-              {ctaText}
+              {cta.text}
             </Button>
           </div>
 

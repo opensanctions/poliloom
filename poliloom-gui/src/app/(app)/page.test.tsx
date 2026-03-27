@@ -66,10 +66,11 @@ vi.mock('next/navigation', () => ({
 }))
 
 const defaultNextPolitician = {
-  nextHref: null,
-  nextQid: null,
+  nextHref: '/',
+  politicianReady: false,
+
+  allCaughtUp: false,
   loading: false,
-  enrichmentMeta: null,
   languageFilters: [],
   countryFilters: [],
   advanceNext: vi.fn(),
@@ -151,7 +152,7 @@ describe('Home Page - waiting for enrichment', () => {
   it('CTA links to /session/enriching when waiting for enrichment', async () => {
     mockUseNextPoliticianContext.mockReturnValue({
       ...defaultNextPolitician,
-      enrichmentMeta: { has_enrichable_politicians: true },
+      nextHref: '/session/enriching',
     })
     mockUseUserProgress.mockReturnValue({
       ...defaultUserProgress,

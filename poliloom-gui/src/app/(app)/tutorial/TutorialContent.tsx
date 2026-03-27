@@ -103,7 +103,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   const { startSession } = useEvaluationSession()
   const { nextHref, loading: nextLoading } = useNextPoliticianContext()
 
-  const startHref = !nextLoading ? (nextHref ?? undefined) : undefined
+  const startHref = !nextLoading ? nextHref : undefined
 
   // Determine starting step based on completion status
   const getStartingStep = (): TutorialStep => {

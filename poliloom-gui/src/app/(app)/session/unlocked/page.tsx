@@ -6,12 +6,11 @@ import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { Button } from '@/components/ui/Button'
-import { Spinner } from '@/components/ui/Spinner'
 
 export default function UnlockedPage() {
   const { unlockStats } = useUserProgress()
   const { endSession, startSession } = useEvaluationSession()
-  const { nextHref, loading } = useNextPoliticianContext()
+  const { nextHref, politicianReady, loading } = useNextPoliticianContext()
 
   useEffect(() => {
     unlockStats()
@@ -28,25 +27,16 @@ export default function UnlockedPage() {
         <Button href="/stats" size="large" fullWidth>
           View Stats
         </Button>
-        {loading ? (
-          <div className="flex justify-center">
-            <Spinner />
-          </div>
-        ) : nextHref ? (
-          <Button
-            href={nextHref}
-            variant="secondary"
-            size="large"
-            fullWidth
-            onClick={() => startSession()}
-          >
-            Start Another Round
-          </Button>
-        ) : (
-          <Button href="/" variant="secondary" size="large" fullWidth>
-            Start Another Round
-          </Button>
-        )}
+        <Button
+          href={nextHref}
+          disabled={loading}
+          variant="secondary"
+          size="large"
+          fullWidth
+          onClick={politicianReady ? () => startSession() : undefined}
+        >
+          Start Another Round
+        </Button>
       </div>
     </CenteredCard>
   )

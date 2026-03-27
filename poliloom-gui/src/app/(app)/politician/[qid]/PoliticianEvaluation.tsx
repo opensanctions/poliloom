@@ -25,11 +25,7 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
   const { isSessionActive, completedCount, sessionGoal, submitAndAdvance } = useEvaluationSession()
   const { statsUnlocked, completeBasicTutorial, completeAdvancedTutorial } = useUserProgress()
   const { isAdvancedMode } = useUserPreferences()
-  const {
-    nextHref: nextPoliticianHref,
-    advanceNext,
-    loading: nextLoading,
-  } = useNextPoliticianContext()
+  const { nextHref, advanceNext, loading: nextLoading } = useNextPoliticianContext()
   const [politician, setPolitician] = useState<Politician>(initialPolitician)
 
   // Mark tutorials complete and prefetch next politician on mount
@@ -87,7 +83,7 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
       if (sessionComplete) {
         router.push(statsUnlocked ? '/session/complete' : '/session/unlocked')
       } else {
-        router.push(nextPoliticianHref ?? '/session/enriching')
+        router.push(nextHref)
       }
     }
   }
@@ -109,7 +105,7 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
         <div className="ml-auto">
           {isSessionActive && !hasActions ? (
             <Button
-              href={nextPoliticianHref ?? (nextLoading ? undefined : '/session/enriching')}
+              href={nextLoading ? undefined : nextHref}
               disabled={nextLoading}
               className="px-6 py-3"
             >

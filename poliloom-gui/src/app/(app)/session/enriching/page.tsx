@@ -9,19 +9,16 @@ import { Spinner } from '@/components/ui/Spinner'
 
 export default function EnrichingPage() {
   const router = useRouter()
-  const { nextHref, enrichmentMeta, loading } = useNextPoliticianContext()
+  const { nextHref, politicianReady, allCaughtUp } = useNextPoliticianContext()
 
   // Auto-navigate when a politician becomes available
   useEffect(() => {
-    if (nextHref) {
+    if (politicianReady) {
       router.push(nextHref)
     }
-  }, [nextHref, router])
+  }, [politicianReady, nextHref, router])
 
-  const isAllCaughtUp =
-    !nextHref && !loading && enrichmentMeta?.has_enrichable_politicians === false
-
-  if (isAllCaughtUp) {
+  if (allCaughtUp) {
     return (
       <CenteredCard emoji="✅" title="All Caught Up!">
         <p className="mb-8">
