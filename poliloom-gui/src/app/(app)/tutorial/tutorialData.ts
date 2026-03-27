@@ -92,7 +92,7 @@ const politicianBase = {
   id: 'tutorial-politician',
   name: 'Jane Doe',
   wikidata_id: 'Q955672',
-  sources: [page1, page2] as SourceResponse[],
+  sources: [page1] as SourceResponse[],
 } as const satisfies Pick<Politician, 'id' | 'name' | 'wikidata_id' | 'sources'>
 
 // Reusable qualifier snippet
@@ -182,7 +182,6 @@ export const tutorialEvaluationSteps: Partial<Record<TutorialStep, TutorialEvalu
   [TutorialStep.BirthDateEvaluation]: {
     politician: {
       ...politicianBase,
-      sources: [page1],
       properties: [
         {
           id: 'tutorial-birth-date-incorrect',
@@ -221,6 +220,7 @@ export const tutorialEvaluationSteps: Partial<Record<TutorialStep, TutorialEvalu
   [TutorialStep.MultipleSourcesEvaluation]: {
     politician: {
       ...politicianBase,
+      sources: [page1, page2],
       properties: [
         {
           id: 'tutorial-position-1',
@@ -271,7 +271,6 @@ export const tutorialEvaluationSteps: Partial<Record<TutorialStep, TutorialEvalu
   [TutorialStep.SpecificOverGenericEvaluation]: {
     politician: {
       ...politicianBase,
-      sources: [page1],
       properties: [
         {
           id: 'tutorial-existing-specific-position',
