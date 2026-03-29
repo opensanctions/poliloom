@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useSession } from 'next-auth/react'
 import { EventStreamProvider, useEventStream } from './EventStreamContext'
-import { mockEventSource } from '@/test-setup'
+import { mockEventSource } from '@/test/setup'
 import type { SSEEvent } from '@/types'
 
 function wrapper({ children }: { children: React.ReactNode }) {

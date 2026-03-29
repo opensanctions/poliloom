@@ -3,7 +3,7 @@ import { renderHook, waitFor, act } from '@testing-library/react'
 import { useSession } from 'next-auth/react'
 import { EvaluationCountProvider, useEvaluationCount } from './EvaluationCountContext'
 import { EventStreamProvider } from './EventStreamContext'
-import { mockEventSource } from '@/test-setup'
+import { mockEventSource } from '@/test/setup'
 import type { SSEEvent } from '@/types'
 
 function wrapper({ children }: { children: React.ReactNode }) {

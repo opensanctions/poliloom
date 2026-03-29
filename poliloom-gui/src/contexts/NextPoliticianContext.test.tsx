@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { NextPoliticianProvider, useNextPoliticianContext } from './NextPoliticianContext'
 import { EventStreamProvider } from './EventStreamContext'
-import { mockEventSource } from '@/test-setup'
+import { mockEventSource } from '@/test/setup'
 import { PreferenceType } from '@/types'
 import type { SSEEvent, NextPoliticianResponse } from '@/types'
 

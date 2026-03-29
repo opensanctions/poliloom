@@ -20,7 +20,7 @@ export const mockSubmitAndAdvance = vi.fn()
 export const mockStartSession = vi.fn()
 export const mockEndSession = vi.fn()
 
-// Re-export the fetch mock created in test-setup.ts
+// Re-export the fetch mock created in test/setup.ts
 export const mockFetch = vi.mocked(fetch)
 
 // --- vi.mock calls ---
