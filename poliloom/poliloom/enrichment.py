@@ -263,7 +263,11 @@ async def _map_single_item(
             .filter(WikidataEntity.deleted_at.is_(None))
             .options(
                 selectinload(config.entity_class.wikidata_entity)
-                .selectinload(WikidataEntity.parent_relations)
+                .selectinload(
+                    WikidataEntity.parent_relations.and_(
+                        WikidataRelation.deleted_at.is_(None)
+                    )
+                )
                 .selectinload(WikidataRelation.parent_entity)
             )
             .all()

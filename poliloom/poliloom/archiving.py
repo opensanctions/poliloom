@@ -333,9 +333,13 @@ async def process_source_task(source_id, politician_id) -> int:
             .where(Politician.id == politician_id)
             .options(
                 selectinload(Politician.wikidata_entity),
-                selectinload(Politician.properties)
+                selectinload(Politician.properties.and_(Property.deleted_at.is_(None)))
                 .selectinload(Property.entity)
-                .selectinload(WikidataEntity.parent_relations)
+                .selectinload(
+                    WikidataEntity.parent_relations.and_(
+                        WikidataRelation.deleted_at.is_(None)
+                    )
+                )
                 .selectinload(WikidataRelation.parent_entity),
             )
         ).scalar_one()

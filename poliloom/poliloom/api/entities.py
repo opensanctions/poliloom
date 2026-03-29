@@ -60,7 +60,10 @@ async def get_languages(
         )
         .join(
             WikidataRelation,
-            WikidataRelation.parent_entity_id == Language.wikidata_id,
+            and_(
+                WikidataRelation.parent_entity_id == Language.wikidata_id,
+                WikidataRelation.deleted_at.is_(None),
+            ),
         )
         .join(
             WikipediaProject,
@@ -194,7 +197,11 @@ async def search_entities(
         .order_by(ordering)
         .options(
             selectinload(model_class.wikidata_entity)
-            .selectinload(WikidataEntity.parent_relations)
+            .selectinload(
+                WikidataEntity.parent_relations.and_(
+                    WikidataRelation.deleted_at.is_(None)
+                )
+            )
             .selectinload(WikidataRelation.parent_entity)
         )
     )

@@ -304,12 +304,14 @@ class Politician(
                 and_(
                     Property.entity_id == WikidataRelation.child_entity_id,
                     WikidataRelation.relation_type == RelationType.OFFICIAL_LANGUAGE,
+                    WikidataRelation.deleted_at.is_(None),
                 ),
             )
             .where(
                 and_(
                     Property.type == PropertyType.CITIZENSHIP,
                     Property.entity_id.isnot(None),
+                    Property.deleted_at.is_(None),
                 )
             )
             .distinct()
@@ -358,6 +360,7 @@ class Politician(
                 and_(
                     WikidataRelation.child_entity_id == WikipediaProject.wikidata_id,
                     WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
+                    WikidataRelation.deleted_at.is_(None),
                 ),
             )
             .join(Language, WikidataRelation.parent_entity_id == Language.wikidata_id)
@@ -381,6 +384,7 @@ class Politician(
                 and_(
                     Property.type == PropertyType.CITIZENSHIP,
                     Property.entity_id.in_(countries),
+                    Property.deleted_at.is_(None),
                 )
             )
             ranked_links_query = ranked_links_query.where(cls.id.in_(country_filter))
@@ -595,6 +599,7 @@ class Politician(
                 and_(
                     Property.type == PropertyType.CITIZENSHIP,
                     Property.entity_id.in_(countries),
+                    Property.deleted_at.is_(None),
                 )
             )
             query = query.where(cls.id.in_(citizenship_subquery))

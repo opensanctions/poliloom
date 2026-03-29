@@ -167,6 +167,7 @@ class Source(Base, TimestampMixin):
         language_query = select(WikidataRelation.parent_entity_id).where(
             WikidataRelation.child_entity_id == self.wikipedia_project_id,
             WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
+            WikidataRelation.deleted_at.is_(None),
         )
         language_ids = db.execute(language_query).scalars().all()
 

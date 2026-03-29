@@ -747,7 +747,9 @@ class TestIntegrationWorkflow:
     ):
         """Test that positively evaluated enriched properties are protected during cleanup."""
         # Step 1: Create a dump timestamp in the past (simulates dump was taken hours ago)
-        dump_timestamp = datetime.now() - timedelta(hours=2)
+        dump_timestamp = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+            hours=2
+        )
 
         # Step 2: Create a politician using the same pattern as existing fixtures
         politician = Politician.create_with_entity(
@@ -795,7 +797,9 @@ class TestIntegrationWorkflow:
     ):
         """Test that negatively evaluated enriched properties remain soft-deleted during cleanup."""
         # Step 1: Create a dump timestamp in the past (simulates dump was taken hours ago)
-        dump_timestamp = datetime.now() - timedelta(hours=2)
+        dump_timestamp = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+            hours=2
+        )
 
         # Step 2: Create a politician using the same pattern as existing fixtures
         politician = Politician.create_with_entity(
@@ -819,7 +823,7 @@ class TestIntegrationWorkflow:
         assert enriched_prop.updated_at > dump_timestamp
 
         # Step 4: Negative evaluation - soft-delete the property (rejected by evaluator)
-        enriched_prop.deleted_at = datetime.now()
+        enriched_prop.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
         db_session.flush()
 
         # Property is still after dump timestamp
@@ -848,8 +852,12 @@ class TestIntegrationWorkflow:
     ):
         """Test that statements in current dump are preserved with two-dump validation."""
         # Create dump records for two-dump validation
-        first_dump_timestamp = datetime.now() - timedelta(hours=2)
-        current_dump_timestamp = datetime.now() - timedelta(hours=1)
+        first_dump_timestamp = datetime.now(timezone.utc).replace(
+            tzinfo=None
+        ) - timedelta(hours=2)
+        current_dump_timestamp = datetime.now(timezone.utc).replace(
+            tzinfo=None
+        ) - timedelta(hours=1)
 
         first_dump = WikidataDump(
             url="http://example.com/dump1.json.bz2",
