@@ -1781,3 +1781,116 @@ class TestPropertyCompareTo:
         from poliloom.models import PropertyComparisonResult
 
         assert prop1._compare_to(prop2) == PropertyComparisonResult.EQUAL
+
+
+class TestCountUnevaluated:
+    """Test Politician.count_unevaluated classmethod."""
+
+    def test_count_with_unevaluated_properties(
+        self, db_session, sample_politician, sample_source, create_birth_date
+    ):
+        """Test counting politicians with unevaluated properties."""
+        create_birth_date(sample_politician, source=sample_source)
+        db_session.flush()
+
+        count = Politician.count_unevaluated(db_session)
+        assert count == 1
+
+    def test_count_excludes_evaluated_properties(
+        self, db_session, sample_politician, sample_source, create_birth_date
+    ):
+        """Test that count excludes properties with statement_id."""
+        create_birth_date(
+            sample_politician,
+            source=sample_source,
+            statement_id="Q123456$12345678-1234-1234-1234-123456789012",
+        )
+        db_session.flush()
+
+        count = Politician.count_unevaluated(db_session)
+        assert count == 0
+
+    def test_count_with_language_filter(
+        self,
+        db_session,
+        sample_politician,
+        sample_language,
+        create_source,
+        create_birth_date,
+    ):
+        """Test counting with language filter."""
+        en_page = create_source(
+            url="https://en.example.com/test",
+            url_hash="en123",
+            languages=[sample_language],
+        )
+
+        create_birth_date(sample_politician, source=en_page)
+        db_session.flush()
+
+        count = Politician.count_unevaluated(db_session, languages=["Q1860"])
+        assert count == 1
+
+        count = Politician.count_unevaluated(db_session, languages=["Q188"])
+        assert count == 0
+
+    def test_count_with_country_filter(
+        self,
+        db_session,
+        sample_politician,
+        sample_country,
+        sample_source,
+        create_citizenship,
+        create_birth_date,
+    ):
+        """Test counting with country filter."""
+        create_citizenship(sample_politician, sample_country, sample_source)
+        create_birth_date(sample_politician, source=sample_source)
+        db_session.flush()
+
+        count = Politician.count_unevaluated(db_session, countries=["Q30"])
+        assert count == 1
+
+        count = Politician.count_unevaluated(db_session, countries=["Q183"])
+        assert count == 0
+
+
+class TestHasEnrichable:
+    """Test Politician.has_enrichable classmethod."""
+
+    def test_returns_true_when_enrichable_exists(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_link,
+        sample_country,
+        create_citizenship,
+    ):
+        """Test returns True when a politician with Wikipedia links exists."""
+        create_citizenship(sample_politician, sample_country)
+        db_session.flush()
+
+        assert Politician.has_enrichable(db_session) is True
+
+    def test_returns_false_when_no_politicians(self, db_session):
+        """Test returns False when no politicians exist."""
+        assert Politician.has_enrichable(db_session) is False
+
+    def test_returns_false_when_no_wikipedia_links(self, db_session, sample_politician):
+        """Test returns False when politician has no Wikipedia links."""
+        assert Politician.has_enrichable(db_session) is False
+
+    def test_respects_country_filter(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_link,
+        sample_country,
+        create_citizenship,
+    ):
+        """Test that country filter is applied."""
+        create_citizenship(sample_politician, sample_country)
+        db_session.flush()
+
+        assert Politician.has_enrichable(db_session, countries=["Q30"]) is True
+        assert Politician.has_enrichable(db_session, countries=["Q183"]) is False

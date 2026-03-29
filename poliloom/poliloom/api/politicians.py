@@ -10,11 +10,7 @@ from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db_session
-from ..archiving import process_source_task, process_next_politician
-from ..enrichment import (
-    count_politicians_with_unevaluated,
-    has_enrichable_politicians,
-)
+from ..scheduling import process_source_task, process_next_politician
 from ..search import SearchService
 from ..models import (
     Source,
@@ -228,8 +224,8 @@ async def get_next_politician(
 
     # Trigger enrichment if unevaluated pool is running low
     min_threshold = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
-    current_count = count_politicians_with_unevaluated(db, languages, countries)
-    can_enrich = has_enrichable_politicians(db, languages, countries)
+    current_count = Politician.count_unevaluated(db, languages, countries)
+    can_enrich = Politician.has_enrichable(db, languages, countries)
 
     if current_count < min_threshold and can_enrich:
         logger.info(

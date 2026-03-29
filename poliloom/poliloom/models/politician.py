@@ -607,6 +607,42 @@ class Politician(
         return query
 
     @classmethod
+    def count_unevaluated(
+        cls,
+        db: Session,
+        languages: Optional[List[str]] = None,
+        countries: Optional[List[str]] = None,
+    ) -> int:
+        """Count politicians that have unevaluated extracted properties."""
+        query = cls.query_base()
+        query = cls.filter_by_unevaluated_properties(query, languages=languages)
+
+        if countries:
+            query = cls.filter_by_countries(query, countries)
+
+        count_query = select(func.count()).select_from(query.subquery())
+        result = db.execute(count_query).scalar()
+        return result or 0
+
+    @classmethod
+    def has_enrichable(
+        cls,
+        db: Session,
+        languages: Optional[List[str]] = None,
+        countries: Optional[List[str]] = None,
+        stateless: bool = False,
+    ) -> bool:
+        """Check if there are politicians available to enrich."""
+        query = cls.query_for_enrichment(
+            languages=languages,
+            countries=countries,
+            stateless=stateless,
+        ).limit(1)
+
+        result = db.execute(query).first()
+        return result is not None
+
+    @classmethod
     def count_stateless_with_unevaluated_citizenship(cls, db: Session) -> int:
         """
         Count politicians without Wikidata citizenship who have unevaluated extracted citizenship.

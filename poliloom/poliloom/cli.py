@@ -6,7 +6,7 @@ import logging
 import os
 from datetime import datetime, timezone
 import httpx
-from poliloom.archiving import process_next_politician
+from poliloom.scheduling import process_next_politician
 from poliloom.storage import StorageFactory
 from poliloom.importer.hierarchy import import_hierarchy_trees
 from poliloom.importer.entity import import_entities

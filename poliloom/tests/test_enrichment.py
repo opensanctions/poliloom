@@ -3,13 +3,10 @@
 import pytest
 from unittest.mock import Mock, patch
 
-from poliloom.archiving import process_next_politician, schedule_enrichment
 from poliloom.enrichment import (
     extract_properties_generic,
     extract_two_stage_generic,
     store_extracted_data,
-    count_politicians_with_unevaluated,
-    has_enrichable_politicians,
     ExtractedProperty,
     ExtractedPosition,
     ExtractedBirthplace,
@@ -23,8 +20,6 @@ from poliloom.enrichment import (
     FreeFormBirthplaceResult,
 )
 from poliloom.models import (
-    Source,
-    SourceStatus,
     Location,
     Position,
     Property,
@@ -584,178 +579,3 @@ class TestEnrichment:
             )
 
         assert success is False
-
-    @pytest.mark.asyncio
-    async def test_enrich_politician_no_wikipedia_links(
-        self, db_session, sample_politician
-    ):
-        """Test enrichment when no politicians have Wikipedia links."""
-        # The sample_politician fixture by default has no Wikipedia links
-        # The function should filter these out and return False
-        politician_found = await process_next_politician()
-
-        # Should find no politicians to enrich since they're filtered out by the query
-        assert politician_found is False
-
-        # The enriched_at timestamp should remain None since the politician was never processed
-        db_session.refresh(sample_politician)
-        assert sample_politician.enriched_at is None
-
-
-class TestCountPoliticiansWithUnevaluated:
-    """Test count_politicians_with_unevaluated function."""
-
-    def test_count_with_unevaluated_properties(
-        self, db_session, sample_politician, sample_source, create_birth_date
-    ):
-        """Test counting politicians with unevaluated properties."""
-        # Add unevaluated property
-        create_birth_date(sample_politician, source=sample_source)
-        db_session.flush()
-
-        count = count_politicians_with_unevaluated(db_session)
-        assert count == 1
-
-    def test_count_excludes_evaluated_properties(
-        self, db_session, sample_politician, sample_source, create_birth_date
-    ):
-        """Test that count excludes properties with statement_id."""
-        # Add property with statement_id
-        create_birth_date(
-            sample_politician,
-            source=sample_source,
-            statement_id="Q123456$12345678-1234-1234-1234-123456789012",
-        )
-        db_session.flush()
-
-        count = count_politicians_with_unevaluated(db_session)
-        assert count == 0
-
-    def test_count_with_language_filter(
-        self,
-        db_session,
-        sample_politician,
-        sample_language,
-        create_source,
-        create_birth_date,
-    ):
-        """Test counting with language filter."""
-        # Create English source
-        en_page = create_source(
-            url="https://en.example.com/test",
-            url_hash="en123",
-            languages=[sample_language],
-        )
-
-        # Add English property
-        create_birth_date(sample_politician, source=en_page)
-        db_session.flush()
-
-        # Count with English filter
-        count = count_politicians_with_unevaluated(db_session, languages=["Q1860"])
-        assert count == 1
-
-        # Count with different language filter
-        count = count_politicians_with_unevaluated(db_session, languages=["Q188"])
-        assert count == 0
-
-    def test_count_with_country_filter(
-        self,
-        db_session,
-        sample_politician,
-        sample_country,
-        sample_source,
-        create_citizenship,
-        create_birth_date,
-    ):
-        """Test counting with country filter."""
-        # Add citizenship and unevaluated property
-        create_citizenship(sample_politician, sample_country, sample_source)
-        create_birth_date(sample_politician, source=sample_source)
-        db_session.flush()
-
-        # Count with USA filter
-        count = count_politicians_with_unevaluated(db_session, countries=["Q30"])
-        assert count == 1
-
-        # Count with different country filter
-        count = count_politicians_with_unevaluated(db_session, countries=["Q183"])
-        assert count == 0
-
-
-class TestHasEnrichablePoliticians:
-    """Test has_enrichable_politicians function."""
-
-    def test_returns_true_when_enrichable_exists(
-        self,
-        db_session,
-        sample_politician,
-        sample_wikipedia_link,
-        sample_country,
-        create_citizenship,
-    ):
-        """Test returns True when a politician with Wikipedia links exists."""
-        create_citizenship(sample_politician, sample_country)
-        db_session.flush()
-
-        assert has_enrichable_politicians(db_session) is True
-
-    def test_returns_false_when_no_politicians(self, db_session):
-        """Test returns False when no politicians exist."""
-        assert has_enrichable_politicians(db_session) is False
-
-    def test_returns_false_when_no_wikipedia_links(self, db_session, sample_politician):
-        """Test returns False when politician has no Wikipedia links."""
-        assert has_enrichable_politicians(db_session) is False
-
-    def test_respects_country_filter(
-        self,
-        db_session,
-        sample_politician,
-        sample_wikipedia_link,
-        sample_country,
-        create_citizenship,
-    ):
-        """Test that country filter is applied."""
-        create_citizenship(sample_politician, sample_country)
-        db_session.flush()
-
-        # Q30 = US (matches)
-        assert has_enrichable_politicians(db_session, countries=["Q30"]) is True
-        # Q183 = Germany (no match)
-        assert has_enrichable_politicians(db_session, countries=["Q183"]) is False
-
-
-class TestScheduleEnrichment:
-    """Test schedule_enrichment selects a politician and creates sources."""
-
-    def test_returns_none_when_no_politicians(self, db_session):
-        assert schedule_enrichment(db_session) is None
-
-    def test_schedules_politician_with_wikipedia_links(
-        self,
-        db_session,
-        sample_politician,
-        sample_wikipedia_link,
-        sample_country,
-        create_citizenship,
-    ):
-        create_citizenship(sample_politician, sample_country)
-        db_session.flush()
-
-        result = schedule_enrichment(db_session)
-
-        assert result is not None
-        assert result.politician_id == sample_politician.id
-        assert len(result.source_ids) >= 1
-
-        # Politician should be marked as enriched
-        db_session.refresh(sample_politician)
-        assert sample_politician.enriched_at is not None
-
-        # Sources should be created as PROCESSING (server_default)
-        pages = db_session.query(Source).filter(Source.id.in_(result.source_ids)).all()
-        assert all(p.status == SourceStatus.PROCESSING for p in pages)
-
-    def test_returns_none_when_no_wikipedia_links(self, db_session, sample_politician):
-        assert schedule_enrichment(db_session) is None

@@ -6,7 +6,6 @@ import asyncio
 from dataclasses import dataclass
 from typing import List, Optional, Literal, Type, Union, Any
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, func
 from openai import AsyncOpenAI
 from pydantic import BaseModel, field_validator, create_model
 from dicttoxml import dicttoxml
@@ -595,68 +594,6 @@ async def extract_and_store(
         for items in (date_properties, positions, birthplaces, citizenships)
         if items
     )
-
-
-def count_politicians_with_unevaluated(
-    db: Session,
-    languages: Optional[List[str]] = None,
-    countries: Optional[List[str]] = None,
-) -> int:
-    """
-    Count politicians that have unevaluated extracted properties.
-
-    Args:
-        db: Database session
-        languages: Optional list of language QIDs to filter by
-        countries: Optional list of country QIDs to filter by
-
-    Returns:
-        Number of politicians with unevaluated properties matching filters
-    """
-    # Build composable query using filter methods
-    politician_ids_query = Politician.query_base()
-
-    politician_ids_query = Politician.filter_by_unevaluated_properties(
-        politician_ids_query, languages=languages
-    )
-
-    if countries:
-        politician_ids_query = Politician.filter_by_countries(
-            politician_ids_query, countries
-        )
-
-    # Count the results
-    count_query = select(func.count()).select_from(politician_ids_query.subquery())
-    result = db.execute(count_query).scalar()
-    return result or 0
-
-
-def has_enrichable_politicians(
-    db: Session,
-    languages: Optional[List[str]] = None,
-    countries: Optional[List[str]] = None,
-    stateless: bool = False,
-) -> bool:
-    """
-    Check if there are politicians available to enrich.
-
-    Args:
-        db: Database session
-        languages: Optional list of language QIDs to filter by
-        countries: Optional list of country QIDs to filter by
-        stateless: If True, check for politicians without citizenship data
-
-    Returns:
-        True if there are politicians available to enrich, False otherwise
-    """
-    query = Politician.query_for_enrichment(
-        languages=languages,
-        countries=countries,
-        stateless=stateless,
-    ).limit(1)
-
-    result = db.execute(query).first()
-    return result is not None
 
 
 def store_extracted_data(
