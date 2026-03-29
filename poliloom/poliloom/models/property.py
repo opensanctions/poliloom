@@ -24,7 +24,6 @@ from .base import (
     TimestampMixin,
     UpsertMixin,
 )
-from .source import Source
 
 
 class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
@@ -334,52 +333,6 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
                 return existing
 
         return None
-
-    def add_reference(
-        self,
-        db: Session,
-        source: Source,
-        supporting_quotes: list | None = None,
-    ) -> "PropertyReference":
-        """Add a PropertyReference linking this property to a source.
-
-        Creates a new PropertyReference, or updates quotes if same source
-        is already linked. Uses the unique constraint for idempotency.
-
-        Args:
-            db: Database session
-            source: The source
-            supporting_quotes: Optional list of supporting quote strings
-
-        Returns:
-            The created or updated PropertyReference
-        """
-        # Check if reference already exists for this property + source
-        existing_ref = (
-            db.query(PropertyReference)
-            .filter(
-                PropertyReference.property_id == self.id,
-                PropertyReference.source_id == source.id,
-            )
-            .first()
-        )
-
-        if existing_ref:
-            # Update quotes if provided
-            if supporting_quotes:
-                existing_ref.supporting_quotes = supporting_quotes
-            return existing_ref
-
-        # Create new reference using relationship objects so SQLAlchemy
-        # populates both sides (e.g. source.property_references)
-        # within the same flush.
-        ref = PropertyReference(
-            property=self,
-            source=source,
-            supporting_quotes=supporting_quotes,
-        )
-        db.add(ref)
-        return ref
 
 
 class PropertyReference(Base, TimestampMixin):

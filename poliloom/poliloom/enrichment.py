@@ -13,6 +13,7 @@ from dicttoxml import dicttoxml
 from .models import (
     Politician,
     Property,
+    PropertyReference,
     PropertyType,
     Position,
     Location,
@@ -607,99 +608,61 @@ def store_extracted_data(
 ) -> bool:
     """Store extracted data in the database."""
     try:
-        # Store value properties (dates)
-        if properties:
-            for property_data in properties:
-                # Convert date string to WikidataDate and store the time_string
-                wikidata_date = WikidataDate.from_date_string(property_data.value)
+        # Build (property_kwargs, find_kwargs, quotes, label) for each extracted item
+        items = []
 
-                existing = Property.find_matching(
-                    db,
-                    politician_id=politician.id,
-                    property_type=property_data.type,
-                    value=wikidata_date.time_string,
-                    value_precision=wikidata_date.precision,
+        for p in properties or []:
+            wd = WikidataDate.from_date_string(p.value)
+            kwargs = dict(
+                type=p.type,
+                value=wd.time_string,
+                value_precision=wd.precision,
+            )
+            items.append((kwargs, p.supporting_quotes, f"{p.type} = '{p.value}'"))
+
+        for pos in positions or []:
+            qualifiers_json = create_qualifiers_json_for_position(
+                pos.start_date, pos.end_date
+            )
+            kwargs = dict(
+                type=PropertyType.POSITION,
+                entity_id=pos.wikidata_id,
+                qualifiers_json=qualifiers_json,
+            )
+            items.append((kwargs, pos.supporting_quotes, f"position {pos.wikidata_id}"))
+
+        for bp in birthplaces or []:
+            kwargs = dict(type=PropertyType.BIRTHPLACE, entity_id=bp.wikidata_id)
+            items.append((kwargs, bp.supporting_quotes, f"birthplace {bp.wikidata_id}"))
+
+        for cit in citizenships or []:
+            kwargs = dict(type=PropertyType.CITIZENSHIP, entity_id=cit.wikidata_id)
+            items.append(
+                (kwargs, cit.supporting_quotes, f"citizenship {cit.wikidata_id}")
+            )
+
+        for kwargs, quotes, label in items:
+            prop = Property.find_matching(
+                db,
+                politician_id=politician.id,
+                property_type=kwargs["type"],
+                **{k: v for k, v in kwargs.items() if k != "type"},
+            )
+            if prop:
+                logger.info(
+                    f"Added reference to existing {label} for {politician.name}"
                 )
+            else:
+                prop = Property(politician_id=politician.id, **kwargs)
+                db.add(prop)
+                db.flush()
+                logger.info(f"Added new {label} for {politician.name}")
 
-                if existing:
-                    existing.add_reference(db, source, property_data.supporting_quotes)
-                    logger.info(
-                        f"Added reference to existing property: {property_data.type} = '{property_data.value}' for {politician.name}"
-                    )
-                else:
-                    new_property = Property(
-                        politician_id=politician.id,
-                        type=property_data.type,
-                        value=wikidata_date.time_string,
-                        value_precision=wikidata_date.precision,
-                        qualifiers_json=None,
-                        references_json=None,
-                    )
-                    db.add(new_property)
-                    db.flush()
-                    new_property.add_reference(
-                        db, source, property_data.supporting_quotes
-                    )
-                    logger.info(
-                        f"Added new property: {property_data.type} = '{property_data.value}' for {politician.name}"
-                    )
-
-        # Store entity-linked properties
-        entity_configs = [
-            (positions, PropertyType.POSITION, Position, "position"),
-            (birthplaces, PropertyType.BIRTHPLACE, Location, "birthplace"),
-            (citizenships, PropertyType.CITIZENSHIP, Country, "citizenship"),
-        ]
-
-        for extracted_data, property_type, entity_class, entity_name in entity_configs:
-            if extracted_data:
-                for item_data in extracted_data:
-                    if item_data.wikidata_id:
-                        entity = (
-                            db.query(entity_class)
-                            .filter_by(wikidata_id=item_data.wikidata_id)
-                            .first()
-                        )
-
-                        # Create qualifiers for positions with dates
-                        qualifiers_json = None
-                        if property_type == PropertyType.POSITION:
-                            qualifiers_json = create_qualifiers_json_for_position(
-                                getattr(item_data, "start_date", None),
-                                getattr(item_data, "end_date", None),
-                            )
-
-                        existing = Property.find_matching(
-                            db,
-                            politician_id=politician.id,
-                            property_type=property_type,
-                            entity_id=entity.wikidata_id,
-                            qualifiers_json=qualifiers_json,
-                        )
-
-                        if existing:
-                            existing.add_reference(
-                                db, source, item_data.supporting_quotes
-                            )
-                            logger.info(
-                                f"Added reference to existing {entity_name}: '{entity.name}' ({entity.wikidata_id}) for {politician.name}"
-                            )
-                        else:
-                            new_property = Property(
-                                politician_id=politician.id,
-                                type=property_type,
-                                entity_id=entity.wikidata_id,
-                                qualifiers_json=qualifiers_json,
-                                references_json=None,
-                            )
-                            db.add(new_property)
-                            db.flush()
-                            new_property.add_reference(
-                                db, source, item_data.supporting_quotes
-                            )
-                            logger.info(
-                                f"Added new {entity_name}: '{entity.name}' ({entity.wikidata_id}) for {politician.name}"
-                            )
+            db.add(
+                PropertyReference(
+                    property=prop, source=source, supporting_quotes=quotes
+                )
+            )
 
         return True
 

@@ -3,7 +3,6 @@
 from datetime import datetime, timezone
 from poliloom.models import (
     Property,
-    PropertyReference,
     PropertyType,
     PropertyComparisonResult,
 )
@@ -220,66 +219,6 @@ class TestPropertyFindMatching:
         )
 
         assert result is None
-
-
-class TestPropertyAddReference:
-    """Tests for Property.add_reference() method."""
-
-    def test_add_reference_creates_new(
-        self, db_session, sample_politician, sample_source, create_birth_date
-    ):
-        """Test add_reference creates a new PropertyReference."""
-        prop = create_birth_date(sample_politician)
-        db_session.flush()
-
-        ref = prop.add_reference(db_session, sample_source, ["born in 1980"])
-        db_session.flush()
-
-        assert ref is not None
-        assert ref.property_id == prop.id
-        assert ref.source_id == sample_source.id
-        assert ref.supporting_quotes == ["born in 1980"]
-
-    def test_add_reference_idempotent_same_source(
-        self, db_session, sample_politician, sample_source, create_birth_date
-    ):
-        """Test add_reference updates quotes when same source already linked."""
-        prop = create_birth_date(
-            sample_politician, source=sample_source, supporting_quotes=["old quote"]
-        )
-        db_session.flush()
-
-        # Add reference again with same source but different quotes
-        prop.add_reference(db_session, sample_source, ["new quote"])
-        db_session.flush()
-
-        # Should not create a duplicate
-        refs = (
-            db_session.query(PropertyReference)
-            .filter_by(property_id=prop.id, source_id=sample_source.id)
-            .all()
-        )
-        assert len(refs) == 1
-        assert refs[0].supporting_quotes == ["new quote"]
-
-    def test_add_reference_multiple_sources(
-        self,
-        db_session,
-        sample_politician,
-        sample_source,
-        create_source,
-        create_birth_date,
-    ):
-        """Test add_reference allows multiple different sources."""
-        prop = create_birth_date(sample_politician, source=sample_source)
-        db_session.flush()
-
-        second_source = create_source(url="https://example.com/other")
-        prop.add_reference(db_session, second_source, ["second source quote"])
-        db_session.flush()
-
-        refs = db_session.query(PropertyReference).filter_by(property_id=prop.id).all()
-        assert len(refs) == 2
 
 
 class TestPropertyExtractTimeframe:
