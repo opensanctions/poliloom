@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session, relationship
 from sqlalchemy.orm.attributes import get_history
 
 from ..sse import SourceStatusEvent, notify
-from ..wikidata_date import WikidataDate
+from ..wikidata.date import WikidataDate
 from .base import Base, RelationType, TimestampMixin
 from .wikidata import WikidataRelation
 

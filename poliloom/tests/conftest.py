@@ -690,7 +690,7 @@ def politician_with_unevaluated_data(
         The politician with properties attached
     """
     from poliloom.models import Property, PropertyType
-    from poliloom.wikidata_date import WikidataDate
+    from poliloom.wikidata.date import WikidataDate
 
     politician = sample_politician
     position = sample_position
@@ -815,7 +815,7 @@ def mock_wikidata_api():
     This fixture automatically mocks all Wikidata API interactions
     to avoid real API calls during testing. Applied to all tests automatically.
 
-    Mocks functions in poliloom.wikidata_statement (used by push_evaluation).
+    Mocks functions in poliloom.wikidata.statement (used by push_evaluation).
     """
     import uuid
 
@@ -836,15 +836,15 @@ def mock_wikidata_api():
 
     with (
         patch(
-            "poliloom.wikidata_statement.create_statement",
+            "poliloom.wikidata.statement.create_statement",
             side_effect=mock_create_statement_fn,
         ) as mock_create_statement,
         patch(
-            "poliloom.wikidata_statement.deprecate_statement",
+            "poliloom.wikidata.statement.deprecate_statement",
             side_effect=mock_deprecate_statement_fn,
         ) as mock_deprecate_statement,
         patch(
-            "poliloom.wikidata_statement.create_entity",
+            "poliloom.wikidata.statement.create_entity",
             side_effect=mock_create_entity_fn,
         ) as mock_create_entity,
     ):

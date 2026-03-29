@@ -22,7 +22,7 @@ from ..models import (
     PropertyType,
 )
 from ..sse import EvaluationCountEvent, notify
-from ..wikidata_statement import create_entity, create_statement, push_evaluation
+from ..wikidata.statement import create_entity, create_statement, push_evaluation
 from .schemas import (
     AcceptPropertyItem,
     SourceResponse,

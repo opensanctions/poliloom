@@ -22,7 +22,7 @@ from .models import (
     WikidataEntity,
 )
 from .search import SearchService
-from .wikidata_date import WikidataDate
+from .wikidata.date import WikidataDate
 from . import prompts
 
 logger = logging.getLogger(__name__)

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from .. import dump_reader
 from ..database import create_engine, get_engine
 from ..models import WikidataEntity, WikidataRelation
-from ..wikidata_entity_processor import WikidataEntityProcessor
+from ..wikidata.entity_processor import WikidataEntityProcessor
 
 logger = logging.getLogger(__name__)
 

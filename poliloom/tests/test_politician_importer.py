@@ -13,8 +13,8 @@ from poliloom.importer.politician import (
     _is_politician,
     _should_import_politician,
 )
-from poliloom.wikidata_entity_processor import WikidataEntityProcessor
-from poliloom.wikidata_date import WikidataDate
+from poliloom.wikidata.entity_processor import WikidataEntityProcessor
+from poliloom.wikidata.date import WikidataDate
 
 
 class TestWikidataPoliticianImporter:

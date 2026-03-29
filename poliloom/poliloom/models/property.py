@@ -15,7 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Session, relationship
-from ..wikidata_date import WikidataDate
+from ..wikidata.date import WikidataDate
 from .base import (
     Base,
     PropertyComparisonResult,

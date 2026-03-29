@@ -8,10 +8,10 @@ from typing import Dict, Any, Optional, List
 import httpx
 from sqlalchemy.orm import Session
 
-from .models import (
+from ..models import (
     PropertyType,
 )
-from .wikidata_date import WikidataDate
+from .date import WikidataDate
 
 logger = logging.getLogger(__name__)
 

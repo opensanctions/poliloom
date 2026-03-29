@@ -21,7 +21,7 @@ from ..models import (
     WikipediaLink,
     WikipediaProject,
 )
-from ..wikidata_entity_processor import WikidataEntityProcessor
+from ..wikidata.entity_processor import WikidataEntityProcessor
 
 logger = logging.getLogger(__name__)
 

@@ -5,7 +5,7 @@ from unittest.mock import Mock, AsyncMock, patch
 import httpx
 
 from poliloom.models import Property, PropertyType, Politician, Evaluation
-from poliloom.wikidata_statement import (
+from poliloom.wikidata.statement import (
     _convert_qualifiers_to_rest_api,
     deprecate_statement,
     create_statement,
@@ -402,7 +402,7 @@ class TestDeprecateStatement:
     @pytest.mark.asyncio
     async def test_successful_deprecation_200(self):
         """Test successful statement deprecation (200 response)."""
-        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
+        with patch("poliloom.wikidata.statement.httpx.AsyncClient") as mock_client:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_client.return_value.__aenter__.return_value.patch.return_value = (
@@ -425,7 +425,7 @@ class TestDeprecateStatement:
     @pytest.mark.asyncio
     async def test_statement_not_found_404(self):
         """Test deprecation when statement not found (404 response)."""
-        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
+        with patch("poliloom.wikidata.statement.httpx.AsyncClient") as mock_client:
             mock_response = Mock()
             mock_response.status_code = 404
             mock_client.return_value.__aenter__.return_value.patch.return_value = (
@@ -439,7 +439,7 @@ class TestDeprecateStatement:
     @pytest.mark.asyncio
     async def test_authentication_error_401(self):
         """Test authentication error (401 response)."""
-        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
+        with patch("poliloom.wikidata.statement.httpx.AsyncClient") as mock_client:
             mock_response = Mock()
             mock_response.status_code = 401
             mock_response.text = "Unauthorized"
@@ -455,7 +455,7 @@ class TestDeprecateStatement:
     @pytest.mark.asyncio
     async def test_server_error_500(self):
         """Test server error (500 response)."""
-        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
+        with patch("poliloom.wikidata.statement.httpx.AsyncClient") as mock_client:
             mock_response = Mock()
             mock_response.status_code = 500
             mock_response.text = "Internal Server Error"
@@ -480,7 +480,7 @@ class TestDeprecateStatement:
     @pytest.mark.asyncio
     async def test_network_error(self):
         """Test network error handling."""
-        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
+        with patch("poliloom.wikidata.statement.httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.patch.side_effect = (
                 httpx.RequestError("Network error")
             )
@@ -495,7 +495,7 @@ class TestCreateStatement:
     @pytest.mark.asyncio
     async def test_successful_creation_201(self):
         """Test successful statement creation (201 response)."""
-        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
+        with patch("poliloom.wikidata.statement.httpx.AsyncClient") as mock_client:
             mock_response = Mock()
             mock_response.status_code = 201
             mock_response.json.return_value = {"id": "Q42$new-statement-id"}
@@ -518,7 +518,7 @@ class TestCreateStatement:
     @pytest.mark.asyncio
     async def test_creation_with_qualifiers_and_references(self):
         """Test statement creation with qualifiers and references."""
-        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
+        with patch("poliloom.wikidata.statement.httpx.AsyncClient") as mock_client:
             mock_response = Mock()
             mock_response.status_code = 201
             mock_response.json.return_value = {"id": "Q42$new-statement-id"}
@@ -564,7 +564,7 @@ class TestCreateStatement:
     @pytest.mark.asyncio
     async def test_validation_error_400(self):
         """Test validation error (400 response)."""
-        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
+        with patch("poliloom.wikidata.statement.httpx.AsyncClient") as mock_client:
             mock_response = Mock()
             mock_response.status_code = 400
             mock_response.text = "Invalid value"
@@ -579,7 +579,7 @@ class TestCreateStatement:
     @pytest.mark.asyncio
     async def test_authentication_error_401(self):
         """Test authentication error (401 response)."""
-        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
+        with patch("poliloom.wikidata.statement.httpx.AsyncClient") as mock_client:
             mock_response = Mock()
             mock_response.status_code = 401
             mock_response.text = "Unauthorized"
@@ -605,7 +605,7 @@ class TestCreateStatement:
     @pytest.mark.asyncio
     async def test_missing_statement_id_in_response(self):
         """Test missing statement ID in successful response."""
-        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
+        with patch("poliloom.wikidata.statement.httpx.AsyncClient") as mock_client:
             mock_response = Mock()
             mock_response.status_code = 201
             mock_response.json.return_value = {}  # Missing "id" field
@@ -620,7 +620,7 @@ class TestCreateStatement:
     @pytest.mark.asyncio
     async def test_network_error(self):
         """Test network error handling."""
-        with patch("poliloom.wikidata_statement.httpx.AsyncClient") as mock_client:
+        with patch("poliloom.wikidata.statement.httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.post.side_effect = (
                 httpx.RequestError("Network error")
             )
@@ -711,7 +711,7 @@ class TestPushEvaluation:
         mock_db = Mock()
 
         with patch(
-            "poliloom.wikidata_statement.create_statement", new_callable=AsyncMock
+            "poliloom.wikidata.statement.create_statement", new_callable=AsyncMock
         ) as mock_create:
             mock_create.return_value = "Q12345$new-statement-id"
 
@@ -757,7 +757,7 @@ class TestPushEvaluation:
         mock_db = Mock()
 
         with patch(
-            "poliloom.wikidata_statement.deprecate_statement", new_callable=AsyncMock
+            "poliloom.wikidata.statement.deprecate_statement", new_callable=AsyncMock
         ) as mock_deprecate:
             result = await push_evaluation(evaluation, "test_jwt_token", mock_db)
 
@@ -821,7 +821,7 @@ class TestPushEvaluation:
         mock_db = Mock()
 
         with patch(
-            "poliloom.wikidata_statement.create_statement", new_callable=AsyncMock
+            "poliloom.wikidata.statement.create_statement", new_callable=AsyncMock
         ) as mock_create:
             mock_create.return_value = "Q12345$new-statement-id"
 
@@ -857,7 +857,7 @@ class TestPushEvaluation:
         mock_db = Mock()
 
         with patch(
-            "poliloom.wikidata_statement.deprecate_statement", new_callable=AsyncMock
+            "poliloom.wikidata.statement.deprecate_statement", new_callable=AsyncMock
         ) as mock_deprecate:
             mock_deprecate.side_effect = Exception("API Error")
 
@@ -882,7 +882,7 @@ class TestPushEvaluation:
         mock_db = Mock()
 
         with patch(
-            "poliloom.wikidata_statement.create_statement", new_callable=AsyncMock
+            "poliloom.wikidata.statement.create_statement", new_callable=AsyncMock
         ) as mock_create:
             mock_create.side_effect = Exception("API Error")
 
@@ -918,7 +918,7 @@ class TestPushEvaluation:
         mock_db = Mock()
 
         with patch(
-            "poliloom.wikidata_statement.create_statement", new_callable=AsyncMock
+            "poliloom.wikidata.statement.create_statement", new_callable=AsyncMock
         ) as mock_create:
             mock_create.return_value = "Q12345$new-statement-id"
 

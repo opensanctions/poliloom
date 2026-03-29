@@ -1,6 +1,6 @@
 """Tests for the WikidataEntityProcessor class."""
 
-from poliloom.wikidata_entity_processor import WikidataEntityProcessor
+from poliloom.wikidata.entity_processor import WikidataEntityProcessor
 
 
 class TestWikidataEntityProcessor:

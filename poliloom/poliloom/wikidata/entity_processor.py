@@ -2,7 +2,7 @@
 
 from typing import Dict, List, Optional, Any, Set
 import logging
-from poliloom.wikidata_date import WikidataDate
+from .date import WikidataDate
 
 logger = logging.getLogger(__name__)
 

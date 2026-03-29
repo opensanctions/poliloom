@@ -8,7 +8,7 @@ from poliloom.models import (
     WikidataRelation,
     RelationType,
 )
-from poliloom.wikidata_date import WikidataDate
+from poliloom.wikidata.date import WikidataDate
 
 
 class TestPolitician:
