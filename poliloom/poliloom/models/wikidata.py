@@ -37,6 +37,8 @@ from .base import (
     TimestampMixin,
     UpsertMixin,
 )
+from .property import Property
+from .user import Evaluation
 
 
 class WikidataEntityMixin:
@@ -345,61 +347,28 @@ class WikidataEntityMixin:
         return select(cls.wikidata_id).where(outside_condition).subquery()
 
     @classmethod
-    def cleanup_outside_hierarchy(
+    def preview_outside_hierarchy(
         cls,
         session: Session,
-        dry_run: bool = False,
     ) -> dict[str, int]:
-        """Remove entities outside the configured hierarchy.
-
-        Soft-deletes properties referencing these entities (if applicable),
-        then hard-deletes the entity records and removes them from search index.
-
-        Args:
-            session: Database session
-            dry_run: If True, only report what would be done without making changes
+        """Preview what cleanup_outside_hierarchy would do without making changes.
 
         Returns:
-            Dict with cleanup statistics:
-            - 'entities_removed': Number of entity records deleted
-            - 'properties_deleted': Number of properties soft-deleted
-            - 'properties_total': Total properties of this type (for percentage calc)
+            Dict with preview statistics:
+            - 'entities_removed': Number of entity records that would be deleted
+            - 'properties_deleted': Number of properties that would be soft-deleted
+            - 'properties_total': Total properties of this type
             - 'properties_extracted': Properties that were extracted (no statement_id)
             - 'properties_evaluated': Properties with evaluations
             - 'total_entities': Total entities before cleanup
         """
-        from poliloom.models import Evaluation, Property
-        from poliloom.search import SearchService
-
+        root_ids = cls._hierarchy_roots
+        ignore_ids = cls._hierarchy_ignore or []
         prop_type = getattr(cls, "_cleanup_property_type", None)
-        root_ids = getattr(cls, "_hierarchy_roots", None)
-        ignore_ids = getattr(cls, "_hierarchy_ignore", None) or []
-
-        # Get total count
         total = session.execute(select(func.count()).select_from(cls)).scalar()
 
-        if not root_ids:
-            return {
-                "entities_removed": 0,
-                "properties_deleted": 0,
-                "properties_total": 0,
-                "properties_extracted": 0,
-                "properties_evaluated": 0,
-                "total_entities": total,
-            }
-
-        # Build subquery for entities outside hierarchy
-        outside_subquery = cls._build_outside_hierarchy_subquery(
-            root_ids, ignore_ids if ignore_ids else None
-        )
-
-        # Get count of entities to remove
-        to_remove_count = session.execute(
-            select(func.count()).select_from(outside_subquery)
-        ).scalar()
-
         stats = {
-            "entities_removed": to_remove_count,
+            "entities_removed": 0,
             "properties_deleted": 0,
             "properties_total": 0,
             "properties_extracted": 0,
@@ -407,48 +376,88 @@ class WikidataEntityMixin:
             "total_entities": total,
         }
 
-        if to_remove_count == 0:
+        if not root_ids:
             return stats
 
-        if dry_run:
-            if prop_type:
-                # Count properties that would be deleted
-                props_to_delete = (
-                    select(
-                        func.count().label("total"),
-                        func.count()
-                        .filter(Property.statement_id.is_(None))
-                        .label("extracted"),
-                        func.count(Evaluation.property_id.distinct())
-                        .filter(Property.statement_id.is_(None))
-                        .label("evaluated"),
-                    )
-                    .select_from(Property)
-                    .outerjoin(Evaluation, Evaluation.property_id == Property.id)
-                    .where(
-                        and_(
-                            Property.entity_id.in_(select(outside_subquery)),
-                            Property.type == prop_type,
-                            Property.deleted_at.is_(None),
-                        )
+        outside_subquery = cls._build_outside_hierarchy_subquery(
+            root_ids, ignore_ids or None
+        )
+        stats["entities_removed"] = session.execute(
+            select(func.count()).select_from(outside_subquery)
+        ).scalar()
+
+        if stats["entities_removed"] == 0:
+            return stats
+
+        if prop_type:
+            props_to_delete = (
+                select(
+                    func.count().label("total"),
+                    func.count()
+                    .filter(Property.statement_id.is_(None))
+                    .label("extracted"),
+                    func.count(Evaluation.property_id.distinct())
+                    .filter(Property.statement_id.is_(None))
+                    .label("evaluated"),
+                )
+                .select_from(Property)
+                .outerjoin(Evaluation, Evaluation.property_id == Property.id)
+                .where(
+                    and_(
+                        Property.entity_id.in_(select(outside_subquery)),
+                        Property.type == prop_type,
+                        Property.deleted_at.is_(None),
                     )
                 )
-                prop_stats = session.execute(props_to_delete).fetchone()
+            )
+            prop_stats = session.execute(props_to_delete).fetchone()
 
-                # Count total properties of this type
-                all_props_count = session.execute(
-                    select(func.count())
-                    .select_from(Property)
-                    .where(
-                        and_(Property.type == prop_type, Property.deleted_at.is_(None))
-                    )
-                ).scalar()
+            all_props_count = session.execute(
+                select(func.count())
+                .select_from(Property)
+                .where(and_(Property.type == prop_type, Property.deleted_at.is_(None)))
+            ).scalar()
 
-                stats["properties_deleted"] = prop_stats.total
-                stats["properties_total"] = all_props_count
-                stats["properties_extracted"] = prop_stats.extracted
-                stats["properties_evaluated"] = prop_stats.evaluated
+            stats["properties_deleted"] = prop_stats.total
+            stats["properties_total"] = all_props_count
+            stats["properties_extracted"] = prop_stats.extracted
+            stats["properties_evaluated"] = prop_stats.evaluated
+
+        return stats
+
+    @classmethod
+    def cleanup_outside_hierarchy(
+        cls,
+        session: Session,
+    ) -> dict[str, int]:
+        """Remove entities outside the configured hierarchy.
+
+        Soft-deletes properties referencing these entities (if applicable),
+        then hard-deletes the entity records and removes them from search index.
+
+        Returns:
+            Dict with cleanup statistics:
+            - 'entities_removed': Number of entity records deleted
+            - 'properties_deleted': Number of properties soft-deleted
+            - 'total_entities': Total entities before cleanup
+        """
+        root_ids = cls._hierarchy_roots
+        ignore_ids = cls._hierarchy_ignore or []
+        prop_type = getattr(cls, "_cleanup_property_type", None)
+        total = session.execute(select(func.count()).select_from(cls)).scalar()
+
+        stats = {
+            "entities_removed": 0,
+            "properties_deleted": 0,
+            "total_entities": total,
+        }
+
+        if not root_ids:
             return stats
+
+        outside_subquery = cls._build_outside_hierarchy_subquery(
+            root_ids, ignore_ids or None
+        )
 
         # Soft-delete properties if this entity type has associated properties
         if prop_type:

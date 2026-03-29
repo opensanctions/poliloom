@@ -726,13 +726,14 @@ def clean_entities(dry_run):
                 name = entity_cls.__tablename__
                 click.echo(f"⏳ Identifying {name} outside hierarchy...")
 
-                stats = entity_cls.cleanup_outside_hierarchy(session, dry_run=dry_run)
+                if dry_run:
+                    stats = entity_cls.preview_outside_hierarchy(session)
+                else:
+                    stats = entity_cls.cleanup_outside_hierarchy(session)
+
                 total = stats["total_entities"]
                 removed = stats["entities_removed"]
                 props = stats["properties_deleted"]
-                props_total = stats["properties_total"]
-                props_extracted = stats["properties_extracted"]
-                props_evaluated = stats["properties_evaluated"]
                 pct = (removed / total * 100) if total else 0
 
                 click.echo(f"  • Found {removed}/{total} {name} to remove ({pct:.1f}%)")
@@ -741,6 +742,9 @@ def clean_entities(dry_run):
                     any_removed = True
                     if dry_run:
                         if props:
+                            props_total = stats["properties_total"]
+                            props_extracted = stats["properties_extracted"]
+                            props_evaluated = stats["properties_evaluated"]
                             pct_props = (
                                 (props / props_total * 100) if props_total else 0
                             )

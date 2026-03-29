@@ -445,7 +445,7 @@ class TestCleanupOutsideHierarchy:
         assert count == 2
 
         # Run cleanup
-        stats = Position.cleanup_outside_hierarchy(db_session, dry_run=False)
+        stats = Position.cleanup_outside_hierarchy(db_session)
 
         # Orphan should be removed
         assert stats["entities_removed"] == 1
@@ -471,7 +471,7 @@ class TestCleanupOutsideHierarchy:
         self._create_position_in_hierarchy(db_session, "Q201", "Q101")
 
         # Run cleanup
-        stats = Position.cleanup_outside_hierarchy(db_session, dry_run=False)
+        stats = Position.cleanup_outside_hierarchy(db_session)
 
         # Nothing should be removed
         assert stats["entities_removed"] == 0
@@ -480,8 +480,8 @@ class TestCleanupOutsideHierarchy:
         count = db_session.execute(text("SELECT COUNT(*) FROM positions")).scalar()
         assert count == 2
 
-    def test_dry_run_does_not_modify(self, db_session):
-        """Test that dry_run=True returns stats but doesn't delete anything."""
+    def test_preview_does_not_modify(self, db_session):
+        """Test that preview_outside_hierarchy returns stats but doesn't delete anything."""
         from poliloom.models import Position
         from sqlalchemy import text
 
@@ -492,8 +492,8 @@ class TestCleanupOutsideHierarchy:
         self._create_position_in_hierarchy(db_session, "Q200", "Q100")
         self._create_orphan_position(db_session, "Q300")
 
-        # Run cleanup with dry_run=True
-        stats = Position.cleanup_outside_hierarchy(db_session, dry_run=True)
+        # Preview cleanup
+        stats = Position.preview_outside_hierarchy(db_session)
 
         # Stats should show what would be removed
         assert stats["entities_removed"] == 1
@@ -525,7 +525,7 @@ class TestCleanupOutsideHierarchy:
         assert count == 2
 
         # Run cleanup
-        stats = Position.cleanup_outside_hierarchy(db_session, dry_run=False)
+        stats = Position.cleanup_outside_hierarchy(db_session)
 
         # Position in ignored branch should be removed
         assert stats["entities_removed"] == 1
@@ -572,7 +572,7 @@ class TestCleanupOutsideHierarchy:
         db_session.flush()
 
         # Run cleanup
-        stats = Position.cleanup_outside_hierarchy(db_session, dry_run=False)
+        stats = Position.cleanup_outside_hierarchy(db_session)
 
         # One property should be soft-deleted
         assert stats["properties_deleted"] == 1
@@ -597,7 +597,7 @@ class TestCleanupOutsideHierarchy:
 
         # WikipediaProject has _hierarchy_roots = None (not configured)
         # So cleanup should return 0 entities removed
-        stats = WikipediaProject.cleanup_outside_hierarchy(db_session, dry_run=False)
+        stats = WikipediaProject.cleanup_outside_hierarchy(db_session)
 
         assert stats["entities_removed"] == 0
 
@@ -647,7 +647,7 @@ class TestCleanupOutsideHierarchy:
         db_session.flush()
 
         # Run cleanup
-        stats = Position.cleanup_outside_hierarchy(db_session, dry_run=False)
+        stats = Position.cleanup_outside_hierarchy(db_session)
 
         # Entity should be removed because ignored branch takes precedence
         assert stats["entities_removed"] == 1
@@ -701,7 +701,7 @@ class TestCleanupOutsideHierarchy:
         assert count == 2
 
         # Run cleanup
-        stats = Position.cleanup_outside_hierarchy(db_session, dry_run=False)
+        stats = Position.cleanup_outside_hierarchy(db_session)
 
         # Position in ignored branch should be removed
         assert stats["entities_removed"] == 1
@@ -735,7 +735,7 @@ class TestCleanupOutsideHierarchy:
         assert count == 3
 
         # Run cleanup
-        stats = Position.cleanup_outside_hierarchy(db_session, dry_run=False)
+        stats = Position.cleanup_outside_hierarchy(db_session)
 
         # Only orphan should be removed
         assert stats["entities_removed"] == 1
@@ -799,7 +799,7 @@ class TestCleanupOutsideHierarchy:
         assert count == 2
 
         # Run cleanup
-        stats = Position.cleanup_outside_hierarchy(db_session, dry_run=False)
+        stats = Position.cleanup_outside_hierarchy(db_session)
 
         # Deep ignored position should be removed
         assert stats["entities_removed"] == 1
@@ -848,7 +848,7 @@ class TestCleanupOutsideHierarchy:
         db_session.flush()
 
         # Run cleanup
-        stats = Position.cleanup_outside_hierarchy(db_session, dry_run=False)
+        stats = Position.cleanup_outside_hierarchy(db_session)
 
         # Position should NOT be removed (SUBCLASS_OF is valid for membership)
         assert stats["entities_removed"] == 0
@@ -953,7 +953,7 @@ class TestCleanupOutsideHierarchySearchService:
         self._create_orphan_location(db_session, "Q300")
         self._create_orphan_location(db_session, "Q301")
 
-        stats = Location.cleanup_outside_hierarchy(db_session, dry_run=False)
+        stats = Location.cleanup_outside_hierarchy(db_session)
 
         # Verify orphans were removed
         assert stats["entities_removed"] == 2
@@ -968,13 +968,13 @@ class TestCleanupOutsideHierarchySearchService:
         # Create only valid locations (no orphans)
         self._create_location_in_hierarchy(db_session, "Q200", "Q100")
 
-        stats = Location.cleanup_outside_hierarchy(db_session, dry_run=False)
+        stats = Location.cleanup_outside_hierarchy(db_session)
 
         # No entities removed
         assert stats["entities_removed"] == 0
 
-    def test_dry_run_does_not_call_delete_documents(self, db_session):
-        """Test that dry_run=True reports but does not delete."""
+    def test_preview_does_not_call_delete_documents(self, db_session):
+        """Test that preview_outside_hierarchy reports but does not delete."""
         from poliloom.models import Location
 
         # Create hierarchy
@@ -983,9 +983,9 @@ class TestCleanupOutsideHierarchySearchService:
         # Create orphan location
         self._create_orphan_location(db_session, "Q300")
 
-        stats = Location.cleanup_outside_hierarchy(db_session, dry_run=True)
+        stats = Location.preview_outside_hierarchy(db_session)
 
-        # Dry run reports what would be removed
+        # Preview reports what would be removed
         assert stats["entities_removed"] == 1
 
 
