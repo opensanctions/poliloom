@@ -41,11 +41,12 @@ from .source import (
     PoliticianSource,
 )
 
+# Property domain
+from .property import Property, PropertyReference
+
 # Politician domain
 from .politician import (
     Politician,
-    Property,
-    PropertyReference,
     WikipediaLink,
 )
 
