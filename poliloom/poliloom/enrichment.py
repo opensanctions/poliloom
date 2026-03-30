@@ -385,7 +385,6 @@ async def extract_two_stage_generic(
 
         mapping_results = await asyncio.gather(*mapping_tasks)
 
-        # Filter out None results
         mapped_results = [result for result in mapping_results if result is not None]
 
         logger.info(
@@ -658,11 +657,21 @@ def store_extracted_data(
                 db.flush()
                 logger.info(f"Added new {label} for {politician.name}")
 
-            db.add(
-                PropertyReference(
-                    property=prop, source=source, supporting_quotes=quotes
-                )
+            existing_ref = (
+                db.query(PropertyReference)
+                .filter_by(property_id=prop.id, source_id=source.id)
+                .first()
             )
+            if existing_ref:
+                existing_ref.supporting_quotes = list(
+                    set((existing_ref.supporting_quotes or []) + quotes)
+                )
+            else:
+                db.add(
+                    PropertyReference(
+                        property=prop, source=source, supporting_quotes=quotes
+                    )
+                )
 
         return True
 

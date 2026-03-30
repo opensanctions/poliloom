@@ -10,6 +10,7 @@ from poliloom.enrichment import (
     ExtractedProperty,
     ExtractedPosition,
     ExtractedBirthplace,
+    ExtractedCitizenship,
     PropertyType,
     DATES_CONFIG,
     POSITIONS_CONFIG,
@@ -548,6 +549,57 @@ class TestEnrichment:
             .all()
         )
         assert len(refs) == 2
+
+    def test_duplicate_citizenships_merge_quotes(
+        self,
+        db_session,
+        sample_politician,
+        sample_source,
+        sample_country,
+    ):
+        """Test that duplicate citizenships from same source merge quotes."""
+        citizenships = [
+            ExtractedCitizenship(
+                wikidata_id=sample_country.wikidata_id,
+                supporting_quotes=["is an American politician"],
+            ),
+            ExtractedCitizenship(
+                wikidata_id=sample_country.wikidata_id,
+                supporting_quotes=["a United States senator"],
+            ),
+        ]
+
+        success = store_extracted_data(
+            db_session,
+            sample_politician,
+            sample_source,
+            None,
+            None,
+            None,
+            citizenships,
+        )
+
+        assert success is True
+
+        props = (
+            db_session.query(Property)
+            .filter_by(
+                politician_id=sample_politician.id,
+                type=PropertyType.CITIZENSHIP,
+                entity_id=sample_country.wikidata_id,
+            )
+            .all()
+        )
+        assert len(props) == 1
+
+        refs = (
+            db_session.query(PropertyReference)
+            .filter_by(property_id=props[0].id, source_id=sample_source.id)
+            .all()
+        )
+        assert len(refs) == 1
+        assert "is an American politician" in refs[0].supporting_quotes
+        assert "a United States senator" in refs[0].supporting_quotes
 
     def test_store_extracted_data_error_handling(
         self,
