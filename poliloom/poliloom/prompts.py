@@ -5,7 +5,7 @@ from Wikipedia and other sources. Prompts are organized by extraction type and p
 """
 
 # Date extraction prompts
-DATES_EXTRACTION_SYSTEM_PROMPT = """You are a data extraction assistant for Wikipedia biographical data.
+DATES_EXTRACTION_SYSTEM_PROMPT = """You are a data extraction assistant for biographical data.
 
 <extraction_scope>
 Extract ONLY these two property types when found:
@@ -31,17 +31,15 @@ Extract ONLY these two property types when found:
 </supporting_quotes_requirements>"""
 
 DATES_ANALYSIS_FOCUS_TEMPLATE = """<validation_focus>
-Use this information to:
-- Focus on finding additional or conflicting dates not already in Wikidata
-- Validate or provide more precise versions of existing dates
-- Identify any discrepancies between the article and Wikidata
+The politician already has known dates (listed above). Extract all dates you find in the text, including ones that already exist — the existing data is provided to help you recognize dates that may appear in different formats.
 </validation_focus>"""
 
 # Position extraction prompts
-POSITIONS_EXTRACTION_SYSTEM_PROMPT = """You are a political data analyst specializing in extracting structured information from Wikipedia articles and official government websites.
+POSITIONS_EXTRACTION_SYSTEM_PROMPT = """You are a political data analyst specializing in extracting structured information from text.
 
 <extraction_scope>
-Extract elected or appointed political positions from the provided content.
+Extract all political positions from the provided content following these rules:
+- Extract any political offices, government roles, elected positions, or political appointments
 - When the article clearly indicates the country/jurisdiction context, enhance position names with that context in parentheses (e.g., "Minister of Defence (Myanmar)")
 - Only add jurisdictional context when you have high confidence from the article content
 - Preserve the original position name without additions when jurisdiction is uncertain
@@ -63,16 +61,13 @@ Extract elected or appointed political positions from the provided content.
 </supporting_quotes_requirements>"""
 
 POSITIONS_ANALYSIS_FOCUS_TEMPLATE = """<position_analysis_focus>
-The politician already has positions recorded in Wikidata (listed above). Your task is to find gaps in this existing data:
-- Positions mentioned in the text that are entirely absent from the existing data
-- More precise date ranges for positions that currently lack dates
-- More specific position variants (e.g., a specific committee role when only general membership exists)
+The politician already has known positions (listed above). Extract all positions you find in the text, including ones that already exist — the existing data is provided to help you recognize positions that may appear with different wordings.
 
-When the text describes a position that matches an existing one — same role, overlapping or covered timeframe — skip it, even if worded differently. Consecutive specific periods (e.g., 2013-2017, 2017-2021, 2021-2025) already cover the full span, so a single merged period like "2013 - present" is not new information.
+Do not extract a position when the existing data already contains the same role with more specific timeframes. For example, if the existing data has three consecutive terms (2013-2017, 2017-2021, 2021-2025) and the text only says "since 2013", do not extract the vaguer "2013 - present" — the existing data is already more precise.
 </position_analysis_focus>"""
 
 # Birthplace extraction prompts
-BIRTHPLACES_EXTRACTION_SYSTEM_PROMPT = """You are a biographical data specialist extracting location information from Wikipedia articles and official government profiles.
+BIRTHPLACES_EXTRACTION_SYSTEM_PROMPT = """You are a biographical data specialist extracting location information from text.
 
 <extraction_scope>
 Extract birthplace information following these rules:
@@ -93,14 +88,11 @@ Extract birthplace information following these rules:
 </supporting_quotes_requirements>"""
 
 BIRTHPLACES_ANALYSIS_FOCUS_TEMPLATE = """<birthplace_analysis_focus>
-Use this information to:
-- Identify mentions of these locations in the text (they may appear with different wordings)
-- Find more specific birthplace information (e.g., specific city if only country is known)
-- Identify any conflicting birthplace claims
+The politician already has known birthplace data (listed above). Extract all birthplace information you find in the text, including locations that already exist — the existing data is provided to help you recognize locations that may appear with different wordings.
 </birthplace_analysis_focus>"""
 
 # Citizenship extraction prompts
-CITIZENSHIPS_EXTRACTION_SYSTEM_PROMPT = """You are a biographical data specialist extracting nationality and citizenship information from Wikipedia articles and official government profiles.
+CITIZENSHIPS_EXTRACTION_SYSTEM_PROMPT = """You are a biographical data specialist extracting nationality and citizenship information from text.
 
 <extraction_scope>
 Extract citizenship and nationality information following these rules:
@@ -121,10 +113,7 @@ Extract citizenship and nationality information following these rules:
 </supporting_quotes_requirements>"""
 
 CITIZENSHIPS_ANALYSIS_FOCUS_TEMPLATE = """<citizenship_analysis_focus>
-Use this information to:
-- Identify mentions of these citizenships in the text (they may appear with different wordings like "nationality", "citizen of", etc.)
-- Find additional citizenships not already in Wikidata
-- Identify any conflicting citizenship claims or changes in citizenship over time
+The politician already has known citizenships (listed above). Extract all citizenships and nationalities you find in the text, including ones that already exist — the existing data is provided to help you recognize citizenships that may appear with different wordings.
 </citizenship_analysis_focus>"""
 
 # Entity mapping prompts
@@ -201,7 +190,7 @@ Map the extracted citizenship/nationality to the correct Wikidata country entity
 </rejection_criteria>"""
 
 # User prompt templates
-EXTRACTION_USER_PROMPT_TEMPLATE = """Extract personal properties of {politician_name} from this Wikipedia article text:
+EXTRACTION_USER_PROMPT_TEMPLATE = """Extract personal properties of {politician_name} from the content below.
 
 {politician_context}
 {analysis_focus}
