@@ -31,7 +31,7 @@ Extract ONLY these two property types when found:
 </supporting_quotes_requirements>"""
 
 DATES_ANALYSIS_FOCUS_TEMPLATE = """<validation_focus>
-The politician already has known dates (listed above). Extract all dates you find in the text, including ones that already exist — the existing data is provided to help you recognize dates that may appear in different formats.
+The politician already has known dates (listed above). Extract birth and death dates you find in the text, including ones that already exist — the existing data is provided to help you recognize dates that may appear in different formats.
 </validation_focus>"""
 
 # Position extraction prompts
