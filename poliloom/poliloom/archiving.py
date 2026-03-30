@@ -272,7 +272,7 @@ async def process_source(db: Session, source: Source, politician: Politician) ->
             db.commit()
             return 0
         soup = BeautifulSoup(html_content, "html.parser")
-        text = soup.get_text()
+        text = soup.get_text(separator=" ")
         content = " ".join(text.split())
         if not content.strip():
             source.status = SourceStatus.DONE

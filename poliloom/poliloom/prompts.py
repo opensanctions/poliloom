@@ -5,7 +5,7 @@ from Wikipedia and other sources. Prompts are organized by extraction type and p
 """
 
 # Date extraction prompts
-DATES_EXTRACTION_SYSTEM_PROMPT = """You are a data extraction assistant for biographical data.
+DATES_EXTRACTION_SYSTEM_PROMPT = """You are a data extraction assistant for biographical data from web pages.
 
 <extraction_scope>
 Extract ONLY these two property types when found:
@@ -35,7 +35,7 @@ The politician already has known dates (listed above). Extract birth and death d
 </validation_focus>"""
 
 # Position extraction prompts
-POSITIONS_EXTRACTION_SYSTEM_PROMPT = """You are a political data analyst specializing in extracting structured information from text.
+POSITIONS_EXTRACTION_SYSTEM_PROMPT = """You are a political data analyst specializing in extracting structured information from web pages.
 
 <extraction_scope>
 Extract all political positions from the provided content following these rules:
@@ -63,11 +63,11 @@ Extract all political positions from the provided content following these rules:
 POSITIONS_ANALYSIS_FOCUS_TEMPLATE = """<position_analysis_focus>
 The politician already has known positions (listed above). Extract all positions you find in the text, including ones that already exist — the existing data is provided to help you recognize positions that may appear with different wordings.
 
-Do not extract a position when the existing data already contains the same role with more specific timeframes. For example, if the existing data has three consecutive terms (2013-2017, 2017-2021, 2021-2025) and the text only says "since 2013", do not extract the vaguer "2013 - present" — the existing data is already more precise.
+Do not extract a position if existing entries for the same role already cover that timeframe with equal or greater detail. Multiple consecutive entries for a role (e.g., separate terms with precise start/end dates) are collectively more informative than a single span covering the same period — do not collapse them into one.
 </position_analysis_focus>"""
 
 # Birthplace extraction prompts
-BIRTHPLACES_EXTRACTION_SYSTEM_PROMPT = """You are a biographical data specialist extracting location information from text.
+BIRTHPLACES_EXTRACTION_SYSTEM_PROMPT = """You are a biographical data specialist extracting location information from web pages.
 
 <extraction_scope>
 Extract birthplace information following these rules:
@@ -92,7 +92,7 @@ The politician already has known birthplace data (listed above). Extract all bir
 </birthplace_analysis_focus>"""
 
 # Citizenship extraction prompts
-CITIZENSHIPS_EXTRACTION_SYSTEM_PROMPT = """You are a biographical data specialist extracting nationality and citizenship information from text.
+CITIZENSHIPS_EXTRACTION_SYSTEM_PROMPT = """You are a biographical data specialist extracting nationality and citizenship information from web pages.
 
 <extraction_scope>
 Extract citizenship and nationality information following these rules:
@@ -190,7 +190,7 @@ Map the extracted citizenship/nationality to the correct Wikidata country entity
 </rejection_criteria>"""
 
 # User prompt templates
-EXTRACTION_USER_PROMPT_TEMPLATE = """Extract personal properties of {politician_name} from the content below.
+EXTRACTION_USER_PROMPT_TEMPLATE = """Extract personal properties of {politician_name} from the web page content below.
 
 {politician_context}
 {analysis_focus}
@@ -199,7 +199,7 @@ EXTRACTION_USER_PROMPT_TEMPLATE = """Extract personal properties of {politician_
 {content}
 </article_content>"""
 
-POSITIONS_USER_PROMPT_TEMPLATE = """Extract all political positions held by {politician_name} from the content below.
+POSITIONS_USER_PROMPT_TEMPLATE = """Extract all political positions held by {politician_name} from the web page content below.
 
 {politician_context}
 {analysis_focus}
@@ -208,7 +208,7 @@ POSITIONS_USER_PROMPT_TEMPLATE = """Extract all political positions held by {pol
 {content}
 </article_content>"""
 
-BIRTHPLACES_USER_PROMPT_TEMPLATE = """Extract the birthplace of {politician_name} from the content below.
+BIRTHPLACES_USER_PROMPT_TEMPLATE = """Extract the birthplace of {politician_name} from the web page content below.
 
 {politician_context}
 {analysis_focus}
@@ -217,7 +217,7 @@ BIRTHPLACES_USER_PROMPT_TEMPLATE = """Extract the birthplace of {politician_name
 {content}
 </article_content>"""
 
-CITIZENSHIPS_USER_PROMPT_TEMPLATE = """Extract all citizenships and nationalities of {politician_name} from the content below.
+CITIZENSHIPS_USER_PROMPT_TEMPLATE = """Extract all citizenships and nationalities of {politician_name} from the web page content below.
 
 {politician_context}
 {analysis_focus}
