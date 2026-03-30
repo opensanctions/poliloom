@@ -366,8 +366,9 @@ async def extract_two_stage_generic(
             )
             return []
 
+        extracted_names = [r.name for r in free_form_results]
         logger.info(
-            f"Stage 1: Extracted {len(free_form_results)} free-form {config.entity_class.MAPPING_ENTITY_NAME}s for {politician.name}"
+            f"Stage 1: Extracted {len(free_form_results)} free-form {config.entity_class.MAPPING_ENTITY_NAME}s for {politician.name}: {extracted_names}"
         )
 
         # Stage 2: Map to Wikidata entities in parallel
