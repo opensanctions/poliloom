@@ -49,7 +49,7 @@ Extract all political positions from the provided content following these rules:
 <date_formatting_rules>
 - Use format YYYY-MM-DD
 - Use YYYY-MM, or YYYY for incomplete dates
-- Leave end_date null if position is current or unknown
+- Omit end_date if position is current or unknown
 </date_formatting_rules>
 
 <supporting_quotes_requirements>
