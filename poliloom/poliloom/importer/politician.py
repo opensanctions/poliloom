@@ -3,7 +3,6 @@
 import logging
 import multiprocessing as mp
 from typing import Tuple
-from datetime import date
 
 from sqlalchemy.orm import Session
 
@@ -73,37 +72,17 @@ def _should_import_politician(entity: WikidataEntityProcessor) -> bool:
     # Check if politician is deceased (has death date P570)
     death_claims = entity.get_truthy_claims(PropertyType.DEATH_DATE.value)
     if len(death_claims) > 0:
-        # Check any death claim to see if we should exclude this politician
         for claim in death_claims:
             death_info = entity.extract_date_from_claim(claim)
-            if death_info:
-                # Skip all BCE deaths (they died > 2000 years ago)
-                if death_info.is_bce:
-                    return False
-
-                # Use the new to_python_date method
-                death_date = death_info.to_python_date()
-                if death_date:
-                    # Skip if died more than 5 years ago
-                    cutoff_date = date.today().replace(year=date.today().year - 5)
-                    if death_date < cutoff_date:
-                        return False
+            if death_info and death_info.is_over_years_ago(5):
+                return False
     else:
         # No death date - check if born over 120 years ago
         birth_claims = entity.get_truthy_claims(PropertyType.BIRTH_DATE.value)
         for claim in birth_claims:
             birth_info = entity.extract_date_from_claim(claim)
-            if birth_info:
-                # Skip all BCE births
-                if birth_info.is_bce:
-                    return False
-
-                birth_date = birth_info.to_python_date()
-                if birth_date:
-                    current_year = date.today().year
-                    # Skip if born over 120 years ago
-                    if current_year - birth_date.year > 120:
-                        return False
+            if birth_info and birth_info.is_over_years_ago(120):
+                return False
 
     return True
 

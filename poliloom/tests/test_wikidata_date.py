@@ -1,6 +1,7 @@
 """Tests for dates module functionality."""
 
 import pytest
+from datetime import date
 
 from poliloom.wikidata.date import WikidataDate
 
@@ -351,3 +352,173 @@ class TestDatePrecision:
         assert WikidataDate.more_precise_date(None, date) == date
         assert WikidataDate.more_precise_date(date, None) == date
         assert WikidataDate.more_precise_date(None, None) is None
+
+
+class TestIsOverYearsAgo:
+    """Test is_over_years_ago."""
+
+    def test_bce_always_true(self):
+        wd = WikidataDate(time_string="-0347-00-00T00:00:00Z", precision=9)
+        assert wd.is_over_years_ago(5)
+
+    def test_recent_year(self):
+        wd = WikidataDate.from_date_string("2025")
+        assert not wd.is_over_years_ago(5)
+
+    def test_old_year(self):
+        wd = WikidataDate.from_date_string("2015")
+        assert wd.is_over_years_ago(5)
+
+    def test_old_month(self):
+        wd = WikidataDate.from_date_string("2015-06")
+        assert wd.is_over_years_ago(5)
+
+    def test_old_day(self):
+        wd = WikidataDate.from_date_string("2015-01-01")
+        assert wd.is_over_years_ago(5)
+
+    def test_recent_day(self):
+        wd = WikidataDate.from_date_string("2026-01-01")
+        assert not wd.is_over_years_ago(5)
+
+    def test_old_decade(self):
+        wd = WikidataDate(time_string="+1990-00-00T00:00:00Z", precision=8)
+        assert wd.is_over_years_ago(5)
+
+    def test_old_century(self):
+        wd = WikidataDate(time_string="+1800-00-00T00:00:00Z", precision=7)
+        assert wd.is_over_years_ago(5)
+
+    def test_old_millennium(self):
+        wd = WikidataDate(time_string="+1001-00-00T00:00:00Z", precision=6)
+        assert wd.is_over_years_ago(5)
+
+    def test_boundary_year_not_over(self):
+        """Exactly 5 years ago (year precision) is NOT over 5 years ago."""
+        cutoff_year = date.today().year - 5
+        wd = WikidataDate.from_date_string(str(cutoff_year))
+        assert not wd.is_over_years_ago(5)
+
+    def test_boundary_year_minus_one_is_over(self):
+        cutoff_year = date.today().year - 5
+        wd = WikidataDate.from_date_string(str(cutoff_year - 1))
+        assert wd.is_over_years_ago(5)
+
+
+class TestSorting:
+    """Test __lt__ for sorting."""
+
+    def test_sorting_order(self):
+        dates = [
+            WikidataDate.from_date_string("2023"),
+            WikidataDate.from_date_string("2021-06-15"),
+            WikidataDate.from_date_string("2021"),
+        ]
+        sorted_dates = sorted(dates)
+        display = [d.to_display_string() for d in sorted_dates]
+        assert display == ["2021", "2021-06-15", "2023"]
+
+    def test_less_than(self):
+        assert WikidataDate.from_date_string("2020") < WikidataDate.from_date_string(
+            "2021"
+        )
+
+    def test_not_less_than(self):
+        assert not (
+            WikidataDate.from_date_string("2021")
+            < WikidataDate.from_date_string("2020")
+        )
+
+
+class TestIsConsecutiveWith:
+    """Test is_consecutive_with."""
+
+    def test_consecutive_years(self):
+        d1 = WikidataDate.from_date_string("2021")
+        d2 = WikidataDate.from_date_string("2022")
+        assert d1.is_consecutive_with(d2)
+
+    def test_same_year(self):
+        d1 = WikidataDate.from_date_string("2021")
+        d2 = WikidataDate.from_date_string("2021")
+        assert d1.is_consecutive_with(d2)
+
+    def test_gap_years(self):
+        d1 = WikidataDate.from_date_string("2019")
+        d2 = WikidataDate.from_date_string("2022")
+        assert not d1.is_consecutive_with(d2)
+
+    def test_consecutive_months(self):
+        d1 = WikidataDate.from_date_string("2021-06")
+        d2 = WikidataDate.from_date_string("2021-07")
+        assert d1.is_consecutive_with(d2)
+
+    def test_consecutive_months_year_boundary(self):
+        d1 = WikidataDate.from_date_string("2021-12")
+        d2 = WikidataDate.from_date_string("2022-01")
+        assert d1.is_consecutive_with(d2)
+
+    def test_gap_months(self):
+        d1 = WikidataDate.from_date_string("2021-03")
+        d2 = WikidataDate.from_date_string("2021-06")
+        assert not d1.is_consecutive_with(d2)
+
+    def test_consecutive_days(self):
+        d1 = WikidataDate.from_date_string("2021-10-26")
+        d2 = WikidataDate.from_date_string("2021-10-27")
+        assert d1.is_consecutive_with(d2)
+
+    def test_gap_days(self):
+        d1 = WikidataDate.from_date_string("2021-01-01")
+        d2 = WikidataDate.from_date_string("2021-06-15")
+        assert not d1.is_consecutive_with(d2)
+
+    def test_reverse_year_not_consecutive(self):
+        d1 = WikidataDate.from_date_string("2022")
+        d2 = WikidataDate.from_date_string("2021")
+        assert not d1.is_consecutive_with(d2)
+
+    def test_reverse_month_not_consecutive(self):
+        d1 = WikidataDate.from_date_string("2021-07")
+        d2 = WikidataDate.from_date_string("2021-06")
+        assert not d1.is_consecutive_with(d2)
+
+    def test_reverse_day_not_consecutive(self):
+        d1 = WikidataDate.from_date_string("2021-10-27")
+        d2 = WikidataDate.from_date_string("2021-10-26")
+        assert not d1.is_consecutive_with(d2)
+
+    def test_two_years_apart_not_consecutive(self):
+        d1 = WikidataDate.from_date_string("2021")
+        d2 = WikidataDate.from_date_string("2023")
+        assert not d1.is_consecutive_with(d2)
+
+    def test_two_months_apart_not_consecutive(self):
+        d1 = WikidataDate.from_date_string("2021-06")
+        d2 = WikidataDate.from_date_string("2021-08")
+        assert not d1.is_consecutive_with(d2)
+
+    def test_two_days_apart_not_consecutive(self):
+        d1 = WikidataDate.from_date_string("2021-10-26")
+        d2 = WikidataDate.from_date_string("2021-10-28")
+        assert not d1.is_consecutive_with(d2)
+
+    def test_same_day(self):
+        d1 = WikidataDate.from_date_string("2021-10-26")
+        d2 = WikidataDate.from_date_string("2021-10-26")
+        assert d1.is_consecutive_with(d2)
+
+    def test_same_month(self):
+        d1 = WikidataDate.from_date_string("2021-06")
+        d2 = WikidataDate.from_date_string("2021-06")
+        assert d1.is_consecutive_with(d2)
+
+    def test_consecutive_days_across_month_boundary(self):
+        d1 = WikidataDate.from_date_string("2021-01-31")
+        d2 = WikidataDate.from_date_string("2021-02-01")
+        assert d1.is_consecutive_with(d2)
+
+    def test_mixed_precision_not_consecutive(self):
+        d1 = WikidataDate.from_date_string("2021")
+        d2 = WikidataDate.from_date_string("2022-01-15")
+        assert not d1.is_consecutive_with(d2)

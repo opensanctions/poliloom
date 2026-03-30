@@ -62,8 +62,6 @@ Extract all political positions from the provided content following these rules:
 
 POSITIONS_ANALYSIS_FOCUS_TEMPLATE = """<position_analysis_focus>
 The politician already has known positions (listed above). Extract all positions you find in the text, including ones that already exist — the existing data is provided to help you recognize positions that may appear with different wordings.
-
-Do not extract a position if existing entries for the same role already cover that timeframe with equal or greater detail. Multiple consecutive entries for a role (e.g., separate terms with precise start/end dates) are collectively more informative than a single span covering the same period — do not collapse them into one.
 </position_analysis_focus>"""
 
 # Birthplace extraction prompts

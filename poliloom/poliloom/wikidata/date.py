@@ -2,7 +2,7 @@
 
 import re
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from typing import Optional, Dict, Any
 
 
@@ -18,27 +18,41 @@ class WikidataDate:
         """True if this is a BCE (Before Common Era) date."""
         return self.time_string.startswith("-")
 
-    def to_python_date(self) -> Optional[date]:
-        """Convert to Python date object.
+    def is_over_years_ago(self, years: int) -> bool:
+        """Check if this date is more than `years` years ago, precision-aware.
 
-        Returns None for BCE dates or if parsing fails.
-        For year/month precision, uses first day of year/month.
+        Conservative: uses the latest possible date for the precision level,
+        so only returns True when the date is definitely over `years` ago.
         """
         if self.is_bce:
-            return None
+            return True
 
-        try:
-            # Remove the + sign: "+2011-00-00T00:05:23Z" -> "2011-00-00T00:05:23Z"
-            iso_string = self.time_string[1:]
+        year, month, day = self.extract_date_parts()
+        today = date.today()
+        cutoff_year = today.year - years
 
-            # Replace -00- with valid values for parsing
-            iso_string = iso_string.replace("-00-", "-01-").replace("-00T", "-01T")
+        if self.precision <= 8:
+            # Decade/century/millennium: use the latest possible year
+            if self.precision == 8:  # Decade
+                latest_year = (year // 10) * 10 + 9
+            elif self.precision == 7:  # Century
+                latest_year = year + 99
+            elif self.precision == 6:  # Millennium
+                latest_year = ((year - 1) // 1000) * 1000 + 1000
+            else:
+                latest_year = year
+            return latest_year < cutoff_year
 
-            # Parse and return date part
-            dt = datetime.fromisoformat(iso_string)
-            return dt.date()
-        except (ValueError, TypeError):
-            return None
+        if self.precision == 9:
+            return year < cutoff_year
+
+        if self.precision == 10 and month:
+            return (year, month) < (cutoff_year, today.month)
+
+        if self.precision >= 11 and month and day:
+            return (year, month, day) < (cutoff_year, today.month, today.day)
+
+        return False
 
     @classmethod
     def from_wikidata_time(
@@ -148,6 +162,45 @@ class WikidataDate:
         month = int(parts[1]) if parts[1] != "00" else None
         day = int(parts[2]) if len(parts) > 2 and parts[2] != "00" else None
         return year, month, day
+
+    def __lt__(self, other: "WikidataDate") -> bool:
+        """Compare dates chronologically for sorting."""
+        s_year, s_month, s_day = self.extract_date_parts()
+        o_year, o_month, o_day = other.extract_date_parts()
+        return (s_year, s_month or 0, s_day or 0) < (o_year, o_month or 0, o_day or 0)
+
+    def is_consecutive_with(self, next_start: "WikidataDate") -> bool:
+        """Check if two dates are consecutive (end of one term, start of next).
+
+        Requires same precision. next_start must be equal to or 1 unit after self:
+        - Year (9): 2021/2021, 2021/2022
+        - Month (10): Jun/Jun, Jun/Jul
+        - Day (11): 29 Jun/29 Jun, 29 Jun/30 Jun
+        """
+        if self.precision != next_start.precision:
+            return False
+        if self.precision not in (9, 10, 11):
+            return False
+
+        s_year, s_month, s_day = self.extract_date_parts()
+        n_year, n_month, n_day = next_start.extract_date_parts()
+
+        if self.precision == 9:
+            return 0 <= (n_year - s_year) <= 1
+
+        if self.precision == 10 and s_month and n_month:
+            month_diff = (n_year - s_year) * 12 + (n_month - s_month)
+            return 0 <= month_diff <= 1
+
+        if self.precision == 11 and s_month and s_day and n_month and n_day:
+            try:
+                d_self = date(s_year, s_month, s_day)
+                d_next = date(n_year, n_month, n_day)
+                return 0 <= (d_next - d_self).days <= 1
+            except ValueError:
+                return False
+
+        return False
 
     @staticmethod
     def dates_could_be_same(

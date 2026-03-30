@@ -14,7 +14,7 @@ from sqlalchemy import (
     Enum as SQLEnum,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
-from sqlalchemy.orm import Session, relationship
+from sqlalchemy.orm import relationship
 from ..wikidata.date import WikidataDate
 from .base import (
     Base,
@@ -272,11 +272,79 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             return PropertyComparisonResult.EQUAL
 
     @classmethod
+    def is_timeframe_subsumed(
+        cls,
+        existing_properties: list["Property"],
+        qualifiers_json: dict | None,
+    ) -> bool:
+        """Check if multiple existing properties make a candidate redundant.
+
+        Used to detect when the LLM extracts a single span (e.g., "since 2021")
+        that is already represented by multiple consecutive terms in existing data.
+
+        Only subsumes when:
+        - At least 2 existing terms exist for the same position
+        - Candidate start matches some existing term's start (dates_could_be_same)
+        - Candidate end matches some existing term's end, or both are open-ended
+        - Candidate is not more precise than the matched existing terms
+
+        Returns True if the candidate should be skipped entirely.
+        """
+        cand_start, cand_end = cls._extract_timeframe_from_qualifiers(qualifiers_json)
+        if cand_start is None:
+            return False
+
+        if len(existing_properties) < 2:
+            return False
+
+        # Extract timeframes, keep only those with start dates, sort chronologically
+        existing_timeframes = sorted(
+            (
+                tf
+                for tf in (
+                    cls._extract_timeframe_from_qualifiers(p.qualifiers_json)
+                    for p in existing_properties
+                )
+                if tf[0] is not None
+            ),
+            key=lambda tf: tf[0],
+        )
+
+        # Try to build a contiguous chain from cand_start to cand_end
+        for i, (start, end) in enumerate(existing_timeframes):
+            if not WikidataDate.dates_could_be_same(cand_start, start):
+                continue
+            if WikidataDate.more_precise_date(cand_start, start) == cand_start:
+                continue
+
+            # Walk forward building a chain of consecutive terms
+            chain_end = end
+            for j in range(i + 1, len(existing_timeframes)):
+                next_start, next_end = existing_timeframes[j]
+                if chain_end is None:
+                    break
+                if not chain_end.is_consecutive_with(next_start):
+                    break
+                chain_end = next_end
+
+            # Check if chain end matches candidate end
+            if cand_end is None and chain_end is None:
+                return True
+            if cand_end is not None and chain_end is not None:
+                if (
+                    WikidataDate.dates_could_be_same(cand_end, chain_end)
+                    and WikidataDate.more_precise_date(cand_end, chain_end) != cand_end
+                ):
+                    return True
+
+        return False
+
+    @classmethod
     def find_matching(
         cls,
-        db: Session,
-        politician_id,
+        existing_properties: list["Property"],
         property_type: PropertyType,
+        politician_id=None,
         value: str | None = None,
         value_precision: int | None = None,
         entity_id: str | None = None,
@@ -289,9 +357,9 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         or None if no match (meaning a new property should be created).
 
         Args:
-            db: Database session
-            politician_id: UUID of the politician
+            existing_properties: Pre-fetched list of existing properties to compare against
             property_type: Type of property (BIRTH_DATE, POSITION, etc.)
+            politician_id: UUID of the politician (for creating the comparison candidate)
             value: Value for date properties
             value_precision: Precision for date properties
             entity_id: Entity ID for entity-linked properties
@@ -300,7 +368,6 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         Returns:
             Matching Property instance or None
         """
-        # Create a temporary Property object to use _compare_to
         candidate = cls(
             politician_id=politician_id,
             type=property_type,
@@ -310,20 +377,6 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             qualifiers_json=qualifiers_json,
         )
 
-        # Query for potential matching properties
-        query = db.query(cls).filter(
-            cls.politician_id == politician_id,
-            cls.type == property_type,
-            cls.deleted_at.is_(None),
-        )
-
-        # For entity-linked properties, also filter by entity_id
-        if property_type not in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
-            query = query.filter(cls.entity_id == entity_id)
-
-        existing_properties = query.all()
-
-        # Check against each existing property
         for existing in existing_properties:
             comparison = candidate._compare_to(existing)
             if comparison in [

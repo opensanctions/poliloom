@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_qualifiers_json_for_position(
-    start_date: Optional[str], end_date: Optional[str]
+    start_date: Optional[str] = None, end_date: Optional[str] = None
 ) -> Optional[dict]:
     """Create qualifiers_json for a position with start and end dates using WikidataDate."""
     if not start_date and not end_date:
@@ -642,16 +642,37 @@ def store_extracted_data(
             )
 
         for kwargs, quotes, label in items:
+            # Query existing properties once for both matching and subsumption
+            property_type = kwargs["type"]
+            query = db.query(Property).filter(
+                Property.politician_id == politician.id,
+                Property.type == property_type,
+                Property.deleted_at.is_(None),
+            )
+            if property_type not in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
+                query = query.filter(Property.entity_id == kwargs.get("entity_id"))
+            existing_properties = query.all()
+
             prop = Property.find_matching(
-                db,
+                existing_properties,
+                property_type=property_type,
                 politician_id=politician.id,
-                property_type=kwargs["type"],
                 **{k: v for k, v in kwargs.items() if k != "type"},
             )
             if prop:
                 logger.info(
                     f"Added reference to existing {label} for {politician.name}"
                 )
+            elif (
+                property_type == PropertyType.POSITION
+                and kwargs.get("entity_id")
+                and Property.is_timeframe_subsumed(
+                    existing_properties,
+                    kwargs.get("qualifiers_json"),
+                )
+            ):
+                logger.info(f"Skipping subsumed {label} for {politician.name}")
+                continue
             else:
                 prop = Property(politician_id=politician.id, **kwargs)
                 db.add(prop)

@@ -1,6 +1,6 @@
 """Tests for the Property model."""
 
-from datetime import datetime, timezone
+from poliloom.enrichment import create_qualifiers_json_for_position
 from poliloom.models import (
     Property,
     PropertyType,
@@ -12,213 +12,75 @@ class TestPropertyFindMatching:
     """Test cases for the Property.find_matching() class method.
 
     Note: Comparison logic is tested in TestPropertyCompareTo.
-    These tests focus on the DB integration (no existing property case).
     """
 
-    def test_find_matching_birth_date_no_existing(self, db_session, sample_politician):
-        """Test find_matching returns None when no existing date exists."""
+    def test_no_existing(self):
         result = Property.find_matching(
-            db_session,
-            sample_politician.id,
+            [],
             PropertyType.BIRTH_DATE,
             value="+1990-01-01T00:00:00Z",
             value_precision=11,
         )
-
         assert result is None
 
-    def test_find_matching_position_no_existing(
-        self, db_session, sample_politician, sample_position
-    ):
-        """Test find_matching returns None when no existing position exists."""
-        result = Property.find_matching(
-            db_session,
-            sample_politician.id,
-            PropertyType.POSITION,
-            entity_id=sample_position.wikidata_id,
-            qualifiers_json={
-                "P580": [
-                    {
-                        "datavalue": {
-                            "value": {"time": "+2020-00-00T00:00:00Z", "precision": 9}
-                        }
-                    }
-                ]
-            },
+    def test_birth_date_equal(self):
+        prop = Property(
+            type=PropertyType.BIRTH_DATE,
+            value="+1990-01-01T00:00:00Z",
+            value_precision=11,
         )
-
-        assert result is None
-
-    def test_find_matching_birthplace_no_existing(
-        self, db_session, sample_politician, sample_location
-    ):
-        """Test find_matching returns None when no existing birthplace exists."""
         result = Property.find_matching(
-            db_session,
-            sample_politician.id,
-            PropertyType.BIRTHPLACE,
-            entity_id=sample_location.wikidata_id,
-        )
-
-        assert result is None
-
-    def test_find_matching_citizenship_no_existing(
-        self, db_session, sample_politician, sample_country
-    ):
-        """Test find_matching returns None when no existing citizenship exists."""
-        result = Property.find_matching(
-            db_session,
-            sample_politician.id,
-            PropertyType.CITIZENSHIP,
-            entity_id=sample_country.wikidata_id,
-        )
-
-        assert result is None
-
-    def test_find_matching_birth_date_equal(
-        self, db_session, sample_politician, sample_source, create_birth_date
-    ):
-        """Test find_matching returns existing property when dates are equal."""
-        create_birth_date(
-            sample_politician, value="+1990-01-01T00:00:00Z", source=sample_source
-        )
-        db_session.flush()
-
-        result = Property.find_matching(
-            db_session,
-            sample_politician.id,
+            [prop],
             PropertyType.BIRTH_DATE,
             value="+1990-01-01T00:00:00Z",
             value_precision=11,
         )
+        assert result is prop
 
-        assert result is not None
-        assert result.value == "+1990-01-01T00:00:00Z"
-
-    def test_find_matching_birth_date_existing_more_precise(
-        self, db_session, sample_politician, sample_source, create_birth_date
-    ):
-        """Test find_matching returns existing when it's more precise (day vs year)."""
-        create_birth_date(
-            sample_politician, value="+1990-01-01T00:00:00Z", source=sample_source
+    def test_birth_date_existing_more_precise(self):
+        prop = Property(
+            type=PropertyType.BIRTH_DATE,
+            value="+1990-01-01T00:00:00Z",
+            value_precision=11,
         )
-        db_session.flush()
-
-        # Search with year-precision date that could match
         result = Property.find_matching(
-            db_session,
-            sample_politician.id,
+            [prop],
             PropertyType.BIRTH_DATE,
             value="+1990-00-00T00:00:00Z",
             value_precision=9,
         )
+        assert result is prop
 
-        assert result is not None
-        assert result.value == "+1990-01-01T00:00:00Z"
-
-    def test_find_matching_birth_date_new_more_precise(
-        self, db_session, sample_politician, sample_source, create_birth_date
-    ):
-        """Test find_matching returns None when new value is more precise."""
-        # Existing property has year precision
+    def test_birth_date_new_more_precise(self):
         prop = Property(
-            politician_id=sample_politician.id,
             type=PropertyType.BIRTH_DATE,
             value="+1990-00-00T00:00:00Z",
             value_precision=9,
         )
-        db_session.add(prop)
-        db_session.flush()
-
-        # Search with day-precision date — new is more precise, so no match
         result = Property.find_matching(
-            db_session,
-            sample_politician.id,
+            [prop],
             PropertyType.BIRTH_DATE,
             value="+1990-01-01T00:00:00Z",
             value_precision=11,
         )
-
         assert result is None
 
-    def test_find_matching_position_equal(
-        self,
-        db_session,
-        sample_politician,
-        sample_position,
-        sample_source,
-        create_position,
-    ):
-        """Test find_matching returns existing position with matching entity and qualifiers."""
-        qualifiers = {
-            "P580": [
-                {
-                    "datavalue": {
-                        "value": {"time": "+2020-00-00T00:00:00Z", "precision": 9}
-                    }
-                }
-            ]
-        }
-        create_position(
-            sample_politician,
-            sample_position,
-            source=sample_source,
-            qualifiers_json=qualifiers,
+    def test_position_equal(self):
+        qualifiers = create_qualifiers_json_for_position("2020")
+        prop = Property(
+            type=PropertyType.POSITION, entity_id="Q123", qualifiers_json=qualifiers
         )
-        db_session.flush()
-
         result = Property.find_matching(
-            db_session,
-            sample_politician.id,
-            PropertyType.POSITION,
-            entity_id=sample_position.wikidata_id,
-            qualifiers_json=qualifiers,
+            [prop], PropertyType.POSITION, entity_id="Q123", qualifiers_json=qualifiers
         )
+        assert result is prop
 
-        assert result is not None
-        assert result.entity_id == sample_position.wikidata_id
-
-    def test_find_matching_birthplace_equal(
-        self,
-        db_session,
-        sample_politician,
-        sample_location,
-        sample_source,
-        create_birthplace,
-    ):
-        """Test find_matching returns existing birthplace with matching entity."""
-        create_birthplace(sample_politician, sample_location, source=sample_source)
-        db_session.flush()
-
+    def test_birthplace_equal(self):
+        prop = Property(type=PropertyType.BIRTHPLACE, entity_id="Q456")
         result = Property.find_matching(
-            db_session,
-            sample_politician.id,
-            PropertyType.BIRTHPLACE,
-            entity_id=sample_location.wikidata_id,
+            [prop], PropertyType.BIRTHPLACE, entity_id="Q456"
         )
-
-        assert result is not None
-        assert result.entity_id == sample_location.wikidata_id
-
-    def test_find_matching_ignores_deleted(
-        self, db_session, sample_politician, sample_source, create_birth_date
-    ):
-        """Test find_matching ignores soft-deleted properties."""
-        prop = create_birth_date(
-            sample_politician, value="+1990-01-01T00:00:00Z", source=sample_source
-        )
-        prop.deleted_at = datetime.now(timezone.utc)
-        db_session.flush()
-
-        result = Property.find_matching(
-            db_session,
-            sample_politician.id,
-            PropertyType.BIRTH_DATE,
-            value="+1990-01-01T00:00:00Z",
-            value_precision=11,
-        )
-
-        assert result is None
+        assert result is prop
 
 
 class TestPropertyExtractTimeframe:
@@ -559,3 +421,193 @@ class TestPropertyCompareTo:
         )
 
         assert prop1._compare_to(prop2) == PropertyComparisonResult.EQUAL
+
+
+class TestPositionSubsumption:
+    """Tests for Property.is_timeframe_subsumed()."""
+
+    def test_two_consecutive_terms_subsume_single_span(self):
+        existing = [
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position(
+                    "2021-03-31", "2023-10-26"
+                ),
+            ),
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position("2023-10-27"),
+            ),
+        ]
+        assert Property.is_timeframe_subsumed(
+            existing, create_qualifiers_json_for_position("2021-03-31")
+        )
+
+    def test_end_date_mismatch_not_subsumed(self):
+        existing = [
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position(
+                    "2021-03-31", "2022-12-31"
+                ),
+            ),
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position(
+                    "2024-01-01", "2024-12-31"
+                ),
+            ),
+        ]
+        assert not Property.is_timeframe_subsumed(
+            existing, create_qualifiers_json_for_position("2021-03-31")
+        )
+
+    def test_candidate_start_no_match_not_subsumed(self):
+        existing = [
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position(
+                    "2022-01-01", "2023-06-30"
+                ),
+            ),
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position("2023-07-01"),
+            ),
+        ]
+        assert not Property.is_timeframe_subsumed(
+            existing, create_qualifiers_json_for_position("2020-01-01")
+        )
+
+    def test_gap_between_terms_not_subsumed(self):
+        existing = [
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position(
+                    "2015-01-01", "2017-12-31"
+                ),
+            ),
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position("2021-01-01"),
+            ),
+        ]
+        assert not Property.is_timeframe_subsumed(
+            existing, create_qualifiers_json_for_position("2015-01-01")
+        )
+
+    def test_single_existing_term_not_subsumed(self):
+        existing = [
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position("2021-03-31"),
+            ),
+        ]
+        assert not Property.is_timeframe_subsumed(
+            existing, create_qualifiers_json_for_position("2021-03-31")
+        )
+
+    def test_candidate_no_start_date_not_subsumed(self):
+        existing = [
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position(
+                    "2021-03-31", "2023-10-26"
+                ),
+            ),
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position("2023-10-27"),
+            ),
+        ]
+        assert not Property.is_timeframe_subsumed(
+            existing, create_qualifiers_json_for_position(end_date="2023-10-26")
+        )
+
+    def test_candidate_no_dates_not_subsumed(self):
+        existing = [
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position(
+                    "2021-03-31", "2023-10-26"
+                ),
+            ),
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position("2023-10-27"),
+            ),
+        ]
+        assert not Property.is_timeframe_subsumed(existing, None)
+
+    def test_candidate_more_precise_not_subsumed(self):
+        existing = [
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position("2021"),
+            ),
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position("2022"),
+            ),
+        ]
+        assert not Property.is_timeframe_subsumed(
+            existing, create_qualifiers_json_for_position("2021-06-15", "2022-12-01")
+        )
+
+    def test_candidate_less_precise_subsumed(self):
+        existing = [
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position(
+                    "2021-03-31", "2023-10-26"
+                ),
+            ),
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position("2023-10-27"),
+            ),
+        ]
+        assert Property.is_timeframe_subsumed(
+            existing, create_qualifiers_json_for_position("2021")
+        )
+
+    def test_three_consecutive_terms_subsume(self):
+        existing = [
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position(
+                    "2015-01-01", "2018-12-31"
+                ),
+            ),
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position(
+                    "2019-01-01", "2022-12-31"
+                ),
+            ),
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position("2023-01-01"),
+            ),
+        ]
+        assert Property.is_timeframe_subsumed(
+            existing, create_qualifiers_json_for_position("2015-01-01")
+        )
+
+    def test_mid_chain_open_end_breaks_chain(self):
+        """A term with no end date in the middle of the chain stops the walk."""
+        existing = [
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position("2015-01-01"),
+            ),
+            Property(
+                type=PropertyType.POSITION,
+                qualifiers_json=create_qualifiers_json_for_position(
+                    "2019-01-01", "2022-12-31"
+                ),
+            ),
+        ]
+        assert not Property.is_timeframe_subsumed(
+            existing, create_qualifiers_json_for_position("2015-01-01", "2022-12-31")
+        )
