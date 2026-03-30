@@ -127,6 +127,10 @@ Map the extracted position to the most accurate Wikidata position following thes
 3. Match only when confidence is high - be precise about role equivalence
 </matching_criteria>
 
+<existing_data_consideration>
+ALWAYS map the position even if it already appears in the politician's existing Wikidata data. The existing data is provided only for context to help you make better mapping decisions, not to prevent mapping.
+</existing_data_consideration>
+
 <rejection_criteria>
 - Return None if no candidate is a good match
 - Reject if the positions clearly refer to different roles
@@ -140,8 +144,7 @@ Map the extracted birthplace to the correct Wikidata location entity.
 </mapping_objective>
 
 <existing_data_consideration>
-Check existing_wikidata_birthplaces in the politician context. If the extracted location refers to the same place as an existing birthplace, return None.
-Example: If "Usilampatti" is already in Wikidata and you extract "Usilampatti, Madras Province", return None since it's the same location.
+ALWAYS map the location even if it already appears in the politician's existing Wikidata data. The existing data is provided only for context to help you make better mapping decisions, not to prevent mapping.
 </existing_data_consideration>
 
 <matching_criteria>
@@ -157,7 +160,6 @@ Example: If "Usilampatti" is already in Wikidata and you extract "Usilampatti, M
 </matching_criteria>
 
 <rejection_criteria>
-- Return None if the extracted location matches existing Wikidata birthplace
 - Return None if uncertain which candidate matches
 - Return None if the location type doesn't match what's described
 </rejection_criteria>"""
@@ -181,6 +183,10 @@ Map the extracted citizenship/nationality to the correct Wikidata country entity
 3. Use context from the proof text to disambiguate
    - Look for additional context that helps identify the specific country
 </matching_criteria>
+
+<existing_data_consideration>
+ALWAYS map the country even if it already appears in the politician's existing Wikidata data. The existing data is provided only for context to help you make better mapping decisions, not to prevent mapping.
+</existing_data_consideration>
 
 <rejection_criteria>
 - Return None if uncertain which candidate matches

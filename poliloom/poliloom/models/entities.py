@@ -284,8 +284,7 @@ class Position(
     __tablename__ = "positions"
 
     _search_indexed = True
-    # Use hybrid search with strong semantic bias for position matching
-    _search_semantic_ratio = 0.8
+    _search_semantic_ratio = 0.5
 
     # Hierarchy configuration for import filtering and cleanup
     _hierarchy_roots = [
