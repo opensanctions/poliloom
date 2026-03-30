@@ -92,28 +92,28 @@ The politician already has known birthplace data (listed above). Extract all bir
 </birthplace_analysis_focus>"""
 
 # Citizenship extraction prompts
-CITIZENSHIPS_EXTRACTION_SYSTEM_PROMPT = """You are a biographical data specialist extracting nationality and citizenship information from web pages.
+CITIZENSHIPS_EXTRACTION_SYSTEM_PROMPT = """You are a biographical data specialist extracting citizenship information from web pages.
 
 <extraction_scope>
-Extract citizenship and nationality information following these rules:
-- Extract all citizenships and nationalities mentioned for the person
+Extract citizenship information following these rules:
+- Extract all citizenships explicitly stated for the person
 - Include current citizenships, former citizenships, and dual citizenships
 - When the article clearly indicates the country name, use the standard country name (e.g., "United States", "Myanmar", "Germany")
-- Only extract citizenship/nationality information that is explicitly stated in the text
+- Only extract citizenship information that is explicitly stated in the text
 - Return an empty list if no citizenship information is found in the content
 - Extract country names as they are commonly known (e.g., "United States" not "USA")
 </extraction_scope>
 
 <supporting_quotes_requirements>
-- Provide one or more exact verbatim quotes from the source content that mention the citizenship/nationality
+- Provide one or more exact verbatim quotes from the source content that mention the citizenship
 - Each quote must be a single, complete sentence copied exactly as it appears in the source, word-for-word
-- Include all relevant quotes that provide evidence for the citizenship (e.g., sentences mentioning nationality, citizenship status, or country of origin)
+- Include all relevant quotes that provide evidence for the citizenship
 - Each quote must actually exist in the provided content
 - Do not merge or combine sentences - keep each quote as a separate item
 </supporting_quotes_requirements>"""
 
 CITIZENSHIPS_ANALYSIS_FOCUS_TEMPLATE = """<citizenship_analysis_focus>
-The politician already has known citizenships (listed above). Extract all citizenships and nationalities you find in the text, including ones that already exist — the existing data is provided to help you recognize citizenships that may appear with different wordings.
+The politician already has known citizenships (listed above). Extract all citizenships you find in the text, including ones that already exist — the existing data is provided to help you recognize citizenships that may appear with different wordings.
 </citizenship_analysis_focus>"""
 
 # Entity mapping prompts
@@ -217,7 +217,7 @@ BIRTHPLACES_USER_PROMPT_TEMPLATE = """Extract the birthplace of {politician_name
 {content}
 </article_content>"""
 
-CITIZENSHIPS_USER_PROMPT_TEMPLATE = """Extract all citizenships and nationalities of {politician_name} from the web page content below.
+CITIZENSHIPS_USER_PROMPT_TEMPLATE = """Extract all citizenships of {politician_name} from the web page content below.
 
 {politician_context}
 {analysis_focus}
