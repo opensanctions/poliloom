@@ -66,6 +66,8 @@ export let mockEventSource: {
   onopen: (() => void) | null
   onerror: (() => void) | null
   close: ReturnType<typeof vi.fn>
+  addEventListener: ReturnType<typeof vi.fn>
+  removeEventListener: ReturnType<typeof vi.fn>
 }
 
 const MockEventSource = vi.fn(function (this: typeof mockEventSource) {
@@ -73,6 +75,8 @@ const MockEventSource = vi.fn(function (this: typeof mockEventSource) {
   this.onopen = null
   this.onerror = null
   this.close = vi.fn()
+  this.addEventListener = vi.fn()
+  this.removeEventListener = vi.fn()
   mockEventSource = this
 })
 vi.stubGlobal('EventSource', MockEventSource)
