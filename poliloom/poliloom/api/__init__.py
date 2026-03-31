@@ -1,7 +1,10 @@
 """FastAPI application setup for PoliLoom."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from ..logging import setup_logging
+from ..sse import start_listener, stop_listener
 from .politicians import router as politicians_router
 from .sources import router as sources_router
 from .entities import router as entities_router
@@ -11,10 +14,20 @@ from .stats import router as stats_router
 # Configure logging
 setup_logging()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    ready = start_listener()
+    await ready.wait()
+    yield
+    await stop_listener()
+
+
 app = FastAPI(
     title="PoliLoom API",
     description="API for extracting politician metadata from Wikipedia and web sources to enrich Wikidata",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.include_router(politicians_router, prefix="/politicians", tags=["politicians"])

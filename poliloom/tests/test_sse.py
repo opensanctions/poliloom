@@ -1,19 +1,26 @@
 """Tests for the SSE subscriber registry."""
 
 import asyncio
+from dataclasses import asdict
 
+from sqlalchemy.orm import Session
+
+from poliloom.database import get_engine
 from poliloom.sse import (
     SourceStatusEvent,
     EnrichmentCompleteEvent,
     subscribe,
     unsubscribe,
     notify,
+    start_listener,
+    stop_listener,
+    _fanout,
     _subscribers,
 )
 
 
 class TestSSE:
-    """Test subscribe/unsubscribe/notify."""
+    """Test subscribe/unsubscribe/fanout."""
 
     def setup_method(self):
         _subscribers.clear()
@@ -50,16 +57,15 @@ class TestSSE:
         subscribe("user1")
         unsubscribe("user1", asyncio.Queue())
 
-    def test_notify_broadcasts_to_all(self):
+    def test_fanout_broadcasts_to_all(self):
         q1 = subscribe("user1")
         q2 = subscribe("user2")
-        notify(
-            SourceStatusEvent(
-                politician_ids=["pol-1"],
-                source_id="page-1",
-                status="done",
-            )
+        event = SourceStatusEvent(
+            politician_ids=["pol-1"],
+            source_id="page-1",
+            status="done",
         )
+        _fanout(asdict(event))
         assert q1.qsize() == 1
         assert q2.qsize() == 1
         payload = q1.get_nowait()
@@ -67,14 +73,61 @@ class TestSSE:
         assert payload["politician_ids"] == ["pol-1"]
         assert payload["source_id"] == "page-1"
 
-    def test_enrichment_complete_event(self):
+    def test_fanout_enrichment_complete_event(self):
         q1 = subscribe("user1")
-        notify(EnrichmentCompleteEvent(languages=["Q1"], countries=[]))
+        _fanout(asdict(EnrichmentCompleteEvent(languages=["Q1"], countries=[])))
         payload = q1.get_nowait()
         assert payload["type"] == "enrichment_complete"
         assert payload["languages"] == ["Q1"]
 
-    def test_notify_no_subscribers(self):
+    def test_fanout_no_subscribers(self):
         """Should not raise when no subscribers exist."""
-        notify(SourceStatusEvent(source_id="x", status="done"))
-        notify(EnrichmentCompleteEvent(languages=[], countries=[]))
+        _fanout(asdict(SourceStatusEvent(source_id="x", status="done")))
+
+
+class TestSSEIntegration:
+    """Test the full notify → Postgres → listener → fanout round-trip."""
+
+    def setup_method(self):
+        _subscribers.clear()
+
+    async def test_notify_round_trip(self):
+        ready = start_listener()
+        try:
+            await asyncio.wait_for(ready.wait(), timeout=2)
+
+            queue = subscribe("user1")
+            with Session(get_engine()) as db:
+                notify(
+                    SourceStatusEvent(
+                        politician_ids=["pol-1"],
+                        source_id="src-1",
+                        status="done",
+                    ),
+                    db,
+                )
+                db.commit()
+            payload = await asyncio.wait_for(queue.get(), timeout=2)
+            assert payload["type"] == "source_status"
+            assert payload["source_id"] == "src-1"
+            assert payload["politician_ids"] == ["pol-1"]
+        finally:
+            await stop_listener()
+
+    async def test_notify_multiple_events(self):
+        ready = start_listener()
+        try:
+            await asyncio.wait_for(ready.wait(), timeout=2)
+
+            queue = subscribe("user1")
+            with Session(get_engine()) as db:
+                notify(SourceStatusEvent(source_id="a", status="processing"), db)
+                notify(EnrichmentCompleteEvent(languages=["Q1"], countries=["Q30"]), db)
+                db.commit()
+
+            p1 = await asyncio.wait_for(queue.get(), timeout=2)
+            p2 = await asyncio.wait_for(queue.get(), timeout=2)
+            types = {p1["type"], p2["type"]}
+            assert types == {"source_status", "enrichment_complete"}
+        finally:
+            await stop_listener()

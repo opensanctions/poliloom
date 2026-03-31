@@ -467,12 +467,12 @@ async def process_property_actions(
                 errors.append(f"Error processing item {item_desc}: {str(e)}")
                 continue
 
-    db.commit()
-
     # Broadcast updated evaluation count
     if all_evaluations:
         total = db.execute(select(func.count()).select_from(Evaluation)).scalar() or 0
-        notify(EvaluationCountEvent(total=total))
+        notify(EvaluationCountEvent(total=total), db)
+
+    db.commit()
 
     # Push evaluations to Wikidata (don't rollback local changes on failure)
     wikidata_errors = []

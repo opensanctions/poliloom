@@ -240,7 +240,11 @@ def generate_source_url_hash(mapper, connection, target):
 
 @event.listens_for(Session, "after_flush")
 def _broadcast_source_status(session, flush_context):
-    """Broadcast SSE events when Source status changes."""
+    """Broadcast SSE events when Source status changes.
+
+    The pg_notify runs in the same transaction, so the notification
+    is only delivered if the transaction commits.
+    """
     for obj in session.dirty | session.new:
         if not isinstance(obj, Source):
             continue
@@ -254,5 +258,6 @@ def _broadcast_source_status(session, flush_context):
                 status=obj.status.value,
                 error=obj.error.value if obj.error else None,
                 http_status_code=obj.http_status_code,
-            )
+            ),
+            session,
         )

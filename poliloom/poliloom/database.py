@@ -3,11 +3,10 @@
 import os
 from typing import Optional
 
-import pg8000
-from google.cloud.sql.connector import Connector
+import psycopg
+import sqlalchemy
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
-import sqlalchemy
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -16,21 +15,15 @@ load_dotenv()
 _engine: Optional[Engine] = None
 
 
-def _get_local_connection():
-    """Create a direct pg8000 connection for local development."""
-    db_host = os.getenv("DB_HOST", "localhost")
-    db_port = int(os.getenv("DB_PORT", "5432"))
-    db_name = os.getenv("DB_NAME", "poliloom")
-    db_user = os.getenv("DB_USER", "postgres")
-    db_password = os.getenv("DB_PASSWORD", "postgres")
-
-    return pg8000.connect(
-        host=db_host,
-        port=db_port,
-        database=db_name,
-        user=db_user,
-        password=db_password,
-    )
+def get_conn_params() -> dict:
+    """Build psycopg connection parameters from DB_* environment variables."""
+    return {
+        "host": os.getenv("DB_HOST", "localhost"),
+        "port": int(os.getenv("DB_PORT", "5432")),
+        "dbname": os.getenv("DB_NAME", "poliloom"),
+        "user": os.getenv("DB_USER", "postgres"),
+        "password": os.getenv("DB_PASSWORD", "postgres"),
+    }
 
 
 def create_engine(pool_size: int = 5, max_overflow: int = 10) -> Engine:
@@ -43,43 +36,13 @@ def create_engine(pool_size: int = 5, max_overflow: int = 10) -> Engine:
     Returns:
         A new SQLAlchemy Engine instance
     """
-    # Determine if we should use Cloud SQL or local connection
-    use_cloud_sql = bool(os.getenv("INSTANCE_CONNECTION_NAME"))
-
-    if use_cloud_sql:
-        # Create ONE connector for this engine
-        connector = Connector(refresh_strategy="lazy")
-
-        instance_connection_name = os.getenv("INSTANCE_CONNECTION_NAME")
-        db_iam_user = os.getenv("DB_IAM_USER")
-        db_name = os.getenv("DB_NAME")
-
-        if not all([instance_connection_name, db_iam_user, db_name]):
-            raise ValueError(
-                "Cloud SQL configuration incomplete. Required: "
-                "INSTANCE_CONNECTION_NAME, DB_IAM_USER, DB_NAME"
-            )
-
-        # Create a closure that uses the same connector instance
-        def get_cloud_sql_connection():
-            return connector.connect(
-                instance_connection_name,
-                "pg8000",
-                user=db_iam_user,
-                db=db_name,
-                enable_iam_auth=True,
-            )
-
-        creator = get_cloud_sql_connection
-    else:
-        creator = _get_local_connection
+    conn_params = get_conn_params()
 
     engine = sqlalchemy.create_engine(
-        "postgresql+pg8000://",
-        creator=creator,
+        "postgresql+psycopg://",
+        creator=lambda: psycopg.connect(**conn_params),
         pool_size=pool_size,
         max_overflow=max_overflow,
-        # Get configurable timeout from environment (default 30 seconds)
         pool_timeout=int(os.getenv("DB_POOL_TIMEOUT", "30")),
         pool_recycle=3600,
         pool_pre_ping=True,

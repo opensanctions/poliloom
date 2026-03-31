@@ -155,11 +155,14 @@ async def process_next_politician(
     )
 
     if sum(counts) > 0:
-        notify(
-            EnrichmentCompleteEvent(
-                languages=languages or [],
-                countries=countries or [],
+        with Session(get_engine()) as db:
+            notify(
+                EnrichmentCompleteEvent(
+                    languages=languages or [],
+                    countries=countries or [],
+                ),
+                db,
             )
-        )
+            db.commit()
 
     return True

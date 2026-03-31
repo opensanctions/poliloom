@@ -61,7 +61,7 @@ EXPOSE 8000
 
 # Set default port and workers
 ENV PORT=8000
-ENV WORKERS=1
+ENV WORKERS=8
 
 # Default command - use PORT and WORKERS environment variables
 CMD ["sh", "-c", "uvicorn poliloom.api:app --host 0.0.0.0 --port $PORT --workers $WORKERS"]
