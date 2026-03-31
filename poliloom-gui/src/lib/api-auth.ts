@@ -66,8 +66,15 @@ export async function proxyToBackend(request: NextRequest, backendPath: string) 
     return response
   }
 
+  const forwardHeaders = ['content-type', 'x-accel-buffering']
+  const headers = new Headers()
+  for (const name of forwardHeaders) {
+    const value = response.headers.get(name)
+    if (value) headers.set(name, value)
+  }
+
   return new Response(response.body, {
     status: response.status,
-    headers: response.headers,
+    headers,
   })
 }
