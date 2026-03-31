@@ -34,4 +34,8 @@ async def events(current_user: User = Depends(get_current_user)):
         finally:
             unsubscribe(str(current_user.user_id), queue)
 
-    return StreamingResponse(generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={"X-Accel-Buffering": "no"},
+    )
