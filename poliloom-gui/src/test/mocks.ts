@@ -88,7 +88,6 @@ export const defaultNextPolitician = {
   loading: false,
   languageFilters: [],
   countryFilters: [],
-  advanceNext: vi.fn(),
 }
 
 export const defaultEvaluationSession = {

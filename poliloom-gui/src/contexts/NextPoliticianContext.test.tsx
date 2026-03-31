@@ -13,6 +13,11 @@ vi.mock('@/contexts/UserPreferencesContext', () => ({
   }),
 }))
 
+let mockParams: Record<string, string> = {}
+vi.mock('next/navigation', () => ({
+  useParams: () => mockParams,
+}))
+
 function wrapper({ children }: { children: React.ReactNode }) {
   return (
     <EventStreamProvider>
@@ -29,6 +34,7 @@ const nextResponse: NextPoliticianResponse = {
 describe('NextPoliticianContext', () => {
   beforeEach(() => {
     mockFilters = []
+    mockParams = {}
   })
 
   it('fetches next politician on mount', async () => {
@@ -70,36 +76,40 @@ describe('NextPoliticianContext', () => {
     expect(calledUrl).toContain('countries=Q30')
   })
 
-  it('advanceNext fetches a new politician excluding the current one', async () => {
-    vi.mocked(fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => nextResponse,
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          wikidata_id: 'Q67890',
-          meta: { has_enrichable_politicians: true, total_matching_filters: 9 },
-        }),
-      } as Response)
+  it('excludes current politician from route params', async () => {
+    mockParams = { qid: 'Q99999' }
 
-    const { result } = renderHook(() => useNextPoliticianContext(), { wrapper })
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => nextResponse,
+    } as Response)
+
+    renderHook(() => useNextPoliticianContext(), { wrapper })
 
     await waitFor(() => {
-      expect(result.current.politicianReady).toBe(true)
+      expect(fetch).toHaveBeenCalled()
     })
 
-    await act(async () => {
-      result.current.advanceNext()
-    })
+    const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string
+    expect(calledUrl).toContain('exclude_ids=Q99999')
+  })
+
+  it('does not exclude when not on a politician route', async () => {
+    mockParams = {}
+
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => nextResponse,
+    } as Response)
+
+    renderHook(() => useNextPoliticianContext(), { wrapper })
 
     await waitFor(() => {
-      expect(result.current.politicianReady).toBe(true)
+      expect(fetch).toHaveBeenCalled()
     })
 
-    const secondUrl = vi.mocked(fetch).mock.calls[1][0] as string
-    expect(secondUrl).toContain('exclude_ids=Q12345')
+    const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string
+    expect(calledUrl).not.toContain('exclude_ids')
   })
 
   it('ignores enrichment_complete event when politician is already ready', async () => {

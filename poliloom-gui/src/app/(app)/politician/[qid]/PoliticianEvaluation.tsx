@@ -25,16 +25,15 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
   const { isSessionActive, completedCount, sessionGoal, submitAndAdvance } = useEvaluationSession()
   const { statsUnlocked, completeBasicTutorial, completeAdvancedTutorial } = useUserProgress()
   const { isAdvancedMode } = useUserPreferences()
-  const { nextHref, advanceNext, loading: nextLoading } = useNextPoliticianContext()
+  const { nextHref, loading: nextLoading } = useNextPoliticianContext()
   const [politician, setPolitician] = useState<Politician>(initialPolitician)
 
-  // Mark tutorials complete and prefetch next politician on mount
+  // Mark tutorials complete on mount
   useEffect(() => {
     completeBasicTutorial()
     if (isAdvancedMode) {
       completeAdvancedTutorial()
     }
-    advanceNext()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

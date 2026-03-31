@@ -1,6 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
+import { useParams } from 'next/navigation'
 import { useUserPreferences } from '@/contexts/UserPreferencesContext'
 import { useEventStream } from '@/contexts/EventStreamContext'
 import { NextPoliticianResponse, PreferenceType, EnrichmentMetadata } from '@/types'
@@ -12,13 +13,14 @@ interface NextPoliticianContextType {
   loading: boolean
   languageFilters: string[]
   countryFilters: string[]
-  advanceNext: () => void
 }
 
 const NextPoliticianContext = createContext<NextPoliticianContextType | undefined>(undefined)
 
 export function NextPoliticianProvider({ children }: { children: React.ReactNode }) {
   const { filters } = useUserPreferences()
+  const params = useParams()
+  const currentQid = (params?.qid as string) ?? null
 
   const [nextQid, setNextQid] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -40,38 +42,33 @@ export function NextPoliticianProvider({ children }: { children: React.ReactNode
     [filters],
   )
 
-  const fetchNext = useCallback(
-    async (excludeId?: string) => {
-      setLoading(true)
-      try {
-        const params = new URLSearchParams()
-        languageFilters.forEach((qid) => params.append('languages', qid))
-        countryFilters.forEach((qid) => params.append('countries', qid))
-        if (excludeId) params.append('exclude_ids', excludeId)
+  const fetchNext = useCallback(async () => {
+    setLoading(true)
+    try {
+      const searchParams = new URLSearchParams()
+      languageFilters.forEach((qid) => searchParams.append('languages', qid))
+      countryFilters.forEach((qid) => searchParams.append('countries', qid))
+      if (currentQid) searchParams.append('exclude_ids', currentQid)
 
-        const response = await fetch(`/api/politicians/next?${params.toString()}`)
-        if (!response.ok) return
+      const response = await fetch(`/api/politicians/next?${searchParams.toString()}`)
+      if (!response.ok) return
 
-        const data: NextPoliticianResponse = await response.json()
-        setNextQid(data.wikidata_id)
-        setEnrichmentMeta(data.meta)
-      } catch {
-        // Ignore errors
-      } finally {
-        setLoading(false)
-      }
-    },
-    [languageFilters, countryFilters],
-  )
+      const data: NextPoliticianResponse = await response.json()
+      setNextQid(data.wikidata_id)
+      setEnrichmentMeta(data.meta)
+    } catch {
+      // Ignore errors
+    } finally {
+      setLoading(false)
+    }
+  }, [languageFilters, countryFilters, currentQid])
 
-  // Fetch on mount and when filters change, excluding the currently held id
+  // Fetch when filters or current route change.
   // Wait for filters to load from localStorage before fetching,
   // otherwise the first call fires with empty filters.
   useEffect(() => {
     if (filters === undefined) return
-    fetchNext(nextQid ?? undefined)
-    // nextQid intentionally excluded — we only want to re-fetch when filters change, not when nextQid changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchNext()
   }, [fetchNext, filters !== undefined])
 
   // Listen for enrichment_complete events instead of polling
@@ -90,10 +87,6 @@ export function NextPoliticianProvider({ children }: { children: React.ReactNode
     [nextQid, languageFilters, countryFilters, fetchNext],
   )
 
-  const advanceNext = useCallback(() => {
-    fetchNext(nextQid ?? undefined)
-  }, [fetchNext, nextQid])
-
   const politicianReady = nextQid !== null
   const hasEnrichablePoliticians = enrichmentMeta?.has_enrichable_politicians ?? false
   const politicianHref = nextQid ? `/politician/${nextQid}` : null
@@ -108,7 +101,6 @@ export function NextPoliticianProvider({ children }: { children: React.ReactNode
     loading,
     languageFilters,
     countryFilters,
-    advanceNext,
   }
 
   return <NextPoliticianContext.Provider value={value}>{children}</NextPoliticianContext.Provider>
