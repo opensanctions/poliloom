@@ -69,7 +69,7 @@ class Politician(
     )
     wikidata_id_numeric = Column(Integer, nullable=True, index=True)
     enriched_at = Column(
-        DateTime, nullable=True
+        DateTime(timezone=True), nullable=True
     )  # Timestamp of last enrichment attempt
 
     def get_properties_by_types(
@@ -416,8 +416,7 @@ class Politician(
     def needs_enrichment(self) -> bool:
         if self.enriched_at is None:
             return True
-        enriched_at = self.enriched_at.replace(tzinfo=timezone.utc)
-        return enriched_at < self.get_enrichment_cooldown_cutoff()
+        return self.enriched_at < self.get_enrichment_cooldown_cutoff()
 
     @needs_enrichment.expression
     def needs_enrichment(cls):

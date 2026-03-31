@@ -398,7 +398,7 @@ class TestCleanupFunctionality:
         old_timestamp = datetime.now(timezone.utc) - timedelta(days=30)
         db_session.execute(
             text("UPDATE wikidata_entities SET updated_at = :ts"),
-            {"ts": old_timestamp.replace(tzinfo=None)},
+            {"ts": old_timestamp},
         )
         db_session.flush()
 
@@ -747,9 +747,7 @@ class TestIntegrationWorkflow:
     ):
         """Test that positively evaluated enriched properties are protected during cleanup."""
         # Step 1: Create a dump timestamp in the past (simulates dump was taken hours ago)
-        dump_timestamp = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
-            hours=2
-        )
+        dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=2)
 
         # Step 2: Create a politician using the same pattern as existing fixtures
         politician = Politician.create_with_entity(
@@ -797,9 +795,7 @@ class TestIntegrationWorkflow:
     ):
         """Test that negatively evaluated enriched properties remain soft-deleted during cleanup."""
         # Step 1: Create a dump timestamp in the past (simulates dump was taken hours ago)
-        dump_timestamp = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
-            hours=2
-        )
+        dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=2)
 
         # Step 2: Create a politician using the same pattern as existing fixtures
         politician = Politician.create_with_entity(
@@ -823,7 +819,7 @@ class TestIntegrationWorkflow:
         assert enriched_prop.updated_at > dump_timestamp
 
         # Step 4: Negative evaluation - soft-delete the property (rejected by evaluator)
-        enriched_prop.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        enriched_prop.deleted_at = datetime.now(timezone.utc)
         db_session.flush()
 
         # Property is still after dump timestamp
@@ -852,12 +848,8 @@ class TestIntegrationWorkflow:
     ):
         """Test that statements in current dump are preserved with two-dump validation."""
         # Create dump records for two-dump validation
-        first_dump_timestamp = datetime.now(timezone.utc).replace(
-            tzinfo=None
-        ) - timedelta(hours=2)
-        current_dump_timestamp = datetime.now(timezone.utc).replace(
-            tzinfo=None
-        ) - timedelta(hours=1)
+        first_dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=2)
+        current_dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=1)
 
         first_dump = WikidataDump(
             url="http://example.com/dump1.json.bz2",
@@ -983,8 +975,8 @@ class TestWikidataDumpDownloadManagement:
             """),
             {
                 "url": url,
-                "last_modified": last_modified.replace(tzinfo=None),
-                "created_at": stale_time.replace(tzinfo=None),
+                "last_modified": last_modified,
+                "created_at": stale_time,
             },
         )
         db_session.flush()

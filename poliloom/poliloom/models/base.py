@@ -46,9 +46,11 @@ class RelationType(str, Enum):
 class TimestampMixin:
     """Mixin for adding timestamp fields."""
 
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     updated_at = Column(
-        DateTime,
+        DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
     )
@@ -57,7 +59,7 @@ class TimestampMixin:
 class SoftDeleteMixin:
     """Mixin for adding soft delete functionality."""
 
-    deleted_at = Column(DateTime, nullable=True, index=True)
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     def soft_delete(self):
         """Mark the entity as deleted by setting the deleted_at timestamp."""

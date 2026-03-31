@@ -99,7 +99,9 @@ class Source(Base, TimestampMixin):
         String, nullable=True, index=True
     )  # SHA256 hash for deduplication, null while processing
     fetch_timestamp = Column(
-        DateTime, nullable=True, default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True),
+        nullable=True,
+        default=lambda: datetime.now(timezone.utc),
     )
     user_id = Column(
         String, nullable=True, index=True

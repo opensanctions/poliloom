@@ -788,20 +788,24 @@ class WikidataDump(Base, TimestampMixin):
     )
     url = Column(String, nullable=False)  # Full URL to the dump file
     last_modified = Column(
-        DateTime, nullable=False
+        DateTime(timezone=True), nullable=False
     )  # From HEAD request Last-Modified header
 
     # Processing timestamps
-    downloaded_at = Column(DateTime, nullable=True)  # When download completed
-    extracted_at = Column(DateTime, nullable=True)  # When extraction completed
+    downloaded_at = Column(
+        DateTime(timezone=True), nullable=True
+    )  # When download completed
+    extracted_at = Column(
+        DateTime(timezone=True), nullable=True
+    )  # When extraction completed
     imported_hierarchy_at = Column(
-        DateTime, nullable=True
+        DateTime(timezone=True), nullable=True
     )  # When hierarchy import completed
     imported_entities_at = Column(
-        DateTime, nullable=True
+        DateTime(timezone=True), nullable=True
     )  # When entities import completed
     imported_politicians_at = Column(
-        DateTime, nullable=True
+        DateTime(timezone=True), nullable=True
     )  # When politicians import completed
 
     @classmethod
@@ -847,8 +851,7 @@ class WikidataDump(Base, TimestampMixin):
                 )
             else:
                 # Check if the download is stale
-                created_at_utc = existing_dump.created_at.replace(tzinfo=timezone.utc)
-                age = datetime.now(timezone.utc) - created_at_utc
+                age = datetime.now(timezone.utc) - existing_dump.created_at
                 hours_elapsed = age.total_seconds() / 3600
 
                 if age > timedelta(hours=cls.STALE_THRESHOLD_HOURS):
@@ -934,8 +937,6 @@ class CurrentImportEntity(Base):
         from poliloom.search import SearchService
 
         # Only delete if: NOT in current dump AND older than previous dump
-        # Convert timezone-aware timestamp to naive for database comparison
-        previous_dump_naive = previous_dump_timestamp.replace(tzinfo=None)
         deleted_result = session.execute(
             text(
                 """
@@ -947,7 +948,7 @@ class CurrentImportEntity(Base):
             RETURNING wikidata_id
         """
             ),
-            {"previous_dump_timestamp": previous_dump_naive},
+            {"previous_dump_timestamp": previous_dump_timestamp},
         )
 
         deleted_ids = [row[0] for row in deleted_result.fetchall()]
@@ -989,8 +990,6 @@ class CurrentImportStatement(Base):
             dict: Counts of statements that were soft-deleted
         """
         # Only delete properties if: NOT in current dump AND older than previous dump
-        # Convert timezone-aware timestamp to naive for database comparison
-        previous_dump_naive = previous_dump_timestamp.replace(tzinfo=None)
         properties_deleted_result = session.execute(
             text(
                 """
@@ -1002,7 +1001,7 @@ class CurrentImportStatement(Base):
             AND deleted_at IS NULL
         """
             ),
-            {"previous_dump_timestamp": previous_dump_naive},
+            {"previous_dump_timestamp": previous_dump_timestamp},
         )
 
         # Only delete relations if: NOT in current dump AND older than previous dump
@@ -1016,7 +1015,7 @@ class CurrentImportStatement(Base):
             AND deleted_at IS NULL
         """
             ),
-            {"previous_dump_timestamp": previous_dump_naive},
+            {"previous_dump_timestamp": previous_dump_timestamp},
         )
 
         return {
