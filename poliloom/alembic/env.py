@@ -21,8 +21,7 @@ target_metadata = Base.metadata
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
 
-    Uses the centralized database engine from poliloom.database
-    which handles both local and Cloud SQL connections properly.
+    Uses the centralized database engine from poliloom.database.
     """
     connectable = get_engine()
 
