@@ -11,7 +11,7 @@ from .auth import get_current_user, User
 
 router = APIRouter()
 
-KEEPALIVE_INTERVAL = 30  # seconds
+KEEPALIVE_INTERVAL = 10  # seconds
 
 
 @router.get("/events")
@@ -26,7 +26,7 @@ async def events(current_user: User = Depends(get_current_user)):
                         queue.get(), timeout=KEEPALIVE_INTERVAL
                     )
                 except asyncio.TimeoutError:
-                    yield ": keepalive\n\n"
+                    yield "event: keepalive\ndata: \n\n"
                     continue
                 if event is None:
                     break

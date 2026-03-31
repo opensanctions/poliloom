@@ -36,8 +36,24 @@ export function EventStreamProvider({ children }: { children: React.ReactNode })
       }
     }
 
-    es.onopen = () => setConnected(true)
-    es.onerror = () => setConnected(false)
+    es.addEventListener('keepalive', () => {
+      console.log('[SSE] keepalive received at', new Date().toISOString())
+    })
+
+    es.onopen = () => {
+      console.log('[SSE] connection opened at', new Date().toISOString())
+      setConnected(true)
+    }
+    es.onerror = (e) => {
+      console.log(
+        '[SSE] connection error at',
+        new Date().toISOString(),
+        'readyState:',
+        es.readyState,
+        e,
+      )
+      setConnected(false)
+    }
 
     return () => {
       es.close()
