@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from ..logging import setup_logging
-from ..sse import start_listener, stop_listener
+from ..sse import event_bus
 from .politicians import router as politicians_router
 from .sources import router as sources_router
 from .entities import router as entities_router
@@ -17,10 +17,10 @@ setup_logging()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    ready = start_listener()
+    ready = event_bus.start()
     await ready.wait()
     yield
-    await stop_listener()
+    await event_bus.stop()
 
 
 app = FastAPI(

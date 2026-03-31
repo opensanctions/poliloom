@@ -479,7 +479,7 @@ class TestPatchProperties:
         assert response.status_code == 422
 
     @patch("poliloom.api.politicians.push_evaluation")
-    @patch("poliloom.api.politicians.notify")
+    @patch("poliloom.sse.EventBus.notify")
     def test_emits_evaluation_count_event(
         self,
         mock_notify,

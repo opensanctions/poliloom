@@ -52,84 +52,87 @@ class EvaluationCountEvent(Event):
     total: int = 0
 
 
-_subscribers: Dict[str, List[asyncio.Queue]] = {}
-_listener_task: asyncio.Task | None = None
+class EventBus:
+    """Manages SSE subscriptions and the PostgreSQL LISTEN task."""
+
+    def __init__(self) -> None:
+        self._subscribers: Dict[str, List[asyncio.Queue]] = {}
+        self._task: asyncio.Task | None = None
+
+    @staticmethod
+    def notify(event: Event, session: Session) -> None:
+        """Broadcast an event to all workers via PostgreSQL NOTIFY.
+
+        The pg_notify runs in the caller's transaction, so the notification
+        is only delivered when that transaction commits.
+        """
+        payload = json.dumps(asdict(event))
+        session.execute(
+            text("SELECT pg_notify(:channel, :payload)"),
+            {"channel": CHANNEL, "payload": payload},
+        )
+
+    def subscribe(self, user_id: str) -> asyncio.Queue:
+        queue: asyncio.Queue = asyncio.Queue()
+        self._subscribers.setdefault(user_id, []).append(queue)
+        return queue
+
+    def unsubscribe(self, user_id: str, queue: asyncio.Queue) -> None:
+        queues = self._subscribers.get(user_id)
+        if queues:
+            try:
+                queues.remove(queue)
+            except ValueError:
+                pass
+            if not queues:
+                del self._subscribers[user_id]
+
+    def _fanout(self, payload: dict) -> None:
+        """Fan out a deserialized event to all local subscribers."""
+        for queues in self._subscribers.values():
+            for queue in queues:
+                queue.put_nowait(payload)
+
+    async def _listen(self, ready: asyncio.Event | None = None) -> None:
+        """Listen for PostgreSQL notifications and fan out to local subscribers."""
+        conn_params = get_conn_params()
+        while True:
+            try:
+                async with await psycopg.AsyncConnection.connect(
+                    **conn_params, autocommit=True
+                ) as conn:
+                    await conn.execute(
+                        sql.SQL("LISTEN {}").format(sql.Identifier(CHANNEL))
+                    )
+                    log.info("SSE listener connected")
+                    if ready is not None:
+                        ready.set()
+                        ready = None  # only signal on first connect
+                    async for notification in conn.notifies():
+                        self._fanout(json.loads(notification.payload))
+            except asyncio.CancelledError:
+                return
+            except Exception:
+                log.warning(
+                    "SSE listener connection lost, reconnecting...", exc_info=True
+                )
+                await asyncio.sleep(1)
+
+    def start(self) -> asyncio.Event:
+        """Start the background LISTEN task. Returns an event set once connected."""
+        ready = asyncio.Event()
+        self._task = asyncio.create_task(self._listen(ready))
+        return ready
+
+    async def stop(self) -> None:
+        """Stop the background LISTEN task."""
+        if self._task is not None:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+            self._task = None
 
 
-def subscribe(user_id: str) -> asyncio.Queue:
-    queue: asyncio.Queue = asyncio.Queue()
-    _subscribers.setdefault(user_id, []).append(queue)
-    return queue
-
-
-def unsubscribe(user_id: str, queue: asyncio.Queue) -> None:
-    queues = _subscribers.get(user_id)
-    if queues:
-        try:
-            queues.remove(queue)
-        except ValueError:
-            pass
-        if not queues:
-            del _subscribers[user_id]
-
-
-def _fanout(payload: dict) -> None:
-    """Fan out a deserialized event to all local subscribers."""
-    for queues in _subscribers.values():
-        for queue in queues:
-            queue.put_nowait(payload)
-
-
-def notify(event: Event, session: Session) -> None:
-    """Broadcast an event to all workers via PostgreSQL NOTIFY.
-
-    The pg_notify runs in the caller's transaction, so the notification
-    is only delivered when that transaction commits.
-    """
-    payload = json.dumps(asdict(event))
-    session.execute(
-        text("SELECT pg_notify(:channel, :payload)"),
-        {"channel": CHANNEL, "payload": payload},
-    )
-
-
-async def _listen(ready: asyncio.Event | None = None) -> None:
-    """Listen for PostgreSQL notifications and fan out to local subscribers."""
-    conn_params = get_conn_params()
-    while True:
-        try:
-            async with await psycopg.AsyncConnection.connect(
-                **conn_params, autocommit=True
-            ) as conn:
-                await conn.execute(sql.SQL("LISTEN {}").format(sql.Identifier(CHANNEL)))
-                log.info("SSE listener connected")
-                if ready is not None:
-                    ready.set()
-                    ready = None  # only signal on first connect
-                async for notification in conn.notifies():
-                    _fanout(json.loads(notification.payload))
-        except asyncio.CancelledError:
-            return
-        except Exception:
-            log.warning("SSE listener connection lost, reconnecting...", exc_info=True)
-            await asyncio.sleep(1)
-
-
-def start_listener() -> asyncio.Event:
-    """Start the background LISTEN task. Returns an event that is set once connected."""
-    global _listener_task
-    ready = asyncio.Event()
-    _listener_task = asyncio.create_task(_listen(ready))
-    return ready
-
-
-async def stop_listener() -> None:
-    """Stop the background LISTEN task."""
-    global _listener_task
-    if _listener_task is not None:
-        _listener_task.cancel()
-        try:
-            await _listener_task
-        except asyncio.CancelledError:
-            pass
-        _listener_task = None
+event_bus = EventBus()

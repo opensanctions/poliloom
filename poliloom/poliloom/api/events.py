@@ -6,7 +6,7 @@ import json
 from fastapi import APIRouter, Depends
 from starlette.responses import StreamingResponse
 
-from ..sse import subscribe, unsubscribe
+from ..sse import event_bus
 from .auth import get_current_user, User
 
 router = APIRouter()
@@ -16,7 +16,7 @@ KEEPALIVE_INTERVAL = 10  # seconds
 
 @router.get("/events")
 async def events(current_user: User = Depends(get_current_user)):
-    queue = subscribe(str(current_user.user_id))
+    queue = event_bus.subscribe(str(current_user.user_id))
 
     async def generator():
         try:
@@ -32,7 +32,7 @@ async def events(current_user: User = Depends(get_current_user)):
                     break
                 yield f"data: {json.dumps(event)}\n\n"
         finally:
-            unsubscribe(str(current_user.user_id), queue)
+            event_bus.unsubscribe(str(current_user.user_id), queue)
 
     return StreamingResponse(
         generator(),

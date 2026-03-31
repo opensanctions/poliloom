@@ -18,7 +18,7 @@ from .models import (
     WikidataEntity,
     WikidataRelation,
 )
-from .sse import EnrichmentCompleteEvent, notify
+from .sse import EnrichmentCompleteEvent, event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +156,7 @@ async def process_next_politician(
 
     if sum(counts) > 0:
         with Session(get_engine()) as db:
-            notify(
+            event_bus.notify(
                 EnrichmentCompleteEvent(
                     languages=languages or [],
                     countries=countries or [],

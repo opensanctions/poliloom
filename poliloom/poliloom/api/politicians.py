@@ -21,7 +21,7 @@ from ..models import (
     PropertyReference,
     PropertyType,
 )
-from ..sse import EvaluationCountEvent, notify
+from ..sse import EvaluationCountEvent, event_bus
 from ..wikidata.statement import create_entity, create_statement, push_evaluation
 from .schemas import (
     AcceptPropertyItem,
@@ -470,7 +470,7 @@ async def process_property_actions(
     # Broadcast updated evaluation count
     if all_evaluations:
         total = db.execute(select(func.count()).select_from(Evaluation)).scalar() or 0
-        notify(EvaluationCountEvent(total=total), db)
+        event_bus.notify(EvaluationCountEvent(total=total), db)
 
     db.commit()
 

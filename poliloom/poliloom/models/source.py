@@ -20,7 +20,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Session, relationship
 from sqlalchemy.orm.attributes import get_history
 
-from ..sse import SourceStatusEvent, notify
+from ..sse import SourceStatusEvent, event_bus
 from ..wikidata.date import WikidataDate
 from .base import Base, RelationType, TimestampMixin
 from .wikidata import WikidataRelation
@@ -251,7 +251,7 @@ def _broadcast_source_status(session, flush_context):
         history = get_history(obj, "status")
         if not history.has_changes():
             continue
-        notify(
+        event_bus.notify(
             SourceStatusEvent(
                 politician_ids=[str(pol.id) for pol in obj.politicians],
                 source_id=str(obj.id),

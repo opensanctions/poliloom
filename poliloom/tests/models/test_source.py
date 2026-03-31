@@ -210,7 +210,7 @@ class TestSource:
         # Third reference should be P813 (retrieved date)
         assert references_json[2]["property"]["id"] == "P813"
 
-    @patch("poliloom.models.source.notify")
+    @patch("poliloom.sse.EventBus.notify")
     def test_status_change_broadcasts_sse_with_politician_ids(
         self, mock_notify, db_session, sample_politician
     ):
@@ -234,7 +234,7 @@ class TestSource:
         assert event.source_id == str(source.id)
         assert event.status == "done"
 
-    @patch("poliloom.models.source.notify")
+    @patch("poliloom.sse.EventBus.notify")
     def test_status_change_broadcasts_multiple_politician_ids(
         self, mock_notify, db_session, sample_politician
     ):
