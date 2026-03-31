@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Literal, Type, Union, Any
 from sqlalchemy.orm import Session, selectinload
 from openai import AsyncOpenAI
-from pydantic import BaseModel, field_validator, create_model
+from pydantic import BaseModel, Field, field_validator, create_model
 from dicttoxml import dicttoxml
 
 from .models import (
@@ -53,12 +53,19 @@ def create_qualifiers_json_for_position(
     return qualifiers_json if qualifiers_json else None
 
 
-class ExtractedProperty(BaseModel):
+class QuotedExtraction(BaseModel):
+    """Base for all extractions that carry supporting quotes."""
+
+    supporting_quotes: List[str] = Field(
+        description="Exact verbatim excerpts from the source, without any added formatting"
+    )
+
+
+class ExtractedProperty(QuotedExtraction):
     """Schema for extracted property data."""
 
     type: PropertyType
     value: str
-    supporting_quotes: List[str]
 
     @field_validator("value")
     @classmethod
@@ -66,13 +73,12 @@ class ExtractedProperty(BaseModel):
         return WikidataDate.validate_date_format(v)
 
 
-class ExtractedPosition(BaseModel):
+class ExtractedPosition(QuotedExtraction):
     """Schema for extracted position data."""
 
     wikidata_id: str
     start_date: Optional[str] = None
     end_date: Optional[str] = None
-    supporting_quotes: List[str]
 
     @field_validator("start_date", "end_date")
     @classmethod
@@ -82,11 +88,10 @@ class ExtractedPosition(BaseModel):
         return WikidataDate.validate_date_format(v)
 
 
-class ExtractedBirthplace(BaseModel):
+class ExtractedBirthplace(QuotedExtraction):
     """Schema for extracted birthplace data."""
 
     wikidata_id: str
-    supporting_quotes: List[str]
 
 
 class PropertyExtractionResult(BaseModel):
@@ -95,13 +100,12 @@ class PropertyExtractionResult(BaseModel):
     properties: Optional[List[ExtractedProperty]]
 
 
-class FreeFormPosition(BaseModel):
+class FreeFormPosition(QuotedExtraction):
     """Free-form position extracted before mapping to Wikidata."""
 
     name: str
     start_date: Optional[str] = None
     end_date: Optional[str] = None
-    supporting_quotes: List[str]
 
     @field_validator("start_date", "end_date")
     @classmethod
@@ -117,11 +121,10 @@ class FreeFormPositionResult(BaseModel):
     positions: Optional[List[FreeFormPosition]]
 
 
-class FreeFormBirthplace(BaseModel):
+class FreeFormBirthplace(QuotedExtraction):
     """Free-form birthplace extracted before mapping to Wikidata."""
 
     name: str
-    supporting_quotes: List[str]
 
 
 class FreeFormBirthplaceResult(BaseModel):
@@ -130,11 +133,10 @@ class FreeFormBirthplaceResult(BaseModel):
     birthplaces: Optional[List[FreeFormBirthplace]]
 
 
-class FreeFormCitizenship(BaseModel):
+class FreeFormCitizenship(QuotedExtraction):
     """Free-form citizenship extracted before mapping to Wikidata."""
 
     name: str
-    supporting_quotes: List[str]
 
 
 class FreeFormCitizenshipResult(BaseModel):
@@ -143,11 +145,10 @@ class FreeFormCitizenshipResult(BaseModel):
     citizenships: Optional[List[FreeFormCitizenship]]
 
 
-class ExtractedCitizenship(BaseModel):
+class ExtractedCitizenship(QuotedExtraction):
     """Schema for extracted citizenship data."""
 
     wikidata_id: str
-    supporting_quotes: List[str]
 
 
 @dataclass
