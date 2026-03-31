@@ -260,6 +260,7 @@ class Politician(
             )
             .group_by(WikipediaLink.wikipedia_project_id)
             .cte("language_popularity")
+            .prefix_with("MATERIALIZED")
         )
 
     @classmethod
