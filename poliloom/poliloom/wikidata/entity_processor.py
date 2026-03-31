@@ -191,7 +191,7 @@ class WikidataEntityProcessor:
             - relation_type: RelationType enum value
             - statement_id: The Wikidata statement ID
         """
-        from .models import RelationType
+        from ..models.base import RelationType
 
         entity_id = self.get_wikidata_id()
         if not entity_id:
@@ -227,7 +227,7 @@ class WikidataEntityProcessor:
         Returns:
             Set of parent entity QIDs
         """
-        from .models import RelationType
+        from ..models.base import RelationType
 
         parent_ids = set()
 

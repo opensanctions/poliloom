@@ -1,5 +1,6 @@
 """Tests for the WikidataEntityProcessor class."""
 
+from poliloom.models.base import RelationType
 from poliloom.wikidata.entity_processor import WikidataEntityProcessor
 
 
@@ -235,3 +236,140 @@ class TestWikidataEntityProcessor:
         entity_data = {"id": "Q139", "labels": {}}
         entity = WikidataEntityProcessor(entity_data)
         assert entity.get_entity_name() is None
+
+    def test_collect_parent_ids(self):
+        """Test collecting parent IDs across all relation types."""
+        entity = WikidataEntityProcessor(
+            {
+                "id": "Q100",
+                "claims": {
+                    "P279": [
+                        {
+                            "rank": "normal",
+                            "mainsnak": {"datavalue": {"value": {"id": "Q1"}}},
+                        }
+                    ],
+                    "P31": [
+                        {
+                            "rank": "normal",
+                            "mainsnak": {"datavalue": {"value": {"id": "Q2"}}},
+                        }
+                    ],
+                    "P999": [
+                        {
+                            "rank": "normal",
+                            "mainsnak": {"datavalue": {"value": {"id": "Q99"}}},
+                        }
+                    ],
+                },
+            }
+        )
+
+        parent_ids = entity.collect_parent_ids()
+        assert "Q1" in parent_ids  # P279 = SUBCLASS_OF
+        assert "Q2" in parent_ids  # P31 = INSTANCE_OF
+        assert "Q99" not in parent_ids  # P999 is not a tracked relation
+
+    def test_collect_parent_ids_empty(self):
+        """Test collecting parent IDs from entity with no relations."""
+        entity = WikidataEntityProcessor({"id": "Q100", "claims": {}})
+        assert entity.collect_parent_ids() == set()
+
+    def test_extract_all_relations(self):
+        """Test extracting all tracked relations from an entity."""
+        entity = WikidataEntityProcessor(
+            {
+                "id": "Q100",
+                "claims": {
+                    "P279": [
+                        {
+                            "id": "Q100$stmt-1",
+                            "rank": "normal",
+                            "mainsnak": {"datavalue": {"value": {"id": "Q1"}}},
+                        }
+                    ],
+                    "P131": [
+                        {
+                            "id": "Q100$stmt-2",
+                            "rank": "normal",
+                            "mainsnak": {"datavalue": {"value": {"id": "Q50"}}},
+                        }
+                    ],
+                },
+            }
+        )
+
+        relations = entity.extract_all_relations()
+        assert len(relations) == 2
+
+        by_stmt = {r["statement_id"]: r for r in relations}
+        assert by_stmt["Q100$stmt-1"]["parent_entity_id"] == "Q1"
+        assert by_stmt["Q100$stmt-1"]["child_entity_id"] == "Q100"
+        assert by_stmt["Q100$stmt-1"]["relation_type"] == RelationType.SUBCLASS_OF
+        assert by_stmt["Q100$stmt-2"]["relation_type"] == RelationType.LOCATED_IN
+
+    def test_extract_all_relations_skips_malformed_claims(self):
+        """Test that malformed claims are skipped without error."""
+        entity = WikidataEntityProcessor(
+            {
+                "id": "Q100",
+                "claims": {
+                    "P279": [
+                        {
+                            "id": "Q100$stmt-1",
+                            "rank": "normal",
+                            "mainsnak": {"datavalue": {"value": {"id": "Q1"}}},
+                        },
+                        {"rank": "normal", "mainsnak": {}},  # missing datavalue
+                    ],
+                },
+            }
+        )
+
+        relations = entity.extract_all_relations()
+        assert len(relations) == 1
+
+    def test_extract_all_relations_empty_entity_id(self):
+        """Test that extract_all_relations returns empty for entity with no ID."""
+        entity = WikidataEntityProcessor({"claims": {"P279": []}})
+        assert entity.extract_all_relations() == []
+
+    def test_get_instance_of_ids(self):
+        """Test getting instance-of (P31) IDs."""
+        entity = WikidataEntityProcessor(
+            {
+                "id": "Q100",
+                "claims": {
+                    "P31": [
+                        {
+                            "rank": "normal",
+                            "mainsnak": {"datavalue": {"value": {"id": "Q5"}}},
+                        },
+                        {
+                            "rank": "normal",
+                            "mainsnak": {"datavalue": {"value": {"id": "Q515"}}},
+                        },
+                    ]
+                },
+            }
+        )
+
+        assert entity.get_instance_of_ids() == {"Q5", "Q515"}
+
+    def test_get_subclass_of_ids(self):
+        """Test getting subclass-of (P279) IDs."""
+        entity = WikidataEntityProcessor(
+            {
+                "id": "Q100",
+                "claims": {
+                    "P279": [
+                        {
+                            "rank": "normal",
+                            "mainsnak": {"datavalue": {"value": {"id": "Q4164871"}}},
+                        },
+                    ]
+                },
+            }
+        )
+
+        assert entity.get_subclass_of_ids() == {"Q4164871"}

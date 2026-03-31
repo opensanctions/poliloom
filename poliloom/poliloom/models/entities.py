@@ -284,7 +284,7 @@ class Position(
     __tablename__ = "positions"
 
     _search_indexed = True
-    _search_semantic_ratio = 0.5
+    _search_semantic_ratio = 0.4
 
     # Hierarchy configuration for import filtering and cleanup
     _hierarchy_roots = [
