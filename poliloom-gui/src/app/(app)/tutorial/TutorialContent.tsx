@@ -551,17 +551,12 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <CenteredCard emoji="💡" title="Key Takeaways">
         <div className="mb-8 space-y-4">
           <p>
-            If a source implies data that wasn&apos;t extracted, use the &quot;+ Add&quot; buttons
-            to create it yourself.
+            Fill in data the AI missed, and deprecate generic or incorrect data when you have
+            something more specific.
           </p>
           <p>
-            Feel free to deprecate generic or incorrect existing data when you have better, more
-            specific information.
-          </p>
-          <p>
-            When existing data has references or qualifiers, consider whether that metadata is
-            valuable. You might want to add your data first, then edit Wikidata manually to preserve
-            the metadata.
+            Be careful deprecating data that has references or qualifiers — that metadata is
+            valuable. When in doubt, add your data and edit Wikidata manually to preserve it.
           </p>
         </div>
         <TutorialActions
