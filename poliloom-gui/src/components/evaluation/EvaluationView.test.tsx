@@ -122,71 +122,16 @@ const politicianWithEdgeCases: Politician = {
   ],
 }
 
-const sourcePoliticians: Politician[] = [
-  {
-    id: 'pol-a',
-    name: 'Source Politician A',
-    wikidata_id: 'Q111',
-    sources: [source1],
-    properties: [
-      {
-        id: 'sp-1',
-        type: PropertyType.P569,
-        value: '+1970-01-01T00:00:00Z',
-        value_precision: 11,
-        statement_id: null,
-        sources: [{ id: 'sr-1', source: source1, supporting_quotes: ['born 1970'] }],
-      },
-      {
-        id: 'sp-2',
-        type: PropertyType.P39,
-        entity_id: 'Q555',
-        entity_name: 'Mayor of Test City',
-        statement_id: null,
-        sources: [
-          {
-            id: 'sr-2',
-            source: source1,
-            supporting_quotes: ['served as mayor'],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'pol-b',
-    name: 'Source Politician B',
-    wikidata_id: 'Q222',
-    sources: [source1],
-    properties: [
-      {
-        id: 'sp-3',
-        type: PropertyType.P27,
-        entity_id: 'Q142',
-        entity_name: 'France',
-        statement_id: null,
-        sources: [
-          {
-            id: 'sr-3',
-            source: source1,
-            supporting_quotes: ['French citizen'],
-          },
-        ],
-      },
-    ],
-  },
-]
-
 describe('EvaluationView', () => {
   beforeEach(() => {
     CSS.highlights.clear()
   })
 
-  describe('single politician - source handling', () => {
+  describe('source handling', () => {
     it('auto-loads the first property with a source on mount', () => {
       render(
         <EvaluationView
-          politicians={[politicianWithDifferentSources]}
+          politician={politicianWithDifferentSources}
           sourcesApiPath="/api/sources"
           footer={() => <div>Footer</div>}
         />,
@@ -203,7 +148,7 @@ describe('EvaluationView', () => {
     it('clicking View on a property updates the iframe to show that source', () => {
       render(
         <EvaluationView
-          politicians={[politicianWithDifferentSources]}
+          politician={politicianWithDifferentSources}
           sourcesApiPath="/api/sources"
           footer={() => <div>Footer</div>}
         />,
@@ -224,7 +169,7 @@ describe('EvaluationView', () => {
     it('switching between properties with different sources updates the iframe', () => {
       render(
         <EvaluationView
-          politicians={[politicianWithDifferentSources]}
+          politician={politicianWithDifferentSources}
           sourcesApiPath="/api/sources"
           footer={() => <div>Footer</div>}
         />,
@@ -249,7 +194,7 @@ describe('EvaluationView', () => {
     it('only the active property View button shows "Viewing"', () => {
       render(
         <EvaluationView
-          politicians={[politicianWithDifferentSources]}
+          politician={politicianWithDifferentSources}
           sourcesApiPath="/api/sources"
           footer={() => <div>Footer</div>}
         />,
@@ -277,7 +222,7 @@ describe('EvaluationView', () => {
     it('does not show View button for Wikidata statements even if they have sources', () => {
       render(
         <EvaluationView
-          politicians={[politicianWithEdgeCases]}
+          politician={politicianWithEdgeCases}
           sourcesApiPath="/api/sources"
           footer={() => <div>Footer</div>}
         />,
@@ -292,7 +237,7 @@ describe('EvaluationView', () => {
     it('shows "+ Add Source" button when onAddSource is provided', () => {
       render(
         <EvaluationView
-          politicians={[politicianWithDifferentSources]}
+          politician={politicianWithDifferentSources}
           footer={() => <div>Footer</div>}
           onAddSource={async () => {}}
         />,
@@ -304,7 +249,7 @@ describe('EvaluationView', () => {
     it('does not show "+ Add Source" button when onAddSource is not provided', () => {
       render(
         <EvaluationView
-          politicians={[politicianWithDifferentSources]}
+          politician={politicianWithDifferentSources}
           footer={() => <div>Footer</div>}
         />,
       )
@@ -319,7 +264,7 @@ describe('EvaluationView', () => {
       }
       render(
         <EvaluationView
-          politicians={[politicianNoQid]}
+          politician={politicianNoQid}
           footer={() => <div>Footer</div>}
           onAddSource={async () => {}}
         />,
@@ -331,7 +276,7 @@ describe('EvaluationView', () => {
     it('shows add source form when clicking "+ Add Source"', () => {
       render(
         <EvaluationView
-          politicians={[politicianWithDifferentSources]}
+          politician={politicianWithDifferentSources}
           footer={() => <div>Footer</div>}
           onAddSource={async () => {}}
         />,
@@ -346,7 +291,7 @@ describe('EvaluationView', () => {
     it('hides add source form when clicking "Cancel"', () => {
       render(
         <EvaluationView
-          politicians={[politicianWithDifferentSources]}
+          politician={politicianWithDifferentSources}
           footer={() => <div>Footer</div>}
           onAddSource={async () => {}}
         />,
@@ -360,66 +305,11 @@ describe('EvaluationView', () => {
     })
   })
 
-  describe('multiple politicians', () => {
-    it('renders multiple politicians with headers', () => {
-      render(<EvaluationView politicians={sourcePoliticians} footer={() => <div>Footer</div>} />)
-
-      expect(screen.getByText('Source Politician A')).toBeInTheDocument()
-      expect(screen.getByText('Source Politician B')).toBeInTheDocument()
-    })
-
-    it('renders properties for each politician', () => {
-      render(<EvaluationView politicians={sourcePoliticians} footer={() => <div>Footer</div>} />)
-
-      expect(screen.getByText('Birth Date')).toBeInTheDocument()
-      expect(screen.getByText('Mayor of Test City')).toBeInTheDocument()
-      expect(screen.getByText('France')).toBeInTheDocument()
-    })
-
-    it('auto-loads the first source on mount', () => {
-      render(
-        <EvaluationView
-          politicians={sourcePoliticians}
-          sourcesApiPath="/api/sources"
-          footer={() => <div>Footer</div>}
-        />,
-      )
-
-      const iframe = screen.getByTitle('Source') as HTMLIFrameElement
-      expect(iframe).toBeInTheDocument()
-      expect(iframe.src).toContain(`/api/sources/${source1.id}/html`)
-    })
-
-    it('accept/reject toggles work per politician', () => {
-      render(<EvaluationView politicians={sourcePoliticians} footer={() => <div>Footer</div>} />)
-
-      const acceptButtons = screen.getAllByRole('button', { name: /accept/i })
-      expect(acceptButtons.length).toBe(3)
-
-      fireEvent.click(acceptButtons[0])
-
-      const rejectButtons = screen.getAllByRole('button', { name: /reject/i })
-      expect(rejectButtons.length).toBe(3)
-    })
-
-    it('renders footer', () => {
-      render(
-        <EvaluationView
-          politicians={sourcePoliticians}
-          footer={() => <div data-testid="test-footer">Custom Footer</div>}
-        />,
-      )
-
-      expect(screen.getByTestId('test-footer')).toBeInTheDocument()
-      expect(screen.getByText('Custom Footer')).toBeInTheDocument()
-    })
-  })
-
   describe('advanced mode - add property', () => {
     it('shows add buttons when isAdvancedMode is true', () => {
       render(
         <EvaluationView
-          politicians={[politicianWithDifferentSources]}
+          politician={politicianWithDifferentSources}
           footer={() => <div>Footer</div>}
           isAdvancedMode={true}
         />,
@@ -433,7 +323,7 @@ describe('EvaluationView', () => {
     it('hides add buttons when isAdvancedMode is false', () => {
       render(
         <EvaluationView
-          politicians={[politicianWithDifferentSources]}
+          politician={politicianWithDifferentSources}
           footer={() => <div>Footer</div>}
           isAdvancedMode={false}
         />,
@@ -446,7 +336,7 @@ describe('EvaluationView', () => {
     it('opens add form when add button is clicked', () => {
       render(
         <EvaluationView
-          politicians={[politicianWithDifferentSources]}
+          politician={politicianWithDifferentSources}
           footer={() => <div>Footer</div>}
           isAdvancedMode={true}
         />,

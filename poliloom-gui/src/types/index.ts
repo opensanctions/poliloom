@@ -104,10 +104,6 @@ export interface PatchPropertiesRequest {
   items: PropertyActionItem[]
 }
 
-export interface SourcePatchPropertiesRequest {
-  items: Record<string, PropertyActionItem[]>
-}
-
 export interface PatchPropertiesResponse {
   success: boolean
   message: string

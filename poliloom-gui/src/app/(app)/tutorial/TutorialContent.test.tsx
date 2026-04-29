@@ -784,13 +784,10 @@ describe('Tutorial Page', () => {
 
         expect(screen.getByText('Key Takeaways')).toBeInTheDocument()
         expect(
-          screen.getByText(/use the "\+ Add" buttons to create it yourself/),
+          screen.getByText(/Fill in data the AI missed, and deprecate generic or incorrect data/),
         ).toBeInTheDocument()
         expect(
-          screen.getByText(/Feel free to deprecate generic or incorrect existing data/),
-        ).toBeInTheDocument()
-        expect(
-          screen.getByText(/When existing data has references or qualifiers/),
+          screen.getByText(/Be careful deprecating data that has references or qualifiers/),
         ).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Got It!' })).toBeInTheDocument()
       })

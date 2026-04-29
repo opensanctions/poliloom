@@ -116,16 +116,6 @@ class PatchPropertiesRequest(BaseModel):
     items: List[PropertyActionItem]
 
 
-class SourcePatchPropertiesRequest(BaseModel):
-    """Request body for PATCH /sources/{id}/properties.
-
-    Items keyed by politician ID (UUID), e.g.:
-    {"uuid-here": [{"action": "accept", "id": "..."}, ...]}
-    """
-
-    items: Dict[str, List[PropertyActionItem]]
-
-
 class PatchPropertiesResponse(BaseModel):
     """Response for property evaluation endpoints."""
 

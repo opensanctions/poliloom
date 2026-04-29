@@ -66,7 +66,7 @@ For entity-linked properties (OpenAI's 500 enum limit):
 ### **API Endpoints**
 
 - **Politicians:** `GET /politicians/next` (next unevaluated), `GET /politicians/{qid}`, `GET /politicians/search`, `POST /politicians` (create), `PATCH /politicians/{qid}/properties` (submit evaluations), `POST /politicians/{qid}/sources` (add source)
-- **Sources:** `GET /sources/{id}` (politicians for source), `GET /sources/{id}.html` (archived HTML), `PATCH /sources/{id}/properties` (evaluate from source view)
+- **Sources:** `GET /sources/{id}.html` (archived HTML)
 - **Events:** `GET /events` (SSE stream for real-time updates: evaluation counts, enrichment progress)
 - **Authentication:** MediaWiki OAuth 2.0 JWT tokens
 

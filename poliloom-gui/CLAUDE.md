@@ -20,8 +20,7 @@ The PoliLoom GUI is a web application for reviewing and validating politician me
 
 ### Evaluation Interface
 
-- **Politician view** (`/politician/[qid]`): Single politician with all extracted properties, grouped by type. Accept/reject individual properties.
-- **Source view** (`/sources/[id]`): Evaluate properties from a specific source's perspective. Archived HTML displayed in iframe with CSS Custom Highlight API for proof text.
+- **Politician view** (`/politician/[qid]`): Single politician with all extracted properties, grouped by type. Accept/reject individual properties. Archived source HTML displayed in iframe with CSS Custom Highlight API for proof text.
 - **Session flow** (`/session/enriching`, `/session/unlocked`, `/session/complete`): Guides users through the evaluation session lifecycle.
 - **OmniBox**: Search/navigate to politicians, with option to create new entries.
 

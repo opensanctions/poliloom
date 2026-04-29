@@ -56,8 +56,7 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
     [politician.id, refetchPolitician],
   )
 
-  const handleSubmit = async (actionsByPolitician: Map<string, PropertyActionItem[]>) => {
-    const actions = actionsByPolitician.get(politician.id) || []
+  const handleSubmit = async (actions: PropertyActionItem[]) => {
     const requestData: PatchPropertiesRequest = { items: actions }
     const response = await fetch(`/api/politicians/${politician.wikidata_id}`, {
       method: 'PATCH',
@@ -87,8 +86,7 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
     }
   }
 
-  const footer = ({ actionsByPolitician, isSubmitting, submit }: FooterContext) => {
-    const actions = actionsByPolitician.get(politician.id) || []
+  const footer = ({ actions, isSubmitting, submit }: FooterContext) => {
     const hasActions = actions.length > 0
     return (
       <div className="flex justify-between items-center">
@@ -130,12 +128,12 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
 
   return (
     <EvaluationView
-      politicians={[politician]}
+      politician={politician}
       onSubmit={handleSubmit}
       footer={footer}
       isAdvancedMode={isAdvancedMode}
-      onAddSource={async (qid, url) => {
-        const response = await fetch(`/api/politicians/${qid}`, {
+      onAddSource={async (url) => {
+        const response = await fetch(`/api/politicians/${politician.wikidata_id}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url }),

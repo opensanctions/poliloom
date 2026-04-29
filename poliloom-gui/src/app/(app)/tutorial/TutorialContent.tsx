@@ -382,19 +382,16 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     }
     return (
       <EvaluationView
-        politicians={[evalStep.politician]}
-        footer={({ actionsByPolitician }) => {
-          const actions = actionsByPolitician.get(evalStep.politician.id) || []
-          return (
-            <TutorialFooter
-              skipHref={startHref}
-              onSkip={() => startSession()}
-              isComplete={isStepComplete(actions, evalStep)}
-              onSubmit={() => setCheckResult(checkStep(actions, evalStep))}
-              onBack={() => setStep(evalStep.backStep)}
-            />
-          )
-        }}
+        politician={evalStep.politician}
+        footer={({ actions }) => (
+          <TutorialFooter
+            skipHref={startHref}
+            onSkip={() => startSession()}
+            isComplete={isStepComplete(actions, evalStep)}
+            onSubmit={() => setCheckResult(checkStep(actions, evalStep))}
+            onBack={() => setStep(evalStep.backStep)}
+          />
+        )}
         sourcesApiPath="/api/tutorial-pages"
         isAdvancedMode={evalStep.isAdvancedMode}
         entitySearches={evalStep.entitySearches}
