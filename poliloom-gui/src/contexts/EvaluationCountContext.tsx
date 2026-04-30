@@ -1,7 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import React, { createContext, useContext, useState } from 'react'
 import { useEventStream } from '@/contexts/EventStreamContext'
 
 interface EvaluationCountContextType {
@@ -10,27 +9,14 @@ interface EvaluationCountContextType {
 
 const EvaluationCountContext = createContext<EvaluationCountContextType | undefined>(undefined)
 
-export function EvaluationCountProvider({ children }: { children: React.ReactNode }) {
-  const { status } = useSession()
-  const [evaluationCount, setEvaluationCount] = useState<number | null>(null)
-
-  useEffect(() => {
-    if (status !== 'authenticated') return
-
-    const fetchEvaluationCount = async () => {
-      try {
-        const response = await fetch('/api/stats/count')
-        if (response.ok) {
-          const data = await response.json()
-          setEvaluationCount(data.total)
-        }
-      } catch {
-        // Silently fail
-      }
-    }
-
-    fetchEvaluationCount()
-  }, [status])
+export function EvaluationCountProvider({
+  initialCount,
+  children,
+}: {
+  initialCount: number | null
+  children: React.ReactNode
+}) {
+  const [evaluationCount, setEvaluationCount] = useState<number | null>(initialCount)
 
   useEventStream(
     'evaluation_count',

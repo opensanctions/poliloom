@@ -1,41 +1,26 @@
 'use client'
 
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { useSession } from 'next-auth/react'
+import React, { createContext, useCallback, useContext, useRef, useState } from 'react'
 import { User, UserPatchInput, WikidataEntity } from '@/types'
 
 interface UserContextType {
-  // undefined: GET in flight; null: no row (first login); object: loaded
-  user: User | null | undefined
+  user: User | null
   patch: (body: UserPatchInput) => Promise<void>
+  // true while any PATCH is in flight; barrier for downstream fetches
   pending: boolean
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined)
 
-const DEFAULT_USER: User = {
-  settings: {
-    advanced_mode: false,
-    basic_tutorial_completed: false,
-    advanced_tutorial_completed: false,
-    stats_unlocked: false,
-  },
-  filters: { language: [], country: [] },
-}
-
-function applyPatch(prev: User | null, body: UserPatchInput): User {
-  const base: User = prev ?? DEFAULT_USER
-
-  const settings = body.settings ? { ...base.settings, ...body.settings } : base.settings
-
-  let filters = base.filters
+function applyPatch(prev: User, body: UserPatchInput): User {
+  const settings = body.settings ? { ...prev.settings, ...body.settings } : prev.settings
+  let filters = prev.filters
   if (body.filters) {
     filters = {
-      language: body.filters.language ?? base.filters.language,
-      country: body.filters.country ?? base.filters.country,
+      language: body.filters.language ?? prev.filters.language,
+      country: body.filters.country ?? prev.filters.country,
     }
   }
-
   return { settings, filters }
 }
 
@@ -56,39 +41,29 @@ function toWirePayload(body: UserPatchInput) {
   return wire
 }
 
-export function UserProvider({ children }: { children: React.ReactNode }) {
-  const { status } = useSession()
-  const [user, setUser] = useState<User | null | undefined>(undefined)
+export function UserProvider({
+  initialUser,
+  children,
+}: {
+  initialUser: User | null
+  children: React.ReactNode
+}) {
+  const [user, setUser] = useState<User | null>(initialUser)
   const [inflight, setInflight] = useState(0)
   // Mirror current user in a ref so patch() captures a synchronous snapshot
   // for optimistic-rollback without re-deriving the callback on every change.
-  const userRef = useRef<User | null | undefined>(undefined)
-  const fetched = useRef(false)
+  const userRef = useRef<User | null>(initialUser)
 
-  const setUserSynced = useCallback((next: User | null | undefined) => {
+  const setUserSynced = useCallback((next: User | null) => {
     userRef.current = next
     setUser(next)
   }, [])
 
-  useEffect(() => {
-    if (status !== 'authenticated' || fetched.current) return
-    fetched.current = true
-    ;(async () => {
-      try {
-        const response = await fetch('/api/user')
-        if (!response.ok) throw new Error(`GET /api/user: ${response.status}`)
-        const data = (await response.json()) as User | null
-        setUserSynced(data)
-      } catch (error) {
-        console.warn('Failed to load user state:', error)
-      }
-    })()
-  }, [status, setUserSynced])
-
   const patch = useCallback(
     async (body: UserPatchInput) => {
       const snapshot = userRef.current
-      setUserSynced(applyPatch(snapshot ?? null, body))
+      if (snapshot === null) return // unauthenticated; nothing to patch
+      setUserSynced(applyPatch(snapshot, body))
       setInflight((c) => c + 1)
       try {
         const response = await fetch('/api/user', {

@@ -14,7 +14,6 @@ export const mockUseSearchParams = vi.fn()
 export const mockUseNextPoliticianContext = vi.fn()
 export const mockUseEvaluationSession = vi.fn()
 export const mockUseUser = vi.fn()
-export const mockUseEntityCatalog = vi.fn()
 
 // Shared action mocks (used in defaultEvaluationSession)
 export const mockSubmitAndAdvance = vi.fn()
@@ -73,14 +72,6 @@ vi.mock('@/contexts/UserContext', async (importOriginal) => {
   }
 })
 
-vi.mock('@/contexts/EntityCatalogContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/contexts/EntityCatalogContext')>()
-  return {
-    ...actual,
-    useEntityCatalog: () => mockUseEntityCatalog(),
-  }
-})
-
 // --- Default return values ---
 
 export const defaultNextPolitician = {
@@ -115,20 +106,12 @@ export const defaultUserContext = {
   pending: false,
 }
 
-export const defaultEntityCatalog = {
-  languages: [],
-  countries: [],
-  loadingLanguages: false,
-  loadingCountries: false,
-}
-
 // --- Reset defaults before each test ---
 
 beforeEach(() => {
   mockUseNextPoliticianContext.mockReturnValue(defaultNextPolitician)
   mockUseEvaluationSession.mockReturnValue(defaultEvaluationSession)
   mockUseUser.mockReturnValue(defaultUserContext)
-  mockUseEntityCatalog.mockReturnValue(defaultEntityCatalog)
   mockUseParams.mockReturnValue({})
   mockUsePathname.mockReturnValue('/')
   mockUseSearchParams.mockReturnValue(new URLSearchParams())

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useCallback, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Politician,
@@ -27,15 +27,6 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
   const isAdvancedMode = user?.settings.advanced_mode ?? false
   const { nextHref, loading: nextLoading } = useNextPoliticianContext()
   const [politician, setPolitician] = useState<Politician>(initialPolitician)
-
-  // Mark tutorials complete on mount
-  useEffect(() => {
-    patch({ settings: { basic_tutorial_completed: true } })
-    if (isAdvancedMode) {
-      patch({ settings: { advanced_tutorial_completed: true } })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const refetchPolitician = useCallback(() => {
     fetch(`/api/politicians/${politician.wikidata_id}`)
@@ -75,6 +66,15 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
     }
 
     refetchPolitician()
+
+    // First successful submission implies the user has effectively completed the
+    // tutorial flow — mark whichever tutorials still need it.
+    if (user && !user.settings.basic_tutorial_completed) {
+      patch({ settings: { basic_tutorial_completed: true } })
+    }
+    if (user && isAdvancedMode && !user.settings.advanced_tutorial_completed) {
+      patch({ settings: { advanced_tutorial_completed: true } })
+    }
 
     if (isSessionActive) {
       const { sessionComplete } = submitAndAdvance()

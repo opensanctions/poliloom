@@ -7,7 +7,7 @@ import {
   defaultUserContext,
   defaultUser,
 } from '@/test/mocks'
-import Home from './page'
+import { HomeContent } from './HomeContent'
 
 const mockUseSession = vi.fn()
 const mockSignIn = vi.fn()
@@ -56,7 +56,7 @@ describe('Home Page - waiting for enrichment', () => {
     })
 
     await act(async () => {
-      render(<Home />)
+      render(<HomeContent languages={[]} countries={[]} />)
     })
 
     await waitFor(() => {
@@ -69,7 +69,7 @@ describe('Home Page - waiting for enrichment', () => {
 describe('Home Page (Filter Selection)', () => {
   it('renders home page with filter options', async () => {
     await act(async () => {
-      render(<Home />)
+      render(<HomeContent languages={[]} countries={[]} />)
     })
 
     await waitFor(() => {
@@ -87,7 +87,7 @@ describe('Home Page (Filter Selection)', () => {
 
   it('shows Start Tutorial button when tutorial not completed', async () => {
     await act(async () => {
-      render(<Home />)
+      render(<HomeContent languages={[]} countries={[]} />)
     })
 
     await waitFor(() => {
@@ -109,7 +109,7 @@ describe('Home Page (Filter Selection)', () => {
     })
 
     await act(async () => {
-      render(<Home />)
+      render(<HomeContent languages={[]} countries={[]} />)
     })
 
     await waitFor(() => {
@@ -132,7 +132,7 @@ describe('Home Page (Filter Selection)', () => {
     })
 
     await act(async () => {
-      render(<Home />)
+      render(<HomeContent languages={[]} countries={[]} />)
     })
 
     await waitFor(() => {
@@ -150,7 +150,7 @@ describe('Home Page (Filter Selection)', () => {
     })
 
     await act(async () => {
-      render(<Home />)
+      render(<HomeContent languages={[]} countries={[]} />)
     })
 
     await waitFor(() => {
@@ -174,7 +174,7 @@ describe('Home Page (Filter Selection)', () => {
     })
 
     await act(async () => {
-      render(<Home />)
+      render(<HomeContent languages={[]} countries={[]} />)
     })
 
     await waitFor(() => {

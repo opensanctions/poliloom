@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { NextRequest, NextResponse } from 'next/server'
 
 // Mock auth
@@ -15,33 +15,23 @@ import { fetchWithAuth, handleApiError, proxyToBackend } from './api-auth'
 
 describe('api-auth', () => {
   describe('fetchWithAuth', () => {
-    it('returns 401 when session has no access token', async () => {
+    it('returns null when session has no access token', async () => {
       mockAuth.mockResolvedValue({ accessToken: null })
-
       const response = await fetchWithAuth('http://backend/api/test')
-
-      expect(response).toBeInstanceOf(NextResponse)
-      expect(response.status).toBe(401)
-      const body = await response.json()
-      expect(body.message).toBe('Not authenticated')
+      expect(response).toBeNull()
+      expect(mockFetch).not.toHaveBeenCalled()
     })
 
-    it('returns 401 when session is null', async () => {
+    it('returns null when session is null', async () => {
       mockAuth.mockResolvedValue(null)
-
       const response = await fetchWithAuth('http://backend/api/test')
-
-      expect(response.status).toBe(401)
+      expect(response).toBeNull()
     })
 
-    it('returns 401 when session has error (token refresh failed)', async () => {
+    it('returns null when session has error (token refresh failed)', async () => {
       mockAuth.mockResolvedValue({ accessToken: 'tok', error: 'RefreshError' })
-
       const response = await fetchWithAuth('http://backend/api/test')
-
-      expect(response.status).toBe(401)
-      const body = await response.json()
-      expect(body.message).toBe('Token refresh failed')
+      expect(response).toBeNull()
     })
 
     it('forwards Authorization header to backend', async () => {
@@ -51,9 +41,7 @@ describe('api-auth', () => {
       await fetchWithAuth('http://backend/api/test')
 
       expect(mockFetch).toHaveBeenCalledWith('http://backend/api/test', {
-        headers: {
-          Authorization: 'Bearer my-token',
-        },
+        headers: { Authorization: 'Bearer my-token' },
       })
     })
 
@@ -73,16 +61,15 @@ describe('api-auth', () => {
       })
     })
 
-    it('returns error response when backend returns non-ok status', async () => {
+    it('returns the raw backend response on non-OK status (caller decides)', async () => {
       mockAuth.mockResolvedValue({ accessToken: 'my-token' })
       mockFetch.mockResolvedValue(new Response('', { status: 404, statusText: 'Not Found' }))
 
       const response = await fetchWithAuth('http://backend/api/test')
 
-      expect(response).toBeInstanceOf(NextResponse)
-      expect(response.status).toBe(404)
-      const body = await response.json()
-      expect(body.message).toContain('Not Found')
+      expect(response).not.toBeNull()
+      expect(response!.status).toBe(404)
+      expect(response!.ok).toBe(false)
     })
 
     it('returns the backend response on success', async () => {
@@ -96,8 +83,8 @@ describe('api-auth', () => {
 
       const response = await fetchWithAuth('http://backend/api/test')
 
-      expect(response.status).toBe(200)
-      const body = await response.json()
+      expect(response!.status).toBe(200)
+      const body = await response!.json()
       expect(body).toEqual({ data: 1 })
     })
   })
@@ -235,27 +222,6 @@ describe('api-auth', () => {
       const response = await proxyToBackend(request, '/api/v1/test')
 
       expect(response.headers.get('Content-Type')).toBe('text/html')
-    })
-
-    it('uses API_BASE_URL env var when set', async () => {
-      process.env.API_BASE_URL = 'http://custom-backend:9000'
-      mockAuth.mockResolvedValue({ accessToken: 'tok' })
-      mockFetch.mockResolvedValue(
-        new Response('{}', {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      )
-
-      const request = new NextRequest('http://localhost:3000/api/test')
-      await proxyToBackend(request, '/api/v1/test')
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://custom-backend:9000/api/v1/test',
-        expect.anything(),
-      )
-
-      delete process.env.API_BASE_URL
     })
   })
 })

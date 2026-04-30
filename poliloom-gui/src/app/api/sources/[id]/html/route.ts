@@ -7,19 +7,20 @@ const HIGHLIGHT_STYLES = `<style data-poliloom-highlight="true">
 ::highlight(poliloom) { background-color: rgba(253, 224, 71, 0.7); color: #000; }
 </style>`
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = await params
-  const pageId = resolvedParams.id
+const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:8000'
 
-  // Fetch source page from backend
-  const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:8000'
-  const url = `${apiBaseUrl}/sources/${pageId}.html`
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const response = await fetchWithAuth(`${API_BASE_URL}/sources/${id}.html`)
 
-  const response = await fetchWithAuth(url)
-
-  // If fetchWithAuth returned an error response, return it directly
-  if (response instanceof NextResponse) {
-    return response
+  if (response === null) {
+    return NextResponse.json({ message: 'Not authenticated' }, { status: 401 })
+  }
+  if (!response.ok) {
+    return NextResponse.json(
+      { message: `Backend request failed: ${response.statusText}` },
+      { status: response.status },
+    )
   }
 
   const htmlContent = await response.text()

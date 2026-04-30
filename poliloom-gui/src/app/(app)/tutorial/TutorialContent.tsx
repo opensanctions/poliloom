@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Fragment } from 'react'
+import { useState, Fragment } from 'react'
 import { TwoPanel } from '@/components/layout/TwoPanel'
 import { Button } from '@/components/ui/Button'
 import { CenteredCard } from '@/components/ui/CenteredCard'
@@ -93,12 +93,8 @@ export interface TutorialContentProps {
 
 export function TutorialContent({ initialStep }: TutorialContentProps) {
   const { user, patch } = useUser()
-  // Default tutorial completion to true while loading so returning users don't
-  // briefly see a "Start Tutorial" CTA flash.
-  const hasCompletedBasicTutorial =
-    user === undefined ? true : (user?.settings.basic_tutorial_completed ?? false)
-  const hasCompletedAdvancedTutorial =
-    user === undefined ? true : (user?.settings.advanced_tutorial_completed ?? false)
+  const hasCompletedBasicTutorial = user?.settings.basic_tutorial_completed ?? true
+  const hasCompletedAdvancedTutorial = user?.settings.advanced_tutorial_completed ?? true
   const isAdvancedMode = user?.settings.advanced_mode ?? false
   const { startSession } = useEvaluationSession()
   const { nextHref, loading: nextLoading } = useNextPoliticianContext()
@@ -117,18 +113,16 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   const [checkResult, setCheckResult] = useState<EvaluationResult | null>(null)
 
   const advance = () => {
-    setCheckResult(null)
-    setStep((s) => s + 1)
-  }
-
-  useEffect(() => {
-    if (step > BASIC_END && !hasCompletedBasicTutorial) {
+    const nextStep = step + 1
+    if (nextStep > BASIC_END && !hasCompletedBasicTutorial) {
       patch({ settings: { basic_tutorial_completed: true } })
     }
-    if (step > ADVANCED_END && !hasCompletedAdvancedTutorial) {
+    if (nextStep > ADVANCED_END && !hasCompletedAdvancedTutorial) {
       patch({ settings: { advanced_tutorial_completed: true } })
     }
-  }, [step, hasCompletedBasicTutorial, hasCompletedAdvancedTutorial, patch])
+    setCheckResult(null)
+    setStep(nextStep)
+  }
 
   const isBasicComplete = step > BASIC_END
   const isAdvancedComplete = step > ADVANCED_END

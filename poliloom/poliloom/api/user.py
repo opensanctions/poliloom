@@ -1,14 +1,12 @@
 """API endpoint for the authenticated user's settings and filter preferences."""
 
-from typing import Optional
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db_session
-from ..models import PreferenceType, UserFilterPreference, UserSettings
+from ..models import Language, PreferenceType, UserFilterPreference, UserSettings
 from ..models.wikidata import WikidataEntity
 from .auth import User, get_current_user
 from .schemas import (
@@ -82,16 +80,103 @@ def _build_response(db: Session, settings: UserSettings) -> UserResponse:
     )
 
 
-@router.get("", response_model=Optional[UserResponse])
+def _parse_accept_language(header: str | None) -> list[str]:
+    """Parse an Accept-Language header into a priority-ordered list of base codes.
+
+    Returns lowercase ISO 639-1/2/3-style base tags ('en' from 'en-US'), deduped,
+    ordered by descending q-value. Returns [] for empty/missing/wildcard input.
+    """
+    if not header:
+        return []
+    items: list[tuple[str, float]] = []
+    for part in header.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        tag, *params = part.split(";")
+        q = 1.0
+        for param in params:
+            param = param.strip()
+            if param.startswith("q="):
+                try:
+                    q = float(param[2:])
+                except ValueError:
+                    pass
+        tag = tag.strip().lower()
+        if not tag or tag == "*":
+            continue
+        base = tag.split("-")[0]
+        items.append((base, q))
+    items.sort(key=lambda x: -x[1])
+    seen: set[str] = set()
+    out: list[str] = []
+    for base, _ in items:
+        if base not in seen:
+            seen.add(base)
+            out.append(base)
+    return out
+
+
+def _detect_language_filters(db: Session, accept_language: str | None) -> list[str]:
+    """Return Wikidata QIDs of languages matching the Accept-Language header.
+
+    Preserves Accept-Language priority order. A code matches if it equals either
+    `iso_639_1` or `iso_639_3` on a Language row.
+    """
+    codes = _parse_accept_language(accept_language)
+    if not codes:
+        return []
+    rows = db.execute(
+        select(Language.wikidata_id, Language.iso_639_1, Language.iso_639_3).where(
+            or_(
+                Language.iso_639_1.in_(codes),
+                Language.iso_639_3.in_(codes),
+            )
+        )
+    ).all()
+    by_code: dict[str, str] = {}
+    for qid, iso1, iso3 in rows:
+        for code in (iso1, iso3):
+            if code and code in codes and code not in by_code:
+                by_code[code] = qid
+    seen: set[str] = set()
+    out: list[str] = []
+    for code in codes:
+        qid = by_code.get(code)
+        if qid and qid not in seen:
+            seen.add(qid)
+            out.append(qid)
+    return out
+
+
+@router.get("", response_model=UserResponse)
 async def get_user(
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
+    accept_language: str | None = Header(default=None),
 ):
-    """Return the authenticated user's settings + filters, or null if no row exists."""
+    """Return the authenticated user's settings + filters.
+
+    On first read for a given user, lazy-creates the `user_settings` row and
+    seeds language filters from the `Accept-Language` header (matching by
+    ISO 639-1/3). Subsequent reads are pure.
+    """
     user_id = str(current_user.user_id)
     settings = db.get(UserSettings, user_id)
     if settings is None:
-        return None
+        settings = UserSettings(user_id=user_id)
+        db.add(settings)
+        db.flush()
+        for qid in _detect_language_filters(db, accept_language):
+            db.add(
+                UserFilterPreference(
+                    user_id=user_id,
+                    preference_type=PreferenceType.LANGUAGE,
+                    entity_id=qid,
+                )
+            )
+        db.commit()
+        db.refresh(settings)
     return _build_response(db, settings)
 
 

@@ -1,107 +1,25 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, waitFor, render } from '@testing-library/react'
-import { mockUseUser, defaultUserContext, defaultUser } from '@/test/mocks'
-import StatsPage from './page'
+import { describe, it, expect } from 'vitest'
+import { screen, render } from '@testing-library/react'
+import { StatsContent } from './StatsContent'
+import type { StatsResponse } from '@/types'
 
-describe('Stats Page', () => {
-  describe('when stats are locked', () => {
-    beforeEach(() => {
-      mockUseUser.mockReturnValue({
-        ...defaultUserContext,
-        user: {
-          ...defaultUser,
-          settings: { ...defaultUser.settings, stats_unlocked: false },
-        },
-      })
-    })
+const EMPTY_STATS: StatsResponse = {
+  evaluations_timeseries: [],
+  country_coverage: [],
+  cooldown_days: 30,
+}
 
-    it('shows locked message', () => {
-      render(<StatsPage />)
-
-      expect(screen.getByText('Stats Locked')).toBeInTheDocument()
-      expect(
-        screen.getByText(/Complete your first evaluation session to unlock/),
-      ).toBeInTheDocument()
-    })
-
-    it('shows Start Evaluating button linking to home', () => {
-      render(<StatsPage />)
-
-      const button = screen.getByRole('link', { name: 'Start Evaluating' })
-      expect(button).toBeInTheDocument()
-      expect(button).toHaveAttribute('href', '/')
-    })
-
-    it('does not fetch stats', () => {
-      const fetchSpy = vi.spyOn(global, 'fetch')
-      render(<StatsPage />)
-
-      expect(fetchSpy).not.toHaveBeenCalled()
-    })
+describe('StatsContent', () => {
+  it('renders title and section headings when stats load', () => {
+    render(<StatsContent stats={EMPTY_STATS} />)
+    expect(screen.getByText('Community Stats')).toBeInTheDocument()
+    expect(screen.getByText('Evaluations Over Time')).toBeInTheDocument()
+    expect(screen.getByText('Coverage by Country')).toBeInTheDocument()
   })
 
-  describe('when stats are unlocked', () => {
-    beforeEach(() => {
-      vi.spyOn(global, 'fetch').mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          evaluations_timeseries: [],
-          country_coverage: [],
-          stateless_evaluated_count: 0,
-          stateless_total_count: 0,
-          cooldown_days: 30,
-        }),
-      } as Response)
-    })
-
-    it('shows stats page title', async () => {
-      render(<StatsPage />)
-
-      await waitFor(() => {
-        expect(screen.getByText('Community Stats')).toBeInTheDocument()
-      })
-    })
-
-    it('fetches stats data', async () => {
-      const fetchSpy = vi.spyOn(global, 'fetch')
-      render(<StatsPage />)
-
-      await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith('/api/stats')
-      })
-    })
-
-    it('shows loading state while fetching', async () => {
-      render(<StatsPage />)
-
-      expect(screen.getByText('Loading stats...')).toBeInTheDocument()
-
-      // Wait for fetch to complete to avoid act warning
-      await waitFor(() => {
-        expect(screen.queryByText('Loading stats...')).not.toBeInTheDocument()
-      })
-    })
-
-    it('shows stats content after loading', async () => {
-      render(<StatsPage />)
-
-      await waitFor(() => {
-        expect(screen.getByText('Evaluations Over Time')).toBeInTheDocument()
-        expect(screen.getByText('Coverage by Country')).toBeInTheDocument()
-      })
-    })
-
-    it('shows error message on fetch failure', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue({
-        ok: false,
-        statusText: 'Internal Server Error',
-      } as Response)
-
-      render(<StatsPage />)
-
-      await waitFor(() => {
-        expect(screen.getByText('Failed to fetch stats')).toBeInTheDocument()
-      })
-    })
+  it('shows failure message when stats are null', () => {
+    render(<StatsContent stats={null} />)
+    expect(screen.getByText('Failed to load stats.')).toBeInTheDocument()
+    expect(screen.queryByText('Evaluations Over Time')).not.toBeInTheDocument()
   })
 })

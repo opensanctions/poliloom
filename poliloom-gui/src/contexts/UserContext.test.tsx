@@ -1,12 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
-import { useSession } from 'next-auth/react'
 import { UserProvider, useUser } from './UserContext'
 import type { User } from '@/types'
-
-function wrapper({ children }: { children: React.ReactNode }) {
-  return <UserProvider>{children}</UserProvider>
-}
 
 const POPULATED: User = {
   settings: {
@@ -19,13 +14,6 @@ const POPULATED: User = {
     language: [{ wikidata_id: 'Q1860', name: 'English' }],
     country: [],
   },
-}
-
-function mockGet(value: User | null) {
-  vi.mocked(fetch).mockResolvedValueOnce({
-    ok: true,
-    json: async () => value,
-  } as Response)
 }
 
 function mockPatchOk() {
@@ -44,32 +32,19 @@ function mockPatchFail() {
 }
 
 describe('UserContext', () => {
-  it('does not fetch when unauthenticated', () => {
-    vi.mocked(useSession).mockReturnValue({
-      data: null,
-      status: 'unauthenticated',
-      update: vi.fn(),
+  it('exposes the seeded user without fetching', () => {
+    const { result } = renderHook(() => useUser(), {
+      wrapper: ({ children }) => <UserProvider initialUser={POPULATED}>{children}</UserProvider>,
     })
-    const { result } = renderHook(() => useUser(), { wrapper })
-    expect(result.current.user).toBeUndefined()
+    expect(result.current.user).toEqual(POPULATED)
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('fetches on mount when authenticated and stores null for first login', async () => {
-    mockGet(null)
-    const { result } = renderHook(() => useUser(), { wrapper })
-    await waitFor(() => {
-      expect(result.current.user).toBeNull()
+  it('exposes null when seeded with null (unauthenticated)', () => {
+    const { result } = renderHook(() => useUser(), {
+      wrapper: ({ children }) => <UserProvider initialUser={null}>{children}</UserProvider>,
     })
-    expect(fetch).toHaveBeenCalledWith('/api/user')
-  })
-
-  it('fetches on mount and stores populated user', async () => {
-    mockGet(POPULATED)
-    const { result } = renderHook(() => useUser(), { wrapper })
-    await waitFor(() => {
-      expect(result.current.user).toEqual(POPULATED)
-    })
+    expect(result.current.user).toBeNull()
   })
 
   it('throws when used outside provider', () => {
@@ -78,9 +53,9 @@ describe('UserContext', () => {
 
   describe('patch', () => {
     it('optimistically merges settings and serializes empty wire payload for filters', async () => {
-      mockGet(POPULATED)
-      const { result } = renderHook(() => useUser(), { wrapper })
-      await waitFor(() => expect(result.current.user).toEqual(POPULATED))
+      const { result } = renderHook(() => useUser(), {
+        wrapper: ({ children }) => <UserProvider initialUser={POPULATED}>{children}</UserProvider>,
+      })
 
       mockPatchOk()
       await act(async () => {
@@ -98,9 +73,9 @@ describe('UserContext', () => {
     })
 
     it('serializes filter entities to QID arrays on the wire', async () => {
-      mockGet(POPULATED)
-      const { result } = renderHook(() => useUser(), { wrapper })
-      await waitFor(() => expect(result.current.user).toEqual(POPULATED))
+      const { result } = renderHook(() => useUser(), {
+        wrapper: ({ children }) => <UserProvider initialUser={POPULATED}>{children}</UserProvider>,
+      })
 
       mockPatchOk()
       await act(async () => {
@@ -120,36 +95,23 @@ describe('UserContext', () => {
       expect(result.current.user?.filters.language).toEqual(POPULATED.filters.language)
     })
 
-    it('builds default User when patching from null (first-login case)', async () => {
-      mockGet(null)
-      const { result } = renderHook(() => useUser(), { wrapper })
-      await waitFor(() => expect(result.current.user).toBeNull())
+    it('is a no-op when seeded with null (unauthenticated)', async () => {
+      const { result } = renderHook(() => useUser(), {
+        wrapper: ({ children }) => <UserProvider initialUser={null}>{children}</UserProvider>,
+      })
 
-      mockPatchOk()
       await act(async () => {
-        await result.current.patch({
-          filters: { language: [{ wikidata_id: 'Q1860', name: 'English' }] },
-        })
+        await result.current.patch({ settings: { advanced_mode: true } })
       })
 
-      expect(result.current.user).toEqual({
-        settings: {
-          advanced_mode: false,
-          basic_tutorial_completed: false,
-          advanced_tutorial_completed: false,
-          stats_unlocked: false,
-        },
-        filters: {
-          language: [{ wikidata_id: 'Q1860', name: 'English' }],
-          country: [],
-        },
-      })
+      expect(result.current.user).toBeNull()
+      expect(fetch).not.toHaveBeenCalled()
     })
 
     it('reverts to snapshot on PATCH failure', async () => {
-      mockGet(POPULATED)
-      const { result } = renderHook(() => useUser(), { wrapper })
-      await waitFor(() => expect(result.current.user).toEqual(POPULATED))
+      const { result } = renderHook(() => useUser(), {
+        wrapper: ({ children }) => <UserProvider initialUser={POPULATED}>{children}</UserProvider>,
+      })
 
       mockPatchFail()
       await act(async () => {
@@ -160,9 +122,9 @@ describe('UserContext', () => {
     })
 
     it('tracks pending across overlapping PATCHes', async () => {
-      mockGet(POPULATED)
-      const { result } = renderHook(() => useUser(), { wrapper })
-      await waitFor(() => expect(result.current.user).toEqual(POPULATED))
+      const { result } = renderHook(() => useUser(), {
+        wrapper: ({ children }) => <UserProvider initialUser={POPULATED}>{children}</UserProvider>,
+      })
 
       let resolveFirst!: (r: Response) => void
       let resolveSecond!: (r: Response) => void
@@ -183,7 +145,7 @@ describe('UserContext', () => {
         })
       })
 
-      // Both optimistic updates should have applied even before any PATCH resolves.
+      // Both optimistic updates applied before any PATCH resolves.
       expect(result.current.user?.settings.advanced_mode).toBe(true)
       expect(result.current.user?.settings.stats_unlocked).toBe(true)
 
@@ -191,7 +153,6 @@ describe('UserContext', () => {
         resolveFirst({ ok: true, json: async () => POPULATED } as Response)
         await firstPromise
       })
-      // Still pending due to second.
       expect(result.current.pending).toBe(true)
 
       await act(async () => {
@@ -200,7 +161,6 @@ describe('UserContext', () => {
       })
       await waitFor(() => expect(result.current.pending).toBe(false))
 
-      // Both optimistic updates persisted (no clobber from server response).
       expect(result.current.user?.settings.advanced_mode).toBe(true)
       expect(result.current.user?.settings.stats_unlocked).toBe(true)
     })
