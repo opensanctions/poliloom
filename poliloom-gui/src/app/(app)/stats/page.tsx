@@ -1,14 +1,7 @@
 import { Button } from '@/components/ui/Button'
 import { CenteredCard } from '@/components/ui/CenteredCard'
-import { fetchWithAuth, getSettings } from '@/lib/api-auth'
-import { StatsResponse } from '@/types'
+import { getSettings, getStats } from '@/lib/api-auth'
 import { StatsContent } from './StatsContent'
-
-async function getStats(): Promise<StatsResponse | null> {
-  const res = await fetchWithAuth(`${process.env.API_BASE_URL}/stats`, { cache: 'no-store' })
-  if (!res?.ok) return null
-  return res.json()
-}
 
 export default async function StatsPage() {
   const settings = await getSettings()

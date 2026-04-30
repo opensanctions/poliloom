@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
-import type { CountryResponse, LanguageResponse, UserSettings } from '@/types'
+import type { CountryResponse, LanguageResponse, StatsResponse, UserSettings } from '@/types'
 
 // Cached so multiple server fetchers in one render share a single session decode.
 const getSession = cache(() => auth())
@@ -91,4 +91,10 @@ export const getEvaluationCount = cache(async (): Promise<number | null> => {
   if (!res?.ok) return null
   const data: { total: number } = await res.json()
   return typeof data.total === 'number' ? data.total : null
+})
+
+export const getStats = cache(async (): Promise<StatsResponse | null> => {
+  const res = await fetchWithAuth(`${process.env.API_BASE_URL}/stats`, { cache: 'no-store' })
+  if (!res?.ok) return null
+  return res.json()
 })
