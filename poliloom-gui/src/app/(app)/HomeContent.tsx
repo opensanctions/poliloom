@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/Button'
 import { Footer } from '@/components/ui/Footer'
 import { Toggle } from '@/components/ui/Toggle'
 import { MultiSelect, MultiSelectOption } from '@/components/entity/MultiSelect'
-import { useUser } from '@/contexts/UserContext'
+import { useSettings } from '@/contexts/SettingsContext'
+import { useFilters } from '@/contexts/FilterContext'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
-import { CountryResponse, LanguageResponse, WikidataEntity } from '@/types'
+import { CountryResponse, LanguageResponse } from '@/types'
 
 interface CtaState {
   href?: string
@@ -24,7 +25,8 @@ interface HomeContentProps {
 }
 
 export function HomeContent({ languages, countries }: HomeContentProps) {
-  const { user, patch } = useUser()
+  const { settings, patch } = useSettings()
+  const { languageQids, countryQids, setLanguages, setCountries } = useFilters()
   const { startSession } = useEvaluationSession()
   const {
     nextHref,
@@ -35,18 +37,9 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
 
   // Default tutorial completion to true when unauthenticated so we don't flash
   // a "Start Tutorial" CTA before redirect.
-  const hasCompletedBasicTutorial = user?.settings.basic_tutorial_completed ?? true
-  const hasCompletedAdvancedTutorial = user?.settings.advanced_tutorial_completed ?? true
-  const isAdvancedMode = user?.settings.advanced_mode ?? false
-
-  const languageFilters = useMemo(
-    () => user?.filters.language.map((l) => l.wikidata_id) ?? [],
-    [user],
-  )
-  const countryFilters = useMemo(
-    () => user?.filters.country.map((c) => c.wikidata_id) ?? [],
-    [user],
-  )
+  const hasCompletedBasicTutorial = settings?.basic_tutorial_completed ?? true
+  const hasCompletedAdvancedTutorial = settings?.advanced_tutorial_completed ?? true
+  const isAdvancedMode = settings?.advanced_mode ?? false
 
   const needsTutorial = !hasCompletedBasicTutorial
   const needsAdvancedTutorial = isAdvancedMode && !hasCompletedAdvancedTutorial
@@ -71,15 +64,6 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
     count: country.citizenships_count,
   }))
 
-  const createFilterHandler =
-    (kind: 'language' | 'country', allItems: WikidataEntity[]) => (qids: string[]) => {
-      const items = allItems.filter((item) => qids.includes(item.wikidata_id))
-      patch({ filters: { [kind]: items } })
-    }
-
-  const handleLanguageChange = createFilterHandler('language', languages)
-  const handleCountryChange = createFilterHandler('country', countries)
-
   return (
     <main className="min-h-0 overflow-y-auto flex flex-col">
       {/* Filters Section */}
@@ -97,8 +81,8 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
             description="We'll show you politicians with citizenship from these countries"
             icon="🌍"
             options={countryOptions}
-            selected={countryFilters}
-            onChange={handleCountryChange}
+            selected={countryQids}
+            onChange={setCountries}
           />
 
           <MultiSelect
@@ -106,8 +90,8 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
             description="We'll show you politicians with source documents in these languages"
             icon="🌐"
             options={languageOptions}
-            selected={languageFilters}
-            onChange={handleLanguageChange}
+            selected={languageQids}
+            onChange={setLanguages}
           />
         </div>
 
@@ -123,7 +107,7 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
                   ? 'No more politicians to evaluate for your current filters. Try different filters to continue contributing.'
                   : !politicianReady && !loadingNext
                     ? "Our AI is reading Wikipedia so you don't have to. Hang tight!"
-                    : languageFilters.length > 0 || countryFilters.length > 0
+                    : languageQids.length > 0 || countryQids.length > 0
                       ? 'Your filters are set. Begin evaluating politicians that match your criteria.'
                       : "No filters selected. You'll evaluate politicians from all languages and countries."}
               </p>
@@ -144,7 +128,7 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
             <label className="flex items-center gap-3 text-sm text-foreground-tertiary cursor-pointer">
               <Toggle
                 checked={isAdvancedMode}
-                onChange={(e) => patch({ settings: { advanced_mode: e.target.checked } })}
+                onChange={(e) => patch({ advanced_mode: e.target.checked })}
               />
               <span>
                 Advanced mode{' '}

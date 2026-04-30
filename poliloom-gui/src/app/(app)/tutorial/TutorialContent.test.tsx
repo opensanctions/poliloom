@@ -1,30 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, render, waitFor } from '@testing-library/react'
 import {
-  mockUseUser,
-  mockUserPatch,
+  mockUseSettings,
+  mockSettingsPatch,
   mockUsePathname,
-  defaultUserContext,
-  defaultUser,
+  defaultSettingsContext,
+  defaultSettings,
 } from '@/test/mocks'
 import { TutorialContent, TutorialStep } from './TutorialContent'
-import type { User } from '@/types'
+import type { UserSettings } from '@/types'
 
 vi.mock('@/components/layout/Header', () => ({
   Header: () => <div data-testid="header">Header</div>,
 }))
 
-/** Build a User with overridden settings, defaulting to "fresh user, basic mode". */
-function userWith(overrides: Partial<User['settings']> = {}): User {
+/** Build settings overrides defaulting to "fresh user, basic mode". */
+function settingsWith(overrides: Partial<UserSettings> = {}): UserSettings {
   return {
-    ...defaultUser,
-    settings: {
-      ...defaultUser.settings,
-      basic_tutorial_completed: false,
-      advanced_tutorial_completed: false,
-      stats_unlocked: false,
-      ...overrides,
-    },
+    ...defaultSettings,
+    basic_tutorial_completed: false,
+    advanced_tutorial_completed: false,
+    stats_unlocked: false,
+    ...overrides,
   }
 }
 
@@ -34,9 +31,9 @@ describe('Tutorial Page', () => {
     mockUsePathname.mockReturnValue('/tutorial')
 
     // Default: basic mode, fresh user
-    mockUseUser.mockReturnValue({
-      ...defaultUserContext,
-      user: userWith(),
+    mockUseSettings.mockReturnValue({
+      ...defaultSettingsContext,
+      settings: settingsWith(),
     })
   })
 
@@ -476,9 +473,9 @@ describe('Tutorial Page', () => {
 
     describe('Advanced Mode', () => {
       beforeEach(() => {
-        mockUseUser.mockReturnValue({
-          ...defaultUserContext,
-          user: userWith({ advanced_mode: true }),
+        mockUseSettings.mockReturnValue({
+          ...defaultSettingsContext,
+          settings: settingsWith({ advanced_mode: true }),
         })
       })
 
@@ -512,8 +509,8 @@ describe('Tutorial Page', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Got It!' }))
 
       expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
-      expect(mockUserPatch).toHaveBeenCalledWith({
-        settings: { basic_tutorial_completed: true },
+      expect(mockSettingsPatch).toHaveBeenCalledWith({
+        basic_tutorial_completed: true,
       })
     })
   })
@@ -535,9 +532,9 @@ describe('Tutorial Page', () => {
 
   describe('Advanced Mode Tutorial', () => {
     beforeEach(() => {
-      mockUseUser.mockReturnValue({
-        ...defaultUserContext,
-        user: userWith({ advanced_mode: true }),
+      mockUseSettings.mockReturnValue({
+        ...defaultSettingsContext,
+        settings: settingsWith({ advanced_mode: true }),
       })
     })
 
@@ -806,8 +803,8 @@ describe('Tutorial Page', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Got It!' }))
 
         expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
-        expect(mockUserPatch).toHaveBeenCalledWith({
-          settings: { advanced_tutorial_completed: true },
+        expect(mockSettingsPatch).toHaveBeenCalledWith({
+          advanced_tutorial_completed: true,
         })
       })
     })
@@ -835,9 +832,9 @@ describe('Tutorial Page', () => {
 
   describe('Starting from advanced tutorial when basic is completed', () => {
     it('starts at advanced welcome when basic is completed and advanced mode enabled', () => {
-      mockUseUser.mockReturnValue({
-        ...defaultUserContext,
-        user: userWith({ advanced_mode: true, basic_tutorial_completed: true }),
+      mockUseSettings.mockReturnValue({
+        ...defaultSettingsContext,
+        settings: settingsWith({ advanced_mode: true, basic_tutorial_completed: true }),
       })
 
       render(<TutorialContent />)
@@ -854,8 +851,8 @@ describe('Tutorial Page', () => {
 
       expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
       expect(screen.queryByText('Advanced Mode Tutorial')).not.toBeInTheDocument()
-      expect(mockUserPatch).toHaveBeenCalledWith({
-        settings: { basic_tutorial_completed: true },
+      expect(mockSettingsPatch).toHaveBeenCalledWith({
+        basic_tutorial_completed: true,
       })
     })
 
@@ -869,9 +866,9 @@ describe('Tutorial Page', () => {
 
   describe('Advanced mode runs both tutorials in succession', () => {
     beforeEach(() => {
-      mockUseUser.mockReturnValue({
-        ...defaultUserContext,
-        user: userWith({ advanced_mode: true }),
+      mockUseSettings.mockReturnValue({
+        ...defaultSettingsContext,
+        settings: settingsWith({ advanced_mode: true }),
       })
     })
 
@@ -888,15 +885,15 @@ describe('Tutorial Page', () => {
 
       expect(screen.getByText('Advanced Mode Tutorial')).toBeInTheDocument()
       expect(screen.queryByText('Tutorial Complete!')).not.toBeInTheDocument()
-      expect(mockUserPatch).toHaveBeenCalledWith({
-        settings: { basic_tutorial_completed: true },
+      expect(mockSettingsPatch).toHaveBeenCalledWith({
+        basic_tutorial_completed: true,
       })
     })
 
     it('shows completion screen after completing advanced tutorial', () => {
-      mockUseUser.mockReturnValue({
-        ...defaultUserContext,
-        user: userWith({ advanced_mode: true, basic_tutorial_completed: true }),
+      mockUseSettings.mockReturnValue({
+        ...defaultSettingsContext,
+        settings: settingsWith({ advanced_mode: true, basic_tutorial_completed: true }),
       })
 
       render(<TutorialContent initialStep={TutorialStep.AdvancedKeyTakeaways} />)
@@ -904,8 +901,8 @@ describe('Tutorial Page', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Got It!' }))
 
       expect(screen.getByText('Tutorial Complete!')).toBeInTheDocument()
-      expect(mockUserPatch).toHaveBeenCalledWith({
-        settings: { advanced_tutorial_completed: true },
+      expect(mockSettingsPatch).toHaveBeenCalledWith({
+        advanced_tutorial_completed: true,
       })
     })
   })

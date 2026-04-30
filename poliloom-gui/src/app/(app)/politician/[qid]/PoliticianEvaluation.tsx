@@ -9,7 +9,7 @@ import {
   PropertyActionItem,
 } from '@/types'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
-import { useUser } from '@/contexts/UserContext'
+import { useSettings } from '@/contexts/SettingsContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { useEventStream } from '@/contexts/EventStreamContext'
 import { Button } from '@/components/ui/Button'
@@ -22,9 +22,9 @@ interface PoliticianEvaluationProps {
 export function PoliticianEvaluation({ politician: initialPolitician }: PoliticianEvaluationProps) {
   const router = useRouter()
   const { isSessionActive, completedCount, sessionGoal, submitAndAdvance } = useEvaluationSession()
-  const { user, patch } = useUser()
-  const statsUnlocked = user?.settings.stats_unlocked ?? false
-  const isAdvancedMode = user?.settings.advanced_mode ?? false
+  const { settings, patch } = useSettings()
+  const statsUnlocked = settings?.stats_unlocked ?? false
+  const isAdvancedMode = settings?.advanced_mode ?? false
   const { nextHref, loading: nextLoading } = useNextPoliticianContext()
   const [politician, setPolitician] = useState<Politician>(initialPolitician)
 
@@ -69,11 +69,11 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
 
     // First successful submission implies the user has effectively completed the
     // tutorial flow — mark whichever tutorials still need it.
-    if (user && !user.settings.basic_tutorial_completed) {
-      patch({ settings: { basic_tutorial_completed: true } })
+    if (settings && !settings.basic_tutorial_completed) {
+      patch({ basic_tutorial_completed: true })
     }
-    if (user && isAdvancedMode && !user.settings.advanced_tutorial_completed) {
-      patch({ settings: { advanced_tutorial_completed: true } })
+    if (settings && isAdvancedMode && !settings.advanced_tutorial_completed) {
+      patch({ advanced_tutorial_completed: true })
     }
 
     if (isSessionActive) {

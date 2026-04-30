@@ -1,8 +1,10 @@
 import { cache } from 'react'
-import { headers } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
-import type { CountryResponse, LanguageResponse, User } from '@/types'
+import type { CountryResponse, LanguageResponse, UserSettings } from '@/types'
+
+// Cached so multiple server fetchers in one render share a single session decode.
+const getSession = cache(() => auth())
 
 // Returns null when the caller is unauthenticated (no token, or refresh failed).
 // Otherwise returns the raw backend Response — callers check `.ok` themselves.
@@ -10,7 +12,7 @@ export async function fetchWithAuth(
   url: string,
   options: RequestInit = {},
 ): Promise<Response | null> {
-  const session = await auth()
+  const session = await getSession()
   if (!session?.accessToken || session.error) return null
 
   return fetch(url, {
@@ -20,11 +22,6 @@ export async function fetchWithAuth(
       Authorization: `Bearer ${session.accessToken}`,
     },
   })
-}
-
-export function handleApiError(error: unknown, context: string) {
-  console.error(`Error in ${context}:`, error)
-  return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
 }
 
 export async function proxyToBackend(request: NextRequest, backendPath: string) {
@@ -81,12 +78,8 @@ export const getCountries = cache(async (): Promise<CountryResponse[]> => {
   return res.json()
 })
 
-// Forwards Accept-Language so the backend can seed language filters on first GET.
-export const getUser = cache(async (): Promise<User | null> => {
-  const incoming = await headers()
-  const acceptLanguage = incoming.get('accept-language') ?? ''
-  const res = await fetchWithAuth(`${process.env.API_BASE_URL}/user`, {
-    headers: acceptLanguage ? { 'Accept-Language': acceptLanguage } : {},
+export const getSettings = cache(async (): Promise<UserSettings | null> => {
+  const res = await fetchWithAuth(`${process.env.API_BASE_URL}/settings`, {
     cache: 'no-store',
   })
   if (!res?.ok) return null

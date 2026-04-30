@@ -41,7 +41,6 @@ from .schemas import (
 )
 
 from .auth import get_current_user, User
-from .user import UserFilters, get_user_filters
 
 logger = logging.getLogger(__name__)
 
@@ -192,7 +191,8 @@ async def get_next_politician(
         default=None,
         description="Exclude politicians with these Wikidata QIDs from results",
     ),
-    filters: UserFilters = Depends(get_user_filters),
+    languages: List[str] = Query(default=[]),
+    countries: List[str] = Query(default=[]),
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -200,12 +200,9 @@ async def get_next_politician(
     Get the next unevaluated politician's ID for navigation.
 
     Lightweight endpoint — returns only the next politician's IDs, not full data.
-    Filter inputs come from the authenticated user's stored preferences via
-    `get_user_filters`. Triggers background enrichment if needed.
+    Filter QIDs are passed by the client (sourced from browser cookies). Triggers
+    background enrichment if needed.
     """
-    languages = filters.languages
-    countries = filters.countries
-
     query = Politician.query_base()
     query = Politician.filter_by_unevaluated_properties(query, languages=languages)
 

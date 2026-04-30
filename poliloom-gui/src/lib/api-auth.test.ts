@@ -11,7 +11,7 @@ vi.mock('@/auth', () => ({
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
 
-import { fetchWithAuth, handleApiError, proxyToBackend } from './api-auth'
+import { fetchWithAuth, proxyToBackend } from './api-auth'
 
 describe('api-auth', () => {
   describe('fetchWithAuth', () => {
@@ -86,24 +86,6 @@ describe('api-auth', () => {
       expect(response!.status).toBe(200)
       const body = await response!.json()
       expect(body).toEqual({ data: 1 })
-    })
-  })
-
-  describe('handleApiError', () => {
-    it('returns 500 with generic error message', () => {
-      vi.spyOn(console, 'error').mockImplementation(() => {})
-      const response = handleApiError(new Error('boom'), 'test-context')
-
-      expect(response.status).toBe(500)
-    })
-
-    it('logs the error with context', () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-      const error = new Error('boom')
-
-      handleApiError(error, 'my-route')
-
-      expect(consoleSpy).toHaveBeenCalledWith('Error in my-route:', error)
     })
   })
 

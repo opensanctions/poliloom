@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor, act, render } from '@testing-library/react'
 import {
   mockUseNextPoliticianContext,
-  mockUseUser,
+  mockUseSettings,
   defaultNextPolitician,
-  defaultUserContext,
-  defaultUser,
+  defaultSettingsContext,
+  defaultSettings,
 } from '@/test/mocks'
 import { HomeContent } from './HomeContent'
 
@@ -23,16 +23,13 @@ beforeEach(() => {
     politicianReady: false,
   })
   mockUseSession.mockReturnValue({ data: null, status: 'loading' })
-  mockUseUser.mockReturnValue({
-    ...defaultUserContext,
-    user: {
-      ...defaultUser,
-      settings: {
-        ...defaultUser.settings,
-        basic_tutorial_completed: false,
-        advanced_tutorial_completed: false,
-        stats_unlocked: false,
-      },
+  mockUseSettings.mockReturnValue({
+    ...defaultSettingsContext,
+    settings: {
+      ...defaultSettings,
+      basic_tutorial_completed: false,
+      advanced_tutorial_completed: false,
+      stats_unlocked: false,
     },
   })
 })
@@ -43,15 +40,12 @@ describe('Home Page - waiting for enrichment', () => {
       ...defaultNextPolitician,
       nextHref: '/session/enriching',
     })
-    mockUseUser.mockReturnValue({
-      ...defaultUserContext,
-      user: {
-        ...defaultUser,
-        settings: {
-          ...defaultUser.settings,
-          advanced_tutorial_completed: false,
-          stats_unlocked: false,
-        },
+    mockUseSettings.mockReturnValue({
+      ...defaultSettingsContext,
+      settings: {
+        ...defaultSettings,
+        advanced_tutorial_completed: false,
+        stats_unlocked: false,
       },
     })
 
@@ -96,15 +90,12 @@ describe('Home Page (Filter Selection)', () => {
   })
 
   it('shows Begin Evaluation Session button when basic tutorial completed in basic mode', async () => {
-    mockUseUser.mockReturnValue({
-      ...defaultUserContext,
-      user: {
-        ...defaultUser,
-        settings: {
-          ...defaultUser.settings,
-          advanced_tutorial_completed: false,
-          stats_unlocked: false,
-        },
+    mockUseSettings.mockReturnValue({
+      ...defaultSettingsContext,
+      settings: {
+        ...defaultSettings,
+        advanced_tutorial_completed: false,
+        stats_unlocked: false,
       },
     })
 
@@ -118,16 +109,13 @@ describe('Home Page (Filter Selection)', () => {
   })
 
   it('shows Start Advanced Tutorial button when basic completed but advanced not completed in advanced mode', async () => {
-    mockUseUser.mockReturnValue({
-      ...defaultUserContext,
-      user: {
-        ...defaultUser,
-        settings: {
-          ...defaultUser.settings,
-          advanced_mode: true,
-          advanced_tutorial_completed: false,
-          stats_unlocked: false,
-        },
+    mockUseSettings.mockReturnValue({
+      ...defaultSettingsContext,
+      settings: {
+        ...defaultSettings,
+        advanced_mode: true,
+        advanced_tutorial_completed: false,
+        stats_unlocked: false,
       },
     })
 
@@ -141,12 +129,9 @@ describe('Home Page (Filter Selection)', () => {
   })
 
   it('shows Begin Evaluation Session button when both tutorials completed in advanced mode', async () => {
-    mockUseUser.mockReturnValue({
-      ...defaultUserContext,
-      user: {
-        ...defaultUser,
-        settings: { ...defaultUser.settings, advanced_mode: true },
-      },
+    mockUseSettings.mockReturnValue({
+      ...defaultSettingsContext,
+      settings: { ...defaultSettings, advanced_mode: true },
     })
 
     await act(async () => {
@@ -159,17 +144,14 @@ describe('Home Page (Filter Selection)', () => {
   })
 
   it('shows Start Tutorial button when no tutorials completed in advanced mode', async () => {
-    mockUseUser.mockReturnValue({
-      ...defaultUserContext,
-      user: {
-        ...defaultUser,
-        settings: {
-          ...defaultUser.settings,
-          advanced_mode: true,
-          basic_tutorial_completed: false,
-          advanced_tutorial_completed: false,
-          stats_unlocked: false,
-        },
+    mockUseSettings.mockReturnValue({
+      ...defaultSettingsContext,
+      settings: {
+        ...defaultSettings,
+        advanced_mode: true,
+        basic_tutorial_completed: false,
+        advanced_tutorial_completed: false,
+        stats_unlocked: false,
       },
     })
 

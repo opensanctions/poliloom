@@ -15,7 +15,7 @@ import { TutorialActions } from './_components/TutorialActions'
 import { TutorialFooter } from './_components/TutorialFooter'
 import { SuccessFeedback } from './_components/SuccessFeedback'
 import { ErrorFeedback } from './_components/ErrorFeedback'
-import { useUser } from '@/contexts/UserContext'
+import { useSettings } from '@/contexts/SettingsContext'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { PropertyActionItem, CreatePropertyItem } from '@/types'
@@ -92,10 +92,10 @@ export interface TutorialContentProps {
 }
 
 export function TutorialContent({ initialStep }: TutorialContentProps) {
-  const { user, patch } = useUser()
-  const hasCompletedBasicTutorial = user?.settings.basic_tutorial_completed ?? true
-  const hasCompletedAdvancedTutorial = user?.settings.advanced_tutorial_completed ?? true
-  const isAdvancedMode = user?.settings.advanced_mode ?? false
+  const { settings, patch } = useSettings()
+  const hasCompletedBasicTutorial = settings?.basic_tutorial_completed ?? true
+  const hasCompletedAdvancedTutorial = settings?.advanced_tutorial_completed ?? true
+  const isAdvancedMode = settings?.advanced_mode ?? false
   const { startSession } = useEvaluationSession()
   const { nextHref, loading: nextLoading } = useNextPoliticianContext()
 
@@ -115,10 +115,10 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   const advance = () => {
     const nextStep = step + 1
     if (nextStep > BASIC_END && !hasCompletedBasicTutorial) {
-      patch({ settings: { basic_tutorial_completed: true } })
+      patch({ basic_tutorial_completed: true })
     }
     if (nextStep > ADVANCED_END && !hasCompletedAdvancedTutorial) {
-      patch({ settings: { advanced_tutorial_completed: true } })
+      patch({ advanced_tutorial_completed: true })
     }
     setCheckResult(null)
     setStep(nextStep)

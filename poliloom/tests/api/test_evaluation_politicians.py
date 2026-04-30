@@ -5,10 +5,8 @@ from datetime import datetime, timezone
 
 from poliloom.models import (
     Politician,
-    PreferenceType,
     Source,
     Evaluation,
-    UserFilterPreference,
 )
 from poliloom.wikidata.date import WikidataDate
 
@@ -429,28 +427,10 @@ class TestGetPoliticianEndpointProperties:
 
 
 class TestNextEndpointLanguageFiltering:
-    """Test language filtering on the /politicians/next endpoint.
+    """Test language/country filtering on the /politicians/next endpoint.
 
-    Filters are read from user_filter_preferences via the get_user_filters
-    dependency, not from query params. Each test seeds rows for user_id 12345
-    (the mock_auth user) before making the request.
+    Filter QIDs come from query params (sourced from cookies on the client).
     """
-
-    @staticmethod
-    def _set_filter(db_session, preference_type, qids):
-        """Replace the test user's filter rows of one type with the given QIDs."""
-        db_session.query(UserFilterPreference).filter_by(
-            user_id="12345", preference_type=preference_type
-        ).delete()
-        for qid in qids:
-            db_session.add(
-                UserFilterPreference(
-                    user_id="12345",
-                    preference_type=preference_type,
-                    entity_id=qid,
-                )
-            )
-        db_session.flush()
 
     def test_language_filtering(
         self,
@@ -488,15 +468,11 @@ class TestNextEndpointLanguageFiltering:
         create_birth_date(german_politician, value="1971-01-01", source=german_page)
         db_session.flush()
 
-        # English filter should find English politician
-        self._set_filter(db_session, PreferenceType.LANGUAGE, ["Q1860"])
-        response = client.get("/politicians/next", headers=mock_auth)
+        response = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
         assert response.json()["wikidata_id"] == "Q1001"
 
-        # German filter should find German politician
-        self._set_filter(db_session, PreferenceType.LANGUAGE, ["Q188"])
-        response = client.get("/politicians/next", headers=mock_auth)
+        response = client.get("/politicians/next?languages=Q188", headers=mock_auth)
         assert response.status_code == 200
         assert response.json()["wikidata_id"] == "Q1002"
 
@@ -532,14 +508,10 @@ class TestNextEndpointLanguageFiltering:
         create_citizenship(german_politician, sample_germany_country, source)
         db_session.flush()
 
-        # US filter
-        self._set_filter(db_session, PreferenceType.COUNTRY, ["Q30"])
-        response = client.get("/politicians/next", headers=mock_auth)
+        response = client.get("/politicians/next?countries=Q30", headers=mock_auth)
         assert response.status_code == 200
         assert response.json()["wikidata_id"] == "Q2001"
 
-        # Germany filter
-        self._set_filter(db_session, PreferenceType.COUNTRY, ["Q183"])
-        response = client.get("/politicians/next", headers=mock_auth)
+        response = client.get("/politicians/next?countries=Q183", headers=mock_auth)
         assert response.status_code == 200
         assert response.json()["wikidata_id"] == "Q2002"

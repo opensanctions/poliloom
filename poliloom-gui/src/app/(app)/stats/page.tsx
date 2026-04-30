@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/Button'
 import { CenteredCard } from '@/components/ui/CenteredCard'
-import { fetchWithAuth, getUser } from '@/lib/api-auth'
+import { fetchWithAuth, getSettings } from '@/lib/api-auth'
 import { StatsResponse } from '@/types'
 import { StatsContent } from './StatsContent'
 
@@ -11,8 +11,8 @@ async function getStats(): Promise<StatsResponse | null> {
 }
 
 export default async function StatsPage() {
-  const user = await getUser()
-  const statsUnlocked = user?.settings.stats_unlocked ?? false
+  const settings = await getSettings()
+  const statsUnlocked = settings?.stats_unlocked ?? false
 
   if (!statsUnlocked) {
     return (

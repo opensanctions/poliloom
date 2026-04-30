@@ -1,6 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useCallback } from 'react'
+import { hasCookie, setCookie } from '@/lib/cookies'
 
 interface ThemeContextType {
   setTheme: (theme: 'light' | 'dark') => void
@@ -17,23 +18,16 @@ function applyThemeToDocument(theme: 'light' | 'dark') {
   root.classList.add(theme)
 }
 
-function setThemeCookie(theme: 'light' | 'dark') {
-  if (typeof document === 'undefined') return
-  const maxAge = 365 * 24 * 60 * 60 // 1 year
-  document.cookie = `${THEME_COOKIE_NAME}=${theme}; path=/; max-age=${maxAge}; SameSite=Lax`
-}
-
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setTheme = useCallback((newTheme: 'light' | 'dark') => {
-    setThemeCookie(newTheme)
+    setCookie(THEME_COOKIE_NAME, newTheme)
     applyThemeToDocument(newTheme)
   }, [])
 
-  // Follow system preference when no cookie is set
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const handleChange = (e: MediaQueryListEvent) => {
-      if (!document.cookie.includes(THEME_COOKIE_NAME)) {
+      if (!hasCookie(THEME_COOKIE_NAME)) {
         applyThemeToDocument(e.matches ? 'dark' : 'light')
       }
     }

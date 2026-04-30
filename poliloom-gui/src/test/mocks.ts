@@ -1,5 +1,5 @@
 import { vi, beforeEach } from 'vitest'
-import type { User } from '@/types'
+import type { UserSettings } from '@/types'
 
 // --- Mock functions (exported for test assertions and overrides) ---
 
@@ -13,13 +13,16 @@ export const mockUseSearchParams = vi.fn()
 // Contexts
 export const mockUseNextPoliticianContext = vi.fn()
 export const mockUseEvaluationSession = vi.fn()
-export const mockUseUser = vi.fn()
+export const mockUseSettings = vi.fn()
+export const mockUseFilters = vi.fn()
 
 // Shared action mocks (used in defaultEvaluationSession)
 export const mockSubmitAndAdvance = vi.fn()
 export const mockStartSession = vi.fn()
 export const mockEndSession = vi.fn()
-export const mockUserPatch = vi.fn().mockResolvedValue(undefined)
+export const mockSettingsPatch = vi.fn().mockResolvedValue(undefined)
+export const mockSetLanguages = vi.fn()
+export const mockSetCountries = vi.fn()
 
 // Re-export the fetch mock created in test/setup.ts
 export const mockFetch = vi.mocked(fetch)
@@ -64,11 +67,19 @@ vi.mock('@/contexts/EvaluationSessionContext', () => ({
   useEvaluationSession: () => mockUseEvaluationSession(),
 }))
 
-vi.mock('@/contexts/UserContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/contexts/UserContext')>()
+vi.mock('@/contexts/SettingsContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/contexts/SettingsContext')>()
   return {
     ...actual,
-    useUser: () => mockUseUser(),
+    useSettings: () => mockUseSettings(),
+  }
+})
+
+vi.mock('@/contexts/FilterContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/contexts/FilterContext')>()
+  return {
+    ...actual,
+    useFilters: () => mockUseFilters(),
   }
 })
 
@@ -90,20 +101,23 @@ export const defaultEvaluationSession = {
   endSession: mockEndSession,
 }
 
-export const defaultUser: User = {
-  settings: {
-    advanced_mode: false,
-    basic_tutorial_completed: true,
-    advanced_tutorial_completed: true,
-    stats_unlocked: true,
-  },
-  filters: { language: [], country: [] },
+export const defaultSettings: UserSettings = {
+  advanced_mode: false,
+  basic_tutorial_completed: true,
+  advanced_tutorial_completed: true,
+  stats_unlocked: true,
 }
 
-export const defaultUserContext = {
-  user: defaultUser,
-  patch: mockUserPatch,
-  pending: false,
+export const defaultSettingsContext = {
+  settings: defaultSettings,
+  patch: mockSettingsPatch,
+}
+
+export const defaultFiltersContext = {
+  languageQids: [] as string[],
+  countryQids: [] as string[],
+  setLanguages: mockSetLanguages,
+  setCountries: mockSetCountries,
 }
 
 // --- Reset defaults before each test ---
@@ -111,9 +125,12 @@ export const defaultUserContext = {
 beforeEach(() => {
   mockUseNextPoliticianContext.mockReturnValue(defaultNextPolitician)
   mockUseEvaluationSession.mockReturnValue(defaultEvaluationSession)
-  mockUseUser.mockReturnValue(defaultUserContext)
+  mockUseSettings.mockReturnValue(defaultSettingsContext)
+  mockUseFilters.mockReturnValue(defaultFiltersContext)
   mockUseParams.mockReturnValue({})
   mockUsePathname.mockReturnValue('/')
   mockUseSearchParams.mockReturnValue(new URLSearchParams())
-  mockUserPatch.mockClear()
+  mockSettingsPatch.mockClear()
+  mockSetLanguages.mockClear()
+  mockSetCountries.mockClear()
 })

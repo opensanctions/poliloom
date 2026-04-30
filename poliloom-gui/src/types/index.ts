@@ -139,21 +139,6 @@ export interface UserSettings {
   stats_unlocked: boolean
 }
 
-export interface UserFilters {
-  language: WikidataEntity[]
-  country: WikidataEntity[]
-}
-
-export interface User {
-  settings: UserSettings
-  filters: UserFilters
-}
-
-export interface UserPatchInput {
-  settings?: Partial<UserSettings>
-  filters?: { language?: WikidataEntity[]; country?: WikidataEntity[] }
-}
-
 export interface LanguageResponse extends WikidataEntity {
   iso_639_1?: string
   iso_639_3?: string

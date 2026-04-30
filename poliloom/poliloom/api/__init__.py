@@ -10,7 +10,7 @@ from .sources import router as sources_router
 from .entities import router as entities_router
 from .events import router as events_router
 from .stats import router as stats_router
-from .user import router as user_router
+from .settings import router as settings_router
 
 # Configure logging
 setup_logging()
@@ -36,7 +36,7 @@ app.include_router(sources_router, prefix="/sources", tags=["sources"])
 app.include_router(entities_router, tags=["entities"])
 app.include_router(events_router, prefix="/events", tags=["events"])
 app.include_router(stats_router, prefix="/stats", tags=["stats"])
-app.include_router(user_router, prefix="/user", tags=["user"])
+app.include_router(settings_router, prefix="/settings", tags=["settings"])
 
 
 @app.get("/")

@@ -1,8 +1,8 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { useUser } from '@/contexts/UserContext'
+import { useFilters } from '@/contexts/FilterContext'
 import { useEventStream } from '@/contexts/EventStreamContext'
 import { NextPoliticianResponse, EnrichmentMetadata } from '@/types'
 
@@ -16,7 +16,7 @@ interface NextPoliticianContextType {
 const NextPoliticianContext = createContext<NextPoliticianContextType | undefined>(undefined)
 
 export function NextPoliticianProvider({ children }: { children: React.ReactNode }) {
-  const { user, pending } = useUser()
+  const { languageQids, countryQids } = useFilters()
   const params = useParams()
   const currentQid = (params?.qid as string) ?? null
 
@@ -24,30 +24,40 @@ export function NextPoliticianProvider({ children }: { children: React.ReactNode
   const [loading, setLoading] = useState(true)
   const [enrichmentMeta, setEnrichmentMeta] = useState<EnrichmentMetadata | null>(null)
 
+  const inFlightRef = useRef<AbortController | null>(null)
+
   const fetchNext = useCallback(async () => {
+    inFlightRef.current?.abort()
+    const controller = new AbortController()
+    inFlightRef.current = controller
     setLoading(true)
     try {
-      const url = currentQid
-        ? `/api/politicians/next?exclude_ids=${encodeURIComponent(currentQid)}`
-        : '/api/politicians/next'
-      const response = await fetch(url)
+      const params = new URLSearchParams()
+      if (currentQid) params.set('exclude_ids', currentQid)
+      for (const qid of languageQids) params.append('languages', qid)
+      for (const qid of countryQids) params.append('countries', qid)
+      const qs = params.toString()
+      const url = `/api/politicians/next${qs ? `?${qs}` : ''}`
+      const response = await fetch(url, { signal: controller.signal })
       if (!response.ok) return
 
       const data: NextPoliticianResponse = await response.json()
       setNextQid(data.wikidata_id)
       setEnrichmentMeta(data.meta)
-    } catch {
-      // Ignore errors
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
     } finally {
-      setLoading(false)
+      if (!controller.signal.aborted) {
+        inFlightRef.current = null
+        setLoading(false)
+      }
     }
-  }, [currentQid])
+  }, [currentQid, languageQids, countryQids])
 
-  const userLoaded = user !== undefined
   useEffect(() => {
-    if (!userLoaded || pending) return
     fetchNext()
-  }, [fetchNext, user?.filters, userLoaded, pending])
+    return () => inFlightRef.current?.abort()
+  }, [fetchNext])
 
   useEventStream(
     'enrichment_complete',
