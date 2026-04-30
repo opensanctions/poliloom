@@ -132,13 +132,26 @@ export interface SearchEntity extends WikidataEntity {
 
 export type SearchFn = (query: string) => Promise<SearchEntity[]>
 
-export interface PreferenceResponse extends WikidataEntity {
-  preference_type: string
+export interface UserSettings {
+  advanced_mode: boolean
+  basic_tutorial_completed: boolean
+  advanced_tutorial_completed: boolean
+  stats_unlocked: boolean
 }
 
-export enum PreferenceType {
-  LANGUAGE = 'language',
-  COUNTRY = 'country',
+export interface UserFilters {
+  language: WikidataEntity[]
+  country: WikidataEntity[]
+}
+
+export interface User {
+  settings: UserSettings
+  filters: UserFilters
+}
+
+export interface UserPatchInput {
+  settings?: Partial<UserSettings>
+  filters?: { language?: WikidataEntity[]; country?: WikidataEntity[] }
 }
 
 export interface LanguageResponse extends WikidataEntity {

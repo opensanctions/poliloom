@@ -15,8 +15,7 @@ import { TutorialActions } from './_components/TutorialActions'
 import { TutorialFooter } from './_components/TutorialFooter'
 import { SuccessFeedback } from './_components/SuccessFeedback'
 import { ErrorFeedback } from './_components/ErrorFeedback'
-import { useUserProgress } from '@/contexts/UserProgressContext'
-import { useUserPreferences } from '@/contexts/UserPreferencesContext'
+import { useUser } from '@/contexts/UserContext'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { PropertyActionItem, CreatePropertyItem } from '@/types'
@@ -93,19 +92,19 @@ export interface TutorialContentProps {
 }
 
 export function TutorialContent({ initialStep }: TutorialContentProps) {
-  const {
-    hasCompletedBasicTutorial,
-    hasCompletedAdvancedTutorial,
-    completeBasicTutorial,
-    completeAdvancedTutorial,
-  } = useUserProgress()
-  const { isAdvancedMode } = useUserPreferences()
+  const { user, patch } = useUser()
+  // Default tutorial completion to true while loading so returning users don't
+  // briefly see a "Start Tutorial" CTA flash.
+  const hasCompletedBasicTutorial =
+    user === undefined ? true : (user?.settings.basic_tutorial_completed ?? false)
+  const hasCompletedAdvancedTutorial =
+    user === undefined ? true : (user?.settings.advanced_tutorial_completed ?? false)
+  const isAdvancedMode = user?.settings.advanced_mode ?? false
   const { startSession } = useEvaluationSession()
   const { nextHref, loading: nextLoading } = useNextPoliticianContext()
 
   const startHref = !nextLoading ? nextHref : undefined
 
-  // Determine starting step based on completion status
   const getStartingStep = (): TutorialStep => {
     if (initialStep !== undefined) return initialStep
     if (!hasCompletedBasicTutorial) return BASIC_START
@@ -115,7 +114,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
 
   const [step, setStep] = useState(getStartingStep)
 
-  // Single state for the result of the current interactive step's "Check Answers"
   const [checkResult, setCheckResult] = useState<EvaluationResult | null>(null)
 
   const advance = () => {
@@ -123,29 +121,20 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     setStep((s) => s + 1)
   }
 
-  // Handle tutorial completion
   useEffect(() => {
-    // Complete basic tutorial when passing the last basic step
     if (step > BASIC_END && !hasCompletedBasicTutorial) {
-      completeBasicTutorial()
+      patch({ settings: { basic_tutorial_completed: true } })
     }
-    // Complete advanced tutorial when passing the last advanced step
-    if (step > ADVANCED_END) {
-      completeAdvancedTutorial()
+    if (step > ADVANCED_END && !hasCompletedAdvancedTutorial) {
+      patch({ settings: { advanced_tutorial_completed: true } })
     }
-  }, [step, hasCompletedBasicTutorial, completeBasicTutorial, completeAdvancedTutorial])
+  }, [step, hasCompletedBasicTutorial, hasCompletedAdvancedTutorial, patch])
 
-  // Determine what to show
   const isBasicComplete = step > BASIC_END
   const isAdvancedComplete = step > ADVANCED_END
   const shouldShowAdvanced = isAdvancedMode && !hasCompletedAdvancedTutorial
-
-  // Show completion screen when:
-  // - Basic is done AND (not in advanced mode OR advanced is already completed)
-  // - OR advanced is done
   const isComplete = (isBasicComplete && !shouldShowAdvanced) || isAdvancedComplete
 
-  // Completion screen
   if (isComplete) {
     return (
       <CenteredCard emoji="🎉" title="Tutorial Complete!">

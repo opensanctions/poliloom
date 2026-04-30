@@ -8,7 +8,7 @@ import { Loader } from '@/components/ui/Spinner'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { Button } from '@/components/ui/Button'
 import { Footer } from '@/components/ui/Footer'
-import { useUserProgress } from '@/contexts/UserProgressContext'
+import { useUser } from '@/contexts/UserContext'
 import { StatsResponse, EvaluationTimeseriesPoint, CountryCoverage } from '@/types'
 
 function formatDateLabel(dateStr: string): string {
@@ -301,7 +301,8 @@ function CountryCoverageList({ data }: { data: CountryCoverage[] }) {
 }
 
 export default function StatsPage() {
-  const { statsUnlocked } = useUserProgress()
+  const { user } = useUser()
+  const statsUnlocked = user?.settings.stats_unlocked ?? false
   const [stats, setStats] = useState<StatsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

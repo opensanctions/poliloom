@@ -5,6 +5,8 @@ from unittest.mock import patch
 from poliloom.models import (
     Evaluation,
     Politician,
+    PreferenceType,
+    UserFilterPreference,
 )
 from poliloom.sse import EvaluationCountEvent
 
@@ -59,6 +61,33 @@ class TestGetNextPoliticianEndpoint:
 
         assert "has_enrichable_politicians" in data["meta"]
         assert "total_matching_filters" in data["meta"]
+
+    def test_country_filter_from_user_preferences(
+        self,
+        client,
+        mock_auth,
+        db_session,
+        politician_with_unevaluated_data,
+        sample_germany_country,
+    ):
+        """Test that a stored country preference filters out non-matching politicians.
+
+        The sample politician has no citizenship, so a Germany filter excludes it —
+        proving the filter is sourced from user_filter_preferences via the
+        get_user_filters dependency rather than from query params.
+        """
+        db_session.add(
+            UserFilterPreference(
+                user_id="12345",
+                preference_type=PreferenceType.COUNTRY,
+                entity_id=sample_germany_country.wikidata_id,
+            )
+        )
+        db_session.commit()
+
+        response = client.get("/politicians/next", headers=mock_auth)
+        assert response.status_code == 200
+        assert response.json()["wikidata_id"] is None
 
 
 class TestGetPoliticianByQidEndpoint:

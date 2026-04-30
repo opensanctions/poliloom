@@ -9,8 +9,7 @@ import {
   PropertyActionItem,
 } from '@/types'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
-import { useUserProgress } from '@/contexts/UserProgressContext'
-import { useUserPreferences } from '@/contexts/UserPreferencesContext'
+import { useUser } from '@/contexts/UserContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { useEventStream } from '@/contexts/EventStreamContext'
 import { Button } from '@/components/ui/Button'
@@ -23,16 +22,17 @@ interface PoliticianEvaluationProps {
 export function PoliticianEvaluation({ politician: initialPolitician }: PoliticianEvaluationProps) {
   const router = useRouter()
   const { isSessionActive, completedCount, sessionGoal, submitAndAdvance } = useEvaluationSession()
-  const { statsUnlocked, completeBasicTutorial, completeAdvancedTutorial } = useUserProgress()
-  const { isAdvancedMode } = useUserPreferences()
+  const { user, patch } = useUser()
+  const statsUnlocked = user?.settings.stats_unlocked ?? false
+  const isAdvancedMode = user?.settings.advanced_mode ?? false
   const { nextHref, loading: nextLoading } = useNextPoliticianContext()
   const [politician, setPolitician] = useState<Politician>(initialPolitician)
 
   // Mark tutorials complete on mount
   useEffect(() => {
-    completeBasicTutorial()
+    patch({ settings: { basic_tutorial_completed: true } })
     if (isAdvancedMode) {
-      completeAdvancedTutorial()
+      patch({ settings: { advanced_tutorial_completed: true } })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

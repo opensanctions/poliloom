@@ -177,3 +177,58 @@ class EntitySearchResponse(BaseModel):
     description: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserSettingsResponse(BaseModel):
+    """User settings (typed booleans) for GET /user."""
+
+    advanced_mode: bool
+    basic_tutorial_completed: bool
+    advanced_tutorial_completed: bool
+    stats_unlocked: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserFilterEntity(BaseModel):
+    """A single filter entity (language or country) with name."""
+
+    wikidata_id: str
+    name: str
+
+
+class UserFiltersResponse(BaseModel):
+    """User filter preferences grouped by type for GET /user."""
+
+    language: List[UserFilterEntity]
+    country: List[UserFilterEntity]
+
+
+class UserResponse(BaseModel):
+    """Combined user state for GET /user."""
+
+    settings: UserSettingsResponse
+    filters: UserFiltersResponse
+
+
+class UserSettingsPatch(BaseModel):
+    """Partial settings update body."""
+
+    advanced_mode: Optional[bool] = None
+    basic_tutorial_completed: Optional[bool] = None
+    advanced_tutorial_completed: Optional[bool] = None
+    stats_unlocked: Optional[bool] = None
+
+
+class UserFiltersPatch(BaseModel):
+    """Partial filters update body. Each present list replaces all rows of that type."""
+
+    language: Optional[List[str]] = None
+    country: Optional[List[str]] = None
+
+
+class UserPatchRequest(BaseModel):
+    """Request body for PATCH /user."""
+
+    settings: Optional[UserSettingsPatch] = None
+    filters: Optional[UserFiltersPatch] = None

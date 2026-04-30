@@ -3,13 +3,26 @@ import { renderHook, waitFor, act } from '@testing-library/react'
 import { NextPoliticianProvider, useNextPoliticianContext } from './NextPoliticianContext'
 import { EventStreamProvider } from './EventStreamContext'
 import { mockEventSource } from '@/test/setup'
-import { PreferenceType } from '@/types'
-import type { SSEEvent, NextPoliticianResponse } from '@/types'
+import type { SSEEvent, NextPoliticianResponse, User, WikidataEntity } from '@/types'
 
-let mockFilters: Array<{ wikidata_id: string; name: string; preference_type: PreferenceType }> = []
-vi.mock('@/contexts/UserPreferencesContext', () => ({
-  useUserPreferences: () => ({
-    filters: mockFilters,
+const DEFAULT_USER: User = {
+  settings: {
+    advanced_mode: false,
+    basic_tutorial_completed: true,
+    advanced_tutorial_completed: true,
+    stats_unlocked: false,
+  },
+  filters: { language: [], country: [] },
+}
+
+let mockUser: User | null | undefined = DEFAULT_USER
+let mockPending = false
+
+vi.mock('@/contexts/UserContext', () => ({
+  useUser: () => ({
+    user: mockUser,
+    pending: mockPending,
+    patch: vi.fn(),
   }),
 }))
 
@@ -17,6 +30,20 @@ let mockParams: Record<string, string> = {}
 vi.mock('next/navigation', () => ({
   useParams: () => mockParams,
 }))
+
+function setUser(filters: Partial<User['filters']> = {}) {
+  mockUser = {
+    ...DEFAULT_USER,
+    filters: {
+      language: filters.language ?? [],
+      country: filters.country ?? [],
+    },
+  }
+}
+
+function entity(qid: string, name: string): WikidataEntity {
+  return { wikidata_id: qid, name }
+}
 
 function wrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -33,7 +60,8 @@ const nextResponse: NextPoliticianResponse = {
 
 describe('NextPoliticianContext', () => {
   beforeEach(() => {
-    mockFilters = []
+    setUser()
+    mockPending = false
     mockParams = {}
   })
 
@@ -54,11 +82,11 @@ describe('NextPoliticianContext', () => {
     expect(result.current.allCaughtUp).toBe(false)
   })
 
-  it('passes language and country filters as query params', async () => {
-    mockFilters = [
-      { wikidata_id: 'Q1860', name: 'English', preference_type: PreferenceType.LANGUAGE },
-      { wikidata_id: 'Q30', name: 'United States', preference_type: PreferenceType.COUNTRY },
-    ]
+  it('does not pass language or country filters as query params (server reads them)', async () => {
+    setUser({
+      language: [entity('Q1860', 'English')],
+      country: [entity('Q30', 'United States')],
+    })
 
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
@@ -72,8 +100,8 @@ describe('NextPoliticianContext', () => {
     })
 
     const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string
-    expect(calledUrl).toContain('languages=Q1860')
-    expect(calledUrl).toContain('countries=Q30')
+    expect(calledUrl).not.toContain('languages=')
+    expect(calledUrl).not.toContain('countries=')
   })
 
   it('excludes current politician from route params', async () => {
@@ -110,6 +138,18 @@ describe('NextPoliticianContext', () => {
 
     const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string
     expect(calledUrl).not.toContain('exclude_ids')
+  })
+
+  it('does not fetch while user is loading (undefined)', () => {
+    mockUser = undefined
+    renderHook(() => useNextPoliticianContext(), { wrapper })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('does not fetch while a PATCH is in flight (pending=true)', () => {
+    mockPending = true
+    renderHook(() => useNextPoliticianContext(), { wrapper })
+    expect(fetch).not.toHaveBeenCalled()
   })
 
   it('ignores enrichment_complete event when politician is already ready', async () => {
@@ -169,104 +209,6 @@ describe('NextPoliticianContext', () => {
     await waitFor(() => {
       expect(result.current.politicianReady).toBe(true)
     })
-  })
-
-  it('ignores enrichment_complete event when language filter does not match', async () => {
-    mockFilters = [
-      { wikidata_id: 'Q150', name: 'French', preference_type: PreferenceType.LANGUAGE },
-    ]
-
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        wikidata_id: null,
-        meta: { has_enrichable_politicians: false, total_matching_filters: 0 },
-      }),
-    } as Response)
-
-    const { result } = renderHook(() => useNextPoliticianContext(), { wrapper })
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    })
-
-    const event: SSEEvent = {
-      type: 'enrichment_complete',
-      languages: ['Q1860'],
-      countries: [],
-    }
-    act(() => {
-      mockEventSource.onmessage?.(new MessageEvent('message', { data: JSON.stringify(event) }))
-    })
-
-    expect(fetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('fetches on enrichment_complete when event matches language filter', async () => {
-    mockFilters = [
-      { wikidata_id: 'Q1860', name: 'English', preference_type: PreferenceType.LANGUAGE },
-    ]
-
-    vi.mocked(fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          wikidata_id: null,
-          meta: { has_enrichable_politicians: false, total_matching_filters: 0 },
-        }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => nextResponse,
-      } as Response)
-
-    const { result } = renderHook(() => useNextPoliticianContext(), { wrapper })
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    })
-
-    const event: SSEEvent = {
-      type: 'enrichment_complete',
-      languages: ['Q1860'],
-      countries: ['Q30'],
-    }
-    act(() => {
-      mockEventSource.onmessage?.(new MessageEvent('message', { data: JSON.stringify(event) }))
-    })
-
-    await waitFor(() => {
-      expect(result.current.politicianReady).toBe(true)
-    })
-  })
-
-  it('ignores enrichment_complete event when country filter does not match', async () => {
-    mockFilters = [{ wikidata_id: 'Q142', name: 'France', preference_type: PreferenceType.COUNTRY }]
-
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        wikidata_id: null,
-        meta: { has_enrichable_politicians: false, total_matching_filters: 0 },
-      }),
-    } as Response)
-
-    const { result } = renderHook(() => useNextPoliticianContext(), { wrapper })
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    })
-
-    const event: SSEEvent = {
-      type: 'enrichment_complete',
-      languages: [],
-      countries: ['Q30'],
-    }
-    act(() => {
-      mockEventSource.onmessage?.(new MessageEvent('message', { data: JSON.stringify(event) }))
-    })
-
-    expect(fetch).toHaveBeenCalledTimes(1)
   })
 
   it('throws when used outside provider', () => {

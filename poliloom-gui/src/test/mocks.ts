@@ -1,4 +1,5 @@
 import { vi, beforeEach } from 'vitest'
+import type { User } from '@/types'
 
 // --- Mock functions (exported for test assertions and overrides) ---
 
@@ -12,13 +13,14 @@ export const mockUseSearchParams = vi.fn()
 // Contexts
 export const mockUseNextPoliticianContext = vi.fn()
 export const mockUseEvaluationSession = vi.fn()
-export const mockUseUserProgress = vi.fn()
-export const mockUseUserPreferences = vi.fn()
+export const mockUseUser = vi.fn()
+export const mockUseEntityCatalog = vi.fn()
 
 // Shared action mocks (used in defaultEvaluationSession)
 export const mockSubmitAndAdvance = vi.fn()
 export const mockStartSession = vi.fn()
 export const mockEndSession = vi.fn()
+export const mockUserPatch = vi.fn().mockResolvedValue(undefined)
 
 // Re-export the fetch mock created in test/setup.ts
 export const mockFetch = vi.mocked(fetch)
@@ -63,19 +65,19 @@ vi.mock('@/contexts/EvaluationSessionContext', () => ({
   useEvaluationSession: () => mockUseEvaluationSession(),
 }))
 
-vi.mock('@/contexts/UserProgressContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/contexts/UserProgressContext')>()
+vi.mock('@/contexts/UserContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/contexts/UserContext')>()
   return {
     ...actual,
-    useUserProgress: () => mockUseUserProgress(),
+    useUser: () => mockUseUser(),
   }
 })
 
-vi.mock('@/contexts/UserPreferencesContext', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/contexts/UserPreferencesContext')>()
+vi.mock('@/contexts/EntityCatalogContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/contexts/EntityCatalogContext')>()
   return {
     ...actual,
-    useUserPreferences: () => mockUseUserPreferences(),
+    useEntityCatalog: () => mockUseEntityCatalog(),
   }
 })
 
@@ -86,8 +88,6 @@ export const defaultNextPolitician = {
   politicianReady: true,
   allCaughtUp: false,
   loading: false,
-  languageFilters: [],
-  countryFilters: [],
 }
 
 export const defaultEvaluationSession = {
@@ -99,24 +99,27 @@ export const defaultEvaluationSession = {
   endSession: mockEndSession,
 }
 
-export const defaultUserProgress = {
-  hasCompletedBasicTutorial: true,
-  hasCompletedAdvancedTutorial: true,
-  statsUnlocked: true,
-  completeBasicTutorial: vi.fn(),
-  completeAdvancedTutorial: vi.fn(),
-  unlockStats: vi.fn(),
+export const defaultUser: User = {
+  settings: {
+    advanced_mode: false,
+    basic_tutorial_completed: true,
+    advanced_tutorial_completed: true,
+    stats_unlocked: true,
+  },
+  filters: { language: [], country: [] },
 }
 
-export const defaultUserPreferences = {
-  filters: [],
+export const defaultUserContext = {
+  user: defaultUser,
+  patch: mockUserPatch,
+  pending: false,
+}
+
+export const defaultEntityCatalog = {
   languages: [],
   countries: [],
   loadingLanguages: false,
   loadingCountries: false,
-  updateFilters: vi.fn(),
-  isAdvancedMode: false,
-  setAdvancedMode: vi.fn(),
 }
 
 // --- Reset defaults before each test ---
@@ -124,9 +127,10 @@ export const defaultUserPreferences = {
 beforeEach(() => {
   mockUseNextPoliticianContext.mockReturnValue(defaultNextPolitician)
   mockUseEvaluationSession.mockReturnValue(defaultEvaluationSession)
-  mockUseUserProgress.mockReturnValue(defaultUserProgress)
-  mockUseUserPreferences.mockReturnValue(defaultUserPreferences)
+  mockUseUser.mockReturnValue(defaultUserContext)
+  mockUseEntityCatalog.mockReturnValue(defaultEntityCatalog)
   mockUseParams.mockReturnValue({})
   mockUsePathname.mockReturnValue('/')
   mockUseSearchParams.mockReturnValue(new URLSearchParams())
+  mockUserPatch.mockClear()
 })

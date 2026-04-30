@@ -1,14 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor, render } from '@testing-library/react'
-import { mockUseUserProgress, defaultUserProgress } from '@/test/mocks'
+import { mockUseUser, defaultUserContext, defaultUser } from '@/test/mocks'
 import StatsPage from './page'
 
 describe('Stats Page', () => {
   describe('when stats are locked', () => {
     beforeEach(() => {
-      mockUseUserProgress.mockReturnValue({
-        ...defaultUserProgress,
-        statsUnlocked: false,
+      mockUseUser.mockReturnValue({
+        ...defaultUserContext,
+        user: {
+          ...defaultUser,
+          settings: { ...defaultUser.settings, stats_unlocked: false },
+        },
       })
     })
 

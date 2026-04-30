@@ -1,24 +1,22 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { useUserPreferences } from '@/contexts/UserPreferencesContext'
+import { useUser } from '@/contexts/UserContext'
 import { useEventStream } from '@/contexts/EventStreamContext'
-import { NextPoliticianResponse, PreferenceType, EnrichmentMetadata } from '@/types'
+import { NextPoliticianResponse, EnrichmentMetadata } from '@/types'
 
 interface NextPoliticianContextType {
   nextHref: string
   politicianReady: boolean
   allCaughtUp: boolean
   loading: boolean
-  languageFilters: string[]
-  countryFilters: string[]
 }
 
 const NextPoliticianContext = createContext<NextPoliticianContextType | undefined>(undefined)
 
 export function NextPoliticianProvider({ children }: { children: React.ReactNode }) {
-  const { filters } = useUserPreferences()
+  const { user, pending } = useUser()
   const params = useParams()
   const currentQid = (params?.qid as string) ?? null
 
@@ -26,31 +24,13 @@ export function NextPoliticianProvider({ children }: { children: React.ReactNode
   const [loading, setLoading] = useState(true)
   const [enrichmentMeta, setEnrichmentMeta] = useState<EnrichmentMetadata | null>(null)
 
-  const languageFilters = useMemo(
-    () =>
-      filters
-        ?.filter((p) => p.preference_type === PreferenceType.LANGUAGE)
-        .map((p) => p.wikidata_id) ?? [],
-    [filters],
-  )
-
-  const countryFilters = useMemo(
-    () =>
-      filters
-        ?.filter((p) => p.preference_type === PreferenceType.COUNTRY)
-        .map((p) => p.wikidata_id) ?? [],
-    [filters],
-  )
-
   const fetchNext = useCallback(async () => {
     setLoading(true)
     try {
-      const searchParams = new URLSearchParams()
-      languageFilters.forEach((qid) => searchParams.append('languages', qid))
-      countryFilters.forEach((qid) => searchParams.append('countries', qid))
-      if (currentQid) searchParams.append('exclude_ids', currentQid)
-
-      const response = await fetch(`/api/politicians/next?${searchParams.toString()}`)
+      const url = currentQid
+        ? `/api/politicians/next?exclude_ids=${encodeURIComponent(currentQid)}`
+        : '/api/politicians/next'
+      const response = await fetch(url)
       if (!response.ok) return
 
       const data: NextPoliticianResponse = await response.json()
@@ -61,30 +41,20 @@ export function NextPoliticianProvider({ children }: { children: React.ReactNode
     } finally {
       setLoading(false)
     }
-  }, [languageFilters, countryFilters, currentQid])
+  }, [currentQid])
 
-  // Fetch when filters or current route change.
-  // Wait for filters to load from localStorage before fetching,
-  // otherwise the first call fires with empty filters.
+  const userLoaded = user !== undefined
   useEffect(() => {
-    if (filters === undefined) return
+    if (!userLoaded || pending) return
     fetchNext()
-  }, [fetchNext, filters !== undefined])
+  }, [fetchNext, user?.filters, userLoaded, pending])
 
-  // Listen for enrichment_complete events instead of polling
   useEventStream(
     'enrichment_complete',
-    (event) => {
-      if (nextQid !== null) return
-      const languageMatch =
-        languageFilters.length === 0 || event.languages.some((l) => languageFilters.includes(l))
-      const countryMatch =
-        countryFilters.length === 0 || event.countries.some((c) => countryFilters.includes(c))
-      if (languageMatch && countryMatch) {
-        fetchNext()
-      }
+    () => {
+      if (nextQid === null) fetchNext()
     },
-    [nextQid, languageFilters, countryFilters, fetchNext],
+    [nextQid, fetchNext],
   )
 
   const politicianReady = nextQid !== null
@@ -99,8 +69,6 @@ export function NextPoliticianProvider({ children }: { children: React.ReactNode
     politicianReady,
     allCaughtUp,
     loading,
-    languageFilters,
-    countryFilters,
   }
 
   return <NextPoliticianContext.Provider value={value}>{children}</NextPoliticianContext.Provider>

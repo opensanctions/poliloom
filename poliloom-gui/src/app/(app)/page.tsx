@@ -6,11 +6,11 @@ import { Button } from '@/components/ui/Button'
 import { Footer } from '@/components/ui/Footer'
 import { Toggle } from '@/components/ui/Toggle'
 import { MultiSelect, MultiSelectOption } from '@/components/entity/MultiSelect'
-import { useUserPreferences } from '@/contexts/UserPreferencesContext'
-import { useUserProgress } from '@/contexts/UserProgressContext'
+import { useUser } from '@/contexts/UserContext'
+import { useEntityCatalog } from '@/contexts/EntityCatalogContext'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
-import { PreferenceType, WikidataEntity } from '@/types'
+import { WikidataEntity } from '@/types'
 
 interface CtaState {
   href?: string
@@ -20,27 +20,33 @@ interface CtaState {
 }
 
 export default function Home() {
-  const {
-    languages,
-    countries,
-    loadingLanguages,
-    loadingCountries,
-    updateFilters,
-    isAdvancedMode,
-    setAdvancedMode,
-  } = useUserPreferences()
-  const { hasCompletedBasicTutorial, hasCompletedAdvancedTutorial } = useUserProgress()
+  const { user, patch } = useUser()
+  const { languages, countries, loadingLanguages, loadingCountries } = useEntityCatalog()
   const { startSession } = useEvaluationSession()
   const {
     nextHref,
     politicianReady,
     allCaughtUp,
     loading: loadingNext,
-    languageFilters,
-    countryFilters,
   } = useNextPoliticianContext()
 
-  // Determine CTA state
+  // Default tutorial completion to true while loading so returning users don't
+  // briefly see a "Start Tutorial" CTA flash.
+  const hasCompletedBasicTutorial =
+    user === undefined ? true : (user?.settings.basic_tutorial_completed ?? false)
+  const hasCompletedAdvancedTutorial =
+    user === undefined ? true : (user?.settings.advanced_tutorial_completed ?? false)
+  const isAdvancedMode = user?.settings.advanced_mode ?? false
+
+  const languageFilters = useMemo(
+    () => user?.filters.language.map((l) => l.wikidata_id) ?? [],
+    [user],
+  )
+  const countryFilters = useMemo(
+    () => user?.filters.country.map((c) => c.wikidata_id) ?? [],
+    [user],
+  )
+
   const needsTutorial = !hasCompletedBasicTutorial
   const needsAdvancedTutorial = isAdvancedMode && !hasCompletedAdvancedTutorial
 
@@ -52,7 +58,6 @@ export default function Home() {
     return { text: 'Start Your Session', disabled: true }
   }, [needsTutorial, needsAdvancedTutorial, loadingNext, nextHref, allCaughtUp])
 
-  // Convert to MultiSelectOption format with counts
   const languageOptions: MultiSelectOption[] = languages.map((lang) => ({
     value: lang.wikidata_id,
     label: lang.name,
@@ -65,15 +70,14 @@ export default function Home() {
     count: country.citizenships_count,
   }))
 
-  // Generic handler for filter changes
   const createFilterHandler =
-    (type: PreferenceType, allItems: WikidataEntity[]) => (qids: string[]) => {
+    (kind: 'language' | 'country', allItems: WikidataEntity[]) => (qids: string[]) => {
       const items = allItems.filter((item) => qids.includes(item.wikidata_id))
-      updateFilters(type, items)
+      patch({ filters: { [kind]: items } })
     }
 
-  const handleLanguageChange = createFilterHandler(PreferenceType.LANGUAGE, languages)
-  const handleCountryChange = createFilterHandler(PreferenceType.COUNTRY, countries)
+  const handleLanguageChange = createFilterHandler('language', languages)
+  const handleCountryChange = createFilterHandler('country', countries)
 
   return (
     <main className="min-h-0 overflow-y-auto flex flex-col">
@@ -141,7 +145,7 @@ export default function Home() {
             <label className="flex items-center gap-3 text-sm text-foreground-tertiary cursor-pointer">
               <Toggle
                 checked={isAdvancedMode}
-                onChange={(e) => setAdvancedMode(e.target.checked)}
+                onChange={(e) => patch({ settings: { advanced_mode: e.target.checked } })}
               />
               <span>
                 Advanced mode{' '}

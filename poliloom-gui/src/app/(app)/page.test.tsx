@@ -2,11 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor, act, render } from '@testing-library/react'
 import {
   mockUseNextPoliticianContext,
-  mockUseUserProgress,
-  mockUseUserPreferences,
+  mockUseUser,
   defaultNextPolitician,
-  defaultUserProgress,
-  defaultUserPreferences,
+  defaultUserContext,
+  defaultUser,
 } from '@/test/mocks'
 import Home from './page'
 
@@ -17,17 +16,6 @@ vi.mock('next-auth/react', () => ({
   signIn: (...args: unknown[]) => mockSignIn(...args),
 }))
 
-// Mock navigator.languages for browser language detection
-Object.defineProperty(navigator, 'languages', {
-  value: ['en-US'],
-  writable: true,
-})
-
-Object.defineProperty(navigator, 'language', {
-  value: 'en-US',
-  writable: true,
-})
-
 beforeEach(() => {
   mockUseNextPoliticianContext.mockReturnValue({
     ...defaultNextPolitician,
@@ -35,46 +23,17 @@ beforeEach(() => {
     politicianReady: false,
   })
   mockUseSession.mockReturnValue({ data: null, status: 'loading' })
-  mockUseUserProgress.mockReturnValue({
-    ...defaultUserProgress,
-    hasCompletedBasicTutorial: false,
-    hasCompletedAdvancedTutorial: false,
-    statsUnlocked: false,
-  })
-
-  vi.mocked(fetch).mockImplementation((url) => {
-    const urlStr = url.toString()
-
-    if (urlStr.includes('/api/languages')) {
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        statusText: 'OK',
-        json: async () => [
-          { wikidata_id: 'Q1860', name: 'English' },
-          { wikidata_id: 'Q188', name: 'German' },
-        ],
-      } as Response)
-    }
-
-    if (urlStr.includes('/api/countries')) {
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        statusText: 'OK',
-        json: async () => [
-          { wikidata_id: 'Q30', name: 'United States' },
-          { wikidata_id: 'Q183', name: 'Germany' },
-        ],
-      } as Response)
-    }
-
-    return Promise.resolve({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: async () => [],
-    } as Response)
+  mockUseUser.mockReturnValue({
+    ...defaultUserContext,
+    user: {
+      ...defaultUser,
+      settings: {
+        ...defaultUser.settings,
+        basic_tutorial_completed: false,
+        advanced_tutorial_completed: false,
+        stats_unlocked: false,
+      },
+    },
   })
 })
 
@@ -84,10 +43,16 @@ describe('Home Page - waiting for enrichment', () => {
       ...defaultNextPolitician,
       nextHref: '/session/enriching',
     })
-    mockUseUserProgress.mockReturnValue({
-      ...defaultUserProgress,
-      hasCompletedAdvancedTutorial: false,
-      statsUnlocked: false,
+    mockUseUser.mockReturnValue({
+      ...defaultUserContext,
+      user: {
+        ...defaultUser,
+        settings: {
+          ...defaultUser.settings,
+          advanced_tutorial_completed: false,
+          stats_unlocked: false,
+        },
+      },
     })
 
     await act(async () => {
@@ -131,10 +96,16 @@ describe('Home Page (Filter Selection)', () => {
   })
 
   it('shows Begin Evaluation Session button when basic tutorial completed in basic mode', async () => {
-    mockUseUserProgress.mockReturnValue({
-      ...defaultUserProgress,
-      hasCompletedAdvancedTutorial: false,
-      statsUnlocked: false,
+    mockUseUser.mockReturnValue({
+      ...defaultUserContext,
+      user: {
+        ...defaultUser,
+        settings: {
+          ...defaultUser.settings,
+          advanced_tutorial_completed: false,
+          stats_unlocked: false,
+        },
+      },
     })
 
     await act(async () => {
@@ -147,14 +118,17 @@ describe('Home Page (Filter Selection)', () => {
   })
 
   it('shows Start Advanced Tutorial button when basic completed but advanced not completed in advanced mode', async () => {
-    mockUseUserProgress.mockReturnValue({
-      ...defaultUserProgress,
-      hasCompletedAdvancedTutorial: false,
-      statsUnlocked: false,
-    })
-    mockUseUserPreferences.mockReturnValue({
-      ...defaultUserPreferences,
-      isAdvancedMode: true,
+    mockUseUser.mockReturnValue({
+      ...defaultUserContext,
+      user: {
+        ...defaultUser,
+        settings: {
+          ...defaultUser.settings,
+          advanced_mode: true,
+          advanced_tutorial_completed: false,
+          stats_unlocked: false,
+        },
+      },
     })
 
     await act(async () => {
@@ -167,10 +141,12 @@ describe('Home Page (Filter Selection)', () => {
   })
 
   it('shows Begin Evaluation Session button when both tutorials completed in advanced mode', async () => {
-    mockUseUserProgress.mockReturnValue(defaultUserProgress)
-    mockUseUserPreferences.mockReturnValue({
-      ...defaultUserPreferences,
-      isAdvancedMode: true,
+    mockUseUser.mockReturnValue({
+      ...defaultUserContext,
+      user: {
+        ...defaultUser,
+        settings: { ...defaultUser.settings, advanced_mode: true },
+      },
     })
 
     await act(async () => {
@@ -183,15 +159,18 @@ describe('Home Page (Filter Selection)', () => {
   })
 
   it('shows Start Tutorial button when no tutorials completed in advanced mode', async () => {
-    mockUseUserProgress.mockReturnValue({
-      ...defaultUserProgress,
-      hasCompletedBasicTutorial: false,
-      hasCompletedAdvancedTutorial: false,
-      statsUnlocked: false,
-    })
-    mockUseUserPreferences.mockReturnValue({
-      ...defaultUserPreferences,
-      isAdvancedMode: true,
+    mockUseUser.mockReturnValue({
+      ...defaultUserContext,
+      user: {
+        ...defaultUser,
+        settings: {
+          ...defaultUser.settings,
+          advanced_mode: true,
+          basic_tutorial_completed: false,
+          advanced_tutorial_completed: false,
+          stats_unlocked: false,
+        },
+      },
     })
 
     await act(async () => {
