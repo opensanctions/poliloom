@@ -1,13 +1,15 @@
 import { Button } from '@/components/ui/Button'
+import { useSkipTutorial } from './useSkipTutorial'
 
 interface TutorialActionsProps {
   buttonText: string
   onNext: () => void
   skipHref?: string
-  onSkip?: () => void
 }
 
-export function TutorialActions({ buttonText, onNext, skipHref, onSkip }: TutorialActionsProps) {
+export function TutorialActions({ buttonText, onNext, skipHref }: TutorialActionsProps) {
+  const handleSkip = useSkipTutorial()
+
   return (
     <div className="flex flex-col gap-4">
       <Button onClick={onNext} size="large" fullWidth>
@@ -18,7 +20,7 @@ export function TutorialActions({ buttonText, onNext, skipHref, onSkip }: Tutori
         variant="secondary"
         size="large"
         fullWidth
-        onClick={onSkip}
+        onClick={handleSkip}
         disabled={!skipHref}
       >
         Skip Tutorial

@@ -183,12 +183,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           You&apos;re about to help build accurate, open political data by verifying information
           extracted from official sources.
         </p>
-        <TutorialActions
-          skipHref={startHref}
-          onSkip={() => startSession()}
-          buttonText="Let's Go"
-          onNext={advance}
-        />
+        <TutorialActions skipHref={startHref} buttonText="Let's Go" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -206,12 +201,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             in the source document.
           </p>
         </div>
-        <TutorialActions
-          skipHref={startHref}
-          onSkip={() => startSession()}
-          buttonText="Got It"
-          onNext={advance}
-        />
+        <TutorialActions skipHref={startHref} buttonText="Got It" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -228,12 +218,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
               </p>
               <p>We save copies so you can verify the data even if the original page changes.</p>
             </div>
-            <TutorialActions
-              skipHref={startHref}
-              onSkip={() => startSession()}
-              buttonText="Next"
-              onNext={advance}
-            />
+            <TutorialActions skipHref={startHref} buttonText="Next" onNext={advance} />
           </CenteredCard>
         }
         right={<SourceViewer pageId="tutorial-page-1" apiBasePath="/api/tutorial-pages" />}
@@ -270,12 +255,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                 it.
               </p>
             </div>
-            <TutorialActions
-              skipHref={startHref}
-              onSkip={() => startSession()}
-              buttonText="Next"
-              onNext={advance}
-            />
+            <TutorialActions skipHref={startHref} buttonText="Next" onNext={advance} />
           </CenteredCard>
         }
       />
@@ -340,12 +320,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
                 document.
               </p>
             </div>
-            <TutorialActions
-              skipHref={startHref}
-              onSkip={() => startSession()}
-              buttonText="Next"
-              onNext={advance}
-            />
+            <TutorialActions skipHref={startHref} buttonText="Next" onNext={advance} />
           </CenteredCard>
         }
       />
@@ -359,12 +334,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           Compare the extracted data to the source. If they match, accept. If they don&apos;t,
           reject.
         </p>
-        <TutorialActions
-          skipHref={startHref}
-          onSkip={() => startSession()}
-          buttonText="Let's do it"
-          onNext={advance}
-        />
+        <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -398,7 +368,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
         footer={({ actions }) => (
           <TutorialFooter
             skipHref={startHref}
-            onSkip={() => startSession()}
             isComplete={isStepComplete(actions, evalStep)}
             onSubmit={() => setCheckResult(checkStep(actions, evalStep))}
             onBack={() => setStep(evalStep.backStep)}
@@ -415,12 +384,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           Sometimes information comes from different source documents. Next, try switching between
           these to evaluate all statements.
         </p>
-        <TutorialActions
-          skipHref={startHref}
-          onSkip={() => startSession()}
-          buttonText="Let's do it"
-          onNext={advance}
-        />
+        <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -432,12 +396,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           Specific data is better than generic data. If a more specific version already exists,
           reject the generic extraction.
         </p>
-        <TutorialActions
-          skipHref={startHref}
-          onSkip={() => startSession()}
-          buttonText="Let's do it"
-          onNext={advance}
-        />
+        <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -455,12 +414,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             required to decide on every item.
           </p>
         </div>
-        <TutorialActions
-          skipHref={startHref}
-          onSkip={() => startSession()}
-          buttonText="Got It!"
-          onNext={advance}
-        />
+        <TutorialActions skipHref={startHref} buttonText="Got It!" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -479,12 +433,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             specific information.
           </p>
         </div>
-        <TutorialActions
-          skipHref={startHref}
-          onSkip={() => startSession()}
-          buttonText="Let's Advance"
-          onNext={advance}
-        />
+        <TutorialActions skipHref={startHref} buttonText="Let's Advance" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -496,12 +445,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           Sometimes a source implies data that wasn&apos;t automatically extracted. Next, try adding
           the missing data yourself.
         </p>
-        <TutorialActions
-          skipHref={startHref}
-          onSkip={() => startSession()}
-          buttonText="Let's do it"
-          onNext={advance}
-        />
+        <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -519,12 +463,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             extraction.
           </p>
         </div>
-        <TutorialActions
-          skipHref={startHref}
-          onSkip={() => startSession()}
-          buttonText="Let's do it"
-          onNext={advance}
-        />
+        <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -542,12 +481,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             your new data via PoliLoom, then manually edit Wikidata to preserve the metadata.
           </p>
         </div>
-        <TutorialActions
-          skipHref={startHref}
-          onSkip={() => startSession()}
-          buttonText="Let's do it"
-          onNext={advance}
-        />
+        <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
     )
   }
@@ -565,12 +499,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             valuable. When in doubt, add your data and edit Wikidata manually to preserve it.
           </p>
         </div>
-        <TutorialActions
-          skipHref={startHref}
-          onSkip={() => startSession()}
-          buttonText="Got It!"
-          onNext={advance}
-        />
+        <TutorialActions skipHref={startHref} buttonText="Got It!" onNext={advance} />
       </CenteredCard>
     )
   }

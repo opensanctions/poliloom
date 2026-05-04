@@ -828,6 +828,55 @@ describe('Tutorial Page', () => {
       const skipLink = screen.getByRole('link', { name: 'Skip Tutorial' })
       expect(skipLink).toHaveAttribute('href', '/politician/Q12345')
     })
+
+    it('marks basic tutorial as completed when skipping from basic steps', () => {
+      mockUseSettings.mockReturnValue({
+        ...defaultSettingsContext,
+        settings: settingsWith(),
+      })
+
+      render(<TutorialContent />)
+
+      fireEvent.click(screen.getByRole('link', { name: 'Skip Tutorial' }))
+
+      expect(mockSettingsPatch).toHaveBeenCalledWith({
+        basic_tutorial_completed: true,
+      })
+    })
+
+    it('marks advanced tutorial as completed when skipping from advanced steps in advanced mode', () => {
+      mockUseSettings.mockReturnValue({
+        ...defaultSettingsContext,
+        settings: settingsWith({
+          advanced_mode: true,
+          basic_tutorial_completed: true,
+        }),
+      })
+
+      render(<TutorialContent initialStep={TutorialStep.AdvancedWelcome} />)
+
+      fireEvent.click(screen.getByRole('link', { name: 'Skip Tutorial' }))
+
+      expect(mockSettingsPatch).toHaveBeenCalledWith({
+        advanced_tutorial_completed: true,
+      })
+    })
+
+    it('does not patch settings when skipping if tutorials are already completed', () => {
+      mockUseSettings.mockReturnValue({
+        ...defaultSettingsContext,
+        settings: settingsWith({
+          basic_tutorial_completed: true,
+          advanced_tutorial_completed: true,
+        }),
+      })
+
+      render(<TutorialContent />)
+
+      fireEvent.click(screen.getByRole('link', { name: 'Skip Tutorial' }))
+
+      expect(mockSettingsPatch).not.toHaveBeenCalled()
+    })
   })
 
   describe('Starting from advanced tutorial when basic is completed', () => {

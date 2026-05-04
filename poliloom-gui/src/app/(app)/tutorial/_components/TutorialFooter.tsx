@@ -1,23 +1,19 @@
 import { Button } from '@/components/ui/Button'
+import { useSkipTutorial } from './useSkipTutorial'
 
 interface TutorialFooterProps {
   isComplete: boolean
   onSubmit: () => void
   onBack: () => void
   skipHref?: string
-  onSkip?: () => void
 }
 
-export function TutorialFooter({
-  isComplete,
-  onSubmit,
-  onBack,
-  skipHref,
-  onSkip,
-}: TutorialFooterProps) {
+export function TutorialFooter({ isComplete, onSubmit, onBack, skipHref }: TutorialFooterProps) {
+  const handleSkip = useSkipTutorial()
+
   return (
     <div className="flex justify-between items-center">
-      <Button href={skipHref} variant="secondary" onClick={onSkip} disabled={!skipHref}>
+      <Button href={skipHref} variant="secondary" onClick={handleSkip} disabled={!skipHref}>
         Skip Tutorial
       </Button>
       <div className="flex gap-3">

@@ -91,15 +91,6 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
 
     refetchPolitician()
 
-    // First successful submission implies the user has effectively completed the
-    // tutorial flow — mark whichever tutorials still need it.
-    if (settings && !settings.basic_tutorial_completed) {
-      patch({ basic_tutorial_completed: true })
-    }
-    if (settings && isAdvancedMode && !settings.advanced_tutorial_completed) {
-      patch({ advanced_tutorial_completed: true })
-    }
-
     if (isSessionActive) {
       const { sessionComplete } = submitAndAdvance()
       if (sessionComplete) {
