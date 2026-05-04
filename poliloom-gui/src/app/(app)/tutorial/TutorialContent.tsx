@@ -5,7 +5,12 @@ import { TwoPanel } from '@/components/layout/TwoPanel'
 import { Button } from '@/components/ui/Button'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { HeaderedBox } from '@/components/ui/HeaderedBox'
-import { EvaluationView } from '@/components/evaluation/EvaluationView'
+import {
+  EvaluationView,
+  FooterContext,
+  SourceSelection,
+  findInitialSelection,
+} from '@/components/evaluation/EvaluationView'
 import { PoliticianHeader } from '@/components/evaluation/PoliticianHeader'
 import { SourceViewer } from '@/components/evaluation/SourceViewer'
 import { GroupTitle } from '@/components/evaluation/GroupTitle'
@@ -79,6 +84,29 @@ function checkStep(
   }
 
   return { isCorrect: mistakes.length === 0, mistakes }
+}
+
+function TutorialEvaluationStepView({
+  evalStep,
+  footer,
+}: {
+  evalStep: TutorialEvaluationStep
+  footer: (context: FooterContext) => React.ReactNode
+}) {
+  const [selection, setSelection] = useState<SourceSelection | null>(() =>
+    findInitialSelection(evalStep.politician, []),
+  )
+  return (
+    <EvaluationView
+      politician={evalStep.politician}
+      selection={selection}
+      onSelectionChange={setSelection}
+      footer={footer}
+      sourcesApiPath="/api/tutorial-pages"
+      isAdvancedMode={evalStep.isAdvancedMode}
+      entitySearches={evalStep.entitySearches}
+    />
+  )
 }
 
 // Step ranges
@@ -364,8 +392,9 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       )
     }
     return (
-      <EvaluationView
-        politician={evalStep.politician}
+      <TutorialEvaluationStepView
+        key={evalStep.politician.id}
+        evalStep={evalStep}
         footer={({ actions }) => (
           <TutorialFooter
             skipHref={startHref}
@@ -375,9 +404,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             onBack={() => setStep(evalStep.backStep)}
           />
         )}
-        sourcesApiPath="/api/tutorial-pages"
-        isAdvancedMode={evalStep.isAdvancedMode}
-        entitySearches={evalStep.entitySearches}
       />
     )
   }

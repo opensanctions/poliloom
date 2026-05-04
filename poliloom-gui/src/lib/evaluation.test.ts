@@ -174,6 +174,7 @@ const mockSource: SourceResponse = {
   url_hash: 'abc',
   fetch_timestamp: '2024-01-01T00:00:00Z',
   status: 'done',
+  language_qids: [],
 }
 
 const birthDate: Property = {

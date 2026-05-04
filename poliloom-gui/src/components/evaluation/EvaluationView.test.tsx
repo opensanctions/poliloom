@@ -1,9 +1,25 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { useState, ComponentProps } from 'react'
 import { screen, fireEvent, render } from '@testing-library/react'
 import '@/test/mocks'
-import { EvaluationView } from './EvaluationView'
+import {
+  EvaluationView,
+  SourceSelection,
+  findInitialSelection,
+  findSelectionForSource,
+} from './EvaluationView'
 import type { Politician, SourceResponse } from '@/types'
 import { PropertyType } from '@/types'
+
+type EvaluationViewProps = ComponentProps<typeof EvaluationView>
+type WrapperProps = Omit<EvaluationViewProps, 'selection' | 'onSelectionChange'>
+
+function ControlledEvaluationView(props: WrapperProps) {
+  const [selection, setSelection] = useState<SourceSelection | null>(() =>
+    findInitialSelection(props.politician, []),
+  )
+  return <EvaluationView {...props} selection={selection} onSelectionChange={setSelection} />
+}
 
 const source1: SourceResponse = {
   id: 'archived-1',
@@ -11,6 +27,7 @@ const source1: SourceResponse = {
   url_hash: 'abc',
   fetch_timestamp: '2024-01-01T00:00:00Z',
   status: 'done',
+  language_qids: [],
 }
 
 const source2: SourceResponse = {
@@ -19,6 +36,7 @@ const source2: SourceResponse = {
   url_hash: 'def',
   fetch_timestamp: '2024-02-01T00:00:00Z',
   status: 'done',
+  language_qids: [],
 }
 
 const source3: SourceResponse = {
@@ -27,6 +45,7 @@ const source3: SourceResponse = {
   url_hash: 'ghi',
   fetch_timestamp: '2024-03-01T00:00:00Z',
   status: 'done',
+  language_qids: [],
 }
 
 const politicianWithDifferentSources: Politician = {
@@ -130,7 +149,7 @@ describe('EvaluationView', () => {
   describe('source handling', () => {
     it('auto-loads the first property with a source on mount', () => {
       render(
-        <EvaluationView
+        <ControlledEvaluationView
           politician={politicianWithDifferentSources}
           sourcesApiPath="/api/sources"
           footer={() => <div>Footer</div>}
@@ -147,7 +166,7 @@ describe('EvaluationView', () => {
 
     it('clicking View on a property updates the iframe to show that source', () => {
       render(
-        <EvaluationView
+        <ControlledEvaluationView
           politician={politicianWithDifferentSources}
           sourcesApiPath="/api/sources"
           footer={() => <div>Footer</div>}
@@ -168,7 +187,7 @@ describe('EvaluationView', () => {
 
     it('switching between properties with different sources updates the iframe', () => {
       render(
-        <EvaluationView
+        <ControlledEvaluationView
           politician={politicianWithDifferentSources}
           sourcesApiPath="/api/sources"
           footer={() => <div>Footer</div>}
@@ -193,7 +212,7 @@ describe('EvaluationView', () => {
 
     it('only the active property View button shows "Viewing"', () => {
       render(
-        <EvaluationView
+        <ControlledEvaluationView
           politician={politicianWithDifferentSources}
           sourcesApiPath="/api/sources"
           footer={() => <div>Footer</div>}
@@ -221,7 +240,7 @@ describe('EvaluationView', () => {
 
     it('does not show View button for Wikidata statements even if they have sources', () => {
       render(
-        <EvaluationView
+        <ControlledEvaluationView
           politician={politicianWithEdgeCases}
           sourcesApiPath="/api/sources"
           footer={() => <div>Footer</div>}
@@ -236,7 +255,7 @@ describe('EvaluationView', () => {
   describe('add source', () => {
     it('shows "+ Add Source" button when onAddSource is provided', () => {
       render(
-        <EvaluationView
+        <ControlledEvaluationView
           politician={politicianWithDifferentSources}
           footer={() => <div>Footer</div>}
           onAddSource={async () => {}}
@@ -248,7 +267,7 @@ describe('EvaluationView', () => {
 
     it('does not show "+ Add Source" button when onAddSource is not provided', () => {
       render(
-        <EvaluationView
+        <ControlledEvaluationView
           politician={politicianWithDifferentSources}
           footer={() => <div>Footer</div>}
         />,
@@ -263,7 +282,7 @@ describe('EvaluationView', () => {
         wikidata_id: null,
       }
       render(
-        <EvaluationView
+        <ControlledEvaluationView
           politician={politicianNoQid}
           footer={() => <div>Footer</div>}
           onAddSource={async () => {}}
@@ -275,7 +294,7 @@ describe('EvaluationView', () => {
 
     it('shows add source form when clicking "+ Add Source"', () => {
       render(
-        <EvaluationView
+        <ControlledEvaluationView
           politician={politicianWithDifferentSources}
           footer={() => <div>Footer</div>}
           onAddSource={async () => {}}
@@ -290,7 +309,7 @@ describe('EvaluationView', () => {
 
     it('hides add source form when clicking "Cancel"', () => {
       render(
-        <EvaluationView
+        <ControlledEvaluationView
           politician={politicianWithDifferentSources}
           footer={() => <div>Footer</div>}
           onAddSource={async () => {}}
@@ -308,7 +327,7 @@ describe('EvaluationView', () => {
   describe('advanced mode - add property', () => {
     it('shows add buttons when isAdvancedMode is true', () => {
       render(
-        <EvaluationView
+        <ControlledEvaluationView
           politician={politicianWithDifferentSources}
           footer={() => <div>Footer</div>}
           isAdvancedMode={true}
@@ -322,7 +341,7 @@ describe('EvaluationView', () => {
 
     it('hides add buttons when isAdvancedMode is false', () => {
       render(
-        <EvaluationView
+        <ControlledEvaluationView
           politician={politicianWithDifferentSources}
           footer={() => <div>Footer</div>}
           isAdvancedMode={false}
@@ -335,7 +354,7 @@ describe('EvaluationView', () => {
 
     it('opens add form when add button is clicked', () => {
       render(
-        <EvaluationView
+        <ControlledEvaluationView
           politician={politicianWithDifferentSources}
           footer={() => <div>Footer</div>}
           isAdvancedMode={true}
@@ -347,5 +366,192 @@ describe('EvaluationView', () => {
       // The add button should be replaced by the form
       expect(screen.queryByText('+ Add Date')).not.toBeInTheDocument()
     })
+  })
+})
+
+describe('findInitialSelection', () => {
+  const enSource: SourceResponse = {
+    id: 'src-en',
+    url: 'https://en.example.com',
+    url_hash: 'h1',
+    fetch_timestamp: '2024-01-01T00:00:00Z',
+    status: 'done',
+    language_qids: ['Q1860'],
+  }
+  const frSource: SourceResponse = {
+    id: 'src-fr',
+    url: 'https://fr.example.com',
+    url_hash: 'h2',
+    fetch_timestamp: '2024-01-01T00:00:00Z',
+    status: 'done',
+    language_qids: ['Q150'],
+  }
+
+  function makePolitician(props: Politician['properties']): Politician {
+    return {
+      id: 'p',
+      name: 'Test',
+      wikidata_id: 'Q1',
+      sources: [enSource, frSource],
+      properties: props,
+    }
+  }
+
+  it('prefers a property whose first source matches the user language', () => {
+    const politician = makePolitician([
+      {
+        id: 'p1',
+        type: PropertyType.P569,
+        value: '+1990-01-01T00:00:00Z',
+        statement_id: null,
+        sources: [{ id: 'r1', source: enSource, supporting_quotes: ['en quote'] }],
+      },
+      {
+        id: 'p2',
+        type: PropertyType.P570,
+        value: '+1990-02-02T00:00:00Z',
+        statement_id: null,
+        sources: [{ id: 'r2', source: frSource, supporting_quotes: ['fr quote'] }],
+      },
+    ])
+    const selection = findInitialSelection(politician, ['Q150'])
+    expect(selection?.source.id).toBe('src-fr')
+    expect(selection?.quotes).toEqual(['fr quote'])
+  })
+
+  it('falls back to the first non-statement property when no language matches', () => {
+    const politician = makePolitician([
+      {
+        id: 'p1',
+        type: PropertyType.P569,
+        value: '+1990-01-01T00:00:00Z',
+        statement_id: null,
+        sources: [{ id: 'r1', source: enSource, supporting_quotes: ['en quote'] }],
+      },
+    ])
+    const selection = findInitialSelection(politician, ['Q150'])
+    expect(selection?.source.id).toBe('src-en')
+  })
+
+  it('uses fallback when languageQids is empty', () => {
+    const politician = makePolitician([
+      {
+        id: 'p1',
+        type: PropertyType.P569,
+        value: '+1990-01-01T00:00:00Z',
+        statement_id: null,
+        sources: [{ id: 'r1', source: enSource, supporting_quotes: ['en quote'] }],
+      },
+    ])
+    const selection = findInitialSelection(politician, [])
+    expect(selection?.source.id).toBe('src-en')
+  })
+
+  it('skips statement properties even when they match by language', () => {
+    const politician = makePolitician([
+      {
+        id: 'p1',
+        type: PropertyType.P569,
+        value: '+1990-01-01T00:00:00Z',
+        statement_id: 'Q1$existing',
+        sources: [{ id: 'r1', source: frSource, supporting_quotes: ['skip me'] }],
+      },
+      {
+        id: 'p2',
+        type: PropertyType.P570,
+        value: '+2000-01-01T00:00:00Z',
+        statement_id: null,
+        sources: [{ id: 'r2', source: enSource, supporting_quotes: ['en'] }],
+      },
+    ])
+    const selection = findInitialSelection(politician, ['Q150'])
+    expect(selection?.source.id).toBe('src-en')
+  })
+
+  it('returns null when no non-statement property has sources', () => {
+    const politician = makePolitician([
+      {
+        id: 'p1',
+        type: PropertyType.P569,
+        value: '+1990-01-01T00:00:00Z',
+        statement_id: 'Q1$existing',
+        sources: [{ id: 'r1', source: enSource, supporting_quotes: ['x'] }],
+      },
+    ])
+    expect(findInitialSelection(politician, [])).toBeNull()
+  })
+})
+
+describe('findSelectionForSource', () => {
+  const src: SourceResponse = {
+    id: 'src-1',
+    url: 'https://example.com',
+    url_hash: 'h',
+    fetch_timestamp: '2024-01-01T00:00:00Z',
+    status: 'done',
+    language_qids: [],
+  }
+  const otherSrc: SourceResponse = {
+    id: 'src-2',
+    url: 'https://other.com',
+    url_hash: 'h2',
+    fetch_timestamp: '2024-01-01T00:00:00Z',
+    status: 'done',
+    language_qids: [],
+  }
+
+  it('returns the source with quotes from the first matching property ref', () => {
+    const politician: Politician = {
+      id: 'p',
+      name: 'Test',
+      wikidata_id: 'Q1',
+      sources: [src],
+      properties: [
+        {
+          id: 'p1',
+          type: PropertyType.P569,
+          value: '+1990-01-01T00:00:00Z',
+          statement_id: null,
+          sources: [
+            { id: 'r1', source: otherSrc, supporting_quotes: ['skip'] },
+            { id: 'r2', source: src, supporting_quotes: ['first match'] },
+          ],
+        },
+        {
+          id: 'p2',
+          type: PropertyType.P570,
+          value: '+2000-01-01T00:00:00Z',
+          statement_id: null,
+          sources: [{ id: 'r3', source: src, supporting_quotes: ['second match'] }],
+        },
+      ],
+    }
+    const selection = findSelectionForSource(politician, 'src-1')
+    expect(selection?.source.id).toBe('src-1')
+    expect(selection?.quotes).toEqual(['first match'])
+  })
+
+  it('returns the source with null quotes when present in politician.sources but no property links to it', () => {
+    const politician: Politician = {
+      id: 'p',
+      name: 'Test',
+      wikidata_id: 'Q1',
+      sources: [src],
+      properties: [],
+    }
+    const selection = findSelectionForSource(politician, 'src-1')
+    expect(selection?.source.id).toBe('src-1')
+    expect(selection?.quotes).toBeNull()
+  })
+
+  it('returns null when the source is not in politician.sources', () => {
+    const politician: Politician = {
+      id: 'p',
+      name: 'Test',
+      wikidata_id: 'Q1',
+      sources: [],
+      properties: [],
+    }
+    expect(findSelectionForSource(politician, 'unknown')).toBeNull()
   })
 })

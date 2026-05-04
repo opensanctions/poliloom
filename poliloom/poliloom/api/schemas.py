@@ -2,7 +2,16 @@
 
 from typing import Annotated, List, Literal, Optional, Dict, Any, Union
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, Discriminator, Tag, field_serializer
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Discriminator,
+    Field,
+    Tag,
+    field_serializer,
+    field_validator,
+)
 from datetime import datetime
 from ..models import PropertyType
 
@@ -27,6 +36,28 @@ class SourceResponse(UUIDBaseModel):
     status: str
     error: Optional[str] = None
     http_status_code: Optional[int] = None
+    language_qids: List[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("language_qids", "source_languages"),
+    )
+
+    @field_validator("language_qids", mode="before")
+    @classmethod
+    def extract_language_qids(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, list) and v and hasattr(v[0], "language_id"):
+            return [link.language_id for link in v]
+        return v
+
+    @field_validator("status", "error", mode="before")
+    @classmethod
+    def coerce_enum_value(cls, v):
+        if v is None:
+            return None
+        if hasattr(v, "value"):
+            return v.value
+        return v
 
 
 class PropertyReferenceResponse(UUIDBaseModel):

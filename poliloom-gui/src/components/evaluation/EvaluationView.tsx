@@ -33,18 +33,53 @@ import { PoliticianHeader } from './PoliticianHeader'
 import { SourceViewer } from './SourceViewer'
 import { SourcesSection } from './SourcesSection'
 
-interface SourceSelection {
+export interface SourceSelection {
   source: SourceResponse
   quotes: string[] | null
 }
 
-function findInitialSource(politician: Politician): SourceSelection | null {
+export function findInitialSelection(
+  politician: Politician,
+  languageQids: string[],
+): SourceSelection | null {
+  if (languageQids.length > 0) {
+    const langSet = new Set(languageQids)
+    const prop = politician.properties.find(
+      (p) =>
+        !p.statement_id &&
+        p.sources.length > 0 &&
+        p.sources[0].source &&
+        p.sources[0].source.language_qids.some((qid) => langSet.has(qid)),
+    )
+    if (prop) {
+      const ref = prop.sources[0]
+      return { source: ref.source, quotes: ref.supporting_quotes ?? null }
+    }
+  }
+
   const prop = politician.properties.find((p) => p.sources.length > 0 && !p.statement_id)
   if (prop) {
     const ref = prop.sources[0]
     if (ref.source) return { source: ref.source, quotes: ref.supporting_quotes ?? null }
   }
   return null
+}
+
+export function findSelectionForSource(
+  politician: Politician,
+  sourceId: string,
+): SourceSelection | null {
+  const source = politician.sources.find((s) => s.id === sourceId)
+  if (!source) return null
+
+  for (const prop of politician.properties) {
+    const ref = prop.sources.find((r) => r.source.id === sourceId)
+    if (ref) {
+      return { source, quotes: ref.supporting_quotes ?? null }
+    }
+  }
+
+  return { source, quotes: null }
 }
 
 export interface FooterContext {
@@ -55,6 +90,8 @@ export interface FooterContext {
 
 interface EvaluationViewProps {
   politician: Politician
+  selection: SourceSelection | null
+  onSelectionChange: (selection: SourceSelection | null) => void
   onSubmit?: (actions: PropertyActionItem[]) => Promise<void>
   footer: (context: FooterContext) => ReactNode
   sourcesApiPath?: string
@@ -66,6 +103,8 @@ interface EvaluationViewProps {
 
 export function EvaluationView({
   politician,
+  selection,
+  onSelectionChange,
   onSubmit,
   footer,
   sourcesApiPath = '/api/sources',
@@ -87,10 +126,6 @@ export function EvaluationView({
       .map((a) => createPropertyFromAction(a))
     return [...originals, ...added]
   }, [politician, actions])
-
-  const [selection, setSelection] = useState<SourceSelection | null>(() =>
-    findInitialSource(politician),
-  )
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const propertiesRef = useRef<HTMLDivElement | null>(null)
@@ -130,17 +165,18 @@ export function EvaluationView({
     }
   }, [onSubmit, actions])
 
-  const handleViewSource = useCallback((source: SourceResponse, quotes?: string[]) => {
-    setSelection({ source, quotes: quotes ?? null })
-  }, [])
+  const handleViewSource = useCallback(
+    (source: SourceResponse, quotes?: string[]) => {
+      onSelectionChange({ source, quotes: quotes ?? null })
+    },
+    [onSelectionChange],
+  )
 
   const handlePropertyHover = (property: Property) => {
-    setSelection((prev) => {
-      if (!prev) return prev
-      const matchingRef = property.sources.find((s) => prev.source.id === s.source.id)
-      if (!matchingRef?.supporting_quotes?.length) return prev
-      return { ...prev, quotes: matchingRef.supporting_quotes }
-    })
+    if (!selection) return
+    const matchingRef = property.sources.find((s) => selection.source.id === s.source.id)
+    if (!matchingRef?.supporting_quotes?.length) return
+    onSelectionChange({ ...selection, quotes: matchingRef.supporting_quotes })
   }
 
   const activeSourceId = selection?.source.id ?? null

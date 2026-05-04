@@ -1,19 +1,27 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Politician,
   PatchPropertiesRequest,
   PatchPropertiesResponse,
   PropertyActionItem,
+  SourceResponse,
 } from '@/types'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useFilters } from '@/contexts/FilterContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { useEventStream } from '@/contexts/EventStreamContext'
 import { Button } from '@/components/ui/Button'
-import { EvaluationView, FooterContext } from '@/components/evaluation/EvaluationView'
+import {
+  EvaluationView,
+  FooterContext,
+  SourceSelection,
+  findInitialSelection,
+  findSelectionForSource,
+} from '@/components/evaluation/EvaluationView'
 
 interface PoliticianEvaluationProps {
   politician: Politician
@@ -23,26 +31,42 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
   const router = useRouter()
   const { isSessionActive, completedCount, sessionGoal, submitAndAdvance } = useEvaluationSession()
   const { settings, patch } = useSettings()
+  const { languageQids } = useFilters()
   const statsUnlocked = settings?.stats_unlocked ?? false
   const isAdvancedMode = settings?.advanced_mode ?? false
   const { nextHref, loading: nextLoading } = useNextPoliticianContext()
   const [politician, setPolitician] = useState<Politician>(initialPolitician)
+  const [selection, setSelection] = useState<SourceSelection | null>(() =>
+    findInitialSelection(initialPolitician, languageQids),
+  )
+  const pendingSourceIdsRef = useRef<Set<string>>(new Set())
 
-  const refetchPolitician = useCallback(() => {
-    fetch(`/api/politicians/${politician.wikidata_id}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: Politician | null) => {
-        if (data) setPolitician(data)
-      })
-      .catch(() => {})
+  const refetchPolitician = useCallback(async (): Promise<Politician | null> => {
+    try {
+      const res = await fetch(`/api/politicians/${politician.wikidata_id}`)
+      if (!res.ok) return null
+      const data: Politician = await res.json()
+      setPolitician(data)
+      return data
+    } catch {
+      return null
+    }
   }, [politician.wikidata_id])
 
-  // Refetch politician data on source status changes
   useEventStream(
     'source_status',
-    (event) => {
+    async (event) => {
       if (!event.politician_ids.includes(politician.id)) return
-      refetchPolitician()
+      if (event.status !== 'done') {
+        refetchPolitician()
+        return
+      }
+      const updated = await refetchPolitician()
+      if (!updated) return
+      if (!pendingSourceIdsRef.current.has(event.source_id)) return
+      pendingSourceIdsRef.current.delete(event.source_id)
+      const next = findSelectionForSource(updated, event.source_id)
+      if (next) setSelection(next)
     },
     [politician.id, refetchPolitician],
   )
@@ -129,6 +153,8 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
   return (
     <EvaluationView
       politician={politician}
+      selection={selection}
+      onSelectionChange={setSelection}
       onSubmit={handleSubmit}
       footer={footer}
       isAdvancedMode={isAdvancedMode}
@@ -142,7 +168,8 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
           const data = await response.json().catch(() => null)
           throw new Error(data?.detail || `Failed to add source: ${response.statusText}`)
         }
-        await response.json()
+        const created: SourceResponse = await response.json()
+        pendingSourceIdsRef.current.add(created.id)
         refetchPolitician()
       }}
     />

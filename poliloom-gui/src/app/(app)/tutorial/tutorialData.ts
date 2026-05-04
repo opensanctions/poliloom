@@ -63,6 +63,7 @@ const page1: SourceResponse = {
   url_hash: 'tutorial-hash-1',
   fetch_timestamp: '2024-01-15T10:00:00Z',
   status: 'done',
+  language_qids: [],
 }
 
 const page2: SourceResponse = {
@@ -71,6 +72,7 @@ const page2: SourceResponse = {
   url_hash: 'tutorial-hash-2',
   fetch_timestamp: '2024-01-15T10:00:00Z',
   status: 'done',
+  language_qids: [],
 }
 
 const page3: SourceResponse = {
@@ -79,6 +81,7 @@ const page3: SourceResponse = {
   url_hash: 'tutorial-hash-3',
   fetch_timestamp: '2024-01-15T10:00:00Z',
   status: 'done',
+  language_qids: [],
 }
 
 export const tutorialSources = { page1, page2, page3 }

@@ -13,6 +13,7 @@ const mockSource = {
   url_hash: 'abc123',
   fetch_timestamp: '2024-01-01T00:00:00Z',
   status: 'done' as const,
+  language_qids: [] as string[],
 }
 
 const baseProperty: Property = {

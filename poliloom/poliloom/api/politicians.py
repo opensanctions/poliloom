@@ -77,15 +77,7 @@ def build_politician_response(politician) -> PoliticianResponse:
             refs.append(
                 PropertyReferenceResponse(
                     id=ref.id,
-                    source=SourceResponse(
-                        id=source.id,
-                        url=source.url,
-                        url_hash=source.url_hash,
-                        fetch_timestamp=source.fetch_timestamp,
-                        status=source.status.value,
-                        error=source.error.value if source.error else None,
-                        http_status_code=source.http_status_code,
-                    ),
+                    source=SourceResponse.model_validate(source),
                     supporting_quotes=ref.supporting_quotes,
                 )
             )
@@ -109,18 +101,7 @@ def build_politician_response(politician) -> PoliticianResponse:
         id=politician.id,
         name=politician.name,
         wikidata_id=politician.wikidata_id,
-        sources=[
-            SourceResponse(
-                id=s.id,
-                url=s.url,
-                url_hash=s.url_hash,
-                fetch_timestamp=s.fetch_timestamp,
-                status=s.status.value,
-                error=s.error.value if s.error else None,
-                http_status_code=s.http_status_code,
-            )
-            for s in politician.sources
-        ],
+        sources=[SourceResponse.model_validate(s) for s in politician.sources],
         properties=property_responses,
     )
 
@@ -339,11 +320,11 @@ async def get_politician(
         query = query.options(
             selectinload(Politician.properties.and_(property_filter)).options(
                 selectinload(Property.entity),
-                selectinload(Property.property_references).selectinload(
-                    PropertyReference.source
-                ),
+                selectinload(Property.property_references)
+                .selectinload(PropertyReference.source)
+                .selectinload(Source.source_languages),
             ),
-            selectinload(Politician.sources),
+            selectinload(Politician.sources).selectinload(Source.source_languages),
         )
     else:
         query = query.options(
@@ -351,11 +332,11 @@ async def get_politician(
                 Politician.properties.and_(Property.deleted_at.is_(None))
             ).options(
                 selectinload(Property.entity),
-                selectinload(Property.property_references).selectinload(
-                    PropertyReference.source
-                ),
+                selectinload(Property.property_references)
+                .selectinload(PropertyReference.source)
+                .selectinload(Source.source_languages),
             ),
-            selectinload(Politician.sources),
+            selectinload(Politician.sources).selectinload(Source.source_languages),
         )
 
     query = query.execution_options(populate_existing=True)
@@ -569,4 +550,5 @@ async def create_source(
         id=source.id,
         url=source.url,
         status=source.status.value,
+        language_qids=[],
     )

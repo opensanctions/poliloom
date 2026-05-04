@@ -8,6 +8,7 @@ export interface SourceResponse {
   status: SourceStatus
   error?: string | null
   http_status_code?: number | null
+  language_qids: string[]
 }
 
 export enum PropertyType {
