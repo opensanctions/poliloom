@@ -88,7 +88,7 @@ describe('SettingsContext', () => {
       expect(fetch).not.toHaveBeenCalled()
     })
 
-    it('reverts to snapshot on PATCH failure', async () => {
+    it('keeps optimistic state on PATCH failure', async () => {
       const { result } = renderHook(() => useSettings(), {
         wrapper: ({ children }) => (
           <SettingsProvider initialSettings={SETTINGS}>{children}</SettingsProvider>
@@ -100,7 +100,8 @@ describe('SettingsContext', () => {
         await result.current.patch({ advanced_mode: true })
       })
 
-      expect(result.current.settings).toEqual(SETTINGS)
+      // Optimistic update stays in place; user-facing error handling is TODO.
+      expect(result.current.settings).toEqual({ ...SETTINGS, advanced_mode: true })
     })
 
     it('replaces state with server response on success', async () => {
@@ -121,6 +122,27 @@ describe('SettingsContext', () => {
         advanced_mode: true,
         stats_unlocked: true,
       })
+    })
+
+    it('sends a request every time patch is called', async () => {
+      const { result } = renderHook(() => useSettings(), {
+        wrapper: ({ children }) => (
+          <SettingsProvider initialSettings={SETTINGS}>{children}</SettingsProvider>
+        ),
+      })
+
+      mockPatchOk({ ...SETTINGS, advanced_mode: true })
+      await act(async () => {
+        await result.current.patch({ advanced_mode: true })
+      })
+
+      mockPatchOk({ ...SETTINGS, advanced_mode: false })
+      await act(async () => {
+        await result.current.patch({ advanced_mode: false })
+      })
+
+      expect(fetch).toHaveBeenCalledTimes(2)
+      expect(result.current.settings?.advanced_mode).toBe(false)
     })
   })
 })
