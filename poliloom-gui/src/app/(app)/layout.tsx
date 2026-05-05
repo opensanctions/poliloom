@@ -14,8 +14,8 @@ import { getSettings, getEvaluationCount, getLanguages } from '@/lib/api-auth'
 import {
   FILTER_COUNTRIES_COOKIE,
   FILTER_LANGUAGES_COOKIE,
-  parseFilterCookieValue,
-} from '@/lib/filterCookies'
+  deserializeFilterCookieValue,
+} from '@/lib/cookies'
 import { detectAcceptLanguage } from '@/lib/detectAcceptLanguage'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -33,9 +33,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const langCookie = cookieStore.get(FILTER_LANGUAGES_COOKIE)?.value
   const initialLanguageQids =
     langCookie !== undefined
-      ? parseFilterCookieValue(langCookie)
+      ? deserializeFilterCookieValue(langCookie)
       : detectAcceptLanguage(headerStore.get('accept-language'), languages)
-  const initialCountryQids = parseFilterCookieValue(cookieStore.get(FILTER_COUNTRIES_COOKIE)?.value)
+  const initialCountryQids = deserializeFilterCookieValue(
+    cookieStore.get(FILTER_COUNTRIES_COOKIE)?.value,
+  )
 
   return (
     <SettingsProvider initialSettings={settings}>

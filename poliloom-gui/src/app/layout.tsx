@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
+import { THEME_COOKIE, deserializeThemeCookieValue } from '@/lib/cookies'
 import './globals.css'
 import { auth } from '@/auth'
 import { SessionProvider } from '@/components/SessionProvider'
@@ -24,8 +25,8 @@ export default async function RootLayout({
 }>) {
   const session = await auth()
   const cookieStore = await cookies()
-  const themeCookie = cookieStore.get('poliloom_theme')?.value
-  const themeClass = themeCookie === 'light' || themeCookie === 'dark' ? themeCookie : ''
+  const themeCookie = deserializeThemeCookieValue(cookieStore.get(THEME_COOKIE)?.value)
+  const themeClass = themeCookie ?? ''
 
   return (
     <html lang="en" className={themeClass} suppressHydrationWarning>

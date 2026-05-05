@@ -1,4 +1,43 @@
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
+import {
+  FILTER_LANGUAGES_COOKIE,
+  FILTER_COUNTRIES_COOKIE,
+  serializeFilterCookieValue,
+} from './lib/cookies'
+
+const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365
+
+function getQidsFromParam(request: NextRequest, key: string): string[] | null {
+  if (!request.nextUrl.searchParams.has(key)) {
+    return null
+  }
+  const values = request.nextUrl.searchParams.getAll(key)
+  if (values.length === 1 && values[0] === '') {
+    return []
+  }
+  return values.filter((v) => v !== '')
+}
+
+export function applyFilterCookies(request: NextRequest, response: NextResponse) {
+  const languages = getQidsFromParam(request, 'languages')
+  if (languages !== null) {
+    response.cookies.set(FILTER_LANGUAGES_COOKIE, serializeFilterCookieValue(languages), {
+      path: '/',
+      sameSite: 'lax',
+      maxAge: ONE_YEAR_SECONDS,
+    })
+  }
+
+  const countries = getQidsFromParam(request, 'countries')
+  if (countries !== null) {
+    response.cookies.set(FILTER_COUNTRIES_COOKIE, serializeFilterCookieValue(countries), {
+      path: '/',
+      sameSite: 'lax',
+      maxAge: ONE_YEAR_SECONDS,
+    })
+  }
+}
 
 export default auth((req) => {
   const isAuthenticated = !!req.auth && !req.auth.error
@@ -8,13 +47,21 @@ export default auth((req) => {
   if (!isAuthenticated && pathname !== '/login') {
     const loginUrl = new URL('/login', req.nextUrl.origin)
     loginUrl.searchParams.set('redirect', req.nextUrl.pathname + req.nextUrl.search)
-    return Response.redirect(loginUrl)
+    const response = NextResponse.redirect(loginUrl)
+    applyFilterCookies(req, response)
+    return response
   }
 
   // Redirect authenticated users without a Wikidata account to setup
   if (isAuthenticated && !req.auth?.hasWikidataAccount && pathname !== '/setup') {
-    return Response.redirect(new URL('/setup', req.nextUrl.origin))
+    const response = NextResponse.redirect(new URL('/setup', req.nextUrl.origin))
+    applyFilterCookies(req, response)
+    return response
   }
+
+  const response = NextResponse.next({ request: { headers: req.headers } })
+  applyFilterCookies(req, response)
+  return response
 })
 
 export const config = {

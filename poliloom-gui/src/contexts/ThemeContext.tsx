@@ -1,17 +1,16 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useCallback } from 'react'
-import { hasCookie, setCookie } from '@/lib/cookies'
+import { readThemeCookie, writeThemeCookie } from '@/lib/cookies'
+import type { Theme } from '@/lib/cookies'
 
 interface ThemeContextType {
-  setTheme: (theme: 'light' | 'dark') => void
+  setTheme: (theme: Theme) => void
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
-const THEME_COOKIE_NAME = 'poliloom_theme'
-
-function applyThemeToDocument(theme: 'light' | 'dark') {
+function applyThemeToDocument(theme: Theme) {
   if (typeof document === 'undefined') return
   const root = document.documentElement
   root.classList.remove('light', 'dark')
@@ -19,15 +18,15 @@ function applyThemeToDocument(theme: 'light' | 'dark') {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const setTheme = useCallback((newTheme: 'light' | 'dark') => {
-    setCookie(THEME_COOKIE_NAME, newTheme)
+  const setTheme = useCallback((newTheme: Theme) => {
+    writeThemeCookie(newTheme)
     applyThemeToDocument(newTheme)
   }, [])
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const handleChange = (e: MediaQueryListEvent) => {
-      if (!hasCookie(THEME_COOKIE_NAME)) {
+      if (readThemeCookie() === null) {
         applyThemeToDocument(e.matches ? 'dark' : 'light')
       }
     }

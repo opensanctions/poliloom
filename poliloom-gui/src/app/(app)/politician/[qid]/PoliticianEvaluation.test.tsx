@@ -13,8 +13,6 @@ import { PoliticianEvaluation } from './PoliticianEvaluation'
 import type { SourceResponse, Politician } from '@/types'
 import { PropertyType } from '@/types'
 
-vi.spyOn(console, 'error').mockImplementation(() => {})
-
 const testSource: SourceResponse = {
   id: 'archived-1',
   url: 'https://en.wikipedia.org/wiki/Test',

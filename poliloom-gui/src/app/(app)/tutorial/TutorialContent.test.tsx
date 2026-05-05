@@ -837,7 +837,9 @@ describe('Tutorial Page', () => {
 
       render(<TutorialContent />)
 
-      fireEvent.click(screen.getByRole('link', { name: 'Skip Tutorial' }))
+      const skipLink = screen.getByRole('link', { name: 'Skip Tutorial' })
+      skipLink.addEventListener('click', (e) => e.preventDefault())
+      fireEvent.click(skipLink)
 
       expect(mockSettingsPatch).toHaveBeenCalledWith({
         basic_tutorial_completed: true,
@@ -855,7 +857,9 @@ describe('Tutorial Page', () => {
 
       render(<TutorialContent initialStep={TutorialStep.AdvancedWelcome} />)
 
-      fireEvent.click(screen.getByRole('link', { name: 'Skip Tutorial' }))
+      const skipLink = screen.getByRole('link', { name: 'Skip Tutorial' })
+      skipLink.addEventListener('click', (e) => e.preventDefault())
+      fireEvent.click(skipLink)
 
       expect(mockSettingsPatch).toHaveBeenCalledWith({
         advanced_tutorial_completed: true,
@@ -873,7 +877,9 @@ describe('Tutorial Page', () => {
 
       render(<TutorialContent />)
 
-      fireEvent.click(screen.getByRole('link', { name: 'Skip Tutorial' }))
+      const skipLink = screen.getByRole('link', { name: 'Skip Tutorial' })
+      skipLink.addEventListener('click', (e) => e.preventDefault())
+      fireEvent.click(skipLink)
 
       expect(mockSettingsPatch).not.toHaveBeenCalled()
     })

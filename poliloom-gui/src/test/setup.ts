@@ -20,7 +20,9 @@ const localStorageMock = (() => {
     }),
   }
 })()
-Object.defineProperty(window, 'localStorage', { value: localStorageMock, writable: true })
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'localStorage', { value: localStorageMock, writable: true })
+}
 
 // Mock next-auth/react — defaults to authenticated.
 // restoreMocks only affects vi.spyOn(), not vi.fn() (https://vitest.dev/api/vi.html),
@@ -40,25 +42,27 @@ vi.mock('@/auth', () => ({
 
 // --- CSS Custom Highlight API polyfills ---
 
-global.CSS = {
-  highlights: new Map(),
-} as typeof CSS
+if (typeof window !== 'undefined') {
+  global.CSS = {
+    highlights: new Map(),
+  } as typeof CSS
 
-global.Highlight = class MockHighlight {
-  private ranges: Range[]
+  global.Highlight = class MockHighlight {
+    private ranges: Range[]
 
-  constructor(...ranges: Range[]) {
-    this.ranges = ranges
-  }
+    constructor(...ranges: Range[]) {
+      this.ranges = ranges
+    }
 
-  get size() {
-    return this.ranges.length
-  }
+    get size() {
+      return this.ranges.length
+    }
 
-  values() {
-    return this.ranges[Symbol.iterator]()
-  }
-} as unknown as typeof Highlight
+    values() {
+      return this.ranges[Symbol.iterator]()
+    }
+  } as unknown as typeof Highlight
+}
 
 // Neither fetch nor EventSource exist in jsdom, so vi.spyOn is not possible.
 global.fetch = vi.fn()

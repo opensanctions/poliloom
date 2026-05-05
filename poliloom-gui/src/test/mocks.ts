@@ -5,6 +5,7 @@ import type { UserSettings } from '@/types'
 
 // next/navigation
 export const mockRouterPush = vi.fn()
+export const mockRouterReplace = vi.fn()
 export const mockRouterPrefetch = vi.fn()
 export const mockUseParams = vi.fn()
 export const mockUsePathname = vi.fn()
@@ -48,7 +49,7 @@ vi.mock('@/hooks/useIframeHighlighting', () => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockRouterPush,
-    replace: vi.fn(),
+    replace: mockRouterReplace,
     back: vi.fn(),
     forward: vi.fn(),
     refresh: vi.fn(),

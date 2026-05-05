@@ -89,6 +89,8 @@ describe('SettingsContext', () => {
     })
 
     it('keeps optimistic state on PATCH failure', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+
       const { result } = renderHook(() => useSettings(), {
         wrapper: ({ children }) => (
           <SettingsProvider initialSettings={SETTINGS}>{children}</SettingsProvider>
