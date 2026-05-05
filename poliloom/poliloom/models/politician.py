@@ -289,6 +289,15 @@ class Politician(
         # CTE 2: Politician-language citizenship matches
         # Pre-compute which (politician, language) pairs have a citizenship match
         # by joining citizenships with official languages
+        # When countries is provided, scope to those countries for early filtering
+        citizenship_where = [
+            Property.type == PropertyType.CITIZENSHIP,
+            Property.entity_id.isnot(None),
+            Property.deleted_at.is_(None),
+        ]
+        if countries:
+            citizenship_where.append(Property.entity_id.in_(countries))
+
         citizenship_language_matches = (
             select(
                 Property.politician_id.label("politician_id"),
@@ -303,13 +312,7 @@ class Politician(
                     WikidataRelation.deleted_at.is_(None),
                 ),
             )
-            .where(
-                and_(
-                    Property.type == PropertyType.CITIZENSHIP,
-                    Property.entity_id.isnot(None),
-                    Property.deleted_at.is_(None),
-                )
-            )
+            .where(and_(*citizenship_where))
             .distinct()
             .cte("citizenship_language_matches")
         )
