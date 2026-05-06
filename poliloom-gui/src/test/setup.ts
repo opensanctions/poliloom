@@ -1,8 +1,9 @@
 import '@testing-library/jest-dom'
 import { vi, beforeEach } from 'vitest'
 import { useSession } from 'next-auth/react'
+import { loadEnvConfig } from '@next/env'
 
-process.env.API_BASE_URL = 'http://localhost:8000'
+loadEnvConfig(process.cwd())
 
 // Mock localStorage
 const localStorageMock = (() => {

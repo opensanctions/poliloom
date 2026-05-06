@@ -103,7 +103,7 @@ describe('api-auth', () => {
       const response = await proxyToBackend(request, '/api/v1/test')
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/test',
+        `${process.env.API_BASE_URL}/api/v1/test`,
         expect.objectContaining({ method: 'GET' }),
       )
       expect(response.status).toBe(200)
@@ -122,7 +122,7 @@ describe('api-auth', () => {
       await proxyToBackend(request, '/api/v1/test')
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/test?page=2&limit=10',
+        `${process.env.API_BASE_URL}/api/v1/test?page=2&limit=10`,
         expect.anything(),
       )
     })
@@ -144,7 +144,7 @@ describe('api-auth', () => {
       await proxyToBackend(request, '/api/v1/test')
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/test',
+        `${process.env.API_BASE_URL}/api/v1/test`,
         expect.objectContaining({
           method: 'POST',
           body: '{"name":"test"}',
@@ -172,7 +172,7 @@ describe('api-auth', () => {
       await proxyToBackend(request, '/api/v1/test')
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v1/test',
+        `${process.env.API_BASE_URL}/api/v1/test`,
         expect.objectContaining({
           method: 'PATCH',
           body: '{"status":"active"}',
