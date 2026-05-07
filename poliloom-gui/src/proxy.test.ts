@@ -3,10 +3,14 @@ import { describe, it, expect, vi } from 'vitest'
 import { NextRequest, NextResponse } from 'next/server'
 
 vi.mock('@/auth', () => ({
-  auth: (fn: any) => fn,
+  auth: (fn: any) => (req: any) => {
+    req.auth = { hasWikidataAccount: true }
+    return fn(req)
+  },
 }))
 
 import { applyFilterCookies } from './proxy'
+import middleware, { config } from './proxy'
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365
 
@@ -91,5 +95,55 @@ describe('filter cookies', () => {
     expect(setCookie).toContain('SameSite=lax')
     expect(setCookie).toContain(`Max-Age=${ONE_YEAR_SECONDS}`)
     expect(setCookie).toContain(encodeURIComponent('Q1860'))
+  })
+})
+
+describe('middleware URL rewriting', () => {
+  function callMiddleware(url: string) {
+    const request = createRequest(url)
+    return (middleware as any)(request) as NextResponse
+  }
+
+  it('redirects to clean URL when filter params present', () => {
+    const response = callMiddleware('http://localhost:3000/?countries=Q30')
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe('http://localhost:3000/')
+  })
+
+  it('preserves non-filter query params', () => {
+    const response = callMiddleware('http://localhost:3000/?countries=Q30&foo=bar')
+    expect(response.headers.get('location')).toBe('http://localhost:3000/?foo=bar')
+  })
+
+  it('redirects on non-root routes', () => {
+    const response = callMiddleware('http://localhost:3000/politician/Q123?languages=Q1860')
+    expect(response.headers.get('location')).toBe('http://localhost:3000/politician/Q123')
+  })
+
+  it('does not redirect when no filter params present', () => {
+    const response = callMiddleware('http://localhost:3000/')
+    expect(response.status).not.toBe(307)
+  })
+})
+
+describe('middleware matcher', () => {
+  const matcher = new RegExp(`^${config.matcher[0]}$`)
+
+  it('skips /api/* routes so filter params reach the proxy untouched', () => {
+    expect(matcher.test('/api/politicians/next')).toBe(false)
+    expect(matcher.test('/api/auth/callback')).toBe(false)
+    expect(matcher.test('/api/entities/search')).toBe(false)
+  })
+
+  it('skips Next.js internals and favicon', () => {
+    expect(matcher.test('/_next/static/chunks/main.js')).toBe(false)
+    expect(matcher.test('/_next/image')).toBe(false)
+    expect(matcher.test('/favicon.ico')).toBe(false)
+  })
+
+  it('runs on user-facing routes', () => {
+    expect(matcher.test('/')).toBe(true)
+    expect(matcher.test('/politician/Q123')).toBe(true)
+    expect(matcher.test('/login')).toBe(true)
   })
 })

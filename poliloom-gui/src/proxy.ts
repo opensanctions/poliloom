@@ -19,6 +19,8 @@ function getQidsFromParam(request: NextRequest, key: string): string[] | null {
   return values.filter((v) => v !== '')
 }
 
+const FILTER_PARAMS = ['languages', 'countries']
+
 export function applyFilterCookies(request: NextRequest, response: NextResponse) {
   const languages = getQidsFromParam(request, 'languages')
   if (languages !== null) {
@@ -37,6 +39,20 @@ export function applyFilterCookies(request: NextRequest, response: NextResponse)
       maxAge: ONE_YEAR_SECONDS,
     })
   }
+}
+
+/** Returns true when the request URL contains any filter query params. */
+function hasFilterParams(request: NextRequest): boolean {
+  return FILTER_PARAMS.some((key) => request.nextUrl.searchParams.has(key))
+}
+
+/** Strip filter query params from the URL, preserving everything else. */
+function stripFilterParams(url: URL): URL {
+  const cleaned = new URL(url.toString())
+  for (const key of FILTER_PARAMS) {
+    cleaned.searchParams.delete(key)
+  }
+  return cleaned
 }
 
 export default auth((req) => {
@@ -59,6 +75,14 @@ export default auth((req) => {
     return response
   }
 
+  // Strip filter query params from the URL after persisting them to cookies
+  if (hasFilterParams(req)) {
+    const cleaned = stripFilterParams(req.nextUrl)
+    const response = NextResponse.redirect(cleaned)
+    applyFilterCookies(req, response)
+    return response
+  }
+
   const response = NextResponse.next({ request: { headers: req.headers } })
   applyFilterCookies(req, response)
   return response
@@ -68,11 +92,11 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
-     * - api/auth (auth API routes)
+     * - api (API routes handle their own auth and don't need filter cookies)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      */
-    '/((?!api/auth|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 }

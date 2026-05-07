@@ -1,14 +1,12 @@
 import { notFound } from 'next/navigation'
-import { cookies } from 'next/headers'
 import { fetchWithAuth } from '@/lib/api-auth'
+import { getFilterLanguageQids } from '@/lib/filters'
 import { Politician } from '@/types'
 import { PoliticianEvaluation } from './PoliticianEvaluation'
-import { FILTER_LANGUAGES_COOKIE, deserializeFilterCookieValue } from '@/lib/cookies'
 
 export default async function PoliticianPage({ params }: { params: Promise<{ qid: string }> }) {
   const { qid } = await params
-  const cookieStore = await cookies()
-  const languageQids = deserializeFilterCookieValue(cookieStore.get(FILTER_LANGUAGES_COOKIE)?.value)
+  const languageQids = (await getFilterLanguageQids()) ?? []
 
   const searchParams = new URLSearchParams()
   for (const langQid of languageQids) {
