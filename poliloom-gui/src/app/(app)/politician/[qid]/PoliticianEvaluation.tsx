@@ -29,7 +29,8 @@ interface PoliticianEvaluationProps {
 
 export function PoliticianEvaluation({ politician: initialPolitician }: PoliticianEvaluationProps) {
   const router = useRouter()
-  const { isSessionActive, completedCount, sessionGoal, submitAndAdvance } = useEvaluationSession()
+  const { isSessionActive, completedCount, sessionGoal, submitAndAdvance, endSession } =
+    useEvaluationSession()
   const { settings, patch } = useSettings()
   const { languageQids } = useFilters()
   const statsUnlocked = settings?.stats_unlocked ?? false
@@ -94,7 +95,13 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
     if (isSessionActive) {
       const { sessionComplete } = submitAndAdvance()
       if (sessionComplete) {
-        router.push(statsUnlocked ? '/session/complete' : '/session/unlocked')
+        endSession()
+        if (statsUnlocked) {
+          router.push('/session/complete')
+        } else {
+          patch({ stats_unlocked: true })
+          router.push('/session/unlocked')
+        }
       } else {
         router.push(nextHref)
       }

@@ -2,12 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, waitFor, render } from '@testing-library/react'
 import {
   mockSubmitAndAdvance,
+  mockEndSession,
+  mockSettingsPatch,
   mockRouterPush,
   mockFetch,
   mockUseNextPoliticianContext,
   mockUseEvaluationSession,
+  mockUseSettings,
   defaultNextPolitician,
   defaultEvaluationSession,
+  defaultSettingsContext,
 } from '@/test/mocks'
 import { PoliticianEvaluation } from './PoliticianEvaluation'
 import type { SourceResponse, Politician } from '@/types'
@@ -268,7 +272,7 @@ describe('PoliticianEvaluation', () => {
     })
   })
 
-  it('redirects to /session/complete on session completion when stats unlocked', async () => {
+  it('ends session and redirects to /session/complete on session completion when stats unlocked', async () => {
     mockSubmitAndAdvance.mockReturnValue({ sessionComplete: true })
 
     render(<PoliticianEvaluation politician={politician} />)
@@ -280,7 +284,30 @@ describe('PoliticianEvaluation', () => {
     fireEvent.click(submitButton)
 
     await waitFor(() => {
+      expect(mockEndSession).toHaveBeenCalled()
       expect(mockRouterPush).toHaveBeenCalledWith('/session/complete')
+    })
+  })
+
+  it('ends session, unlocks stats, and redirects to /session/unlocked when stats not yet unlocked', async () => {
+    mockSubmitAndAdvance.mockReturnValue({ sessionComplete: true })
+    mockUseSettings.mockReturnValue({
+      ...defaultSettingsContext,
+      settings: { ...defaultSettingsContext.settings, stats_unlocked: false },
+    })
+
+    render(<PoliticianEvaluation politician={politician} />)
+
+    const acceptButtons = screen.getAllByText('✓ Accept')
+    fireEvent.click(acceptButtons[0])
+
+    const submitButton = screen.getByText('Submit Evaluations & Next')
+    fireEvent.click(submitButton)
+
+    await waitFor(() => {
+      expect(mockEndSession).toHaveBeenCalled()
+      expect(mockSettingsPatch).toHaveBeenCalledWith({ stats_unlocked: true })
+      expect(mockRouterPush).toHaveBeenCalledWith('/session/unlocked')
     })
   })
 

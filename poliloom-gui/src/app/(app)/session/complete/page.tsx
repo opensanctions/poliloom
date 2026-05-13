@@ -1,18 +1,13 @@
 'use client'
 
-import { useEffect } from 'react'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { Button } from '@/components/ui/Button'
 
 export default function CompletePage() {
-  const { sessionGoal, endSession, startSession } = useEvaluationSession()
+  const { sessionGoal, startSession } = useEvaluationSession()
   const { nextHref, politicianReady, loading } = useNextPoliticianContext()
-
-  useEffect(() => {
-    endSession()
-  }, [endSession])
 
   return (
     <CenteredCard emoji="🎉" title="Session Complete!">

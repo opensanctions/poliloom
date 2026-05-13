@@ -1,21 +1,13 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useSettings } from '@/contexts/SettingsContext'
 import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { Button } from '@/components/ui/Button'
 
 export default function UnlockedPage() {
-  const { patch } = useSettings()
-  const { endSession, startSession } = useEvaluationSession()
+  const { startSession } = useEvaluationSession()
   const { nextHref, politicianReady, loading } = useNextPoliticianContext()
-
-  useEffect(() => {
-    patch({ stats_unlocked: true })
-    endSession()
-  }, [patch, endSession])
 
   return (
     <CenteredCard emoji="🎉" title="Stats Unlocked!">
