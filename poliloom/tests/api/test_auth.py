@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import Mock, patch, AsyncMock
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
-from jose import JWTError
+from jwt.exceptions import PyJWTError
 
 from poliloom.api.auth import MediaWikiOAuth, get_current_user, get_optional_user, User
 
@@ -65,6 +65,7 @@ class TestMediaWikiOAuth:
             "test_jwt_token",
             key="",
             audience="test_key",
+            algorithms=["RS256"],
             options={"verify_signature": False, "verify_nbf": False},
         )
 
@@ -79,7 +80,7 @@ class TestMediaWikiOAuth:
     async def test_verify_jwt_token_failure(self, mock_jwt_decode):
         """Test JWT token verification failure."""
         # Mock failed JWT decode
-        mock_jwt_decode.side_effect = JWTError("Invalid token")
+        mock_jwt_decode.side_effect = PyJWTError("Invalid token")
 
         oauth = MediaWikiOAuth()
 

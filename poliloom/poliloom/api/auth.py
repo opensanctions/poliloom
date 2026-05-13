@@ -5,7 +5,8 @@ from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError
 from pydantic import BaseModel
 
 
@@ -36,6 +37,7 @@ class MediaWikiOAuth:
                 jwt_token,
                 key="",
                 audience=self.consumer_key,
+                algorithms=["RS256"],
                 options={"verify_signature": False, "verify_nbf": False},
             )
 
@@ -64,7 +66,7 @@ class MediaWikiOAuth:
                 user_id=user_id,
                 jwt_token=jwt_token,  # Store the raw JWT token
             )
-        except (JWTError, ValueError, KeyError) as e:
+        except (PyJWTError, ValueError, KeyError) as e:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=f"Invalid JWT token: {str(e)}",
