@@ -1,3 +1,0 @@
-requests>=2.31.0
-pydantic>=2.0.0
-wikitextparser>=0.52.0 
