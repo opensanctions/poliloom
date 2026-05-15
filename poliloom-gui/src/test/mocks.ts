@@ -30,14 +30,6 @@ export const mockFetch = vi.mocked(fetch)
 
 // --- vi.mock calls ---
 
-vi.mock('@/hooks/useAuthSession', () => ({
-  useAuthSession: () => ({
-    session: { accessToken: 'mock-token' },
-    status: 'authenticated',
-    isAuthenticated: true,
-  }),
-}))
-
 vi.mock('@/hooks/useIframeHighlighting', () => ({
   useIframeAutoHighlight: () => ({
     isIframeLoaded: true,

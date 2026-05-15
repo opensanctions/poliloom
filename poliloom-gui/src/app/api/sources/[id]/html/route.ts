@@ -13,9 +13,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { id } = await params
   const response = await fetchWithAuth(`${API_BASE_URL}/sources/${id}.html`)
 
-  if (response === null) {
-    return NextResponse.json({ message: 'Not authenticated' }, { status: 401 })
-  }
   if (!response.ok) {
     return NextResponse.json(
       { message: `Backend request failed: ${response.statusText}` },

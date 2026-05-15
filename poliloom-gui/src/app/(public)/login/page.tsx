@@ -1,24 +1,13 @@
 'use client'
 
-import { useAuthSession } from '@/hooks/useAuthSession'
 import { Button } from '@/components/ui/Button'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { signIn } from 'next-auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 
 export default function LoginPage() {
-  const { status, isAuthenticated } = useAuthSession()
-  const router = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get('redirect') || '/'
-
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      router.push(callbackUrl)
-    }
-  }, [isAuthenticated, router, callbackUrl])
 
   const handleSignIn = () => {
     signIn('wikimedia', { callbackUrl })
@@ -74,27 +63,19 @@ export default function LoginPage() {
         .
       </p>
 
-      {status === 'loading' && (
-        <div className="text-foreground-muted">Loading authentication status...</div>
-      )}
-
-      {status === 'unauthenticated' && (
-        <div className="flex flex-col gap-4">
-          <Button onClick={handleSignIn} size="large" fullWidth>
-            Sign in with Wikidata
-          </Button>
-          <Button
-            href="https://www.wikidata.org/wiki/Special:CreateAccount"
-            variant="secondary"
-            size="large"
-            fullWidth
-          >
-            Create account
-          </Button>
-        </div>
-      )}
-
-      {isAuthenticated && <div className="text-foreground-muted">Redirecting...</div>}
+      <div className="flex flex-col gap-4">
+        <Button onClick={handleSignIn} size="large" fullWidth>
+          Sign in with Wikidata
+        </Button>
+        <Button
+          href="https://www.wikidata.org/wiki/Special:CreateAccount"
+          variant="secondary"
+          size="large"
+          fullWidth
+        >
+          Create account
+        </Button>
+      </div>
     </CenteredCard>
   )
 }

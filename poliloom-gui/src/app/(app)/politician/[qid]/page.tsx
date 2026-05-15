@@ -16,7 +16,8 @@ export default async function PoliticianPage({ params }: { params: Promise<{ qid
   const url = `${process.env.API_BASE_URL}/politicians/${qid}${qs ? `?${qs}` : ''}`
 
   const response = await fetchWithAuth(url)
-  if (!response?.ok) notFound()
+  if (response.status === 404) notFound()
+  if (!response.ok) throw new Error(`Failed to fetch politician ${qid}: ${response.status}`)
 
   const politician: Politician = await response.json()
   return <PoliticianEvaluation politician={politician} />

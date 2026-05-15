@@ -1,52 +1,43 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest, NextResponse } from 'next/server'
 
-// Mock auth
-const mockAuth = vi.fn()
-vi.mock('@/auth', () => ({
-  auth: () => mockAuth(),
+const mockHeadersGet = vi.fn<(name: string) => string | null>()
+vi.mock('next/headers', () => ({
+  headers: () => Promise.resolve({ get: mockHeadersGet }),
 }))
 
-// Mock global fetch
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
 
 import { fetchWithAuth, proxyToBackend } from './api-auth'
 
+beforeEach(() => {
+  mockHeadersGet.mockReset()
+  mockFetch.mockReset()
+})
+
 describe('api-auth', () => {
   describe('fetchWithAuth', () => {
-    it('returns null when session has no access token', async () => {
-      mockAuth.mockResolvedValue({ accessToken: null })
-      const response = await fetchWithAuth('http://backend/api/test')
-      expect(response).toBeNull()
+    it('throws when x-access-token header is missing (proxy.ts misconfigured)', async () => {
+      mockHeadersGet.mockReturnValue(null)
+      await expect(fetchWithAuth('http://backend/api/test')).rejects.toThrow(/x-access-token/)
       expect(mockFetch).not.toHaveBeenCalled()
     })
 
-    it('returns null when session is null', async () => {
-      mockAuth.mockResolvedValue(null)
-      const response = await fetchWithAuth('http://backend/api/test')
-      expect(response).toBeNull()
-    })
-
-    it('returns null when session has error (token refresh failed)', async () => {
-      mockAuth.mockResolvedValue({ accessToken: 'tok', error: 'RefreshError' })
-      const response = await fetchWithAuth('http://backend/api/test')
-      expect(response).toBeNull()
-    })
-
-    it('forwards Authorization header to backend', async () => {
-      mockAuth.mockResolvedValue({ accessToken: 'my-token' })
+    it('forwards Authorization header from x-access-token', async () => {
+      mockHeadersGet.mockReturnValue('my-token')
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }))
 
       await fetchWithAuth('http://backend/api/test')
 
+      expect(mockHeadersGet).toHaveBeenCalledWith('x-access-token')
       expect(mockFetch).toHaveBeenCalledWith('http://backend/api/test', {
         headers: { Authorization: 'Bearer my-token' },
       })
     })
 
     it('merges provided headers with Authorization', async () => {
-      mockAuth.mockResolvedValue({ accessToken: 'my-token' })
+      mockHeadersGet.mockReturnValue('my-token')
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }))
 
       await fetchWithAuth('http://backend/api/test', {
@@ -62,18 +53,17 @@ describe('api-auth', () => {
     })
 
     it('returns the raw backend response on non-OK status (caller decides)', async () => {
-      mockAuth.mockResolvedValue({ accessToken: 'my-token' })
+      mockHeadersGet.mockReturnValue('my-token')
       mockFetch.mockResolvedValue(new Response('', { status: 404, statusText: 'Not Found' }))
 
       const response = await fetchWithAuth('http://backend/api/test')
 
-      expect(response).not.toBeNull()
-      expect(response!.status).toBe(404)
-      expect(response!.ok).toBe(false)
+      expect(response.status).toBe(404)
+      expect(response.ok).toBe(false)
     })
 
     it('returns the backend response on success', async () => {
-      mockAuth.mockResolvedValue({ accessToken: 'my-token' })
+      mockHeadersGet.mockReturnValue('my-token')
       mockFetch.mockResolvedValue(
         new Response('{"data": 1}', {
           status: 200,
@@ -83,15 +73,15 @@ describe('api-auth', () => {
 
       const response = await fetchWithAuth('http://backend/api/test')
 
-      expect(response!.status).toBe(200)
-      const body = await response!.json()
+      expect(response.status).toBe(200)
+      const body = await response.json()
       expect(body).toEqual({ data: 1 })
     })
   })
 
   describe('proxyToBackend', () => {
     it('forwards GET request to backend with auth', async () => {
-      mockAuth.mockResolvedValue({ accessToken: 'tok' })
+      mockHeadersGet.mockReturnValue('tok')
       mockFetch.mockResolvedValue(
         new Response('{"ok":true}', {
           status: 200,
@@ -110,7 +100,7 @@ describe('api-auth', () => {
     })
 
     it('forwards query parameters', async () => {
-      mockAuth.mockResolvedValue({ accessToken: 'tok' })
+      mockHeadersGet.mockReturnValue('tok')
       mockFetch.mockResolvedValue(
         new Response('{}', {
           status: 200,
@@ -128,7 +118,7 @@ describe('api-auth', () => {
     })
 
     it('forwards body for POST requests', async () => {
-      mockAuth.mockResolvedValue({ accessToken: 'tok' })
+      mockHeadersGet.mockReturnValue('tok')
       mockFetch.mockResolvedValue(
         new Response('{}', {
           status: 200,
@@ -156,7 +146,7 @@ describe('api-auth', () => {
     })
 
     it('forwards body for PATCH requests', async () => {
-      mockAuth.mockResolvedValue({ accessToken: 'tok' })
+      mockHeadersGet.mockReturnValue('tok')
       mockFetch.mockResolvedValue(
         new Response('{}', {
           status: 200,
@@ -180,19 +170,19 @@ describe('api-auth', () => {
       )
     })
 
-    it('returns auth error directly when not authenticated', async () => {
-      mockAuth.mockResolvedValue({ accessToken: null })
+    it('returns NextResponse error when backend returns non-OK', async () => {
+      mockHeadersGet.mockReturnValue('tok')
+      mockFetch.mockResolvedValue(new Response('', { status: 500, statusText: 'Server Error' }))
 
       const request = new NextRequest('http://localhost:3000/api/test')
       const response = await proxyToBackend(request, '/api/v1/test')
 
       expect(response).toBeInstanceOf(NextResponse)
-      expect(response.status).toBe(401)
-      expect(mockFetch).not.toHaveBeenCalled()
+      expect(response.status).toBe(500)
     })
 
     it('passes through Content-Type header from backend response', async () => {
-      mockAuth.mockResolvedValue({ accessToken: 'tok' })
+      mockHeadersGet.mockReturnValue('tok')
       mockFetch.mockResolvedValue(
         new Response('<html></html>', {
           status: 200,

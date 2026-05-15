@@ -5,9 +5,8 @@ import { StatsContent } from './StatsContent'
 
 export default async function StatsPage() {
   const settings = await getSettings()
-  const statsUnlocked = settings?.stats_unlocked ?? false
 
-  if (!statsUnlocked) {
+  if (!settings.stats_unlocked) {
     return (
       <CenteredCard emoji="🔒" title="Stats Locked">
         <p className="mb-8">

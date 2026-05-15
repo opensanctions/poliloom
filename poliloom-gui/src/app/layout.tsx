@@ -2,10 +2,8 @@ import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
 import { THEME_COOKIE, deserializeThemeCookieValue } from '@/lib/cookies'
 import './globals.css'
-import { auth } from '@/auth'
-import { SessionProvider } from '@/components/SessionProvider'
+import { SessionProvider } from 'next-auth/react'
 import { ThemeProvider } from '@/contexts/ThemeContext'
-import { FetchInterceptor } from '@/components/FetchInterceptor'
 import { MobileGuard } from '@/components/layout/MobileGuard'
 
 export const metadata: Metadata = {
@@ -23,7 +21,6 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const session = await auth()
   const cookieStore = await cookies()
   const themeCookie = deserializeThemeCookieValue(cookieStore.get(THEME_COOKIE)?.value)
   const themeClass = themeCookie ?? ''
@@ -44,8 +41,7 @@ export default async function RootLayout({
         />
       </head>
       <body className="font-sans antialiased grid grid-rows-[auto_1fr] h-screen">
-        <SessionProvider session={session}>
-          <FetchInterceptor />
+        <SessionProvider>
           <ThemeProvider>
             <MobileGuard>{children}</MobileGuard>
           </ThemeProvider>
