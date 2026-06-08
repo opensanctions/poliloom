@@ -10,6 +10,7 @@ from poliloom.scheduling import process_next_politician
 from poliloom.storage import StorageFactory
 from poliloom.importer.hierarchy import import_hierarchy_trees
 from poliloom.importer.entity import import_entities
+from poliloom.importer.csv_source import import_csv_sources, MissingPoliticiansError
 from poliloom.importer.politician import import_politicians
 from poliloom.database import get_engine
 from poliloom.logging import setup_logging
@@ -895,6 +896,48 @@ def clean_properties(dry_run):
             session.rollback()
             click.echo(f"❌ Error during cleanup: {e}")
             raise SystemExit(1)
+
+
+@main.command("import-sources")
+@click.option("--file", required=True, help="Path to CSV with qid,url columns")
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Preview what would be imported without making any changes",
+)
+def import_sources(file, dry_run):
+    """Import sources from a CSV and run extraction for each.
+
+    The CSV must have a header row that is exactly "qid,url". Each row specifies
+    a politician (by Wikidata QID) and a source URL to fetch and extract.
+
+    All politicians must already exist: if any QID is not found, nothing is
+    imported and the missing QIDs are listed.
+
+    Examples:
+
+        poliloom import-sources --file sources.csv
+        poliloom import-sources --file sources.csv --dry-run
+    """
+    click.echo(f"⏳ Importing sources from {file}...")
+
+    try:
+        created = import_csv_sources(file, dry_run=dry_run)
+    except MissingPoliticiansError as e:
+        click.echo(f"\n❌ {len(e.qids)} politician(s) not found:")
+        for qid in e.qids:
+            click.echo(f"   {qid}")
+        click.echo("\nNothing was imported.")
+        raise SystemExit(1)
+    except Exception as e:
+        click.echo(f"❌ Failed: {e}")
+        raise SystemExit(1)
+
+    if dry_run:
+        click.echo("✅ Dry run: all politicians found, nothing imported.")
+        return
+
+    click.echo(f"✅ Imported {created} source(s)")
 
 
 @main.command("index-create")
