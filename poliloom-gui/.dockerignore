@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 npm-debug.log*
+pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
@@ -19,6 +20,7 @@ build/
 
 # Debug
 npm-debug.log*
+pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 

@@ -13,16 +13,17 @@ All accepted data is submitted to Wikidata.
 
 ## Requirements
 
-- Node.js 18+
+- Node.js 24+
+- pnpm 11+
 - PoliLoom backend running at http://localhost:8000
 
 ## Setup
 
 ```bash
-npm install
+pnpm install
 cp .env.example .env.local
 # Edit .env.local with your configuration
-npm run dev
+pnpm dev
 ```
 
 Visit http://localhost:3000
@@ -32,10 +33,10 @@ See `.env.example` for configuration.
 ## Development
 
 ```bash
-npm run dev      # Development server with hot reload
-npm run build    # Production build
-npm run test     # Run tests
-npm run lint     # Lint code
+pnpm dev       # Development server with hot reload
+pnpm build     # Production build
+pnpm test      # Run tests
+pnpm lint      # Lint code
 ```
 
 ## Architecture

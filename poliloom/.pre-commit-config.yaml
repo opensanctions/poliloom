@@ -18,14 +18,14 @@ repos:
     hooks:
       - id: gui-lint-staged
         name: GUI lint-staged
-        entry: bash -c 'cd poliloom-gui && npx lint-staged'
+        entry: bash -c 'cd poliloom-gui && pnpm exec lint-staged'
         language: system
         files: ^poliloom-gui/.*\.(ts|tsx|js|jsx|json|css|md)$
         pass_filenames: false
 
       - id: gui-typecheck
         name: GUI TypeScript
-        entry: bash -c 'cd poliloom-gui && npm run typecheck'
+        entry: bash -c 'cd poliloom-gui && pnpm typecheck'
         language: system
         files: ^poliloom-gui/.*\.(ts|tsx)$
         pass_filenames: false

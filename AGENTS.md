@@ -15,7 +15,7 @@ docker-compose.yml               # Services: postgres, api, gui
 **Backend**: Python 3.12+, FastAPI, SQLAlchemy, PostgreSQL (pgvector), OpenAI API, Meilisearch (hybrid search with OpenAI embeddings)
 **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS, NextAuth.js
 **Infrastructure**: Meilisearch (entity search + semantic similarity), Playwright (web page archiving)
-**Package Managers**: uv (Python), npm (Node.js)
+**Package Managers**: uv (Python), pnpm (Node.js)
 
 ## Development Environment
 
@@ -30,8 +30,8 @@ uv run pytest                    # Run tests
 
 # Frontend
 cd poliloom-gui
-npm install                      # Install deps
-npm run test                     # Run tests
+pnpm install                     # Install deps
+pnpm test                        # Run tests
 ```
 
 ## Database
