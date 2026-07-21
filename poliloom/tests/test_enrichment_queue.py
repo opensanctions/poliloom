@@ -3,7 +3,6 @@
 from datetime import datetime, timedelta, timezone
 
 from poliloom.enrichment_queue import (
-    _filter_by_countries,
     enrichment_candidates_query,
     get_priority_wikipedia_links,
     has_enrichment_candidate,
@@ -293,43 +292,6 @@ class TestPriorityWikipediaLinks:
         )
         assert "Q328" in project_ids, "English Wikipedia should also be included"
         assert "Q8447" in project_ids, "French Wikipedia should also be included"
-
-
-class TestPoliticianFilterByCountries:
-    """Test cases for _filter_by_countries method."""
-
-    def test_filter_by_countries_finds_matching_politicians(
-        self,
-        db_session,
-        sample_politician,
-        sample_country,
-        sample_source,
-        create_citizenship,
-    ):
-        """Test that country filter finds politicians with matching citizenship."""
-        # Add citizenship property
-        create_citizenship(sample_politician, sample_country, sample_source)
-        db_session.flush()
-
-        # Query with country filter
-        query = Politician.query_base()
-        query = _filter_by_countries(query, ["Q30"])
-        result = db_session.execute(query).scalars().all()
-
-        # Should find politician with US citizenship
-        assert len(result) == 1
-        assert result[0].id == sample_politician.id
-
-    def test_filter_by_countries_excludes_non_matching(
-        self, db_session, sample_politician
-    ):
-        """Test that country filter excludes politicians without matching citizenship."""
-        # Query with country filter (no citizenship property exists)
-        query = Politician.query_base()
-        query = _filter_by_countries(query, ["Q30"])
-        result = db_session.execute(query).scalars().all()
-
-        assert len(result) == 0
 
 
 class TestPoliticianQueryForEnrichment:

@@ -5,7 +5,6 @@ early-exit existence query shapes.
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional
 
 from sqlalchemy import and_, case, exists, func, select
 from sqlalchemy.engine import Row
@@ -19,7 +18,78 @@ from .models.source import Source
 from .models.wikidata import WikidataRelation
 
 
-def get_priority_wikipedia_links(politician: Politician, db: Session) -> List[Row]:
+PRIORITY_WIKIPEDIA_LINK_LIMIT = 3
+
+
+def _ranking_order_by(matches_citizenship, language_popularity):
+    """Return the two ranking keys shared by both link-ranking query shapes."""
+    return (matches_citizenship.desc(), language_popularity.desc())
+
+
+def _join_project_language_path(query, link, project, relation, language):
+    """Join a link through its project to its active language-of-work relation."""
+    return (
+        query.join(project, link.wikipedia_project_id == project.wikidata_id)
+        .join(
+            relation,
+            and_(
+                relation.child_entity_id == project.wikidata_id,
+                relation.relation_type == RelationType.LANGUAGE_OF_WORK,
+                relation.deleted_at.is_(None),
+            ),
+        )
+        .join(language, relation.parent_entity_id == language.wikidata_id)
+    )
+
+
+def _official_language_join_conditions(citizenship, relation):
+    """Return active OFFICIAL_LANGUAGE conditions for a citizenship join."""
+    return and_(
+        citizenship.entity_id == relation.child_entity_id,
+        relation.relation_type == RelationType.OFFICIAL_LANGUAGE,
+        relation.deleted_at.is_(None),
+    )
+
+
+def _active_citizenship_conditions(
+    citizenship, *, politician_id=None, countries=None, require_entity=False
+):
+    """Return common active-citizenship predicates for a Property table or alias."""
+    conditions = []
+    if politician_id is not None:
+        conditions.append(citizenship.politician_id == politician_id)
+    conditions.append(citizenship.type == PropertyType.CITIZENSHIP)
+    if require_entity:
+        conditions.append(citizenship.entity_id.isnot(None))
+        conditions.append(citizenship.deleted_at.is_(None))
+        if countries:
+            conditions.append(citizenship.entity_id.in_(countries))
+    else:
+        if countries:
+            conditions.append(citizenship.entity_id.in_(countries))
+        conditions.append(citizenship.deleted_at.is_(None))
+    return conditions
+
+
+def _active_citizenship_exists(politician_id=Politician.id, *, countries=None):
+    """Return an EXISTS expression for an active citizenship, optionally in countries."""
+    return exists(
+        select(1).where(
+            *_active_citizenship_conditions(
+                Property, politician_id=politician_id, countries=countries
+            )
+        )
+    )
+
+
+def _politicians_with_citizenship(countries):
+    """Select politicians with an active citizenship in ``countries``."""
+    return select(Property.politician_id).where(
+        *_active_citizenship_conditions(Property, countries=countries)
+    )
+
+
+def get_priority_wikipedia_links(politician: Politician, db: Session) -> list[Row]:
     """
     Get top 3 most popular Wikipedia links for a politician.
 
@@ -32,7 +102,8 @@ def get_priority_wikipedia_links(politician: Politician, db: Session) -> List[Ro
         db: Database session
 
     Returns:
-        List of Row objects containing (url, wikipedia_project_id), limited to top 3
+        List of Row objects containing (url, wikipedia_project_id), limited to the
+        priority link limit
     """
     ranked_links = _get_ranked_wikipedia_links_cte()
 
@@ -41,7 +112,7 @@ def get_priority_wikipedia_links(politician: Politician, db: Session) -> List[Ro
         .where(
             and_(
                 ranked_links.c.politician_id == politician.id,
-                ranked_links.c.rank <= 3,
+                ranked_links.c.rank <= PRIORITY_WIKIPEDIA_LINK_LIMIT,
             )
         )
         .order_by(ranked_links.c.rank)
@@ -87,7 +158,7 @@ def _get_language_popularity_cte():
     )
 
 
-def _get_ranked_wikipedia_links_cte(countries: List[str] = None):
+def _get_ranked_wikipedia_links_cte(countries: list[str] | None = None):
     """
     Create CTE for ranking Wikipedia links by citizenship match and global popularity.
 
@@ -113,13 +184,9 @@ def _get_ranked_wikipedia_links_cte(countries: List[str] = None):
     # Pre-compute which (politician, language) pairs have a citizenship match
     # by joining citizenships with official languages
     # When countries is provided, scope to those countries for early filtering
-    citizenship_where = [
-        Property.type == PropertyType.CITIZENSHIP,
-        Property.entity_id.isnot(None),
-        Property.deleted_at.is_(None),
-    ]
-    if countries:
-        citizenship_where.append(Property.entity_id.in_(countries))
+    citizenship_where = _active_citizenship_conditions(
+        Property, countries=countries, require_entity=True
+    )
 
     citizenship_language_matches = (
         select(
@@ -129,11 +196,7 @@ def _get_ranked_wikipedia_links_cte(countries: List[str] = None):
         .select_from(Property)
         .join(
             WikidataRelation,
-            and_(
-                Property.entity_id == WikidataRelation.child_entity_id,
-                WikidataRelation.relation_type == RelationType.OFFICIAL_LANGUAGE,
-                WikidataRelation.deleted_at.is_(None),
-            ),
+            _official_language_join_conditions(Property, WikidataRelation),
         )
         .where(and_(*citizenship_where))
         .distinct()
@@ -142,48 +205,38 @@ def _get_ranked_wikipedia_links_cte(countries: List[str] = None):
 
     # CTE 3: Ranked Wikipedia links
     # Use LEFT JOIN to citizenship_language_matches to determine match flag
+    matches_citizenship = case(
+        (citizenship_language_matches.c.politician_id.isnot(None), 1),
+        else_=0,
+    )
     ranked_links_query = (
         select(
             Politician.id.label("politician_id"),
             Language.wikidata_id.label("language_qid"),
             WikipediaLink.wikipedia_project_id,
             WikipediaLink.url,
-            case(
-                (citizenship_language_matches.c.politician_id.isnot(None), 1),
-                else_=0,
-            ).label("matches_citizenship"),
+            matches_citizenship.label("matches_citizenship"),
             language_popularity.c.global_count.label("language_popularity"),
             func.row_number()
             .over(
                 partition_by=Politician.id,
-                order_by=[
-                    case(
-                        (
-                            citizenship_language_matches.c.politician_id.isnot(None),
-                            1,
-                        ),
-                        else_=0,
-                    ).desc(),
-                    language_popularity.c.global_count.desc(),
-                ],
+                order_by=_ranking_order_by(
+                    matches_citizenship, language_popularity.c.global_count
+                ),
             )
             .label("rank"),
         )
         .select_from(Politician)
         .join(WikipediaLink, WikipediaLink.politician_id == Politician.id)
-        .join(
+    )
+    ranked_links_query = (
+        _join_project_language_path(
+            ranked_links_query,
+            WikipediaLink,
             WikipediaProject,
-            WikipediaLink.wikipedia_project_id == WikipediaProject.wikidata_id,
-        )
-        .join(
             WikidataRelation,
-            and_(
-                WikidataRelation.child_entity_id == WikipediaProject.wikidata_id,
-                WikidataRelation.relation_type == RelationType.LANGUAGE_OF_WORK,
-                WikidataRelation.deleted_at.is_(None),
-            ),
+            Language,
         )
-        .join(Language, WikidataRelation.parent_entity_id == Language.wikidata_id)
         .join(
             language_popularity,
             language_popularity.c.wikipedia_project_id
@@ -200,40 +253,10 @@ def _get_ranked_wikipedia_links_cte(countries: List[str] = None):
 
     # Apply country filter early to reduce the number of politicians we rank
     if countries:
-        country_filter = select(Property.politician_id).where(
-            and_(
-                Property.type == PropertyType.CITIZENSHIP,
-                Property.entity_id.in_(countries),
-                Property.deleted_at.is_(None),
-            )
-        )
+        country_filter = _politicians_with_citizenship(countries)
         ranked_links_query = ranked_links_query.where(Politician.id.in_(country_filter))
 
     return ranked_links_query.distinct().cte("ranked_wikipedia_links")
-
-
-def _filter_by_countries(query, countries: List[str]):
-    """
-    Apply country citizenship filter to a politician query.
-
-    Args:
-        query: Existing select statement for Politician entities
-        countries: List of country QIDs to filter by
-
-    Returns:
-        Modified select statement with country filter applied
-    """
-    citizenship_exists = exists(
-        select(1).where(
-            and_(
-                Property.politician_id == Politician.id,
-                Property.type == PropertyType.CITIZENSHIP,
-                Property.entity_id.in_(countries),
-                Property.deleted_at.is_(None),
-            )
-        )
-    )
-    return query.where(citizenship_exists)
 
 
 def _query_enrichable_base():
@@ -246,8 +269,8 @@ def _query_enrichable_base():
 
 
 def enrichment_candidates_query(
-    languages: List[str] = None,
-    countries: List[str] = None,
+    languages: list[str] | None = None,
+    countries: list[str] | None = None,
     stateless: bool = False,
 ):
     """
@@ -275,16 +298,7 @@ def enrichment_candidates_query(
     # Stateless mode: filter for politicians without citizenship
     # Uses idx_properties_citizenship_lookup for efficient NOT EXISTS check
     if stateless:
-        has_citizenship = exists(
-            select(1).where(
-                and_(
-                    Property.politician_id == Politician.id,
-                    Property.type == PropertyType.CITIZENSHIP,
-                    Property.deleted_at.is_(None),
-                )
-            )
-        )
-        query = query.where(~has_citizenship)
+        query = query.where(~_active_citizenship_exists())
         return query
 
     # Apply language filtering using shared ranking logic
@@ -292,33 +306,26 @@ def enrichment_candidates_query(
     if languages:
         ranked_links = _get_ranked_wikipedia_links_cte(countries=countries)
 
-        # Subquery: Politicians where filtered language is in top 3 by rank
-        top_3_languages = select(ranked_links.c.politician_id.distinct()).where(
+        # Politicians where the filtered language is within the priority link limit.
+        priority_languages = select(ranked_links.c.politician_id.distinct()).where(
             and_(
                 ranked_links.c.language_qid.in_(languages),
-                ranked_links.c.rank <= 3,
+                ranked_links.c.rank <= PRIORITY_WIKIPEDIA_LINK_LIMIT,
             )
         )
 
-        query = query.where(Politician.id.in_(top_3_languages))
+        query = query.where(Politician.id.in_(priority_languages))
 
     # Apply country filtering (only if not already applied via language CTE)
     elif countries:
-        citizenship_subquery = select(Property.politician_id).where(
-            and_(
-                Property.type == PropertyType.CITIZENSHIP,
-                Property.entity_id.in_(countries),
-                Property.deleted_at.is_(None),
-            )
-        )
-        query = query.where(Politician.id.in_(citizenship_subquery))
+        query = query.where(Politician.id.in_(_politicians_with_citizenship(countries)))
 
     return query
 
 
 def _query_has_enrichment_candidate(
-    languages: Optional[List[str]] = None,
-    countries: Optional[List[str]] = None,
+    languages: list[str] | None = None,
+    countries: list[str] | None = None,
     stateless: bool = False,
 ):
     """Build the query used by :func:`has_enrichment_candidate`.
@@ -333,17 +340,10 @@ def _query_has_enrichment_candidate(
 
     # Stateless mode is mutually exclusive with language and country filters.
     if stateless:
-        has_citizenship = exists(
-            select(1).where(
-                Property.politician_id == Politician.id,
-                Property.type == PropertyType.CITIZENSHIP,
-                Property.deleted_at.is_(None),
-            )
-        )
-        return query.where(~has_citizenship)
+        return query.where(~_active_citizenship_exists())
 
     if countries:
-        query = _filter_by_countries(query, countries)
+        query = query.where(_active_citizenship_exists(countries=countries))
 
     if not languages:
         return query
@@ -356,58 +356,44 @@ def _query_has_enrichment_candidate(
     official_language_relation = aliased(WikidataRelation)
     language_popularity = _get_language_popularity_cte()
 
-    citizenship_conditions = [
-        citizenship.politician_id == Politician.id,
-        citizenship.type == PropertyType.CITIZENSHIP,
-        citizenship.entity_id.isnot(None),
-        citizenship.deleted_at.is_(None),
+    citizenship_conditions = _active_citizenship_conditions(
+        citizenship,
+        politician_id=Politician.id,
+        countries=countries,
+        require_entity=True,
+    ) + [
         official_language_relation.parent_entity_id
         == link_language_relation.parent_entity_id,
     ]
-    if countries:
-        citizenship_conditions.append(citizenship.entity_id.in_(countries))
 
     matches_citizenship = exists(
         select(1)
         .select_from(citizenship)
         .join(
             official_language_relation,
-            and_(
-                citizenship.entity_id == official_language_relation.child_entity_id,
-                official_language_relation.relation_type
-                == RelationType.OFFICIAL_LANGUAGE,
-                official_language_relation.deleted_at.is_(None),
-            ),
+            _official_language_join_conditions(citizenship, official_language_relation),
         )
         .where(*citizenship_conditions)
         .correlate(Politician, link_language_relation)
     )
 
-    ranked_links = (
-        select(
-            language.wikidata_id.label("language_qid"),
-            func.row_number()
-            .over(
-                order_by=(
-                    matches_citizenship.desc(),
-                    language_popularity.c.global_count.desc(),
-                )
+    ranked_links = select(
+        language.wikidata_id.label("language_qid"),
+        func.row_number()
+        .over(
+            order_by=_ranking_order_by(
+                matches_citizenship, language_popularity.c.global_count
             )
-            .label("rank"),
         )
-        .select_from(link)
-        .join(project, link.wikipedia_project_id == project.wikidata_id)
-        .join(
+        .label("rank"),
+    ).select_from(link)
+    ranked_links = (
+        _join_project_language_path(
+            ranked_links,
+            link,
+            project,
             link_language_relation,
-            and_(
-                link_language_relation.child_entity_id == project.wikidata_id,
-                link_language_relation.relation_type == RelationType.LANGUAGE_OF_WORK,
-                link_language_relation.deleted_at.is_(None),
-            ),
-        )
-        .join(
             language,
-            link_language_relation.parent_entity_id == language.wikidata_id,
         )
         .join(
             language_popularity,
@@ -418,12 +404,12 @@ def _query_has_enrichment_candidate(
         .subquery("ranked_links_for_politician")
     )
 
-    requested_language_is_top_three = exists(
+    requested_language_is_prioritized = exists(
         select(1)
         .select_from(ranked_links)
         .where(
             ranked_links.c.language_qid.in_(languages),
-            ranked_links.c.rank <= 3,
+            ranked_links.c.rank <= PRIORITY_WIKIPEDIA_LINK_LIMIT,
         )
     )
 
@@ -433,38 +419,24 @@ def _query_has_enrichment_candidate(
     candidate_project = aliased(WikipediaProject)
     candidate_relation = aliased(WikidataRelation)
     candidate_language = aliased(Language)
-    politicians_with_requested_link = (
-        select(candidate_link.politician_id)
-        .select_from(candidate_link)
-        .join(
-            candidate_project,
-            candidate_link.wikipedia_project_id == candidate_project.wikidata_id,
-        )
-        .join(
-            candidate_relation,
-            and_(
-                candidate_relation.child_entity_id == candidate_project.wikidata_id,
-                candidate_relation.relation_type == RelationType.LANGUAGE_OF_WORK,
-                candidate_relation.deleted_at.is_(None),
-            ),
-        )
-        .join(
-            candidate_language,
-            candidate_relation.parent_entity_id == candidate_language.wikidata_id,
-        )
-        .where(candidate_language.wikidata_id.in_(languages))
-    )
+    politicians_with_requested_link = _join_project_language_path(
+        select(candidate_link.politician_id).select_from(candidate_link),
+        candidate_link,
+        candidate_project,
+        candidate_relation,
+        candidate_language,
+    ).where(candidate_language.wikidata_id.in_(languages))
 
     return query.where(
         Politician.id.in_(politicians_with_requested_link),
-        requested_language_is_top_three,
+        requested_language_is_prioritized,
     )
 
 
 def has_enrichment_candidate(
     db: Session,
-    languages: Optional[List[str]] = None,
-    countries: Optional[List[str]] = None,
+    languages: list[str] | None = None,
+    countries: list[str] | None = None,
     stateless: bool = False,
 ) -> bool:
     """Return whether at least one politician is available to enrich."""
