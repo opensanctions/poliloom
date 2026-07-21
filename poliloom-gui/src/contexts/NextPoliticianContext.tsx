@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
+import React, { createContext, useContext, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useFilters } from '@/contexts/FilterContext'
 import { useEventStream } from '@/contexts/EventStreamContext'
@@ -20,52 +20,56 @@ export function NextPoliticianProvider({ children }: { children: React.ReactNode
   const params = useParams()
   const currentQid = (params?.qid as string) ?? null
 
+  const searchParams = new URLSearchParams()
+  if (currentQid) searchParams.set('exclude_ids', currentQid)
+  for (const qid of languageQids) searchParams.append('languages', qid)
+  for (const qid of countryQids) searchParams.append('countries', qid)
+  const query = searchParams.toString()
+  const requestUrl = `/api/politicians/next${query ? `?${query}` : ''}`
+
   const [nextQid, setNextQid] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
   const [enrichmentMeta, setEnrichmentMeta] = useState<EnrichmentMetadata | null>(null)
-
-  const inFlightRef = useRef<AbortController | null>(null)
-
-  const fetchNext = useCallback(async () => {
-    inFlightRef.current?.abort()
-    const controller = new AbortController()
-    inFlightRef.current = controller
-    setLoading(true)
-    try {
-      const params = new URLSearchParams()
-      if (currentQid) params.set('exclude_ids', currentQid)
-      for (const qid of languageQids) params.append('languages', qid)
-      for (const qid of countryQids) params.append('countries', qid)
-      const qs = params.toString()
-      const url = `/api/politicians/next${qs ? `?${qs}` : ''}`
-      const response = await fetch(url, { signal: controller.signal })
-      if (!response.ok) return
-
-      const data: NextPoliticianResponse = await response.json()
-      setNextQid(data.wikidata_id)
-      setEnrichmentMeta(data.meta)
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return
-    } finally {
-      if (!controller.signal.aborted) {
-        inFlightRef.current = null
-        setLoading(false)
-      }
-    }
-  }, [currentQid, languageQids, countryQids])
+  const [refreshNonce, setRefreshNonce] = useState(0)
+  const requestKey = `${requestUrl}#${refreshNonce}`
+  const [completedRequestKey, setCompletedRequestKey] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchNext()
-    return () => inFlightRef.current?.abort()
-  }, [fetchNext])
+    const controller = new AbortController()
+    let cancelled = false
+
+    async function run() {
+      try {
+        const response = await fetch(requestUrl, { signal: controller.signal })
+        if (!response.ok) return
+
+        const data: NextPoliticianResponse = await response.json()
+        if (cancelled) return
+        setNextQid(data.wikidata_id)
+        setEnrichmentMeta(data.meta)
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+      } finally {
+        if (!cancelled) setCompletedRequestKey(requestKey)
+      }
+    }
+
+    run()
+
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [requestKey, requestUrl])
 
   useEventStream(
     'enrichment_complete',
     () => {
-      if (nextQid === null) fetchNext()
+      if (nextQid === null) setRefreshNonce((nonce) => nonce + 1)
     },
-    [nextQid, fetchNext],
+    [nextQid],
   )
+
+  const loading = completedRequestKey !== requestKey
 
   const politicianReady = nextQid !== null
   const hasEnrichablePoliticians = enrichmentMeta?.has_enrichable_politicians ?? false

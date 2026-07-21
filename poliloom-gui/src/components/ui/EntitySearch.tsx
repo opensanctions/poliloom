@@ -51,11 +51,7 @@ export function EntitySearch({
   }, [])
 
   useEffect(() => {
-    if (query.length === 0) {
-      setResults([])
-      setIsOpen(false)
-      return
-    }
+    if (query.length === 0) return
 
     let cancelled = false
 
@@ -98,6 +94,18 @@ export function EntitySearch({
     }
   }, [activeIndex])
 
+  function resetDropdown() {
+    setResults([])
+    setIsOpen(false)
+    setIsLoading(false)
+    setActiveIndex(-1)
+  }
+
+  function handleQueryChange(value: string) {
+    setQuery(value)
+    if (value.length === 0) resetDropdown()
+  }
+
   function selectItem(item: DropdownItem) {
     if (item instanceof SelectItem) {
       onSelect({ wikidata_id: item.entity.wikidata_id, name: item.entity.name })
@@ -105,8 +113,7 @@ export function EntitySearch({
       onCreate!(item.name)
     }
     setQuery('')
-    setResults([])
-    setIsOpen(false)
+    resetDropdown()
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -145,7 +152,7 @@ export function EntitySearch({
           type="text"
           placeholder={placeholder}
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => handleQueryChange(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           role="combobox"

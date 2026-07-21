@@ -1,6 +1,14 @@
 'use client'
 
-import { createContext, useEffect, useRef, useCallback, useState, useContext } from 'react'
+import {
+  createContext,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useCallback,
+  useState,
+  useContext,
+} from 'react'
 import { useSession } from 'next-auth/react'
 import type { SSEEvent, SSEEventType, SSEEventByType } from '@/types'
 
@@ -88,12 +96,11 @@ export function useEventStream<T extends SSEEventType>(
   deps: React.DependencyList,
 ) {
   const context = useContext(EventStreamContext)
-  const handlerRef = useRef(handler)
-  handlerRef.current = handler
+  const onEvent = useEffectEvent(handler)
 
   useEffect(() => {
     if (!context) return
-    const stableHandler: EventHandler = (event) => handlerRef.current(event as SSEEventByType<T>)
+    const stableHandler: EventHandler = (event) => onEvent(event as SSEEventByType<T>)
     return context.subscribe(eventType, stableHandler)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context, eventType, ...deps])

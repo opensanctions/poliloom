@@ -1,6 +1,6 @@
 import NextAuth from 'next-auth'
 import type { NextAuthConfig } from 'next-auth'
-import type { JWT } from '@auth/core/jwt'
+import type { JWT } from 'next-auth/jwt'
 import Wikimedia from 'next-auth/providers/wikimedia'
 
 async function checkWikidataAccount(accessToken: string): Promise<boolean> {

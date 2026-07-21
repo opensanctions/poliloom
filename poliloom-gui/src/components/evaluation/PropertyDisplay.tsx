@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect } from 'react'
+import { useState } from 'react'
 import { Property, PropertyType, SourceResponse } from '@/types'
 import { parseWikidataDate } from '@/lib/wikidata/dateParser'
 import { parsePositionQualifiers, formatPositionDates } from '@/lib/wikidata/qualifierParser'
@@ -28,10 +28,13 @@ export function PropertyDisplay({
 }: PropertyDisplayProps) {
   const [openSection, setOpenSection] = useState<'qualifiers' | 'references' | null>(null)
   const [wasAutoOpened, setWasAutoOpened] = useState(false)
+  const [prevCanAutoOpen, setPrevCanAutoOpen] = useState(false)
 
   const isDiscarding = property.evaluation === false
-  const hasQualifiers = property.qualifiers && Object.keys(property.qualifiers).length > 0
-  const hasReferences = property.references && property.references.length > 0
+  const hasQualifiers = !!property.qualifiers && Object.keys(property.qualifiers).length > 0
+  const hasReferences = !!property.references && property.references.length > 0
+  const canAutoOpen =
+    !!shouldAutoOpen && isDiscarding && !!property.statement_id && (hasQualifiers || hasReferences)
 
   const isWikidataStatement = !!property.statement_id
   const isUserAdded = !!property.userAdded
@@ -39,24 +42,20 @@ export function PropertyDisplay({
   const isSourceVisible =
     property.sources.length === 0 || property.sources.some((s) => activeSourceId === s.source.id)
 
-  // Auto-open panel when discarding existing Wikidata statements (to show what metadata will be lost)
-  useLayoutEffect(() => {
-    if (
-      shouldAutoOpen &&
-      isDiscarding &&
-      !!property.statement_id &&
-      (hasQualifiers || hasReferences)
-    ) {
-      if (openSection === null) {
-        setWasAutoOpened(true)
-        setOpenSection(hasQualifiers ? 'qualifiers' : 'references')
-      }
-    } else if (!isDiscarding && wasAutoOpened) {
-      setOpenSection(null)
-      setWasAutoOpened(false)
+  // Auto-open the panel when an existing Wikidata statement is being discarded, so the
+  // metadata that would be lost stays visible. Implemented as a render-time state
+  // adjustment (React 19) instead of setState-in-effect.
+  if (!isDiscarding && wasAutoOpened) {
+    setPrevCanAutoOpen(canAutoOpen)
+    setOpenSection(null)
+    setWasAutoOpened(false)
+  } else if (prevCanAutoOpen !== canAutoOpen) {
+    setPrevCanAutoOpen(canAutoOpen)
+    if (canAutoOpen && openSection === null) {
+      setWasAutoOpened(true)
+      setOpenSection(hasQualifiers ? 'qualifiers' : 'references')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldAutoOpen, isDiscarding, hasQualifiers, hasReferences, wasAutoOpened])
+  }
 
   const handleToggle = (section: 'qualifiers' | 'references') => {
     const newOpenSection = openSection === section ? null : section

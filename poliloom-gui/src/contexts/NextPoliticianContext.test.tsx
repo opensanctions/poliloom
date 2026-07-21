@@ -79,6 +79,31 @@ describe('NextPoliticianContext', () => {
     expect(calledUrl).toContain('countries=Q30')
   })
 
+  it('reports loading while refetching after filters change', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => nextResponse,
+    } as Response)
+
+    let resolveResponse!: (response: Response) => void
+    vi.mocked(fetch).mockImplementationOnce(
+      () => new Promise((resolve) => (resolveResponse = resolve)),
+    )
+
+    const { result, rerender } = renderHook(() => useNextPoliticianContext(), { wrapper })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    mockLanguageQids = ['Q1860']
+    rerender()
+
+    expect(result.current.loading).toBe(true)
+    resolveResponse({
+      ok: true,
+      json: async () => nextResponse,
+    } as Response)
+    await waitFor(() => expect(result.current.loading).toBe(false))
+  })
+
   it('excludes current politician from route params', async () => {
     mockParams = { qid: 'Q99999' }
 

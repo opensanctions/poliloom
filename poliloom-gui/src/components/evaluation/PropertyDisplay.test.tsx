@@ -287,4 +287,89 @@ describe('PropertyDisplay', () => {
       expect(mockOnAction).toHaveBeenCalledWith('test-1', 'reject')
     })
   })
+
+  describe('auto-open behavior', () => {
+    it('auto-opens the references panel when shouldAutoOpen and deprecating', () => {
+      const property: Property = {
+        ...baseProperty,
+        statement_id: 'Q123$abc-def',
+        references: [{ url: 'https://example.com', title: 'Reference' }],
+        sources: [],
+        evaluation: false,
+      }
+
+      render(
+        <PropertyDisplay
+          property={property}
+          onAction={mockOnAction}
+          onViewSource={mockOnShowSource}
+          onHover={mockOnHover}
+          activeSourceId={null}
+          shouldAutoOpen
+        />,
+      )
+
+      // Panel is auto-opened: the "will be lost" banner renders and the collapsed
+      // warning indicator is hidden.
+      expect(screen.getByText('Metadata will be lost ⚠️')).toBeInTheDocument()
+      expect(screen.queryByText('⚠️')).not.toBeInTheDocument()
+    })
+
+    it('auto-opens the qualifiers panel when shouldAutoOpen and deprecating', () => {
+      const property: Property = {
+        ...baseProperty,
+        type: PropertyType.P39,
+        statement_id: 'Q123$abc-def',
+        qualifiers: {
+          P580: [{ datavalue: { value: { time: '+2020-01-01T00:00:00Z', precision: 11 } } }],
+        },
+        sources: [],
+        evaluation: false,
+      }
+
+      render(
+        <PropertyDisplay
+          property={property}
+          onAction={mockOnAction}
+          onViewSource={mockOnShowSource}
+          onHover={mockOnHover}
+          activeSourceId={null}
+          shouldAutoOpen
+        />,
+      )
+
+      expect(screen.getByText('Metadata will be lost ⚠️')).toBeInTheDocument()
+      expect(screen.queryByText('⚠️')).not.toBeInTheDocument()
+    })
+
+    it('resets an auto-opened panel when the statement is restored', () => {
+      const property: Property = {
+        ...baseProperty,
+        statement_id: 'Q123$abc-def',
+        references: [{ url: 'https://example.com', title: 'Reference' }],
+        sources: [],
+        evaluation: false,
+      }
+      const props = {
+        onAction: mockOnAction,
+        activeSourceId: null,
+      }
+      const { rerender } = render(<PropertyDisplay property={property} shouldAutoOpen {...props} />)
+
+      expect(screen.getByText('Metadata will be lost ⚠️')).toBeInTheDocument()
+
+      rerender(<PropertyDisplay property={property} shouldAutoOpen={false} {...props} />)
+      rerender(
+        <PropertyDisplay
+          property={{ ...property, evaluation: true }}
+          shouldAutoOpen={false}
+          {...props}
+        />,
+      )
+      rerender(<PropertyDisplay property={property} shouldAutoOpen={false} {...props} />)
+
+      expect(screen.queryByText('Metadata will be lost ⚠️')).not.toBeInTheDocument()
+      expect(screen.getByText('⚠️')).toBeInTheDocument()
+    })
+  })
 })

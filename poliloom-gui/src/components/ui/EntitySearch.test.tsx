@@ -100,6 +100,23 @@ describe('EntitySearch', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
+  it('stops showing the loading indicator when the query is cleared', async () => {
+    let resolveSearch!: (results: typeof mockResults) => void
+    const onSearch = vi.fn(
+      () => new Promise<typeof mockResults>((resolve) => (resolveSearch = resolve)),
+    )
+    const { container } = render(<EntitySearch onSearch={onSearch} onSelect={mockOnSelect} />)
+    const input = screen.getByRole('combobox')
+
+    fireEvent.change(input, { target: { value: 'Ber' } })
+    await waitFor(() => expect(container.querySelector('.animate-spin')).toBeInTheDocument())
+
+    fireEvent.change(input, { target: { value: '' } })
+
+    expect(container.querySelector('.animate-spin')).not.toBeInTheDocument()
+    resolveSearch(mockResults)
+  })
+
   it('handles search errors gracefully', async () => {
     render(<EntitySearch onSearch={createFailingSearch()} onSelect={mockOnSelect} />)
 
