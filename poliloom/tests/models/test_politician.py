@@ -1238,6 +1238,49 @@ class TestHasEnrichable:
         """Test returns False when politician has no Wikipedia links."""
         assert Politician.has_enrichable(db_session) is False
 
+    def test_respects_language_filter(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_link,
+        sample_country,
+        create_citizenship,
+    ):
+        """Test that only a top-three linked language is accepted."""
+        create_citizenship(sample_politician, sample_country)
+        db_session.flush()
+
+        assert Politician.has_enrichable(db_session, languages=["Q1860"]) is True
+        assert Politician.has_enrichable(db_session, languages=["Q188"]) is False
+        assert (
+            Politician.has_enrichable(
+                db_session, languages=["Q1860"], countries=["Q30"]
+            )
+            is True
+        )
+        assert (
+            Politician.has_enrichable(
+                db_session, languages=["Q1860"], countries=["Q183"]
+            )
+            is False
+        )
+
+    def test_respects_stateless_filter(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_link,
+        sample_country,
+        create_citizenship,
+    ):
+        """Test stateless mode only accepts politicians without citizenship."""
+        assert Politician.has_enrichable(db_session, stateless=True) is True
+
+        create_citizenship(sample_politician, sample_country)
+        db_session.flush()
+
+        assert Politician.has_enrichable(db_session, stateless=True) is False
+
     def test_respects_country_filter(
         self,
         db_session,

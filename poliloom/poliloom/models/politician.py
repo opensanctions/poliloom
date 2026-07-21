@@ -23,7 +23,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Session, relationship
+from sqlalchemy.orm import Session, aliased, relationship
 from .base import (
     Base,
     EntityCreationMixin,
@@ -522,6 +522,15 @@ class Politician(
         return query.where(citizenship_exists)
 
     @classmethod
+    def _query_enrichable_base(cls):
+        """Build the filters shared by enrichment selection and existence checks."""
+        return cls.query_base().where(
+            cls.wikidata_id.isnot(None),
+            cls.needs_enrichment,
+            exists(select(1).where(WikipediaLink.politician_id == cls.id)),
+        )
+
+    @classmethod
     def query_for_enrichment(
         cls,
         languages: List[str] = None,
@@ -548,18 +557,7 @@ class Politician(
             SQLAlchemy select statement for Politician entities
         """
 
-        query = (
-            select(cls)
-            .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
-            .where(
-                and_(
-                    exists(select(1).where(WikipediaLink.politician_id == cls.id)),
-                    WikidataEntity.deleted_at.is_(None),
-                    cls.wikidata_id.isnot(None),
-                    cls.needs_enrichment,
-                )
-            )
-        )
+        query = cls._query_enrichable_base()
 
         # Stateless mode: filter for politicians without citizenship
         # Uses idx_properties_citizenship_lookup for efficient NOT EXISTS check
@@ -605,6 +603,48 @@ class Politician(
         return query
 
     @classmethod
+    def get_random_unevaluated_with_count(
+        cls,
+        db: Session,
+        languages: Optional[List[str]] = None,
+        countries: Optional[List[str]] = None,
+        exclude_ids: Optional[List[str]] = None,
+    ) -> tuple[Optional[str], int]:
+        """Return a random matching QID and the size of the full matching pool.
+
+        The materialized CTE ensures the relatively expensive eligible-politician
+        query is evaluated once for both selection and metadata. Exclusions affect
+        selection only, matching the endpoint's existing count semantics.
+        """
+        pool_query = cls.query_base()
+        pool_query = cls.filter_by_unevaluated_properties(
+            pool_query, languages=languages
+        )
+        if countries:
+            pool_query = cls.filter_by_countries(pool_query, countries)
+
+        pool = (
+            pool_query.with_only_columns(cls.wikidata_id)
+            .cte("unevaluated_pool")
+            .prefix_with("MATERIALIZED")
+        )
+
+        candidate_query = select(pool.c.wikidata_id)
+        if exclude_ids:
+            candidate_query = candidate_query.where(
+                pool.c.wikidata_id.notin_(exclude_ids)
+            )
+
+        candidate_qid = (
+            candidate_query.order_by(func.random()).limit(1).scalar_subquery()
+        )
+        count = select(func.count()).select_from(pool).scalar_subquery()
+        query = select(candidate_qid, count)
+
+        wikidata_id, total = db.execute(query).one()
+        return wikidata_id, total or 0
+
+    @classmethod
     def count_unevaluated(
         cls,
         db: Session,
@@ -623,6 +663,153 @@ class Politician(
         return result or 0
 
     @classmethod
+    def _query_has_enrichable(
+        cls,
+        languages: Optional[List[str]] = None,
+        countries: Optional[List[str]] = None,
+        stateless: bool = False,
+    ):
+        """Build the query used by :meth:`has_enrichable`.
+
+        Unlike :meth:`query_for_enrichment`, this query is shaped purely as an
+        existence check. When languages are requested, each candidate's links are
+        ranked in a correlated subquery instead of ranking links for every politician.
+        The ordering mirrors :meth:`_get_ranked_wikipedia_links_cte`, while allowing
+        PostgreSQL to stop as soon as one eligible politician is found.
+        """
+        query = cls._query_enrichable_base()
+
+        # Stateless mode is mutually exclusive with language and country filters.
+        if stateless:
+            has_citizenship = exists(
+                select(1).where(
+                    Property.politician_id == cls.id,
+                    Property.type == PropertyType.CITIZENSHIP,
+                    Property.deleted_at.is_(None),
+                )
+            )
+            return query.where(~has_citizenship)
+
+        if countries:
+            query = cls.filter_by_countries(query, countries)
+
+        if not languages:
+            return query
+
+        link = aliased(WikipediaLink)
+        project = aliased(WikipediaProject)
+        link_language_relation = aliased(WikidataRelation)
+        language = aliased(Language)
+        citizenship = aliased(Property)
+        official_language_relation = aliased(WikidataRelation)
+        language_popularity = cls._get_language_popularity_cte()
+
+        citizenship_conditions = [
+            citizenship.politician_id == cls.id,
+            citizenship.type == PropertyType.CITIZENSHIP,
+            citizenship.entity_id.isnot(None),
+            citizenship.deleted_at.is_(None),
+            official_language_relation.parent_entity_id
+            == link_language_relation.parent_entity_id,
+        ]
+        if countries:
+            citizenship_conditions.append(citizenship.entity_id.in_(countries))
+
+        matches_citizenship = exists(
+            select(1)
+            .select_from(citizenship)
+            .join(
+                official_language_relation,
+                and_(
+                    citizenship.entity_id == official_language_relation.child_entity_id,
+                    official_language_relation.relation_type
+                    == RelationType.OFFICIAL_LANGUAGE,
+                    official_language_relation.deleted_at.is_(None),
+                ),
+            )
+            .where(*citizenship_conditions)
+            .correlate(cls, link_language_relation)
+        )
+
+        ranked_links = (
+            select(
+                language.wikidata_id.label("language_qid"),
+                func.row_number()
+                .over(
+                    order_by=(
+                        matches_citizenship.desc(),
+                        language_popularity.c.global_count.desc(),
+                    )
+                )
+                .label("rank"),
+            )
+            .select_from(link)
+            .join(project, link.wikipedia_project_id == project.wikidata_id)
+            .join(
+                link_language_relation,
+                and_(
+                    link_language_relation.child_entity_id == project.wikidata_id,
+                    link_language_relation.relation_type
+                    == RelationType.LANGUAGE_OF_WORK,
+                    link_language_relation.deleted_at.is_(None),
+                ),
+            )
+            .join(
+                language,
+                link_language_relation.parent_entity_id == language.wikidata_id,
+            )
+            .join(
+                language_popularity,
+                language_popularity.c.wikipedia_project_id == link.wikipedia_project_id,
+            )
+            .where(link.politician_id == cls.id)
+            .correlate(cls)
+            .subquery("ranked_links_for_politician")
+        )
+
+        requested_language_is_top_three = exists(
+            select(1)
+            .select_from(ranked_links)
+            .where(
+                ranked_links.c.language_qid.in_(languages),
+                ranked_links.c.rank <= 3,
+            )
+        )
+
+        # Give the planner a cheap way to narrow the outer candidates before it
+        # evaluates the correlated ranking subquery.
+        candidate_link = aliased(WikipediaLink)
+        candidate_project = aliased(WikipediaProject)
+        candidate_relation = aliased(WikidataRelation)
+        candidate_language = aliased(Language)
+        politicians_with_requested_link = (
+            select(candidate_link.politician_id)
+            .select_from(candidate_link)
+            .join(
+                candidate_project,
+                candidate_link.wikipedia_project_id == candidate_project.wikidata_id,
+            )
+            .join(
+                candidate_relation,
+                and_(
+                    candidate_relation.child_entity_id == candidate_project.wikidata_id,
+                    candidate_relation.relation_type == RelationType.LANGUAGE_OF_WORK,
+                    candidate_relation.deleted_at.is_(None),
+                ),
+            )
+            .join(
+                candidate_language,
+                candidate_relation.parent_entity_id == candidate_language.wikidata_id,
+            )
+            .where(candidate_language.wikidata_id.in_(languages))
+        )
+
+        return query.where(
+            cls.id.in_(politicians_with_requested_link),
+            requested_language_is_top_three,
+        )
+
+    @classmethod
     def has_enrichable(
         cls,
         db: Session,
@@ -630,15 +817,13 @@ class Politician(
         countries: Optional[List[str]] = None,
         stateless: bool = False,
     ) -> bool:
-        """Check if there are politicians available to enrich."""
-        query = cls.query_for_enrichment(
+        """Return whether at least one politician is available to enrich."""
+        query = cls._query_has_enrichable(
             languages=languages,
             countries=countries,
             stateless=stateless,
-        ).limit(1)
-
-        result = db.execute(query).first()
-        return result is not None
+        )
+        return db.execute(query.with_only_columns(cls.id).limit(1)).first() is not None
 
     @classmethod
     def count_stateless_with_unevaluated_citizenship(cls, db: Session) -> int:

@@ -44,6 +44,8 @@ class TestGetNextPoliticianEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["wikidata_id"] is None
+        # Exclusions affect navigation, not the matching-pool metadata.
+        assert data["meta"]["total_matching_filters"] == 1
 
     def test_requires_authentication(self, client):
         """Test that endpoint requires authentication."""
