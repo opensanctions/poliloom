@@ -21,6 +21,56 @@ from .models.wikidata import WikidataRelation
 PRIORITY_WIKIPEDIA_LINK_LIMIT = 3
 
 
+def count_stateless_with_unevaluated_citizenship(db: Session) -> int:
+    """Count stateless politicians with unevaluated extracted citizenship.
+
+    A politician is counted when they have an active extracted citizenship
+    (no statement ID) but no active Wikidata citizenship (a statement ID).
+    The result is the review buffer used to throttle stateless enrichment.
+    """
+    # Subquery: politicians with Wikidata citizenship (should be excluded)
+    has_wikidata_citizenship = (
+        select(Property.politician_id)
+        .where(
+            and_(
+                Property.type == PropertyType.CITIZENSHIP,
+                Property.statement_id.isnot(None),
+                Property.deleted_at.is_(None),
+            )
+        )
+        .distinct()
+    )
+
+    # Subquery: politicians with unevaluated extracted citizenship
+    has_unevaluated_extracted_citizenship = (
+        select(Property.politician_id)
+        .where(
+            and_(
+                Property.type == PropertyType.CITIZENSHIP,
+                Property.statement_id.is_(None),
+                Property.deleted_at.is_(None),
+            )
+        )
+        .distinct()
+    )
+
+    # Count politicians who have unevaluated extracted citizenship but no
+    # Wikidata citizenship.
+    count_query = (
+        select(func.count())
+        .select_from(Politician)
+        .where(
+            and_(
+                Politician.id.in_(has_unevaluated_extracted_citizenship),
+                ~Politician.id.in_(has_wikidata_citizenship),
+            )
+        )
+    )
+
+    result = db.execute(count_query).scalar()
+    return result or 0
+
+
 def _ranking_order_by(matches_citizenship, language_popularity):
     """Return the two ranking keys shared by both link-ranking query shapes."""
     return (matches_citizenship.desc(), language_popularity.desc())
@@ -91,7 +141,7 @@ def _politicians_with_citizenship(countries):
 
 def get_priority_wikipedia_links(politician: Politician, db: Session) -> list[Row]:
     """
-    Get top 3 most popular Wikipedia links for a politician.
+    Get the highest-priority Wikipedia links for a politician.
 
     Ranking prioritizes:
     1. Languages that are official in the politician's citizenship countries

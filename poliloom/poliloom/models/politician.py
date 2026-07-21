@@ -12,15 +12,13 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
-    and_,
-    func,
     or_,
     select,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Session, relationship
+from sqlalchemy.orm import relationship
 from .base import (
     Base,
     EntityCreationMixin,
@@ -241,67 +239,6 @@ class Politician(
             .join(WikidataEntity, cls.wikidata_id == WikidataEntity.wikidata_id)
             .where(WikidataEntity.deleted_at.is_(None))
         )
-
-    @classmethod
-    def count_stateless_with_unevaluated_citizenship(cls, db: Session) -> int:
-        """
-        Count politicians without Wikidata citizenship who have unevaluated extracted citizenship.
-
-        These are politicians where:
-        1. No citizenship property exists from Wikidata (source_id IS NULL)
-        2. At least one extracted citizenship exists (source_id IS NOT NULL, statement_id IS NULL)
-
-        This count represents the "buffer" of stateless politicians whose extracted
-        citizenship is waiting for review. Used to throttle stateless enrichment.
-
-        Args:
-            db: Database session
-
-        Returns:
-            Count of stateless politicians with unevaluated extracted citizenship
-        """
-        # Subquery: politicians with Wikidata citizenship (should be excluded)
-        has_wikidata_citizenship = (
-            select(Property.politician_id)
-            .where(
-                and_(
-                    Property.type == PropertyType.CITIZENSHIP,
-                    Property.statement_id.isnot(None),
-                    Property.deleted_at.is_(None),
-                )
-            )
-            .distinct()
-        )
-
-        # Subquery: politicians with unevaluated extracted citizenship
-        has_unevaluated_extracted_citizenship = (
-            select(Property.politician_id)
-            .where(
-                and_(
-                    Property.type == PropertyType.CITIZENSHIP,
-                    Property.statement_id.is_(None),
-                    Property.deleted_at.is_(None),
-                )
-            )
-            .distinct()
-        )
-
-        # Count politicians who:
-        # - Have unevaluated extracted citizenship
-        # - Don't have Wikidata citizenship
-        count_query = (
-            select(func.count())
-            .select_from(cls)
-            .where(
-                and_(
-                    cls.id.in_(has_unevaluated_extracted_citizenship),
-                    ~cls.id.in_(has_wikidata_citizenship),
-                )
-            )
-        )
-
-        result = db.execute(count_query).scalar()
-        return result or 0
 
     # Relationships
     wikidata_entity = relationship("WikidataEntity", back_populates="politician")

@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta, timezone
 
 from poliloom.enrichment_queue import (
+    count_stateless_with_unevaluated_citizenship,
     enrichment_candidates_query,
     get_priority_wikipedia_links,
     has_enrichment_candidate,
@@ -294,8 +295,8 @@ class TestPriorityWikipediaLinks:
         assert "Q8447" in project_ids, "French Wikipedia should also be included"
 
 
-class TestPoliticianQueryForEnrichment:
-    """Test cases for enrichment_candidates_query method."""
+class TestEnrichmentCandidatesQuery:
+    """Tests for enrichment_candidates_query."""
 
     def test_query_returns_politicians_with_wikipedia_links(
         self, db_session, sample_politician, sample_wikipedia_link
@@ -773,7 +774,7 @@ class TestPoliticianQueryForEnrichment:
 
 
 class TestCountStatelessWithUnevaluatedCitizenship:
-    """Test Politician.count_stateless_with_unevaluated_citizenship method."""
+    """Tests for count_stateless_with_unevaluated_citizenship."""
 
     def test_count_politician_with_extracted_citizenship_no_wikidata(
         self,
@@ -792,7 +793,7 @@ class TestCountStatelessWithUnevaluatedCitizenship:
         db_session.add(prop)
         db_session.flush()
 
-        count = Politician.count_stateless_with_unevaluated_citizenship(db_session)
+        count = count_stateless_with_unevaluated_citizenship(db_session)
         assert count == 1
 
     def test_count_excludes_politician_with_wikidata_citizenship(
@@ -822,7 +823,7 @@ class TestCountStatelessWithUnevaluatedCitizenship:
         db_session.flush()
 
         # Should be 0 because politician has Wikidata citizenship
-        count = Politician.count_stateless_with_unevaluated_citizenship(db_session)
+        count = count_stateless_with_unevaluated_citizenship(db_session)
         assert count == 0
 
     def test_count_excludes_evaluated_extracted_citizenship(
@@ -842,7 +843,7 @@ class TestCountStatelessWithUnevaluatedCitizenship:
         db_session.add(prop)
         db_session.flush()
 
-        count = Politician.count_stateless_with_unevaluated_citizenship(db_session)
+        count = count_stateless_with_unevaluated_citizenship(db_session)
         assert count == 0
 
     def test_count_excludes_soft_deleted_citizenship(
@@ -863,7 +864,7 @@ class TestCountStatelessWithUnevaluatedCitizenship:
         db_session.add(prop)
         db_session.flush()
 
-        count = Politician.count_stateless_with_unevaluated_citizenship(db_session)
+        count = count_stateless_with_unevaluated_citizenship(db_session)
         assert count == 0
 
     def test_count_zero_when_no_extracted_citizenship(
@@ -873,12 +874,12 @@ class TestCountStatelessWithUnevaluatedCitizenship:
     ):
         """Test count is 0 when politician has no extracted citizenship."""
         # sample_politician has no properties
-        count = Politician.count_stateless_with_unevaluated_citizenship(db_session)
+        count = count_stateless_with_unevaluated_citizenship(db_session)
         assert count == 0
 
 
-class TestHasEnrichable:
-    """Test has_enrichment_candidate classmethod."""
+class TestHasEnrichmentCandidate:
+    """Tests for has_enrichment_candidate."""
 
     def test_returns_true_when_enrichable_exists(
         self,
@@ -959,7 +960,7 @@ class TestHasEnrichable:
         assert has_enrichment_candidate(db_session, countries=["Q183"]) is False
 
 
-class TestHasEnrichableQueryParity:
+class TestHasEnrichmentCandidateQueryParity:
     """Ensure the existence check remains equivalent to enrichment selection."""
 
     @staticmethod

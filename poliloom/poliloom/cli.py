@@ -6,6 +6,7 @@ import logging
 import os
 from datetime import datetime, timezone
 import httpx
+from poliloom.enrichment_queue import count_stateless_with_unevaluated_citizenship
 from poliloom.scheduling import process_next_politician
 from poliloom.storage import StorageFactory
 from poliloom.importer.hierarchy import import_hierarchy_trees
@@ -331,12 +332,8 @@ def enrich_wikipedia(
         # For stateless mode, check if we already have enough unevaluated citizenship
         if stateless:
             min_threshold = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
-            from poliloom.models import Politician
-
             with Session(get_engine()) as db:
-                current_count = Politician.count_stateless_with_unevaluated_citizenship(
-                    db
-                )
+                current_count = count_stateless_with_unevaluated_citizenship(db)
 
             click.echo(
                 f"   Stateless politicians with unevaluated citizenship: {current_count}"
