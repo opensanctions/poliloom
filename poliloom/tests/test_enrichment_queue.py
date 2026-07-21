@@ -2,8 +2,6 @@
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
-
 from poliloom.enrichment_queue import (
     count_stateless_with_unevaluated_citizenship,
     enrichment_candidates_query,
@@ -775,14 +773,6 @@ class TestEnrichmentCandidatesQuery:
 
         assert len(result) == 0
 
-    @pytest.mark.parametrize(
-        "filters", [{"languages": ["Q1860"]}, {"countries": ["Q30"]}]
-    )
-    def test_query_rejects_stateless_with_filters(self, filters):
-        """Stateless selection cannot be combined with language or country filters."""
-        with pytest.raises(ValueError, match="stateless mode cannot be combined"):
-            enrichment_candidates_query(stateless=True, **filters)
-
 
 class TestCountStatelessWithUnevaluatedCitizenship:
     """Tests for count_stateless_with_unevaluated_citizenship."""
@@ -969,14 +959,6 @@ class TestHasEnrichmentCandidate:
 
         assert has_enrichment_candidate(db_session, countries=["Q30"]) is True
         assert has_enrichment_candidate(db_session, countries=["Q183"]) is False
-
-    @pytest.mark.parametrize(
-        "filters", [{"languages": ["Q1860"]}, {"countries": ["Q30"]}]
-    )
-    def test_rejects_stateless_with_filters(self, db_session, filters):
-        """Stateless existence checks cannot be combined with other filters."""
-        with pytest.raises(ValueError, match="stateless mode cannot be combined"):
-            has_enrichment_candidate(db_session, stateless=True, **filters)
 
 
 class TestHasEnrichmentCandidateQueryParity:

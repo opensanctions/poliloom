@@ -105,18 +105,6 @@ def _official_language_join_conditions(citizenship, relation):
     )
 
 
-def _active_mapped_citizenship_conditions(
-    citizenship, *, politician_id=None, countries=None
-):
-    """Return active citizenship predicates for official-language ranking joins."""
-    return [
-        *active_citizenship_conditions(
-            citizenship, politician_id=politician_id, countries=countries
-        ),
-        citizenship.entity_id.isnot(None),
-    ]
-
-
 def _active_citizenship_exists(politician_id, *, countries=None):
     """Return an EXISTS expression for an active citizenship, optionally in countries."""
     return exists(
@@ -231,9 +219,7 @@ def _get_ranked_wikipedia_links_cte(countries: list[str] | None = None):
     # Pre-compute which (politician, language) pairs have a citizenship match
     # by joining citizenships with official languages
     # When countries is provided, scope to those countries for early filtering
-    citizenship_where = _active_mapped_citizenship_conditions(
-        Property, countries=countries
-    )
+    citizenship_where = active_citizenship_conditions(Property, countries=countries)
 
     citizenship_language_matches = (
         select(
@@ -319,16 +305,6 @@ def _query_enrichable_base():
     )
 
 
-def _validate_enrichment_filters(
-    languages: list[str] | None, countries: list[str] | None, stateless: bool
-) -> None:
-    """Reject stateless mode combined with non-empty country or language filters."""
-    if stateless and (languages or countries):
-        raise ValueError(
-            "stateless mode cannot be combined with language or country filters"
-        )
-
-
 def enrichment_candidates_query(
     languages: list[str] | None = None,
     countries: list[str] | None = None,
@@ -345,16 +321,15 @@ def enrichment_candidates_query(
     Args:
         languages: Optional list of language QIDs to filter by
         countries: Optional list of country QIDs to filter by
-        stateless: If True, only return politicians without any citizenship property.
-                   This addresses bias where politicians without citizenship are never
-                   enriched by normal user-driven filters. Mutually exclusive with
-                   languages/countries filters.
+        stateless: If True, only return politicians without any citizenship property,
+                   taking precedence over language and country filters. This addresses
+                   bias where politicians without citizenship are never enriched by
+                   normal user-driven filters.
 
     Returns:
         SQLAlchemy select statement for Politician entities
     """
 
-    _validate_enrichment_filters(languages, countries, stateless)
     query = _query_enrichable_base()
 
     # Stateless mode: filter for politicians without citizenship
@@ -400,7 +375,7 @@ def _query_has_enrichment_candidate(
     """
     query = _query_enrichable_base()
 
-    # Stateless mode is mutually exclusive with language and country filters.
+    # Stateless mode takes precedence over language and country filters.
     if stateless:
         return query.where(~_active_citizenship_exists(Politician.id))
 
@@ -420,7 +395,7 @@ def _query_has_enrichment_candidate(
     official_language_relation = aliased(WikidataRelation)
     wikipedia_project_popularity = _get_wikipedia_project_popularity_cte()
 
-    citizenship_conditions = _active_mapped_citizenship_conditions(
+    citizenship_conditions = active_citizenship_conditions(
         citizenship,
         politician_id=Politician.id,
         countries=countries,
@@ -506,7 +481,6 @@ def has_enrichment_candidate(
     stateless: bool = False,
 ) -> bool:
     """Return whether at least one politician is available to enrich."""
-    _validate_enrichment_filters(languages, countries, stateless)
     query = _query_has_enrichment_candidate(
         languages=languages,
         countries=countries,
