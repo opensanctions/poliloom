@@ -10,10 +10,10 @@ from sqlalchemy import and_, case, exists, func, select
 from sqlalchemy.engine import Row
 from sqlalchemy.orm import Session, aliased
 
-from .models.base import PropertyType, RelationType
+from .models.base import RelationType
 from .models.entities import Language, WikipediaProject
 from .models.politician import Politician, WikipediaLink
-from .models.property import Property
+from .models.property import Property, active_citizenship_conditions
 from .models.source import Source
 from .models.wikidata import WikidataRelation
 
@@ -33,9 +33,8 @@ def count_stateless_with_unevaluated_citizenship(db: Session) -> int:
         select(Property.politician_id)
         .where(
             and_(
-                Property.type == PropertyType.CITIZENSHIP,
+                *active_citizenship_conditions(Property),
                 Property.statement_id.isnot(None),
-                Property.deleted_at.is_(None),
             )
         )
         .distinct()
@@ -46,9 +45,8 @@ def count_stateless_with_unevaluated_citizenship(db: Session) -> int:
         select(Property.politician_id)
         .where(
             and_(
-                Property.type == PropertyType.CITIZENSHIP,
+                *active_citizenship_conditions(Property),
                 Property.statement_id.is_(None),
-                Property.deleted_at.is_(None),
             )
         )
         .distinct()
@@ -71,9 +69,15 @@ def count_stateless_with_unevaluated_citizenship(db: Session) -> int:
     return result or 0
 
 
-def _ranking_order_by(matches_citizenship, language_popularity):
-    """Return the two ranking keys shared by both link-ranking query shapes."""
-    return (matches_citizenship.desc(), language_popularity.desc())
+def _ranking_order_by(
+    matches_citizenship, wikipedia_project_popularity, wikipedia_project_id
+):
+    """Return the shared deterministic ranking keys for Wikipedia links."""
+    return (
+        matches_citizenship.desc(),
+        wikipedia_project_popularity.desc(),
+        wikipedia_project_id.asc(),
+    )
 
 
 def _join_project_language_path(query, link, project, relation, language):
@@ -101,31 +105,23 @@ def _official_language_join_conditions(citizenship, relation):
     )
 
 
-def _active_citizenship_conditions(
-    citizenship, *, politician_id=None, countries=None, require_entity=False
+def _active_mapped_citizenship_conditions(
+    citizenship, *, politician_id=None, countries=None
 ):
-    """Return common active-citizenship predicates for a Property table or alias."""
-    conditions = []
-    if politician_id is not None:
-        conditions.append(citizenship.politician_id == politician_id)
-    conditions.append(citizenship.type == PropertyType.CITIZENSHIP)
-    if require_entity:
-        conditions.append(citizenship.entity_id.isnot(None))
-        conditions.append(citizenship.deleted_at.is_(None))
-        if countries:
-            conditions.append(citizenship.entity_id.in_(countries))
-    else:
-        if countries:
-            conditions.append(citizenship.entity_id.in_(countries))
-        conditions.append(citizenship.deleted_at.is_(None))
-    return conditions
+    """Return active citizenship predicates for official-language ranking joins."""
+    return [
+        *active_citizenship_conditions(
+            citizenship, politician_id=politician_id, countries=countries
+        ),
+        citizenship.entity_id.isnot(None),
+    ]
 
 
-def _active_citizenship_exists(politician_id=Politician.id, *, countries=None):
+def _active_citizenship_exists(politician_id, *, countries=None):
     """Return an EXISTS expression for an active citizenship, optionally in countries."""
     return exists(
         select(1).where(
-            *_active_citizenship_conditions(
+            *active_citizenship_conditions(
                 Property, politician_id=politician_id, countries=countries
             )
         )
@@ -135,7 +131,7 @@ def _active_citizenship_exists(politician_id=Politician.id, *, countries=None):
 def _politicians_with_citizenship(countries):
     """Select politicians with an active citizenship in ``countries``."""
     return select(Property.politician_id).where(
-        *_active_citizenship_conditions(Property, countries=countries)
+        *active_citizenship_conditions(Property, countries=countries)
     )
 
 
@@ -145,7 +141,7 @@ def get_priority_wikipedia_links(politician: Politician, db: Session) -> list[Ro
 
     Ranking prioritizes:
     1. Languages that are official in the politician's citizenship countries
-    2. Global popularity (count of Wikipedia links in that language)
+    2. Wikipedia-project popularity (count of links for that project)
 
     Args:
         politician: Politician whose Wikipedia links to rank.
@@ -172,7 +168,7 @@ def get_priority_wikipedia_links(politician: Politician, db: Session) -> list[Ro
     return result.fetchall()
 
 
-def create_enrichment_sources(politician: Politician, db: Session) -> list["Source"]:
+def create_enrichment_sources(politician: Politician, db: Session) -> list[Source]:
     """Create sources for this politician's priority Wikipedia links.
 
     Sets enriched_at to now to prevent re-selection.
@@ -193,9 +189,8 @@ def create_enrichment_sources(politician: Politician, db: Session) -> list["Sour
     return sources
 
 
-def _get_language_popularity_cte():
-    """
-    Create CTE for global language popularity based on Wikipedia link counts.
+def _get_wikipedia_project_popularity_cte():
+    """Create a CTE for global Wikipedia-project popularity by link count.
 
     Returns:
         SQLAlchemy CTE with columns: wikipedia_project_id, global_count
@@ -203,21 +198,22 @@ def _get_language_popularity_cte():
     return (
         select(WikipediaLink.wikipedia_project_id, func.count().label("global_count"))
         .group_by(WikipediaLink.wikipedia_project_id)
-        .cte("language_popularity")
+        .cte("wikipedia_project_popularity")
         .prefix_with("MATERIALIZED")
     )
 
 
 def _get_ranked_wikipedia_links_cte(countries: list[str] | None = None):
     """
-    Create CTE for ranking Wikipedia links by citizenship match and global popularity.
+    Create CTE for ranking Wikipedia links by citizenship match and project popularity.
 
     This is the shared ranking logic used by both get_priority_wikipedia_links
     and enrichment_candidates_query to ensure consistent behavior.
 
     The ranking orders by:
     1. Citizenship match (1 if language is official in a citizenship country, else 0)
-    2. Global popularity (count of Wikipedia links in that language across all politicians)
+    2. Wikipedia-project popularity (count of links for that project across all politicians)
+    3. Wikipedia project ID ascending (deterministic tiebreaker)
 
     Args:
         countries: Optional list of country QIDs to pre-filter politicians.
@@ -225,17 +221,18 @@ def _get_ranked_wikipedia_links_cte(countries: list[str] | None = None):
 
     Returns:
         SQLAlchemy CTE with columns: politician_id, language_qid, wikipedia_project_id,
-                                     url, matches_citizenship, language_popularity, rank
+                                     url, matches_citizenship,
+                                     wikipedia_project_popularity, rank
     """
-    # CTE 1: Global language popularity
-    language_popularity = _get_language_popularity_cte()
+    # CTE 1: Global Wikipedia-project popularity
+    wikipedia_project_popularity = _get_wikipedia_project_popularity_cte()
 
     # CTE 2: Politician-language citizenship matches
     # Pre-compute which (politician, language) pairs have a citizenship match
     # by joining citizenships with official languages
     # When countries is provided, scope to those countries for early filtering
-    citizenship_where = _active_citizenship_conditions(
-        Property, countries=countries, require_entity=True
+    citizenship_where = _active_mapped_citizenship_conditions(
+        Property, countries=countries
     )
 
     citizenship_language_matches = (
@@ -266,12 +263,16 @@ def _get_ranked_wikipedia_links_cte(countries: list[str] | None = None):
             WikipediaLink.wikipedia_project_id,
             WikipediaLink.url,
             matches_citizenship.label("matches_citizenship"),
-            language_popularity.c.global_count.label("language_popularity"),
+            wikipedia_project_popularity.c.global_count.label(
+                "wikipedia_project_popularity"
+            ),
             func.row_number()
             .over(
                 partition_by=Politician.id,
                 order_by=_ranking_order_by(
-                    matches_citizenship, language_popularity.c.global_count
+                    matches_citizenship,
+                    wikipedia_project_popularity.c.global_count,
+                    WikipediaLink.wikipedia_project_id,
                 ),
             )
             .label("rank"),
@@ -288,8 +289,8 @@ def _get_ranked_wikipedia_links_cte(countries: list[str] | None = None):
             Language,
         )
         .join(
-            language_popularity,
-            language_popularity.c.wikipedia_project_id
+            wikipedia_project_popularity,
+            wikipedia_project_popularity.c.wikipedia_project_id
             == WikipediaLink.wikipedia_project_id,
         )
         .outerjoin(
@@ -318,6 +319,16 @@ def _query_enrichable_base():
     )
 
 
+def _validate_enrichment_filters(
+    languages: list[str] | None, countries: list[str] | None, stateless: bool
+) -> None:
+    """Reject stateless mode combined with non-empty country or language filters."""
+    if stateless and (languages or countries):
+        raise ValueError(
+            "stateless mode cannot be combined with language or country filters"
+        )
+
+
 def enrichment_candidates_query(
     languages: list[str] | None = None,
     countries: list[str] | None = None,
@@ -327,7 +338,7 @@ def enrichment_candidates_query(
     Build a query for politicians that should be enriched.
 
     Uses citizenship-based language filtering that mirrors get_priority_wikipedia_links logic,
-    considering both citizenship matching and language popularity.
+    considering both citizenship matching and Wikipedia-project popularity.
 
     This ensures that filtered languages would actually be selected by get_priority_wikipedia_links.
 
@@ -343,12 +354,13 @@ def enrichment_candidates_query(
         SQLAlchemy select statement for Politician entities
     """
 
+    _validate_enrichment_filters(languages, countries, stateless)
     query = _query_enrichable_base()
 
     # Stateless mode: filter for politicians without citizenship
     # Uses idx_properties_citizenship_lookup for efficient NOT EXISTS check
     if stateless:
-        query = query.where(~_active_citizenship_exists())
+        query = query.where(~_active_citizenship_exists(Politician.id))
         return query
 
     # Apply language filtering using shared ranking logic
@@ -390,10 +402,12 @@ def _query_has_enrichment_candidate(
 
     # Stateless mode is mutually exclusive with language and country filters.
     if stateless:
-        return query.where(~_active_citizenship_exists())
+        return query.where(~_active_citizenship_exists(Politician.id))
 
     if countries:
-        query = query.where(_active_citizenship_exists(countries=countries))
+        query = query.where(
+            _active_citizenship_exists(Politician.id, countries=countries)
+        )
 
     if not languages:
         return query
@@ -404,13 +418,12 @@ def _query_has_enrichment_candidate(
     language = aliased(Language)
     citizenship = aliased(Property)
     official_language_relation = aliased(WikidataRelation)
-    language_popularity = _get_language_popularity_cte()
+    wikipedia_project_popularity = _get_wikipedia_project_popularity_cte()
 
-    citizenship_conditions = _active_citizenship_conditions(
+    citizenship_conditions = _active_mapped_citizenship_conditions(
         citizenship,
         politician_id=Politician.id,
         countries=countries,
-        require_entity=True,
     ) + [
         official_language_relation.parent_entity_id
         == link_language_relation.parent_entity_id,
@@ -432,7 +445,9 @@ def _query_has_enrichment_candidate(
         func.row_number()
         .over(
             order_by=_ranking_order_by(
-                matches_citizenship, language_popularity.c.global_count
+                matches_citizenship,
+                wikipedia_project_popularity.c.global_count,
+                link.wikipedia_project_id,
             )
         )
         .label("rank"),
@@ -446,8 +461,9 @@ def _query_has_enrichment_candidate(
             language,
         )
         .join(
-            language_popularity,
-            language_popularity.c.wikipedia_project_id == link.wikipedia_project_id,
+            wikipedia_project_popularity,
+            wikipedia_project_popularity.c.wikipedia_project_id
+            == link.wikipedia_project_id,
         )
         .where(link.politician_id == Politician.id)
         .correlate(Politician)
@@ -490,6 +506,7 @@ def has_enrichment_candidate(
     stateless: bool = False,
 ) -> bool:
     """Return whether at least one politician is available to enrich."""
+    _validate_enrichment_filters(languages, countries, stateless)
     query = _query_has_enrichment_candidate(
         languages=languages,
         countries=countries,

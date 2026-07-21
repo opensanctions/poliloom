@@ -388,6 +388,18 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         return None
 
 
+def active_citizenship_conditions(citizenship, *, politician_id=None, countries=None):
+    """Return common active-citizenship predicates for a Property table or alias."""
+    conditions = []
+    if politician_id is not None:
+        conditions.append(citizenship.politician_id == politician_id)
+    conditions.append(citizenship.type == PropertyType.CITIZENSHIP)
+    if countries:
+        conditions.append(citizenship.entity_id.in_(countries))
+    conditions.append(citizenship.deleted_at.is_(None))
+    return conditions
+
+
 class PropertyReference(Base, TimestampMixin):
     """Evidence linking a Property to a Source.
 

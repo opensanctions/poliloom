@@ -2,6 +2,8 @@
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from poliloom.enrichment_queue import (
     count_stateless_with_unevaluated_citizenship,
     enrichment_candidates_query,
@@ -147,13 +149,14 @@ class TestPriorityWikipediaLinks:
 
         # Should contain the 3 most popular: French (10), German (7), Spanish (5)
         # Should NOT contain English (3) as it's the 4th most popular
-        expected_top_3 = {
+        expected_priority_projects = {
             "Q8447",
             "Q48183",
             "Q8449",
         }  # French, German, Spanish Wikipedia
-        assert returned_project_ids == expected_top_3, (
-            f"Expected top 3 projects {expected_top_3}, got {returned_project_ids}"
+        assert returned_project_ids == expected_priority_projects, (
+            "Expected priority projects "
+            f"{expected_priority_projects}, got {returned_project_ids}"
         )
 
     def test_get_priority_wikipedia_links_multiple_citizenships(
@@ -561,7 +564,7 @@ class TestEnrichmentCandidatesQuery:
         # Should NOT find politician - they have German citizenship but no German Wikipedia link
         assert len(result) == 0
 
-    def test_query_respects_top_3_language_popularity_limit(
+    def test_query_respects_priority_wikipedia_project_limit(
         self,
         db_session,
         sample_politician,
@@ -575,8 +578,8 @@ class TestEnrichmentCandidatesQuery:
         sample_spanish_wikipedia_project,
         create_wikipedia_link,
     ):
-        """Test that only top 3 most popular languages are considered for a politician."""
-        # Set up 4 languages with different global popularity levels
+        """Test that only three highest-priority Wikipedia projects are considered."""
+        # Set up four projects with different global link-count popularity levels
         # English: 5, German: 4, French: 3, Spanish: 2
         languages_data = [
             (sample_language, sample_wikipedia_project, 5),  # English - most popular
@@ -599,8 +602,8 @@ class TestEnrichmentCandidatesQuery:
 
         base_qid = 60000
         for lang, wp, popularity in languages_data:
-            # Create dummy politicians to establish global popularity
-            # These dummies only have ONE language each, so they won't interfere with top-3 logic
+            # Create dummy politicians to establish global project popularity.
+            # Each has one project link, so it does not affect priority ranking.
             for i in range(popularity):
                 dummy = Politician.create_with_entity(
                     db_session, f"Q{base_qid + i}", f"Dummy {lang.iso_639_1} {i}"
@@ -772,6 +775,14 @@ class TestEnrichmentCandidatesQuery:
 
         assert len(result) == 0
 
+    @pytest.mark.parametrize(
+        "filters", [{"languages": ["Q1860"]}, {"countries": ["Q30"]}]
+    )
+    def test_query_rejects_stateless_with_filters(self, filters):
+        """Stateless selection cannot be combined with language or country filters."""
+        with pytest.raises(ValueError, match="stateless mode cannot be combined"):
+            enrichment_candidates_query(stateless=True, **filters)
+
 
 class TestCountStatelessWithUnevaluatedCitizenship:
     """Tests for count_stateless_with_unevaluated_citizenship."""
@@ -911,7 +922,7 @@ class TestHasEnrichmentCandidate:
         sample_country,
         create_citizenship,
     ):
-        """Test that only a top-three linked language is accepted."""
+        """Test that only a language on a priority Wikipedia project is accepted."""
         create_citizenship(sample_politician, sample_country)
         db_session.flush()
 
@@ -958,6 +969,14 @@ class TestHasEnrichmentCandidate:
 
         assert has_enrichment_candidate(db_session, countries=["Q30"]) is True
         assert has_enrichment_candidate(db_session, countries=["Q183"]) is False
+
+    @pytest.mark.parametrize(
+        "filters", [{"languages": ["Q1860"]}, {"countries": ["Q30"]}]
+    )
+    def test_rejects_stateless_with_filters(self, db_session, filters):
+        """Stateless existence checks cannot be combined with other filters."""
+        with pytest.raises(ValueError, match="stateless mode cannot be combined"):
+            has_enrichment_candidate(db_session, stateless=True, **filters)
 
 
 class TestHasEnrichmentCandidateQueryParity:
@@ -1043,6 +1062,56 @@ class TestHasEnrichmentCandidateQueryParity:
             languages=[sample_spanish_language.wikidata_id],
             countries=germany,
         )
+
+    def test_matches_deterministic_project_tie_at_priority_cutoff(
+        self,
+        db_session,
+        sample_politician,
+        sample_language,
+        sample_wikipedia_project,
+        sample_german_language,
+        sample_german_wikipedia_project,
+        sample_french_language,
+        sample_french_wikipedia_project,
+        sample_spanish_language,
+        sample_spanish_wikipedia_project,
+        create_wikipedia_link,
+    ):
+        """All public ranking paths use project ID to resolve a cutoff tie."""
+        links = [
+            (sample_language, sample_wikipedia_project),
+            (sample_german_language, sample_german_wikipedia_project),
+            (sample_french_language, sample_french_wikipedia_project),
+            (sample_spanish_language, sample_spanish_wikipedia_project),
+        ]
+        for _, project in links:
+            create_wikipedia_link(sample_politician, project)
+        db_session.flush()
+
+        expected_project_ids = sorted(project.wikidata_id for _, project in links)[:3]
+        priority_project_ids = [
+            project_id
+            for _, project_id in get_priority_wikipedia_links(
+                sample_politician, db_session
+            )
+        ]
+        assert priority_project_ids == expected_project_ids
+
+        for language, project in links:
+            expected = project.wikidata_id in expected_project_ids
+            selected = (
+                db_session.execute(
+                    enrichment_candidates_query(languages=[language.wikidata_id])
+                )
+                .scalars()
+                .first()
+                is not None
+            )
+            assert selected is expected
+            assert (
+                has_enrichment_candidate(db_session, languages=[language.wikidata_id])
+                is expected
+            )
 
     def test_matches_soft_deleted_citizenship_and_stateless_filters(
         self,

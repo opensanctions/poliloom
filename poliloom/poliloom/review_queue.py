@@ -1,33 +1,27 @@
 """Queries for the unevaluated politician review queue."""
 
 from dataclasses import dataclass
-from typing import Optional
 
 from sqlalchemy import and_, exists, func, select
 from sqlalchemy.orm import Session
 
-from .models import (
-    Politician,
-    Property,
-    PropertyReference,
-    PropertyType,
-    SourceLanguage,
-)
+from .models import Politician, Property, PropertyReference, SourceLanguage
+from .models.property import active_citizenship_conditions
 
 
 @dataclass(frozen=True)
 class ReviewQueueResult:
     """A randomly selected review candidate and the full matching pool size."""
 
-    wikidata_id: Optional[str]
+    wikidata_id: str | None
     total: int
 
 
 def get_random_unevaluated(
     db: Session,
-    languages: Optional[list[str]] = None,
-    countries: Optional[list[str]] = None,
-    exclude_ids: Optional[list[str]] = None,
+    languages: list[str] | None = None,
+    countries: list[str] | None = None,
+    exclude_ids: list[str] | None = None,
 ) -> ReviewQueueResult:
     """Select a random candidate and count the full matching review pool.
 
@@ -58,10 +52,9 @@ def get_random_unevaluated(
         pool_query = pool_query.where(
             exists(
                 select(1).where(
-                    Property.politician_id == Politician.id,
-                    Property.type == PropertyType.CITIZENSHIP,
-                    Property.entity_id.in_(countries),
-                    Property.deleted_at.is_(None),
+                    *active_citizenship_conditions(
+                        Property, politician_id=Politician.id, countries=countries
+                    )
                 )
             )
         )
