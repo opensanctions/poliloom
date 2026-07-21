@@ -1,6 +1,6 @@
 """Tests for the Politician model."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from poliloom.models import (
     Politician,
     Property,
@@ -1295,3 +1295,150 @@ class TestHasEnrichable:
 
         assert Politician.has_enrichable(db_session, countries=["Q30"]) is True
         assert Politician.has_enrichable(db_session, countries=["Q183"]) is False
+
+
+class TestHasEnrichableQueryParity:
+    """Ensure the existence check remains equivalent to enrichment selection."""
+
+    @staticmethod
+    def assert_matches_enrichment_query(db_session, expected, **filters):
+        """Assert both query shapes agree on whether an eligible row exists."""
+        selected = (
+            db_session.execute(Politician.query_for_enrichment(**filters).limit(1))
+            .scalars()
+            .first()
+            is not None
+        )
+        assert selected is expected
+        assert Politician.has_enrichable(db_session, **filters) is selected
+
+    def test_matches_ranked_language_boundary_and_combined_filters(
+        self,
+        db_session,
+        sample_politician,
+        sample_germany_country,
+        sample_language,
+        sample_wikipedia_project,
+        sample_german_language,
+        sample_german_wikipedia_project,
+        sample_french_language,
+        sample_french_wikipedia_project,
+        sample_spanish_language,
+        sample_spanish_wikipedia_project,
+        create_citizenship,
+        create_wikipedia_link,
+    ):
+        """Citizenship ranking and the fourth linked language agree at the cutoff."""
+        db_session.add(
+            WikidataRelation(
+                parent_entity_id=sample_german_language.wikidata_id,
+                child_entity_id=sample_germany_country.wikidata_id,
+                relation_type=RelationType.OFFICIAL_LANGUAGE,
+                statement_id="parity_de_official_language",
+            )
+        )
+        create_citizenship(sample_politician, sample_germany_country)
+
+        # Give each language a distinct global popularity; no rank-boundary ties.
+        languages = [
+            (sample_language, sample_wikipedia_project, 5),
+            # German would be fourth by popularity, but is first via citizenship.
+            (sample_german_language, sample_german_wikipedia_project, 2),
+            (sample_french_language, sample_french_wikipedia_project, 4),
+            (sample_spanish_language, sample_spanish_wikipedia_project, 3),
+        ]
+        qid = 70000
+        for language, project, popularity in languages:
+            for number in range(popularity):
+                dummy = Politician.create_with_entity(
+                    db_session,
+                    f"Q{qid}",
+                    f"{language.name} popularity {number}",
+                )
+                db_session.flush()
+                create_wikipedia_link(dummy, project)
+                qid += 1
+            create_wikipedia_link(sample_politician, project)
+        db_session.flush()
+
+        germany = [sample_germany_country.wikidata_id]
+        self.assert_matches_enrichment_query(
+            db_session,
+            True,
+            languages=[sample_german_language.wikidata_id],
+            countries=germany,
+        )
+        self.assert_matches_enrichment_query(
+            db_session,
+            True,
+            languages=[sample_french_language.wikidata_id],
+            countries=germany,
+        )
+        self.assert_matches_enrichment_query(
+            db_session,
+            False,
+            languages=[sample_spanish_language.wikidata_id],
+            countries=germany,
+        )
+
+    def test_matches_soft_deleted_citizenship_and_stateless_filters(
+        self,
+        db_session,
+        sample_politician,
+        sample_country,
+        sample_wikipedia_link,
+        create_citizenship,
+    ):
+        """Deleted citizenship does not match countries and does not disqualify stateless."""
+        citizenship = create_citizenship(sample_politician, sample_country)
+        citizenship.soft_delete()
+        db_session.flush()
+
+        self.assert_matches_enrichment_query(
+            db_session, False, countries=[sample_country.wikidata_id]
+        )
+        self.assert_matches_enrichment_query(db_session, True, stateless=True)
+
+    def test_matches_missing_rankable_path_and_soft_deleted_entity(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_link,
+        sample_wikipedia_project,
+        sample_language,
+    ):
+        """A link without an active language path cannot satisfy a language filter."""
+        language_of_work = next(
+            relation
+            for relation in db_session.query(WikidataRelation)
+            if (
+                relation.parent_entity_id == sample_language.wikidata_id
+                and relation.child_entity_id == sample_wikipedia_project.wikidata_id
+                and relation.relation_type == RelationType.LANGUAGE_OF_WORK
+            )
+        )
+        language_of_work.soft_delete()
+        db_session.flush()
+
+        self.assert_matches_enrichment_query(
+            db_session, False, languages=[sample_language.wikidata_id]
+        )
+        self.assert_matches_enrichment_query(db_session, True)
+
+        sample_politician.wikidata_entity.soft_delete()
+        db_session.flush()
+        self.assert_matches_enrichment_query(db_session, False)
+
+    def test_matches_cooldown_ineligible_candidate(
+        self, db_session, sample_politician, sample_wikipedia_link
+    ):
+        """Recently enriched politicians are excluded until their cooldown elapses."""
+        sample_politician.enriched_at = datetime.now(timezone.utc)
+        db_session.flush()
+        self.assert_matches_enrichment_query(db_session, False)
+
+        sample_politician.enriched_at = datetime.now(timezone.utc) - timedelta(
+            days=Politician.get_enrichment_cooldown_days() + 1
+        )
+        db_session.flush()
+        self.assert_matches_enrichment_query(db_session, True)
