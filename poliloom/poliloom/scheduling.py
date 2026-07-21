@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .archiving import process_source
 from .database import get_engine
+from .enrichment_queue import create_enrichment_sources, enrichment_candidates_query
 from .models import (
     Politician,
     Property,
@@ -45,7 +46,7 @@ def schedule_enrichment(
         ScheduledEnrichment if a politician was found, None otherwise.
     """
     query = (
-        Politician.query_for_enrichment(
+        enrichment_candidates_query(
             languages=languages,
             countries=countries,
             stateless=stateless,
@@ -67,7 +68,7 @@ def schedule_enrichment(
         return None
 
     try:
-        sources = politician.schedule_enrichment(db)
+        sources = create_enrichment_sources(politician, db)
 
         if not sources:
             db.commit()
