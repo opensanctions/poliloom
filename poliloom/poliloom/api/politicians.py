@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db_session
 from ..scheduling import process_source_task, process_next_politician
+from ..review_queue import get_random_unevaluated
 from ..search import SearchService
 from ..models import (
     Source,
@@ -184,12 +185,14 @@ async def get_next_politician(
     Filter QIDs are passed by the client (sourced from browser cookies). Triggers
     background enrichment if needed.
     """
-    wikidata_id, current_count = Politician.get_random_unevaluated_with_count(
+    review_candidate = get_random_unevaluated(
         db,
         languages=languages,
         countries=countries,
         exclude_ids=exclude_ids,
     )
+    wikidata_id = review_candidate.wikidata_id
+    current_count = review_candidate.total
 
     # Trigger enrichment if unevaluated pool is running low
     min_threshold = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))

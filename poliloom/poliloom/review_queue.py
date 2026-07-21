@@ -1,0 +1,83 @@
+"""Queries for the unevaluated politician review queue."""
+
+from dataclasses import dataclass
+from typing import Optional
+
+from sqlalchemy import and_, exists, func, select
+from sqlalchemy.orm import Session
+
+from .models import (
+    Politician,
+    Property,
+    PropertyReference,
+    PropertyType,
+    SourceLanguage,
+)
+
+
+@dataclass(frozen=True)
+class ReviewQueueResult:
+    """A randomly selected review candidate and the full matching pool size."""
+
+    wikidata_id: Optional[str]
+    total: int
+
+
+def get_random_unevaluated(
+    db: Session,
+    languages: Optional[list[str]] = None,
+    countries: Optional[list[str]] = None,
+    exclude_ids: Optional[list[str]] = None,
+) -> ReviewQueueResult:
+    """Select a random candidate and count the full matching review pool.
+
+    ``exclude_ids`` affects candidate selection only, not the total.
+    """
+    unevaluated_conditions = [
+        Property.politician_id == Politician.id,
+        Property.statement_id.is_(None),
+        Property.deleted_at.is_(None),
+    ]
+
+    unevaluated_query = select(1).select_from(Property)
+    if languages:
+        unevaluated_query = unevaluated_query.join(
+            PropertyReference,
+            PropertyReference.property_id == Property.id,
+        ).join(
+            SourceLanguage,
+            SourceLanguage.source_id == PropertyReference.source_id,
+        )
+        unevaluated_conditions.append(SourceLanguage.language_id.in_(languages))
+
+    pool_query = Politician.query_base().where(
+        exists(unevaluated_query.where(and_(*unevaluated_conditions)))
+    )
+
+    if countries:
+        pool_query = pool_query.where(
+            exists(
+                select(1).where(
+                    Property.politician_id == Politician.id,
+                    Property.type == PropertyType.CITIZENSHIP,
+                    Property.entity_id.in_(countries),
+                    Property.deleted_at.is_(None),
+                )
+            )
+        )
+
+    pool = (
+        pool_query.with_only_columns(Politician.wikidata_id)
+        .cte("unevaluated_pool")
+        .prefix_with("MATERIALIZED")
+    )
+
+    candidate_query = select(pool.c.wikidata_id)
+    if exclude_ids:
+        candidate_query = candidate_query.where(pool.c.wikidata_id.notin_(exclude_ids))
+
+    candidate_qid = candidate_query.order_by(func.random()).limit(1).scalar_subquery()
+    total = select(func.count()).select_from(pool).scalar_subquery()
+    wikidata_id, count = db.execute(select(candidate_qid, total)).one()
+
+    return ReviewQueueResult(wikidata_id=wikidata_id, total=count or 0)

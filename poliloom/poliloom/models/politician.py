@@ -33,14 +33,14 @@ from .base import (
     UpsertMixin,
 )
 from .entities import Language, WikipediaProject
-from .property import Property, PropertyReference
+from .property import Property
 from .wikidata import (
     WikidataEntity,
     WikidataEntityLabel,
     WikidataEntityMixin,
     WikidataRelation,
 )
-from .source import Source, SourceLanguage
+from .source import Source
 
 
 class Politician(
@@ -444,60 +444,6 @@ class Politician(
         )
 
     @classmethod
-    def filter_by_unevaluated_properties(cls, query, languages: List[str] = None):
-        """
-        Apply unevaluated properties filter to a politician query.
-
-        Filters for politicians with properties that have no statement_id (unevaluated).
-        Optionally filters by language via sources.
-
-        Args:
-            query: Existing select statement for Politician entities
-            languages: Optional list of language QIDs to filter by
-
-        Returns:
-            Modified select statement with unevaluated filter applied
-        """
-        # Build existence subquery for unevaluated properties
-        unevaluated_exists = exists(
-            select(1)
-            .select_from(Property)
-            .where(
-                and_(
-                    Property.politician_id == cls.id,
-                    Property.statement_id.is_(None),
-                    Property.deleted_at.is_(None),
-                )
-            )
-        )
-
-        # Apply language filtering via PropertyReference → SourceLanguage
-        # Skip the Source join — PropertyReference.source_id links directly
-        if languages:
-            unevaluated_exists = exists(
-                select(1)
-                .select_from(Property)
-                .join(
-                    PropertyReference,
-                    PropertyReference.property_id == Property.id,
-                )
-                .join(
-                    SourceLanguage,
-                    SourceLanguage.source_id == PropertyReference.source_id,
-                )
-                .where(
-                    and_(
-                        Property.politician_id == cls.id,
-                        Property.statement_id.is_(None),
-                        Property.deleted_at.is_(None),
-                        SourceLanguage.language_id.in_(languages),
-                    )
-                )
-            )
-
-        return query.where(unevaluated_exists)
-
-    @classmethod
     def filter_by_countries(cls, query, countries: List[str]):
         """
         Apply country citizenship filter to a politician query.
@@ -601,66 +547,6 @@ class Politician(
             query = query.where(cls.id.in_(citizenship_subquery))
 
         return query
-
-    @classmethod
-    def get_random_unevaluated_with_count(
-        cls,
-        db: Session,
-        languages: Optional[List[str]] = None,
-        countries: Optional[List[str]] = None,
-        exclude_ids: Optional[List[str]] = None,
-    ) -> tuple[Optional[str], int]:
-        """Return a random matching QID and the size of the full matching pool.
-
-        The materialized CTE ensures the relatively expensive eligible-politician
-        query is evaluated once for both selection and metadata. Exclusions affect
-        selection only, matching the endpoint's existing count semantics.
-        """
-        pool_query = cls.query_base()
-        pool_query = cls.filter_by_unevaluated_properties(
-            pool_query, languages=languages
-        )
-        if countries:
-            pool_query = cls.filter_by_countries(pool_query, countries)
-
-        pool = (
-            pool_query.with_only_columns(cls.wikidata_id)
-            .cte("unevaluated_pool")
-            .prefix_with("MATERIALIZED")
-        )
-
-        candidate_query = select(pool.c.wikidata_id)
-        if exclude_ids:
-            candidate_query = candidate_query.where(
-                pool.c.wikidata_id.notin_(exclude_ids)
-            )
-
-        candidate_qid = (
-            candidate_query.order_by(func.random()).limit(1).scalar_subquery()
-        )
-        count = select(func.count()).select_from(pool).scalar_subquery()
-        query = select(candidate_qid, count)
-
-        wikidata_id, total = db.execute(query).one()
-        return wikidata_id, total or 0
-
-    @classmethod
-    def count_unevaluated(
-        cls,
-        db: Session,
-        languages: Optional[List[str]] = None,
-        countries: Optional[List[str]] = None,
-    ) -> int:
-        """Count politicians that have unevaluated extracted properties."""
-        query = cls.query_base()
-        query = cls.filter_by_unevaluated_properties(query, languages=languages)
-
-        if countries:
-            query = cls.filter_by_countries(query, countries)
-
-        count_query = select(func.count()).select_from(query.subquery())
-        result = db.execute(count_query).scalar()
-        return result or 0
 
     @classmethod
     def _query_has_enrichable(
