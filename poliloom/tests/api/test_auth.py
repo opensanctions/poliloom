@@ -233,7 +233,7 @@ class TestAuthIntegration:
     ):
         """Test that properly authenticated requests can access protected endpoints."""
         # Test politicians/next endpoint with auth - returns NextPoliticianResponse
-        response = client.get("/politicians/next", headers=mock_auth)
+        response = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
         assert "meta" in data

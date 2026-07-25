@@ -7,6 +7,7 @@ import pytest
 from poliloom.scheduling import (
     ScheduledEnrichment,
     enrich_until_exhausted,
+    enrich_until_serveable,
     has_enrichment_candidate,
     process_next_politician,
     schedule_enrichment,
@@ -157,6 +158,46 @@ class TestProcessNextPolitician:
                 await process_next_politician()
 
         mock_notify.assert_called_once()
+
+
+class TestEnrichUntilServeable:
+    @pytest.mark.asyncio
+    async def test_stops_without_enriching_when_floor_exists(self):
+        with (
+            patch("poliloom.scheduling.count_serveable", return_value=1),
+            patch(
+                "poliloom.scheduling.process_next_politician",
+                new_callable=AsyncMock,
+            ) as process,
+        ):
+            assert await enrich_until_serveable(["Q1860"], ["Q30"]) == 0
+        process.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_enriches_until_floor_is_reached(self):
+        with (
+            patch("poliloom.scheduling.count_serveable", side_effect=[0, 0, 1]),
+            patch(
+                "poliloom.scheduling.process_next_politician",
+                new_callable=AsyncMock,
+                side_effect=[0, 2],
+            ) as process,
+        ):
+            assert await enrich_until_serveable(["Q1860"], ["Q30"]) == 2
+        assert process.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_stops_when_no_candidates_remain(self):
+        with (
+            patch("poliloom.scheduling.count_serveable", return_value=0),
+            patch(
+                "poliloom.scheduling.process_next_politician",
+                new_callable=AsyncMock,
+                return_value=None,
+            ) as process,
+        ):
+            assert await enrich_until_serveable() == 0
+        process.assert_awaited_once_with(None, None)
 
 
 class TestEnrichUntilExhausted:

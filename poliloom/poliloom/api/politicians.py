@@ -1,7 +1,7 @@
 """Politicians API endpoints."""
 
 import asyncio
-from typing import List, Optional
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, case, exists, func, or_, select
@@ -10,12 +10,19 @@ from sqlalchemy.orm import Session, selectinload
 from ..database import get_db_session
 from ..enrichment_queue import create_enrichment_sources
 from ..scheduling import (
-    enrich_until_exhausted,
+    enrich_until_serveable,
     has_enrichment_candidate,
-    process_next_politician,
     process_source_task,
 )
-from ..review_queue import get_random_unevaluated
+from ..review_queue import (
+    available_to_user,
+    claim_next,
+    claim_visible_properties,
+    count_serveable,
+    language_visible,
+    not_skipped,
+    refresh_claims,
+)
 from ..models import (
     Source,
     SourceLanguage,
@@ -173,41 +180,29 @@ async def create_politician(
 
 @router.get("/next", response_model=NextPoliticianResponse)
 async def get_next_politician(
-    exclude_ids: Optional[List[str]] = Query(
-        default=None,
-        description="Exclude politicians with these Wikidata QIDs from results",
-    ),
-    languages: List[str] = Query(default=[]),
+    languages: List[str] = Query(...),
     countries: List[str] = Query(default=[]),
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Get the next unevaluated politician's ID for navigation.
+    """Claim and return the next deterministic review candidate.
 
-    Lightweight endpoint — returns only the next politician's IDs, not full data.
-    Filter QIDs are passed by the client (sourced from browser cookies). When the
-    user's review pool is empty, kicks off background enrichment; clients learn
-    about results via SSE.
+    Serving creates per-property claims immediately. Background enrichment only
+    maintains a floor of one additional serveable politician for these filters.
     """
-    review_candidate = get_random_unevaluated(
-        db,
-        languages=languages,
-        countries=countries,
-        exclude_ids=exclude_ids,
-        user_id=str(current_user.user_id),
-    )
-    if review_candidate.wikidata_id:
-        if review_candidate.total <= 1:
-            asyncio.create_task(process_next_politician(languages, countries))
+    country_filter = countries or None
+    qid = claim_next(db, str(current_user.user_id), languages, country_filter)
+    if qid:
+        if count_serveable(db, languages, country_filter) == 0:
+            asyncio.create_task(enrich_until_serveable(languages, country_filter))
         return NextPoliticianResponse(
-            wikidata_id=review_candidate.wikidata_id,
+            wikidata_id=qid,
             meta=EnrichmentMetadata(has_enrichable_politicians=False),
         )
 
     has_candidates = has_enrichment_candidate(db, languages, countries)
     if has_candidates:
-        asyncio.create_task(enrich_until_exhausted(languages, countries))
+        asyncio.create_task(enrich_until_serveable(languages, country_filter))
 
     return NextPoliticianResponse(
         meta=EnrichmentMetadata(has_enrichable_politicians=has_candidates)
@@ -266,8 +261,8 @@ async def search_politicians(
 @router.get("/{qid}", response_model=PoliticianResponse)
 async def get_politician(
     qid: str,
-    languages: Optional[List[str]] = Query(
-        default=None,
+    languages: List[str] = Query(
+        ...,
         description="Filter properties by language QIDs",
     ),
     db: Session = Depends(get_db_session),
@@ -279,69 +274,52 @@ async def get_politician(
     Creates sources for unclaimed Wikipedia projects matching the requested
     languages, scheduling their background processing.
     """
-    query = Politician.query_base().where(Politician.wikidata_id == qid)
-    not_skipped = ~exists(
-        select(1).where(
-            PropertySkip.property_id == Property.id,
-            PropertySkip.user_id == str(current_user.user_id),
-        )
-    )
-
-    if languages:
-        # Filter properties: include Wikidata properties OR properties with matching language
-        property_filter = and_(
-            Property.deleted_at.is_(None),
-            not_skipped,
-            or_(
-                Property.statement_id.isnot(None),
-                exists(
-                    select(1)
-                    .select_from(PropertyReference)
-                    .join(
-                        SourceLanguage,
-                        SourceLanguage.source_id == PropertyReference.source_id,
-                    )
-                    .where(
-                        PropertyReference.property_id == Property.id,
-                        SourceLanguage.language_id.in_(languages),
-                    )
-                ),
+    user_id = str(current_user.user_id)
+    property_filter = and_(
+        Property.deleted_at.is_(None),
+        or_(
+            Property.statement_id.isnot(None),
+            and_(
+                language_visible(Property, languages),
+                not_skipped(Property, user_id),
+                available_to_user(Property, user_id),
             ),
-        )
-
-        query = query.options(
+        ),
+    )
+    source_filter = or_(
+        exists(
+            select(1).where(
+                SourceLanguage.source_id == Source.id,
+                SourceLanguage.language_id.in_(languages),
+            )
+        ),
+        ~exists(select(1).where(SourceLanguage.source_id == Source.id)),
+    )
+    query = (
+        Politician.query_base()
+        .where(Politician.wikidata_id == qid)
+        .options(
             selectinload(Politician.properties.and_(property_filter)).options(
                 selectinload(Property.entity),
                 selectinload(Property.property_references)
                 .selectinload(PropertyReference.source)
                 .selectinload(Source.source_languages),
             ),
-            selectinload(Politician.sources).selectinload(Source.source_languages),
-        )
-    else:
-        query = query.options(
-            selectinload(
-                Politician.properties.and_(
-                    Property.deleted_at.is_(None),
-                    not_skipped,
-                )
-            ).options(
-                selectinload(Property.entity),
-                selectinload(Property.property_references)
-                .selectinload(PropertyReference.source)
-                .selectinload(Source.source_languages),
+            selectinload(Politician.sources.and_(source_filter)).selectinload(
+                Source.source_languages
             ),
-            selectinload(Politician.sources).selectinload(Source.source_languages),
         )
-
-    query = query.execution_options(populate_existing=True)
+        .execution_options(populate_existing=True)
+        .with_for_update(of=Politician)
+    )
 
     politician = db.execute(query).scalars().first()
 
     if not politician:
         raise HTTPException(status_code=404, detail="Politician not found")
 
-    new_sources = create_enrichment_sources(politician, db, languages=languages or None)
+    claim_visible_properties(db, user_id, politician, languages)
+    new_sources = create_enrichment_sources(politician, db, languages=languages)
 
     response = build_politician_response(politician)
 
@@ -519,6 +497,7 @@ async def patch_properties(
             detail=f"Politician with QID {qid} not found",
         )
 
+    refresh_claims(db, str(current_user.user_id), politician.id)
     return await process_property_actions(
         {str(politician.id): request.items}, db, current_user
     )

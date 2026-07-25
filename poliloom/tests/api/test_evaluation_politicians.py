@@ -87,7 +87,7 @@ class TestNextEndpointFiltering:
         self, client, mock_auth, politician_with_unevaluated_data
     ):
         """Test that politicians with unevaluated extracted data are found."""
-        response = client.get("/politicians/next", headers=mock_auth)
+        response = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
         assert data["wikidata_id"] == "Q123456"
@@ -96,7 +96,7 @@ class TestNextEndpointFiltering:
         self, client, mock_auth, politician_with_evaluated_data
     ):
         """Test that politicians with evaluated data but no statement_id are included."""
-        response = client.get("/politicians/next", headers=mock_auth)
+        response = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
         assert data["wikidata_id"] == "Q789012"
@@ -105,14 +105,14 @@ class TestNextEndpointFiltering:
         self, client, mock_auth, politician_with_only_wikidata
     ):
         """Test that politicians with only Wikidata data are excluded."""
-        response = client.get("/politicians/next", headers=mock_auth)
+        response = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
         assert data["wikidata_id"] is None
 
     def test_returns_null_when_no_qualifying_politicians(self, client, mock_auth):
         """Test that endpoint returns null when no politicians have unevaluated data."""
-        response = client.get("/politicians/next", headers=mock_auth)
+        response = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
         assert data["wikidata_id"] is None
@@ -125,7 +125,7 @@ class TestGetPoliticianEndpointProperties:
         self, client, mock_auth, politician_with_unevaluated_data
     ):
         """Test that all property types are returned in the response."""
-        response = client.get("/politicians/Q123456", headers=mock_auth)
+        response = client.get("/politicians/Q123456?languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
 
@@ -153,7 +153,7 @@ class TestGetPoliticianEndpointProperties:
         db_session.add(PropertySkip(user_id="12345", property_id=skipped.id))
         db_session.flush()
 
-        response = client.get("/politicians/Q123456", headers=mock_auth)
+        response = client.get("/politicians/Q123456?languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
         assert str(skipped.id) not in {
             prop["id"] for prop in response.json()["properties"]
@@ -166,7 +166,7 @@ class TestGetPoliticianEndpointProperties:
             return User(user_id=67890, jwt_token="other-token")
 
         app.dependency_overrides[get_current_user] = other_user
-        response = client.get("/politicians/Q123456", headers=mock_auth)
+        response = client.get("/politicians/Q123456?languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
         assert str(skipped.id) in {prop["id"] for prop in response.json()["properties"]}
 
@@ -203,7 +203,7 @@ class TestGetPoliticianEndpointProperties:
             )
         db_session.flush()
 
-        response = client.get("/politicians/Q123456", headers=mock_auth)
+        response = client.get("/politicians/Q123456?languages=Q1860", headers=mock_auth)
 
         data = response.json()
         props = data["properties"]
@@ -235,7 +235,7 @@ class TestGetPoliticianEndpointProperties:
         self, client, mock_auth, politician_with_unevaluated_data
     ):
         """Test that Wikidata entries don't include extraction-specific fields."""
-        response = client.get("/politicians/Q123456", headers=mock_auth)
+        response = client.get("/politicians/Q123456?languages=Q1860", headers=mock_auth)
 
         data = response.json()
         wikidata = [p for p in data["properties"] if p["statement_id"] is not None]
@@ -248,7 +248,7 @@ class TestGetPoliticianEndpointProperties:
         self, client, mock_auth, politician_with_unevaluated_data
     ):
         """Test property response has correct fields."""
-        response = client.get("/politicians/Q123456", headers=mock_auth)
+        response = client.get("/politicians/Q123456?languages=Q1860", headers=mock_auth)
         data = response.json()
 
         for prop in data["properties"]:
@@ -308,7 +308,7 @@ class TestGetPoliticianEndpointProperties:
         db_session.add(evaluation)
         db_session.flush()
 
-        response = client.get("/politicians/Q999999", headers=mock_auth)
+        response = client.get("/politicians/Q999999?languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
 
@@ -414,7 +414,7 @@ class TestGetPoliticianEndpointProperties:
         deleted_property.deleted_at = datetime.now(timezone.utc)
         db_session.flush()
 
-        response = client.get("/politicians/Q123456", headers=mock_auth)
+        response = client.get("/politicians/Q123456?languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
         data = response.json()
 
@@ -443,7 +443,7 @@ class TestGetPoliticianEndpointProperties:
         db_session.flush()
 
         # Verify politician appears before soft-delete
-        response = client.get("/politicians/Q997766", headers=mock_auth)
+        response = client.get("/politicians/Q997766?languages=Q1860", headers=mock_auth)
         assert response.status_code == 200
 
         # Soft-delete the WikidataEntity
@@ -451,7 +451,7 @@ class TestGetPoliticianEndpointProperties:
         db_session.flush()
 
         # Should get 404 now
-        response = client.get("/politicians/Q997766", headers=mock_auth)
+        response = client.get("/politicians/Q997766?languages=Q1860", headers=mock_auth)
         assert response.status_code == 404
 
 
@@ -537,10 +537,14 @@ class TestNextEndpointLanguageFiltering:
         create_citizenship(german_politician, sample_germany_country, source)
         db_session.flush()
 
-        response = client.get("/politicians/next?countries=Q30", headers=mock_auth)
+        response = client.get(
+            "/politicians/next?languages=Q1860&countries=Q30", headers=mock_auth
+        )
         assert response.status_code == 200
         assert response.json()["wikidata_id"] == "Q2001"
 
-        response = client.get("/politicians/next?countries=Q183", headers=mock_auth)
+        response = client.get(
+            "/politicians/next?languages=Q1860&countries=Q183", headers=mock_auth
+        )
         assert response.status_code == 200
         assert response.json()["wikidata_id"] == "Q2002"

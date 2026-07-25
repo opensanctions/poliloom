@@ -1,11 +1,10 @@
 """Tests for the /politicians endpoint (search/list/get/patch)."""
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 from poliloom.api.politicians import get_next_politician
-from poliloom.review_queue import ReviewQueueResult
 
 from poliloom.models import (
     Evaluation,
@@ -22,7 +21,7 @@ class TestGetNextPoliticianEndpoint:
         self, client, mock_auth, politician_with_unevaluated_data
     ):
         """Test that endpoint returns the next unevaluated politician's QID."""
-        response = client.get("/politicians/next", headers=mock_auth)
+        response = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
 
         assert response.status_code == 200
         data = response.json()
@@ -33,7 +32,7 @@ class TestGetNextPoliticianEndpoint:
 
     def test_returns_null_when_no_politicians(self, client, mock_auth):
         """Test that endpoint returns null when no politicians available."""
-        response = client.get("/politicians/next", headers=mock_auth)
+        response = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
 
         assert response.status_code == 200
         data = response.json()
@@ -41,16 +40,9 @@ class TestGetNextPoliticianEndpoint:
         assert data["wikidata_id"] is None
         assert "meta" in data
 
-    def test_excludes_by_qid(self, client, mock_auth, politician_with_unevaluated_data):
-        """Test excluding politicians by Wikidata QID."""
-        response = client.get(
-            "/politicians/next?exclude_ids=Q123456", headers=mock_auth
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["wikidata_id"] is None
-        assert data["meta"]["has_enrichable_politicians"] is False
+    def test_languages_are_required(self, client, mock_auth):
+        response = client.get("/politicians/next", headers=mock_auth)
+        assert response.status_code == 422
 
     def test_requires_authentication(self, client):
         """Test that endpoint requires authentication."""
@@ -61,7 +53,7 @@ class TestGetNextPoliticianEndpoint:
         self, client, mock_auth, politician_with_unevaluated_data
     ):
         """Test that meta includes enrichment status fields."""
-        response = client.get("/politicians/next", headers=mock_auth)
+        response = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
         data = response.json()
 
         assert set(data["meta"]) == {"has_enrichable_politicians"}
@@ -75,49 +67,41 @@ class TestGetNextPoliticianEndpoint:
     ):
         """The sample politician has no citizenship, so a Germany filter excludes it."""
         response = client.get(
-            f"/politicians/next?countries={sample_germany_country.wikidata_id}",
+            f"/politicians/next?languages=Q1860&countries={sample_germany_country.wikidata_id}",
             headers=mock_auth,
         )
         assert response.status_code == 200
         assert response.json()["wikidata_id"] is None
 
-    def test_no_filter_params_returns_unfiltered(
+    def test_second_request_does_not_reserve_own_live_claim(
         self, client, mock_auth, politician_with_unevaluated_data
     ):
-        """No query params == no filtering; sample politician is returned."""
-        response = client.get("/politicians/next", headers=mock_auth)
-        assert response.status_code == 200
-        assert response.json()["wikidata_id"] == "Q123456"
+        first = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
+        second = client.get("/politicians/next?languages=Q1860", headers=mock_auth)
+        assert first.json()["wikidata_id"] == "Q123456"
+        assert second.json()["wikidata_id"] is None
 
     @pytest.mark.asyncio
-    async def test_pool_hit_does_not_enrich_when_more_candidates_remain(self):
+    async def test_pool_hit_only_enriches_when_floor_is_empty(self):
         user = Mock(user_id="user")
         with (
-            patch(
-                "poliloom.api.politicians.get_random_unevaluated",
-                return_value=ReviewQueueResult("Q1", 2),
-            ),
-            patch(
-                "poliloom.api.politicians.process_next_politician",
-                new_callable=AsyncMock,
-            ) as process,
+            patch("poliloom.api.politicians.claim_next", return_value="Q1"),
+            patch("poliloom.api.politicians.count_serveable", return_value=1),
+            patch("poliloom.api.politicians.asyncio.create_task") as create_task,
         ):
             response = await get_next_politician(
-                languages=[], countries=[], db=Mock(), current_user=user
+                languages=["Q1860"], countries=[], db=Mock(), current_user=user
             )
-
         assert response.wikidata_id == "Q1"
-        process.assert_not_awaited()
+        create_task.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_last_pool_candidate_starts_one_shot_prefetch(self):
+    async def test_last_pool_candidate_starts_floor_prefetch(self):
         user = Mock(user_id="user")
         task = Mock()
         with (
-            patch(
-                "poliloom.api.politicians.get_random_unevaluated",
-                return_value=ReviewQueueResult("Q1", 1),
-            ),
+            patch("poliloom.api.politicians.claim_next", return_value="Q1"),
+            patch("poliloom.api.politicians.count_serveable", return_value=0),
             patch(
                 "poliloom.api.politicians.asyncio.create_task", return_value=task
             ) as create_task,
@@ -126,7 +110,6 @@ class TestGetNextPoliticianEndpoint:
                 languages=["Q1860"], countries=["Q30"], db=Mock(), current_user=user
             )
             create_task.call_args.args[0].close()
-
         assert response.wikidata_id == "Q1"
         create_task.assert_called_once()
 
@@ -134,13 +117,9 @@ class TestGetNextPoliticianEndpoint:
     async def test_empty_pool_with_candidates_enriches_in_background(self):
         user = Mock(user_id="user")
         with (
+            patch("poliloom.api.politicians.claim_next", return_value=None),
             patch(
-                "poliloom.api.politicians.get_random_unevaluated",
-                return_value=ReviewQueueResult(None, 0),
-            ),
-            patch(
-                "poliloom.api.politicians.has_enrichment_candidate",
-                return_value=True,
+                "poliloom.api.politicians.has_enrichment_candidate", return_value=True
             ),
             patch("poliloom.api.politicians.asyncio.create_task") as create_task,
         ):
@@ -148,7 +127,6 @@ class TestGetNextPoliticianEndpoint:
                 languages=["Q1860"], countries=["Q30"], db=Mock(), current_user=user
             )
             create_task.call_args.args[0].close()
-
         assert response.wikidata_id is None
         assert response.meta.has_enrichable_politicians is True
         create_task.assert_called_once()
@@ -157,20 +135,15 @@ class TestGetNextPoliticianEndpoint:
     async def test_empty_pool_with_no_candidates_is_all_caught_up(self):
         user = Mock(user_id="user")
         with (
+            patch("poliloom.api.politicians.claim_next", return_value=None),
             patch(
-                "poliloom.api.politicians.get_random_unevaluated",
-                return_value=ReviewQueueResult(None, 0),
-            ),
-            patch(
-                "poliloom.api.politicians.has_enrichment_candidate",
-                return_value=False,
+                "poliloom.api.politicians.has_enrichment_candidate", return_value=False
             ),
             patch("poliloom.api.politicians.asyncio.create_task") as create_task,
         ):
             response = await get_next_politician(
-                languages=[], countries=[], db=Mock(), current_user=user
+                languages=["Q1860"], countries=[], db=Mock(), current_user=user
             )
-
         assert response.wikidata_id is None
         assert response.meta.has_enrichable_politicians is False
         create_task.assert_not_called()
@@ -183,7 +156,7 @@ class TestGetPoliticianByQidEndpoint:
         self, client, mock_auth, politician_with_unevaluated_data
     ):
         """Test fetching a politician by QID."""
-        response = client.get("/politicians/Q123456", headers=mock_auth)
+        response = client.get("/politicians/Q123456?languages=Q1860", headers=mock_auth)
 
         assert response.status_code == 200
         data = response.json()
@@ -195,14 +168,16 @@ class TestGetPoliticianByQidEndpoint:
 
     def test_returns_404_for_unknown_qid(self, client, mock_auth):
         """Test that 404 is returned for unknown QID."""
-        response = client.get("/politicians/Q999999999", headers=mock_auth)
+        response = client.get(
+            "/politicians/Q999999999?languages=Q1860", headers=mock_auth
+        )
         assert response.status_code == 404
 
     def test_returns_all_properties(
         self, client, mock_auth, politician_with_unevaluated_data
     ):
         """Test that all non-deleted properties are returned."""
-        response = client.get("/politicians/Q123456", headers=mock_auth)
+        response = client.get("/politicians/Q123456?languages=Q1860", headers=mock_auth)
         data = response.json()
 
         # Should have 6 properties (3 extracted + 3 wikidata)

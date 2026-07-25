@@ -18,6 +18,7 @@ from .models import (
     WikidataEntity,
     WikidataRelation,
 )
+from .review_queue import count_serveable
 from .sse import EnrichmentCompleteEvent, event_bus
 
 logger = logging.getLogger(__name__)
@@ -183,12 +184,30 @@ async def process_next_politician(
     return extracted
 
 
+async def enrich_until_serveable(
+    languages: Optional[List[str]] = None,
+    countries: Optional[List[str]] = None,
+) -> int:
+    """Maintain a floor of one serveable politician for the given filters."""
+    enriched = 0
+
+    while True:
+        with Session(get_engine()) as db:
+            if count_serveable(db, languages, countries) > 0:
+                break
+        if await process_next_politician(languages, countries) is None:
+            break
+        enriched += 1
+
+    return enriched
+
+
 async def enrich_until_exhausted(
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,
     stateless: bool = False,
 ) -> int:
-    """Enrich politicians until no candidates remain. Returns count enriched."""
+    """CLI batch driver: enrich until exhausted; not used by the API."""
     enriched = 0
 
     while await process_next_politician(languages, countries, stateless) is not None:
