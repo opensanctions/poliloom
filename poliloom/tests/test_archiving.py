@@ -435,6 +435,97 @@ VALID_HTML = "<html><body>Some real text content</body></html>"
 class TestProcessSource:
     """Test process_source pipeline."""
 
+    async def _process_html(self, html, db_session, source, sample_politician) -> None:
+        fetched = FetchedPage(mhtml="<mhtml>", html=html)
+        with (
+            patch("poliloom.archiving.fetch_page", AsyncMock(return_value=fetched)),
+            patch("poliloom.archiving.save_archived_content"),
+            patch("poliloom.archiving.read_archived_content", return_value=html),
+            patch(
+                "poliloom.archiving.extract_and_store",
+                AsyncMock(return_value=0),
+            ),
+        ):
+            await process_source(db_session, source, sample_politician)
+
+    @pytest.mark.asyncio
+    async def test_non_wikipedia_source_links_detected_language(
+        self, db_session, sample_politician, source, sample_language
+    ):
+        await self._process_html(
+            '<html lang="en"><body>Text</body></html>',
+            db_session,
+            source,
+            sample_politician,
+        )
+
+        assert [link.language_id for link in source.source_languages] == [
+            sample_language.wikidata_id
+        ]
+
+    @pytest.mark.asyncio
+    async def test_non_wikipedia_source_normalizes_regional_language(
+        self, db_session, sample_politician, source, sample_german_language
+    ):
+        await self._process_html(
+            '<html lang="de-DE"><body>Text</body></html>',
+            db_session,
+            source,
+            sample_politician,
+        )
+
+        assert [link.language_id for link in source.source_languages] == [
+            sample_german_language.wikidata_id
+        ]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "html",
+        [
+            '<html lang="not-a-language"><body>Text</body></html>',
+            "<html><body>Text</body></html>",
+        ],
+    )
+    async def test_unknown_source_language_does_not_stop_processing(
+        self, html, db_session, sample_politician, source
+    ):
+        await self._process_html(
+            html,
+            db_session,
+            source,
+            sample_politician,
+        )
+
+        assert source.status == SourceStatus.DONE
+        assert source.source_languages == []
+
+    @pytest.mark.asyncio
+    async def test_wikipedia_source_uses_only_project_language(
+        self,
+        db_session,
+        sample_politician,
+        source,
+        sample_wikipedia_project,
+        sample_language,
+        sample_german_language,
+    ):
+        source.wikipedia_project_id = sample_wikipedia_project.wikidata_id
+        db_session.flush()
+
+        await self._process_html(
+            '<html lang="de"><body>Text</body></html>',
+            db_session,
+            source,
+            sample_politician,
+        )
+
+        assert [link.language_id for link in source.source_languages] == [
+            sample_language.wikidata_id
+        ]
+        assert sample_german_language.wikidata_id not in {
+            link.language_id for link in source.source_languages
+        }
+
     @pytest.mark.asyncio
     @patch(
         "poliloom.archiving.extract_and_store", new_callable=AsyncMock, return_value=3

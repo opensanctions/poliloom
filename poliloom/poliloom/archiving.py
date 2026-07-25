@@ -8,16 +8,19 @@ from typing import Optional
 
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 from unmhtml import MHTMLConverter
 
 from . import __version__, __repo_url__
 from .enrichment import extract_and_store
 from .models import (
+    Language,
+    Politician,
     Source,
     SourceError,
+    SourceLanguage,
     SourceStatus,
-    Politician,
 )
 from .storage import StorageFactory
 
@@ -229,6 +232,52 @@ def extract_permanent_url(html_content: str) -> Optional[str]:
         return None
 
 
+def _detect_source_language(source: Source, html: str, db: Session) -> None:
+    """Link a non-Wikipedia source to the language declared by its HTML."""
+    soup = BeautifulSoup(html, "html.parser")
+    html_element = soup.find("html")
+    lang = html_element.get("lang") if html_element else None
+    if not isinstance(lang, str) or not lang.strip():
+        logger.debug("No HTML language found for source %s", source.id)
+        return
+
+    primary_code = lang.strip().lower().split("-", 1)[0]
+    languages = db.scalars(
+        select(Language).where(
+            or_(
+                Language.iso_639_1 == primary_code,
+                Language.iso_639_2 == primary_code,
+                Language.iso_639_3 == primary_code,
+            )
+        )
+    ).all()
+    if not languages:
+        logger.debug(
+            "No language entity found for source %s HTML language %s",
+            source.id,
+            primary_code,
+        )
+        return
+
+    language = min(
+        languages,
+        key=lambda item: (
+            item.iso_639_1 != primary_code,
+            item.iso_639_2 != primary_code,
+            item.iso_639_3 != primary_code,
+        ),
+    )
+    if any(
+        link.language_id == language.wikidata_id for link in source.source_languages
+    ):
+        return
+
+    source.source_languages.append(SourceLanguage(language_id=language.wikidata_id))
+    logger.info(
+        "Linked source %s to detected language %s", source.id, language.wikidata_id
+    )
+
+
 async def process_source(db: Session, source: Source, politician: Politician) -> int:
     """Fetch, archive, and extract properties from a source.
 
@@ -253,7 +302,10 @@ async def process_source(db: Session, source: Source, politician: Politician) ->
         source.fetch_timestamp = now
         db.flush()
 
-        source.link_languages_from_project(db)
+        if source.wikipedia_project_id:
+            source.link_languages_from_project(db)
+        elif fetched.html:
+            _detect_source_language(source, fetched.html, db)
         db.flush()
 
         if fetched.mhtml:
