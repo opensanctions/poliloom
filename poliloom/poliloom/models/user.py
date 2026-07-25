@@ -3,10 +3,12 @@
 from sqlalchemy import (
     Boolean,
     Column,
+    DateTime,
     ForeignKey,
     Index,
     String,
     UniqueConstraint,
+    func,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -37,6 +39,29 @@ class Evaluation(Base, TimestampMixin):
 
     # Relationships
     property = relationship("Property", back_populates="evaluations")
+
+
+class PropertyClaim(Base, TimestampMixin):
+    """Tracks an extracted property currently claimed by a user for review.
+
+    Liveness is evaluated via claimed_at; expired claims are pruned opportunistically.
+    """
+
+    __tablename__ = "property_claims"
+
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    property_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("properties.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    user_id = Column(String, nullable=False, index=True)
+    claimed_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
+    )
 
 
 class PropertySkip(Base, TimestampMixin):

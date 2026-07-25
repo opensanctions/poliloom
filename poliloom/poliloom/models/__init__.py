@@ -30,7 +30,7 @@ from .wikidata import (
 from .entities import Country, Language, Location, Position, WikipediaProject
 
 # User interaction
-from .user import Evaluation, PropertySkip, UserSettings
+from .user import Evaluation, PropertyClaim, PropertySkip, UserSettings
 
 # Sources
 from .source import (
@@ -79,6 +79,7 @@ __all__ = [
     "WikipediaProject",
     # User
     "Evaluation",
+    "PropertyClaim",
     "PropertySkip",
     "UserSettings",
     # Sources
