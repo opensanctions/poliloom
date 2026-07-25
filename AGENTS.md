@@ -68,7 +68,7 @@ pnpm test                        # Run tests
 2. Import positions, locations, countries → Index entities to Meilisearch
 3. Import politicians with entity links
 4. Archive web sources (Wikipedia, government portals) as MHTML via Playwright
-5. When a user's per-language review pool is empty, enrich an eligible politician from sources in that user's selected languages (two-stage: free-form extraction → Meilisearch entity mapping); prefetch one politician ahead during review
+5. When a user's per-language review pool is empty, enrich an eligible politician from sources in that user's selected languages (two-stage: free-form extraction → Meilisearch entity mapping); (politician, Wikipedia project) snapshots are re-enriched after `ENRICHMENT_COOLDOWN_DAYS` (default 365); prefetch one politician ahead during review
 6. Community evaluation → Wikidata submission
 
 ## Environment Variables

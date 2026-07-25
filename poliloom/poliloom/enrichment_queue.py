@@ -1,5 +1,8 @@
 """Enrichment candidate selection and source creation."""
 
+import os
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import and_, case, exists, func, select
 from sqlalchemy.engine import Row
 from sqlalchemy.orm import Session
@@ -11,8 +14,17 @@ from .models.property import Property, active_citizenship_conditions
 from .models.source import PoliticianSource, Source
 from .models.wikidata import WikidataRelation
 
-
 PRIORITY_WIKIPEDIA_LINK_LIMIT = 3
+
+
+def get_enrichment_cooldown_days() -> int:
+    """Return the snapshot re-enrichment cooldown in days."""
+    return int(os.getenv("ENRICHMENT_COOLDOWN_DAYS", "365"))
+
+
+def get_enrichment_cooldown_cutoff() -> datetime:
+    """Return the oldest timestamp that still blocks re-enrichment."""
+    return datetime.now(timezone.utc) - timedelta(days=get_enrichment_cooldown_days())
 
 
 def _ranking_order_by(
@@ -87,7 +99,7 @@ def get_priority_wikipedia_links(
         politician: Politician whose Wikipedia links to rank.
         db: Database session
         languages: Optional language QIDs to include before ranking.
-        eligible_only: Exclude projects that already have a linked source.
+        eligible_only: Exclude projects with a snapshot newer than the cooldown window.
 
     Returns:
         List of Row objects containing (url, wikipedia_project_id), limited to the
@@ -115,7 +127,10 @@ def get_priority_wikipedia_links(
 def create_enrichment_sources(
     politician: Politician, db: Session, languages: list[str] | None = None
 ) -> list[Source]:
-    """Create and claim sources for eligible Wikipedia links in this transaction."""
+    """Create fresh source snapshots for links without a recent project snapshot.
+
+    Re-enrichment adds a new snapshot and never mutates old sources.
+    """
     links = get_priority_wikipedia_links(
         politician, db, languages=languages, eligible_only=True
     )
@@ -261,6 +276,7 @@ def _get_ranked_wikipedia_links_cte(
             .where(
                 PoliticianSource.politician_id == Politician.id,
                 Source.wikipedia_project_id == WikipediaLink.wikipedia_project_id,
+                Source.fetch_timestamp >= get_enrichment_cooldown_cutoff(),
             )
         )
         ranked_links_query = ranked_links_query.where(
@@ -271,7 +287,11 @@ def _get_ranked_wikipedia_links_cte(
 
 
 def _eligible_link_exists(languages: list[str] | None = None):
-    """Return a correlated EXISTS for an unclaimed Wikipedia project link."""
+    """Return EXISTS for a link without a snapshot newer than the cooldown window.
+
+    Re-enrichment creates a new snapshot without changing old sources; failed sources
+    are therefore eligible again after the cooldown window.
+    """
     link = WikipediaLink
     existing_source = (
         select(1)
@@ -280,6 +300,7 @@ def _eligible_link_exists(languages: list[str] | None = None):
         .where(
             PoliticianSource.politician_id == Politician.id,
             Source.wikipedia_project_id == link.wikipedia_project_id,
+            Source.fetch_timestamp >= get_enrichment_cooldown_cutoff(),
         )
     )
     query = _join_project_language_path(
@@ -305,8 +326,10 @@ def enrichment_candidates_query(
     """
     Build a query for politicians that should be enriched.
 
-    A candidate has at least one Wikipedia project link with no linked source for
-    that project. Requested languages restrict that eligible-link check.
+    A candidate has at least one Wikipedia project link with no source snapshot newer
+    than the cooldown window for that project. Re-enrichment creates a new snapshot;
+    old snapshots are never mutated, and failed snapshots become eligible again after
+    the window. Requested languages restrict that eligible-link check.
 
     Args:
         languages: Optional list of language QIDs to filter by

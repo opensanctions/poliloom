@@ -48,7 +48,9 @@ uv run poliloom import-politicians    # Import politicians
 
 Enrichment runs on demand when a user's per-language review pool is empty,
 using only sources in the user's selected languages; the review UI prefetches
-one politician ahead. The CLI enriches all matching candidates until none remain.
+one politician ahead. Each (politician, Wikipedia project) gets a fresh snapshot after
+`ENRICHMENT_COOLDOWN_DAYS` (default 365). The CLI enriches all matching candidates
+until none remain.
 
 ```bash
 # Enrich politicians from any country/language

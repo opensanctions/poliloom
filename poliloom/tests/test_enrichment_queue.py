@@ -1,10 +1,13 @@
 """Tests for enrichment candidate selection and source creation."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+import pytest
 
 from poliloom.enrichment_queue import (
     create_enrichment_sources,
     enrichment_candidates_query,
+    get_enrichment_cooldown_cutoff,
     get_priority_wikipedia_links,
 )
 from poliloom.models import (
@@ -13,6 +16,8 @@ from poliloom.models import (
     PropertyType,
     RelationType,
     Source,
+    SourceError,
+    SourceStatus,
     WikidataRelation,
 )
 
@@ -346,6 +351,42 @@ class TestEnrichmentCandidatesQuery:
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 0
+
+    @pytest.mark.parametrize("error", [None, SourceError.NO_RESPONSE])
+    def test_query_includes_link_with_aged_out_source(
+        self, db_session, sample_politician, sample_wikipedia_link, error
+    ):
+        """Aged-out snapshots, including failed ones, become candidates again."""
+        source = Source(
+            url=sample_wikipedia_link.url,
+            wikipedia_project_id=sample_wikipedia_link.wikipedia_project_id,
+            fetch_timestamp=get_enrichment_cooldown_cutoff() - timedelta(seconds=1),
+            error=error,
+        )
+        source.politicians.append(sample_politician)
+        db_session.add(source)
+        db_session.flush()
+
+        result = db_session.execute(enrichment_candidates_query()).scalars().all()
+
+        assert [politician.id for politician in result] == [sample_politician.id]
+
+    @pytest.mark.parametrize("status", [SourceStatus.DONE, SourceStatus.PROCESSING])
+    def test_query_excludes_link_with_recent_source(
+        self, db_session, sample_politician, sample_wikipedia_link, status
+    ):
+        """Recent snapshots block candidates regardless of their processing status."""
+        source = Source(
+            url=sample_wikipedia_link.url,
+            wikipedia_project_id=sample_wikipedia_link.wikipedia_project_id,
+            fetch_timestamp=datetime.now(timezone.utc),
+            status=status,
+        )
+        source.politicians.append(sample_politician)
+        db_session.add(source)
+        db_session.flush()
+
+        assert db_session.execute(enrichment_candidates_query()).scalars().all() == []
 
     def test_query_excludes_link_without_language_of_work_relation(
         self,
@@ -846,6 +887,32 @@ class TestCreateEnrichmentSources:
             )
             == []
         )
+
+    def test_aged_out_source_creates_new_snapshot(
+        self, db_session, sample_politician, sample_wikipedia_link
+    ):
+        """Re-enrichment preserves the old snapshot and creates a new source."""
+        old_source = Source(
+            url=sample_wikipedia_link.url,
+            wikipedia_project_id=sample_wikipedia_link.wikipedia_project_id,
+            fetch_timestamp=get_enrichment_cooldown_cutoff() - timedelta(seconds=1),
+            error=SourceError.NO_RESPONSE,
+        )
+        old_source.politicians.append(sample_politician)
+        db_session.add(old_source)
+        db_session.flush()
+        old_source_id = old_source.id
+        old_fetch_timestamp = old_source.fetch_timestamp
+
+        sources = create_enrichment_sources(sample_politician, db_session)
+        db_session.flush()
+
+        assert len(sources) == 1
+        assert sources[0].id != old_source_id
+        old_source = db_session.get(Source, old_source_id)
+        assert old_source.fetch_timestamp == old_fetch_timestamp
+        assert old_source.error == SourceError.NO_RESPONSE
+        assert len(sample_politician.sources) == 2
 
     def test_existing_source_blocks_its_project(
         self, db_session, sample_politician, sample_wikipedia_link

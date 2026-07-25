@@ -1,6 +1,5 @@
 """API endpoint for community statistics."""
 
-import os
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
@@ -10,6 +9,10 @@ from sqlalchemy import and_, case, exists, func, literal, literal_column, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db_session
+from ..enrichment_queue import (
+    get_enrichment_cooldown_cutoff,
+    get_enrichment_cooldown_days,
+)
 from ..models import Evaluation, Politician, Property, PropertyReference, Source
 from ..models.source import PoliticianSource
 from ..models.base import PropertyType
@@ -17,15 +20,6 @@ from ..models.wikidata import WikidataEntity
 from .auth import User, get_current_user
 
 router = APIRouter()
-
-
-def get_enrichment_cooldown_days() -> int:
-    """Return the stats coverage window in days."""
-    return int(os.getenv("ENRICHMENT_COOLDOWN_DAYS", "365"))
-
-
-def get_enrichment_cooldown_cutoff() -> datetime:
-    return datetime.now(timezone.utc) - timedelta(days=get_enrichment_cooldown_days())
 
 
 class EvaluationCountResponse(BaseModel):
