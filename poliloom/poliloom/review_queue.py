@@ -5,7 +5,13 @@ from dataclasses import dataclass
 from sqlalchemy import and_, exists, func, select
 from sqlalchemy.orm import Session
 
-from .models import Politician, Property, PropertyReference, SourceLanguage
+from .models import (
+    Politician,
+    Property,
+    PropertyReference,
+    PropertySkip,
+    SourceLanguage,
+)
 from .models.property import active_citizenship_conditions
 
 
@@ -20,6 +26,7 @@ class ReviewQueueResult:
 def _unevaluated_pool(
     languages: list[str] | None = None,
     countries: list[str] | None = None,
+    user_id: str | None = None,
 ):
     """CTE of politicians with unevaluated extracted properties.
 
@@ -33,6 +40,16 @@ def _unevaluated_pool(
     ]
 
     unevaluated_query = select(1).select_from(Property)
+    if user_id:
+        unevaluated_conditions.append(
+            ~exists(
+                select(1).where(
+                    PropertySkip.property_id == Property.id,
+                    PropertySkip.user_id == user_id,
+                )
+            )
+        )
+
     if languages:
         unevaluated_query = unevaluated_query.join(
             PropertyReference,
@@ -69,9 +86,10 @@ def count_unevaluated(
     db: Session,
     languages: list[str] | None = None,
     countries: list[str] | None = None,
+    user_id: str | None = None,
 ) -> int:
     """Count politicians with unevaluated extracted properties (the review buffer)."""
-    pool = _unevaluated_pool(languages, countries)
+    pool = _unevaluated_pool(languages, countries, user_id)
     return db.execute(select(func.count()).select_from(pool)).scalar() or 0
 
 
@@ -80,12 +98,13 @@ def get_random_unevaluated(
     languages: list[str] | None = None,
     countries: list[str] | None = None,
     exclude_ids: list[str] | None = None,
+    user_id: str | None = None,
 ) -> ReviewQueueResult:
     """Select a random candidate and count the full matching review pool.
 
     ``exclude_ids`` affects candidate selection only, not the total.
     """
-    pool = _unevaluated_pool(languages, countries)
+    pool = _unevaluated_pool(languages, countries, user_id)
 
     candidate_query = select(pool.c.wikidata_id)
     if exclude_ids:

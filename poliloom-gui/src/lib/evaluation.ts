@@ -1,9 +1,17 @@
-import { Property, PropertyActionItem, CreatePropertyItem, PropertyType } from '@/types'
+import {
+  Property,
+  PropertyActionItem,
+  CreatePropertyItem,
+  PropertyType,
+  SkipPropertyItem,
+} from '@/types'
 import { parsePositionQualifiers, compareDates } from '@/lib/wikidata/qualifierParser'
 import { parseWikidataDate, ParsedWikidataDate } from '@/lib/wikidata/dateParser'
 
 export function actionToEvaluation(actions: PropertyActionItem[], id: string): boolean | undefined {
-  const action = actions.find((a) => a.action !== 'create' && a.id === id)
+  const action = actions.find(
+    (a) => (a.action === 'accept' || a.action === 'reject') && a.id === id,
+  )
   if (!action) return undefined
   return action.action === 'accept'
 }
@@ -21,7 +29,9 @@ export function applyAction(
     }
   }
 
-  const existing = actions.find((a) => a.action !== 'create' && a.id === id)
+  const existing = actions.find(
+    (a) => (a.action === 'accept' || a.action === 'reject') && a.id === id,
+  )
 
   if (existing) {
     if (existing.action === action) {
@@ -34,6 +44,20 @@ export function applyAction(
 
   // Add new action
   return [...actions, { action, id }]
+}
+
+export function computeSkipItems(
+  properties: Property[],
+  actions: PropertyActionItem[],
+): SkipPropertyItem[] {
+  const evaluatedIds = new Set(
+    actions
+      .filter((action) => action.action === 'accept' || action.action === 'reject')
+      .map((action) => action.id),
+  )
+  return properties
+    .filter((property) => !property.statement_id && property.id && !evaluatedIds.has(property.id))
+    .map((property) => ({ action: 'skip', id: property.id }))
 }
 
 // --- Property grouping ---

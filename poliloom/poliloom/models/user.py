@@ -6,6 +6,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     String,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -36,6 +37,21 @@ class Evaluation(Base, TimestampMixin):
 
     # Relationships
     property = relationship("Property", back_populates="evaluations")
+
+
+class PropertySkip(Base, TimestampMixin):
+    """Tracks an extracted property skipped by an individual user."""
+
+    __tablename__ = "property_skips"
+    __table_args__ = (UniqueConstraint("user_id", "property_id"),)
+
+    id = Column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    user_id = Column(String, nullable=False, index=True)
+    property_id = Column(
+        UUID(as_uuid=True), ForeignKey("properties.id"), nullable=False
+    )
 
 
 class UserSettings(Base, TimestampMixin):

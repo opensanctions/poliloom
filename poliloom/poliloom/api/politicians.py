@@ -20,6 +20,7 @@ from ..models import (
     Politician,
     Property,
     PropertyReference,
+    PropertySkip,
     PropertyType,
 )
 from ..sse import EvaluationCountEvent, event_bus
@@ -37,6 +38,7 @@ from .schemas import (
     PatchPropertiesResponse,
     PoliticianResponse,
     RejectPropertyItem,
+    SkipPropertyItem,
     PropertyReferenceResponse,
     PropertyResponse,
 )
@@ -190,6 +192,7 @@ async def get_next_politician(
         languages=languages,
         countries=countries,
         exclude_ids=exclude_ids,
+        user_id=str(current_user.user_id),
     )
     wikidata_id = review_candidate.wikidata_id
     current_count = review_candidate.total
@@ -289,11 +292,18 @@ async def get_politician(
     cooldown period, scheduling background source processing.
     """
     query = Politician.query_base().where(Politician.wikidata_id == qid)
+    not_skipped = ~exists(
+        select(1).where(
+            PropertySkip.property_id == Property.id,
+            PropertySkip.user_id == str(current_user.user_id),
+        )
+    )
 
     if languages:
         # Filter properties: include Wikidata properties OR properties with matching language
         property_filter = and_(
             Property.deleted_at.is_(None),
+            not_skipped,
             or_(
                 Property.statement_id.isnot(None),
                 exists(
@@ -323,7 +333,10 @@ async def get_politician(
     else:
         query = query.options(
             selectinload(
-                Politician.properties.and_(Property.deleted_at.is_(None))
+                Politician.properties.and_(
+                    Property.deleted_at.is_(None),
+                    not_skipped,
+                )
             ).options(
                 selectinload(Property.entity),
                 selectinload(Property.property_references)
@@ -399,6 +412,30 @@ async def process_property_actions(
                         )
                         db.add(evaluation)
                         all_evaluations.append(evaluation)
+
+                    case SkipPropertyItem():
+                        property_entity = db.get(Property, item.id)
+                        if not property_entity:
+                            errors.append(f"Property {item.id} not found")
+                            continue
+                        if (
+                            property_entity.statement_id is not None
+                            or property_entity.deleted_at is not None
+                        ):
+                            continue
+                        already_skipped = db.scalar(
+                            select(PropertySkip.id).where(
+                                PropertySkip.user_id == str(current_user.user_id),
+                                PropertySkip.property_id == item.id,
+                            )
+                        )
+                        if not already_skipped:
+                            db.add(
+                                PropertySkip(
+                                    user_id=str(current_user.user_id),
+                                    property_id=item.id,
+                                )
+                            )
 
                     case CreatePropertyItem():
                         prop_type = PROPERTY_TYPE_MAP.get(item.type)

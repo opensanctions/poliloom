@@ -7,6 +7,7 @@ from poliloom.models import (
     Politician,
     Source,
     Evaluation,
+    PropertySkip,
 )
 from poliloom.wikidata.date import WikidataDate
 
@@ -140,6 +141,34 @@ class TestGetPoliticianEndpointProperties:
         assert "P570" in property_types
         assert "P39" in property_types
         assert "P19" in property_types
+
+    def test_omits_skipped_properties_only_for_the_skipping_user(
+        self, client, mock_auth, db_session, politician_with_unevaluated_data
+    ):
+        skipped = next(
+            prop
+            for prop in politician_with_unevaluated_data.properties
+            if prop.statement_id is None
+        )
+        db_session.add(PropertySkip(user_id="12345", property_id=skipped.id))
+        db_session.flush()
+
+        response = client.get("/politicians/Q123456", headers=mock_auth)
+        assert response.status_code == 200
+        assert str(skipped.id) not in {
+            prop["id"] for prop in response.json()["properties"]
+        }
+
+        from poliloom.api import app
+        from poliloom.api.auth import User, get_current_user
+
+        async def other_user():
+            return User(user_id=67890, jwt_token="other-token")
+
+        app.dependency_overrides[get_current_user] = other_user
+        response = client.get("/politicians/Q123456", headers=mock_auth)
+        assert response.status_code == 200
+        assert str(skipped.id) in {prop["id"] for prop in response.json()["properties"]}
 
     def test_extracted_data_contains_supporting_quotes_and_archive_info(
         self, client, mock_auth, db_session, politician_with_unevaluated_data

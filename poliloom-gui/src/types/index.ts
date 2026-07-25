@@ -88,6 +88,11 @@ export interface RejectPropertyItem {
   id: string
 }
 
+export interface SkipPropertyItem {
+  action: 'skip'
+  id: string
+}
+
 export interface CreatePropertyItem {
   action: 'create'
   id: string // Temporary client-side ID (ignored by backend)
@@ -99,7 +104,8 @@ export interface CreatePropertyItem {
   qualifiers?: PropertyQualifiers
 }
 
-export type PropertyActionItem = AcceptPropertyItem | RejectPropertyItem | CreatePropertyItem
+export type PropertyActionItem =
+  AcceptPropertyItem | RejectPropertyItem | SkipPropertyItem | CreatePropertyItem
 
 export interface PatchPropertiesRequest {
   items: PropertyActionItem[]

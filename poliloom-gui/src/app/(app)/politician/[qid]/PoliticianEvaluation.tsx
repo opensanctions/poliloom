@@ -14,6 +14,7 @@ import { useSettings } from '@/contexts/SettingsContext'
 import { useFilters } from '@/contexts/FilterContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { useEventStream } from '@/contexts/EventStreamContext'
+import { computeSkipItems } from '@/lib/evaluation'
 import { Button } from '@/components/ui/Button'
 import {
   EvaluationView,
@@ -41,6 +42,7 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
     findInitialSelection(initialPolitician, languageQids),
   )
   const pendingSourceIdsRef = useRef<Set<string>>(new Set())
+  const [isSkipping, setIsSkipping] = useState(false)
 
   const refetchPolitician = useCallback(async (): Promise<Politician | null> => {
     try {
@@ -73,7 +75,9 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
   )
 
   const handleSubmit = async (actions: PropertyActionItem[]) => {
-    const requestData: PatchPropertiesRequest = { items: actions }
+    const requestData: PatchPropertiesRequest = {
+      items: [...actions, ...computeSkipItems(politician.properties, actions)],
+    }
     const response = await fetch(`/api/politicians/${politician.wikidata_id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -108,6 +112,25 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
     }
   }
 
+  const handleSkipPolitician = async () => {
+    setIsSkipping(true)
+    try {
+      const response = await fetch(`/api/politicians/${politician.wikidata_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: computeSkipItems(politician.properties, []) }),
+      })
+      if (!response.ok) {
+        throw new Error(`Failed to skip politician: ${response.statusText}`)
+      }
+    } catch (error) {
+      console.error('Failed to skip politician:', error)
+    } finally {
+      setIsSkipping(false)
+      router.push(nextHref)
+    }
+  }
+
   const footer = ({ actions, isSubmitting, submit }: FooterContext) => {
     const hasActions = actions.length > 0
     return (
@@ -124,11 +147,11 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
         <div className="ml-auto">
           {isSessionActive && !hasActions ? (
             <Button
-              href={nextLoading ? undefined : nextHref}
-              disabled={nextLoading}
+              onClick={handleSkipPolitician}
+              disabled={nextLoading || isSkipping}
               className="px-6 py-3"
             >
-              Skip Politician
+              {isSkipping ? 'Skipping...' : 'Skip Politician'}
             </Button>
           ) : (
             <Button

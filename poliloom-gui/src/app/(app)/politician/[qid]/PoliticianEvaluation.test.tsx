@@ -375,10 +375,26 @@ describe('PoliticianEvaluation - no next politician', () => {
     })
   })
 
-  it('skip button links to /session/enriching when no next politician available', () => {
+  it('skips displayed extracted properties before navigating when no next politician is available', async () => {
     render(<PoliticianEvaluation politician={politician} />)
 
-    const skipButton = screen.getByText('Skip Politician')
-    expect(skipButton.closest('a')).toHaveAttribute('href', '/session/enriching')
+    fireEvent.click(screen.getByText('Skip Politician'))
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/politicians/Q987654',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({
+            items: [
+              { action: 'skip', id: 'prop-1' },
+              { action: 'skip', id: 'pos-1' },
+              { action: 'skip', id: 'birth-1' },
+            ],
+          }),
+        }),
+      )
+      expect(mockRouterPush).toHaveBeenCalledWith('/session/enriching')
+    })
   })
 })

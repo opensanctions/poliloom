@@ -3,6 +3,7 @@ import {
   actionToEvaluation,
   applyAction,
   createPropertyFromAction,
+  computeSkipItems,
   groupPropertiesIntoSections,
 } from './evaluation'
 import type { PropertyActionItem, CreatePropertyItem, Property, SourceResponse } from '@/types'
@@ -42,6 +43,20 @@ describe('actionToEvaluation', () => {
       { action: 'accept', id: 'prop-3' },
     ]
     expect(actionToEvaluation(actions, 'prop-2')).toBe(false)
+  })
+})
+
+describe('computeSkipItems', () => {
+  it('returns untouched extracted properties only', () => {
+    const properties = [
+      { id: 'extracted', statement_id: null },
+      { id: 'evaluated', statement_id: null },
+      { id: 'wikidata', statement_id: 'Q1$abc' },
+    ] as Property[]
+
+    expect(computeSkipItems(properties, [{ action: 'accept', id: 'evaluated' }])).toEqual([
+      { action: 'skip', id: 'extracted' },
+    ])
   })
 })
 

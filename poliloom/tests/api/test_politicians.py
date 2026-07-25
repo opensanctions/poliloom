@@ -5,6 +5,7 @@ from unittest.mock import patch
 from poliloom.models import (
     Evaluation,
     Politician,
+    PropertySkip,
 )
 from poliloom.sse import EvaluationCountEvent
 
@@ -198,6 +199,77 @@ class TestPatchProperties:
         result = response.json()
         assert result["success"] is True
         assert "2 items" in result["message"]
+
+    @patch("poliloom.api.politicians.push_evaluation")
+    def test_skip_records_once_without_evaluation_or_wikidata_push(
+        self,
+        mock_push_evaluation,
+        client,
+        mock_auth,
+        db_session,
+        politician_with_unevaluated_data,
+    ):
+        property_entity = next(
+            prop
+            for prop in politician_with_unevaluated_data.properties
+            if prop.statement_id is None
+        )
+        payload = {"items": [{"action": "skip", "id": str(property_entity.id)}]}
+
+        first = client.patch(
+            "/politicians/Q123456/properties", json=payload, headers=mock_auth
+        )
+        second = client.patch(
+            "/politicians/Q123456/properties", json=payload, headers=mock_auth
+        )
+
+        assert first.status_code == second.status_code == 200
+        assert first.json()["success"] is second.json()["success"] is True
+        assert (
+            db_session.query(PropertySkip)
+            .filter_by(user_id="12345", property_id=property_entity.id)
+            .count()
+            == 1
+        )
+        assert (
+            db_session.query(Evaluation)
+            .filter_by(property_id=property_entity.id)
+            .count()
+            == 0
+        )
+        db_session.refresh(property_entity)
+        assert property_entity.statement_id is None
+        assert property_entity.deleted_at is None
+        mock_push_evaluation.assert_not_called()
+
+    def test_skip_wikidata_property_records_nothing(
+        self, client, mock_auth, db_session, politician_with_unevaluated_data
+    ):
+        property_entity = next(
+            prop
+            for prop in politician_with_unevaluated_data.properties
+            if prop.statement_id is not None
+        )
+        response = client.patch(
+            "/politicians/Q123456/properties",
+            json={"items": [{"action": "skip", "id": str(property_entity.id)}]},
+            headers=mock_auth,
+        )
+
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+        assert (
+            db_session.query(PropertySkip)
+            .filter_by(property_id=property_entity.id)
+            .count()
+            == 0
+        )
+        assert (
+            db_session.query(Evaluation)
+            .filter_by(property_id=property_entity.id)
+            .count()
+            == 0
+        )
 
     def test_missing_action_returns_422(
         self, client, mock_auth, politician_with_unevaluated_data

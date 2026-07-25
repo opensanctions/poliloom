@@ -122,6 +122,11 @@ class RejectPropertyItem(BaseModel):
     id: UUID
 
 
+class SkipPropertyItem(BaseModel):
+    action: Literal["skip"]
+    id: UUID
+
+
 class CreatePropertyItem(BaseModel):
     action: Literal["create"]
     type: str
@@ -135,6 +140,7 @@ PropertyActionItem = Annotated[
     Union[
         Annotated[AcceptPropertyItem, Tag("accept")],
         Annotated[RejectPropertyItem, Tag("reject")],
+        Annotated[SkipPropertyItem, Tag("skip")],
         Annotated[CreatePropertyItem, Tag("create")],
     ],
     Discriminator("action"),
