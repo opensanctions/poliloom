@@ -46,9 +46,10 @@ uv run poliloom import-politicians    # Import politicians
 
 ### Extract politician data
 
-Enrichment runs on demand when a user's per-language review pool is empty,
-using only sources in the user's selected languages; the review UI prefetches
-one politician ahead. Each (politician, Wikipedia project) gets a fresh snapshot after
+Enrichment is demand-driven: `/politicians/next` claims and serves unevaluated
+properties in the user's selected languages, and background enrichment tops up
+to one serveable politician per filter combo when the pool runs dry. Each
+(politician, Wikipedia project) gets a fresh snapshot after
 `ENRICHMENT_COOLDOWN_DAYS` (default 365).
 
 ### Run the API server

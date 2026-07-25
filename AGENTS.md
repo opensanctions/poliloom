@@ -42,22 +42,22 @@ pnpm test                        # Run tests
 
 ## Key Backend Files
 
-- `poliloom/poliloom/cli.py` - CLI commands (import, enrich, embed)
+- `poliloom/poliloom/cli.py` - CLI commands (dump download/extract, import, cleanup, Meilisearch indexing)
 - `poliloom/poliloom/api/` - FastAPI endpoints (politicians, sources, events, stats, auth)
 - `poliloom/poliloom/models/` - SQLAlchemy models (Politician, Source, Property, etc.)
 - `poliloom/poliloom/importer/` - Wikidata dump processing
 - `poliloom/poliloom/enrichment.py` - AI-powered data extraction from web sources
-- `poliloom/poliloom/scheduling.py` - On-demand enrichment orchestration
-- `poliloom/poliloom/review_queue.py` - Per-user unevaluated review-pool selection
+- `poliloom/poliloom/scheduling.py` - On-demand enrichment orchestration (floor-of-1 top-up)
+- `poliloom/poliloom/review_queue.py` - Claim-based review serving: per-property claims (TTL) handed out under per-politician row locks
 - `poliloom/poliloom/archiving.py` - Web page fetching and MHTML archiving via Playwright
 - `poliloom/poliloom/sse.py` - Server-sent events bus for real-time updates
 
 ## Key Frontend Files
 
 - `poliloom-gui/src/app/(app)/politician/[qid]/` - Single politician evaluation view
-- `poliloom-gui/src/app/(app)/sources/[id]/` - Source evaluation view
 - `poliloom-gui/src/app/(app)/session/` - Session flow (enriching, unlocked, complete)
 - `poliloom-gui/src/components/evaluation/` - Evaluation UI (property display, source viewer, forms)
+- `poliloom-gui/src/components/entity/` - Entity components (MultiSelect filter picker, etc.)
 - `poliloom-gui/src/components/ui/` - Generic UI components (entity search, date picker, etc.)
 - `poliloom-gui/src/contexts/` - React contexts (EvaluationSession, EventStream, NextPolitician, etc.)
 - `poliloom-gui/src/types/` - TypeScript definitions
@@ -68,12 +68,12 @@ pnpm test                        # Run tests
 2. Import positions, locations, countries → Index entities to Meilisearch
 3. Import politicians with entity links
 4. Archive web sources (Wikipedia, government portals) as MHTML via Playwright
-5. When a user's per-language review pool is empty, enrich an eligible politician from sources in that user's selected languages (two-stage: free-form extraction → Meilisearch entity mapping); (politician, Wikipedia project) snapshots are re-enriched after `ENRICHMENT_COOLDOWN_DAYS` (default 365); prefetch one politician ahead during review
+5. Users always review in at least one language. `/next` claims the unevaluated properties it serves (per-property claims with `CLAIM_TTL_MINUTES` TTL, default 30), so users never see each other's property; users with disjoint languages review the same politician in parallel. When nothing serveable remains, background enrichment (two-stage: free-form extraction → Meilisearch entity mapping) tops up to a floor of 1 serveable politician per filter combo; (politician, Wikipedia project) snapshots are re-enriched after `ENRICHMENT_COOLDOWN_DAYS` (default 365)
 6. Community evaluation → Wikidata submission
 
 ## Environment Variables
 
-Backend (`.env`): DB_*, OPENAI_API_KEY, OPENAI_MODEL, OPENAI_REASONING_EFFORT, MEDIAWIKI_CONSUMER_*, GOOGLE_APPLICATION_CREDENTIALS, MEILI_URL, MEILI_MASTER_KEY, POLILOOM_ARCHIVE_ROOT, WIKIDATA_API_ROOT
+Backend (`.env`): DB_*, OPENAI_API_KEY, OPENAI_MODEL, OPENAI_REASONING_EFFORT, MEDIAWIKI_CONSUMER_*, GOOGLE_APPLICATION_CREDENTIALS, MEILI_URL, MEILI_MASTER_KEY, POLILOOM_ARCHIVE_ROOT, WIKIDATA_API_ROOT, ENRICHMENT_COOLDOWN_DAYS, CLAIM_TTL_MINUTES
 Frontend (`.env.local`): AUTH_SECRET, MEDIAWIKI_OAUTH_*, API_BASE_URL
 
 ## Code Style
