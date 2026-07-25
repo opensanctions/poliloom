@@ -50,8 +50,7 @@ class TestGetNextPoliticianEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["wikidata_id"] is None
-        # An excluded candidate is unavailable for this navigation request.
-        assert data["meta"]["total_matching_filters"] == 0
+        assert data["meta"]["has_enrichable_politicians"] is False
 
     def test_requires_authentication(self, client):
         """Test that endpoint requires authentication."""
@@ -65,8 +64,7 @@ class TestGetNextPoliticianEndpoint:
         response = client.get("/politicians/next", headers=mock_auth)
         data = response.json()
 
-        assert "has_enrichable_politicians" in data["meta"]
-        assert "total_matching_filters" in data["meta"]
+        assert set(data["meta"]) == {"has_enrichable_politicians"}
 
     def test_country_filter_excludes_non_matching(
         self,

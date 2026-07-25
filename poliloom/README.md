@@ -46,8 +46,9 @@ uv run poliloom import-politicians    # Import politicians
 
 ### Extract politician data
 
-Enrichment runs on demand as users review politicians. The CLI enriches all
-matching candidates until none remain.
+Enrichment runs on demand when a user's per-language review pool is empty,
+using only sources in the user's selected languages; the review UI prefetches
+one politician ahead. The CLI enriches all matching candidates until none remain.
 
 ```bash
 # Enrich politicians from any country/language

@@ -47,6 +47,8 @@ pnpm test                        # Run tests
 - `poliloom/poliloom/models/` - SQLAlchemy models (Politician, Source, Property, etc.)
 - `poliloom/poliloom/importer/` - Wikidata dump processing
 - `poliloom/poliloom/enrichment.py` - AI-powered data extraction from web sources
+- `poliloom/poliloom/scheduling.py` - On-demand enrichment orchestration
+- `poliloom/poliloom/review_queue.py` - Per-user unevaluated review-pool selection
 - `poliloom/poliloom/archiving.py` - Web page fetching and MHTML archiving via Playwright
 - `poliloom/poliloom/sse.py` - Server-sent events bus for real-time updates
 
@@ -66,12 +68,12 @@ pnpm test                        # Run tests
 2. Import positions, locations, countries → Index entities to Meilisearch
 3. Import politicians with entity links
 4. Archive web sources (Wikipedia, government portals) as MHTML via Playwright
-5. AI extraction from web sources (two-stage: free-form extraction → Meilisearch entity mapping)
+5. When a user's per-language review pool is empty, enrich an eligible politician from sources in that user's selected languages (two-stage: free-form extraction → Meilisearch entity mapping); prefetch one politician ahead during review
 6. Community evaluation → Wikidata submission
 
 ## Environment Variables
 
-Backend (`.env`): DB_*, OPENAI_API_KEY, OPENAI_MODEL, OPENAI_REASONING_EFFORT, MEDIAWIKI_CONSUMER_*, GOOGLE_APPLICATION_CREDENTIALS, MEILI_URL, MEILI_MASTER_KEY, POLILOOM_ARCHIVE_ROOT, WIKIDATA_API_ROOT, MIN_UNEVALUATED_POLITICIANS
+Backend (`.env`): DB_*, OPENAI_API_KEY, OPENAI_MODEL, OPENAI_REASONING_EFFORT, MEDIAWIKI_CONSUMER_*, GOOGLE_APPLICATION_CREDENTIALS, MEILI_URL, MEILI_MASTER_KEY, POLILOOM_ARCHIVE_ROOT, WIKIDATA_API_ROOT
 Frontend (`.env.local`): AUTH_SECRET, MEDIAWIKI_OAUTH_*, API_BASE_URL
 
 ## Code Style

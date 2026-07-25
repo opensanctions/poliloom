@@ -202,10 +202,7 @@ async def get_next_politician(
             asyncio.create_task(process_next_politician(languages, countries))
         return NextPoliticianResponse(
             wikidata_id=review_candidate.wikidata_id,
-            meta=EnrichmentMetadata(
-                has_enrichable_politicians=False,
-                total_matching_filters=review_candidate.total,
-            ),
+            meta=EnrichmentMetadata(has_enrichable_politicians=False),
         )
 
     scheduled_enrichment = False
@@ -226,20 +223,14 @@ async def get_next_politician(
                 asyncio.create_task(process_next_politician(languages, countries))
             return NextPoliticianResponse(
                 wikidata_id=review_candidate.wikidata_id,
-                meta=EnrichmentMetadata(
-                    has_enrichable_politicians=False,
-                    total_matching_filters=review_candidate.total,
-                ),
+                meta=EnrichmentMetadata(has_enrichable_politicians=False),
             )
 
     if scheduled_enrichment:
         asyncio.create_task(enrich_until_exhausted(languages, countries))
 
     return NextPoliticianResponse(
-        meta=EnrichmentMetadata(
-            has_enrichable_politicians=scheduled_enrichment,
-            total_matching_filters=0,
-        )
+        meta=EnrichmentMetadata(has_enrichable_politicians=scheduled_enrichment)
     )
 
 

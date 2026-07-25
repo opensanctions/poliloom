@@ -70,7 +70,6 @@ export interface Politician {
 
 export interface EnrichmentMetadata {
   has_enrichable_politicians: boolean
-  total_matching_filters: number
 }
 
 export interface NextPoliticianResponse {

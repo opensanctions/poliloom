@@ -61,6 +61,7 @@ For entity-linked properties (OpenAI's 500 enum limit):
 - **Web Source Archiving:** Fetch and archive web pages (Wikipedia, government portals) as MHTML via Playwright (`archiving.py`)
 - **LLM Extraction:** OpenAI structured data API for politician properties
 - **Similarity Search:** Match unlinked entities using Meilisearch hybrid search
+- **Review-driven enrichment:** When a user's per-language review pool is empty, enrich an eligible politician from sources in the user's selected languages; the client prefetches one politician ahead
 - **Real-time Updates:** SSE events broadcast enrichment progress and evaluation count changes (`sse.py`)
 
 ### **API Endpoints**

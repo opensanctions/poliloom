@@ -54,9 +54,8 @@ sudo systemctl start poliloom-enrich-stateless.timer
 ### poliloom-enrich-stateless
 
 - **Schedule**: Daily at 6 AM (±30min random delay)
-- **Function**: Enriches politicians without citizenship data until
-  `MIN_UNEVALUATED_POLITICIANS` have unevaluated extracted citizenship, or
-  candidates run out. Skips entirely when the review buffer is already full.
+- **Function**: Enriches politicians without citizenship data until candidates
+  run out.
 - **Timeout**: 1 hour
 - **Note**: Addresses bias where politicians without citizenship are never
   reached by user-driven country/language filters

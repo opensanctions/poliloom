@@ -102,7 +102,6 @@ class EnrichmentMetadata(BaseModel):
     """Metadata about enrichment status for empty state UX."""
 
     has_enrichable_politicians: bool
-    total_matching_filters: int
 
 
 class NextPoliticianResponse(BaseModel):

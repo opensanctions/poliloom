@@ -32,7 +32,7 @@ function wrapper({ children }: { children: React.ReactNode }) {
 
 const nextResponse: NextPoliticianResponse = {
   wikidata_id: 'Q12345',
-  meta: { has_enrichable_politicians: true, total_matching_filters: 10 },
+  meta: { has_enrichable_politicians: true },
 }
 
 describe('NextPoliticianContext', () => {
@@ -169,7 +169,7 @@ describe('NextPoliticianContext', () => {
       ok: true,
       json: async () => ({
         wikidata_id: null,
-        meta: { has_enrichable_politicians: false, total_matching_filters: 0 },
+        meta: { has_enrichable_politicians: false },
       }),
     } as Response)
 
