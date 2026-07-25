@@ -48,7 +48,6 @@ def schedule_enrichment(
     db: Session,
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,
-    stateless: bool = False,
 ) -> Optional[ScheduledEnrichment]:
     """Pick the next politician and create sources for its Wikipedia links.
 
@@ -59,7 +58,6 @@ def schedule_enrichment(
         enrichment_candidates_query(
             languages=languages,
             countries=countries,
-            stateless=stateless,
         )
         .options(
             selectinload(Politician.wikipedia_links),
@@ -75,9 +73,7 @@ def schedule_enrichment(
         return None
 
     try:
-        sources = create_enrichment_sources(
-            politician, db, languages=None if stateless else languages
-        )
+        sources = create_enrichment_sources(politician, db, languages=languages)
 
         if not sources:
             db.commit()
@@ -142,7 +138,6 @@ async def process_source_task(source_id, politician_id) -> int:
 async def process_next_politician(
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,
-    stateless: bool = False,
 ) -> Optional[int]:
     """Schedule and process enrichment for a single politician.
 
@@ -157,7 +152,7 @@ async def process_next_politician(
         Number of properties extracted, or None if no politician was available.
     """
     with Session(get_engine()) as db:
-        scheduled = schedule_enrichment(db, languages, countries, stateless)
+        scheduled = schedule_enrichment(db, languages, countries)
 
     extracted = None
     try:
@@ -197,20 +192,6 @@ async def enrich_until_serveable(
                 break
         if await process_next_politician(languages, countries) is None:
             break
-        enriched += 1
-
-    return enriched
-
-
-async def enrich_until_exhausted(
-    languages: Optional[List[str]] = None,
-    countries: Optional[List[str]] = None,
-    stateless: bool = False,
-) -> int:
-    """CLI batch driver: enrich until exhausted; not used by the API."""
-    enriched = 0
-
-    while await process_next_politician(languages, countries, stateless) is not None:
         enriched += 1
 
     return enriched

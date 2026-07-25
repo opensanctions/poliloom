@@ -1,11 +1,9 @@
 """Main CLI interface for PoliLoom."""
 
-import asyncio
 import click
 import logging
 from datetime import datetime, timezone
 import httpx
-from poliloom.scheduling import enrich_until_exhausted
 from poliloom.storage import StorageFactory
 from poliloom.importer.hierarchy import import_hierarchy_trees
 from poliloom.importer.entity import import_entities
@@ -270,79 +268,6 @@ def dump_extract(input, output):
         raise SystemExit(1)
 
 
-@main.command("enrich-wikipedia")
-@click.option(
-    "--languages",
-    multiple=True,
-    help="Filter by language QIDs (can be specified multiple times)",
-)
-@click.option(
-    "--countries",
-    multiple=True,
-    help="Filter by country QIDs (can be specified multiple times)",
-)
-@click.option(
-    "--stateless",
-    is_flag=True,
-    help="Only enrich politicians without citizenship data (for bias prevention)",
-)
-def enrich_wikipedia(
-    languages: tuple[str, ...],
-    countries: tuple[str, ...],
-    stateless: bool,
-) -> None:
-    """Enrich all matching politicians from Wikipedia until candidates run out.
-
-    The --stateless flag addresses a systematic bias where politicians without citizenship
-    data are never enriched by normal user-driven filters (which filter by country/language).
-    Use this flag for scheduled enrichment jobs to ensure coverage of all politicians.
-
-    Examples:
-    - poliloom enrich-wikipedia
-    - poliloom enrich-wikipedia --countries Q30 --countries Q38
-    - poliloom enrich-wikipedia --languages Q1860 --languages Q150
-    - poliloom enrich-wikipedia --stateless
-    """
-    try:
-        # Convert tuples to lists (or None if empty)
-        languages_list = list(languages) if languages else None
-        countries_list = list(countries) if countries else None
-
-        # Stateless mode is mutually exclusive with language/country filters
-        if stateless and (languages_list or countries_list):
-            click.echo(
-                "❌ --stateless cannot be combined with --languages or --countries"
-            )
-            raise SystemExit(1)
-
-        click.echo(
-            "⏳ Enriching matching politicians until candidates are exhausted..."
-        )
-        if stateless:
-            click.echo("   Mode: stateless (politicians without citizenship data)")
-        if languages_list:
-            click.echo(f"   Filtering by languages: {', '.join(languages_list)}")
-        if countries_list:
-            click.echo(f"   Filtering by countries: {', '.join(countries_list)}")
-
-        enriched_count = asyncio.run(
-            enrich_until_exhausted(
-                languages=languages_list,
-                countries=countries_list,
-                stateless=stateless,
-            )
-        )
-
-        if enriched_count == 0:
-            click.echo("✅ No candidates available")
-        else:
-            click.echo(f"✅ Successfully enriched {enriched_count} politicians")
-
-    except Exception as e:
-        click.echo(f"❌ Error enriching politicians: {e}")
-        raise SystemExit(1)
-
-
 @main.command("import-hierarchy")
 @click.option(
     "--file",
@@ -536,12 +461,6 @@ def dump_import_politicians(file, batch_size):
 
         click.echo("✅ Successfully imported politicians from dump")
 
-        # Suggest next steps
-        click.echo()
-        click.echo("💡 Next steps:")
-        click.echo(
-            "  • Run 'poliloom enrich-wikipedia --limit <amount>' to enrich politician data"
-        )
     except KeyboardInterrupt:
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
         click.echo("❌ Politicians import was cancelled.")

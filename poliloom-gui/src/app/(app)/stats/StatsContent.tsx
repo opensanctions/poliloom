@@ -278,7 +278,7 @@ function CountryCoverageList({ data }: { data: CountryCoverage[] }) {
       ) : (
         <div className="group/list">
           {filteredAndSortedData.map((item) => (
-            <CoverageBar key={item.wikidata_id ?? 'stateless'} item={item} />
+            <CoverageBar key={item.wikidata_id ?? 'without-citizenship'} item={item} />
           ))}
         </div>
       )}

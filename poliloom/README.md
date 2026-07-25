@@ -49,22 +49,7 @@ uv run poliloom import-politicians    # Import politicians
 Enrichment runs on demand when a user's per-language review pool is empty,
 using only sources in the user's selected languages; the review UI prefetches
 one politician ahead. Each (politician, Wikipedia project) gets a fresh snapshot after
-`ENRICHMENT_COOLDOWN_DAYS` (default 365). The CLI enriches all matching candidates
-until none remain.
-
-```bash
-# Enrich politicians from any country/language
-uv run poliloom enrich-wikipedia
-
-# Enrich politicians from the US (Q30) or Italy (Q38)
-uv run poliloom enrich-wikipedia --countries Q30 --countries Q38
-
-# Enrich politicians with English (Q1860) or French (Q150) Wikipedia sources
-uv run poliloom enrich-wikipedia --languages Q1860 --languages Q150
-
-# Enrich politicians without citizenship data (used by the daily systemd timer)
-uv run poliloom enrich-wikipedia --stateless
-```
+`ENRICHMENT_COOLDOWN_DAYS` (default 365).
 
 ### Run the API server
 

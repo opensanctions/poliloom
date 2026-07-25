@@ -12,8 +12,6 @@ from poliloom.enrichment_queue import (
 )
 from poliloom.models import (
     Politician,
-    Property,
-    PropertyType,
     RelationType,
     Source,
     SourceError,
@@ -790,77 +788,6 @@ class TestEnrichmentCandidatesQuery:
 
         assert len(result) == 1
         assert result[0].id == sample_politician.id
-
-    def test_query_stateless_finds_politicians_without_citizenship(
-        self,
-        db_session,
-        sample_politician,
-        sample_wikipedia_link,
-    ):
-        """Test that stateless=True finds politicians without any citizenship property."""
-        # sample_politician has no citizenship by default
-        # sample_wikipedia_link ensures they have Wikipedia links
-
-        query = enrichment_candidates_query(stateless=True)
-        result = db_session.execute(query).scalars().all()
-
-        assert len(result) == 1
-        assert result[0].id == sample_politician.id
-
-    def test_query_stateless_excludes_politicians_with_citizenship(
-        self,
-        db_session,
-        sample_politician,
-        sample_country,
-        sample_wikipedia_link,
-        create_citizenship,
-    ):
-        """Test that stateless=True excludes politicians who have citizenship."""
-        # Add citizenship property
-        create_citizenship(sample_politician, sample_country)
-        db_session.flush()
-
-        query = enrichment_candidates_query(stateless=True)
-        result = db_session.execute(query).scalars().all()
-
-        assert len(result) == 0
-
-    def test_query_stateless_excludes_soft_deleted_citizenship(
-        self,
-        db_session,
-        sample_politician,
-        sample_country,
-        sample_wikipedia_link,
-    ):
-        """Test that stateless=True includes politicians whose citizenship was soft-deleted."""
-        # Add soft-deleted citizenship property
-        prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_country.wikidata_id,
-            deleted_at=datetime.now(timezone.utc),
-        )
-        db_session.add(prop)
-        db_session.flush()
-
-        # Should find politician because the only citizenship is soft-deleted
-        query = enrichment_candidates_query(stateless=True)
-        result = db_session.execute(query).scalars().all()
-
-        assert len(result) == 1
-        assert result[0].id == sample_politician.id
-
-    def test_query_stateless_requires_wikipedia_links(
-        self,
-        db_session,
-        sample_politician,
-    ):
-        """Test that stateless=True still requires Wikipedia links."""
-        # sample_politician has no Wikipedia links and no citizenship
-        query = enrichment_candidates_query(stateless=True)
-        result = db_session.execute(query).scalars().all()
-
-        assert len(result) == 0
 
 
 class TestCreateEnrichmentSources:

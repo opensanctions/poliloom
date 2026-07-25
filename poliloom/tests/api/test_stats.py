@@ -209,8 +209,8 @@ class TestStatsEndpoint:
         assert data["country_coverage"][0]["total_count"] == 1
         assert data["country_coverage"][0]["evaluated_count"] == 1
 
-    def test_stats_stateless_politicians(self, client, db_session, mock_auth):
-        """Stats endpoint should include stateless politicians in country_coverage with wikidata_id=None."""
+    def test_stats_without_citizenship_politicians(self, client, db_session, mock_auth):
+        """Country coverage includes politicians without citizenship under a null ID."""
         # Create source for extraction
         source = Source(
             id=uuid4(),
@@ -229,11 +229,13 @@ class TestStatsEndpoint:
         db_session.add(country)
 
         # Create politician without Wikidata citizenship (enriched recently)
-        entity = WikidataEntity(wikidata_id="Q123", name="Stateless Politician")
+        entity = WikidataEntity(
+            wikidata_id="Q123", name="Politician Without Citizenship"
+        )
         db_session.add(entity)
         politician = Politician(
             wikidata_id="Q123",
-            name="Stateless Politician",
+            name="Politician Without Citizenship",
         )
         db_session.add(politician)
         db_session.flush()
@@ -268,14 +270,14 @@ class TestStatsEndpoint:
         assert response.status_code == 200
 
         data = response.json()
-        # Stateless politicians appear with wikidata_id=None in country_coverage
-        stateless_entry = next(
+        # Politicians without citizenship appear with wikidata_id=None
+        without_citizenship_entry = next(
             (c for c in data["country_coverage"] if c["wikidata_id"] is None), None
         )
-        assert stateless_entry is not None
-        assert stateless_entry["name"] == "No citizenship"
-        assert stateless_entry["total_count"] == 1
-        assert stateless_entry["evaluated_count"] == 1
+        assert without_citizenship_entry is not None
+        assert without_citizenship_entry["name"] == "No citizenship"
+        assert without_citizenship_entry["total_count"] == 1
+        assert without_citizenship_entry["evaluated_count"] == 1
 
     def test_stats_old_evaluation_not_counted(self, client, db_session, mock_auth):
         """Enriched politicians with evaluations outside cooldown period should have evaluated_count=0."""

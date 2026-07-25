@@ -49,9 +49,9 @@ class EvaluationTimeseriesPoint(BaseModel):
 
 
 class CountryCoverage(BaseModel):
-    """Coverage statistics for a single country (or stateless if wikidata_id is None)."""
+    """Coverage statistics for a country or politicians without citizenship."""
 
-    wikidata_id: Optional[str]  # None for stateless politicians
+    wikidata_id: Optional[str]  # None for politicians without citizenship
     name: str
     evaluated_count: int  # Enriched politicians with evaluated extracted properties
     enriched_count: int  # Politicians enriched within cooldown period
@@ -62,7 +62,7 @@ class StatsResponse(BaseModel):
     """Response schema for stats endpoint."""
 
     evaluations_timeseries: List[EvaluationTimeseriesPoint]
-    country_coverage: List[CountryCoverage]  # Includes stateless as wikidata_id=None
+    country_coverage: List[CountryCoverage]  # Includes a no-citizenship group
     cooldown_days: int
 
 
@@ -76,7 +76,7 @@ async def get_stats(
 
     Returns:
     - evaluations_timeseries: Weekly counts of accepted/rejected evaluations for cooldown period
-    - country_coverage: For each country (+ stateless), enriched politicians and evaluation counts
+    - country_coverage: Per-country counts, plus politicians without citizenship
     - cooldown_days: The current cooldown period setting in days
     """
     cooldown_days = get_enrichment_cooldown_days()
@@ -205,7 +205,7 @@ async def get_stats(
                 Property.deleted_at.is_(None),
             ),
         )
-        # LEFT JOIN to get country name (NULL for stateless)
+        # LEFT JOIN to get country name (NULL when citizenship is absent)
         .outerjoin(
             country_entity,
             and_(

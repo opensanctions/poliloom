@@ -162,7 +162,7 @@ export interface EvaluationTimeseriesPoint {
 }
 
 export interface CountryCoverage {
-  wikidata_id: string | null // null for stateless politicians
+  wikidata_id: string | null // null for politicians without citizenship
   name: string
   evaluated_count: number // enriched + evaluated
   enriched_count: number // enriched within cooldown
@@ -171,7 +171,7 @@ export interface CountryCoverage {
 
 export interface StatsResponse {
   evaluations_timeseries: EvaluationTimeseriesPoint[]
-  country_coverage: CountryCoverage[] // includes stateless as wikidata_id=null
+  country_coverage: CountryCoverage[] // includes politicians without citizenship as wikidata_id=null
   cooldown_days: number
 }
 

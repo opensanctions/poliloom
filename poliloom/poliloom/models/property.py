@@ -62,7 +62,7 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             "entity_id",
             postgresql_where=text("type = 'CITIZENSHIP' AND deleted_at IS NULL"),
         ),
-        # Speeds up stateless politician queries checking for Wikidata citizenship
+        # Speeds up queries for politicians without citizenship checking for Wikidata citizenship
         Index(
             "idx_properties_wikidata_citizenship",
             "politician_id",

@@ -158,11 +158,6 @@ uv run poliloom import-hierarchy --file ./dump.json
 uv run poliloom import-entities --file ./dump.json
 uv run poliloom import-politicians --file ./dump.json
 
-# Enrich all matching politician data until candidates are exhausted
-uv run poliloom enrich-wikipedia
-uv run poliloom enrich-wikipedia --countries Q30
-uv run poliloom enrich-wikipedia --stateless
-
 # Meilisearch index management
 uv run poliloom index-create
 uv run poliloom index-build

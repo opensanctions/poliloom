@@ -4,15 +4,14 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from poliloom.models import Source, SourceStatus
 from poliloom.scheduling import (
     ScheduledEnrichment,
-    enrich_until_exhausted,
     enrich_until_serveable,
     has_enrichment_candidate,
     process_next_politician,
     schedule_enrichment,
 )
-from poliloom.models import Source, SourceStatus
 
 
 class TestScheduleEnrichment:
@@ -198,33 +197,3 @@ class TestEnrichUntilServeable:
         ):
             assert await enrich_until_serveable() == 0
         process.assert_awaited_once_with(None, None)
-
-
-class TestEnrichUntilExhausted:
-    """Test enrich_until_exhausted processes every available candidate."""
-
-    @pytest.mark.asyncio
-    async def test_loops_until_candidates_are_exhausted(self, db_session):
-        with patch(
-            "poliloom.scheduling.process_next_politician", new_callable=AsyncMock
-        ) as mock_process:
-            mock_process.side_effect = [0, 4, None]
-            enriched = await enrich_until_exhausted(
-                languages=["Q1860"], countries=["Q30"]
-            )
-
-        assert enriched == 2
-        assert mock_process.call_count == 3
-        mock_process.assert_called_with(["Q1860"], ["Q30"], False)
-
-    @pytest.mark.asyncio
-    async def test_returns_zero_when_no_candidates_exist(self, db_session):
-        with patch(
-            "poliloom.scheduling.process_next_politician",
-            new_callable=AsyncMock,
-            return_value=None,
-        ) as mock_process:
-            enriched = await enrich_until_exhausted(stateless=True)
-
-        assert enriched == 0
-        mock_process.assert_awaited_once_with(None, None, True)

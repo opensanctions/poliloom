@@ -63,17 +63,6 @@ def _official_language_join_conditions(citizenship, relation):
     )
 
 
-def _active_citizenship_exists(politician_id, *, countries=None):
-    """Return an EXISTS expression for an active citizenship, optionally in countries."""
-    return exists(
-        select(1).where(
-            *active_citizenship_conditions(
-                Property, politician_id=politician_id, countries=countries
-            )
-        )
-    )
-
-
 def _politicians_with_citizenship(countries):
     """Select politicians with an active citizenship in ``countries``."""
     return select(Property.politician_id).where(
@@ -321,7 +310,6 @@ def _eligible_link_exists(languages: list[str] | None = None):
 def enrichment_candidates_query(
     languages: list[str] | None = None,
     countries: list[str] | None = None,
-    stateless: bool = False,
 ):
     """
     Build a query for politicians that should be enriched.
@@ -334,23 +322,14 @@ def enrichment_candidates_query(
     Args:
         languages: Optional list of language QIDs to filter by
         countries: Optional list of country QIDs to filter by
-        stateless: If True, only return politicians without any citizenship property,
-                   taking precedence over language and country filters. This addresses
-                   bias where politicians without citizenship are never enriched by
-                   normal user-driven filters.
 
     Returns:
         SQLAlchemy select statement for Politician entities
     """
 
-    # Stateless mode deliberately ignores language and country filters.
-    eligible_languages = None if stateless else languages
     query = Politician.query_base().where(
-        Politician.wikidata_id.isnot(None), _eligible_link_exists(eligible_languages)
+        Politician.wikidata_id.isnot(None), _eligible_link_exists(languages)
     )
-
-    if stateless:
-        return query.where(~_active_citizenship_exists(Politician.id))
     if countries:
         query = query.where(Politician.id.in_(_politicians_with_citizenship(countries)))
     return query
