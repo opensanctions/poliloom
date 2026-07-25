@@ -29,8 +29,10 @@ source /root/poliloom/.env && gsutil lifecycle set gcs-lifecycle.json ${POLILOOM
 sudo systemctl daemon-reload
 sudo systemctl enable poliloom-backup.timer
 sudo systemctl enable poliloom-pipeline.timer
+sudo systemctl enable poliloom-enrich-stateless.timer
 sudo systemctl start poliloom-backup.timer
 sudo systemctl start poliloom-pipeline.timer
+sudo systemctl start poliloom-enrich-stateless.timer
 ```
 
 ## Timers
@@ -48,6 +50,16 @@ sudo systemctl start poliloom-pipeline.timer
 - **Function**: Download, import, and garbage collection
 - **Timeout**: 3 days
 - **Note**: Exits gracefully if no new dump available
+
+### poliloom-enrich-stateless
+
+- **Schedule**: Daily at 6 AM (±30min random delay)
+- **Function**: Enriches politicians without citizenship data until
+  `MIN_UNEVALUATED_POLITICIANS` have unevaluated extracted citizenship, or
+  candidates run out. Skips entirely when the review buffer is already full.
+- **Timeout**: 1 hour
+- **Note**: Addresses bias where politicians without citizenship are never
+  reached by user-driven country/language filters
 
 ## Monitoring
 

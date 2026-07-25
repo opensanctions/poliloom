@@ -157,9 +157,10 @@ uv run poliloom import-hierarchy --file ./dump.json
 uv run poliloom import-entities --file ./dump.json
 uv run poliloom import-politicians --file ./dump.json
 
-# Enrich politician data
-uv run poliloom enrich-wikipedia --count 20
-uv run poliloom enrich-wikipedia --count 10 --countries Q30
+# Enrich politician data until the review buffer reaches MIN_UNEVALUATED_POLITICIANS
+uv run poliloom enrich-wikipedia
+uv run poliloom enrich-wikipedia --countries Q30
+uv run poliloom enrich-wikipedia --stateless
 
 # Meilisearch index management
 uv run poliloom index-create

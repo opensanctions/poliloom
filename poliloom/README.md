@@ -46,15 +46,21 @@ uv run poliloom import-politicians    # Import politicians
 
 ### Extract politician data
 
+Enrichment runs until the review buffer reaches `MIN_UNEVALUATED_POLITICIANS`
+(default: 10) politicians with unevaluated data, or candidates run out.
+
 ```bash
-# Enrich 20 politicians from any country/language
-uv run poliloom enrich-wikipedia --count 20
+# Enrich politicians from any country/language
+uv run poliloom enrich-wikipedia
 
-# Enrich 10 politicians from the US (Q30) or Italy (Q38)
-uv run poliloom enrich-wikipedia --count 10 --countries Q30 --countries Q38
+# Enrich politicians from the US (Q30) or Italy (Q38)
+uv run poliloom enrich-wikipedia --countries Q30 --countries Q38
 
-# Enrich 5 politicians with English (Q1860) or French (Q150) Wikipedia sources
-uv run poliloom enrich-wikipedia --count 5 --languages Q1860 --languages Q150
+# Enrich politicians with English (Q1860) or French (Q150) Wikipedia sources
+uv run poliloom enrich-wikipedia --languages Q1860 --languages Q150
+
+# Enrich politicians without citizenship data (used by the daily systemd timer)
+uv run poliloom enrich-wikipedia --stateless
 ```
 
 ### Run the API server

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db_session
 from ..enrichment_queue import create_enrichment_sources, has_enrichment_candidate
-from ..scheduling import process_source_task, process_next_politician
+from ..scheduling import process_source_task, enrich_review_buffer
 from ..review_queue import get_random_unevaluated
 from ..search import SearchService
 from ..models import (
@@ -204,7 +204,7 @@ async def get_next_politician(
             f"Only {current_count} politicians with unevaluated properties (threshold: {min_threshold}), triggering enrichment"
         )
         asyncio.create_task(
-            process_next_politician(
+            enrich_review_buffer(
                 languages=languages,
                 countries=countries,
             )

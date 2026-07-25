@@ -17,15 +17,14 @@ class ReviewQueueResult:
     total: int
 
 
-def get_random_unevaluated(
-    db: Session,
+def _unevaluated_pool(
     languages: list[str] | None = None,
     countries: list[str] | None = None,
-    exclude_ids: list[str] | None = None,
-) -> ReviewQueueResult:
-    """Select a random candidate and count the full matching review pool.
+):
+    """CTE of politicians with unevaluated extracted properties.
 
-    ``exclude_ids`` affects candidate selection only, not the total.
+    Shared by candidate selection and buffer counting so both measure the
+    same review pool.
     """
     unevaluated_conditions = [
         Property.politician_id == Politician.id,
@@ -59,11 +58,34 @@ def get_random_unevaluated(
             )
         )
 
-    pool = (
+    return (
         pool_query.with_only_columns(Politician.wikidata_id)
         .cte("unevaluated_pool")
         .prefix_with("MATERIALIZED")
     )
+
+
+def count_unevaluated(
+    db: Session,
+    languages: list[str] | None = None,
+    countries: list[str] | None = None,
+) -> int:
+    """Count politicians with unevaluated extracted properties (the review buffer)."""
+    pool = _unevaluated_pool(languages, countries)
+    return db.execute(select(func.count()).select_from(pool)).scalar() or 0
+
+
+def get_random_unevaluated(
+    db: Session,
+    languages: list[str] | None = None,
+    countries: list[str] | None = None,
+    exclude_ids: list[str] | None = None,
+) -> ReviewQueueResult:
+    """Select a random candidate and count the full matching review pool.
+
+    ``exclude_ids`` affects candidate selection only, not the total.
+    """
+    pool = _unevaluated_pool(languages, countries)
 
     candidate_query = select(pool.c.wikidata_id)
     if exclude_ids:

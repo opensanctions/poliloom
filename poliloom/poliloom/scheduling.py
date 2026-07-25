@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, List, Optional
@@ -11,7 +12,11 @@ from sqlalchemy.orm import Session, selectinload
 
 from .archiving import process_source
 from .database import get_engine
-from .enrichment_queue import create_enrichment_sources, enrichment_candidates_query
+from .enrichment_queue import (
+    count_stateless_with_unevaluated_citizenship,
+    create_enrichment_sources,
+    enrichment_candidates_query,
+)
 from .models import (
     Politician,
     Property,
@@ -19,6 +24,7 @@ from .models import (
     WikidataEntity,
     WikidataRelation,
 )
+from .review_queue import count_unevaluated
 from .sse import EnrichmentCompleteEvent, event_bus
 
 logger = logging.getLogger(__name__)
@@ -136,34 +142,79 @@ async def process_next_politician(
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,
     stateless: bool = False,
-) -> bool:
+) -> Optional[int]:
     """Schedule and process enrichment for a single politician.
 
+    Broadcasts EnrichmentCompleteEvent only when there's something for waiting
+    clients to act on: new unevaluated data (clients re-check /next and find
+    the politician) or no candidate available (clients settle on the
+    all-caught-up state). Dry passes stay silent — enrich_review_buffer
+    chains the next candidate itself, so waking clients would only trigger
+    redundant /next polls.
+
     Returns:
-        True if a politician was found, False if no politician available.
+        Number of properties extracted, or None if no politician was available.
     """
     with Session(get_engine()) as db:
         scheduled = schedule_enrichment(db, languages, countries, stateless)
 
-    if not scheduled:
-        return False
-
-    counts = await asyncio.gather(
-        *(
-            process_source_task(source_id, scheduled.politician_id)
-            for source_id in scheduled.source_ids
-        )
-    )
-
-    if sum(counts) > 0:
-        with Session(get_engine()) as db:
-            event_bus.notify(
-                EnrichmentCompleteEvent(
-                    languages=languages or [],
-                    countries=countries or [],
-                ),
-                db,
+    extracted = None
+    try:
+        if scheduled:
+            counts = await asyncio.gather(
+                *(
+                    process_source_task(source_id, scheduled.politician_id)
+                    for source_id in scheduled.source_ids
+                )
             )
-            db.commit()
+            extracted = sum(counts)
+    finally:
+        if extracted is None or extracted > 0:
+            with Session(get_engine()) as db:
+                event_bus.notify(
+                    EnrichmentCompleteEvent(
+                        languages=languages or [],
+                        countries=countries or [],
+                    ),
+                    db,
+                )
+                db.commit()
 
-    return True
+    return extracted
+
+
+async def enrich_review_buffer(
+    languages: Optional[List[str]] = None,
+    countries: Optional[List[str]] = None,
+    stateless: bool = False,
+) -> int:
+    """Enrich politicians until the unevaluated review buffer is full.
+
+    Keeps enriching until the number of politicians with unevaluated
+    properties reaches MIN_UNEVALUATED_POLITICIANS, or candidates run out.
+    Terminates by construction: every pass either fills the buffer or
+    consumes its candidate (enriched_at cooldown).
+
+    Returns:
+        Number of politicians enriched.
+    """
+    min_threshold = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
+    enriched = 0
+
+    while True:
+        with Session(get_engine()) as db:
+            if stateless:
+                current = count_stateless_with_unevaluated_citizenship(db)
+            else:
+                current = count_unevaluated(db, languages, countries)
+
+        if current >= min_threshold:
+            break
+
+        if await process_next_politician(languages, countries, stateless) is None:
+            break
+
+        enriched += 1
+        logger.info(f"Review buffer at {current}/{min_threshold}, enriched {enriched}")
+
+    return enriched

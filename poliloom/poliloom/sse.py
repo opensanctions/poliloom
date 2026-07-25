@@ -37,7 +37,7 @@ class SourceStatusEvent(Event):
 
 @dataclass
 class EnrichmentCompleteEvent(Event):
-    """Broadcast when enrichment produces new properties."""
+    """Broadcast when an enrichment pass ends, telling clients to re-check for work."""
 
     type: str = field(init=False, default="enrichment_complete")
     languages: list[str] = field(default_factory=list)

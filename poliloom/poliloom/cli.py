@@ -3,11 +3,9 @@
 import asyncio
 import click
 import logging
-import os
 from datetime import datetime, timezone
 import httpx
-from poliloom.enrichment_queue import count_stateless_with_unevaluated_citizenship
-from poliloom.scheduling import process_next_politician
+from poliloom.scheduling import enrich_review_buffer
 from poliloom.storage import StorageFactory
 from poliloom.importer.hierarchy import import_hierarchy_trees
 from poliloom.importer.entity import import_entities
@@ -270,12 +268,6 @@ def dump_extract(input, output):
 
 @main.command("enrich-wikipedia")
 @click.option(
-    "--count",
-    type=int,
-    default=None,
-    help="Number of politicians to enrich (default: ENRICHMENT_BATCH_SIZE env var, or 5)",
-)
-@click.option(
     "--languages",
     multiple=True,
     help="Filter by language QIDs (can be specified multiple times)",
@@ -291,33 +283,28 @@ def dump_extract(input, output):
     help="Only enrich politicians without citizenship data (for bias prevention)",
 )
 def enrich_wikipedia(
-    count: int | None,
     languages: tuple[str, ...],
     countries: tuple[str, ...],
     stateless: bool,
 ) -> None:
-    """Enrich a specified number of politicians from Wikipedia.
+    """Enrich politicians from Wikipedia until the review buffer is full.
 
-    This command enriches politicians by extracting data from their Wikipedia articles.
+    Enriches politicians until the number with unevaluated extracted data
+    reaches MIN_UNEVALUATED_POLITICIANS (default: 10), or candidates run out.
 
     The --stateless flag addresses a systematic bias where politicians without citizenship
     data are never enriched by normal user-driven filters (which filter by country/language).
     Use this flag for scheduled enrichment jobs to ensure coverage of all politicians.
-
-    When using --stateless, enrichment only runs if the number of stateless politicians
-    with unevaluated extracted citizenship is below MIN_UNEVALUATED_POLITICIANS threshold
-    (default: 10). This prevents over-enrichment when reviewers haven't caught up.
+    In stateless mode the buffer is measured as stateless politicians with unevaluated
+    extracted citizenship.
 
     Examples:
-    - poliloom enrich-wikipedia --count 20
-    - poliloom enrich-wikipedia --count 10 --countries Q30 --countries Q38
-    - poliloom enrich-wikipedia --count 5 --languages Q1860 --languages Q150
+    - poliloom enrich-wikipedia
+    - poliloom enrich-wikipedia --countries Q30 --countries Q38
+    - poliloom enrich-wikipedia --languages Q1860 --languages Q150
     - poliloom enrich-wikipedia --stateless
     """
     try:
-        # Default count from env var
-        if count is None:
-            count = int(os.getenv("ENRICHMENT_BATCH_SIZE", "5"))
         # Convert tuples to lists (or None if empty)
         languages_list = list(languages) if languages else None
         countries_list = list(countries) if countries else None
@@ -329,26 +316,7 @@ def enrich_wikipedia(
             )
             raise SystemExit(1)
 
-        # For stateless mode, check if we already have enough unevaluated citizenship
-        if stateless:
-            min_threshold = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
-            with Session(get_engine()) as db:
-                current_count = count_stateless_with_unevaluated_citizenship(db)
-
-            click.echo(
-                f"   Stateless politicians with unevaluated citizenship: {current_count}"
-            )
-            if current_count >= min_threshold:
-                click.echo(
-                    f"✅ Buffer sufficient (>= {min_threshold}), skipping enrichment"
-                )
-                return
-
-            click.echo(
-                f"   Buffer below threshold ({min_threshold}), proceeding with enrichment"
-            )
-
-        click.echo(f"⏳ Enriching {count} politicians...")
+        click.echo("⏳ Enriching politicians until review buffer is full...")
         if stateless:
             click.echo("   Mode: stateless (politicians without citizenship data)")
         if languages_list:
@@ -356,25 +324,16 @@ def enrich_wikipedia(
         if countries_list:
             click.echo(f"   Filtering by countries: {', '.join(countries_list)}")
 
-        enriched_count = 0
-        for i in range(count):
-            politician_found = asyncio.run(
-                process_next_politician(
-                    languages=languages_list,
-                    countries=countries_list,
-                    stateless=stateless,
-                )
+        enriched_count = asyncio.run(
+            enrich_review_buffer(
+                languages=languages_list,
+                countries=countries_list,
+                stateless=stateless,
             )
-
-            if not politician_found:
-                click.echo("⚠️  No more politicians available to enrich")
-                break
-
-            enriched_count += 1
-            click.echo(f"   Progress: {enriched_count}/{count}")
+        )
 
         if enriched_count == 0:
-            click.echo("✅ No politicians enriched")
+            click.echo("✅ Review buffer already full or no candidates available")
         else:
             click.echo(f"✅ Successfully enriched {enriched_count} politicians")
 
