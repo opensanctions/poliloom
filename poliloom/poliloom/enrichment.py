@@ -22,7 +22,6 @@ from .models import (
     WikidataRelation,
     WikidataEntity,
 )
-from .search import SearchService
 from .wikidata.date import WikidataDate
 from . import prompts
 
@@ -229,7 +228,6 @@ async def _map_single_item(
     free_item: Any,
     politician: Politician,
     config: TwoStageExtractionConfig,
-    search_service: SearchService,
 ) -> Optional[Any]:
     """Helper function to map a single free-form item to Wikidata entity.
 
@@ -239,12 +237,11 @@ async def _map_single_item(
         free_item: Free-form extracted item
         politician: Politician being enriched
         config: Extraction configuration
-        search_service: SearchService for entity lookup
     """
     try:
-        # Entity class handles routing to appropriate backend via find_similar
+        # Find candidate entities via the search index
         entity_ids = config.entity_class.find_similar(
-            free_item.name, search_service, limit=config.search_limit
+            free_item.name, limit=config.search_limit
         )
 
         if not entity_ids:
@@ -353,8 +350,6 @@ async def extract_two_stage_generic(
         politician: Politician being enriched
         config: Extraction configuration
     """
-    search_service = SearchService()
-
     try:
         # Stage 1: Free-form extraction
         free_form_results = await extract_properties_generic(
@@ -380,7 +375,6 @@ async def extract_two_stage_generic(
                 free_item,
                 politician,
                 config,
-                search_service,
             )
             for free_item in free_form_results
         ]

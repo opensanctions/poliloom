@@ -13,7 +13,6 @@ from ..database import get_db_session
 from ..enrichment_queue import create_enrichment_sources, has_enrichment_candidate
 from ..scheduling import process_source_task, enrich_review_buffer
 from ..review_queue import get_random_unevaluated
-from ..search import SearchService
 from ..models import (
     Source,
     SourceLanguage,
@@ -242,8 +241,7 @@ async def search_politicians(
 
     Returns matching politicians ranked by relevance with their properties.
     """
-    search_service = SearchService()
-    entity_ids = Politician.find_similar(q, search_service, limit=limit)
+    entity_ids = Politician.find_similar(q, limit=limit)
     if not entity_ids:
         return []
 

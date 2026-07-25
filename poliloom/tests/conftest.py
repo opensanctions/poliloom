@@ -5,6 +5,7 @@ import orjson
 import pytest
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock as SyncMock, patch
 
 from poliloom.models import (
@@ -37,7 +38,7 @@ def mock_find_similar(db_session):
         """Create a mock find_similar that searches by labels."""
 
         @classmethod
-        def mock_find_similar(cls, query, search_service, limit=100):
+        def mock_find_similar(cls, query, limit=100):
             query_lower = query.lower()
             results = (
                 db_session.query(WikidataEntityLabel.entity_id)
@@ -66,29 +67,25 @@ def mock_find_similar(db_session):
 
 
 @pytest.fixture(autouse=True)
-def mock_search_service_globally():
-    """Mock SearchService globally to avoid connecting to Meilisearch in tests.
+def mock_search():
+    """Mock poliloom.search functions to avoid connecting to Meilisearch in tests.
 
-    Applied automatically to all tests.
+    Applied automatically to all tests. Tests can assert on the mocks, e.g.
+    mock_search.delete_documents.assert_called_once_with(["Q1"]).
     """
-    with patch("poliloom.search.SearchService") as mock_class:
-        mock_instance = SyncMock()
-        mock_instance.index_documents.return_value = 1
-        mock_instance.delete_documents.return_value = 0
-        mock_instance.search.return_value = []
-        mock_class.return_value = mock_instance
-        yield mock_instance
-
-
-@pytest.fixture
-def mock_search_service():
-    """Mock SearchService for importer tests.
-
-    Returns a mock that tracks index_documents calls but doesn't connect to Meilisearch.
-    """
-    service = SyncMock()
-    service.index_documents.return_value = 1  # Returns task_uid
-    return service
+    with (
+        patch("poliloom.search.index_documents") as index_documents,
+        patch("poliloom.search.delete_documents") as delete_documents,
+        patch("poliloom.search.search") as search_,
+    ):
+        index_documents.return_value = 1
+        delete_documents.side_effect = lambda ids, **kwargs: len(ids)
+        search_.return_value = []
+        yield SimpleNamespace(
+            index_documents=index_documents,
+            delete_documents=delete_documents,
+            search=search_,
+        )
 
 
 def load_json_fixture(filename):

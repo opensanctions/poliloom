@@ -386,8 +386,10 @@ class TestCleanupFunctionality:
         assert entity1_fresh.deleted_at is None
         assert entity2_fresh.deleted_at is None
 
-    def test_cleanup_missing_calls_delete_documents(self, db_session: Session):
-        """Test that cleanup_missing calls delete_documents on search service."""
+    def test_cleanup_missing_calls_delete_documents(
+        self, db_session: Session, mock_search
+    ):
+        """Test that cleanup_missing deletes removed entities from the search index."""
         # Create entities with old timestamps
         entity1 = WikidataEntity(wikidata_id="Q100", name="Entity 1")
         entity2 = WikidataEntity(wikidata_id="Q200", name="Entity 2")
@@ -414,9 +416,11 @@ class TestCleanupFunctionality:
 
         # Verify results
         assert deleted_count == 2
+        mock_search.delete_documents.assert_called_once()
+        assert set(mock_search.delete_documents.call_args.args[0]) == {"Q100", "Q200"}
 
     def test_cleanup_missing_does_not_call_delete_when_nothing_deleted(
-        self, db_session: Session
+        self, db_session: Session, mock_search
     ):
         """Test that delete_documents is not called when no entities are deleted."""
         # Create entities with recent timestamps
@@ -436,6 +440,7 @@ class TestCleanupFunctionality:
 
         # Verify nothing was deleted
         assert deleted_count == 0
+        mock_search.delete_documents.assert_not_called()
 
     def test_cleanup_missing_statements_two_dump_validation(self, db_session: Session):
         """Test that statement cleanup logic uses two-dump validation (simplified test)."""

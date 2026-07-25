@@ -1,6 +1,6 @@
-"""Meilisearch client for entity search.
+"""Meilisearch functions for entity search.
 
-Provides a thin wrapper around Meilisearch for indexing and searching entities.
+Thin wrappers around Meilisearch for indexing and searching entities.
 Uses a single 'entities' index with a 'type' field for filtering.
 Supports hybrid search (keyword + semantic) using OpenAI embeddings.
 """
@@ -36,164 +36,163 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+_client: Optional[meilisearch.Client] = None
 
-class SearchService:
-    """Meilisearch client for entity search.
 
-    Uses a single 'entities' index with type-based filtering.
+def get_client() -> meilisearch.Client:
+    """Get the shared Meilisearch client, creating it on first use."""
+    global _client
+    if _client is None:
+        url = os.getenv("MEILI_URL", "http://localhost:7700")
+        _client = meilisearch.Client(url, os.getenv("MEILI_MASTER_KEY"))
+    return _client
+
+
+def create_index() -> None:
+    """Create the entities index with proper settings and OpenAI embedder."""
+    logger.info(f"Creating index '{INDEX_NAME}'")
+    client = get_client()
+    task = client.create_index(INDEX_NAME, {"primaryKey": "id"})
+    client.wait_for_task(task.task_uid)
+
+    # Configure index settings
+    index = client.index(INDEX_NAME)
+    task = index.update_settings(
+        {
+            "searchableAttributes": ["labels"],
+            "filterableAttributes": ["types"],
+            "displayedAttributes": ["id", "types", "labels"],
+        }
+    )
+    client.wait_for_task(task.task_uid)
+
+    # Configure OpenAI embedder for hybrid search
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if not openai_api_key:
+        raise ValueError("OPENAI_API_KEY environment variable is required")
+
+    logger.info(f"Configuring OpenAI embedder '{EMBEDDER_NAME}'")
+    task = index.update_embedders(
+        {
+            EMBEDDER_NAME: {
+                "source": "openAi",
+                "apiKey": openai_api_key,
+                "model": EMBEDDING_MODEL,
+                "dimensions": EMBEDDING_DIMENSIONS,
+                "documentTemplate": "{{doc.labels | join: ', '}}",
+            }
+        }
+    )
+    client.wait_for_task(task.task_uid)
+    logger.info("OpenAI embedder configured successfully")
+
+
+def delete_index() -> None:
+    """Delete the entities index if it exists."""
+    try:
+        logger.info(f"Deleting index '{INDEX_NAME}'")
+        client = get_client()
+        task = client.delete_index(INDEX_NAME)
+        client.wait_for_task(task.task_uid)
+    except meilisearch.errors.MeilisearchApiError as e:
+        if "index_not_found" not in str(e):
+            raise
+        logger.debug(f"Index '{INDEX_NAME}' does not exist, nothing to delete")
+
+
+def ensure_index() -> bool:
+    """Create the index if it doesn't exist.
+
+    Returns:
+        True if index was created, False if it already existed.
     """
+    try:
+        get_client().get_index(INDEX_NAME)
+        logger.debug(f"Index '{INDEX_NAME}' already exists")
+        return False
+    except meilisearch.errors.MeilisearchApiError as e:
+        if "index_not_found" not in str(e):
+            raise
+        create_index()
+        return True
 
-    def __init__(self, url: Optional[str] = None, api_key: Optional[str] = None):
-        """Initialize SearchService with Meilisearch connection.
 
-        Args:
-            url: Meilisearch server URL. Defaults to MEILI_URL env var
-                 or http://localhost:7700.
-            api_key: Meilisearch API key. Defaults to MEILI_MASTER_KEY env var.
-        """
-        self.url = url or os.getenv("MEILI_URL", "http://localhost:7700")
-        self.api_key = api_key or os.getenv("MEILI_MASTER_KEY")
-        self.client = meilisearch.Client(self.url, self.api_key)
+def index_documents(documents: list[SearchDocument]) -> Optional[int]:
+    """Index documents to Meilisearch.
 
-    def create_index(self) -> None:
-        """Create the entities index with proper settings and OpenAI embedder."""
-        logger.info(f"Creating index '{INDEX_NAME}'")
-        task = self.client.create_index(INDEX_NAME, {"primaryKey": "id"})
-        self.client.wait_for_task(task.task_uid)
+    Returns immediately without waiting, allowing Meilisearch's
+    auto-batching to combine consecutive requests for faster indexing.
 
-        # Configure index settings
-        index = self.client.index(INDEX_NAME)
-        task = index.update_settings(
-            {
-                "searchableAttributes": ["labels"],
-                "filterableAttributes": ["types"],
-                "displayedAttributes": ["id", "types", "labels"],
-            }
-        )
-        self.client.wait_for_task(task.task_uid)
+    Args:
+        documents: List of SearchDocument dicts with 'id', 'types', and 'labels'
 
-        # Configure OpenAI embedder for hybrid search
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-        if not openai_api_key:
-            raise ValueError("OPENAI_API_KEY environment variable is required")
+    Returns:
+        Task UID for tracking, or None if no documents
+    """
+    if not documents:
+        return None
 
-        logger.info(f"Configuring OpenAI embedder '{EMBEDDER_NAME}'")
-        task = index.update_embedders(
-            {
-                EMBEDDER_NAME: {
-                    "source": "openAi",
-                    "apiKey": openai_api_key,
-                    "model": EMBEDDING_MODEL,
-                    "dimensions": EMBEDDING_DIMENSIONS,
-                    "documentTemplate": "{{doc.labels | join: ', '}}",
-                }
-            }
-        )
-        self.client.wait_for_task(task.task_uid)
-        logger.info("OpenAI embedder configured successfully")
+    index = get_client().index(INDEX_NAME)
+    task = index.add_documents(documents)
+    return task.task_uid
 
-    def delete_index(self) -> None:
-        """Delete the entities index if it exists."""
-        try:
-            logger.info(f"Deleting index '{INDEX_NAME}'")
-            task = self.client.delete_index(INDEX_NAME)
-            self.client.wait_for_task(task.task_uid)
-        except meilisearch.errors.MeilisearchApiError as e:
-            if "index_not_found" not in str(e):
-                raise
-            logger.debug(f"Index '{INDEX_NAME}' does not exist, nothing to delete")
 
-    def ensure_index(self) -> bool:
-        """Create the index if it doesn't exist.
+def delete_documents(document_ids: list[str], batch_size: int = 10000) -> int:
+    """Delete documents from Meilisearch by ID.
 
-        Returns:
-            True if index was created, False if it already existed.
-        """
-        try:
-            self.client.get_index(INDEX_NAME)
-            logger.debug(f"Index '{INDEX_NAME}' already exists")
-            return False
-        except meilisearch.errors.MeilisearchApiError as e:
-            if "index_not_found" not in str(e):
-                raise
-            self.create_index()
-            return True
+    Sends deletes in batches without waiting, matching the fire-and-forget
+    pattern used by index_documents and letting Meilisearch auto-batch.
 
-    def index_documents(self, documents: list[SearchDocument]) -> Optional[int]:
-        """Index documents to Meilisearch.
+    Args:
+        document_ids: List of document IDs (wikidata_ids) to delete
+        batch_size: Number of IDs per batch (default 10000)
 
-        Returns immediately without waiting, allowing Meilisearch's
-        auto-batching to combine consecutive requests for faster indexing.
+    Returns:
+        Number of documents requested for deletion
+    """
+    if not document_ids:
+        return 0
 
-        Args:
-            documents: List of SearchDocument dicts with 'id', 'type', and 'labels'
+    index = get_client().index(INDEX_NAME)
+    for i in range(0, len(document_ids), batch_size):
+        batch = document_ids[i : i + batch_size]
+        index.delete_documents(batch)
 
-        Returns:
-            Task UID for tracking, or None if no documents
-        """
-        if not documents:
-            return None
+    return len(document_ids)
 
-        index = self.client.index(INDEX_NAME)
-        task = index.add_documents(documents)
-        return task.task_uid
 
-    def delete_documents(self, document_ids: list[str], batch_size: int = 10000) -> int:
-        """Delete documents from Meilisearch by ID.
+def search(
+    query: str,
+    entity_type: Optional[str] = None,
+    limit: int = 100,
+    semantic_ratio: float = 0.0,
+) -> list[str]:
+    """Search Meilisearch for entities by label.
 
-        Sends deletes in batches without waiting, matching the fire-and-forget
-        pattern used by index_documents and letting Meilisearch auto-batch.
+    Supports hybrid search combining keyword matching and semantic similarity.
 
-        Args:
-            document_ids: List of document IDs (wikidata_ids) to delete
-            batch_size: Number of IDs per batch (default 10000)
+    Args:
+        query: Search query text
+        entity_type: Optional type filter (e.g., 'Location', 'Politician')
+        limit: Maximum number of results
+        semantic_ratio: Balance between keyword (0.0) and semantic (1.0) search.
+                       Default 0.0 uses pure keyword search.
+                       Use 0.5 for balanced hybrid search.
 
-        Returns:
-            Number of documents requested for deletion
-        """
-        if not document_ids:
-            return 0
+    Returns:
+        List of document IDs (wikidata_ids) ordered by relevance
+    """
+    index = get_client().index(INDEX_NAME)
+    search_params: dict = {"limit": limit}
+    if entity_type:
+        search_params["filter"] = f"types = '{entity_type}'"
 
-        index = self.client.index(INDEX_NAME)
-        for i in range(0, len(document_ids), batch_size):
-            batch = document_ids[i : i + batch_size]
-            index.delete_documents(batch)
+    # Use hybrid search when semantic_ratio > 0
+    if semantic_ratio > 0:
+        search_params["hybrid"] = {
+            "semanticRatio": semantic_ratio,
+            "embedder": EMBEDDER_NAME,
+        }
 
-        return len(document_ids)
-
-    def search(
-        self,
-        query: str,
-        entity_type: Optional[str] = None,
-        limit: int = 100,
-        semantic_ratio: float = 0.0,
-    ) -> list[str]:
-        """Search Meilisearch for entities by label.
-
-        Supports hybrid search combining keyword matching and semantic similarity.
-
-        Args:
-            query: Search query text
-            entity_type: Optional type filter (e.g., 'Location', 'Politician')
-            limit: Maximum number of results
-            semantic_ratio: Balance between keyword (0.0) and semantic (1.0) search.
-                           Default 0.0 uses pure keyword search for backward compatibility.
-                           Use 0.5 for balanced hybrid search.
-
-        Returns:
-            List of document IDs (wikidata_ids) ordered by relevance
-        """
-        index = self.client.index(INDEX_NAME)
-        search_params: dict = {"limit": limit}
-        if entity_type:
-            search_params["filter"] = f"types = '{entity_type}'"
-
-        # Use hybrid search when semantic_ratio > 0
-        if semantic_ratio > 0:
-            search_params["hybrid"] = {
-                "semanticRatio": semantic_ratio,
-                "embedder": EMBEDDER_NAME,
-            }
-
-        results = index.search(query, search_params)
-        return [hit["id"] for hit in results["hits"]]
+    results = index.search(query, search_params)
+    return [hit["id"] for hit in results["hits"]]

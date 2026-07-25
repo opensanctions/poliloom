@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Set
 
-from poliloom.search import SearchService
+from poliloom import search
 
 from sqlalchemy import (
     Column,
@@ -126,7 +126,6 @@ class WikidataEntityMixin:
     def find_similar(
         cls,
         query: str,
-        search_service: SearchService,
         limit: int = 100,
     ) -> list[str]:
         """Find similar entities by searching the search index.
@@ -135,13 +134,12 @@ class WikidataEntityMixin:
 
         Args:
             query: Search query text
-            search_service: SearchService instance
             limit: Maximum number of results
 
         Returns:
             List of wikidata_ids ordered by relevance
         """
-        return search_service.search(
+        return search.search(
             query,
             entity_type=cls.__name__,
             limit=limit,
@@ -486,8 +484,7 @@ class WikidataEntityMixin:
 
         # Clean up search index
         if deleted_ids:
-            search_service = SearchService()
-            search_service.delete_documents(deleted_ids)
+            search.delete_documents(deleted_ids)
 
         return stats
 
@@ -934,8 +931,6 @@ class CurrentImportEntity(Base):
         Returns:
             Number of entities that were soft-deleted
         """
-        from poliloom.search import SearchService
-
         # Only delete if: NOT in current dump AND older than previous dump
         deleted_result = session.execute(
             text(
@@ -955,8 +950,7 @@ class CurrentImportEntity(Base):
 
         # Remove deleted entities from search index
         if deleted_ids:
-            search_service = SearchService()
-            search_service.delete_documents(deleted_ids)
+            search.delete_documents(deleted_ids)
 
         return len(deleted_ids)
 

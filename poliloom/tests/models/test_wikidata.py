@@ -858,8 +858,8 @@ class TestCleanupOutsideHierarchy:
         assert count == 1
 
 
-class TestCleanupOutsideHierarchySearchService:
-    """Test that cleanup_outside_hierarchy calls search service for deletion."""
+class TestCleanupOutsideHierarchySearchIndex:
+    """Test that cleanup_outside_hierarchy removes deleted entities from the search index."""
 
     def _create_hierarchy(self, db_session, root_id, child_ids):
         """Helper to create a hierarchy with root and children."""
@@ -939,8 +939,8 @@ class TestCleanupOutsideHierarchySearchService:
         db_session.execute(stmt)
         db_session.flush()
 
-    def test_cleanup_calls_delete_documents(self, db_session):
-        """Test that cleanup_outside_hierarchy calls delete_documents on search service."""
+    def test_cleanup_calls_delete_documents(self, db_session, mock_search):
+        """Test that cleanup_outside_hierarchy deletes removed entities from the search index."""
         from poliloom.models import Location
 
         # Create hierarchy (Q486972 is "human settlement" in Location._hierarchy_roots)
@@ -957,8 +957,12 @@ class TestCleanupOutsideHierarchySearchService:
 
         # Verify orphans were removed
         assert stats["entities_removed"] == 2
+        mock_search.delete_documents.assert_called_once()
+        assert set(mock_search.delete_documents.call_args.args[0]) == {"Q300", "Q301"}
 
-    def test_cleanup_does_not_call_delete_when_nothing_removed(self, db_session):
+    def test_cleanup_does_not_call_delete_when_nothing_removed(
+        self, db_session, mock_search
+    ):
         """Test that nothing is removed when all entities are in hierarchy."""
         from poliloom.models import Location
 
@@ -972,8 +976,9 @@ class TestCleanupOutsideHierarchySearchService:
 
         # No entities removed
         assert stats["entities_removed"] == 0
+        mock_search.delete_documents.assert_not_called()
 
-    def test_preview_does_not_call_delete_documents(self, db_session):
+    def test_preview_does_not_call_delete_documents(self, db_session, mock_search):
         """Test that preview_outside_hierarchy reports but does not delete."""
         from poliloom.models import Location
 
@@ -985,8 +990,9 @@ class TestCleanupOutsideHierarchySearchService:
 
         stats = Location.preview_outside_hierarchy(db_session)
 
-        # Preview reports what would be removed
+        # Preview reports what would be removed, without touching the search index
         assert stats["entities_removed"] == 1
+        mock_search.delete_documents.assert_not_called()
 
 
 class TestSearchIndexQuery:

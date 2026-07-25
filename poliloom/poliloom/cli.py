@@ -13,6 +13,8 @@ from poliloom.importer.csv_source import import_csv_sources, MissingPoliticiansE
 from poliloom.importer.politician import import_politicians
 from poliloom.database import get_engine
 from poliloom.logging import setup_logging
+from poliloom import search
+from poliloom.search import INDEX_NAME, SearchDocument
 from sqlalchemy.orm import Session
 from sqlalchemy import exists, func, select
 from poliloom.models import (
@@ -903,14 +905,10 @@ def index_create():
     Creates a single index with type-based filtering for all searchable entities.
     Safe to run multiple times - Meilisearch handles existing indexes gracefully.
     """
-    from poliloom.search import SearchService, INDEX_NAME
-
     click.echo("⏳ Creating Meilisearch index...")
 
-    search_service = SearchService()
-
     try:
-        search_service.create_index()
+        search.create_index()
         click.echo(f"✅ Successfully created index '{INDEX_NAME}'")
     except Exception as e:
         if "index_already_exists" in str(e):
@@ -932,8 +930,6 @@ def index_delete(confirm):
     Removes the single entities index containing all searchable data.
     Use --confirm to skip the confirmation prompt.
     """
-    from poliloom.search import SearchService, INDEX_NAME
-
     if not confirm:
         click.echo("⚠️  This will delete the Meilisearch index!")
         if not click.confirm("Are you sure you want to continue?"):
@@ -942,8 +938,7 @@ def index_delete(confirm):
 
     click.echo("⏳ Deleting Meilisearch index...")
 
-    search_service = SearchService()
-    search_service.delete_index()
+    search.delete_index()
     click.echo(f"✅ Successfully deleted index '{INDEX_NAME}'")
 
 
@@ -966,18 +961,14 @@ def index_build(batch_size, rebuild):
 
     Use --rebuild to delete and recreate the index from scratch.
     """
-    from poliloom.search import INDEX_NAME, SearchDocument, SearchService
-
-    search_service = SearchService()
-
     if rebuild:
         click.echo("⏳ Rebuilding Meilisearch index...")
-        search_service.delete_index()
-        search_service.create_index()
+        search.delete_index()
+        search.create_index()
         click.echo(f"   Recreated index '{INDEX_NAME}'")
     else:
         click.echo("⏳ Building Meilisearch index...")
-        if search_service.ensure_index():
+        if search.ensure_index():
             click.echo(f"   Created index '{INDEX_NAME}'")
 
     # Build query for search index documents
@@ -1015,7 +1006,7 @@ def index_build(batch_size, rebuild):
             ]
 
             # Send batch without waiting (enables Meilisearch auto-batching)
-            task_uid = search_service.index_documents(documents)
+            task_uid = search.index_documents(documents)
             if task_uid is not None:
                 task_uids.append(task_uid)
 
@@ -1039,14 +1030,11 @@ def index_stats():
     Displays document counts, indexing progress, and any failed tasks.
     Useful for monitoring background indexing after index-build.
     """
-
-    from poliloom.search import INDEX_NAME, SearchService
-
-    search_service = SearchService()
+    client = search.get_client()
 
     # Check server health
     try:
-        health = search_service.client.health()
+        health = client.health()
         click.echo(f"🟢 Meilisearch: {health['status']}")
     except Exception as e:
         click.echo(f"🔴 Meilisearch: unavailable ({e})")
@@ -1054,7 +1042,7 @@ def index_stats():
 
     # Get index stats
     try:
-        index = search_service.client.index(INDEX_NAME)
+        index = client.index(INDEX_NAME)
         stats = index.get_stats()
         click.echo(f"\n📊 Index '{INDEX_NAME}':")
         click.echo(f"   Documents: {stats.number_of_documents:,}")
@@ -1067,9 +1055,7 @@ def index_stats():
     icons = {"succeeded": "✅", "processing": "⏳", "enqueued": "📥", "failed": "❌"}
     for status in ["processing", "enqueued", "succeeded", "failed"]:
         try:
-            batches = search_service.client.get_batches(
-                {"statuses": [status], "limit": 10}
-            )
+            batches = client.get_batches({"statuses": [status], "limit": 10})
         except Exception:
             continue
 

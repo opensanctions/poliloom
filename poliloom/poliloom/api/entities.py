@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, func, and_, case
 
 from ..database import get_db_session
-from ..search import SearchService
 from ..models import (
     Language,
     Country,
@@ -176,8 +175,7 @@ async def search_entities(
     """Search entities by name/label using semantic similarity."""
     model_class = ENTITY_TYPE_MODELS[type]
 
-    search_service = SearchService()
-    entity_ids = model_class.find_similar(q, search_service, limit=limit)
+    entity_ids = model_class.find_similar(q, limit=limit)
     if not entity_ids:
         return []
 

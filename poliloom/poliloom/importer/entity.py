@@ -253,8 +253,6 @@ def import_entities(
     Import supporting entities from the Wikidata dump using parallel processing.
     Uses frozensets to efficiently share descendant QIDs across workers with O(1) lookups.
 
-    Entities with WikidataEntityMixin are indexed to the search service during import.
-
     Args:
         dump_file_path: Path to the Wikidata JSON dump file
         batch_size: Number of entities to process in each database batch
