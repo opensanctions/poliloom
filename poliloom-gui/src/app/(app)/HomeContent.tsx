@@ -92,6 +92,7 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
             options={languageOptions}
             selected={languageQids}
             onChange={setLanguages}
+            minimumSelections={1}
           />
         </div>
 
@@ -107,9 +108,7 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
                   ? 'No more politicians to evaluate for your current filters. Try different filters to continue contributing.'
                   : !politicianReady && !loadingNext
                     ? "Our AI is reading Wikipedia so you don't have to. Hang tight!"
-                    : languageQids.length > 0 || countryQids.length > 0
-                      ? 'Your filters are set. Begin evaluating politicians that match your criteria.'
-                      : "No filters selected. You'll evaluate politicians from all languages and countries."}
+                    : 'Your filters are set. Begin evaluating politicians that match your criteria.'}
               </p>
             </div>
             <Button

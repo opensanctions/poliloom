@@ -5,7 +5,7 @@ import { EventStreamProvider } from './EventStreamContext'
 import { mockEventSource } from '@/test/setup'
 import type { SSEEvent, NextPoliticianResponse } from '@/types'
 
-let mockLanguageQids: string[] = []
+let mockLanguageQids: string[] = ['Q1860']
 let mockCountryQids: string[] = []
 
 vi.mock('@/contexts/FilterContext', () => ({
@@ -15,11 +15,6 @@ vi.mock('@/contexts/FilterContext', () => ({
     setLanguages: vi.fn(),
     setCountries: vi.fn(),
   }),
-}))
-
-let mockParams: Record<string, string> = {}
-vi.mock('next/navigation', () => ({
-  useParams: () => mockParams,
 }))
 
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -37,9 +32,8 @@ const nextResponse: NextPoliticianResponse = {
 
 describe('NextPoliticianContext', () => {
   beforeEach(() => {
-    mockLanguageQids = []
+    mockLanguageQids = ['Q1860']
     mockCountryQids = []
-    mockParams = {}
   })
 
   it('fetches next politician on mount', async () => {
@@ -57,6 +51,7 @@ describe('NextPoliticianContext', () => {
     expect(result.current.nextHref).toBe('/politician/Q12345')
     expect(result.current.loading).toBe(false)
     expect(result.current.allCaughtUp).toBe(false)
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/politicians/next?languages=Q1860')
   })
 
   it('passes language and country filter QIDs as query params', async () => {
@@ -93,7 +88,7 @@ describe('NextPoliticianContext', () => {
     const { result, rerender } = renderHook(() => useNextPoliticianContext(), { wrapper })
     await waitFor(() => expect(result.current.loading).toBe(false))
 
-    mockLanguageQids = ['Q1860']
+    mockLanguageQids = ['Q7411']
     rerender()
 
     expect(result.current.loading).toBe(true)
@@ -104,27 +99,7 @@ describe('NextPoliticianContext', () => {
     await waitFor(() => expect(result.current.loading).toBe(false))
   })
 
-  it('excludes current politician from route params', async () => {
-    mockParams = { qid: 'Q99999' }
-
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => nextResponse,
-    } as Response)
-
-    renderHook(() => useNextPoliticianContext(), { wrapper })
-
-    await waitFor(() => {
-      expect(fetch).toHaveBeenCalled()
-    })
-
-    const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string
-    expect(calledUrl).toContain('exclude_ids=Q99999')
-  })
-
-  it('does not exclude when not on a politician route', async () => {
-    mockParams = {}
-
+  it('does not send the obsolete exclude_ids parameter', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       json: async () => nextResponse,

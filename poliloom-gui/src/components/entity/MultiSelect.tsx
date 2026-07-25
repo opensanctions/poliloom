@@ -20,6 +20,7 @@ interface MultiSelectProps {
   icon?: string
   loading?: boolean
   disabled?: boolean
+  minimumSelections?: number
 }
 
 export function MultiSelect({
@@ -31,6 +32,7 @@ export function MultiSelect({
   icon,
   loading = false,
   disabled = false,
+  minimumSelections = 0,
 }: MultiSelectProps) {
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -80,6 +82,7 @@ export function MultiSelect({
   const toggleOption = (value: string) => {
     if (disabled) return
     if (selected.includes(value)) {
+      if (selected.length <= minimumSelections) return
       onChange(selected.filter((v) => v !== value))
     } else {
       onChange([...selected, value])
@@ -110,6 +113,7 @@ export function MultiSelect({
         <div className="flex flex-wrap gap-2">
           {displayOptions.map((option) => {
             const isSelected = selected.includes(option.value)
+            const removalDisabled = isSelected && selected.length <= minimumSelections
             return (
               <button
                 key={option.value}
@@ -118,7 +122,7 @@ export function MultiSelect({
                   e.preventDefault()
                   e.stopPropagation()
                 }}
-                disabled={disabled}
+                disabled={disabled || removalDisabled}
                 className={`
                     px-4 py-2 rounded-md text-sm font-medium transition-all cursor-pointer
                     border disabled:cursor-not-allowed inline-flex items-center gap-2
@@ -127,7 +131,7 @@ export function MultiSelect({
                         ? 'bg-accent border-accent text-accent-on-solid hover:bg-accent-hover hover:border-accent-hover'
                         : 'bg-surface border-border-strong text-foreground-secondary hover:border-accent-border-hover hover:bg-accent-muted'
                     }
-                    ${disabled ? 'opacity-50' : ''}
+                    ${disabled || removalDisabled ? 'opacity-50' : ''}
                   `}
               >
                 <span>{option.label}</span>

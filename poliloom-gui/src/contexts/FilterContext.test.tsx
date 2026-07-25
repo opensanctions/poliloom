@@ -19,7 +19,7 @@ function clearCookies() {
 function makeWrapper(opts: { initialLanguageQids?: string[]; initialCountryQids?: string[] }) {
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <FilterProvider
-      initialLanguageQids={opts.initialLanguageQids ?? []}
+      initialLanguageQids={opts.initialLanguageQids ?? ['Q1860']}
       initialCountryQids={opts.initialCountryQids ?? []}
     >
       {children}
@@ -51,15 +51,15 @@ describe('FilterContext', () => {
     expect(readFilterCookie(FILTER_LANGUAGES_COOKIE)).toEqual(['Q1860', 'Q7411'])
   })
 
-  it('setLanguages([]) writes the cookie (preserves "explicitly cleared" state)', () => {
+  it('setLanguages ignores an empty selection', () => {
     const { result } = renderHook(() => useFilters(), {
       wrapper: makeWrapper({ initialLanguageQids: ['Q1860'] }),
     })
     act(() => {
       result.current.setLanguages([])
     })
-    expect(result.current.languageQids).toEqual([])
-    expect(document.cookie).toContain(FILTER_LANGUAGES_COOKIE)
+    expect(result.current.languageQids).toEqual(['Q1860'])
+    expect(document.cookie).not.toContain(FILTER_LANGUAGES_COOKIE)
     expect(readFilterCookie(FILTER_LANGUAGES_COOKIE)).toEqual([])
   })
 

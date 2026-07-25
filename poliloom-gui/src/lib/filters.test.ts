@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockCookiesGet = vi.fn()
+const mockHeadersGet = vi.fn()
 vi.mock('next/headers', () => ({
   cookies: vi.fn(() => Promise.resolve({ get: mockCookiesGet })),
+  headers: vi.fn(() => Promise.resolve({ get: mockHeadersGet })),
 }))
 
 const mockGetLanguages = vi.fn()
@@ -12,62 +14,43 @@ vi.mock('@/lib/api-auth', () => ({
   getCountries: () => mockGetCountries(),
 }))
 
-import { getFilterLanguageQids, getFilterCountryQids } from './filters'
+import { resolveLanguageQids, getFilterCountryQids } from './filters'
 
 beforeEach(() => {
   mockCookiesGet.mockReset()
+  mockHeadersGet.mockReset()
   mockGetLanguages.mockReset()
   mockGetCountries.mockReset()
 })
 
-describe('getFilterLanguageQids', () => {
-  it('returns null when no cookie is set', async () => {
-    mockCookiesGet.mockReturnValue(undefined)
+describe('resolveLanguageQids', () => {
+  const languages = [
+    { wikidata_id: 'Q1860', name: 'English', iso_639_1: 'en' },
+    { wikidata_id: 'Q7411', name: 'Dutch', iso_639_1: 'nl' },
+  ]
 
-    const result = await getFilterLanguageQids()
-
-    expect(result).toBeNull()
-    expect(mockGetLanguages).not.toHaveBeenCalled()
-  })
-
-  it('returns [] when cookie is present but empty', async () => {
-    mockCookiesGet.mockReturnValue({ value: '' })
-    mockGetLanguages.mockResolvedValue([{ wikidata_id: 'Q1860', label: 'English' }])
-
-    const result = await getFilterLanguageQids()
-
-    expect(result).toEqual([])
-  })
-
-  it('returns QIDs that exist in the API', async () => {
-    mockCookiesGet.mockReturnValue({ value: 'Q1860%2CQ7411' })
-    mockGetLanguages.mockResolvedValue([
-      { wikidata_id: 'Q1860', label: 'English' },
-      { wikidata_id: 'Q7411', label: 'Dutch' },
-      { wikidata_id: 'Q150', label: 'French' },
-    ])
-
-    const result = await getFilterLanguageQids()
-
-    expect(result).toEqual(['Q1860', 'Q7411'])
-  })
-
-  it('filters out stale QIDs no longer in the API', async () => {
+  it('returns valid QIDs from the cookie without autodetecting', async () => {
     mockCookiesGet.mockReturnValue({ value: 'Q1860%2CQREMOVED' })
-    mockGetLanguages.mockResolvedValue([{ wikidata_id: 'Q1860', label: 'English' }])
+    mockGetLanguages.mockResolvedValue(languages)
 
-    const result = await getFilterLanguageQids()
-
-    expect(result).toEqual(['Q1860'])
+    await expect(resolveLanguageQids()).resolves.toEqual(['Q1860'])
+    expect(mockHeadersGet).not.toHaveBeenCalled()
   })
 
-  it('returns [] when all QIDs are stale', async () => {
-    mockCookiesGet.mockReturnValue({ value: 'QSTALE1%2CQSTALE2' })
-    mockGetLanguages.mockResolvedValue([{ wikidata_id: 'Q1860', label: 'English' }])
+  it('autodetects languages when the cookie has no valid QIDs', async () => {
+    mockCookiesGet.mockReturnValue({ value: 'QREMOVED' })
+    mockHeadersGet.mockReturnValue('nl-NL,en;q=0.5')
+    mockGetLanguages.mockResolvedValue(languages)
 
-    const result = await getFilterLanguageQids()
+    await expect(resolveLanguageQids()).resolves.toEqual(['Q7411', 'Q1860'])
+  })
 
-    expect(result).toEqual([])
+  it('falls back to English when no language can be detected', async () => {
+    mockCookiesGet.mockReturnValue(undefined)
+    mockHeadersGet.mockReturnValue('xx-XX')
+    mockGetLanguages.mockResolvedValue(languages)
+
+    await expect(resolveLanguageQids()).resolves.toEqual(['Q1860'])
   })
 })
 

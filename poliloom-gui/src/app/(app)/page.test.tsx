@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, waitFor, act, render } from '@testing-library/react'
+import { screen, waitFor, act, render, fireEvent } from '@testing-library/react'
 import {
   mockUseNextPoliticianContext,
   mockUseSettings,
   defaultNextPolitician,
   defaultSettingsContext,
   defaultSettings,
+  defaultFiltersContext,
+  mockSetLanguages,
+  mockUseFilters,
 } from '@/test/mocks'
 import { HomeContent } from './HomeContent'
 
@@ -61,6 +64,25 @@ describe('Home Page - waiting for enrichment', () => {
 })
 
 describe('Home Page (Filter Selection)', () => {
+  it('prevents removing the last selected language', async () => {
+    mockUseFilters.mockReturnValue({
+      ...defaultFiltersContext,
+      languageQids: ['Q1860'],
+    })
+
+    render(
+      <HomeContent
+        languages={[{ wikidata_id: 'Q1860', name: 'English', sources_count: 10 }]}
+        countries={[]}
+      />,
+    )
+
+    const english = screen.getByRole('button', { name: /English/ })
+    expect(english).toBeDisabled()
+    fireEvent.click(english)
+    expect(mockSetLanguages).not.toHaveBeenCalled()
+  })
+
   it('renders home page with filter options', async () => {
     await act(async () => {
       render(<HomeContent languages={[]} countries={[]} />)

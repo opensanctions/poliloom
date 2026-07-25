@@ -1,7 +1,6 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
 import { useFilters } from '@/contexts/FilterContext'
 import { useEventStream } from '@/contexts/EventStreamContext'
 import { NextPoliticianResponse, EnrichmentMetadata } from '@/types'
@@ -17,12 +16,8 @@ const NextPoliticianContext = createContext<NextPoliticianContextType | undefine
 
 export function NextPoliticianProvider({ children }: { children: React.ReactNode }) {
   const { languageQids, countryQids } = useFilters()
-  const params = useParams()
-  const currentQid = (params?.qid as string) ?? null
 
   const searchParams = new URLSearchParams()
-  // Prefetching while this politician is still unevaluated must not return it again.
-  if (currentQid) searchParams.set('exclude_ids', currentQid)
   for (const qid of languageQids) searchParams.append('languages', qid)
   for (const qid of countryQids) searchParams.append('countries', qid)
   const query = searchParams.toString()

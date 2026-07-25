@@ -1,12 +1,12 @@
 import { notFound } from 'next/navigation'
 import { fetchWithAuth } from '@/lib/api-auth'
-import { getFilterLanguageQids } from '@/lib/filters'
+import { resolveLanguageQids } from '@/lib/filters'
 import { Politician } from '@/types'
 import { PoliticianEvaluation } from './PoliticianEvaluation'
 
 export default async function PoliticianPage({ params }: { params: Promise<{ qid: string }> }) {
   const { qid } = await params
-  const languageQids = (await getFilterLanguageQids()) ?? []
+  const languageQids = await resolveLanguageQids()
 
   const searchParams = new URLSearchParams()
   for (const langQid of languageQids) {

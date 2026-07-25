@@ -25,6 +25,7 @@ export function FilterProvider({
   const [countryQids, setCountryQids] = useState<string[]>(initialCountryQids)
 
   const setLanguages = useCallback((qids: string[]) => {
+    if (qids.length === 0) return
     writeFilterCookie(FILTER_LANGUAGES_COOKIE, qids)
     setLanguageQids(qids)
   }, [])
