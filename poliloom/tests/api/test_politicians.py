@@ -1,6 +1,11 @@
 """Tests for the /politicians endpoint (search/list/get/patch)."""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+
+from poliloom.api.politicians import get_next_politician
+from poliloom.review_queue import ReviewQueueResult
 
 from poliloom.models import (
     Evaluation,
@@ -45,8 +50,8 @@ class TestGetNextPoliticianEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["wikidata_id"] is None
-        # Exclusions affect navigation, not the matching-pool metadata.
-        assert data["meta"]["total_matching_filters"] == 1
+        # An excluded candidate is unavailable for this navigation request.
+        assert data["meta"]["total_matching_filters"] == 0
 
     def test_requires_authentication(self, client):
         """Test that endpoint requires authentication."""
@@ -85,6 +90,117 @@ class TestGetNextPoliticianEndpoint:
         response = client.get("/politicians/next", headers=mock_auth)
         assert response.status_code == 200
         assert response.json()["wikidata_id"] == "Q123456"
+
+    @pytest.mark.asyncio
+    async def test_pool_hit_does_not_enrich_when_more_candidates_remain(self):
+        user = Mock(user_id="user")
+        with (
+            patch(
+                "poliloom.api.politicians.get_random_unevaluated",
+                return_value=ReviewQueueResult("Q1", 2),
+            ),
+            patch(
+                "poliloom.api.politicians.process_next_politician",
+                new_callable=AsyncMock,
+            ) as process,
+        ):
+            response = await get_next_politician(
+                languages=[], countries=[], db=Mock(), current_user=user
+            )
+
+        assert response.wikidata_id == "Q1"
+        process.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_last_pool_candidate_starts_one_shot_prefetch(self):
+        user = Mock(user_id="user")
+        task = Mock()
+        with (
+            patch(
+                "poliloom.api.politicians.get_random_unevaluated",
+                return_value=ReviewQueueResult("Q1", 1),
+            ),
+            patch(
+                "poliloom.api.politicians.asyncio.create_task", return_value=task
+            ) as create_task,
+        ):
+            response = await get_next_politician(
+                languages=["Q1860"], countries=["Q30"], db=Mock(), current_user=user
+            )
+            create_task.call_args.args[0].close()
+
+        assert response.wikidata_id == "Q1"
+        create_task.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_empty_pool_enriches_until_a_candidate_appears(self):
+        user = Mock(user_id="user")
+        with (
+            patch(
+                "poliloom.api.politicians.get_random_unevaluated",
+                side_effect=[ReviewQueueResult(None, 0), ReviewQueueResult("Q2", 1)],
+            ),
+            patch(
+                "poliloom.api.politicians.process_next_politician",
+                new_callable=AsyncMock,
+                return_value=2,
+            ) as process,
+            patch("poliloom.api.politicians.asyncio.create_task") as create_task,
+        ):
+            response = await get_next_politician(
+                languages=[], countries=[], db=Mock(), current_user=user
+            )
+            create_task.call_args.args[0].close()
+
+        assert response.wikidata_id == "Q2"
+        process.assert_awaited_once_with([], [])
+
+    @pytest.mark.asyncio
+    async def test_empty_pool_after_dry_passes_starts_continuation(self):
+        user = Mock(user_id="user")
+        with (
+            patch(
+                "poliloom.api.politicians.get_random_unevaluated",
+                side_effect=[ReviewQueueResult(None, 0)] * 4,
+            ),
+            patch(
+                "poliloom.api.politicians.process_next_politician",
+                new_callable=AsyncMock,
+                side_effect=[0, 0, 0],
+            ),
+            patch("poliloom.api.politicians.asyncio.create_task") as create_task,
+        ):
+            response = await get_next_politician(
+                languages=[], countries=[], db=Mock(), current_user=user
+            )
+            create_task.call_args.args[0].close()
+
+        assert response.wikidata_id is None
+        assert response.meta.has_enrichable_politicians is True
+        assert create_task.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_empty_pool_with_no_candidates_is_all_caught_up(self):
+        user = Mock(user_id="user")
+        with (
+            patch(
+                "poliloom.api.politicians.get_random_unevaluated",
+                return_value=ReviewQueueResult(None, 0),
+            ),
+            patch(
+                "poliloom.api.politicians.process_next_politician",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch("poliloom.api.politicians.asyncio.create_task") as create_task,
+        ):
+            response = await get_next_politician(
+                languages=[], countries=[], db=Mock(), current_user=user
+            )
+
+        assert response.wikidata_id is None
+        assert response.meta.has_enrichable_politicians is False
+        create_task.assert_not_called()
 
 
 class TestGetPoliticianByQidEndpoint:

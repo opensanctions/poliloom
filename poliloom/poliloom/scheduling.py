@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import os
 from dataclasses import dataclass
 from typing import Any, List, Optional
 
@@ -11,11 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .archiving import process_source
 from .database import get_engine
-from .enrichment_queue import (
-    count_stateless_with_unevaluated_citizenship,
-    create_enrichment_sources,
-    enrichment_candidates_query,
-)
+from .enrichment_queue import create_enrichment_sources, enrichment_candidates_query
 from .models import (
     Politician,
     Property,
@@ -23,7 +18,6 @@ from .models import (
     WikidataEntity,
     WikidataRelation,
 )
-from .review_queue import count_unevaluated
 from .sse import EnrichmentCompleteEvent, event_bus
 
 logger = logging.getLogger(__name__)
@@ -142,8 +136,8 @@ async def process_next_politician(
     Broadcasts EnrichmentCompleteEvent only when there's something for waiting
     clients to act on: new unevaluated data (clients re-check /next and find
     the politician) or no candidate available (clients settle on the
-    all-caught-up state). Dry passes stay silent — enrich_review_buffer
-    chains the next candidate itself, so waking clients would only trigger
+    all-caught-up state). Dry passes stay silent — callers chain the next
+    candidate themselves, so waking clients would only trigger
     redundant /next polls.
 
     Returns:
@@ -177,38 +171,15 @@ async def process_next_politician(
     return extracted
 
 
-async def enrich_review_buffer(
+async def enrich_until_exhausted(
     languages: Optional[List[str]] = None,
     countries: Optional[List[str]] = None,
     stateless: bool = False,
 ) -> int:
-    """Enrich politicians until the unevaluated review buffer is full.
-
-    Keeps enriching until the number of politicians with unevaluated
-    properties reaches MIN_UNEVALUATED_POLITICIANS, or candidates run out.
-    Terminates by construction: every pass either fills the buffer or
-    claims a previously unclaimed Wikipedia project source.
-
-    Returns:
-        Number of politicians enriched.
-    """
-    min_threshold = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
+    """Enrich politicians until no candidates remain. Returns count enriched."""
     enriched = 0
 
-    while True:
-        with Session(get_engine()) as db:
-            if stateless:
-                current = count_stateless_with_unevaluated_citizenship(db)
-            else:
-                current = count_unevaluated(db, languages, countries)
-
-        if current >= min_threshold:
-            break
-
-        if await process_next_politician(languages, countries, stateless) is None:
-            break
-
+    while await process_next_politician(languages, countries, stateless) is not None:
         enriched += 1
-        logger.info(f"Review buffer at {current}/{min_threshold}, enriched {enriched}")
 
     return enriched

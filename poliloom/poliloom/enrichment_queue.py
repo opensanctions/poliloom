@@ -15,54 +15,6 @@ from .models.wikidata import WikidataRelation
 PRIORITY_WIKIPEDIA_LINK_LIMIT = 3
 
 
-def count_stateless_with_unevaluated_citizenship(db: Session) -> int:
-    """Count stateless politicians with unevaluated extracted citizenship.
-
-    A politician is counted when they have an active extracted citizenship
-    (no statement ID) but no active Wikidata citizenship (a statement ID).
-    The result is the review buffer used to throttle stateless enrichment.
-    """
-    # Subquery: politicians with Wikidata citizenship (should be excluded)
-    has_wikidata_citizenship = (
-        select(Property.politician_id)
-        .where(
-            and_(
-                *active_citizenship_conditions(Property),
-                Property.statement_id.isnot(None),
-            )
-        )
-        .distinct()
-    )
-
-    # Subquery: politicians with unevaluated extracted citizenship
-    has_unevaluated_extracted_citizenship = (
-        select(Property.politician_id)
-        .where(
-            and_(
-                *active_citizenship_conditions(Property),
-                Property.statement_id.is_(None),
-            )
-        )
-        .distinct()
-    )
-
-    # Count politicians who have unevaluated extracted citizenship but no
-    # Wikidata citizenship.
-    count_query = (
-        select(func.count())
-        .select_from(Politician)
-        .where(
-            and_(
-                Politician.id.in_(has_unevaluated_extracted_citizenship),
-                ~Politician.id.in_(has_wikidata_citizenship),
-            )
-        )
-    )
-
-    result = db.execute(count_query).scalar()
-    return result or 0
-
-
 def _ranking_order_by(
     matches_citizenship, wikipedia_project_popularity, wikipedia_project_id
 ):
@@ -330,22 +282,18 @@ def _eligible_link_exists(languages: list[str] | None = None):
             Source.wikipedia_project_id == link.wikipedia_project_id,
         )
     )
-    query = (
-        select(1)
-        .select_from(link)
-        .where(
-            link.politician_id == Politician.id,
-            ~exists(existing_source),
-        )
+    query = _join_project_language_path(
+        select(1).select_from(link),
+        link,
+        WikipediaProject,
+        WikidataRelation,
+        Language,
+    ).where(
+        link.politician_id == Politician.id,
+        ~exists(existing_source),
     )
     if languages:
-        query = _join_project_language_path(
-            query,
-            link,
-            WikipediaProject,
-            WikidataRelation,
-            Language,
-        ).where(Language.wikidata_id.in_(languages))
+        query = query.where(Language.wikidata_id.in_(languages))
     return exists(query)
 
 
@@ -383,18 +331,3 @@ def enrichment_candidates_query(
     if countries:
         query = query.where(Politician.id.in_(_politicians_with_citizenship(countries)))
     return query
-
-
-def has_enrichment_candidate(
-    db: Session,
-    languages: list[str] | None = None,
-    countries: list[str] | None = None,
-    stateless: bool = False,
-) -> bool:
-    """Return whether at least one politician is available to enrich."""
-    query = enrichment_candidates_query(
-        languages=languages, countries=countries, stateless=stateless
-    )
-    return (
-        db.execute(query.with_only_columns(Politician.id).limit(1)).first() is not None
-    )

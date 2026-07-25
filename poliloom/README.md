@@ -46,8 +46,8 @@ uv run poliloom import-politicians    # Import politicians
 
 ### Extract politician data
 
-Enrichment runs until the review buffer reaches `MIN_UNEVALUATED_POLITICIANS`
-(default: 10) politicians with unevaluated data, or candidates run out.
+Enrichment runs on demand as users review politicians. The CLI enriches all
+matching candidates until none remain.
 
 ```bash
 # Enrich politicians from any country/language

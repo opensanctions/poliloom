@@ -6,7 +6,7 @@ import pytest
 
 from poliloom.scheduling import (
     ScheduledEnrichment,
-    enrich_review_buffer,
+    enrich_until_exhausted,
     process_next_politician,
     schedule_enrichment,
 )
@@ -68,7 +68,7 @@ class TestProcessNextPolitician:
 
     @pytest.mark.asyncio
     async def test_silent_when_no_properties_extracted(self, db_session):
-        """Dry passes stay silent: enrich_review_buffer chains the next candidate."""
+        """Dry passes stay silent while callers chain the next candidate."""
         scheduled = ScheduledEnrichment(politician_id="p1", source_ids=["s1", "s2"])
 
         with (
@@ -121,94 +121,31 @@ class TestProcessNextPolitician:
         mock_notify.assert_called_once()
 
 
-class TestEnrichReviewBuffer:
-    """Test enrich_review_buffer tops up the unevaluated pool to the threshold."""
+class TestEnrichUntilExhausted:
+    """Test enrich_until_exhausted processes every available candidate."""
 
     @pytest.mark.asyncio
-    async def test_does_nothing_when_buffer_full(self, db_session, monkeypatch):
-        """No enrichment when unevaluated count already meets the threshold."""
-        monkeypatch.setenv("MIN_UNEVALUATED_POLITICIANS", "10")
-
-        with (
-            patch("poliloom.scheduling.count_unevaluated", return_value=10),
-            patch(
-                "poliloom.scheduling.process_next_politician", new_callable=AsyncMock
-            ) as mock_process,
-        ):
-            enriched = await enrich_review_buffer()
-
-        assert enriched == 0
-        mock_process.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_enriches_until_threshold_reached(self, db_session, monkeypatch):
-        """Loops until the buffer reaches the threshold."""
-        monkeypatch.setenv("MIN_UNEVALUATED_POLITICIANS", "2")
-
-        with (
-            patch("poliloom.scheduling.count_unevaluated", side_effect=[0, 1, 2]),
-            patch(
-                "poliloom.scheduling.process_next_politician", new_callable=AsyncMock
-            ) as mock_process,
-        ):
-            mock_process.side_effect = [5, 3]
-            enriched = await enrich_review_buffer(
+    async def test_loops_until_candidates_are_exhausted(self, db_session):
+        with patch(
+            "poliloom.scheduling.process_next_politician", new_callable=AsyncMock
+        ) as mock_process:
+            mock_process.side_effect = [0, 4, None]
+            enriched = await enrich_until_exhausted(
                 languages=["Q1860"], countries=["Q30"]
             )
 
         assert enriched == 2
-        assert mock_process.call_count == 2
+        assert mock_process.call_count == 3
         mock_process.assert_called_with(["Q1860"], ["Q30"], False)
 
     @pytest.mark.asyncio
-    async def test_continues_past_dry_extractions(self, db_session, monkeypatch):
-        """Zero-property passes do not count as filling the buffer."""
-        monkeypatch.setenv("MIN_UNEVALUATED_POLITICIANS", "1")
-
-        with (
-            patch("poliloom.scheduling.count_unevaluated", side_effect=[0, 0, 1]),
-            patch(
-                "poliloom.scheduling.process_next_politician", new_callable=AsyncMock
-            ) as mock_process,
-        ):
-            mock_process.side_effect = [0, 4]
-            enriched = await enrich_review_buffer()
-
-        assert enriched == 2
-
-    @pytest.mark.asyncio
-    async def test_stops_when_candidates_exhausted(self, db_session, monkeypatch):
-        """Stops when no more politicians are available, even below threshold."""
-        monkeypatch.setenv("MIN_UNEVALUATED_POLITICIANS", "10")
-
-        with (
-            patch("poliloom.scheduling.count_unevaluated", return_value=0),
-            patch(
-                "poliloom.scheduling.process_next_politician", new_callable=AsyncMock
-            ) as mock_process,
-        ):
-            mock_process.side_effect = [2, None]
-            enriched = await enrich_review_buffer()
-
-        assert enriched == 1
-
-    @pytest.mark.asyncio
-    async def test_stateless_uses_stateless_buffer_count(self, db_session, monkeypatch):
-        """Stateless mode measures the stateless unevaluated-citizenship buffer."""
-        monkeypatch.setenv("MIN_UNEVALUATED_POLITICIANS", "5")
-
-        with (
-            patch(
-                "poliloom.scheduling.count_stateless_with_unevaluated_citizenship",
-                return_value=5,
-            ),
-            patch("poliloom.scheduling.count_unevaluated") as mock_count,
-            patch(
-                "poliloom.scheduling.process_next_politician", new_callable=AsyncMock
-            ) as mock_process,
-        ):
-            enriched = await enrich_review_buffer(stateless=True)
+    async def test_returns_zero_when_no_candidates_exist(self, db_session):
+        with patch(
+            "poliloom.scheduling.process_next_politician",
+            new_callable=AsyncMock,
+            return_value=None,
+        ) as mock_process:
+            enriched = await enrich_until_exhausted(stateless=True)
 
         assert enriched == 0
-        mock_count.assert_not_called()
-        mock_process.assert_not_called()
+        mock_process.assert_awaited_once_with(None, None, True)

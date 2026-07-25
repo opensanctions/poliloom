@@ -3,11 +3,9 @@
 from datetime import datetime, timezone
 
 from poliloom.enrichment_queue import (
-    count_stateless_with_unevaluated_citizenship,
     create_enrichment_sources,
     enrichment_candidates_query,
     get_priority_wikipedia_links,
-    has_enrichment_candidate,
 )
 from poliloom.models import (
     Politician,
@@ -348,6 +346,29 @@ class TestEnrichmentCandidatesQuery:
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 0
+
+    def test_query_excludes_link_without_language_of_work_relation(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_link,
+        sample_wikipedia_project,
+        sample_language,
+    ):
+        """Projects that cannot create sources are never enrichment candidates."""
+        relation = next(
+            relation
+            for relation in db_session.query(WikidataRelation)
+            if (
+                relation.parent_entity_id == sample_language.wikidata_id
+                and relation.child_entity_id == sample_wikipedia_project.wikidata_id
+                and relation.relation_type == RelationType.LANGUAGE_OF_WORK
+            )
+        )
+        relation.soft_delete()
+        db_session.flush()
+
+        assert db_session.execute(enrichment_candidates_query()).scalars().all() == []
 
     def test_query_with_language_filter_citizenship_match(
         self,
@@ -799,389 +820,6 @@ class TestEnrichmentCandidatesQuery:
         result = db_session.execute(query).scalars().all()
 
         assert len(result) == 0
-
-
-class TestCountStatelessWithUnevaluatedCitizenship:
-    """Tests for count_stateless_with_unevaluated_citizenship."""
-
-    def test_count_politician_with_extracted_citizenship_no_wikidata(
-        self,
-        db_session,
-        sample_politician,
-        sample_country,
-    ):
-        """Test counting politician with extracted citizenship but no Wikidata citizenship."""
-        # Add extracted citizenship (no statement_id)
-        prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_country.wikidata_id,
-            statement_id=None,
-        )
-        db_session.add(prop)
-        db_session.flush()
-
-        count = count_stateless_with_unevaluated_citizenship(db_session)
-        assert count == 1
-
-    def test_count_excludes_politician_with_wikidata_citizenship(
-        self,
-        db_session,
-        sample_politician,
-        sample_country,
-    ):
-        """Test that politicians with Wikidata citizenship are excluded."""
-        # Add Wikidata citizenship (has statement_id)
-        wikidata_prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_country.wikidata_id,
-            statement_id="Q123$test-statement",
-        )
-        db_session.add(wikidata_prop)
-
-        # Also add extracted citizenship (no statement_id)
-        extracted_prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_country.wikidata_id,
-            statement_id=None,
-        )
-        db_session.add(extracted_prop)
-        db_session.flush()
-
-        # Should be 0 because politician has Wikidata citizenship
-        count = count_stateless_with_unevaluated_citizenship(db_session)
-        assert count == 0
-
-    def test_count_excludes_evaluated_extracted_citizenship(
-        self,
-        db_session,
-        sample_politician,
-        sample_country,
-    ):
-        """Test that evaluated (pushed) extracted citizenship is excluded."""
-        # Add extracted citizenship that was already pushed (has statement_id)
-        prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_country.wikidata_id,
-            statement_id="Q123$pushed-statement",
-        )
-        db_session.add(prop)
-        db_session.flush()
-
-        count = count_stateless_with_unevaluated_citizenship(db_session)
-        assert count == 0
-
-    def test_count_excludes_soft_deleted_citizenship(
-        self,
-        db_session,
-        sample_politician,
-        sample_country,
-    ):
-        """Test that soft-deleted citizenship is excluded."""
-        # Add soft-deleted extracted citizenship (no statement_id, but deleted)
-        prop = Property(
-            politician_id=sample_politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=sample_country.wikidata_id,
-            statement_id=None,
-            deleted_at=datetime.now(timezone.utc),
-        )
-        db_session.add(prop)
-        db_session.flush()
-
-        count = count_stateless_with_unevaluated_citizenship(db_session)
-        assert count == 0
-
-    def test_count_zero_when_no_extracted_citizenship(
-        self,
-        db_session,
-        sample_politician,
-    ):
-        """Test count is 0 when politician has no extracted citizenship."""
-        # sample_politician has no properties
-        count = count_stateless_with_unevaluated_citizenship(db_session)
-        assert count == 0
-
-
-class TestHasEnrichmentCandidate:
-    """Tests for has_enrichment_candidate."""
-
-    def test_returns_true_when_enrichable_exists(
-        self,
-        db_session,
-        sample_politician,
-        sample_wikipedia_link,
-        sample_country,
-        create_citizenship,
-    ):
-        """Test returns True when a politician with Wikipedia links exists."""
-        create_citizenship(sample_politician, sample_country)
-        db_session.flush()
-
-        assert has_enrichment_candidate(db_session) is True
-
-    def test_returns_false_when_no_politicians(self, db_session):
-        """Test returns False when no politicians exist."""
-        assert has_enrichment_candidate(db_session) is False
-
-    def test_returns_false_when_no_wikipedia_links(self, db_session, sample_politician):
-        """Test returns False when politician has no Wikipedia links."""
-        assert has_enrichment_candidate(db_session) is False
-
-    def test_respects_language_filter(
-        self,
-        db_session,
-        sample_politician,
-        sample_wikipedia_link,
-        sample_country,
-        create_citizenship,
-    ):
-        """Test that only a language on a priority Wikipedia project is accepted."""
-        create_citizenship(sample_politician, sample_country)
-        db_session.flush()
-
-        assert has_enrichment_candidate(db_session, languages=["Q1860"]) is True
-        assert has_enrichment_candidate(db_session, languages=["Q188"]) is False
-        assert (
-            has_enrichment_candidate(db_session, languages=["Q1860"], countries=["Q30"])
-            is True
-        )
-        assert (
-            has_enrichment_candidate(
-                db_session, languages=["Q1860"], countries=["Q183"]
-            )
-            is False
-        )
-
-    def test_respects_stateless_filter(
-        self,
-        db_session,
-        sample_politician,
-        sample_wikipedia_link,
-        sample_country,
-        create_citizenship,
-    ):
-        """Test stateless mode only accepts politicians without citizenship."""
-        assert has_enrichment_candidate(db_session, stateless=True) is True
-
-        create_citizenship(sample_politician, sample_country)
-        db_session.flush()
-
-        assert has_enrichment_candidate(db_session, stateless=True) is False
-
-    def test_respects_country_filter(
-        self,
-        db_session,
-        sample_politician,
-        sample_wikipedia_link,
-        sample_country,
-        create_citizenship,
-    ):
-        """Test that country filter is applied."""
-        create_citizenship(sample_politician, sample_country)
-        db_session.flush()
-
-        assert has_enrichment_candidate(db_session, countries=["Q30"]) is True
-        assert has_enrichment_candidate(db_session, countries=["Q183"]) is False
-
-
-class TestHasEnrichmentCandidateQueryParity:
-    """Ensure the existence check remains equivalent to enrichment selection."""
-
-    @staticmethod
-    def assert_matches_enrichment_query(db_session, expected, **filters):
-        """Assert both query shapes agree on whether an eligible row exists."""
-        selected = (
-            db_session.execute(enrichment_candidates_query(**filters).limit(1))
-            .scalars()
-            .first()
-            is not None
-        )
-        assert selected is expected
-        assert has_enrichment_candidate(db_session, **filters) is selected
-
-    def test_matches_ranked_language_boundary_and_combined_filters(
-        self,
-        db_session,
-        sample_politician,
-        sample_germany_country,
-        sample_language,
-        sample_wikipedia_project,
-        sample_german_language,
-        sample_german_wikipedia_project,
-        sample_french_language,
-        sample_french_wikipedia_project,
-        sample_spanish_language,
-        sample_spanish_wikipedia_project,
-        create_citizenship,
-        create_wikipedia_link,
-    ):
-        """Citizenship ranking and the fourth linked language agree at the cutoff."""
-        db_session.add(
-            WikidataRelation(
-                parent_entity_id=sample_german_language.wikidata_id,
-                child_entity_id=sample_germany_country.wikidata_id,
-                relation_type=RelationType.OFFICIAL_LANGUAGE,
-                statement_id="parity_de_official_language",
-            )
-        )
-        create_citizenship(sample_politician, sample_germany_country)
-
-        # Give each language a distinct global popularity; no rank-boundary ties.
-        languages = [
-            (sample_language, sample_wikipedia_project, 5),
-            # German would be fourth by popularity, but is first via citizenship.
-            (sample_german_language, sample_german_wikipedia_project, 2),
-            (sample_french_language, sample_french_wikipedia_project, 4),
-            (sample_spanish_language, sample_spanish_wikipedia_project, 3),
-        ]
-        qid = 70000
-        for language, project, popularity in languages:
-            for number in range(popularity):
-                dummy = Politician.create_with_entity(
-                    db_session,
-                    f"Q{qid}",
-                    f"{language.name} popularity {number}",
-                )
-                db_session.flush()
-                create_wikipedia_link(dummy, project)
-                qid += 1
-            create_wikipedia_link(sample_politician, project)
-        db_session.flush()
-
-        germany = [sample_germany_country.wikidata_id]
-        self.assert_matches_enrichment_query(
-            db_session,
-            True,
-            languages=[sample_german_language.wikidata_id],
-            countries=germany,
-        )
-        self.assert_matches_enrichment_query(
-            db_session,
-            True,
-            languages=[sample_french_language.wikidata_id],
-            countries=germany,
-        )
-        self.assert_matches_enrichment_query(
-            db_session,
-            True,
-            languages=[sample_spanish_language.wikidata_id],
-            countries=germany,
-        )
-
-    def test_matches_deterministic_project_tie_at_priority_cutoff(
-        self,
-        db_session,
-        sample_politician,
-        sample_language,
-        sample_wikipedia_project,
-        sample_german_language,
-        sample_german_wikipedia_project,
-        sample_french_language,
-        sample_french_wikipedia_project,
-        sample_spanish_language,
-        sample_spanish_wikipedia_project,
-        create_wikipedia_link,
-    ):
-        """All public ranking paths use project ID to resolve a cutoff tie."""
-        links = [
-            (sample_language, sample_wikipedia_project),
-            (sample_german_language, sample_german_wikipedia_project),
-            (sample_french_language, sample_french_wikipedia_project),
-            (sample_spanish_language, sample_spanish_wikipedia_project),
-        ]
-        for _, project in links:
-            create_wikipedia_link(sample_politician, project)
-        db_session.flush()
-
-        expected_project_ids = sorted(project.wikidata_id for _, project in links)[:3]
-        priority_project_ids = [
-            project_id
-            for _, project_id in get_priority_wikipedia_links(
-                sample_politician, db_session
-            )
-        ]
-        assert priority_project_ids == expected_project_ids
-
-        for language, project in links:
-            expected = True
-            selected = (
-                db_session.execute(
-                    enrichment_candidates_query(languages=[language.wikidata_id])
-                )
-                .scalars()
-                .first()
-                is not None
-            )
-            assert selected is expected
-            assert (
-                has_enrichment_candidate(db_session, languages=[language.wikidata_id])
-                is expected
-            )
-
-    def test_matches_soft_deleted_citizenship_and_stateless_filters(
-        self,
-        db_session,
-        sample_politician,
-        sample_country,
-        sample_wikipedia_link,
-        create_citizenship,
-    ):
-        """Deleted citizenship does not match countries and does not disqualify stateless."""
-        citizenship = create_citizenship(sample_politician, sample_country)
-        citizenship.soft_delete()
-        db_session.flush()
-
-        self.assert_matches_enrichment_query(
-            db_session, False, countries=[sample_country.wikidata_id]
-        )
-        self.assert_matches_enrichment_query(db_session, True, stateless=True)
-
-    def test_matches_missing_rankable_path_and_soft_deleted_entity(
-        self,
-        db_session,
-        sample_politician,
-        sample_wikipedia_link,
-        sample_wikipedia_project,
-        sample_language,
-    ):
-        """A link without an active language path cannot satisfy a language filter."""
-        language_of_work = next(
-            relation
-            for relation in db_session.query(WikidataRelation)
-            if (
-                relation.parent_entity_id == sample_language.wikidata_id
-                and relation.child_entity_id == sample_wikipedia_project.wikidata_id
-                and relation.relation_type == RelationType.LANGUAGE_OF_WORK
-            )
-        )
-        language_of_work.soft_delete()
-        db_session.flush()
-
-        self.assert_matches_enrichment_query(
-            db_session, False, languages=[sample_language.wikidata_id]
-        )
-        self.assert_matches_enrichment_query(db_session, True)
-
-        sample_politician.wikidata_entity.soft_delete()
-        db_session.flush()
-        self.assert_matches_enrichment_query(db_session, False)
-
-    def test_matches_cooldown_ineligible_candidate(
-        self, db_session, sample_politician, sample_wikipedia_link
-    ):
-        """A source for the linked project makes a candidate ineligible."""
-        source = Source(
-            url=sample_wikipedia_link.url,
-            wikipedia_project_id=sample_wikipedia_link.wikipedia_project_id,
-        )
-        source.politicians.append(sample_politician)
-        db_session.add(source)
-        db_session.flush()
-        self.assert_matches_enrichment_query(db_session, False)
 
 
 class TestCreateEnrichmentSources:

@@ -5,7 +5,7 @@ import click
 import logging
 from datetime import datetime, timezone
 import httpx
-from poliloom.scheduling import enrich_review_buffer
+from poliloom.scheduling import enrich_until_exhausted
 from poliloom.storage import StorageFactory
 from poliloom.importer.hierarchy import import_hierarchy_trees
 from poliloom.importer.entity import import_entities
@@ -291,16 +291,11 @@ def enrich_wikipedia(
     countries: tuple[str, ...],
     stateless: bool,
 ) -> None:
-    """Enrich politicians from Wikipedia until the review buffer is full.
-
-    Enriches politicians until the number with unevaluated extracted data
-    reaches MIN_UNEVALUATED_POLITICIANS (default: 10), or candidates run out.
+    """Enrich all matching politicians from Wikipedia until candidates run out.
 
     The --stateless flag addresses a systematic bias where politicians without citizenship
     data are never enriched by normal user-driven filters (which filter by country/language).
     Use this flag for scheduled enrichment jobs to ensure coverage of all politicians.
-    In stateless mode the buffer is measured as stateless politicians with unevaluated
-    extracted citizenship.
 
     Examples:
     - poliloom enrich-wikipedia
@@ -320,7 +315,9 @@ def enrich_wikipedia(
             )
             raise SystemExit(1)
 
-        click.echo("⏳ Enriching politicians until review buffer is full...")
+        click.echo(
+            "⏳ Enriching matching politicians until candidates are exhausted..."
+        )
         if stateless:
             click.echo("   Mode: stateless (politicians without citizenship data)")
         if languages_list:
@@ -329,7 +326,7 @@ def enrich_wikipedia(
             click.echo(f"   Filtering by countries: {', '.join(countries_list)}")
 
         enriched_count = asyncio.run(
-            enrich_review_buffer(
+            enrich_until_exhausted(
                 languages=languages_list,
                 countries=countries_list,
                 stateless=stateless,
@@ -337,7 +334,7 @@ def enrich_wikipedia(
         )
 
         if enriched_count == 0:
-            click.echo("✅ Review buffer already full or no candidates available")
+            click.echo("✅ No candidates available")
         else:
             click.echo(f"✅ Successfully enriched {enriched_count} politicians")
 

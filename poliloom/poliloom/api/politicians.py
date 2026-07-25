@@ -1,8 +1,6 @@
 """Politicians API endpoints."""
 
 import asyncio
-import logging
-import os
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -10,8 +8,12 @@ from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db_session
-from ..enrichment_queue import create_enrichment_sources, has_enrichment_candidate
-from ..scheduling import process_source_task, enrich_review_buffer
+from ..enrichment_queue import create_enrichment_sources
+from ..scheduling import (
+    enrich_until_exhausted,
+    process_next_politician,
+    process_source_task,
+)
 from ..review_queue import get_random_unevaluated
 from ..models import (
     Source,
@@ -45,9 +47,10 @@ from .schemas import (
 
 from .auth import get_current_user, User
 
-logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+MAX_SYNC_ENRICHMENTS = 3
 
 # Map frontend property type strings (Wikidata P-IDs) to backend enum
 PROPERTY_TYPE_MAP = {
@@ -184,8 +187,8 @@ async def get_next_politician(
     Get the next unevaluated politician's ID for navigation.
 
     Lightweight endpoint — returns only the next politician's IDs, not full data.
-    Filter QIDs are passed by the client (sourced from browser cookies). Triggers
-    background enrichment if needed.
+    Filter QIDs are passed by the client (sourced from browser cookies). Enriches
+    on demand when the user's review pool is empty.
     """
     review_candidate = get_random_unevaluated(
         db,
@@ -194,36 +197,50 @@ async def get_next_politician(
         exclude_ids=exclude_ids,
         user_id=str(current_user.user_id),
     )
-    wikidata_id = review_candidate.wikidata_id
-    current_count = review_candidate.total
-
-    # Trigger enrichment if unevaluated pool is running low
-    min_threshold = int(os.getenv("MIN_UNEVALUATED_POLITICIANS", "10"))
-    can_enrich = has_enrichment_candidate(db, languages, countries)
-
-    if current_count < min_threshold and can_enrich:
-        logger.info(
-            f"Only {current_count} politicians with unevaluated properties (threshold: {min_threshold}), triggering enrichment"
-        )
-        asyncio.create_task(
-            enrich_review_buffer(
-                languages=languages,
-                countries=countries,
-            )
-        )
-
-    meta = EnrichmentMetadata(
-        has_enrichable_politicians=can_enrich,
-        total_matching_filters=current_count,
-    )
-
-    if wikidata_id:
+    if review_candidate.wikidata_id:
+        if review_candidate.total <= 1:
+            asyncio.create_task(process_next_politician(languages, countries))
         return NextPoliticianResponse(
-            wikidata_id=wikidata_id,
-            meta=meta,
+            wikidata_id=review_candidate.wikidata_id,
+            meta=EnrichmentMetadata(
+                has_enrichable_politicians=False,
+                total_matching_filters=review_candidate.total,
+            ),
         )
 
-    return NextPoliticianResponse(meta=meta)
+    scheduled_enrichment = False
+    for _ in range(MAX_SYNC_ENRICHMENTS):
+        extracted = await process_next_politician(languages, countries)
+        if extracted is None:
+            break
+        scheduled_enrichment = True
+        review_candidate = get_random_unevaluated(
+            db,
+            languages=languages,
+            countries=countries,
+            exclude_ids=exclude_ids,
+            user_id=str(current_user.user_id),
+        )
+        if review_candidate.wikidata_id:
+            if review_candidate.total <= 1:
+                asyncio.create_task(process_next_politician(languages, countries))
+            return NextPoliticianResponse(
+                wikidata_id=review_candidate.wikidata_id,
+                meta=EnrichmentMetadata(
+                    has_enrichable_politicians=False,
+                    total_matching_filters=review_candidate.total,
+                ),
+            )
+
+    if scheduled_enrichment:
+        asyncio.create_task(enrich_until_exhausted(languages, countries))
+
+    return NextPoliticianResponse(
+        meta=EnrichmentMetadata(
+            has_enrichable_politicians=scheduled_enrichment,
+            total_matching_filters=0,
+        )
+    )
 
 
 @router.get("/search", response_model=List[PoliticianResponse])

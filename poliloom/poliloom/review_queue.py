@@ -30,8 +30,7 @@ def _unevaluated_pool(
 ):
     """CTE of politicians with unevaluated extracted properties.
 
-    Shared by candidate selection and buffer counting so both measure the
-    same review pool.
+    Used by candidate selection to measure the matching review pool.
     """
     unevaluated_conditions = [
         Property.politician_id == Politician.id,
@@ -80,17 +79,6 @@ def _unevaluated_pool(
         .cte("unevaluated_pool")
         .prefix_with("MATERIALIZED")
     )
-
-
-def count_unevaluated(
-    db: Session,
-    languages: list[str] | None = None,
-    countries: list[str] | None = None,
-    user_id: str | None = None,
-) -> int:
-    """Count politicians with unevaluated extracted properties (the review buffer)."""
-    pool = _unevaluated_pool(languages, countries, user_id)
-    return db.execute(select(func.count()).select_from(pool)).scalar() or 0
 
 
 def get_random_unevaluated(
