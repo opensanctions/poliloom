@@ -31,6 +31,18 @@ class ScheduledEnrichment:
     source_ids: list
 
 
+def has_enrichment_candidate(
+    db: Session,
+    languages: Optional[List[str]] = None,
+    countries: Optional[List[str]] = None,
+) -> bool:
+    """Return True if any politician is currently eligible for enrichment."""
+    query = enrichment_candidates_query(languages=languages, countries=countries)
+    return (
+        db.scalars(query.with_only_columns(Politician.id).limit(1)).first() is not None
+    )
+
+
 def schedule_enrichment(
     db: Session,
     languages: Optional[List[str]] = None,

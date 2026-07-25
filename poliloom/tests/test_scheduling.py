@@ -7,6 +7,7 @@ import pytest
 from poliloom.scheduling import (
     ScheduledEnrichment,
     enrich_until_exhausted,
+    has_enrichment_candidate,
     process_next_politician,
     schedule_enrichment,
 )
@@ -45,6 +46,43 @@ class TestScheduleEnrichment:
 
     def test_returns_none_when_no_wikipedia_links(self, db_session, sample_politician):
         assert schedule_enrichment(db_session) is None
+
+
+class TestHasEnrichmentCandidate:
+    """Test has_enrichment_candidate mirrors schedule_enrichment eligibility."""
+
+    def test_false_when_no_politicians(self, db_session):
+        assert has_enrichment_candidate(db_session) is False
+
+    def test_false_when_no_wikipedia_links(self, db_session, sample_politician):
+        assert has_enrichment_candidate(db_session) is False
+
+    def test_true_for_politician_with_wikipedia_links(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_link,
+        sample_country,
+        create_citizenship,
+    ):
+        create_citizenship(sample_politician, sample_country)
+        db_session.flush()
+
+        assert has_enrichment_candidate(db_session) is True
+
+    def test_false_after_source_claims_the_project(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_link,
+        sample_country,
+        create_citizenship,
+    ):
+        create_citizenship(sample_politician, sample_country)
+        db_session.flush()
+        schedule_enrichment(db_session)
+
+        assert has_enrichment_candidate(db_session) is False
 
 
 class TestProcessNextPolitician:
