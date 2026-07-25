@@ -36,9 +36,8 @@ class TestScheduleEnrichment:
         assert result.politician_id == sample_politician.id
         assert len(result.source_ids) >= 1
 
-        # Politician should be marked as enriched
-        db_session.refresh(sample_politician)
-        assert sample_politician.enriched_at is not None
+        # Source creation claims the linked Wikipedia project.
+        assert len(sample_politician.sources) >= 1
 
         # Sources should be created as PROCESSING (server_default)
         pages = db_session.query(Source).filter(Source.id.in_(result.source_ids)).all()
@@ -57,9 +56,6 @@ class TestProcessNextPolitician:
         extracted = await process_next_politician()
 
         assert extracted is None
-
-        db_session.refresh(sample_politician)
-        assert sample_politician.enriched_at is None
 
     @pytest.mark.asyncio
     async def test_notifies_when_no_candidate_found(self, db_session):

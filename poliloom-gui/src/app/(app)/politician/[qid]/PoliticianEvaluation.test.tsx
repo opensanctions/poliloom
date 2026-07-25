@@ -9,6 +9,7 @@ import {
   mockUseNextPoliticianContext,
   mockUseEvaluationSession,
   mockUseSettings,
+  mockUseFilters,
   defaultNextPolitician,
   defaultEvaluationSession,
   defaultSettingsContext,
@@ -269,6 +270,26 @@ describe('PoliticianEvaluation', () => {
         }),
       )
       expect(mockSubmitAndAdvance).toHaveBeenCalled()
+    })
+  })
+
+  it('preserves language filters when refetching after submission', async () => {
+    mockUseFilters.mockReturnValue({
+      languageQids: ['Q1860', 'Q188'],
+      countryQids: [],
+      setLanguages: vi.fn(),
+      setCountries: vi.fn(),
+    })
+    mockSubmitAndAdvance.mockReturnValue({ sessionComplete: false })
+
+    render(<PoliticianEvaluation politician={politician} />)
+    fireEvent.click(screen.getAllByText('✓ Accept')[0])
+    fireEvent.click(screen.getByText('Submit Evaluations & Next'))
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/politicians/Q987654?languages=Q1860&languages=Q188',
+      )
     })
   })
 

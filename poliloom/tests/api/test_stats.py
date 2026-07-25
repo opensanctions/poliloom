@@ -159,10 +159,10 @@ class TestStatsEndpoint:
         politician = Politician(
             wikidata_id="Q123",
             name="Test Politician",
-            enriched_at=datetime.now(timezone.utc),  # Enriched within cooldown
         )
         db_session.add(politician)
         db_session.flush()
+        source.politicians.append(politician)
 
         # Add citizenship property (from Wikidata, has statement_id)
         citizenship = Property(
@@ -234,10 +234,10 @@ class TestStatsEndpoint:
         politician = Politician(
             wikidata_id="Q123",
             name="Stateless Politician",
-            enriched_at=datetime.now(timezone.utc),  # Enriched within cooldown
         )
         db_session.add(politician)
         db_session.flush()
+        source.politicians.append(politician)
 
         # Add extracted citizenship (no statement_id, has PropertyReference)
         extracted_citizenship = Property(
@@ -302,10 +302,10 @@ class TestStatsEndpoint:
         politician = Politician(
             wikidata_id="Q123",
             name="Old Politician",
-            enriched_at=datetime.now(timezone.utc),  # Enriched within cooldown
         )
         db_session.add(politician)
         db_session.flush()
+        source.politicians.append(politician)
 
         # Add citizenship from Wikidata
         citizenship = Property(
@@ -385,10 +385,10 @@ class TestStatsEndpoint:
         politician = Politician(
             wikidata_id="Q123",
             name="Test Politician",
-            enriched_at=datetime.now(timezone.utc),  # Enriched within cooldown
         )
         db_session.add(politician)
         db_session.flush()
+        source.politicians.append(politician)
 
         # Add citizenship from Wikidata
         citizenship = Property(

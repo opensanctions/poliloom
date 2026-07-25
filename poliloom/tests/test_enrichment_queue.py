@@ -1,9 +1,10 @@
 """Tests for enrichment candidate selection and source creation."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from poliloom.enrichment_queue import (
     count_stateless_with_unevaluated_citizenship,
+    create_enrichment_sources,
     enrichment_candidates_query,
     get_priority_wikipedia_links,
     has_enrichment_candidate,
@@ -13,6 +14,7 @@ from poliloom.models import (
     Property,
     PropertyType,
     RelationType,
+    Source,
     WikidataRelation,
 )
 
@@ -294,6 +296,33 @@ class TestPriorityWikipediaLinks:
         )
         assert "Q328" in project_ids, "English Wikipedia should also be included"
         assert "Q8447" in project_ids, "French Wikipedia should also be included"
+
+    def test_filters_languages_and_claimed_projects(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_link,
+        sample_german_wikipedia_project,
+        create_wikipedia_link,
+    ):
+        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
+        claimed = Source(
+            url=sample_wikipedia_link.url,
+            wikipedia_project_id=sample_wikipedia_link.wikipedia_project_id,
+        )
+        claimed.politicians.append(sample_politician)
+        db_session.add(claimed)
+        db_session.flush()
+
+        links = get_priority_wikipedia_links(
+            sample_politician,
+            db_session,
+            languages=["Q1860", "Q188"],
+            eligible_only=True,
+        )
+        assert [project_id for _, project_id in links] == [
+            sample_german_wikipedia_project.wikidata_id
+        ]
 
 
 class TestEnrichmentCandidatesQuery:
@@ -641,9 +670,7 @@ class TestEnrichmentCandidatesQuery:
         query = enrichment_candidates_query(languages=["Q1321"])
         result = db_session.execute(query).scalars().all()
         result_ids = {p.id for p in result}
-        assert sample_politician.id not in result_ids, (
-            "Spanish (4th) should NOT match for sample_politician - outside top 3"
-        )
+        assert sample_politician.id in result_ids
 
     def test_query_excludes_soft_deleted_wikidata_entity(
         self, db_session, sample_politician, sample_wikipedia_link
@@ -1040,7 +1067,7 @@ class TestHasEnrichmentCandidateQueryParity:
         )
         self.assert_matches_enrichment_query(
             db_session,
-            False,
+            True,
             languages=[sample_spanish_language.wikidata_id],
             countries=germany,
         )
@@ -1080,7 +1107,7 @@ class TestHasEnrichmentCandidateQueryParity:
         assert priority_project_ids == expected_project_ids
 
         for language, project in links:
-            expected = project.wikidata_id in expected_project_ids
+            expected = True
             selected = (
                 db_session.execute(
                     enrichment_candidates_query(languages=[language.wikidata_id])
@@ -1146,13 +1173,51 @@ class TestHasEnrichmentCandidateQueryParity:
     def test_matches_cooldown_ineligible_candidate(
         self, db_session, sample_politician, sample_wikipedia_link
     ):
-        """Recently enriched politicians are excluded until their cooldown elapses."""
-        sample_politician.enriched_at = datetime.now(timezone.utc)
+        """A source for the linked project makes a candidate ineligible."""
+        source = Source(
+            url=sample_wikipedia_link.url,
+            wikipedia_project_id=sample_wikipedia_link.wikipedia_project_id,
+        )
+        source.politicians.append(sample_politician)
+        db_session.add(source)
         db_session.flush()
         self.assert_matches_enrichment_query(db_session, False)
 
-        sample_politician.enriched_at = datetime.now(timezone.utc) - timedelta(
-            days=Politician.get_enrichment_cooldown_days() + 1
-        )
+
+class TestCreateEnrichmentSources:
+    def test_filters_languages_and_does_not_duplicate(
+        self,
+        db_session,
+        sample_politician,
+        sample_wikipedia_link,
+        sample_german_wikipedia_project,
+        create_wikipedia_link,
+    ):
+        create_wikipedia_link(sample_politician, sample_german_wikipedia_project)
         db_session.flush()
-        self.assert_matches_enrichment_query(db_session, True)
+
+        sources = create_enrichment_sources(
+            sample_politician, db_session, languages=["Q1860"]
+        )
+        assert [source.wikipedia_project_id for source in sources] == [
+            sample_wikipedia_link.wikipedia_project_id
+        ]
+        assert (
+            create_enrichment_sources(
+                sample_politician, db_session, languages=["Q1860"]
+            )
+            == []
+        )
+
+    def test_existing_source_blocks_its_project(
+        self, db_session, sample_politician, sample_wikipedia_link
+    ):
+        source = Source(
+            url=sample_wikipedia_link.url,
+            wikipedia_project_id=sample_wikipedia_link.wikipedia_project_id,
+        )
+        source.politicians.append(sample_politician)
+        db_session.add(source)
+        db_session.flush()
+
+        assert create_enrichment_sources(sample_politician, db_session) == []

@@ -4,7 +4,6 @@ import asyncio
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any, List, Optional
 
 from sqlalchemy import select
@@ -46,8 +45,6 @@ def schedule_enrichment(
 ) -> Optional[ScheduledEnrichment]:
     """Pick the next politician and create sources for its Wikipedia links.
 
-    Sets enriched_at immediately to prevent re-selection by other workers.
-
     Returns:
         ScheduledEnrichment if a politician was found, None otherwise.
     """
@@ -60,10 +57,7 @@ def schedule_enrichment(
         .options(
             selectinload(Politician.wikipedia_links),
         )
-        .order_by(
-            Politician.enriched_at.asc().nullsfirst(),
-            Politician.wikidata_id_numeric.desc(),
-        )
+        .order_by(Politician.wikidata_id_numeric.desc())
         .limit(1)
         .with_for_update(skip_locked=True)
     )
@@ -74,7 +68,9 @@ def schedule_enrichment(
         return None
 
     try:
-        sources = create_enrichment_sources(politician, db)
+        sources = create_enrichment_sources(
+            politician, db, languages=None if stateless else languages
+        )
 
         if not sources:
             db.commit()
@@ -97,8 +93,6 @@ def schedule_enrichment(
             f"Error scheduling enrichment for politician {politician.wikidata_id}: {e}"
         )
         db.rollback()
-        politician.enriched_at = datetime.now(timezone.utc)
-        db.commit()
         return None
 
 
@@ -193,7 +187,7 @@ async def enrich_review_buffer(
     Keeps enriching until the number of politicians with unevaluated
     properties reaches MIN_UNEVALUATED_POLITICIANS, or candidates run out.
     Terminates by construction: every pass either fills the buffer or
-    consumes its candidate (enriched_at cooldown).
+    claims a previously unclaimed Wikipedia project source.
 
     Returns:
         Number of politicians enriched.

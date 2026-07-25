@@ -27,7 +27,9 @@ from poliloom.models import (
     Language,
     Location,
     Position,
+    Politician,
     Property,
+    Source,
     WikidataDump,
     WikidataEntity,
 )
@@ -808,11 +810,9 @@ def clean_properties(dry_run):
                     .count()
                 )
                 click.echo(
-                    f"  • [DRY RUN] Would clear enriched_at for {affected_politicians} politicians"
+                    f"  • [DRY RUN] Would remove unreferenced Wikipedia sources for {affected_politicians} politicians"
                 )
             else:
-                from poliloom.models import Politician
-
                 # Get affected politician IDs before deleting properties
                 affected_politician_ids = [
                     row[0]
@@ -837,18 +837,29 @@ def clean_properties(dry_run):
                     .delete(synchronize_session=False)
                 )
 
-                # Clear enriched_at for affected politicians
-                cleared_count = (
-                    session.query(Politician)
-                    .filter(Politician.id.in_(affected_politician_ids))
-                    .update({Politician.enriched_at: None}, synchronize_session=False)
+                # Remove only Wikipedia sources no longer used as provenance. ORM
+                # deletion cleans source_languages; the politician_sources FK cascades.
+                sources_to_delete = (
+                    session.query(Source)
+                    .filter(
+                        Source.wikipedia_project_id.isnot(None),
+                        Source.politicians.any(
+                            Politician.id.in_(affected_politician_ids)
+                        ),
+                        ~Source.property_references.any(),
+                    )
+                    .all()
                 )
+                for source in sources_to_delete:
+                    session.delete(source)
 
                 session.commit()
                 click.echo(
                     f"✅ Successfully deleted {deleted_count} unevaluated extracted properties"
                 )
-                click.echo(f"✅ Cleared enriched_at for {cleared_count} politicians")
+                click.echo(
+                    f"✅ Deleted {len(sources_to_delete)} unreferenced Wikipedia sources"
+                )
 
         except Exception as e:
             session.rollback()

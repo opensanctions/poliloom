@@ -288,8 +288,8 @@ async def get_politician(
     """
     Fetch a single politician by Wikidata QID with all non-deleted properties.
 
-    Triggers enrichment if the politician hasn't been enriched within the
-    cooldown period, scheduling background source processing.
+    Creates sources for unclaimed Wikipedia projects matching the requested
+    languages, scheduling their background processing.
     """
     query = Politician.query_base().where(Politician.wikidata_id == qid)
     not_skipped = ~exists(
@@ -353,9 +353,7 @@ async def get_politician(
     if not politician:
         raise HTTPException(status_code=404, detail="Politician not found")
 
-    new_sources = []
-    if politician.needs_enrichment:
-        new_sources = create_enrichment_sources(politician, db)
+    new_sources = create_enrichment_sources(politician, db, languages=languages or None)
 
     response = build_politician_response(politician)
 

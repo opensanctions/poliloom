@@ -46,7 +46,12 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
 
   const refetchPolitician = useCallback(async (): Promise<Politician | null> => {
     try {
-      const res = await fetch(`/api/politicians/${politician.wikidata_id}`)
+      const searchParams = new URLSearchParams()
+      for (const languageQid of languageQids) {
+        searchParams.append('languages', languageQid)
+      }
+      const qs = searchParams.toString()
+      const res = await fetch(`/api/politicians/${politician.wikidata_id}${qs ? `?${qs}` : ''}`)
       if (!res.ok) return null
       const data: Politician = await res.json()
       setPolitician(data)
@@ -54,7 +59,7 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
     } catch {
       return null
     }
-  }, [politician.wikidata_id])
+  }, [politician.wikidata_id, languageQids])
 
   useEventStream(
     'source_status',

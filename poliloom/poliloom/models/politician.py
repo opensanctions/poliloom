@@ -1,23 +1,18 @@
 """Politician domain models: Politician, WikipediaLink."""
 
-import os
-from datetime import datetime, timedelta, timezone
 from typing import List
 
 from dicttoxml import dicttoxml
 from sqlalchemy import (
     Column,
-    DateTime,
     ForeignKey,
     Index,
     Integer,
     String,
-    or_,
     select,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 from .base import (
     Base,
@@ -59,9 +54,6 @@ class Politician(
         String, ForeignKey("wikidata_entities.wikidata_id"), unique=True, index=True
     )
     wikidata_id_numeric = Column(Integer, nullable=True, index=True)
-    enriched_at = Column(
-        DateTime(timezone=True), nullable=True
-    )  # Timestamp of last enrichment attempt
 
     def get_properties_by_types(
         self, property_types: List[PropertyType]
@@ -186,45 +178,6 @@ class Politician(
         session.add(politician)
 
         return politician
-
-    @staticmethod
-    def get_enrichment_cooldown_days() -> int:
-        """
-        Get the enrichment cooldown period in days.
-
-        Uses ENRICHMENT_COOLDOWN_DAYS environment variable (default: 365).
-
-        Returns:
-            int: The cooldown period in days
-        """
-        return int(os.getenv("ENRICHMENT_COOLDOWN_DAYS", "365"))
-
-    @staticmethod
-    def get_enrichment_cooldown_cutoff() -> datetime:
-        """
-        Get the cutoff datetime for enrichment cooldown period.
-
-        Uses ENRICHMENT_COOLDOWN_DAYS environment variable (default: 365).
-
-        Returns:
-            datetime: The cutoff date - politicians enriched after this are considered "recently enriched"
-        """
-        cooldown_days = Politician.get_enrichment_cooldown_days()
-        return datetime.now(timezone.utc) - timedelta(days=cooldown_days)
-
-    @hybrid_property
-    def needs_enrichment(self) -> bool:
-        if self.enriched_at is None:
-            return True
-        return self.enriched_at < self.get_enrichment_cooldown_cutoff()
-
-    @needs_enrichment.expression
-    def needs_enrichment(cls):
-        cutoff = cls.get_enrichment_cooldown_cutoff()
-        return or_(
-            cls.enriched_at.is_(None),
-            cls.enriched_at < cutoff,
-        )
 
     @classmethod
     def query_base(cls):

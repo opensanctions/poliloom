@@ -1,5 +1,6 @@
 """API endpoint for community statistics."""
 
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
@@ -9,12 +10,22 @@ from sqlalchemy import and_, case, exists, func, literal, literal_column, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db_session
-from ..models import Evaluation, Politician, Property, PropertyReference
+from ..models import Evaluation, Politician, Property, PropertyReference, Source
+from ..models.source import PoliticianSource
 from ..models.base import PropertyType
 from ..models.wikidata import WikidataEntity
 from .auth import User, get_current_user
 
 router = APIRouter()
+
+
+def get_enrichment_cooldown_days() -> int:
+    """Return the stats coverage window in days."""
+    return int(os.getenv("ENRICHMENT_COOLDOWN_DAYS", "365"))
+
+
+def get_enrichment_cooldown_cutoff() -> datetime:
+    return datetime.now(timezone.utc) - timedelta(days=get_enrichment_cooldown_days())
 
 
 class EvaluationCountResponse(BaseModel):
@@ -74,8 +85,8 @@ async def get_stats(
     - country_coverage: For each country (+ stateless), enriched politicians and evaluation counts
     - cooldown_days: The current cooldown period setting in days
     """
-    cooldown_days = Politician.get_enrichment_cooldown_days()
-    cooldown_cutoff = Politician.get_enrichment_cooldown_cutoff()
+    cooldown_days = get_enrichment_cooldown_days()
+    cooldown_cutoff = get_enrichment_cooldown_cutoff()
 
     # 1. Evaluations timeseries - weeks within cooldown period
     # Generate all weeks in the range, then fill with data
@@ -148,6 +159,15 @@ async def get_stats(
 
     # Alias for country WikidataEntity (to avoid conflict with politician's entity)
     country_entity = WikidataEntity.__table__.alias("country_entity")
+    enriched_recently = exists(
+        select(1)
+        .select_from(PoliticianSource)
+        .join(Source, Source.id == PoliticianSource.source_id)
+        .where(
+            PoliticianSource.politician_id == Politician.id,
+            Source.fetch_timestamp >= cooldown_cutoff,
+        )
+    )
 
     # Main query: Start from ALL politicians, LEFT JOIN to citizenship
     # Use conditional counting for enriched and evaluated
@@ -158,11 +178,9 @@ async def get_stats(
                 "name"
             ),
             func.count(func.distinct(Politician.id)).label("total_count"),
-            func.count(
-                func.distinct(
-                    case((Politician.enriched_at >= cooldown_cutoff, Politician.id))
-                )
-            ).label("enriched_count"),
+            func.count(func.distinct(case((enriched_recently, Politician.id)))).label(
+                "enriched_count"
+            ),
             func.count(
                 func.distinct(
                     case(
