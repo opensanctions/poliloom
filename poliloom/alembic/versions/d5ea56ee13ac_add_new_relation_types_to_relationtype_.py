@@ -6,16 +6,15 @@ Create Date: 2025-09-10 14:01:03.404584
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 # revision identifiers, used by Alembic.
 revision: str = "d5ea56ee13ac"
-down_revision: Union[str, None] = "dd9ba46e21cd"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "dd9ba46e21cd"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -33,4 +32,3 @@ def downgrade() -> None:
     # Note: PostgreSQL does not support removing enum values directly
     # This would require recreating the enum type and updating all references
     # For this migration, we'll leave the enum values in place on downgrade
-    pass

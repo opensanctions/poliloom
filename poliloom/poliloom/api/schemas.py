@@ -1,7 +1,9 @@
 """Pydantic schemas for API responses."""
 
-from typing import Annotated, List, Literal, Optional, Dict, Any, Union
+from datetime import datetime
+from typing import Annotated, Any, Literal
 from uuid import UUID
+
 from pydantic import (
     AliasChoices,
     BaseModel,
@@ -12,7 +14,7 @@ from pydantic import (
     field_serializer,
     field_validator,
 )
-from datetime import datetime
+
 from ..models import PropertyType
 
 
@@ -31,12 +33,12 @@ class SourceResponse(UUIDBaseModel):
 
     id: UUID
     url: str
-    url_hash: Optional[str] = None
-    fetch_timestamp: Optional[datetime] = None
+    url_hash: str | None = None
+    fetch_timestamp: datetime | None = None
     status: str
-    error: Optional[str] = None
-    http_status_code: Optional[int] = None
-    language_qids: List[str] = Field(
+    error: str | None = None
+    http_status_code: int | None = None
+    language_qids: list[str] = Field(
         default_factory=list,
         validation_alias=AliasChoices("language_qids", "source_languages"),
     )
@@ -65,7 +67,7 @@ class PropertyReferenceResponse(UUIDBaseModel):
 
     id: UUID
     source: SourceResponse
-    supporting_quotes: Optional[List[str]] = None
+    supporting_quotes: list[str] | None = None
 
 
 class PropertyResponse(UUIDBaseModel):
@@ -73,14 +75,14 @@ class PropertyResponse(UUIDBaseModel):
 
     id: UUID
     type: PropertyType
-    value: Optional[str] = None
-    value_precision: Optional[int] = None
-    entity_id: Optional[str] = None
-    entity_name: Optional[str] = None  # Add for frontend convenience
-    statement_id: Optional[str] = None
-    qualifiers: Optional[Dict[str, Any]] = None
-    references: Optional[List[Dict[str, Any]]] = None
-    sources: List[PropertyReferenceResponse] = []
+    value: str | None = None
+    value_precision: int | None = None
+    entity_id: str | None = None
+    entity_name: str | None = None  # Add for frontend convenience
+    statement_id: str | None = None
+    qualifiers: dict[str, Any] | None = None
+    references: list[dict[str, Any]] | None = None
+    sources: list[PropertyReferenceResponse] = []
 
     @field_serializer("type")
     def serialize_property_type(self, value: PropertyType) -> str:
@@ -93,9 +95,9 @@ class PoliticianResponse(UUIDBaseModel):
 
     id: UUID
     name: str
-    wikidata_id: Optional[str] = None
-    sources: List[SourceResponse] = []
-    properties: List[PropertyResponse]  # Single flat list
+    wikidata_id: str | None = None
+    sources: list[SourceResponse] = []
+    properties: list[PropertyResponse]  # Single flat list
 
 
 class EnrichmentMetadata(BaseModel):
@@ -107,7 +109,7 @@ class EnrichmentMetadata(BaseModel):
 class NextPoliticianResponse(BaseModel):
     """Response for next politician endpoint - lightweight, returns only QID."""
 
-    wikidata_id: Optional[str] = None
+    wikidata_id: str | None = None
     meta: EnrichmentMetadata
 
 
@@ -129,19 +131,17 @@ class SkipPropertyItem(BaseModel):
 class CreatePropertyItem(BaseModel):
     action: Literal["create"]
     type: str
-    value: Optional[str] = None
-    value_precision: Optional[int] = None
-    entity_id: Optional[str] = None
-    qualifiers: Optional[Dict[str, Any]] = None
+    value: str | None = None
+    value_precision: int | None = None
+    entity_id: str | None = None
+    qualifiers: dict[str, Any] | None = None
 
 
 PropertyActionItem = Annotated[
-    Union[
-        Annotated[AcceptPropertyItem, Tag("accept")],
-        Annotated[RejectPropertyItem, Tag("reject")],
-        Annotated[SkipPropertyItem, Tag("skip")],
-        Annotated[CreatePropertyItem, Tag("create")],
-    ],
+    Annotated[AcceptPropertyItem, Tag("accept")]
+    | Annotated[RejectPropertyItem, Tag("reject")]
+    | Annotated[SkipPropertyItem, Tag("skip")]
+    | Annotated[CreatePropertyItem, Tag("create")],
     Discriminator("action"),
 ]
 
@@ -149,7 +149,7 @@ PropertyActionItem = Annotated[
 class PatchPropertiesRequest(BaseModel):
     """Request body for PATCH /politicians/{qid}/properties."""
 
-    items: List[PropertyActionItem]
+    items: list[PropertyActionItem]
 
 
 class PatchPropertiesResponse(BaseModel):
@@ -157,7 +157,7 @@ class PatchPropertiesResponse(BaseModel):
 
     success: bool
     message: str
-    errors: List[str] = []
+    errors: list[str] = []
 
 
 class CreateSourceRequest(BaseModel):
@@ -176,9 +176,9 @@ class CreatePoliticianResponse(BaseModel):
     """Response for POST /politicians."""
 
     success: bool
-    wikidata_id: Optional[str] = None
+    wikidata_id: str | None = None
     message: str
-    errors: List[str] = []
+    errors: list[str] = []
 
 
 class LanguageResponse(BaseModel):
@@ -186,9 +186,9 @@ class LanguageResponse(BaseModel):
 
     wikidata_id: str
     name: str
-    description: Optional[str] = None
-    iso_639_1: Optional[str] = None
-    iso_639_3: Optional[str] = None
+    description: str | None = None
+    iso_639_1: str | None = None
+    iso_639_3: str | None = None
     sources_count: int
 
     model_config = ConfigDict(from_attributes=True)
@@ -199,7 +199,7 @@ class CountryResponse(BaseModel):
 
     wikidata_id: str
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     citizenships_count: int
 
     model_config = ConfigDict(from_attributes=True)
@@ -210,7 +210,7 @@ class EntitySearchResponse(BaseModel):
 
     wikidata_id: str
     name: str
-    description: Optional[str] = None
+    description: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -229,7 +229,7 @@ class UserSettingsResponse(BaseModel):
 class UserSettingsPatch(BaseModel):
     """Partial settings update body for PATCH /settings."""
 
-    advanced_mode: Optional[bool] = None
-    basic_tutorial_completed: Optional[bool] = None
-    advanced_tutorial_completed: Optional[bool] = None
-    stats_unlocked: Optional[bool] = None
+    advanced_mode: bool | None = None
+    basic_tutorial_completed: bool | None = None
+    advanced_tutorial_completed: bool | None = None
+    stats_unlocked: bool | None = None

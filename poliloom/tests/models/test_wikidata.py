@@ -1,8 +1,10 @@
 """Tests for WikidataEntity model."""
 
+from datetime import UTC
+
 from sqlalchemy.dialects.postgresql import insert
 
-from poliloom.models import WikidataEntity, WikidataRelation, RelationType
+from poliloom.models import RelationType, WikidataEntity, WikidataRelation
 from poliloom.models.wikidata import WikidataEntityMixin
 
 
@@ -379,6 +381,7 @@ class TestCleanupOutsideHierarchy:
     def _create_position_in_hierarchy(self, db_session, position_id, class_id):
         """Helper to create a position that is an instance of a hierarchy class."""
         from sqlalchemy.dialects.postgresql import insert
+
         from poliloom.models import Position
 
         # Create wikidata entity for the position
@@ -411,6 +414,7 @@ class TestCleanupOutsideHierarchy:
     def _create_orphan_position(self, db_session, position_id):
         """Helper to create a position with no hierarchy relations."""
         from sqlalchemy.dialects.postgresql import insert
+
         from poliloom.models import Position
 
         # Create wikidata entity
@@ -428,8 +432,9 @@ class TestCleanupOutsideHierarchy:
 
     def test_removes_entities_outside_hierarchy(self, db_session):
         """Test that entities without hierarchy relations are removed."""
-        from poliloom.models import Position
         from sqlalchemy import text
+
+        from poliloom.models import Position
 
         # Create a position hierarchy root (Q4164871 is in Position._hierarchy_roots)
         self._create_hierarchy(db_session, "Q4164871", ["Q100"])
@@ -460,8 +465,9 @@ class TestCleanupOutsideHierarchy:
 
     def test_keeps_entities_inside_hierarchy(self, db_session):
         """Test that entities with proper hierarchy relations are kept."""
-        from poliloom.models import Position
         from sqlalchemy import text
+
+        from poliloom.models import Position
 
         # Create hierarchy
         self._create_hierarchy(db_session, "Q4164871", ["Q100", "Q101"])
@@ -482,8 +488,9 @@ class TestCleanupOutsideHierarchy:
 
     def test_preview_does_not_modify(self, db_session):
         """Test that preview_outside_hierarchy returns stats but doesn't delete anything."""
-        from poliloom.models import Position
         from sqlalchemy import text
+
+        from poliloom.models import Position
 
         # Create hierarchy
         self._create_hierarchy(db_session, "Q4164871", ["Q100"])
@@ -505,8 +512,9 @@ class TestCleanupOutsideHierarchy:
 
     def test_removes_entities_in_ignored_branches(self, db_session):
         """Test that entities in ignored hierarchy branches are removed."""
-        from poliloom.models import Position
         from sqlalchemy import text
+
+        from poliloom.models import Position
 
         # Create main hierarchy
         self._create_hierarchy(db_session, "Q4164871", ["Q100"])
@@ -539,8 +547,9 @@ class TestCleanupOutsideHierarchy:
 
     def test_soft_deletes_properties_referencing_removed_entities(self, db_session):
         """Test that properties referencing removed entities are soft-deleted."""
-        from poliloom.models import Position, Property, PropertyType, Politician
         from sqlalchemy import text
+
+        from poliloom.models import Politician, Position, Property, PropertyType
 
         # Create hierarchy
         self._create_hierarchy(db_session, "Q4164871", ["Q100"])
@@ -603,8 +612,9 @@ class TestCleanupOutsideHierarchy:
 
     def test_entity_in_both_valid_and_ignored_branch_is_removed(self, db_session):
         """Test that entity in both valid and ignored branches is removed (ignored wins)."""
-        from poliloom.models import Position
         from sqlalchemy import text
+
+        from poliloom.models import Position
 
         # Create valid hierarchy branch
         self._create_hierarchy(db_session, "Q4164871", ["Q100"])
@@ -658,8 +668,9 @@ class TestCleanupOutsideHierarchy:
 
     def test_ignored_branch_within_valid_hierarchy(self, db_session):
         """Test ignored branch that's a descendant of a valid root."""
-        from poliloom.models import Position
         from sqlalchemy import text
+
+        from poliloom.models import Position
 
         # Create hierarchy: Q4164871 -> Q100 -> Q12737077 (ignored) -> Q500
         # Q12737077 is in Position._hierarchy_ignore
@@ -715,8 +726,9 @@ class TestCleanupOutsideHierarchy:
 
     def test_multiple_roots_keeps_entities_from_all_roots(self, db_session):
         """Test cleanup with multiple hierarchy roots keeps entities from all roots."""
-        from poliloom.models import Position
         from sqlalchemy import text
+
+        from poliloom.models import Position
 
         # Position has multiple roots: Q4164871, Q29645880, Q29918328, Q707492
         # Create hierarchies for two of them
@@ -749,8 +761,9 @@ class TestCleanupOutsideHierarchy:
 
     def test_deep_ignored_hierarchy(self, db_session):
         """Test that entities deep in ignored hierarchy are removed."""
-        from poliloom.models import Position
         from sqlalchemy import text
+
+        from poliloom.models import Position
 
         # Create valid hierarchy
         self._create_hierarchy(db_session, "Q4164871", ["Q100"])
@@ -813,8 +826,9 @@ class TestCleanupOutsideHierarchy:
 
     def test_entity_with_subclass_relation_to_hierarchy(self, db_session):
         """Test that SUBCLASS_OF relation also counts as being in hierarchy."""
-        from poliloom.models import Position
         from sqlalchemy import text
+
+        from poliloom.models import Position
 
         # Create hierarchy
         self._create_hierarchy(db_session, "Q4164871", ["Q100"])
@@ -1065,7 +1079,7 @@ class TestSearchIndexQuery:
 
     def test_returns_entity_with_multiple_types(self, db_session):
         """Test query aggregates multiple types for same entity."""
-        from poliloom.models import Location, Country
+        from poliloom.models import Country, Location
 
         # Germany is both a Location and a Country
         self._create_entity_with_labels(
@@ -1111,7 +1125,7 @@ class TestSearchIndexQuery:
 
     def test_excludes_soft_deleted_entities(self, db_session):
         """Test query excludes soft-deleted entities."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         self._create_location(db_session, "Q60", "New York City", ["NYC"])
         self._create_location(db_session, "Q84", "London", ["London"])
@@ -1120,7 +1134,7 @@ class TestSearchIndexQuery:
         db_session.execute(
             WikidataEntity.__table__.update()
             .where(WikidataEntity.wikidata_id == "Q84")
-            .values(deleted_at=datetime.now(timezone.utc))
+            .values(deleted_at=datetime.now(UTC))
         )
         db_session.flush()
 

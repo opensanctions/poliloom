@@ -1,36 +1,37 @@
 """Simplified enrichment module for extracting politician data from Wikipedia using LLM."""
 
-import os
-import logging
 import asyncio
+import logging
+import os
 from dataclasses import dataclass
-from typing import List, Optional, Literal, Type, Union, Any
-from sqlalchemy.orm import Session, selectinload
-from openai import AsyncOpenAI
-from pydantic import BaseModel, Field, field_validator, create_model
-from dicttoxml import dicttoxml
+from typing import Any, Literal, Optional
 
+from dicttoxml import dicttoxml
+from openai import AsyncOpenAI
+from pydantic import BaseModel, Field, create_model, field_validator
+from sqlalchemy.orm import Session, selectinload
+
+from . import prompts
 from .models import (
+    Country,
+    Location,
     Politician,
+    Position,
     Property,
     PropertyReference,
     PropertyType,
-    Position,
-    Location,
-    Country,
     Source,
-    WikidataRelation,
     WikidataEntity,
+    WikidataRelation,
 )
 from .wikidata.date import WikidataDate
-from . import prompts
 
 logger = logging.getLogger(__name__)
 
 
 def create_qualifiers_json_for_position(
-    start_date: Optional[str] = None, end_date: Optional[str] = None
-) -> Optional[dict]:
+    start_date: str | None = None, end_date: str | None = None
+) -> dict | None:
     """Create qualifiers_json for a position with start and end dates using WikidataDate."""
     if not start_date and not end_date:
         return None
@@ -55,7 +56,7 @@ def create_qualifiers_json_for_position(
 class QuotedExtraction(BaseModel):
     """Base for all extractions that carry supporting quotes."""
 
-    supporting_quotes: List[str] = Field(
+    supporting_quotes: list[str] = Field(
         description="Exact verbatim excerpts from the source, without any added formatting"
     )
 
@@ -76,12 +77,12 @@ class ExtractedPosition(QuotedExtraction):
     """Schema for extracted position data."""
 
     wikidata_id: str
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
+    start_date: str | None = None
+    end_date: str | None = None
 
     @field_validator("start_date", "end_date")
     @classmethod
-    def validate_dates(cls, v: Optional[str]) -> Optional[str]:
+    def validate_dates(cls, v: str | None) -> str | None:
         if v is None:
             return None
         return WikidataDate.validate_date_format(v)
@@ -96,19 +97,19 @@ class ExtractedBirthplace(QuotedExtraction):
 class PropertyExtractionResult(BaseModel):
     """Response model for property extraction."""
 
-    properties: Optional[List[ExtractedProperty]]
+    properties: list[ExtractedProperty] | None
 
 
 class FreeFormPosition(QuotedExtraction):
     """Free-form position extracted before mapping to Wikidata."""
 
     name: str
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
+    start_date: str | None = None
+    end_date: str | None = None
 
     @field_validator("start_date", "end_date")
     @classmethod
-    def validate_dates(cls, v: Optional[str]) -> Optional[str]:
+    def validate_dates(cls, v: str | None) -> str | None:
         if v is None:
             return None
         return WikidataDate.validate_date_format(v)
@@ -117,7 +118,7 @@ class FreeFormPosition(QuotedExtraction):
 class FreeFormPositionResult(BaseModel):
     """Response model for free-form position extraction."""
 
-    positions: Optional[List[FreeFormPosition]]
+    positions: list[FreeFormPosition] | None
 
 
 class FreeFormBirthplace(QuotedExtraction):
@@ -129,7 +130,7 @@ class FreeFormBirthplace(QuotedExtraction):
 class FreeFormBirthplaceResult(BaseModel):
     """Response model for free-form birthplace extraction."""
 
-    birthplaces: Optional[List[FreeFormBirthplace]]
+    birthplaces: list[FreeFormBirthplace] | None
 
 
 class FreeFormCitizenship(QuotedExtraction):
@@ -141,7 +142,7 @@ class FreeFormCitizenship(QuotedExtraction):
 class FreeFormCitizenshipResult(BaseModel):
     """Response model for free-form citizenship extraction."""
 
-    citizenships: Optional[List[FreeFormCitizenship]]
+    citizenships: list[FreeFormCitizenship] | None
 
 
 class ExtractedCitizenship(QuotedExtraction):
@@ -154,9 +155,9 @@ class ExtractedCitizenship(QuotedExtraction):
 class ExtractionConfig:
     """Base configuration for property extraction."""
 
-    property_types: List[PropertyType]
+    property_types: list[PropertyType]
     system_prompt: str
-    result_model: Type[BaseModel]
+    result_model: type[BaseModel]
     user_prompt_template: str
     analysis_focus_template: str
     result_field_name: str = "properties"  # Field name in result model
@@ -166,9 +167,9 @@ class ExtractionConfig:
 class TwoStageExtractionConfig(ExtractionConfig):
     """Configuration for two-stage extraction (free-form -> mapping)."""
 
-    entity_class: Type[Union[Position, Location, Country]] = None
+    entity_class: type[Position | Location | Country] = None
     mapping_system_prompt: str = ""  # System prompt for mapping stage
-    final_model: Type[BaseModel] = None
+    final_model: type[BaseModel] = None
     search_limit: int = 100  # Number of candidates to retrieve for mapping
 
 
@@ -177,7 +178,7 @@ async def extract_properties_generic(
     content: str,
     politician: Politician,
     config: ExtractionConfig,
-) -> Optional[List[Any]]:
+) -> list[Any] | None:
     """Generic property extraction using provided configuration."""
     try:
         # Build comprehensive politician context
@@ -228,7 +229,7 @@ async def _map_single_item(
     free_item: Any,
     politician: Politician,
     config: TwoStageExtractionConfig,
-) -> Optional[Any]:
+) -> Any | None:
     """Helper function to map a single free-form item to Wikidata entity.
 
     Args:
@@ -340,7 +341,7 @@ async def extract_two_stage_generic(
     content: str,
     politician: Politician,
     config: TwoStageExtractionConfig,
-) -> Optional[List[Any]]:
+) -> list[Any] | None:
     """Generic two-stage extraction (free-form -> mapping).
 
     Args:
@@ -398,12 +399,12 @@ async def extract_two_stage_generic(
 async def map_to_wikidata_entity(
     openai_client: AsyncOpenAI,
     extracted_name: str,
-    supporting_quotes: List[str],
-    candidate_entities: List[dict],
+    supporting_quotes: list[str],
+    candidate_entities: list[dict],
     politician: Politician,
     entity_type: str,
     system_prompt: str,
-) -> Optional[str]:
+) -> str | None:
     """Generic mapping function for positions and locations."""
     try:
         # Create dynamic model with candidate entity QIDs
@@ -596,10 +597,10 @@ def store_extracted_data(
     db: Session,
     politician: Politician,
     source: Source,
-    properties: Optional[List[ExtractedProperty]],
-    positions: Optional[List[ExtractedPosition]],
-    birthplaces: Optional[List[ExtractedBirthplace]],
-    citizenships: Optional[List[ExtractedCitizenship]],
+    properties: list[ExtractedProperty] | None,
+    positions: list[ExtractedPosition] | None,
+    birthplaces: list[ExtractedBirthplace] | None,
+    citizenships: list[ExtractedCitizenship] | None,
 ) -> bool:
     """Store extracted data in the database."""
     try:
@@ -608,30 +609,30 @@ def store_extracted_data(
 
         for p in properties or []:
             wd = WikidataDate.from_date_string(p.value)
-            kwargs = dict(
-                type=p.type,
-                value=wd.time_string,
-                value_precision=wd.precision,
-            )
+            kwargs = {
+                "type": p.type,
+                "value": wd.time_string,
+                "value_precision": wd.precision,
+            }
             items.append((kwargs, p.supporting_quotes, f"{p.type} = '{p.value}'"))
 
         for pos in positions or []:
             qualifiers_json = create_qualifiers_json_for_position(
                 pos.start_date, pos.end_date
             )
-            kwargs = dict(
-                type=PropertyType.POSITION,
-                entity_id=pos.wikidata_id,
-                qualifiers_json=qualifiers_json,
-            )
+            kwargs = {
+                "type": PropertyType.POSITION,
+                "entity_id": pos.wikidata_id,
+                "qualifiers_json": qualifiers_json,
+            }
             items.append((kwargs, pos.supporting_quotes, f"position {pos.wikidata_id}"))
 
         for bp in birthplaces or []:
-            kwargs = dict(type=PropertyType.BIRTHPLACE, entity_id=bp.wikidata_id)
+            kwargs = {"type": PropertyType.BIRTHPLACE, "entity_id": bp.wikidata_id}
             items.append((kwargs, bp.supporting_quotes, f"birthplace {bp.wikidata_id}"))
 
         for cit in citizenships or []:
-            kwargs = dict(type=PropertyType.CITIZENSHIP, entity_id=cit.wikidata_id)
+            kwargs = {"type": PropertyType.CITIZENSHIP, "entity_id": cit.wikidata_id}
             items.append(
                 (kwargs, cit.supporting_quotes, f"citizenship {cit.wikidata_id}")
             )

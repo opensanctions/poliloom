@@ -1,12 +1,13 @@
 """Tests for MediaWiki OAuth authentication."""
 
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from jwt.exceptions import PyJWTError
 
-from poliloom.api.auth import MediaWikiOAuth, get_current_user, get_optional_user, User
+from poliloom.api.auth import MediaWikiOAuth, User, get_current_user, get_optional_user
 
 
 class TestMediaWikiOAuth:
@@ -211,6 +212,7 @@ class TestAuthIntegration:
     def test_protected_endpoints_require_auth(self, client):
         """Test that protected endpoints reject requests without auth."""
         from fastapi.testclient import TestClient
+
         from poliloom.api import app
 
         # Create client without database override for this test

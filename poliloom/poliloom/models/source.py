@@ -2,8 +2,9 @@
 
 import hashlib
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
+
 from sqlalchemy import (
     CheckConstraint,
     Column,
@@ -14,6 +15,8 @@ from sqlalchemy import (
     event,
     select,
     text,
+)
+from sqlalchemy import (
     Enum as SQLEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -101,7 +104,7 @@ class Source(Base, TimestampMixin):
     fetch_timestamp = Column(
         DateTime(timezone=True),
         nullable=True,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
     )
     user_id = Column(
         String, nullable=True, index=True

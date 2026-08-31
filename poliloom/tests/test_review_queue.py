@@ -1,6 +1,6 @@
 """Tests for the claim-based politician review queue."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from poliloom.models import (
     Politician,
@@ -38,7 +38,7 @@ class TestReviewQueue:
                 type=PropertyType.BIRTH_DATE,
                 value="1980-01-01",
                 value_precision=11,
-                deleted_at=datetime.now(timezone.utc),
+                deleted_at=datetime.now(UTC),
             )
         )
         db_session.flush()
@@ -155,9 +155,7 @@ class TestReviewQueue:
                     .filter(Politician.wikidata_id == served[-1])
                     .one()
                 )
-                claim.claimed_at = datetime.now(timezone.utc) - timedelta(
-                    minutes=3 - index
-                )
+                claim.claimed_at = datetime.now(UTC) - timedelta(minutes=3 - index)
                 db_session.commit()
         assert set(served) == {politician.wikidata_id for politician in politicians}
 
@@ -183,7 +181,7 @@ class TestReviewQueue:
         assert claim_next(db_session, "user-a", ["Q1860"]) is None
 
         claim = db_session.query(PropertyClaim).filter_by(property_id=prop.id).one()
-        claim.claimed_at = datetime.now(timezone.utc) - timedelta(hours=1)
+        claim.claimed_at = datetime.now(UTC) - timedelta(hours=1)
         db_session.commit()
         assert claim_next(db_session, "user-b", ["Q1860"]) == "Q123456"
         assert (

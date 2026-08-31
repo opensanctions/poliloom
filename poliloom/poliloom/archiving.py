@@ -3,8 +3,7 @@
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
@@ -12,7 +11,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 from unmhtml import MHTMLConverter
 
-from . import __version__, __repo_url__
+from . import __repo_url__, __version__
 from .enrichment import extract_and_store
 from .models import (
     Language,
@@ -39,8 +38,8 @@ class PageFetchError(Exception):
     def __init__(
         self,
         message: str,
-        http_status_code: Optional[int] = None,
-        error_type: Optional[str] = None,
+        http_status_code: int | None = None,
+        error_type: str | None = None,
     ):
         super().__init__(message)
         self.http_status_code = http_status_code
@@ -52,10 +51,10 @@ class FetchedPage:
     """Result of fetching a web page."""
 
     mhtml: str
-    html: Optional[str]
+    html: str | None
 
 
-def convert_mhtml_to_html(mhtml_content: Optional[str]) -> Optional[str]:
+def convert_mhtml_to_html(mhtml_content: str | None) -> str | None:
     """Convert MHTML content to HTML, returning None on failure."""
     if not mhtml_content:
         return None
@@ -84,8 +83,10 @@ async def fetch_page(url: str) -> FetchedPage:
         PageFetchError: If the page cannot be fetched (timeout, network error, HTTP error)
     """
     from playwright.async_api import (
-        TimeoutError as PlaywrightTimeoutError,
         Error as PlaywrightError,
+    )
+    from playwright.async_api import (
+        TimeoutError as PlaywrightTimeoutError,
     )
 
     async with async_playwright() as p:
@@ -196,7 +197,7 @@ def save_archived_content(
 # --- Source processing ---
 
 
-def extract_permanent_url(html_content: str) -> Optional[str]:
+def extract_permanent_url(html_content: str) -> str | None:
     """Extract Wikipedia permanent URL with oldid from HTML content.
 
     Uses the Wikipedia sidebar's permanent link element (id="t-permalink") to extract
@@ -290,7 +291,7 @@ async def process_source(db: Session, source: Source, politician: Politician) ->
     try:
         # Fetch & archive
         fetched = await fetch_page(source.url)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if source.wikipedia_project_id and fetched.html:
             permanent_url = extract_permanent_url(fetched.html)

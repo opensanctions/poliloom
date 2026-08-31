@@ -1,20 +1,20 @@
 """Tests for WikidataPoliticianImporter."""
 
-from poliloom.models import (
-    Politician,
-    Position,
-    Location,
-    Property,
-    PropertyType,
-    WikipediaLink,
-)
 from poliloom.importer.politician import (
     _insert_politicians_batch,
     _is_politician,
     _should_import_politician,
 )
-from poliloom.wikidata.entity_processor import WikidataEntityProcessor
+from poliloom.models import (
+    Location,
+    Politician,
+    Position,
+    Property,
+    PropertyType,
+    WikipediaLink,
+)
 from poliloom.wikidata.date import WikidataDate
+from poliloom.wikidata.entity_processor import WikidataEntityProcessor
 
 
 class TestWikidataPoliticianImporter:

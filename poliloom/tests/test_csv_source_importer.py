@@ -8,13 +8,13 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from poliloom.database import get_engine
-from poliloom.models import Politician, Source
 from poliloom.importer.csv_source import (
     MissingPoliticiansError,
     _run_extractions,
     import_csv_sources,
     parse_csv_file,
 )
+from poliloom.models import Politician, Source
 
 
 @pytest.fixture
@@ -197,12 +197,14 @@ class TestImportCsvSources:
         path = tmp_path / "sources.csv"
         path.write_text("qid,url\nQ42,https://example.com\nQ999,https://example.org\n")
 
-        with patch(
-            "poliloom.importer.csv_source.process_source_task",
-            new_callable=AsyncMock,
-        ) as mock_process:
-            with pytest.raises(MissingPoliticiansError) as exc_info:
-                import_csv_sources(str(path))
+        with (
+            patch(
+                "poliloom.importer.csv_source.process_source_task",
+                new_callable=AsyncMock,
+            ) as mock_process,
+            pytest.raises(MissingPoliticiansError) as exc_info,
+        ):
+            import_csv_sources(str(path))
 
         assert exc_info.value.qids == ["Q999"]
         mock_process.assert_not_called()

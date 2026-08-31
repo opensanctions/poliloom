@@ -1,8 +1,7 @@
 """Base classes, mixins, and enums for PoliLoom models."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import List
 
 from sqlalchemy import Column, DateTime, String, func
 from sqlalchemy.dialects.postgresql import insert
@@ -63,7 +62,7 @@ class SoftDeleteMixin:
 
     def soft_delete(self):
         """Mark the entity as deleted by setting the deleted_at timestamp."""
-        self.deleted_at = datetime.now(timezone.utc)
+        self.deleted_at = datetime.now(UTC)
 
 
 class UpsertMixin:
@@ -77,7 +76,7 @@ class UpsertMixin:
     _upsert_index_where = None
 
     @classmethod
-    def upsert_batch(cls, session: Session, data: List[dict], returning_columns=None):
+    def upsert_batch(cls, session: Session, data: list[dict], returning_columns=None):
         """
         Upsert a batch of records.
 
@@ -132,8 +131,8 @@ class EntityCreationMixin:
         session,
         wikidata_id: str,
         name: str,
-        labels: List[str] = None,
-        description: str = None,
+        labels: list[str] | None = None,
+        description: str | None = None,
     ):
         """Create an entity with its associated WikidataEntity.
 

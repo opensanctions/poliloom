@@ -1,16 +1,22 @@
 """Test configuration and fixtures for PoliLoom tests."""
 
 import hashlib
-import orjson
-import pytest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock as SyncMock, patch
+from unittest.mock import AsyncMock, patch
+from unittest.mock import Mock as SyncMock
 
+import orjson
+import pytest
+from sqlalchemy.orm import Session
+
+from poliloom.database import (
+    create_import_tracking_triggers,
+    create_timestamp_triggers,
+    get_engine,
+)
 from poliloom.models import (
-    Source,
-    SourceLanguage,
     Base,
     Country,
     Language,
@@ -18,11 +24,10 @@ from poliloom.models import (
     Politician,
     Position,
     PropertyReference,
+    Source,
+    SourceLanguage,
     WikipediaLink,
 )
-from poliloom.database import get_engine
-from sqlalchemy.orm import Session
-from poliloom.database import create_timestamp_triggers, create_import_tracking_triggers
 
 
 @pytest.fixture(autouse=True)
@@ -260,7 +265,7 @@ def sample_source(db_session):
     source = Source(
         url="https://en.wikipedia.org/wiki/Test_Page",
         url_hash="test123",
-        fetch_timestamp=datetime.now(timezone.utc),
+        fetch_timestamp=datetime.now(UTC),
     )
     db_session.add(source)
     db_session.flush()
@@ -288,7 +293,7 @@ def create_source(db_session):
         source = Source(
             url=url,
             url_hash=url_hash,
-            fetch_timestamp=datetime.now(timezone.utc),
+            fetch_timestamp=datetime.now(UTC),
         )
         db_session.add(source)
         db_session.flush()
@@ -310,7 +315,7 @@ def create_source(db_session):
 @pytest.fixture
 def sample_wikipedia_project(db_session, sample_language):
     """Return a created English Wikipedia project entity with LANGUAGE_OF_WORK relation."""
-    from poliloom.models import WikipediaProject, WikidataRelation, RelationType
+    from poliloom.models import RelationType, WikidataRelation, WikipediaProject
 
     wp = WikipediaProject.create_with_entity(db_session, "Q328", "English Wikipedia")
     wp.official_website = "https://en.wikipedia.org"
@@ -330,7 +335,7 @@ def sample_wikipedia_project(db_session, sample_language):
 @pytest.fixture
 def sample_german_wikipedia_project(db_session, sample_german_language):
     """Return a created German Wikipedia project entity with LANGUAGE_OF_WORK relation."""
-    from poliloom.models import WikipediaProject, WikidataRelation, RelationType
+    from poliloom.models import RelationType, WikidataRelation, WikipediaProject
 
     wp = WikipediaProject.create_with_entity(db_session, "Q48183", "German Wikipedia")
     wp.official_website = "https://de.wikipedia.org"
@@ -350,7 +355,7 @@ def sample_german_wikipedia_project(db_session, sample_german_language):
 @pytest.fixture
 def sample_french_wikipedia_project(db_session, sample_french_language):
     """Return a created French Wikipedia project entity with LANGUAGE_OF_WORK relation."""
-    from poliloom.models import WikipediaProject, WikidataRelation, RelationType
+    from poliloom.models import RelationType, WikidataRelation, WikipediaProject
 
     wp = WikipediaProject.create_with_entity(db_session, "Q8447", "French Wikipedia")
     wp.official_website = "https://fr.wikipedia.org"
@@ -380,7 +385,7 @@ def sample_spanish_language(db_session):
 @pytest.fixture
 def sample_spanish_wikipedia_project(db_session, sample_spanish_language):
     """Return a created Spanish Wikipedia project entity with LANGUAGE_OF_WORK relation."""
-    from poliloom.models import WikipediaProject, WikidataRelation, RelationType
+    from poliloom.models import RelationType, WikidataRelation, WikipediaProject
 
     wp = WikipediaProject.create_with_entity(db_session, "Q8449", "Spanish Wikipedia")
     wp.official_website = "https://es.wikipedia.org"
@@ -772,6 +777,7 @@ def client(db_session):
     Note: find_similar is mocked globally via mock_find_similar fixture.
     """
     from fastapi.testclient import TestClient
+
     from poliloom.api import app
     from poliloom.database import get_db_session
 

@@ -43,6 +43,9 @@ build-backend = "hatchling.build"
 line-length = 88
 target-version = "py312"
 
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.security.HTTPBearer"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 env = [
@@ -60,7 +63,7 @@ dev = [
     "pytest-env>=1.1.0",
     "pre-commit>=4.4.0",
     "py-spy>=0.4.1",
-    "ruff>=0.15.16,<0.16",
+    "ruff>=0.16.5",
 ]
 
 

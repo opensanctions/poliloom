@@ -1,13 +1,14 @@
 """Tests for the /politicians endpoints for evaluation workflow."""
 
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, timezone
 
 from poliloom.models import (
-    Politician,
-    Source,
     Evaluation,
+    Politician,
     PropertySkip,
+    Source,
 )
 from poliloom.wikidata.date import WikidataDate
 
@@ -174,7 +175,7 @@ class TestGetPoliticianEndpointProperties:
         self, client, mock_auth, db_session, politician_with_unevaluated_data
     ):
         """Test that extracted data includes supporting_quotes and source info."""
-        from poliloom.models import Source, PropertyReference
+        from poliloom.models import PropertyReference, Source
 
         extracted_properties = [
             p
@@ -411,7 +412,7 @@ class TestGetPoliticianEndpointProperties:
             source=sample_source,
             supporting_quotes=["Served as Mayor"],
         )
-        deleted_property.deleted_at = datetime.now(timezone.utc)
+        deleted_property.deleted_at = datetime.now(UTC)
         db_session.flush()
 
         response = client.get("/politicians/Q123456?languages=Q1860", headers=mock_auth)

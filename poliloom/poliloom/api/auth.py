@@ -1,11 +1,10 @@
 """MediaWiki OAuth authentication for API routes."""
 
 import os
-from typing import Optional
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt.exceptions import PyJWTError
 from pydantic import BaseModel
 
@@ -69,12 +68,12 @@ class MediaWikiOAuth:
         except (PyJWTError, ValueError, KeyError) as e:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid JWT token: {str(e)}",
+                detail=f"Invalid JWT token: {e!s}",
             )
 
 
 # Global OAuth handler - initialized lazily
-_oauth_handler: Optional[MediaWikiOAuth] = None
+_oauth_handler: MediaWikiOAuth | None = None
 
 # FastAPI security scheme
 security = HTTPBearer()
@@ -110,15 +109,15 @@ async def get_current_user(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Authentication failed: {str(e)}",
+            detail=f"Authentication failed: {e!s}",
         )
 
 
 async def get_optional_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+    credentials: HTTPAuthorizationCredentials | None = Depends(
         HTTPBearer(auto_error=False)
     ),
-) -> Optional[User]:
+) -> User | None:
     """Get user if authenticated, otherwise return None."""
     if not credentials:
         return None

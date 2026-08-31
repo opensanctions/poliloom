@@ -6,18 +6,18 @@ Create Date: 2025-09-03 22:47:36.056245
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
+
+import sqlalchemy as sa
 
 from alembic import op
-import sqlalchemy as sa
 from poliloom.models import PropertyType
-
 
 # revision identifiers, used by Alembic.
 revision: str = "4797852d86b9"
-down_revision: Union[str, None] = "aa07180f92ea"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "aa07180f92ea"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

@@ -3,7 +3,7 @@
 import re
 from dataclasses import dataclass
 from datetime import date
-from typing import Optional, Dict, Any
+from typing import Any, Optional
 
 
 @dataclass
@@ -106,7 +106,7 @@ class WikidataDate:
         except ValueError:
             return None
 
-    def to_wikidata_value(self) -> Dict[str, Any]:
+    def to_wikidata_value(self) -> dict[str, Any]:
         """Convert this WikidataDate to core Wikidata time values.
 
         Returns:
@@ -121,7 +121,7 @@ class WikidataDate:
             "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
         }
 
-    def to_wikidata_qualifier(self) -> Dict[str, Any]:
+    def to_wikidata_qualifier(self) -> dict[str, Any]:
         """Convert this WikidataDate to Wikidata qualifier/reference format.
 
         Returns:
@@ -149,7 +149,7 @@ class WikidataDate:
             return f"{year:04d}-{month:02d}"
         return f"{year:04d}"
 
-    def extract_date_parts(self) -> tuple[int, Optional[int], Optional[int]]:
+    def extract_date_parts(self) -> tuple[int, int | None, int | None]:
         """Extract year, month, day from the date string.
 
         Returns:
@@ -230,9 +230,9 @@ class WikidataDate:
         # Determine which date is more precise
         if date1.precision == date2.precision:
             # Same precision - direct comparison based on precision level
-            if date1.precision <= 8:  # Decade, century, millennium
-                return year1 == year2
-            elif date1.precision == 9:  # Year precision
+            if (
+                date1.precision <= 8 or date1.precision == 9
+            ):  # Decade, century, millennium
                 return year1 == year2
             elif date1.precision == 10:  # Month precision
                 return year1 == year2 and month1 == month2
@@ -309,7 +309,7 @@ class WikidataDate:
         )
 
     @staticmethod
-    def get_date_precision(date_str: Optional[str]) -> int:
+    def get_date_precision(date_str: str | None) -> int:
         """
         Get the Wikidata precision value for a date string.
 

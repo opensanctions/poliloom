@@ -1,7 +1,8 @@
 """Tests for the archiving module: page fetching, MHTML conversion, and source processing."""
 
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 from poliloom.archiving import (
     FetchedPage,
@@ -95,17 +96,19 @@ class TestFetchPage:
         mock_playwright_cm.__aenter__ = mock_aenter
         mock_playwright_cm.__aexit__ = mock_aexit
 
-        with patch(
-            "poliloom.archiving.async_playwright", return_value=mock_playwright_cm
+        with (
+            patch(
+                "poliloom.archiving.async_playwright", return_value=mock_playwright_cm
+            ),
+            patch("poliloom.archiving.convert_mhtml_to_html") as mock_convert,
         ):
-            with patch("poliloom.archiving.convert_mhtml_to_html") as mock_convert:
-                mock_convert.return_value = "<html>converted</html>"
+            mock_convert.return_value = "<html>converted</html>"
 
-                result = await fetch_page(url)
+            result = await fetch_page(url)
 
-                assert isinstance(result, FetchedPage)
-                assert result.mhtml == "<mhtml>content</mhtml>"
-                assert result.html == "<html>converted</html>"
+            assert isinstance(result, FetchedPage)
+            assert result.mhtml == "<mhtml>content</mhtml>"
+            assert result.html == "<html>converted</html>"
 
     @pytest.mark.asyncio
     async def test_fetch_page_http_error(self):
@@ -125,11 +128,13 @@ class TestFetchPage:
         mock_playwright_cm.__aenter__ = mock_aenter
         mock_playwright_cm.__aexit__ = mock_aexit
 
-        with patch(
-            "poliloom.archiving.async_playwright", return_value=mock_playwright_cm
+        with (
+            patch(
+                "poliloom.archiving.async_playwright", return_value=mock_playwright_cm
+            ),
+            pytest.raises(PageFetchError, match="HTTP 404"),
         ):
-            with pytest.raises(PageFetchError, match="HTTP 404"):
-                await fetch_page(url)
+            await fetch_page(url)
 
     @pytest.mark.asyncio
     async def test_fetch_page_no_response(self):
@@ -182,11 +187,13 @@ class TestFetchPage:
         mock_playwright_cm.__aenter__ = mock_aenter
         mock_playwright_cm.__aexit__ = mock_aexit
 
-        with patch(
-            "poliloom.archiving.async_playwright", return_value=mock_playwright_cm
+        with (
+            patch(
+                "poliloom.archiving.async_playwright", return_value=mock_playwright_cm
+            ),
+            pytest.raises(PageFetchError, match="No response"),
         ):
-            with pytest.raises(PageFetchError, match="No response"):
-                await fetch_page(url)
+            await fetch_page(url)
 
     @pytest.mark.asyncio
     async def test_fetch_page_timeout(self):
@@ -241,11 +248,13 @@ class TestFetchPage:
         mock_playwright_cm.__aenter__ = mock_aenter
         mock_playwright_cm.__aexit__ = mock_aexit
 
-        with patch(
-            "poliloom.archiving.async_playwright", return_value=mock_playwright_cm
+        with (
+            patch(
+                "poliloom.archiving.async_playwright", return_value=mock_playwright_cm
+            ),
+            pytest.raises(PageFetchError, match="Timeout"),
         ):
-            with pytest.raises(PageFetchError, match="Timeout"):
-                await fetch_page(url)
+            await fetch_page(url)
 
     @pytest.mark.asyncio
     async def test_fetch_page_browser_error(self):
@@ -300,11 +309,13 @@ class TestFetchPage:
         mock_playwright_cm.__aenter__ = mock_aenter
         mock_playwright_cm.__aexit__ = mock_aexit
 
-        with patch(
-            "poliloom.archiving.async_playwright", return_value=mock_playwright_cm
+        with (
+            patch(
+                "poliloom.archiving.async_playwright", return_value=mock_playwright_cm
+            ),
+            pytest.raises(PageFetchError, match="Browser error"),
         ):
-            with pytest.raises(PageFetchError, match="Browser error"):
-                await fetch_page(url)
+            await fetch_page(url)
 
 
 class TestExtractPermanentUrl:

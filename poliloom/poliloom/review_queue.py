@@ -1,7 +1,7 @@
 """Claim-based queries for the unevaluated politician review queue."""
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, delete, exists, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
@@ -24,7 +24,7 @@ def get_claim_ttl() -> timedelta:
 
 
 def _claim_cutoff() -> datetime:
-    return datetime.now(timezone.utc) - get_claim_ttl()
+    return datetime.now(UTC) - get_claim_ttl()
 
 
 def language_visible(property_model, languages: list[str] | None):

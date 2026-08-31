@@ -6,16 +6,15 @@ Create Date: 2025-09-24 17:30:51.300774
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
-
 # revision identifiers, used by Alembic.
 revision: str = "705dddab0368"
-down_revision: Union[str, None] = "9f7413ea7cc1"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "9f7413ea7cc1"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -37,4 +36,3 @@ def downgrade() -> None:
     You will need to restore from backup or re-run imports.
     """
     # Cannot restore deleted Properties or cleared values
-    pass

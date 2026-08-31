@@ -1,7 +1,7 @@
 """Enrichment candidate selection and source creation."""
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, case, exists, func, select
 from sqlalchemy.engine import Row
@@ -24,7 +24,7 @@ def get_enrichment_cooldown_days() -> int:
 
 def get_enrichment_cooldown_cutoff() -> datetime:
     """Return the oldest timestamp that still blocks re-enrichment."""
-    return datetime.now(timezone.utc) - timedelta(days=get_enrichment_cooldown_days())
+    return datetime.now(UTC) - timedelta(days=get_enrichment_cooldown_days())
 
 
 def _ranking_order_by(

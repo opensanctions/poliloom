@@ -1,6 +1,6 @@
 """Tests for POST /politicians/{qid}/sources endpoint."""
 
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
 from poliloom.models import Source, SourceStatus
 

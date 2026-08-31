@@ -2,17 +2,16 @@
 
 import logging
 import multiprocessing as mp
-from typing import Tuple
 
 from sqlalchemy.orm import Session
 
 from .. import dump_reader
 from ..database import create_engine, get_engine
 from ..models import (
-    Position,
-    Location,
     Country,
+    Location,
     Politician,
+    Position,
     Property,
     PropertyType,
     WikidataEntity,
@@ -175,7 +174,7 @@ def _process_politicians_chunk(
     end_byte: int,
     worker_id: int,
     batch_size: int,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """
     Process a specific byte range of the dump file for politician extraction.
 

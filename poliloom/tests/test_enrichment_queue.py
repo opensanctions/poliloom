@@ -1,6 +1,6 @@
 """Tests for enrichment candidate selection and source creation."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -93,7 +93,7 @@ class TestPriorityWikipediaLinks:
         # Should get both German (from citizenship) and English, but German should be prioritized
         assert len(result) >= 1
         # German should be first due to citizenship priority
-        url, wikipedia_project_id = result[0]
+        url, _wikipedia_project_id = result[0]
         assert "de.wikipedia.org" in url
 
     def test_get_priority_wikipedia_links_no_citizenship(
@@ -377,7 +377,7 @@ class TestEnrichmentCandidatesQuery:
         source = Source(
             url=sample_wikipedia_link.url,
             wikipedia_project_id=sample_wikipedia_link.wikipedia_project_id,
-            fetch_timestamp=datetime.now(timezone.utc),
+            fetch_timestamp=datetime.now(UTC),
             status=status,
         )
         source.politicians.append(sample_politician)

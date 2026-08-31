@@ -1,10 +1,7 @@
 """Wikidata entity models for hierarchy and relationship tracking."""
 
 from collections import defaultdict
-from datetime import datetime
-from typing import Set
-
-from poliloom import search
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     Column,
@@ -13,7 +10,6 @@ from sqlalchemy import (
     Index,
     String,
     Text,
-    Enum as SQLEnum,
     and_,
     cast,
     delete,
@@ -27,8 +23,13 @@ from sqlalchemy import (
     union_all,
     update,
 )
+from sqlalchemy import (
+    Enum as SQLEnum,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Session, declared_attr, relationship
+
+from poliloom import search
 
 from .base import (
     Base,
@@ -190,7 +191,7 @@ class WikidataEntityMixin:
         cls,
         session: Session,
         relation_type: RelationType = RelationType.SUBCLASS_OF,
-    ) -> Set[str]:
+    ) -> set[str]:
         """
         Query all descendants of this class's hierarchy from database using recursive CTE.
         Uses cls._hierarchy_roots and cls._hierarchy_ignore configuration.
@@ -243,7 +244,7 @@ class WikidataEntityMixin:
         cls,
         session: Session,
         relation_type: RelationType = RelationType.SUBCLASS_OF,
-    ) -> Set[str]:
+    ) -> set[str]:
         """
         Query all descendants of this class's ignored hierarchy branches.
         Uses cls._hierarchy_ignore configuration.
@@ -753,8 +754,6 @@ class WikidataRelation(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
 class DownloadAlreadyCompleteError(Exception):
     """Raised when attempting to download a dump that's already been downloaded."""
 
-    pass
-
 
 class DownloadInProgressError(Exception):
     """Raised when another download is already in progress for this dump."""
@@ -824,7 +823,7 @@ class WikidataDump(Base, TimestampMixin):
             DownloadAlreadyCompleteError: If dump was already downloaded (and not force)
             DownloadInProgressError: If another download is in progress (and not force/stale)
         """
-        from datetime import timedelta, timezone
+        from datetime import timedelta
 
         existing_dump = (
             session.query(cls)
@@ -841,7 +840,7 @@ class WikidataDump(Base, TimestampMixin):
                 )
             else:
                 # Check if the download is stale
-                age = datetime.now(timezone.utc) - existing_dump.created_at
+                age = datetime.now(UTC) - existing_dump.created_at
                 hours_elapsed = age.total_seconds() / 3600
 
                 if age > timedelta(hours=cls.STALE_THRESHOLD_HOURS):
@@ -874,9 +873,8 @@ class WikidataDump(Base, TimestampMixin):
         Args:
             session: Database session
         """
-        from datetime import timezone
 
-        self.downloaded_at = datetime.now(timezone.utc)
+        self.downloaded_at = datetime.now(UTC)
         session.merge(self)
         session.flush()
 

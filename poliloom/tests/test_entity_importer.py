@@ -2,14 +2,14 @@
 
 from unittest.mock import Mock
 
+from poliloom.importer.entity import EntityCollection
 from poliloom.models import (
-    Position,
-    Location,
     Country,
     Language,
+    Location,
+    Position,
     WikipediaProject,
 )
-from poliloom.importer.entity import EntityCollection
 
 
 class TestWikidataEntityImporter:

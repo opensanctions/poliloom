@@ -1,15 +1,15 @@
 """Sources API endpoints."""
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
-from uuid import UUID
-
+from ..archiving import read_archived_content
 from ..database import get_db_session
 from ..models import Source
-from ..archiving import read_archived_content
-from .auth import get_current_user, User
+from .auth import User, get_current_user
 
 router = APIRouter()
 

@@ -1,6 +1,7 @@
 """Tests for evaluation models."""
 
 from poliloom.models import Evaluation
+
 from ..conftest import assert_model_fields
 
 

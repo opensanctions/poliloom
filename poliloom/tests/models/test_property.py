@@ -3,8 +3,8 @@
 from poliloom.enrichment import create_qualifiers_json_for_position
 from poliloom.models import (
     Property,
-    PropertyType,
     PropertyComparisonResult,
+    PropertyType,
 )
 
 

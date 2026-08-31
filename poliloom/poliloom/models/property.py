@@ -11,10 +11,13 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     text,
+)
+from sqlalchemy import (
     Enum as SQLEnum,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import relationship
+
 from ..wikidata.date import WikidataDate
 from .base import (
     Base,
@@ -330,12 +333,15 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             # Check if chain end matches candidate end
             if cand_end is None and chain_end is None:
                 return True
-            if cand_end is not None and chain_end is not None:
-                if (
+            if (
+                cand_end is not None
+                and chain_end is not None
+                and (
                     WikidataDate.dates_could_be_same(cand_end, chain_end)
                     and WikidataDate.more_precise_date(cand_end, chain_end) != cand_end
-                ):
-                    return True
+                )
+            ):
+                return True
 
         return False
 

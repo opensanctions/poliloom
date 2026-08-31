@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -34,8 +34,8 @@ class ScheduledEnrichment:
 
 def has_enrichment_candidate(
     db: Session,
-    languages: Optional[List[str]] = None,
-    countries: Optional[List[str]] = None,
+    languages: list[str] | None = None,
+    countries: list[str] | None = None,
 ) -> bool:
     """Return True if any politician is currently eligible for enrichment."""
     query = enrichment_candidates_query(languages=languages, countries=countries)
@@ -46,9 +46,9 @@ def has_enrichment_candidate(
 
 def schedule_enrichment(
     db: Session,
-    languages: Optional[List[str]] = None,
-    countries: Optional[List[str]] = None,
-) -> Optional[ScheduledEnrichment]:
+    languages: list[str] | None = None,
+    countries: list[str] | None = None,
+) -> ScheduledEnrichment | None:
     """Pick the next politician and create sources for its Wikipedia links.
 
     Returns:
@@ -136,9 +136,9 @@ async def process_source_task(source_id, politician_id) -> int:
 
 
 async def process_next_politician(
-    languages: Optional[List[str]] = None,
-    countries: Optional[List[str]] = None,
-) -> Optional[int]:
+    languages: list[str] | None = None,
+    countries: list[str] | None = None,
+) -> int | None:
     """Schedule and process enrichment for a single politician.
 
     Broadcasts EnrichmentCompleteEvent only when there's something for waiting
@@ -180,8 +180,8 @@ async def process_next_politician(
 
 
 async def enrich_until_serveable(
-    languages: Optional[List[str]] = None,
-    countries: Optional[List[str]] = None,
+    languages: list[str] | None = None,
+    countries: list[str] | None = None,
 ) -> int:
     """Maintain a floor of one serveable politician for the given filters."""
     enriched = 0

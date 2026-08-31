@@ -4,7 +4,6 @@ import asyncio
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from typing import Dict, List
 
 import psycopg
 from psycopg import sql
@@ -56,7 +55,7 @@ class EventBus:
     """Manages SSE subscriptions and the PostgreSQL LISTEN task."""
 
     def __init__(self) -> None:
-        self._subscribers: Dict[str, List[asyncio.Queue]] = {}
+        self._subscribers: dict[str, list[asyncio.Queue]] = {}
         self._task: asyncio.Task | None = None
 
     @staticmethod

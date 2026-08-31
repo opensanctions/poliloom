@@ -1,7 +1,8 @@
 """Tests for dates module functionality."""
 
-import pytest
 from datetime import date
+
+import pytest
 
 from poliloom.wikidata.date import WikidataDate
 

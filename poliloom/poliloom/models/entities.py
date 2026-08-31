@@ -1,6 +1,6 @@
 """Supporting entity models: Country, Language, Location, Position."""
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from sqlalchemy import Column, String
 from sqlalchemy.orm import relationship
@@ -53,7 +53,7 @@ class Country(
     @classmethod
     def should_import(
         cls, entity, instance_ids: set, subclass_ids: set
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Determine if this country entity should be imported.
 
         Args:
@@ -102,7 +102,7 @@ class Language(
     @classmethod
     def should_import(
         cls, entity, instance_ids: set, subclass_ids: set
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Determine if this language entity should be imported.
 
         Args:
@@ -184,7 +184,7 @@ class WikipediaProject(
     @classmethod
     def should_import(
         cls, entity, instance_ids: set, subclass_ids: set
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Determine if this Wikipedia project entity should be imported.
 
         Filtering criteria:
@@ -253,7 +253,7 @@ class Location(
     @classmethod
     def should_import(
         cls, entity, instance_ids: set, subclass_ids: set
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Determine if this location entity should be imported.
 
         Args:
@@ -311,7 +311,7 @@ class Position(
     @classmethod
     def should_import(
         cls, entity, instance_ids: set, subclass_ids: set
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Determine if this position entity should be imported.
 
         Args:

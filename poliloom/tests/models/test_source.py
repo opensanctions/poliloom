@@ -1,12 +1,13 @@
 """Tests for the Source model."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
+
 from poliloom.models import (
+    RelationType,
     Source,
     SourceStatus,
     WikidataRelation,
-    RelationType,
 )
 
 
@@ -20,7 +21,7 @@ class TestSource:
         # Create a source with a Wikipedia project ID but no permanent_url
         source = Source(
             url="https://en.wikipedia.org/wiki/Example",
-            fetch_timestamp=datetime.now(timezone.utc),
+            fetch_timestamp=datetime.now(UTC),
             wikipedia_project_id=sample_wikipedia_project.wikidata_id,
             permanent_url=None,
         )
@@ -51,7 +52,7 @@ class TestSource:
         # Create source with Wikipedia project
         source = Source(
             url="https://en.wikipedia.org/wiki/Test",
-            fetch_timestamp=datetime.now(timezone.utc),
+            fetch_timestamp=datetime.now(UTC),
             wikipedia_project_id=sample_wikipedia_project.wikidata_id,
         )
         db_session.add(source)
@@ -70,7 +71,7 @@ class TestSource:
         # Create source without Wikipedia project
         source = Source(
             url="https://example.com/test",
-            fetch_timestamp=datetime.now(timezone.utc),
+            fetch_timestamp=datetime.now(UTC),
             wikipedia_project_id=None,
         )
         db_session.add(source)
@@ -107,7 +108,7 @@ class TestSource:
         # Create source
         source = Source(
             url="https://en.wikipedia.org/wiki/Test",
-            fetch_timestamp=datetime.now(timezone.utc),
+            fetch_timestamp=datetime.now(UTC),
             wikipedia_project_id=sample_wikipedia_project.wikidata_id,
         )
         db_session.add(source)
@@ -128,7 +129,7 @@ class TestSource:
         # Create a source without a Wikipedia project ID
         source = Source(
             url="https://example.com/article",
-            fetch_timestamp=datetime.now(timezone.utc),
+            fetch_timestamp=datetime.now(UTC),
             wikipedia_project_id=None,
         )
         db_session.add(source)
@@ -149,7 +150,7 @@ class TestSource:
     def test_create_references_json_p813_retrieved_date_format(self, db_session):
         """Test that P813 (retrieved date) is correctly formatted with proper Wikidata time value."""
         # Create a source with a specific fetch timestamp
-        fetch_time = datetime(2025, 11, 24, 10, 30, 45, tzinfo=timezone.utc)
+        fetch_time = datetime(2025, 11, 24, 10, 30, 45, tzinfo=UTC)
         source = Source(
             url="https://example.com/test",
             fetch_timestamp=fetch_time,
@@ -185,7 +186,7 @@ class TestSource:
         source = Source(
             url="https://en.wikipedia.org/wiki/Example",
             permanent_url="https://en.wikipedia.org/w/index.php?title=Example&oldid=123456",
-            fetch_timestamp=datetime.now(timezone.utc),
+            fetch_timestamp=datetime.now(UTC),
             wikipedia_project_id=sample_wikipedia_project.wikidata_id,
         )
         db_session.add(source)
@@ -217,7 +218,7 @@ class TestSource:
         """Status change broadcasts SourceStatusEvent with linked politician IDs."""
         source = Source(
             url="https://example.com/test",
-            fetch_timestamp=datetime.now(timezone.utc),
+            fetch_timestamp=datetime.now(UTC),
             status=SourceStatus.PROCESSING,
         )
         db_session.add(source)
@@ -248,7 +249,7 @@ class TestSource:
 
         source = Source(
             url="https://example.com/shared",
-            fetch_timestamp=datetime.now(timezone.utc),
+            fetch_timestamp=datetime.now(UTC),
             status=SourceStatus.PROCESSING,
         )
         db_session.add(source)

@@ -2,7 +2,6 @@
 
 from poliloom.models import UserSettings
 
-
 # The mock_auth fixture sets user_id=12345; the endpoint stringifies it.
 USER_ID = "12345"
 

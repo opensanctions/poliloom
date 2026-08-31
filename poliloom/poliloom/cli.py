@@ -1,20 +1,20 @@
 """Main CLI interface for PoliLoom."""
 
-import click
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
+import click
 import httpx2
-from poliloom.storage import StorageFactory
-from poliloom.importer.hierarchy import import_hierarchy_trees
-from poliloom.importer.entity import import_entities
-from poliloom.importer.csv_source import import_csv_sources, MissingPoliticiansError
-from poliloom.importer.politician import import_politicians
-from poliloom.database import get_engine
-from poliloom.logging import setup_logging
-from poliloom import search
-from poliloom.search import INDEX_NAME, SearchDocument
-from sqlalchemy.orm import Session
 from sqlalchemy import exists, func, select
+from sqlalchemy.orm import Session
+
+from poliloom import search
+from poliloom.database import get_engine
+from poliloom.importer.csv_source import MissingPoliticiansError, import_csv_sources
+from poliloom.importer.entity import import_entities
+from poliloom.importer.hierarchy import import_hierarchy_trees
+from poliloom.importer.politician import import_politicians
+from poliloom.logging import setup_logging
 from poliloom.models import (
     Country,
     CurrentImportEntity,
@@ -24,13 +24,15 @@ from poliloom.models import (
     Evaluation,
     Language,
     Location,
-    Position,
     Politician,
+    Position,
     Property,
     Source,
     WikidataDump,
     WikidataEntity,
 )
+from poliloom.search import INDEX_NAME, SearchDocument
+from poliloom.storage import StorageFactory
 
 # Configure logging
 setup_logging()
@@ -145,7 +147,7 @@ def dump_download(output, force):
             # Parse HTTP date format using datetime
             last_modified = datetime.strptime(
                 last_modified_str, "%a, %d %b %Y %H:%M:%S %Z"
-            ).replace(tzinfo=timezone.utc)
+            ).replace(tzinfo=UTC)
 
         # Prepare dump record (handles stale detection, force mode, etc.)
         with Session(get_engine()) as session:
@@ -257,7 +259,7 @@ def dump_extract(input, output):
         source_backend.extract_bz2_to(input, dest_backend, output)
 
         # Mark as extracted
-        latest_dump.extracted_at = datetime.now(timezone.utc)
+        latest_dump.extracted_at = datetime.now(UTC)
         with Session(get_engine()) as session:
             session.merge(latest_dump)
             session.commit()
@@ -314,7 +316,7 @@ def dump_import_hierarchy(file, batch_size):
 
         # Mark as imported
         if latest_dump is not None:
-            latest_dump.imported_hierarchy_at = datetime.now(timezone.utc)
+            latest_dump.imported_hierarchy_at = datetime.now(UTC)
             with Session(get_engine()) as session:
                 session.merge(latest_dump)
                 session.commit()
@@ -385,7 +387,7 @@ def dump_import_entities(file, batch_size):
                     .first()
                 )
                 if dump_record is not None:
-                    dump_record.imported_entities_at = datetime.now(timezone.utc)
+                    dump_record.imported_entities_at = datetime.now(UTC)
                     session.commit()
 
         click.echo("✅ Successfully imported supporting entities from dump")
@@ -454,7 +456,7 @@ def dump_import_politicians(file, batch_size):
 
         # Mark as imported
         if latest_dump is not None:
-            latest_dump.imported_politicians_at = datetime.now(timezone.utc)
+            latest_dump.imported_politicians_at = datetime.now(UTC)
             with Session(get_engine()) as session:
                 session.merge(latest_dump)
                 session.commit()

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from starlette.responses import StreamingResponse
 
 from ..sse import event_bus
-from .auth import get_current_user, User
+from .auth import User, get_current_user
 
 router = APIRouter()
 
@@ -25,7 +25,7 @@ async def events(current_user: User = Depends(get_current_user)):
                     event = await asyncio.wait_for(
                         queue.get(), timeout=KEEPALIVE_INTERVAL
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     yield "event: keepalive\ndata: \n\n"
                     continue
                 if event is None:

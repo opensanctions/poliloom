@@ -1,14 +1,15 @@
 """Tests for wikidata_statement module functionality."""
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-import httpx2
+from unittest.mock import AsyncMock, Mock, patch
 
-from poliloom.models import Property, PropertyType, Politician, Evaluation
+import httpx2
+import pytest
+
+from poliloom.models import Evaluation, Politician, Property, PropertyType
 from poliloom.wikidata.statement import (
     _convert_qualifiers_to_rest_api,
-    deprecate_statement,
     create_statement,
+    deprecate_statement,
     push_evaluation,
 )
 

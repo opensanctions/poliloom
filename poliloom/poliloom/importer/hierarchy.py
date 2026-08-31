@@ -2,7 +2,6 @@
 
 import logging
 import multiprocessing as mp
-from typing import Set, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -25,7 +24,7 @@ def _process_first_pass_chunk(
     start_byte: int,
     end_byte: int,
     worker_id: int,
-) -> Tuple[Set[str], int]:
+) -> tuple[set[str], int]:
     """
     First pass: Collect all parent IDs from relations.
     Returns:

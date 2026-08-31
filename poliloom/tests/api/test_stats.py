@@ -1,17 +1,17 @@
 """Tests for the stats API endpoint."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from sqlalchemy import text
 
 from poliloom.models import (
-    Source,
     Country,
     Evaluation,
     Politician,
     Property,
     PropertyReference,
+    Source,
 )
 from poliloom.models.base import PropertyType
 from poliloom.models.wikidata import WikidataEntity
@@ -149,7 +149,7 @@ class TestStatsEndpoint:
             id=uuid4(),
             url="https://example.com/politician",
             url_hash="test_hash",
-            fetch_timestamp=datetime.now(timezone.utc),
+            fetch_timestamp=datetime.now(UTC),
         )
         db_session.add(source)
 
@@ -216,7 +216,7 @@ class TestStatsEndpoint:
             id=uuid4(),
             url="https://example.com/politician",
             url_hash="test_hash",
-            fetch_timestamp=datetime.now(timezone.utc),
+            fetch_timestamp=datetime.now(UTC),
         )
         db_session.add(source)
 
@@ -294,7 +294,7 @@ class TestStatsEndpoint:
             id=uuid4(),
             url="https://example.com/politician",
             url_hash="test_hash",
-            fetch_timestamp=datetime.now(timezone.utc) - timedelta(days=400),
+            fetch_timestamp=datetime.now(UTC) - timedelta(days=400),
         )
         db_session.add(source)
 
@@ -345,7 +345,7 @@ class TestStatsEndpoint:
         db_session.commit()
 
         # Manually set evaluation created_at to be outside cooldown period (400 days > 365 days default)
-        old_date = datetime.now(timezone.utc) - timedelta(days=400)
+        old_date = datetime.now(UTC) - timedelta(days=400)
         db_session.execute(
             text("UPDATE evaluations SET created_at = :created_at WHERE id = :eval_id"),
             {"created_at": old_date, "eval_id": str(evaluation.id)},
@@ -377,7 +377,7 @@ class TestStatsEndpoint:
             id=uuid4(),
             url="https://example.com/politician",
             url_hash="test_hash",
-            fetch_timestamp=datetime.now(timezone.utc),
+            fetch_timestamp=datetime.now(UTC),
         )
         db_session.add(source)
 

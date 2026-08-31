@@ -1,7 +1,6 @@
 """API endpoint for community statistics."""
 
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -14,8 +13,8 @@ from ..enrichment_queue import (
     get_enrichment_cooldown_days,
 )
 from ..models import Evaluation, Politician, Property, PropertyReference, Source
-from ..models.source import PoliticianSource
 from ..models.base import PropertyType
+from ..models.source import PoliticianSource
 from ..models.wikidata import WikidataEntity
 from .auth import User, get_current_user
 
@@ -51,7 +50,7 @@ class EvaluationTimeseriesPoint(BaseModel):
 class CountryCoverage(BaseModel):
     """Coverage statistics for a country or politicians without citizenship."""
 
-    wikidata_id: Optional[str]  # None for politicians without citizenship
+    wikidata_id: str | None  # None for politicians without citizenship
     name: str
     evaluated_count: int  # Enriched politicians with evaluated extracted properties
     enriched_count: int  # Politicians enriched within cooldown period
@@ -61,8 +60,8 @@ class CountryCoverage(BaseModel):
 class StatsResponse(BaseModel):
     """Response schema for stats endpoint."""
 
-    evaluations_timeseries: List[EvaluationTimeseriesPoint]
-    country_coverage: List[CountryCoverage]  # Includes a no-citizenship group
+    evaluations_timeseries: list[EvaluationTimeseriesPoint]
+    country_coverage: list[CountryCoverage]  # Includes a no-citizenship group
     cooldown_days: int
 
 
@@ -87,7 +86,7 @@ async def get_stats(
     num_weeks = cooldown_days // 7
 
     # Get the start of the current week (Monday)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     current_week_start = now - timedelta(days=now.weekday())
     current_week_start = current_week_start.replace(
         hour=0, minute=0, second=0, microsecond=0
@@ -103,10 +102,10 @@ async def get_stats(
     timeseries_query = (
         select(
             week_column,
-            func.sum(case((Evaluation.is_accepted == True, 1), else_=0)).label(  # noqa: E712
+            func.sum(case((Evaluation.is_accepted == True, 1), else_=0)).label(
                 "accepted"
             ),
-            func.sum(case((Evaluation.is_accepted == False, 1), else_=0)).label(  # noqa: E712
+            func.sum(case((Evaluation.is_accepted == False, 1), else_=0)).label(
                 "rejected"
             ),
         )
@@ -118,7 +117,7 @@ async def get_stats(
     timeseries_results = db.execute(timeseries_query).all()
 
     # Build lookup from query results
-    data_by_week: Dict[str, tuple] = {
+    data_by_week: dict[str, tuple] = {
         row.week.strftime("%Y-%m-%d"): (int(row.accepted or 0), int(row.rejected or 0))
         for row in timeseries_results
     }

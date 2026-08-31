@@ -1,7 +1,6 @@
 """Politicians API endpoints."""
 
 import asyncio
-from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, case, exists, func, or_, select
@@ -9,10 +8,15 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db_session
 from ..enrichment_queue import create_enrichment_sources
-from ..scheduling import (
-    enrich_until_serveable,
-    has_enrichment_candidate,
-    process_source_task,
+from ..models import (
+    Evaluation,
+    Politician,
+    Property,
+    PropertyReference,
+    PropertySkip,
+    PropertyType,
+    Source,
+    SourceLanguage,
 )
 from ..review_queue import (
     available_to_user,
@@ -23,21 +27,16 @@ from ..review_queue import (
     not_skipped,
     refresh_claims,
 )
-from ..models import (
-    Source,
-    SourceLanguage,
-    Evaluation,
-    Politician,
-    Property,
-    PropertyReference,
-    PropertySkip,
-    PropertyType,
+from ..scheduling import (
+    enrich_until_serveable,
+    has_enrichment_candidate,
+    process_source_task,
 )
 from ..sse import EvaluationCountEvent, event_bus
 from ..wikidata.statement import create_entity, create_statement, push_evaluation
+from .auth import User, get_current_user
 from .schemas import (
     AcceptPropertyItem,
-    SourceResponse,
     CreatePoliticianRequest,
     CreatePoliticianResponse,
     CreatePropertyItem,
@@ -47,14 +46,12 @@ from .schemas import (
     PatchPropertiesRequest,
     PatchPropertiesResponse,
     PoliticianResponse,
-    RejectPropertyItem,
-    SkipPropertyItem,
     PropertyReferenceResponse,
     PropertyResponse,
+    RejectPropertyItem,
+    SkipPropertyItem,
+    SourceResponse,
 )
-
-from .auth import get_current_user, User
-
 
 router = APIRouter()
 
@@ -144,7 +141,7 @@ async def create_politician(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Failed to create Wikidata entity: {str(e)}",
+            detail=f"Failed to create Wikidata entity: {e!s}",
         )
 
     # 2. Add instance-of: human (P31 → Q5) and occupation: politician (P106 → Q82955)
@@ -156,7 +153,7 @@ async def create_politician(
         try:
             await create_statement(wikidata_id, prop_id, value, jwt_token=jwt_token)
         except Exception as e:
-            errors.append(f"Failed to add {prop_id} statement: {str(e)}")
+            errors.append(f"Failed to add {prop_id} statement: {e!s}")
 
     # 3. Create the Politician row in the local DB
     politician = Politician(name=request.name, wikidata_id=wikidata_id)
@@ -167,7 +164,7 @@ async def create_politician(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error creating politician: {str(e)}",
+            detail=f"Database error creating politician: {e!s}",
         )
 
     return CreatePoliticianResponse(
@@ -180,8 +177,8 @@ async def create_politician(
 
 @router.get("/next", response_model=NextPoliticianResponse)
 async def get_next_politician(
-    languages: List[str] = Query(...),
-    countries: List[str] = Query(default=[]),
+    languages: list[str] = Query(...),
+    countries: list[str] = Query(default=[]),
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -209,7 +206,7 @@ async def get_next_politician(
     )
 
 
-@router.get("/search", response_model=List[PoliticianResponse])
+@router.get("/search", response_model=list[PoliticianResponse])
 async def search_politicians(
     q: str = Query(
         ...,
@@ -261,7 +258,7 @@ async def search_politicians(
 @router.get("/{qid}", response_model=PoliticianResponse)
 async def get_politician(
     qid: str,
-    languages: List[str] = Query(
+    languages: list[str] = Query(
         ...,
         description="Filter properties by language QIDs",
     ),
@@ -435,7 +432,7 @@ async def process_property_actions(
                 item_desc = str(
                     getattr(item, "id", None) or f"new {getattr(item, 'type', '?')}"
                 )
-                errors.append(f"Error processing item {item_desc}: {str(e)}")
+                errors.append(f"Error processing item {item_desc}: {e!s}")
                 continue
 
     # Broadcast updated evaluation count
@@ -457,7 +454,7 @@ async def process_property_actions(
                 )
         except Exception as e:
             wikidata_errors.append(
-                f"Error processing evaluation {evaluation.id} in Wikidata: {str(e)}"
+                f"Error processing evaluation {evaluation.id} in Wikidata: {e!s}"
             )
 
     if wikidata_errors:

@@ -3,14 +3,15 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+
 from ..logging import setup_logging
 from ..sse import event_bus
-from .politicians import router as politicians_router
-from .sources import router as sources_router
 from .entities import router as entities_router
 from .events import router as events_router
-from .stats import router as stats_router
+from .politicians import router as politicians_router
 from .settings import router as settings_router
+from .sources import router as sources_router
+from .stats import router as stats_router
 
 # Configure logging
 setup_logging()

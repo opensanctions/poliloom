@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from poliloom.database import get_engine
 from poliloom.sse import (
-    SourceStatusEvent,
     EnrichmentCompleteEvent,
+    SourceStatusEvent,
     event_bus,
 )
 

@@ -1,11 +1,13 @@
 """Tests for DumpReader."""
 
-import pytest
 import json
-import tempfile
 import os
+import tempfile
+
+import pytest
 
 from poliloom import dump_reader
+
 from .conftest import load_json_fixture
 
 

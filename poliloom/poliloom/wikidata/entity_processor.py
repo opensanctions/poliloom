@@ -1,7 +1,8 @@
 """Unified Wikidata entity processing class."""
 
-from typing import Dict, List, Optional, Any, Set
 import logging
+from typing import Any
+
 from .date import WikidataDate
 
 logger = logging.getLogger(__name__)
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 class WikidataEntityProcessor:
     """Unified class for all Wikidata entities with type-specific processing."""
 
-    def __init__(self, raw_data: Dict[str, Any]):
+    def __init__(self, raw_data: dict[str, Any]):
         """Initialize with raw Wikidata entity JSON data."""
         self.raw_data = raw_data
         self._entity_id = raw_data.get("id", "")
@@ -23,7 +24,7 @@ class WikidataEntityProcessor:
         """Get the Wikidata entity ID (QID)."""
         return self._entity_id
 
-    def get_entity_name(self) -> Optional[str]:
+    def get_entity_name(self) -> str | None:
         """Extract the primary name from the entity's labels.
 
         Returns:
@@ -43,7 +44,7 @@ class WikidataEntityProcessor:
 
         return None
 
-    def get_entity_description(self) -> Optional[str]:
+    def get_entity_description(self) -> str | None:
         """Extract the primary description from the entity's descriptions.
 
         Returns:
@@ -63,7 +64,7 @@ class WikidataEntityProcessor:
 
         return None
 
-    def get_all_labels(self) -> List[str]:
+    def get_all_labels(self) -> list[str]:
         """Extract all unique label values across all languages.
 
         Returns:
@@ -76,7 +77,7 @@ class WikidataEntityProcessor:
         return list(unique_labels)
 
     @property
-    def sitelinks(self) -> Dict[str, Any]:
+    def sitelinks(self) -> dict[str, Any]:
         """Get the sitelinks for this entity.
 
         Returns:
@@ -84,7 +85,7 @@ class WikidataEntityProcessor:
         """
         return self._sitelinks
 
-    def get_truthy_claims(self, property_id: str) -> List[Dict[str, Any]]:
+    def get_truthy_claims(self, property_id: str) -> list[dict[str, Any]]:
         """Get truthy claims for a property using rank-based filtering.
 
         Implements Wikidata's truthy filtering logic:
@@ -118,7 +119,7 @@ class WikidataEntityProcessor:
         # Apply truthy filtering logic
         return preferred_claims if preferred_claims else non_deprecated_claims
 
-    def extract_date_from_claim(self, claim: Dict[str, Any]) -> Optional[WikidataDate]:
+    def extract_date_from_claim(self, claim: dict[str, Any]) -> WikidataDate | None:
         """Extract date from a single Wikidata claim with precision handling.
 
         Args:
@@ -144,7 +145,7 @@ class WikidataEntityProcessor:
             pass
         return None
 
-    def get_instance_of_ids(self) -> Set[str]:
+    def get_instance_of_ids(self) -> set[str]:
         """Get all instance of (P31) entity IDs using truthy filtering.
 
         Returns:
@@ -162,7 +163,7 @@ class WikidataEntityProcessor:
 
         return instance_ids
 
-    def get_subclass_of_ids(self) -> Set[str]:
+    def get_subclass_of_ids(self) -> set[str]:
         """Get all subclass of (P279) entity IDs using truthy filtering.
 
         Returns:
@@ -180,7 +181,7 @@ class WikidataEntityProcessor:
 
         return subclass_ids
 
-    def extract_all_relations(self) -> List[Dict]:
+    def extract_all_relations(self) -> list[dict]:
         """
         Extract all tracked relations from this Wikidata entity.
 
@@ -220,7 +221,7 @@ class WikidataEntityProcessor:
 
         return relations
 
-    def collect_parent_ids(self) -> Set[str]:
+    def collect_parent_ids(self) -> set[str]:
         """
         Collect all parent entity IDs from this entity's relations.
 
@@ -247,7 +248,7 @@ class WikidataEntityProcessor:
         return parent_ids
 
     @classmethod
-    def from_raw(cls, raw_data: Dict[str, Any]) -> "WikidataEntityProcessor":
+    def from_raw(cls, raw_data: dict[str, Any]) -> "WikidataEntityProcessor":
         """Create entity instance from raw Wikidata JSON data.
 
         Args:

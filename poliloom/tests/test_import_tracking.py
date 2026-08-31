@@ -1,24 +1,24 @@
 """Tests for import tracking functionality."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from poliloom.models import (
-    WikidataEntity,
-    WikidataRelation,
-    Property,
-    PropertyType,
-    RelationType,
     CurrentImportEntity,
     CurrentImportStatement,
     DownloadAlreadyCompleteError,
     DownloadInProgressError,
+    Location,
     Politician,
     Position,
-    Location,
+    Property,
+    PropertyType,
+    RelationType,
     WikidataDump,
+    WikidataEntity,
+    WikidataRelation,
 )
 
 
@@ -270,8 +270,8 @@ class TestCleanupFunctionality:
     def test_cleanup_missing_entities_two_dump_validation(self, db_session: Session):
         """Test that entities are only deleted when missing from two consecutive dumps."""
         # Create two dump records
-        first_dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=2)
-        second_dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=1)
+        first_dump_timestamp = datetime.now(UTC) - timedelta(hours=2)
+        second_dump_timestamp = datetime.now(UTC) - timedelta(hours=1)
 
         first_dump = WikidataDump(
             url="http://example.com/dump1.json.bz2",
@@ -289,7 +289,7 @@ class TestCleanupFunctionality:
 
         # Create some entities that predate both dumps
         # Use raw SQL to insert entities with specific timestamps to avoid SQLAlchemy automatic updates
-        old_timestamp_naive = (datetime.now(timezone.utc) - timedelta(hours=3)).replace(
+        old_timestamp_naive = (datetime.now(UTC) - timedelta(hours=3)).replace(
             tzinfo=None
         )
 
@@ -366,7 +366,7 @@ class TestCleanupFunctionality:
         # Don't track any entities (simulating none seen in import)
 
         # Run cleanup with very old cutoff (all entities are newer than this)
-        very_old_timestamp = datetime.now(timezone.utc) - timedelta(days=365)
+        very_old_timestamp = datetime.now(UTC) - timedelta(days=365)
         deleted_count = CurrentImportEntity.cleanup_missing(
             db_session, very_old_timestamp
         )
@@ -397,7 +397,7 @@ class TestCleanupFunctionality:
         db_session.flush()
 
         # Make entities old
-        old_timestamp = datetime.now(timezone.utc) - timedelta(days=30)
+        old_timestamp = datetime.now(UTC) - timedelta(days=30)
         db_session.execute(
             text("UPDATE wikidata_entities SET updated_at = :ts"),
             {"ts": old_timestamp},
@@ -409,7 +409,7 @@ class TestCleanupFunctionality:
         db_session.flush()
 
         # Run cleanup
-        cutoff_timestamp = datetime.now(timezone.utc)
+        cutoff_timestamp = datetime.now(UTC)
         deleted_count = CurrentImportEntity.cleanup_missing(
             db_session, cutoff_timestamp
         )
@@ -433,7 +433,7 @@ class TestCleanupFunctionality:
         db_session.flush()
 
         # Run cleanup with very old cutoff (nothing should be deleted)
-        very_old_timestamp = datetime.now(timezone.utc) - timedelta(days=365)
+        very_old_timestamp = datetime.now(UTC) - timedelta(days=365)
         deleted_count = CurrentImportEntity.cleanup_missing(
             db_session, very_old_timestamp
         )
@@ -445,8 +445,8 @@ class TestCleanupFunctionality:
     def test_cleanup_missing_statements_two_dump_validation(self, db_session: Session):
         """Test that statement cleanup logic uses two-dump validation (simplified test)."""
         # Create two dump records
-        first_dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=2)
-        second_dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=1)
+        first_dump_timestamp = datetime.now(UTC) - timedelta(hours=2)
+        second_dump_timestamp = datetime.now(UTC) - timedelta(hours=1)
 
         first_dump = WikidataDump(
             url="http://example.com/dump1.json.bz2",
@@ -499,7 +499,7 @@ class TestCleanupFunctionality:
         # Don't track any statements (simulating none seen in import)
 
         # Run cleanup with very old cutoff (all statements are newer than this)
-        very_old_timestamp = datetime.now(timezone.utc) - timedelta(days=365)
+        very_old_timestamp = datetime.now(UTC) - timedelta(days=365)
         result = CurrentImportStatement.cleanup_missing(db_session, very_old_timestamp)
         db_session.flush()
 
@@ -560,7 +560,7 @@ class TestCleanupFunctionality:
 
         # Don't track it (simulating it wasn't in import)
         # Run cleanup with a future timestamp (should not delete already deleted entities)
-        cutoff_timestamp = datetime.now(timezone.utc)
+        cutoff_timestamp = datetime.now(UTC)
         deleted_count = CurrentImportEntity.cleanup_missing(
             db_session, cutoff_timestamp
         )
@@ -651,8 +651,8 @@ class TestIntegrationWorkflow:
         db_session.flush()
 
         # Create dump records for two-dump validation
-        first_dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=2)
-        current_dump_timestamp = datetime.now(timezone.utc)
+        first_dump_timestamp = datetime.now(UTC) - timedelta(hours=2)
+        current_dump_timestamp = datetime.now(UTC)
 
         first_dump = WikidataDump(
             url="http://example.com/dump1.json.bz2",
@@ -669,7 +669,7 @@ class TestIntegrationWorkflow:
         db_session.flush()
 
         # Manually update timestamps to be before first dump for old items
-        old_timestamp = datetime.now(timezone.utc) - timedelta(hours=3)
+        old_timestamp = datetime.now(UTC) - timedelta(hours=3)
         db_session.execute(
             text(
                 "UPDATE wikidata_entities SET updated_at = :old_timestamp WHERE wikidata_id IN ('Q_old', 'Q_new')"
@@ -752,7 +752,7 @@ class TestIntegrationWorkflow:
     ):
         """Test that positively evaluated enriched properties are protected during cleanup."""
         # Step 1: Create a dump timestamp in the past (simulates dump was taken hours ago)
-        dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=2)
+        dump_timestamp = datetime.now(UTC) - timedelta(hours=2)
 
         # Step 2: Create a politician using the same pattern as existing fixtures
         politician = Politician.create_with_entity(
@@ -800,7 +800,7 @@ class TestIntegrationWorkflow:
     ):
         """Test that negatively evaluated enriched properties remain soft-deleted during cleanup."""
         # Step 1: Create a dump timestamp in the past (simulates dump was taken hours ago)
-        dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=2)
+        dump_timestamp = datetime.now(UTC) - timedelta(hours=2)
 
         # Step 2: Create a politician using the same pattern as existing fixtures
         politician = Politician.create_with_entity(
@@ -824,7 +824,7 @@ class TestIntegrationWorkflow:
         assert enriched_prop.updated_at > dump_timestamp
 
         # Step 4: Negative evaluation - soft-delete the property (rejected by evaluator)
-        enriched_prop.deleted_at = datetime.now(timezone.utc)
+        enriched_prop.deleted_at = datetime.now(UTC)
         db_session.flush()
 
         # Property is still after dump timestamp
@@ -853,8 +853,8 @@ class TestIntegrationWorkflow:
     ):
         """Test that statements in current dump are preserved with two-dump validation."""
         # Create dump records for two-dump validation
-        first_dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=2)
-        current_dump_timestamp = datetime.now(timezone.utc) - timedelta(hours=1)
+        first_dump_timestamp = datetime.now(UTC) - timedelta(hours=2)
+        current_dump_timestamp = datetime.now(UTC) - timedelta(hours=1)
 
         first_dump = WikidataDump(
             url="http://example.com/dump1.json.bz2",
@@ -913,7 +913,7 @@ class TestWikidataDumpDownloadManagement:
     def test_prepare_for_download_creates_new_record(self, db_session: Session):
         """Test that prepare_for_download creates a new dump record."""
         url = "https://dumps.wikimedia.org/test.json.bz2"
-        last_modified = datetime.now(timezone.utc)
+        last_modified = datetime.now(UTC)
 
         dump = WikidataDump.prepare_for_download(db_session, url, last_modified)
         db_session.flush()
@@ -928,13 +928,13 @@ class TestWikidataDumpDownloadManagement:
     ):
         """Test that prepare_for_download raises when dump already downloaded."""
         url = "https://dumps.wikimedia.org/test.json.bz2"
-        last_modified = datetime.now(timezone.utc)
+        last_modified = datetime.now(UTC)
 
         # Create a completed dump record
         existing_dump = WikidataDump(
             url=url,
             last_modified=last_modified,
-            downloaded_at=datetime.now(timezone.utc),
+            downloaded_at=datetime.now(UTC),
         )
         db_session.add(existing_dump)
         db_session.flush()
@@ -950,7 +950,7 @@ class TestWikidataDumpDownloadManagement:
     ):
         """Test that prepare_for_download raises when download in progress."""
         url = "https://dumps.wikimedia.org/test.json.bz2"
-        last_modified = datetime.now(timezone.utc)
+        last_modified = datetime.now(UTC)
 
         # Create an in-progress dump record (recent, no downloaded_at)
         existing_dump = WikidataDump(url=url, last_modified=last_modified)
@@ -969,10 +969,10 @@ class TestWikidataDumpDownloadManagement:
     def test_prepare_for_download_cleans_up_stale_download(self, db_session: Session):
         """Test that stale downloads (>24h) are cleaned up and retry allowed."""
         url = "https://dumps.wikimedia.org/test.json.bz2"
-        last_modified = datetime.now(timezone.utc)
+        last_modified = datetime.now(UTC)
 
         # Create a stale dump record (older than 24 hours)
-        stale_time = datetime.now(timezone.utc) - timedelta(hours=25)
+        stale_time = datetime.now(UTC) - timedelta(hours=25)
         db_session.execute(
             text("""
                 INSERT INTO wikidata_dumps (id, url, last_modified, created_at, updated_at)
@@ -1003,13 +1003,13 @@ class TestWikidataDumpDownloadManagement:
     ):
         """Test that force mode replaces a completed download."""
         url = "https://dumps.wikimedia.org/test.json.bz2"
-        last_modified = datetime.now(timezone.utc)
+        last_modified = datetime.now(UTC)
 
         # Create a completed dump record
         existing_dump = WikidataDump(
             url=url,
             last_modified=last_modified,
-            downloaded_at=datetime.now(timezone.utc),
+            downloaded_at=datetime.now(UTC),
         )
         db_session.add(existing_dump)
         db_session.flush()
@@ -1030,7 +1030,7 @@ class TestWikidataDumpDownloadManagement:
     ):
         """Test that force mode replaces an in-progress download."""
         url = "https://dumps.wikimedia.org/test.json.bz2"
-        last_modified = datetime.now(timezone.utc)
+        last_modified = datetime.now(UTC)
 
         # Create an in-progress dump record
         existing_dump = WikidataDump(url=url, last_modified=last_modified)
@@ -1050,7 +1050,7 @@ class TestWikidataDumpDownloadManagement:
     def test_mark_downloaded_sets_timestamp(self, db_session: Session):
         """Test that mark_downloaded sets the downloaded_at timestamp."""
         url = "https://dumps.wikimedia.org/test.json.bz2"
-        last_modified = datetime.now(timezone.utc)
+        last_modified = datetime.now(UTC)
 
         dump = WikidataDump(url=url, last_modified=last_modified)
         db_session.add(dump)
@@ -1066,7 +1066,7 @@ class TestWikidataDumpDownloadManagement:
     def test_cleanup_failed_download_removes_record(self, db_session: Session):
         """Test that cleanup_failed_download removes the dump record."""
         url = "https://dumps.wikimedia.org/test.json.bz2"
-        last_modified = datetime.now(timezone.utc)
+        last_modified = datetime.now(UTC)
 
         dump = WikidataDump(url=url, last_modified=last_modified)
         db_session.add(dump)
@@ -1086,14 +1086,14 @@ class TestWikidataDumpDownloadManagement:
     def test_different_last_modified_creates_new_record(self, db_session: Session):
         """Test that a different last_modified creates a new record."""
         url = "https://dumps.wikimedia.org/test.json.bz2"
-        old_last_modified = datetime.now(timezone.utc) - timedelta(days=7)
-        new_last_modified = datetime.now(timezone.utc)
+        old_last_modified = datetime.now(UTC) - timedelta(days=7)
+        new_last_modified = datetime.now(UTC)
 
         # Create an existing completed dump with old last_modified
         existing_dump = WikidataDump(
             url=url,
             last_modified=old_last_modified,
-            downloaded_at=datetime.now(timezone.utc),
+            downloaded_at=datetime.now(UTC),
         )
         db_session.add(existing_dump)
         db_session.flush()

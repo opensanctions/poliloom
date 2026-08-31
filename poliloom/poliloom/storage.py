@@ -4,13 +4,15 @@ import logging
 import os
 import shutil
 import tempfile
+from abc import ABC, abstractmethod
+from collections.abc import Iterator
+from typing import BinaryIO
+from urllib.parse import urlparse
+
 import httpx2
 import indexed_bzip2 as ibz2
-from abc import ABC, abstractmethod
-from typing import BinaryIO, Iterator, Tuple
-from urllib.parse import urlparse
-from google.cloud import storage
 from google.auth import default
+from google.cloud import storage
 
 logger = logging.getLogger(__name__)
 
@@ -21,44 +23,36 @@ class StorageBackend(ABC):
     @abstractmethod
     def exists(self, path: str) -> bool:
         """Check if a file exists."""
-        pass
 
     @abstractmethod
     def get_size(self, path: str) -> int:
         """Get the size of a file in bytes."""
-        pass
 
     @abstractmethod
     def open(self, path: str, mode: str = "rb") -> BinaryIO:
         """Open a file for reading or writing."""
-        pass
 
     @abstractmethod
     def read_range(self, path: str, start: int, end: int) -> bytes:
         """Read a specific byte range from a file."""
-        pass
 
     @abstractmethod
     def download(self, source: str, destination: str) -> None:
         """Download a file from source to destination."""
-        pass
 
     @abstractmethod
     def stream_lines(self, path: str) -> Iterator[str]:
         """Stream lines from a file."""
-        pass
 
     @abstractmethod
     def stream_lines_range(self, path: str, start: int, end: int) -> Iterator[bytes]:
         """Stream lines from a specific byte range of a file."""
-        pass
 
     @abstractmethod
     def extract_bz2_to(
         self, source_path: str, dest_backend: "StorageBackend", dest_path: str
     ) -> None:
         """Extract a bz2 file from this backend to another backend."""
-        pass
 
 
 class LocalStorage(StorageBackend):
@@ -92,8 +86,7 @@ class LocalStorage(StorageBackend):
     def stream_lines(self, path: str) -> Iterator[str]:
         """Stream lines from a local file."""
         with open(path, "r", encoding="utf-8") as f:
-            for line in f:
-                yield line
+            yield from f
 
     def stream_lines_range(self, path: str, start: int, end: int) -> Iterator[bytes]:
         """Stream lines from a specific byte range of a local file."""
@@ -150,7 +143,7 @@ class GCSStorage(StorageBackend):
         except Exception as e:
             raise RuntimeError(f"Failed to initialize GCS client: {e}")
 
-    def _parse_gcs_path(self, path: str) -> Tuple[str, str]:
+    def _parse_gcs_path(self, path: str) -> tuple[str, str]:
         """Parse a GCS path into bucket and blob name.
 
         Args:
@@ -234,8 +227,7 @@ class GCSStorage(StorageBackend):
 
         # Stream the file content
         with blob.open("r") as f:
-            for line in f:
-                yield line
+            yield from f
 
     def stream_lines_range(self, path: str, start: int, end: int) -> Iterator[bytes]:
         """Stream lines from a specific byte range of a GCS file."""

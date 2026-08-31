@@ -1,5 +1,7 @@
 """Tests for the entities API endpoints (languages, countries, positions, locations)."""
 
+from datetime import UTC
+
 import pytest
 
 
@@ -100,8 +102,8 @@ class TestGetLanguages:
         languages = response.json()
 
         # Find German and English in the results
-        german = next((lang for lang in languages if lang["wikidata_id"] == "Q188"))
-        english = next((lang for lang in languages if lang["wikidata_id"] == "Q1860"))
+        german = next(lang for lang in languages if lang["wikidata_id"] == "Q188")
+        english = next(lang for lang in languages if lang["wikidata_id"] == "Q1860")
 
         # German should come before English due to higher count
         german_index = languages.index(german)
@@ -116,10 +118,10 @@ class TestGetLanguages:
         db_session,
     ):
         """Soft-deleted languages should not appear in results."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         # Soft delete the language's WikidataEntity
-        sample_language.wikidata_entity.deleted_at = datetime.now(timezone.utc)
+        sample_language.wikidata_entity.deleted_at = datetime.now(UTC)
         db_session.flush()
 
         response = client.get("/languages", headers=mock_auth)
@@ -240,8 +242,8 @@ class TestGetCountries:
         countries = response.json()
 
         # Find Germany and US in the results
-        germany = next((ctry for ctry in countries if ctry["wikidata_id"] == "Q183"))
-        us = next((ctry for ctry in countries if ctry["wikidata_id"] == "Q30"))
+        germany = next(ctry for ctry in countries if ctry["wikidata_id"] == "Q183")
+        us = next(ctry for ctry in countries if ctry["wikidata_id"] == "Q30")
 
         # Germany should come before US due to higher count
         germany_index = countries.index(germany)
@@ -256,10 +258,10 @@ class TestGetCountries:
         db_session,
     ):
         """Soft-deleted countries should not appear in results."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         # Soft delete the country's WikidataEntity
-        sample_country.wikidata_entity.deleted_at = datetime.now(timezone.utc)
+        sample_country.wikidata_entity.deleted_at = datetime.now(UTC)
         db_session.flush()
 
         response = client.get("/countries", headers=mock_auth)
@@ -301,7 +303,7 @@ class TestEntitySearch:
         self, client, mock_auth, db_session, entity_type, model_name, names, query
     ):
         """Should search entities by type and return matches."""
-        import poliloom.models as models
+        from poliloom import models
 
         model_class = getattr(models, model_name)
         for i, name in enumerate(names):
@@ -335,8 +337,9 @@ class TestEntitySearch:
 
     def test_filters_soft_deleted(self, client, mock_auth, db_session):
         """Should filter out soft-deleted entities from search results."""
+        from datetime import datetime
+
         from poliloom.models import Position
-        from datetime import datetime, timezone
 
         Position.create_with_entity(
             db_session, "Q1", "Active Position", labels=["Active Position"]
@@ -346,7 +349,7 @@ class TestEntitySearch:
         )
         db_session.flush()
 
-        pos2.wikidata_entity.deleted_at = datetime.now(timezone.utc)
+        pos2.wikidata_entity.deleted_at = datetime.now(UTC)
         db_session.flush()
 
         response = client.get(

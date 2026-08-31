@@ -1,7 +1,5 @@
 """Politician domain models: Politician, WikipediaLink."""
 
-from typing import List
-
 from dicttoxml import dicttoxml
 from sqlalchemy import (
     Column,
@@ -14,6 +12,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
+
 from .base import (
     Base,
     EntityCreationMixin,
@@ -56,8 +55,8 @@ class Politician(
     wikidata_id_numeric = Column(Integer, nullable=True, index=True)
 
     def get_properties_by_types(
-        self, property_types: List[PropertyType]
-    ) -> List["Property"]:
+        self, property_types: list[PropertyType]
+    ) -> list["Property"]:
         """Get all properties of the specified types."""
         return [prop for prop in self.properties if prop.type in property_types]
 
@@ -151,8 +150,8 @@ class Politician(
         session,
         wikidata_id: str,
         name: str,
-        labels: List[str] = None,
-        description: str = None,
+        labels: list[str] | None = None,
+        description: str | None = None,
     ):
         """Create a Politician with its associated WikidataEntity."""
         # Use EntityCreationMixin pattern but override for Politician

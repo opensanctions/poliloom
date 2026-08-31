@@ -6,11 +6,10 @@ Uses a single 'entities' index with a 'type' field for filtering.
 
 import logging
 import os
-from typing import Optional, TypedDict
+from typing import TypedDict
 
 import meilisearch
 from dotenv import load_dotenv
-
 
 # Single index for all searchable entities
 INDEX_NAME = "entities"
@@ -28,7 +27,7 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-_client: Optional[meilisearch.Client] = None
+_client: meilisearch.Client | None = None
 
 
 def get_client() -> meilisearch.Client:
@@ -89,7 +88,7 @@ def ensure_index() -> bool:
         return True
 
 
-def index_documents(documents: list[SearchDocument]) -> Optional[int]:
+def index_documents(documents: list[SearchDocument]) -> int | None:
     """Index documents to Meilisearch.
 
     Returns immediately without waiting, allowing Meilisearch's
@@ -135,7 +134,7 @@ def delete_documents(document_ids: list[str], batch_size: int = 10000) -> int:
 
 def search(
     query: str,
-    entity_type: Optional[str] = None,
+    entity_type: str | None = None,
     limit: int = 100,
 ) -> list[str]:
     """Search Meilisearch for entities by label.

@@ -1,18 +1,17 @@
 """Database configuration and session management."""
 
 import os
-from typing import Optional
 
 import psycopg
 import sqlalchemy
+from dotenv import load_dotenv
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
-from dotenv import load_dotenv
 
 load_dotenv()
 
 # Global variable for lazy initialization
-_engine: Optional[Engine] = None
+_engine: Engine | None = None
 
 
 def get_conn_params() -> dict:

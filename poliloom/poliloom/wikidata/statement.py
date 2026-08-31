@@ -2,8 +2,8 @@
 
 import logging
 import os
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List
+from datetime import UTC, datetime
+from typing import Any
 
 import httpx2
 from sqlalchemy.orm import Session
@@ -24,8 +24,8 @@ USER_AGENT = "PoliLoom API/0.1.0"
 
 
 def _convert_qualifiers_to_rest_api(
-    qualifiers_json: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+    qualifiers_json: dict[str, Any],
+) -> list[dict[str, Any]]:
     """Convert qualifiers from Action API format to REST API format."""
     rest_qualifiers = []
 
@@ -51,7 +51,7 @@ def _convert_qualifiers_to_rest_api(
 
 def prepare_property_for_statement(
     prop: Any,
-) -> tuple[Dict[str, Any], Optional[List[Dict[str, Any]]]]:
+) -> tuple[dict[str, Any], list[dict[str, Any]] | None]:
     """
     Convert a Property object into REST API format for statement creation.
 
@@ -99,8 +99,8 @@ def prepare_property_for_statement(
 
 async def create_entity(
     label: str,
-    description: Optional[str] = None,
-    jwt_token: str = None,
+    description: str | None = None,
+    jwt_token: str | None = None,
 ) -> str:
     """
     Create a new Wikidata entity (item).
@@ -226,10 +226,10 @@ async def deprecate_statement(
 async def create_statement(
     entity_id: str,
     property_id: str,
-    value: Dict[str, Any],
-    references: Optional[List[Dict[str, Any]]] = None,
-    qualifiers: Optional[List[Dict[str, Any]]] = None,
-    jwt_token: str = None,
+    value: dict[str, Any],
+    references: list[dict[str, Any]] | None = None,
+    qualifiers: list[dict[str, Any]] | None = None,
+    jwt_token: str | None = None,
 ) -> str:
     """
     Create a generic Wikidata statement.
@@ -350,7 +350,7 @@ async def push_evaluation(
                 )
 
                 # Soft delete from database if Wikidata deprecation succeeded
-                evaluation.property.deleted_at = datetime.now(timezone.utc)
+                evaluation.property.deleted_at = datetime.now(UTC)
                 db.commit()
                 logger.info(
                     f"Successfully processed deprecation for property statement for politician {politician_wikidata_id}"
@@ -368,7 +368,7 @@ async def push_evaluation(
                 f"Processing rejected evaluation {evaluation.id} - soft deleting extracted data"
             )
 
-            evaluation.property.deleted_at = datetime.now(timezone.utc)
+            evaluation.property.deleted_at = datetime.now(UTC)
             db.commit()
             logger.info(
                 f"Successfully soft deleted property extracted data for politician {politician_wikidata_id}"

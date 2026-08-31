@@ -2,7 +2,6 @@
 
 import logging
 import multiprocessing as mp
-from typing import Dict, Tuple, Type
 from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
@@ -10,14 +9,14 @@ from sqlalchemy.orm import Session
 from .. import dump_reader
 from ..database import create_engine, get_engine
 from ..models import (
-    Position,
-    Location,
     Country,
     Language,
-    WikipediaProject,
+    Location,
+    Position,
     WikidataEntity,
     WikidataEntityLabel,
     WikidataRelation,
+    WikipediaProject,
 )
 from ..wikidata.entity_processor import WikidataEntityProcessor
 
@@ -28,7 +27,7 @@ logger = logging.getLogger(__name__)
 class EntityCollection:
     """Collection for tracking entities, relations, and metadata for a specific entity type."""
 
-    model_class: Type
+    model_class: type
     shared_classes: frozenset[str]
     ignored_classes: frozenset[str] = field(default_factory=frozenset)
     entities: list[dict] = field(default_factory=list)
@@ -128,7 +127,7 @@ def _process_supporting_entities_chunk(
     end_byte: int,
     worker_id: int,
     batch_size: int,
-) -> Tuple[Dict[str, int], int]:
+) -> tuple[dict[str, int], int]:
     """
     Process a specific byte range of the dump file for supporting entities extraction.
     Uses frozensets for descendant QID lookups with O(1) membership testing.

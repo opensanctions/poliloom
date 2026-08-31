@@ -13,36 +13,8 @@ from .base import (
     UpsertMixin,
 )
 
-# Wikidata infrastructure
-from .wikidata import (
-    CurrentImportEntity,
-    CurrentImportStatement,
-    DownloadAlreadyCompleteError,
-    DownloadInProgressError,
-    WikidataEntity,
-    WikidataEntityLabel,
-    WikidataEntityMixin,
-    WikidataDump,
-    WikidataRelation,
-)
-
 # Supporting entities
 from .entities import Country, Language, Location, Position, WikipediaProject
-
-# User interaction
-from .user import Evaluation, PropertyClaim, PropertySkip, UserSettings
-
-# Sources
-from .source import (
-    Source,
-    SourceError,
-    SourceLanguage,
-    SourceStatus,
-    PoliticianSource,
-)
-
-# Property domain
-from .property import Property, PropertyReference
 
 # Politician domain
 from .politician import (
@@ -50,47 +22,75 @@ from .politician import (
     WikipediaLink,
 )
 
+# Property domain
+from .property import Property, PropertyReference
+
+# Sources
+from .source import (
+    PoliticianSource,
+    Source,
+    SourceError,
+    SourceLanguage,
+    SourceStatus,
+)
+
+# User interaction
+from .user import Evaluation, PropertyClaim, PropertySkip, UserSettings
+
+# Wikidata infrastructure
+from .wikidata import (
+    CurrentImportEntity,
+    CurrentImportStatement,
+    DownloadAlreadyCompleteError,
+    DownloadInProgressError,
+    WikidataDump,
+    WikidataEntity,
+    WikidataEntityLabel,
+    WikidataEntityMixin,
+    WikidataRelation,
+)
+
 __all__ = [
     # Base
     "Base",
-    "EntityCreationMixin",
-    "LanguageCodeMixin",
-    "PropertyComparisonResult",
-    "PropertyType",
-    "RelationType",
-    "SoftDeleteMixin",
-    "TimestampMixin",
-    "UpsertMixin",
-    "WikidataEntityMixin",
+    # Entities
+    "Country",
     # Wikidata
     "CurrentImportEntity",
     "CurrentImportStatement",
     "DownloadAlreadyCompleteError",
     "DownloadInProgressError",
-    "WikidataEntity",
-    "WikidataEntityLabel",
-    "WikidataDump",
-    "WikidataRelation",
-    # Entities
-    "Country",
-    "Language",
-    "Location",
-    "Position",
-    "WikipediaProject",
+    "EntityCreationMixin",
     # User
     "Evaluation",
+    "Language",
+    "LanguageCodeMixin",
+    "Location",
+    # Politician
+    "Politician",
+    "PoliticianSource",
+    "Position",
+    "Property",
     "PropertyClaim",
+    "PropertyComparisonResult",
+    "PropertyReference",
     "PropertySkip",
-    "UserSettings",
+    "PropertyType",
+    "RelationType",
+    "SoftDeleteMixin",
     # Sources
     "Source",
     "SourceError",
     "SourceLanguage",
     "SourceStatus",
-    "PoliticianSource",
-    # Politician
-    "Politician",
-    "Property",
-    "PropertyReference",
+    "TimestampMixin",
+    "UpsertMixin",
+    "UserSettings",
+    "WikidataDump",
+    "WikidataEntity",
+    "WikidataEntityLabel",
+    "WikidataEntityMixin",
+    "WikidataRelation",
     "WikipediaLink",
+    "WikipediaProject",
 ]

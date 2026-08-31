@@ -1,30 +1,30 @@
 """API endpoints for entities like languages and countries."""
 
 from enum import Enum
-from typing import List, Type
+
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, func, and_, case
 
 from ..database import get_db_session
 from ..models import (
-    Language,
     Country,
-    Position,
+    Language,
     Location,
+    Position,
+    Property,
     WikidataEntity,
     WikipediaLink,
     WikipediaProject,
-    Property,
 )
-from ..models.wikidata import WikidataRelation
 from ..models.base import PropertyType, RelationType
+from ..models.wikidata import WikidataRelation
+from .auth import User, get_current_user
 from .schemas import (
-    LanguageResponse,
     CountryResponse,
     EntitySearchResponse,
+    LanguageResponse,
 )
-from .auth import get_current_user, User
 
 router = APIRouter()
 
@@ -34,7 +34,7 @@ router = APIRouter()
 # =============================================================================
 
 
-@router.get("/languages", response_model=List[LanguageResponse])
+@router.get("/languages", response_model=list[LanguageResponse])
 async def get_languages(
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
@@ -99,7 +99,7 @@ async def get_languages(
     ]
 
 
-@router.get("/countries", response_model=List[CountryResponse])
+@router.get("/countries", response_model=list[CountryResponse])
 async def get_countries(
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
@@ -157,14 +157,14 @@ class EntityType(str, Enum):
     country = "country"
 
 
-ENTITY_TYPE_MODELS: dict[EntityType, Type] = {
+ENTITY_TYPE_MODELS: dict[EntityType, type] = {
     EntityType.position: Position,
     EntityType.location: Location,
     EntityType.country: Country,
 }
 
 
-@router.get("/entities/search", response_model=List[EntitySearchResponse])
+@router.get("/entities/search", response_model=list[EntitySearchResponse])
 async def search_entities(
     q: str = Query(..., min_length=1, description="Search query"),
     type: EntityType = Query(..., description="Entity type"),

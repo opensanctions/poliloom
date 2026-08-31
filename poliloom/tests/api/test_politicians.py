@@ -5,7 +5,6 @@ from unittest.mock import Mock, patch
 import pytest
 
 from poliloom.api.politicians import get_next_politician
-
 from poliloom.models import (
     Evaluation,
     Politician,

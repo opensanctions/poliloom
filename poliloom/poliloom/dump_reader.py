@@ -1,9 +1,11 @@
 """File reading utilities for Wikidata dump processing."""
 
-import orjson
 import logging
 import multiprocessing as mp
-from typing import Dict, Any, Iterator, List, Tuple, Optional
+from collections.abc import Iterator
+from typing import Any
+
+import orjson
 
 from .storage import StorageFactory
 from .wikidata.entity_processor import WikidataEntityProcessor
@@ -12,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 def calculate_file_chunks(
-    dump_file_path: str, num_workers: Optional[int] = None
-) -> List[Tuple[int, int]]:
+    dump_file_path: str, num_workers: int | None = None
+) -> list[tuple[int, int]]:
     """
     Calculate byte ranges for each worker to process independently.
 
@@ -84,7 +86,7 @@ def calculate_file_chunks(
     return chunks
 
 
-def _process_dump_line(line: bytes) -> Optional[Dict[str, Any]]:
+def _process_dump_line(line: bytes) -> dict[str, Any] | None:
     """
     Process a single line from the dump file.
 

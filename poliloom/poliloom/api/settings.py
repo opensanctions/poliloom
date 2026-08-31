@@ -9,7 +9,6 @@ from ..models import UserSettings
 from .auth import User, get_current_user
 from .schemas import UserSettingsPatch, UserSettingsResponse
 
-
 router = APIRouter()
 
 

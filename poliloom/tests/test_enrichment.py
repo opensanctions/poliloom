@@ -1,24 +1,25 @@
 """Tests for enrichment module functionality."""
 
-import pytest
 from unittest.mock import Mock, patch
 
+import pytest
+
 from poliloom.enrichment import (
+    BIRTHPLACES_CONFIG,
+    DATES_CONFIG,
+    POSITIONS_CONFIG,
+    ExtractedBirthplace,
+    ExtractedCitizenship,
+    ExtractedPosition,
+    ExtractedProperty,
+    FreeFormBirthplace,
+    FreeFormBirthplaceResult,
+    FreeFormPosition,
+    FreeFormPositionResult,
+    PropertyType,
     extract_properties_generic,
     extract_two_stage_generic,
     store_extracted_data,
-    ExtractedProperty,
-    ExtractedPosition,
-    ExtractedBirthplace,
-    ExtractedCitizenship,
-    PropertyType,
-    DATES_CONFIG,
-    POSITIONS_CONFIG,
-    BIRTHPLACES_CONFIG,
-    FreeFormPosition,
-    FreeFormPositionResult,
-    FreeFormBirthplace,
-    FreeFormBirthplaceResult,
 )
 from poliloom.models import (
     Location,
