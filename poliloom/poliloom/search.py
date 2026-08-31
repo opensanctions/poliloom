@@ -2,7 +2,6 @@
 
 Thin wrappers around Meilisearch for indexing and searching entities.
 Uses a single 'entities' index with a 'type' field for filtering.
-Supports hybrid search (keyword + semantic) using OpenAI embeddings.
 """
 
 import logging
@@ -15,13 +14,6 @@ from dotenv import load_dotenv
 
 # Single index for all searchable entities
 INDEX_NAME = "entities"
-
-# Embedder name for hybrid search
-EMBEDDER_NAME = "openai"
-
-# OpenAI embedding model configuration
-EMBEDDING_MODEL = "text-embedding-3-small"
-EMBEDDING_DIMENSIONS = 1536
 
 
 class SearchDocument(TypedDict):
@@ -49,7 +41,7 @@ def get_client() -> meilisearch.Client:
 
 
 def create_index() -> None:
-    """Create the entities index with proper settings and OpenAI embedder."""
+    """Create the entities index with proper settings."""
     logger.info(f"Creating index '{INDEX_NAME}'")
     client = get_client()
     task = client.create_index(INDEX_NAME, {"primaryKey": "id"})
@@ -65,26 +57,6 @@ def create_index() -> None:
         }
     )
     client.wait_for_task(task.task_uid)
-
-    # Configure OpenAI embedder for hybrid search
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    if not openai_api_key:
-        raise ValueError("OPENAI_API_KEY environment variable is required")
-
-    logger.info(f"Configuring OpenAI embedder '{EMBEDDER_NAME}'")
-    task = index.update_embedders(
-        {
-            EMBEDDER_NAME: {
-                "source": "openAi",
-                "apiKey": openai_api_key,
-                "model": EMBEDDING_MODEL,
-                "dimensions": EMBEDDING_DIMENSIONS,
-                "documentTemplate": "{{doc.labels | join: ', '}}",
-            }
-        }
-    )
-    client.wait_for_task(task.task_uid)
-    logger.info("OpenAI embedder configured successfully")
 
 
 def delete_index() -> None:
@@ -165,19 +137,13 @@ def search(
     query: str,
     entity_type: Optional[str] = None,
     limit: int = 100,
-    semantic_ratio: float = 0.0,
 ) -> list[str]:
     """Search Meilisearch for entities by label.
-
-    Supports hybrid search combining keyword matching and semantic similarity.
 
     Args:
         query: Search query text
         entity_type: Optional type filter (e.g., 'Location', 'Politician')
         limit: Maximum number of results
-        semantic_ratio: Balance between keyword (0.0) and semantic (1.0) search.
-                       Default 0.0 uses pure keyword search.
-                       Use 0.5 for balanced hybrid search.
 
     Returns:
         List of document IDs (wikidata_ids) ordered by relevance
@@ -186,13 +152,6 @@ def search(
     search_params: dict = {"limit": limit}
     if entity_type:
         search_params["filter"] = f"types = '{entity_type}'"
-
-    # Use hybrid search when semantic_ratio > 0
-    if semantic_ratio > 0:
-        search_params["hybrid"] = {
-            "semanticRatio": semantic_ratio,
-            "embedder": EMBEDDER_NAME,
-        }
 
     results = index.search(query, search_params)
     return [hit["id"] for hit in results["hits"]]

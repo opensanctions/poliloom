@@ -118,10 +118,6 @@ class WikidataEntityMixin:
 
         return ", ".join(description_parts) if description_parts else ""
 
-    # Search configuration - override in subclasses to enable hybrid search
-    # Balance between keyword (0.0) and semantic (1.0) search
-    _search_semantic_ratio: float = 0.0
-
     @classmethod
     def find_similar(
         cls,
@@ -129,8 +125,6 @@ class WikidataEntityMixin:
         limit: int = 100,
     ) -> list[str]:
         """Find similar entities by searching the search index.
-
-        Uses hybrid search (keyword + semantic) when _search_semantic_ratio > 0.
 
         Args:
             query: Search query text
@@ -143,7 +137,6 @@ class WikidataEntityMixin:
             query,
             entity_type=cls.__name__,
             limit=limit,
-            semantic_ratio=cls._search_semantic_ratio,
         )
 
     # Default hierarchy configuration - override in subclasses

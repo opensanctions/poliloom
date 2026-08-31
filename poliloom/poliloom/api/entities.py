@@ -172,7 +172,7 @@ async def search_entities(
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Search entities by name/label using semantic similarity."""
+    """Search entities by name/label."""
     model_class = ENTITY_TYPE_MODELS[type]
 
     entity_ids = model_class.find_similar(q, limit=limit)

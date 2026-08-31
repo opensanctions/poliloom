@@ -223,7 +223,7 @@ async def search_politicians(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Search politicians by name/label using semantic similarity.
+    Search politicians by name/label.
 
     Returns matching politicians ranked by relevance with their properties.
     """
