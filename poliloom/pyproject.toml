@@ -18,7 +18,6 @@ dependencies = [
     "PyJWT>=2.8.0",
     "mwoauth>=0.3.7",
     "psycopg[binary]>=3.1.0",
-    "pgvector>=0.2.0",
     "playwright>=1.40.0",
     "unmhtml>=0.2.0",
     "google-cloud-storage>=2.10.0",
