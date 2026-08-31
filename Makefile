@@ -8,38 +8,37 @@ DB_PASSWORD ?= postgres
 
 PSQL = PGPASSWORD="$(DB_PASSWORD)" psql -h "$(DB_HOST)" -p "$(DB_PORT)" -U "$(DB_USER)" -d "$(DB_NAME)"
 
-# Database commands use the exposed port and work with Compose or Quadlet.
-
-# Truncate main database tables (cascades will handle related tables)
 db-truncate:
 	@echo "Truncating main database tables..."
 	@$(PSQL) -c "TRUNCATE TABLE politicians, countries, locations, positions, wikidata_classes CASCADE;"
 	@echo "Database tables truncated successfully."
 
-# Dump database to local file
+DUMP_FILE = poliloom-db-$(shell date +%Y%m%d-%H%M%S).sql
+
 db-dump:
 	@mkdir -p dumps
-	@echo "Dumping database to dumps/postgres.sql..."
-	@PGPASSWORD="$(DB_PASSWORD)" pg_dump -h "$(DB_HOST)" -p "$(DB_PORT)" -U "$(DB_USER)" -d "$(DB_NAME)" -f dumps/postgres.sql
-	@echo "Database dumped successfully to dumps/postgres.sql"
+	@echo "Dumping database to dumps/$(DUMP_FILE)..."
+	@PGPASSWORD="$(DB_PASSWORD)" pg_dump -h "$(DB_HOST)" -p "$(DB_PORT)" -U "$(DB_USER)" -d "$(DB_NAME)" -f dumps/$(DUMP_FILE)
+	@echo "Database dumped successfully to dumps/$(DUMP_FILE)"
 
-# Restore database from local file
 db-restore:
-	@echo "Restoring database from dumps/postgres.sql..."
-	@if [ ! -f dumps/postgres.sql ]; then \
-		echo "Error: dumps/postgres.sql not found. Run 'make db-dump' first."; \
+	@if [ -z "$(FILE)" ]; then \
+		echo "Error: FILE is required. Usage: make db-restore FILE=path/to/dump.sql"; \
 		exit 1; \
 	fi
+	@if [ ! -f "$(FILE)" ]; then \
+		echo "Error: $(FILE) not found."; \
+		exit 1; \
+	fi
+	@echo "Restoring database from $(FILE)..."
 	@$(PSQL) -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 	@$(PSQL) -f init-db.sql
-	@$(PSQL) -f dumps/postgres.sql
-	@echo "Database restored successfully from dumps/postgres.sql"
+	@$(PSQL) -f "$(FILE)"
+	@echo "Database restored successfully from $(FILE)"
 
-# Export all positions to CSV file
 export-positions-csv:
 	@$(PSQL) -c "\COPY (SELECT wikidata_id, name FROM positions ORDER BY wikidata_id) TO STDOUT WITH CSV HEADER"
 
-# Meilisearch writes timestamped dumps and snapshots to dumps/ asynchronously.
 index-dump:
 	@mkdir -p dumps
 	@. ./.env && curl --fail-with-body --silent --show-error \
