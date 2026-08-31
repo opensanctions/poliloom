@@ -27,8 +27,6 @@ class Country(
     __tablename__ = "countries"
 
     _search_indexed = True
-    # Use hybrid search for demonyms and abbreviations (American → United States)
-    _search_semantic_ratio = 0.4
 
     # UpsertMixin configuration
     _upsert_update_columns = ["iso_code"]
@@ -238,8 +236,6 @@ class Location(
     __tablename__ = "locations"
 
     _search_indexed = True
-    # Use hybrid search for transliterations and historical names
-    _search_semantic_ratio = 0.3
 
     # Hierarchy configuration for import filtering and cleanup
     _hierarchy_roots = [
@@ -284,7 +280,6 @@ class Position(
     __tablename__ = "positions"
 
     _search_indexed = True
-    _search_semantic_ratio = 0.4
 
     # Hierarchy configuration for import filtering and cleanup
     _hierarchy_roots = [

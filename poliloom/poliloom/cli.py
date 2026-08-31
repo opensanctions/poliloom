@@ -1012,15 +1012,6 @@ def index_stats():
                 total = step.get("total", 0)
                 click.echo(f"      └─ {name}: {finished:,}/{total:,}")
 
-            # Show embedder stats
-            stats = batch.stats or {}
-            embedder = stats.get("embedderRequests", {})
-            if embedder and embedder.get("total", 0) > 0:
-                click.echo(
-                    f"      └─ Embedder: {embedder['total']:,} requests "
-                    f"({embedder.get('failed', 0)} failed)"
-                )
-
         # Show failed batch errors
         if status == "failed" and batches.results:
             for batch in batches.results[:3]:
