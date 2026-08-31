@@ -161,33 +161,6 @@
       "mapped_result": null
     }
   },
-  "similarity_search_examples": {
-    "position_embeddings": [
-      0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,
-      -0.1, -0.2, -0.3, -0.4, -0.5, -0.6, -0.7, -0.8, -0.9, -1.0
-    ],
-    "location_embeddings": [
-      0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95,
-      -0.05, -0.15, -0.25, -0.35, -0.45, -0.55, -0.65, -0.75, -0.85, -0.95
-    ],
-    "similarity_search_results": [
-      {
-        "wikidata_id": "Q30185",
-        "name": "mayor",
-        "similarity_score": 0.95
-      },
-      {
-        "wikidata_id": "Q1234567",
-        "name": "Mayor of Springfield",
-        "similarity_score": 0.90
-      },
-      {
-        "wikidata_id": "Q7654321",
-        "name": "city mayor",
-        "similarity_score": 0.85
-      }
-    ]
-  },
   "extraction_pipeline_examples": {
     "full_pipeline_input": {
       "politician_id": "Q123456",
@@ -207,7 +180,7 @@
           "name": "Member of Parliament for Westminster",
           "start_date": "2010",
           "end_date": null,
-          "confidence": 0.90
+          "confidence": 0.9
         },
         {
           "wikidata_id": "Q6581072",
@@ -237,7 +210,7 @@
       "wikidata_end_date": null,
       "extracted_end_date": "2020-12-31",
       "conflict_type": "position_dates",
-      "confidence": 0.90
+      "confidence": 0.9
     },
     "birthplace_conflict": {
       "wikidata_birthplace": "Q84",
