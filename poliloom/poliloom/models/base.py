@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from enum import Enum
+from typing import ClassVar
 
 from sqlalchemy import Column, DateTime, String, func
 from sqlalchemy.dialects.postgresql import insert
@@ -69,7 +70,7 @@ class UpsertMixin:
     """Mixin for adding batch upsert functionality."""
 
     # Override this in subclasses to specify which columns to update on conflict
-    _upsert_update_columns = []
+    _upsert_update_columns: ClassVar[list[str]] = []
     # Override this in subclasses to specify the conflict columns (defaults to primary key)
     _upsert_conflict_columns = None
     # Override this in subclasses to specify the index WHERE clause for partial indexes

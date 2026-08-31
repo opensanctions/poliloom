@@ -1,5 +1,7 @@
 """Politician domain models: Politician, WikipediaLink."""
 
+from typing import ClassVar
+
 from dicttoxml import dicttoxml
 from sqlalchemy import (
     Column,
@@ -41,8 +43,8 @@ class Politician(
 
     _search_indexed = True
     # UpsertMixin configuration
-    _upsert_update_columns = ["name"]
-    _upsert_conflict_columns = ["wikidata_id"]
+    _upsert_update_columns: ClassVar[list[str]] = ["name"]
+    _upsert_conflict_columns: ClassVar[list[str]] = ["wikidata_id"]
 
     id = Column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
@@ -221,8 +223,11 @@ class WikipediaLink(Base, TimestampMixin, UpsertMixin):
     )
 
     # UpsertMixin configuration
-    _upsert_conflict_columns = ["politician_id", "wikipedia_project_id"]
-    _upsert_update_columns = ["url"]
+    _upsert_conflict_columns: ClassVar[list[str]] = [
+        "politician_id",
+        "wikipedia_project_id",
+    ]
+    _upsert_update_columns: ClassVar[list[str]] = ["url"]
 
     id = Column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")

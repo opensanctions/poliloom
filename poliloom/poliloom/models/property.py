@@ -1,6 +1,6 @@
 """Property domain models: Property, PropertyReference."""
 
-from typing import Optional
+from typing import ClassVar, Optional
 
 from sqlalchemy import (
     CheckConstraint,
@@ -81,9 +81,9 @@ class Property(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     )
 
     # UpsertMixin configuration
-    _upsert_conflict_columns = ["statement_id"]
+    _upsert_conflict_columns: ClassVar[list[str]] = ["statement_id"]
     _upsert_index_where = text("statement_id IS NOT NULL")
-    _upsert_update_columns = [
+    _upsert_update_columns: ClassVar[list[str]] = [
         "value",
         "value_precision",
         "entity_id",

@@ -1,5 +1,7 @@
 """Tests for model mixins using test-only concrete models."""
 
+from typing import ClassVar
+
 from poliloom.models.base import (
     Base,
     EntityCreationMixin,
@@ -22,7 +24,7 @@ class DummyEntity(
     __tablename__ = "test_entities"
 
     # UpsertMixin configuration
-    _upsert_update_columns = []
+    _upsert_update_columns: ClassVar[list[str]] = []
 
 
 class TestEntityCreationMixin:

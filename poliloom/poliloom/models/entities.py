@@ -1,6 +1,6 @@
 """Supporting entity models: Country, Language, Location, Position."""
 
-from typing import Any
+from typing import Any, ClassVar
 
 from sqlalchemy import Column, String
 from sqlalchemy.orm import relationship
@@ -29,10 +29,10 @@ class Country(
     _search_indexed = True
 
     # UpsertMixin configuration
-    _upsert_update_columns = ["iso_code"]
+    _upsert_update_columns: ClassVar[list[str]] = ["iso_code"]
 
     # Hierarchy configuration for import filtering and cleanup
-    _hierarchy_roots = [
+    _hierarchy_roots: ClassVar[list[str]] = [
         "Q6256",  # country
         "Q3624078",  # sovereign state
         "Q20181813",  # disputed territory
@@ -40,7 +40,7 @@ class Country(
         "Q1489259",  # dependent territory
         "Q1048835",  # political territorial entity
     ]
-    _hierarchy_ignore = []
+    _hierarchy_ignore: ClassVar[list[str]] = []
 
     # Cleanup configuration: property type to soft-delete when cleaning hierarchy
     _cleanup_property_type = "CITIZENSHIP"
@@ -90,11 +90,16 @@ class Language(
     __tablename__ = "languages"
 
     # UpsertMixin configuration
-    _upsert_update_columns = ["iso_639_1", "iso_639_2", "iso_639_3", "wikimedia_code"]
+    _upsert_update_columns: ClassVar[list[str]] = [
+        "iso_639_1",
+        "iso_639_2",
+        "iso_639_3",
+        "wikimedia_code",
+    ]
 
     # Hierarchy configuration for import filtering and cleanup
-    _hierarchy_roots = ["Q34770"]  # language
-    _hierarchy_ignore = []
+    _hierarchy_roots: ClassVar[list[str]] = ["Q34770"]  # language
+    _hierarchy_ignore: ClassVar[list[str]] = []
 
     # Cleanup configuration: no properties reference languages
     _cleanup_property_type = None
@@ -174,7 +179,7 @@ class WikipediaProject(
     __tablename__ = "wikipedia_projects"
 
     # UpsertMixin configuration
-    _upsert_update_columns = ["official_website"]
+    _upsert_update_columns: ClassVar[list[str]] = ["official_website"]
 
     official_website = Column(String, nullable=True)  # P856 official website URL
 
@@ -238,11 +243,11 @@ class Location(
     _search_indexed = True
 
     # Hierarchy configuration for import filtering and cleanup
-    _hierarchy_roots = [
+    _hierarchy_roots: ClassVar[list[str]] = [
         "Q486972",  # human settlement
         "Q56061",  # administrative territorial entity
     ]
-    _hierarchy_ignore = []
+    _hierarchy_ignore: ClassVar[list[str]] = []
 
     # Cleanup configuration: property type to soft-delete when cleaning hierarchy
     _cleanup_property_type = "BIRTHPLACE"
@@ -282,13 +287,13 @@ class Position(
     _search_indexed = True
 
     # Hierarchy configuration for import filtering and cleanup
-    _hierarchy_roots = [
+    _hierarchy_roots: ClassVar[list[str]] = [
         "Q4164871",  # position
         "Q29645880",  # ambassador of a country
         "Q29645886",  # ambassador to a country
         "Q707492",  # military chief of staff
     ]
-    _hierarchy_ignore = [
+    _hierarchy_ignore: ClassVar[list[str]] = [
         "Q114962596",  # historical position
         "Q193622",  # order
         "Q60754876",  # grade of an order

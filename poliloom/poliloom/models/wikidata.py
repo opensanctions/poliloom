@@ -2,6 +2,7 @@
 
 from collections import defaultdict
 from datetime import UTC, datetime
+from typing import ClassVar
 
 from sqlalchemy import (
     Column,
@@ -490,7 +491,7 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     __table_args__ = (Index("idx_wikidata_entities_updated_at", "updated_at"),)
 
     # UpsertMixin configuration
-    _upsert_update_columns = ["name", "description"]
+    _upsert_update_columns: ClassVar[list[str]] = ["name", "description"]
 
     wikidata_id = Column(String, primary_key=True)  # Wikidata QID as primary key
     name = Column(
@@ -688,8 +689,10 @@ class WikidataEntityLabel(Base, TimestampMixin, UpsertMixin):
     )
 
     # UpsertMixin configuration
-    _upsert_conflict_columns = ["entity_id", "label"]
-    _upsert_update_columns = []  # No updates needed - labels are immutable
+    _upsert_conflict_columns: ClassVar[list[str]] = ["entity_id", "label"]
+    _upsert_update_columns: ClassVar[
+        list[str]
+    ] = []  # No updates needed - labels are immutable
 
     id = Column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
@@ -719,7 +722,11 @@ class WikidataRelation(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     )
 
     # UpsertMixin configuration
-    _upsert_update_columns = ["parent_entity_id", "child_entity_id", "relation_type"]
+    _upsert_update_columns: ClassVar[list[str]] = [
+        "parent_entity_id",
+        "child_entity_id",
+        "relation_type",
+    ]
 
     parent_entity_id = Column(
         String,
