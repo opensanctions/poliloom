@@ -23,8 +23,8 @@ def setup_logging() -> None:
         force=True,  # Override any existing configuration
     )
 
-    # Configure httpx logging to respect the same level
-    logging.getLogger("httpx").setLevel(numeric_level)
+    # Configure httpx2 logging to respect the same level
+    logging.getLogger("httpx2").setLevel(numeric_level)
     logging.getLogger("httpcore").setLevel(numeric_level)
 
     # Configure dicttoxml to only log INFO when in DEBUG mode

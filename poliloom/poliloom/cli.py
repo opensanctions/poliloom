@@ -3,7 +3,7 @@
 import click
 import logging
 from datetime import datetime, timezone
-import httpx
+import httpx2
 from poliloom.storage import StorageFactory
 from poliloom.importer.hierarchy import import_hierarchy_trees
 from poliloom.importer.entity import import_entities
@@ -130,7 +130,7 @@ def dump_download(output, force):
 
     try:
         # Send HEAD request to get metadata
-        with httpx.Client(timeout=30.0) as client:
+        with httpx2.Client(timeout=30.0) as client:
             response = client.head(url, follow_redirects=True)
             response.raise_for_status()
 

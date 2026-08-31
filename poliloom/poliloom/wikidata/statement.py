@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 
-import httpx
+import httpx2
 from sqlalchemy.orm import Session
 
 from ..models import (
@@ -115,7 +115,7 @@ async def create_entity(
 
     Raises:
         ValueError: If JWT token is missing
-        httpx.RequestError: For network errors
+        httpx2.RequestError: For network errors
         Exception: For other API errors
     """
     if not jwt_token:
@@ -138,7 +138,7 @@ async def create_entity(
         "User-Agent": USER_AGENT,
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx2.AsyncClient(timeout=30.0) as client:
         response = await client.post(url, json=item_data, headers=headers)
 
         # Debug logging for request details
@@ -177,7 +177,7 @@ async def deprecate_statement(
 
     Raises:
         ValueError: If JWT token is missing
-        httpx.RequestError: For network errors
+        httpx2.RequestError: For network errors
         Exception: For other API errors
     """
     if not jwt_token:
@@ -196,7 +196,7 @@ async def deprecate_statement(
     # Use JSON Patch format to update the rank
     patch_data = [{"op": "replace", "path": "/rank", "value": "deprecated"}]
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx2.AsyncClient(timeout=30.0) as client:
         response = await client.patch(url, json={"patch": patch_data}, headers=headers)
 
         # Debug logging for request details
@@ -247,7 +247,7 @@ async def create_statement(
 
     Raises:
         ValueError: If JWT token is missing
-        httpx.RequestError: For network errors
+        httpx2.RequestError: For network errors
         Exception: For other errors including failed API responses
     """
     if not jwt_token:
@@ -279,7 +279,7 @@ async def create_statement(
         "User-Agent": USER_AGENT,
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx2.AsyncClient(timeout=30.0) as client:
         response = await client.post(url, json=statement_data, headers=headers)
 
         # Debug logging for request details

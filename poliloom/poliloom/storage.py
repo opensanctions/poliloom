@@ -4,7 +4,7 @@ import logging
 import os
 import shutil
 import tempfile
-import httpx
+import httpx2
 import indexed_bzip2 as ibz2
 from abc import ABC, abstractmethod
 from typing import BinaryIO, Iterator, Tuple
@@ -337,7 +337,7 @@ class StorageFactory:
         """
         backend = cls.get_backend(destination)
 
-        with httpx.stream("GET", url, follow_redirects=True) as response:
+        with httpx2.stream("GET", url, follow_redirects=True) as response:
             response.raise_for_status()
 
             with backend.open(destination, "wb") as f:
