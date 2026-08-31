@@ -204,8 +204,8 @@ def import_hierarchy_trees(
             pool.terminate()
             try:
                 pool.join()
-            except Exception:
-                pass
+            except (OSError, ValueError) as e:
+                logger.warning(f"Failed to join worker pool cleanly: {e}")
         raise KeyboardInterrupt("Hierarchy import interrupted by user")
     finally:
         if pool:
@@ -279,8 +279,8 @@ def import_hierarchy_trees(
             pool.terminate()
             try:
                 pool.join()
-            except Exception:
-                pass
+            except (OSError, ValueError) as e:
+                logger.warning(f"Failed to join worker pool cleanly: {e}")
         raise KeyboardInterrupt("Hierarchy import interrupted by user")
     finally:
         if pool:

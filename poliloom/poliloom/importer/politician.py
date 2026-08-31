@@ -485,8 +485,8 @@ def import_politicians(
             pool.terminate()
             try:
                 pool.join()  # Wait up to 5 seconds for workers to finish
-            except Exception:
-                pass  # If join times out, continue anyway
+            except (OSError, ValueError) as e:
+                logger.warning(f"Failed to join worker pool cleanly: {e}")
         raise KeyboardInterrupt("Entity extraction interrupted by user")
     finally:
         if pool:

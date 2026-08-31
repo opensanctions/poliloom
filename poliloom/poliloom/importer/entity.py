@@ -135,7 +135,6 @@ def _process_supporting_entities_chunk(
     Each worker independently reads and parses its assigned chunk.
     Returns entity counts found in this chunk.
     """
-    global worker_config
 
     # Create fresh connections for this worker process
     engine = create_engine(pool_size=2, max_overflow=3)
@@ -330,8 +329,8 @@ def import_entities(
             pool.terminate()
             try:
                 pool.join()
-            except Exception:
-                pass
+            except (OSError, ValueError) as e:
+                logger.warning(f"Failed to join worker pool cleanly: {e}")
         raise KeyboardInterrupt("Entity extraction interrupted by user")
     finally:
         if pool:
