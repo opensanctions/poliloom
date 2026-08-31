@@ -418,7 +418,7 @@ class TestConvertMhtmlToHtml:
 
         with patch("poliloom.archiving.MHTMLConverter") as mock_converter_class:
             mock_converter = Mock()
-            mock_converter.convert.side_effect = Exception("Conversion failed")
+            mock_converter.convert.side_effect = ValueError("Conversion failed")
             mock_converter_class.return_value = mock_converter
 
             result = convert_mhtml_to_html(mhtml_content)

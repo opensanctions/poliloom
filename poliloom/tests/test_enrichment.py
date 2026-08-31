@@ -3,6 +3,8 @@
 from unittest.mock import Mock, patch
 
 import pytest
+from openai import OpenAIError
+from sqlalchemy.exc import SQLAlchemyError
 
 from poliloom.enrichment import (
     BIRTHPLACES_CONFIG,
@@ -99,7 +101,7 @@ class TestEnrichment:
 
         # Make the mock async and raise exception
         async def mock_parse(*args, **kwargs):
-            raise Exception("API Error")
+            raise OpenAIError("API Error")
 
         mock_openai_client.responses.parse = mock_parse
 
@@ -620,7 +622,9 @@ class TestEnrichment:
         ]
 
         # Mock the session to raise an exception during add
-        with patch.object(db_session, "add", side_effect=Exception("Database error")):
+        with patch.object(
+            db_session, "add", side_effect=SQLAlchemyError("Database error")
+        ):
             success = store_extracted_data(
                 db_session,
                 sample_politician,

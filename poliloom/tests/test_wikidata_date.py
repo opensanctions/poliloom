@@ -1,6 +1,6 @@
 """Tests for dates module functionality."""
 
-from datetime import date
+from datetime import UTC, datetime
 
 import pytest
 
@@ -396,12 +396,12 @@ class TestIsOverYearsAgo:
 
     def test_boundary_year_not_over(self):
         """Exactly 5 years ago (year precision) is NOT over 5 years ago."""
-        cutoff_year = date.today().year - 5
+        cutoff_year = datetime.now(UTC).date().year - 5
         wd = WikidataDate.from_date_string(str(cutoff_year))
         assert not wd.is_over_years_ago(5)
 
     def test_boundary_year_minus_one_is_over(self):
-        cutoff_year = date.today().year - 5
+        cutoff_year = datetime.now(UTC).date().year - 5
         wd = WikidataDate.from_date_string(str(cutoff_year - 1))
         assert wd.is_over_years_ago(5)
 

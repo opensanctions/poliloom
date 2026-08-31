@@ -5,9 +5,13 @@ import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+import meilisearch.errors
 from bs4 import BeautifulSoup
+from google.api_core.exceptions import GoogleAPICallError
+from openai import OpenAIError
 from playwright.async_api import async_playwright
 from sqlalchemy import or_, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from unmhtml import MHTMLConverter
 
@@ -62,7 +66,7 @@ def convert_mhtml_to_html(mhtml_content: str | None) -> str | None:
     try:
         converter = MHTMLConverter()
         return converter.convert(mhtml_content)
-    except Exception as e:
+    except ValueError as e:
         logger.warning(f"Failed to convert MHTML to HTML: {e}")
         return None
 
@@ -228,7 +232,7 @@ def extract_permanent_url(html_content: str) -> str | None:
         logger.debug(f"Found permanent URL via t-permalink: {permanent_url}")
         return permanent_url
 
-    except Exception as e:
+    except (KeyError, TypeError, ValueError) as e:
         logger.warning(f"Error extracting permanent URL: {e}")
         return None
 
@@ -349,7 +353,15 @@ async def process_source(db: Session, source: Source, politician: Politician) ->
             source.http_status_code = e.http_status_code
         db.commit()
         return 0
-    except Exception as e:
+    except (
+        SQLAlchemyError,
+        meilisearch.errors.MeilisearchError,
+        OpenAIError,
+        OSError,
+        ValueError,
+        RuntimeError,
+        GoogleAPICallError,
+    ) as e:
         logger.error(f"Pipeline error for source {source.id}: {e}")
         source.status = SourceStatus.DONE
         source.error = SourceError.PIPELINE_ERROR

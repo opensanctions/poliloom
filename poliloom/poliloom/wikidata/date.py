@@ -2,7 +2,7 @@
 
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Any, Optional
 
 
@@ -28,7 +28,7 @@ class WikidataDate:
             return True
 
         year, month, day = self.extract_date_parts()
-        today = date.today()
+        today = datetime.now(UTC).date()
         cutoff_year = today.year - years
 
         if self.precision <= 8:

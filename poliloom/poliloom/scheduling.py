@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from .archiving import process_source
@@ -91,7 +92,7 @@ def schedule_enrichment(
             source_ids=[s.id for s in sources],
         )
 
-    except Exception as e:
+    except SQLAlchemyError as e:
         logger.error(
             f"Error scheduling enrichment for politician {politician.wikidata_id}: {e}"
         )

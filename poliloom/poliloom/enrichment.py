@@ -4,11 +4,13 @@ import asyncio
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from dicttoxml import dicttoxml
-from openai import AsyncOpenAI
+from meilisearch.errors import MeilisearchError
+from openai import AsyncOpenAI, OpenAIError
 from pydantic import BaseModel, Field, create_model, field_validator
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from . import prompts
@@ -218,7 +220,7 @@ async def extract_properties_generic(
 
         return getattr(response.output_parsed, config.result_field_name)
 
-    except Exception as e:
+    except OpenAIError as e:
         logger.error(f"Error extracting {config.property_types} with LLM: {e}")
         return None
 
@@ -328,7 +330,7 @@ async def _map_single_item(
         logger.debug(f"Mapped '{free_item.name}' -> '{entity.name}' ({mapped_qid})")
         return result
 
-    except Exception as e:
+    except (MeilisearchError, SQLAlchemyError, OpenAIError) as e:
         logger.error(
             f"Error mapping single {config.entity_class.MAPPING_ENTITY_NAME}: {e}"
         )
@@ -389,7 +391,7 @@ async def extract_two_stage_generic(
         )
         return mapped_results
 
-    except Exception as e:
+    except (MeilisearchError, SQLAlchemyError, OpenAIError) as e:
         logger.error(
             f"Error extracting {config.entity_class.MAPPING_ENTITY_NAME}s: {e}"
         )
@@ -411,7 +413,7 @@ async def map_to_wikidata_entity(
         entity_qids = [
             entity["qid"] for entity in candidate_entities if entity.get("qid")
         ]
-        EntityQidType = Optional[Literal[tuple(entity_qids)]]
+        EntityQidType = Literal[tuple(entity_qids)] | None
 
         field_name = f"wikidata_{entity_type}_qid"
         DynamicMappingResult = create_model(
@@ -464,7 +466,7 @@ Select the best matching QID or None if no good match exists."""
 
         return getattr(response.output_parsed, field_name)
 
-    except Exception as e:
+    except OpenAIError as e:
         logger.error(f"Error mapping {entity_type} with LLM: {e}")
         return None
 
@@ -609,6 +611,8 @@ def store_extracted_data(
 
         for p in properties or []:
             wd = WikidataDate.from_date_string(p.value)
+            if wd is None:
+                raise ValueError(f"Unparseable date value from LLM: {p.value!r}")
             kwargs = {
                 "type": p.type,
                 "value": wd.time_string,
@@ -693,6 +697,6 @@ def store_extracted_data(
 
         return True
 
-    except Exception as e:
+    except (ValueError, SQLAlchemyError) as e:
         logger.error(f"Error storing extracted data: {e}")
         return False

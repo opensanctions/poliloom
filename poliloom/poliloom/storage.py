@@ -11,7 +11,9 @@ from urllib.parse import urlparse
 
 import httpx2
 import indexed_bzip2 as ibz2
+from google.api_core.exceptions import GoogleAPICallError
 from google.auth import default
+from google.auth.exceptions import GoogleAuthError
 from google.cloud import storage
 
 logger = logging.getLogger(__name__)
@@ -112,15 +114,17 @@ class LocalStorage(StorageBackend):
         if not dest_path.startswith("gs://"):
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
-        with ibz2.open(source_path, parallelization=os.cpu_count()) as source_file:
-            with dest_backend.open(dest_path, "wb") as dest_file:
-                # Stream in larger chunks for better performance
-                chunk_size = 256 * 1024 * 1024  # 256MB chunks
-                while True:
-                    chunk = source_file.read(chunk_size)
-                    if not chunk:
-                        break
-                    dest_file.write(chunk)
+        with (
+            ibz2.open(source_path, parallelization=os.cpu_count()) as source_file,
+            dest_backend.open(dest_path, "wb") as dest_file,
+        ):
+            # Stream in larger chunks for better performance
+            chunk_size = 256 * 1024 * 1024  # 256MB chunks
+            while True:
+                chunk = source_file.read(chunk_size)
+                if not chunk:
+                    break
+                dest_file.write(chunk)
 
         logger.info(f"✅ Successfully extracted {source_path} to {dest_path}")
 
@@ -140,7 +144,7 @@ class GCSStorage(StorageBackend):
                 "google-cloud-storage is required for GCS support. "
                 "Install with: pip install google-cloud-storage"
             )
-        except Exception as e:
+        except (GoogleAuthError, GoogleAPICallError, OSError) as e:
             raise RuntimeError(f"Failed to initialize GCS client: {e}")
 
     def _parse_gcs_path(self, path: str) -> tuple[str, str]:
@@ -276,15 +280,17 @@ class GCSStorage(StorageBackend):
             logger.info("Local temp file ready, starting parallel decompression...")
 
             # Now use indexed_bzip2 on seekable local file for parallel processing
-            with ibz2.open(temp_file.name, parallelization=os.cpu_count()) as bz2_file:
-                with dest_backend.open(dest_path, "wb") as dest_file:
-                    # Stream decompressed data in large chunks
-                    chunk_size = 256 * 1024 * 1024  # 256MB chunks
-                    while True:
-                        chunk = bz2_file.read(chunk_size)
-                        if not chunk:
-                            break
-                        dest_file.write(chunk)
+            with (
+                ibz2.open(temp_file.name, parallelization=os.cpu_count()) as bz2_file,
+                dest_backend.open(dest_path, "wb") as dest_file,
+            ):
+                # Stream decompressed data in large chunks
+                chunk_size = 256 * 1024 * 1024  # 256MB chunks
+                while True:
+                    chunk = bz2_file.read(chunk_size)
+                    if not chunk:
+                        break
+                    dest_file.write(chunk)
 
         logger.info(f"✅ Successfully extracted {source_path} to {dest_path}")
 
