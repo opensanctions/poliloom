@@ -95,7 +95,6 @@ _Use `--help` for detailed command documentation._
 - All entities indexed to Meilisearch with labels during import
 - Meilisearch provides keyword search with built-in typo tolerance
 
-
 ## **6. External Integrations**
 
 - **Wikidata Dumps:** Primary data source (latest-all.json)
