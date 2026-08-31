@@ -38,7 +38,7 @@ PoliLoom combines large-scale data processing with AI extraction:
 
 - Processes the complete Wikidata dump (100M+ entities)
 - Uses OpenAI to extract politician data from Wikipedia articles
-- Matches extracted text to Wikidata entities using semantic search
+- Matches extracted text to Wikidata entities using Meilisearch keyword search
 - All extracted data requires human verification before submission
 
 **Backend** ([poliloom/](./poliloom/)): Python, FastAPI, PostgreSQL, SQLAlchemy, Meilisearch
