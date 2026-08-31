@@ -5,7 +5,10 @@ from datetime import UTC, datetime
 
 import click
 import httpx2
+import meilisearch
+from google.api_core.exceptions import GoogleAPICallError
 from sqlalchemy import exists, func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from poliloom import search
@@ -198,7 +201,14 @@ def dump_download(output, force):
 
             click.echo(f"✅ Successfully downloaded dump to {output}")
 
-        except Exception as download_error:
+        except (
+            httpx2.HTTPError,
+            OSError,
+            ValueError,
+            RuntimeError,
+            GoogleAPICallError,
+            SQLAlchemyError,
+        ) as download_error:
             # Clean up the dump record on failure to allow retries
             click.echo(f"❌ Download failed: {download_error}")
             click.echo("   Cleaning up dump record to allow retry...")
@@ -209,7 +219,14 @@ def dump_download(output, force):
 
     except SystemExit:
         raise
-    except Exception as e:
+    except (
+        httpx2.HTTPError,
+        OSError,
+        ValueError,
+        RuntimeError,
+        GoogleAPICallError,
+        SQLAlchemyError,
+    ) as e:
         click.echo(f"❌ Error: {e}")
         raise SystemExit(1)
 
@@ -265,7 +282,13 @@ def dump_extract(input, output):
             session.commit()
 
         click.echo(f"✅ Successfully extracted dump to {output}")
-    except Exception as e:
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        GoogleAPICallError,
+        SQLAlchemyError,
+    ) as e:
         click.echo(f"❌ Extraction failed: {e}")
         raise SystemExit(1)
 
@@ -327,7 +350,13 @@ def dump_import_hierarchy(file, batch_size):
         click.echo("\n⚠️  Process interrupted by user. Cleaning up...")
         click.echo("❌ Hierarchy tree import was cancelled.")
         raise SystemExit(1)
-    except Exception as e:
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        GoogleAPICallError,
+        SQLAlchemyError,
+    ) as e:
         click.echo(f"❌ Error importing hierarchy trees: {e}")
         raise SystemExit(1)
 
@@ -403,7 +432,14 @@ def dump_import_entities(file, batch_size):
             "⚠️  Note: Some entities may have been partially imported to the database."
         )
         raise SystemExit(1)
-    except Exception as e:
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        GoogleAPICallError,
+        meilisearch.errors.MeilisearchError,
+        SQLAlchemyError,
+    ) as e:
         click.echo(f"❌ Error importing supporting entities: {e}")
         raise SystemExit(1)
 
@@ -470,7 +506,13 @@ def dump_import_politicians(file, batch_size):
             "⚠️  Note: Some politicians may have been partially imported to the database."
         )
         raise SystemExit(1)
-    except Exception as e:
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        GoogleAPICallError,
+        SQLAlchemyError,
+    ) as e:
         click.echo(f"❌ Error importing politicians: {e}")
         raise SystemExit(1)
 
@@ -545,7 +587,7 @@ def garbage_collect():
             click.echo("✅ Garbage collection completed successfully")
             click.echo(f"  • Total items soft-deleted: {total_deleted}")
 
-        except Exception as e:
+        except (meilisearch.errors.MeilisearchError, SQLAlchemyError) as e:
             click.echo(f"❌ Error during garbage collection: {e}")
             raise SystemExit(1)
         finally:
@@ -657,7 +699,7 @@ def clean_entities(dry_run):
             else:
                 click.echo("\n✅ Dry run completed - no changes made")
 
-        except Exception as e:
+        except SQLAlchemyError as e:
             session.rollback()
             click.echo(f"\n❌ Error during cleanup: {e}")
             raise SystemExit(1)
@@ -779,7 +821,7 @@ def clean_properties(dry_run):
                     f"✅ Deleted {len(sources_to_delete)} unreferenced Wikipedia sources"
                 )
 
-        except Exception as e:
+        except SQLAlchemyError as e:
             session.rollback()
             click.echo(f"❌ Error during cleanup: {e}")
             raise SystemExit(1)
@@ -816,7 +858,7 @@ def import_sources(file, dry_run):
             click.echo(f"   {qid}")
         click.echo("\nNothing was imported.")
         raise SystemExit(1)
-    except Exception as e:
+    except (ValueError, SQLAlchemyError) as e:
         click.echo(f"❌ Failed: {e}")
         raise SystemExit(1)
 
@@ -839,7 +881,7 @@ def index_create():
     try:
         search.create_index()
         click.echo(f"✅ Successfully created index '{INDEX_NAME}'")
-    except Exception as e:
+    except meilisearch.errors.MeilisearchError as e:
         if "index_already_exists" in str(e):
             click.echo(f"⚠️  Index '{INDEX_NAME}' already exists")
         else:
@@ -965,7 +1007,7 @@ def index_stats():
     try:
         health = client.health()
         click.echo(f"🟢 Meilisearch: {health['status']}")
-    except Exception as e:
+    except meilisearch.errors.MeilisearchError as e:
         click.echo(f"🔴 Meilisearch: unavailable ({e})")
         return
 
@@ -976,7 +1018,7 @@ def index_stats():
         click.echo(f"\n📊 Index '{INDEX_NAME}':")
         click.echo(f"   Documents: {stats.number_of_documents:,}")
         click.echo(f"   Indexing: {'yes' if stats.is_indexing else 'no'}")
-    except Exception as e:
+    except meilisearch.errors.MeilisearchError as e:
         click.echo(f"\n📊 Index '{INDEX_NAME}': not found or error ({e})")
 
     # Get batch counts by status
@@ -985,7 +1027,10 @@ def index_stats():
     for status in ["processing", "enqueued", "succeeded", "failed"]:
         try:
             batches = client.get_batches({"statuses": [status], "limit": 10})
-        except Exception:
+        except meilisearch.errors.MeilisearchError as e:
+            logging.getLogger(__name__).warning(
+                "Failed to fetch %s batches: %s", status, e
+            )
             continue
 
         count = batches.total
