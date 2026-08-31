@@ -11,6 +11,7 @@ from poliloom.models import (
     PropertySkip,
 )
 from poliloom.sse import EvaluationCountEvent
+from poliloom.wikidata.statement import WikidataApiError
 
 
 class TestGetNextPoliticianEndpoint:
@@ -479,7 +480,7 @@ class TestPatchProperties:
         politician_with_unevaluated_data,
     ):
         """Test handling of Wikidata push failures."""
-        mock_push_evaluation.side_effect = Exception("Wikidata API error")
+        mock_push_evaluation.side_effect = WikidataApiError("Wikidata API error")
         politician = politician_with_unevaluated_data
         test_properties = [p for p in politician.properties if p.statement_id is None]
 

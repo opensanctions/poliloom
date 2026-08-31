@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx2
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from ..models import (
@@ -21,6 +22,10 @@ WIKIDATA_API_ROOT = os.getenv(
     "WIKIDATA_API_ROOT", "https://www.wikidata.org/w/rest.php/wikibase/v1"
 )
 USER_AGENT = "PoliLoom API/0.1.0"
+
+
+class WikidataApiError(Exception):
+    """Raised when the Wikidata API rejects or fails an operation."""
 
 
 def _convert_qualifiers_to_rest_api(
@@ -116,7 +121,7 @@ async def create_entity(
     Raises:
         ValueError: If JWT token is missing
         httpx2.RequestError: For network errors
-        Exception: For other API errors
+        WikidataApiError: For other API errors
     """
     if not jwt_token:
         raise ValueError("JWT token is required for Wikidata API calls")
@@ -153,13 +158,13 @@ async def create_entity(
             result = response.json()
             entity_id = result.get("id")
             if not entity_id:
-                raise Exception("No entity ID returned from Wikidata API")
+                raise WikidataApiError("No entity ID returned from Wikidata API")
             logger.info(f"Successfully created entity {entity_id} with label: {label}")
             return entity_id
         else:
             error_msg = f"Failed to create entity with label '{label}': HTTP {response.status_code} - {response.text}"
             logger.error(error_msg)
-            raise Exception(error_msg)
+            raise WikidataApiError(error_msg)
 
 
 async def deprecate_statement(
@@ -178,7 +183,7 @@ async def deprecate_statement(
     Raises:
         ValueError: If JWT token is missing
         httpx2.RequestError: For network errors
-        Exception: For other API errors
+        WikidataApiError: For other API errors
     """
     if not jwt_token:
         raise ValueError("JWT token is required for Wikidata API calls")
@@ -215,10 +220,12 @@ async def deprecate_statement(
         elif response.status_code == 404:
             # Statement or entity not found
             logger.warning(f"Statement {statement_id} or entity {entity_id} not found")
-            raise Exception(f"Statement {statement_id} or entity {entity_id} not found")
+            raise WikidataApiError(
+                f"Statement {statement_id} or entity {entity_id} not found"
+            )
         else:
             # Other errors - raise exception
-            raise Exception(
+            raise WikidataApiError(
                 f"Failed to deprecate statement {statement_id} on entity {entity_id}: HTTP {response.status_code} - {response.text}"
             )
 
@@ -248,7 +255,7 @@ async def create_statement(
     Raises:
         ValueError: If JWT token is missing
         httpx2.RequestError: For network errors
-        Exception: For other errors including failed API responses
+        WikidataApiError: For other errors including failed API responses
     """
     if not jwt_token:
         raise ValueError("JWT token is required for Wikidata API calls")
@@ -294,7 +301,7 @@ async def create_statement(
             result = response.json()
             statement_id = result.get("id")
             if not statement_id:
-                raise Exception("No statement ID returned from Wikidata API")
+                raise WikidataApiError("No statement ID returned from Wikidata API")
             logger.info(
                 f"Successfully created statement {statement_id} for entity {entity_id} with property {property_id}"
             )
@@ -302,7 +309,7 @@ async def create_statement(
         else:
             error_msg = f"Failed to create statement for entity {entity_id} with property {property_id}: HTTP {response.status_code} - {response.text}"
             logger.error(error_msg)
-            raise Exception(error_msg)
+            raise WikidataApiError(error_msg)
 
 
 async def push_evaluation(
@@ -355,7 +362,12 @@ async def push_evaluation(
                 logger.info(
                     f"Successfully processed deprecation for property statement for politician {politician_wikidata_id}"
                 )
-            except Exception as e:
+            except (
+                WikidataApiError,
+                httpx2.HTTPError,
+                ValueError,
+                SQLAlchemyError,
+            ) as e:
                 # Wikidata deprecation failed - don't delete from database, but log the issue
                 logger.error(
                     f"Wikidata deprecation failed for statement {evaluation.property.statement_id}: {e} - keeping in database"
@@ -420,6 +432,6 @@ async def push_evaluation(
 
         return True
 
-    except Exception as e:
+    except (WikidataApiError, httpx2.HTTPError, ValueError, SQLAlchemyError) as e:
         logger.error(f"Error processing evaluation {evaluation.id}: {e}")
         return False

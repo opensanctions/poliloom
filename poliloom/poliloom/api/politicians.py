@@ -2,8 +2,10 @@
 
 import asyncio
 
+import httpx2
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, case, exists, func, or_, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db_session
@@ -33,7 +35,12 @@ from ..scheduling import (
     process_source_task,
 )
 from ..sse import EvaluationCountEvent, event_bus
-from ..wikidata.statement import create_entity, create_statement, push_evaluation
+from ..wikidata.statement import (
+    WikidataApiError,
+    create_entity,
+    create_statement,
+    push_evaluation,
+)
 from .auth import User, get_current_user
 from .schemas import (
     AcceptPropertyItem,
@@ -138,7 +145,7 @@ async def create_politician(
     # 1. Create the Wikidata entity
     try:
         wikidata_id = await create_entity(request.name, jwt_token=jwt_token)
-    except Exception as e:
+    except (WikidataApiError, httpx2.HTTPError, ValueError) as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to create Wikidata entity: {e!s}",
@@ -152,7 +159,7 @@ async def create_politician(
     for prop_id, value in base_statements:
         try:
             await create_statement(wikidata_id, prop_id, value, jwt_token=jwt_token)
-        except Exception as e:
+        except (WikidataApiError, httpx2.HTTPError, ValueError) as e:
             errors.append(f"Failed to add {prop_id} statement: {e!s}")
 
     # 3. Create the Politician row in the local DB
@@ -160,7 +167,7 @@ async def create_politician(
     db.add(politician)
     try:
         db.commit()
-    except Exception as e:
+    except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -428,7 +435,7 @@ async def process_property_actions(
                         db.add(evaluation)
                         all_evaluations.append(evaluation)
 
-            except Exception as e:
+            except (SQLAlchemyError, ValueError, TypeError, KeyError) as e:
                 item_desc = str(
                     getattr(item, "id", None) or f"new {getattr(item, 'type', '?')}"
                 )
@@ -452,7 +459,13 @@ async def process_property_actions(
                 wikidata_errors.append(
                     f"Failed to process evaluation {evaluation.id} in Wikidata"
                 )
-        except Exception as e:
+        except (
+            SQLAlchemyError,
+            WikidataApiError,
+            httpx2.HTTPError,
+            ValueError,
+            KeyError,
+        ) as e:
             wikidata_errors.append(
                 f"Error processing evaluation {evaluation.id} in Wikidata: {e!s}"
             )

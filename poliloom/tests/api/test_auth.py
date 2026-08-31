@@ -159,7 +159,7 @@ class TestAuthDependencies:
         # Mock unexpected error
         mock_oauth_handler = Mock()
         mock_oauth_handler.verify_jwt_token = AsyncMock(
-            side_effect=Exception("Unexpected error")
+            side_effect=ValueError("Unexpected error")
         )
         mock_get_oauth_handler.return_value = mock_oauth_handler
 

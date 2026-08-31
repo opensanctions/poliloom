@@ -7,6 +7,7 @@ import pytest
 
 from poliloom.models import Evaluation, Politician, Property, PropertyType
 from poliloom.wikidata.statement import (
+    WikidataApiError,
     _convert_qualifiers_to_rest_api,
     create_statement,
     deprecate_statement,
@@ -434,7 +435,7 @@ class TestDeprecateStatement:
             )
 
             # Should raise exception for 404 (statement not found)
-            with pytest.raises(Exception, match="not found"):
+            with pytest.raises(WikidataApiError, match="not found"):
                 await deprecate_statement("Q42", "Q42$statement-id", "test_jwt_token")
 
     @pytest.mark.asyncio
@@ -449,7 +450,7 @@ class TestDeprecateStatement:
             )
 
             with pytest.raises(
-                Exception, match="Failed to deprecate statement.*HTTP 401"
+                WikidataApiError, match="Failed to deprecate statement.*HTTP 401"
             ):
                 await deprecate_statement("Q42", "Q42$statement-id", "test_jwt_token")
 
@@ -465,7 +466,7 @@ class TestDeprecateStatement:
             )
 
             with pytest.raises(
-                Exception, match="Failed to deprecate statement.*HTTP 500"
+                WikidataApiError, match="Failed to deprecate statement.*HTTP 500"
             ):
                 await deprecate_statement("Q42", "Q42$statement-id", "test_jwt_token")
 
@@ -574,7 +575,9 @@ class TestCreateStatement:
             )
 
             value = {"type": "value", "content": "invalid"}
-            with pytest.raises(Exception, match="Failed to create statement.*HTTP 400"):
+            with pytest.raises(
+                WikidataApiError, match="Failed to create statement.*HTTP 400"
+            ):
                 await create_statement("Q42", "P39", value, jwt_token="test_jwt_token")
 
     @pytest.mark.asyncio
@@ -589,7 +592,9 @@ class TestCreateStatement:
             )
 
             value = {"type": "value", "content": "Q123"}
-            with pytest.raises(Exception, match="Failed to create statement.*HTTP 401"):
+            with pytest.raises(
+                WikidataApiError, match="Failed to create statement.*HTTP 401"
+            ):
                 await create_statement("Q42", "P39", value, jwt_token="invalid_token")
 
     @pytest.mark.asyncio
@@ -615,7 +620,7 @@ class TestCreateStatement:
             )
 
             value = {"type": "value", "content": "Q123"}
-            with pytest.raises(Exception, match="No statement ID returned"):
+            with pytest.raises(WikidataApiError, match="No statement ID returned"):
                 await create_statement("Q42", "P39", value, jwt_token="test_jwt_token")
 
     @pytest.mark.asyncio
@@ -860,7 +865,7 @@ class TestPushEvaluation:
         with patch(
             "poliloom.wikidata.statement.deprecate_statement", new_callable=AsyncMock
         ) as mock_deprecate:
-            mock_deprecate.side_effect = Exception("API Error")
+            mock_deprecate.side_effect = WikidataApiError("API Error")
 
             result = await push_evaluation(evaluation, "test_jwt_token", mock_db)
 
@@ -885,7 +890,7 @@ class TestPushEvaluation:
         with patch(
             "poliloom.wikidata.statement.create_statement", new_callable=AsyncMock
         ) as mock_create:
-            mock_create.side_effect = Exception("API Error")
+            mock_create.side_effect = WikidataApiError("API Error")
 
             result = await push_evaluation(evaluation, "test_jwt_token", mock_db)
 
