@@ -10,7 +10,6 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-import pgvector.sqlalchemy
 
 
 # revision identifiers, used by Alembic.
@@ -66,9 +65,6 @@ def upgrade() -> None:
         sa.Column("wikidata_id", sa.String(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column(
-            "embedding", pgvector.sqlalchemy.vector.VECTOR(dim=384), nullable=True
-        ),
-        sa.Column(
             "created_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False
         ),
         sa.Column(
@@ -98,9 +94,6 @@ def upgrade() -> None:
         "positions",
         sa.Column("wikidata_id", sa.String(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
-        sa.Column(
-            "embedding", pgvector.sqlalchemy.vector.VECTOR(dim=384), nullable=True
-        ),
         sa.Column(
             "created_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False
         ),
