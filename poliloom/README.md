@@ -30,6 +30,45 @@ cp .env.example .env
 uv run alembic upgrade head
 ```
 
+## Local Meilisearch backup and restore
+
+Run backup commands from the repository root. They enqueue an asynchronous
+Meilisearch task and leave the timestamped file in `dumps/`:
+
+```bash
+make index-dump
+make index-snapshot
+```
+
+Restoring replaces the current local Meilisearch data. For Docker Compose:
+
+```bash
+DUMP=$(basename "$(ls -t dumps/*.dump | head -n1)")
+docker compose stop meilisearch
+docker compose rm -f meilisearch
+docker volume rm poliloom_meilisearch_data
+docker compose run --rm meilisearch meilisearch --import-dump "/dumps/$DUMP"
+docker compose up -d meilisearch
+```
+
+For Podman Quadlet:
+
+```bash
+DUMP=$(basename "$(ls -t dumps/*.dump | head -n1)")
+systemctl --user stop poliloom-meilisearch
+podman volume rm poliloom-meilisearch
+podman run --rm \
+  --volume poliloom-meilisearch:/meili_data \
+  --volume "$PWD/dumps:/dumps:z" \
+  docker.io/getmeili/meilisearch:v1.29 \
+  meilisearch --import-dump "/dumps/$DUMP"
+systemctl --user start poliloom-meilisearch
+```
+
+To restore a snapshot instead, select a `.snapshot` file and replace
+`--import-dump` with `--import-snapshot`. Snapshots must come from the same
+Meilisearch version.
+
 ## Usage
 
 ### Import Wikidata

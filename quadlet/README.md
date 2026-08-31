@@ -42,8 +42,3 @@ to reset it:
 podman volume rm poliloom-postgres
 podman volume rm poliloom-meilisearch
 ```
-
-`make index-dump` and `make index-snapshot` work through Meilisearch's localhost
-API with either Compose or Quadlet. Restoring a dump or snapshot must be done at
-Meilisearch startup using `--import-dump` or `--import-snapshot`, so it remains a
-runtime-specific manual operation rather than a Make target.
