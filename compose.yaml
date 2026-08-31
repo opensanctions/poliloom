@@ -36,28 +36,11 @@ services:
       timeout: 5s
       retries: 5
 
-  postgres_test:
-    image: pgvector/pgvector:pg18
-    environment:
-      POSTGRES_DB: poliloom_test
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "127.0.0.1:5433:5432"
-    volumes:
-      - postgres_test_data:/var/lib/postgresql
-      - ./init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   db-migrate:
     image: ghcr.io/opensanctions/poliloom:${API_IMAGE_TAG:-latest}
     build:
       context: ./poliloom
-      dockerfile: Dockerfile
+      dockerfile: Containerfile
     env_file:
       - ./poliloom/.env
     environment:
@@ -71,7 +54,7 @@ services:
     image: ghcr.io/opensanctions/poliloom:${API_IMAGE_TAG:-latest}
     build:
       context: ./poliloom
-      dockerfile: Dockerfile
+      dockerfile: Containerfile
     ports:
       - "127.0.0.1:8000:8000"
     env_file:
@@ -94,7 +77,7 @@ services:
     image: ghcr.io/opensanctions/poliloom-gui:${GUI_IMAGE_TAG:-latest}
     build:
       context: ./poliloom-gui
-      dockerfile: Dockerfile
+      dockerfile: Containerfile
     ports:
       - "127.0.0.1:3000:3000"
     env_file:
@@ -110,6 +93,5 @@ services:
 volumes:
   meilisearch_data:
   postgres_data:
-  postgres_test_data:
   huggingface_cache:
   wikidata_cache:

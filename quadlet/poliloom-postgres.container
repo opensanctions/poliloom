@@ -1,0 +1,28 @@
+[Unit]
+Description=PoliLoom development PostgreSQL
+
+[Container]
+Image=docker.io/pgvector/pgvector:pg18
+ContainerName=poliloom-postgres
+Notify=healthy
+PublishPort=127.0.0.1:5432:5432
+Environment=POSTGRES_DB=poliloom
+Environment=POSTGRES_USER=postgres
+Environment=POSTGRES_PASSWORD=postgres
+Volume=poliloom-postgres.volume:/var/lib/postgresql
+Volume=../init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro,Z
+Volume=../dumps:/dumps:z
+HealthCmd=pg_isready -U postgres -d poliloom
+HealthInterval=10s
+HealthTimeout=5s
+HealthRetries=5
+HealthOnFailure=kill
+
+[Service]
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=5min
+TimeoutStopSec=70s
+
+[Install]
+WantedBy=default.target

@@ -5,9 +5,9 @@ Open-source tool to build the world's largest open database of politicians. Extr
 ## Project Structure
 
 ```
-poliloom/                        # Backend (Python package, pyproject.toml, Dockerfile)
+poliloom/                        # Backend (Python package, pyproject.toml, Containerfile)
 poliloom-gui/                    # Frontend (Next.js, package.json)
-docker-compose.yml               # Services: postgres, api, gui
+compose.yaml                     # Services: postgres, api, gui
 ```
 
 ## Tech Stack
@@ -36,8 +36,8 @@ pnpm test                        # Run tests
 
 ## Database
 
-- Main: PostgreSQL 15 with pgvector (port 5432)
-- Test: Separate instance (port 5433)
+- PostgreSQL with pgvector (port 5432)
+- Separate `poliloom` and `poliloom_test` databases share the local instance
 - Connection: `PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d poliloom`
 
 ## Key Backend Files

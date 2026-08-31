@@ -58,10 +58,9 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Docker
-Dockerfile*
+# Container builds
+Containerfile*
 .dockerignore
-docker-compose*.yml
 
 # Git
 .git/

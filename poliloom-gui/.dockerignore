@@ -48,10 +48,9 @@ yarn-error.log*
 coverage/
 .nyc_output/
 
-# Docker
-Dockerfile*
+# Container builds
+Containerfile*
 .dockerignore
-docker-compose*.yml
 
 # Git
 .git/

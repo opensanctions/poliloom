@@ -1,4 +1,4 @@
-name: Build GUI Docker Image
+name: Build GUI Container Image
 
 on:
   push:
@@ -46,10 +46,11 @@ jobs:
             type=ref,event=pr
             type=sha
 
-      - name: Build and push Docker image
+      - name: Build and push container image
         uses: docker/build-push-action@v6
         with:
           context: ./poliloom-gui
+          file: ./poliloom-gui/Containerfile
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}

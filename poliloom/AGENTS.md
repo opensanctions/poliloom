@@ -181,7 +181,7 @@ uv run poliloom clean-properties
 ### **Testing Standards**
 
 - **Framework**: pytest with asyncio support
-- **Database**: PostgreSQL test database (port 5433)
+- **Database**: `poliloom_test` on the local PostgreSQL instance (port 5432)
 - **Mocking**: External APIs (OpenAI, Meilisearch) mocked in `conftest.py`
 - **Coverage Focus**: Entity classes, database models, core data pipeline
 - **Approach**: Minimal, behavior-focused testing. Test business logic and data transformations, not language mechanics (inheritance, type checking). Avoid over-engineering tests.
@@ -195,4 +195,4 @@ uv run poliloom clean-properties
 
 - **Always use `uv`** for Python execution and dependency management
 - **Web Crawling**: Uses Playwright directly for page fetching and MHTML capture
-- **Test Database**: Uses port 5433 to avoid conflicts with main database (port 5432)
+- **Test Database**: Uses the separate `poliloom_test` database on port 5432

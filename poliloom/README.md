@@ -19,6 +19,9 @@ uv sync
 # Start PostgreSQL (from project root)
 cd .. && docker compose up -d postgres
 
+# On Linux, PostgreSQL and Meilisearch can instead run as rootless systemd
+# user services through Podman Quadlet. See ../quadlet/README.md.
+
 # Copy and configure environment
 cp .env.example .env
 # Edit .env with your credentials

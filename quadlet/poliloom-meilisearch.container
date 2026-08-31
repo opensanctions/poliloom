@@ -1,0 +1,29 @@
+[Unit]
+Description=PoliLoom development Meilisearch
+
+[Container]
+Image=docker.io/getmeili/meilisearch:v1.29
+ContainerName=poliloom-meilisearch
+Notify=healthy
+PublishPort=127.0.0.1:7700:7700
+EnvironmentFile=../.env
+Environment=MEILI_NO_ANALYTICS=true
+Environment=MEILI_ENV=development
+Environment=MEILI_DUMP_DIR=/dumps
+Environment=MEILI_SNAPSHOT_DIR=/dumps
+Volume=poliloom-meilisearch.volume:/meili_data
+Volume=../dumps:/dumps:z
+HealthCmd=wget --no-verbose --tries=1 --spider http://127.0.0.1:7700/health
+HealthInterval=10s
+HealthTimeout=5s
+HealthRetries=5
+HealthOnFailure=kill
+
+[Service]
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=5min
+TimeoutStopSec=70s
+
+[Install]
+WantedBy=default.target
