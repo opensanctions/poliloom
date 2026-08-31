@@ -12,9 +12,9 @@ compose.yaml                     # Services: postgres, api, gui
 
 ## Tech Stack
 
-**Backend**: Python 3.12+, FastAPI, SQLAlchemy, PostgreSQL (pgvector), OpenAI API, Meilisearch (hybrid search with OpenAI embeddings)
+**Backend**: Python 3.12+, FastAPI, SQLAlchemy, PostgreSQL, OpenAI API, Meilisearch (keyword entity search)
 **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS, NextAuth.js
-**Infrastructure**: Meilisearch (entity search + semantic similarity), Playwright (web page archiving)
+**Infrastructure**: Meilisearch (entity search), Playwright (web page archiving)
 **Package Managers**: uv (Python), pnpm (Node.js)
 
 ## Development Environment
@@ -36,7 +36,7 @@ pnpm test                        # Run tests
 
 ## Database
 
-- PostgreSQL with pgvector (port 5432)
+- PostgreSQL (port 5432)
 - Separate `poliloom` and `poliloom_test` databases share the local instance
 - Connection: `PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d poliloom`
 
