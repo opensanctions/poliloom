@@ -1048,7 +1048,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "pre-commit", specifier = ">=3.0.0" },
+    { name = "pre-commit", specifier = ">=4.4.0" },
     { name = "py-spy", specifier = ">=0.4.1" },
     { name = "pytest", specifier = ">=8.4.0" },
     { name = "pytest-asyncio", specifier = ">=1.0.0" },

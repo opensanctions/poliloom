@@ -1,0 +1,56 @@
+# Single root config is the docs-recommended setup for monorepos:
+# shared hooks unscoped, per-service hooks scoped with `files:`.
+minimum_pre_commit_version: '4.4.0' # for language: unsupported
+default_install_hook_types: [pre-commit, post-checkout, post-merge]
+
+repos:
+  - repo: local
+    hooks:
+      # ---- Backend (poliloom) ----
+      - id: ruff-check
+        name: ruff lint
+        entry: bash -c 'cd poliloom && uv run ruff check --fix'
+        language: unsupported
+        files: ^poliloom/
+        types: [python]
+        pass_filenames: false
+
+      - id: ruff-format
+        name: ruff format
+        entry: bash -c 'cd poliloom && uv run ruff format'
+        language: unsupported
+        files: ^poliloom/
+        types: [python]
+        pass_filenames: false
+
+      # ---- Frontend (poliloom-gui) ----
+      - id: gui-lint-staged
+        name: GUI lint-staged
+        entry: bash -c 'cd poliloom-gui && pnpm exec lint-staged'
+        language: unsupported
+        files: ^poliloom-gui/.*\.(ts|tsx|js|jsx|json|css|md)$
+        pass_filenames: false
+
+      - id: gui-typecheck
+        name: GUI TypeScript
+        entry: bash -c 'cd poliloom-gui && pnpm typecheck'
+        language: unsupported
+        files: ^poliloom-gui/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      # ---- Keep deps in sync after branch switches and pulls ----
+      - id: uv-sync
+        name: uv sync (backend)
+        entry: bash -c 'cd poliloom && uv sync'
+        language: unsupported
+        stages: [post-checkout, post-merge]
+        always_run: true # required for post-* stages
+        pass_filenames: false
+
+      - id: pnpm-install
+        name: pnpm install (GUI)
+        entry: bash -c 'cd poliloom-gui && pnpm install'
+        language: unsupported
+        stages: [post-checkout, post-merge]
+        always_run: true
+        pass_filenames: false
