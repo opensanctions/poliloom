@@ -2,7 +2,7 @@
 Description=PoliLoom development PostgreSQL
 
 [Container]
-Image=docker.io/pgvector/pgvector:pg18
+Image=docker.io/library/postgres:18
 ContainerName=poliloom-postgres
 Notify=healthy
 PublishPort=127.0.0.1:5432:5432

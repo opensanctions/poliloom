@@ -60,7 +60,7 @@ podman volume rm poliloom-meilisearch
 podman run --rm \
   --volume poliloom-meilisearch:/meili_data \
   --volume "$PWD/dumps:/dumps:z" \
-  docker.io/getmeili/meilisearch:v1.29 \
+  docker.io/getmeili/meilisearch:v1.53.1 \
   meilisearch --import-dump "/dumps/$DUMP"
 systemctl --user start poliloom-meilisearch
 ```

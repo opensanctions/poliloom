@@ -2,7 +2,7 @@
 Description=PoliLoom development Meilisearch
 
 [Container]
-Image=docker.io/getmeili/meilisearch:v1.29
+Image=docker.io/getmeili/meilisearch:v1.53.1
 ContainerName=poliloom-meilisearch
 Notify=healthy
 PublishPort=127.0.0.1:7700:7700
