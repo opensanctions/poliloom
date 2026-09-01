@@ -7,7 +7,6 @@ const SETTINGS: UserSettings = {
   advanced_mode: false,
   basic_tutorial_completed: false,
   advanced_tutorial_completed: false,
-  stats_unlocked: false,
 }
 
 function mockPatchOk(returned: UserSettings) {
@@ -114,15 +113,14 @@ describe('SettingsContext', () => {
       })
 
       // Server normalizes — say it returns advanced_mode true even though we asked false.
-      mockPatchOk({ ...SETTINGS, advanced_mode: true, stats_unlocked: true })
+      mockPatchOk({ ...SETTINGS, advanced_mode: true })
       await act(async () => {
-        await result.current.patch({ stats_unlocked: true })
+        await result.current.patch({ advanced_mode: false })
       })
 
       expect(result.current.settings).toEqual({
         ...SETTINGS,
         advanced_mode: true,
-        stats_unlocked: true,
       })
     })
 

@@ -142,7 +142,6 @@ export interface UserSettings {
   advanced_mode: boolean
   basic_tutorial_completed: boolean
   advanced_tutorial_completed: boolean
-  stats_unlocked: boolean
 }
 
 export interface LanguageResponse extends WikidataEntity {

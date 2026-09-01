@@ -32,7 +32,6 @@ beforeEach(() => {
       ...defaultSettings,
       basic_tutorial_completed: false,
       advanced_tutorial_completed: false,
-      stats_unlocked: false,
     },
   })
 })
@@ -48,7 +47,6 @@ describe('Home Page - waiting for enrichment', () => {
       settings: {
         ...defaultSettings,
         advanced_tutorial_completed: false,
-        stats_unlocked: false,
       },
     })
 
@@ -115,7 +113,6 @@ describe('Home Page (Filter Selection)', () => {
       settings: {
         ...defaultSettings,
         advanced_tutorial_completed: false,
-        stats_unlocked: false,
       },
     })
 
@@ -135,7 +132,6 @@ describe('Home Page (Filter Selection)', () => {
         ...defaultSettings,
         advanced_mode: true,
         advanced_tutorial_completed: false,
-        stats_unlocked: false,
       },
     })
 
@@ -171,7 +167,6 @@ describe('Home Page (Filter Selection)', () => {
         advanced_mode: true,
         basic_tutorial_completed: false,
         advanced_tutorial_completed: false,
-        stats_unlocked: false,
       },
     })
 

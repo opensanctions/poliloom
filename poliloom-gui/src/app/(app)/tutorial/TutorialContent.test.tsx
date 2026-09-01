@@ -20,7 +20,6 @@ function settingsWith(overrides: Partial<UserSettings> = {}): UserSettings {
     ...defaultSettings,
     basic_tutorial_completed: false,
     advanced_tutorial_completed: false,
-    stats_unlocked: false,
     ...overrides,
   }
 }

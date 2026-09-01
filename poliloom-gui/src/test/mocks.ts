@@ -80,7 +80,6 @@ export const defaultSettings: UserSettings = {
   advanced_mode: false,
   basic_tutorial_completed: true,
   advanced_tutorial_completed: true,
-  stats_unlocked: true,
 }
 
 export const defaultSettingsContext = {
