@@ -1,197 +1,41 @@
-# **PoliLoom API/CLI Project Specification**
+# PoliLoom Backend
 
-This document outlines the high-level architecture and strategy for the PoliLoom project - extracting politician metadata from Wikipedia and web sources to enrich Wikidata.
+Instructions for work under `poliloom/`. Repository-wide instructions in `../AGENTS.md` also apply.
 
-## **1. Project Overview**
+## Commands
 
-**Core Goals:**
-
-- Populate local database with politician data from Wikidata dumps
-- Extract politician properties (birth dates, birthplaces, political positions) from web sources using LLMs
-- Provide API for GUI evaluation workflows
-- Offer CLI tools for data import and enrichment operations
-- Integrate with external services (Wikidata, OpenAI, MediaWiki OAuth)
-
-**Scope:** Backend services and data processing.
-
-## **2. Technology Stack**
-
-- **Language:** Python with `uv` for dependency management
-- **CLI:** Click framework
-- **API:** FastAPI with MediaWiki OAuth 2.0 authentication
-- **Database:** PostgreSQL with SQLAlchemy ORM and Alembic migrations
-- **LLM Integration:** OpenAI API for structured data extraction
-- **Search:** Meilisearch keyword search for entities
-- **Storage:** Google Cloud Storage (GCS) for dump processing (automatic gs:// path detection)
-
-**Important:** Always use `uv` for running Python commands and managing dependencies.
-
-## **3. Architecture & Strategy**
-
-### **Entity-Oriented Design**
-
-Each Wikidata entity type has a dedicated class (`Politician`, `Position`, `Location`, `Country`, all inheriting from `WikidataEntityMixin`) handling its complete lifecycle. Uses `WikidataEntityProcessor` for type detection and processing.
-
-### **Dump Processing Strategy**
-
-Three separate CLI commands, each reading the dump file independently:
-
-1. **`import-hierarchy`:** Extract P279 (subclass of) relationships for positions and locations. Store in database for reuse.
-2. **`import-entities`:** Use hierarchy trees to import positions, locations, countries before politicians reference them.
-3. **`import-politicians`:** Link politicians to existing entities, preventing deadlock issues.
-
-### **Two-Stage Extraction Strategy**
-
-For entity-linked properties (OpenAI's 500 enum limit):
-
-1. **Free-form Extraction:** LLM extracts natural language descriptions
-2. **Entity Mapping:** Meilisearch keyword search → top 100 candidates → LLM maps to specific Wikidata entity or None
-
-## **4. Core Functionality**
-
-### **Data Import Pipeline**
-
-- **Wikidata Dumps:** Process complete latest-all.json (~1TB uncompressed)
-- **Wikipedia Links:** Extract from entity sitelinks for enrichment
-- **Batch Processing:** Efficient database insertion with configurable batch sizes
-- **GCS Support:** Seamless local/cloud storage with gs:// paths
-
-### **Enrichment Pipeline**
-
-- **Web Source Archiving:** Fetch and archive web pages (Wikipedia, government portals) as MHTML via Playwright (`archiving.py`)
-- **LLM Extraction:** OpenAI structured data API for politician properties
-- **Similarity Search:** Match unlinked entities using Meilisearch keyword search
-- **Review-driven enrichment:** When a user's per-language review pool is empty, enrich an eligible politician from sources in the user's selected languages; (politician, Wikipedia project) snapshots are re-enriched after `ENRICHMENT_COOLDOWN_DAYS` (default 365); the client prefetches one politician ahead
-- **Real-time Updates:** SSE events broadcast enrichment progress and evaluation count changes (`sse.py`)
-
-### **API Endpoints**
-
-- **Politicians:** `GET /politicians/next` (next unevaluated), `GET /politicians/{qid}`, `GET /politicians/search`, `POST /politicians` (create), `PATCH /politicians/{qid}/properties` (submit evaluations), `POST /politicians/{qid}/sources` (add source)
-- **Sources:** `GET /sources/{id}.html` (archived HTML)
-- **Events:** `GET /events` (SSE stream for real-time updates: evaluation counts, enrichment progress)
-- **Authentication:** MediaWiki OAuth 2.0 JWT tokens
-
-### **CLI Structure**
-
-_Use `--help` for detailed command documentation._
-
-## **5. Key Design Decisions**
-
-### **QID-Based Hierarchy**
-
-- `wikidata_entities` uses `wikidata_id` as primary key (String type)
-- All foreign keys reference QIDs directly for optimal performance
-- Eliminates UUID-to-QID mapping complexity
-
-### **Evaluation System**
-
-- Single Evaluation table for all property types
-- Boolean `is_accepted` flag for user actions on data
-- Actions: **Accept** new extracted data (submit to Wikidata), **Reject** incorrect extracted data (soft delete), **Deprecate** existing statements (mark as deprecated in Wikidata)
-- Supports multiple users
-
-### **Search & Similarity**
-
-- All entities indexed to Meilisearch with labels during import
-- Meilisearch provides keyword search with built-in typo tolerance
-
-## **6. External Integrations**
-
-- **Wikidata Dumps:** Primary data source (latest-all.json)
-- **Google Cloud Storage:** Large file processing and storage
-- **OpenAI API:** All LLM-based extraction
-- **MediaWiki OAuth 2.0:** User authentication for API
-- **Playwright:** Web page fetching and MHTML archiving
-
-## **7. Common Commands**
-
-### **Development Setup**
+Always use `uv`. Run commands from this directory.
 
 ```bash
-# Sync dependencies
 uv sync
-
-# Install pre-commit hooks
-uv run pre-commit install
-```
-
-### **Testing**
-
-```bash
-# Run all tests
+uv run ruff check .
+uv run ruff format --check .
 uv run pytest
-
-# Run all model tests
-uv run pytest tests/models/
-
-# Run specific test file
-uv run pytest tests/models/test_politician.py
-
-# Run with verbose output
-uv run pytest -v
-
-# Run specific test method
-uv run pytest tests/models/test_politician.py::TestPolitician -k test_name
 ```
 
-### **Database Operations**
+Run focused tests while developing, for example `uv run pytest tests/test_review_queue.py`, then run the full suite. Use `uv run poliloom <command> --help` for CLI usage rather than relying on a maintained command catalogue.
 
-```bash
-# View current schema
-PGPASSWORD=postgres pg_dump -h localhost -p 5432 -U postgres -d poliloom --schema-only
+## Database and Migration Safety
 
-# Run Alembic migrations
-uv run alembic upgrade head
-```
+- Tests use the `poliloom_test` PostgreSQL database configured in `pyproject.toml`.
+- The test fixtures create all tables at session start and drop them at session end. Never point tests at the `poliloom` application database or override the test database settings with application credentials.
+- Model or schema changes require an Alembic migration. Do not use a local schema change as a substitute for a committed migration.
+- PostgreSQL behavior is exercised for real in tests. Meilisearch and other external integrations should be mocked unless a test is explicitly an integration test.
 
-### **CLI Commands**
+## Behavioral Invariants
 
-```bash
-# Start development server
-uv run uvicorn poliloom.api:app --reload
+Preserve these unless the task explicitly changes them:
 
-# Import data workflow
-uv run poliloom dump-download --output ./dump.json.bz2
-uv run poliloom dump-extract --input ./dump.json.bz2 --output ./dump.json
-uv run poliloom import-hierarchy --file ./dump.json
-uv run poliloom import-entities --file ./dump.json
-uv run poliloom import-politicians --file ./dump.json
+- Review work is claimed per property with a TTL, not per politician. Users with disjoint language selections may review different properties of the same politician concurrently.
+- Candidate selection and claim creation must remain atomic. The queue uses per-politician row locking to prevent overlapping claims.
+- Language filtering applies to property references; unreferenced properties and references with unknown language remain reviewable according to `review_queue.py`.
+- On-demand enrichment maintains a floor of one serveable politician for each language/country filter combination.
+- Enrichment freshness is tracked per politician and Wikipedia project and is governed by `ENRICHMENT_COOLDOWN_DAYS`.
+- Entity-linked extraction is intentionally two-stage: extract free-form text, search Meilisearch for candidates, then ask the model to map to a Wikidata entity. This avoids passing unbounded entity enums to the model.
+- Wikidata dump import order is hierarchy, supporting entities, then politicians. Politicians link to entities imported by the earlier passes.
+- Wikidata entity relationships use QIDs directly. Do not introduce a surrogate QID translation layer without an explicit design change.
+- Date properties use Wikidata time strings together with explicit `value_precision`. Use `poliloom.wikidata.date.WikidataDate` rather than introducing ad-hoc date formats.
 
-# Meilisearch index management
-uv run poliloom index-create
-uv run poliloom index-build
-uv run poliloom index-stats
+## Testing
 
-# Maintenance operations
-uv run poliloom garbage-collect
-uv run poliloom clean-entities
-uv run poliloom clean-properties
-```
-
-## **8. Code Style & Development Practices**
-
-### **Code Formatting**
-
-- **Auto-formatting**: Ruff handles formatting and linting via pre-commit hooks
-- **Line Length**: 88 characters (configured in `pyproject.toml`)
-- **Python Version**: Requires Python 3.12+
-- **Import Style**: Standard Python import conventions
-
-### **Testing Standards**
-
-- **Framework**: pytest with asyncio support
-- **Database**: `poliloom_test` on the local PostgreSQL instance (port 5432)
-- **Mocking**: External APIs (OpenAI, Meilisearch) mocked in `conftest.py`
-- **Coverage Focus**: Entity classes, database models, core data pipeline
-- **Approach**: Minimal, behavior-focused testing. Test business logic and data transformations, not language mechanics (inheritance, type checking). Avoid over-engineering tests.
-
-### **Key Patterns**
-
-- **Entity-Oriented Architecture**: Each Wikidata entity type has dedicated class
-- **Date Handling**: Store incomplete dates as strings ('1962', 'JUN 1982')
-- **Search Indexing**: Entities indexed to Meilisearch during import
-## **9. Important Notes**
-
-- **Always use `uv`** for Python execution and dependency management
-- **Web Crawling**: Uses Playwright directly for page fetching and MHTML capture
-- **Test Database**: Uses the separate `poliloom_test` database on port 5432
+Write minimal, behavior-focused tests. Test business rules and data transformations rather than Python mechanics or private implementation details. Add regression coverage when changing queueing, enrichment, import, API, or Wikidata statement behavior.

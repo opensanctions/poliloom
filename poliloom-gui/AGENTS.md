@@ -1,57 +1,30 @@
-# PoliLoom GUI - Project Specification
+# PoliLoom GUI
 
-## Project Purpose
+Instructions for work under `poliloom-gui/`. Repository-wide instructions in `../AGENTS.md` also apply.
 
-The PoliLoom GUI is a web application for reviewing and validating politician metadata automatically extracted by the PoliLoom project. Users evaluate properties (birth dates, birthplaces, positions, citizenship) extracted by LLMs from web sources (Wikipedia, government portals, etc.) before the data is submitted to Wikidata.
+## Commands
 
-## Technical Requirements
+Use `pnpm`. Run commands from this directory.
 
-- Next.js with App Router, React, TypeScript
-- Tailwind CSS for styling
-- MediaWiki OAuth for authentication
-- RESTful API integration with the PoliLoom backend (proxied via Next.js API routes)
-- Vitest + React Testing Library for testing
+```bash
+pnpm lint
+pnpm typecheck
+pnpm exec prettier --check .
+pnpm exec vitest run
+```
 
-## Core Features
+Run a focused test file while developing, for example `pnpm exec vitest run src/contexts/NextPoliticianContext.test.tsx`, then run the full suite. Run `pnpm build` for changes to routing, rendering boundaries, Next.js configuration, or production-only behavior.
 
-### Authentication
+## Application Boundaries
 
-- MediaWiki OAuth login, session management, protected routes
-
-### Evaluation Interface
-
-- **Politician view** (`/politician/[qid]`): Single politician with all extracted properties, grouped by type. Accept/reject individual properties. Archived source HTML displayed in iframe with CSS Custom Highlight API for proof text.
-- **Session flow** (`/session/enriching`, `/session/unlocked`, `/session/complete`): Guides users through the evaluation session lifecycle.
-- **OmniBox**: Search/navigate to politicians, with option to create new entries.
-
-### Real-time Updates
-
-- Server-sent events (EventStreamContext) for live evaluation count updates and enrichment progress notifications.
-
-### User-Added Data
-
-- Users can add new properties (dates, entities, positions) and sources via dedicated forms.
-
-## Data Model
-
-**Politicians**: ID, name, Wikidata QID, unified `properties` array of extracted data.
-
-**Properties**: Each has a `type` (P569 birth date, P570 death date, P19 birthplace, P39 position, P27 citizenship), optional qualifiers (start/end dates), supporting quotes, and source references.
-
-**Sources**: Archived web pages (MHTML) linked to politicians. Displayed in iframe with highlighted proof text.
-
-**Evaluations**: Accept/reject individual properties, submitted in batches via `PATCH /politicians/{qid}/properties`.
-
-## Key Architecture
-
-- **Contexts**: `EvaluationSessionContext` (batch evaluation state), `EventStreamContext` (SSE), `NextPoliticianContext` (prefetch next politician), `SettingsContext` (advanced mode, tutorial completion, stats unlocking — server-persisted via `PATCH /settings`), `FilterContext` (language/country filters — cookie-backed), `EvaluationCountContext` (evaluation counts via SSE), `ThemeContext` (theme switching)
-- **API proxy**: Next.js API routes in `src/app/api/` proxy to backend, attaching auth tokens
-- **Route groups**: `(app)/` for authenticated routes, `(public)/` for login
+- Browser-facing backend requests go through same-origin routes in `src/app/api/`. These routes proxy to the backend and attach authentication; do not call `API_BASE_URL` directly from client components.
+- Backend response and request schemas are mirrored manually in `src/types/index.ts`. When the backend contract changes, update the types, proxy route where necessary, callers, and tests together.
+- Filters are persisted in cookies. Preserve URL-to-cookie handling in `src/proxy.ts` and the behavior of `FilterContext` when changing filter flow.
+- User settings are persisted through the backend settings endpoint. Do not turn them into client-only React state.
+- Real-time evaluation and enrichment updates arrive through the shared SSE connection in `EventStreamContext`; avoid creating independent event streams in feature components.
 
 ## Testing
 
-**Framework**: Vitest + React Testing Library
+Use Vitest and React Testing Library. Prefer user-visible behavior and accessible queries over component internals. Add regression coverage for authentication, proxy behavior, evaluation submission, filtering, session navigation, and error handling when those areas change.
 
-**Approach**: Minimal, behavior-focused. Test user-facing behavior, not implementation details.
-
-**Priorities**: Auth flow, core evaluation workflow, politician display/navigation, API integration, error handling.
+Keep tests deterministic: mock network, navigation, and browser-only APIs through the existing test setup rather than depending on the running development servers.

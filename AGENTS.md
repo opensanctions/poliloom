@@ -1,83 +1,27 @@
 # PoliLoom
 
-Open-source tool to build the world's largest open database of politicians. Extracts politician data from web sources (Wikipedia, government portals, etc.) using AI, verifies it through community review, and submits to Wikidata.
+PoliLoom extracts politician data from web sources, has people review it, and submits accepted data to Wikidata.
 
-## Project Structure
+## Repository Scope
 
-```
-poliloom/                        # Backend (Python package, pyproject.toml, Containerfile)
-poliloom-gui/                    # Frontend (Next.js, package.json)
-compose.yaml                     # Services: postgres, api, gui
-```
+- `poliloom/` contains the Python API, CLI, import, and enrichment backend.
+- `poliloom-gui/` contains the Next.js review interface.
+- Follow the nested `AGENTS.md` in the package you change. For cross-package work, follow both.
 
-## Tech Stack
+## Agent Environment
 
-**Backend**: Python 3.12+, FastAPI, SQLAlchemy, PostgreSQL, OpenAI API, Meilisearch (keyword entity search)
-**Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS, NextAuth.js
-**Infrastructure**: Meilisearch (entity search), Playwright (web page archiving)
-**Package Managers**: uv (Python), pnpm (Node.js)
+In the configured agent development environment, the backend and frontend dev servers are already running on ports 8000 and 3000. Do not start replacement servers unless the user asks.
 
-## Development Environment
+Use `uv` for Python work and `pnpm` for frontend work. Run commands from the relevant package directory unless a command explicitly targets the repository root.
 
-Dev servers for both backend (port 8000) and frontend (port 3000) are always running - no need to start them.
+## Cross-Package Changes
 
-```bash
-# Backend
-cd poliloom
-uv sync                          # Install deps
-uv run alembic upgrade head      # Run migrations
-uv run pytest                    # Run tests
+The frontend mirrors backend API contracts manually. When an API schema or route changes, check the corresponding routes under `poliloom-gui/src/app/api/`, types in `poliloom-gui/src/types/`, callers, and tests.
 
-# Frontend
-cd poliloom-gui
-pnpm install                     # Install deps
-pnpm test                        # Run tests
-```
+## Safety
 
-## Database
+Do not run expensive or destructive data operations unless explicitly requested. This includes Wikidata dump download/import commands, cleanup or garbage-collection commands, Meilisearch index deletion/rebuilds, `make db-truncate`, and `make db-restore`.
 
-- PostgreSQL (port 5432)
-- Separate `poliloom` and `poliloom_test` databases share the local instance
-- Connection: `PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d poliloom`
+## Validation
 
-## Key Backend Files
-
-- `poliloom/poliloom/cli.py` - CLI commands (dump download/extract, import, cleanup, Meilisearch indexing)
-- `poliloom/poliloom/api/` - FastAPI endpoints (politicians, sources, events, stats, auth)
-- `poliloom/poliloom/models/` - SQLAlchemy models (Politician, Source, Property, etc.)
-- `poliloom/poliloom/importer/` - Wikidata dump processing
-- `poliloom/poliloom/enrichment.py` - AI-powered data extraction from web sources
-- `poliloom/poliloom/scheduling.py` - On-demand enrichment orchestration (floor-of-1 top-up)
-- `poliloom/poliloom/review_queue.py` - Claim-based review serving: per-property claims (TTL) handed out under per-politician row locks
-- `poliloom/poliloom/archiving.py` - Web page fetching and MHTML archiving via Playwright
-- `poliloom/poliloom/sse.py` - Server-sent events bus for real-time updates
-
-## Key Frontend Files
-
-- `poliloom-gui/src/app/(app)/politician/[qid]/` - Single politician evaluation view
-- `poliloom-gui/src/app/(app)/session/` - Enriching waiting room (shown while AI gathers the next politician)
-- `poliloom-gui/src/components/evaluation/` - Evaluation UI (property display, source viewer, forms)
-- `poliloom-gui/src/components/entity/` - Entity components (MultiSelect filter picker, etc.)
-- `poliloom-gui/src/components/ui/` - Generic UI components (entity search, date picker, etc.)
-- `poliloom-gui/src/contexts/` - React contexts (EventStream, NextPolitician, etc.)
-- `poliloom-gui/src/types/` - TypeScript definitions
-
-## Data Pipeline
-
-1. Download Wikidata dump → Extract hierarchy (P279 relationships)
-2. Import positions, locations, countries → Index entities to Meilisearch
-3. Import politicians with entity links
-4. Archive web sources (Wikipedia, government portals) as MHTML via Playwright
-5. Users always review in at least one language. `/next` claims the unevaluated properties it serves (per-property claims with `CLAIM_TTL_MINUTES` TTL, default 30), so users never see each other's property; users with disjoint languages review the same politician in parallel. When nothing serveable remains, background enrichment (two-stage: free-form extraction → Meilisearch entity mapping) tops up to a floor of 1 serveable politician per filter combo; (politician, Wikipedia project) snapshots are re-enriched after `ENRICHMENT_COOLDOWN_DAYS` (default 365)
-6. Community evaluation → Wikidata submission
-
-## Environment Variables
-
-Backend (`.env`): DB_*, OPENAI_API_KEY, OPENAI_MODEL, OPENAI_REASONING_EFFORT, MEDIAWIKI_CONSUMER_*, GOOGLE_APPLICATION_CREDENTIALS, MEILI_URL, MEILI_MASTER_KEY, POLILOOM_ARCHIVE_ROOT, WIKIDATA_API_ROOT, ENRICHMENT_COOLDOWN_DAYS, CLAIM_TTL_MINUTES
-Frontend (`.env.local`): AUTH_SECRET, MEDIAWIKI_OAUTH_*, API_BASE_URL
-
-## Code Style
-
-- Backend: Ruff (linting/formatting)
-- Frontend: ESLint + Prettier
-- Pre-commit hooks configured
+Start with focused checks for the code changed, then run the package-level checks in the relevant nested `AGENTS.md`. Do not treat an already-running dev server as a substitute for tests, linting, or type checking.
