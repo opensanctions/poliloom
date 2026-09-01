@@ -92,4 +92,3 @@ class UserSettings(Base, TimestampMixin):
     advanced_tutorial_completed = Column(
         Boolean, nullable=False, server_default=text("false")
     )
-    stats_unlocked = Column(Boolean, nullable=False, server_default=text("false"))

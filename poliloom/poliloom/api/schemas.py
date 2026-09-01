@@ -221,7 +221,6 @@ class UserSettingsResponse(BaseModel):
     advanced_mode: bool = False
     basic_tutorial_completed: bool = False
     advanced_tutorial_completed: bool = False
-    stats_unlocked: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -232,4 +231,3 @@ class UserSettingsPatch(BaseModel):
     advanced_mode: bool | None = None
     basic_tutorial_completed: bool | None = None
     advanced_tutorial_completed: bool | None = None
-    stats_unlocked: bool | None = None

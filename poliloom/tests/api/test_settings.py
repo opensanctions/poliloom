@@ -19,14 +19,11 @@ class TestGetSettings:
             "advanced_mode": False,
             "basic_tutorial_completed": False,
             "advanced_tutorial_completed": False,
-            "stats_unlocked": False,
         }
         assert db_session.get(UserSettings, USER_ID) is None
 
     def test_returns_persisted_values(self, client, db_session, mock_auth):
-        db_session.add(
-            UserSettings(user_id=USER_ID, advanced_mode=True, stats_unlocked=True)
-        )
+        db_session.add(UserSettings(user_id=USER_ID, advanced_mode=True))
         db_session.commit()
 
         response = client.get("/settings", headers=mock_auth)
@@ -35,7 +32,6 @@ class TestGetSettings:
             "advanced_mode": True,
             "basic_tutorial_completed": False,
             "advanced_tutorial_completed": False,
-            "stats_unlocked": True,
         }
 
 
@@ -60,7 +56,6 @@ class TestPatchSettings:
         assert body["basic_tutorial_completed"] is True
         assert body["advanced_mode"] is False
         assert body["advanced_tutorial_completed"] is False
-        assert body["stats_unlocked"] is False
 
     def test_subsequent_patch_preserves_existing_fields(
         self, client, db_session, mock_auth
