@@ -8,7 +8,6 @@ import { Toggle } from '@/components/ui/Toggle'
 import { MultiSelect, MultiSelectOption } from '@/components/entity/MultiSelect'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useFilters } from '@/contexts/FilterContext'
-import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { CountryResponse, LanguageResponse } from '@/types'
 
@@ -16,7 +15,6 @@ interface CtaState {
   href?: string
   text: string
   disabled?: boolean
-  startSession?: boolean
 }
 
 interface HomeContentProps {
@@ -27,7 +25,6 @@ interface HomeContentProps {
 export function HomeContent({ languages, countries }: HomeContentProps) {
   const { settings, patch } = useSettings()
   const { languageQids, countryQids, setLanguages, setCountries } = useFilters()
-  const { startSession } = useEvaluationSession()
   const {
     nextHref,
     politicianReady,
@@ -48,7 +45,7 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
     if (needsTutorial) return { href: '/tutorial', text: 'Start Tutorial' }
     if (needsAdvancedTutorial) return { href: '/tutorial', text: 'Start Advanced Tutorial' }
     if (loadingNext) return { text: 'Start Your Session', disabled: true }
-    if (!allCaughtUp) return { href: nextHref, text: 'Start Your Session', startSession: true }
+    if (!allCaughtUp) return { href: nextHref, text: 'Start Your Session' }
     return { text: 'Start Your Session', disabled: true }
   }, [needsTutorial, needsAdvancedTutorial, loadingNext, nextHref, allCaughtUp])
 
@@ -71,7 +68,7 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-4">Configure Your Session</h1>
           <p className="text-lg text-foreground-tertiary">
-            Pick your focus, then work through a batch of politicians at your own pace.
+            Pick your focus, then work through politicians at your own pace.
           </p>
         </div>
 
@@ -116,7 +113,6 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
               disabled={cta.disabled}
               size="xlarge"
               className="shrink-0"
-              onClick={cta.startSession ? () => startSession() : undefined}
             >
               {cta.text}
             </Button>

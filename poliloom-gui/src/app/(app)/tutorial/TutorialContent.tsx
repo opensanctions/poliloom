@@ -21,7 +21,6 @@ import { TutorialFooter } from './_components/TutorialFooter'
 import { SuccessFeedback } from './_components/SuccessFeedback'
 import { ErrorFeedback } from './_components/ErrorFeedback'
 import { useSettings } from '@/contexts/SettingsContext'
-import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { PropertyActionItem, CreatePropertyItem } from '@/types'
 import { actionToEvaluation, groupPropertiesIntoSections } from '@/lib/evaluation'
@@ -124,7 +123,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   const hasCompletedBasicTutorial = settings?.basic_tutorial_completed ?? true
   const hasCompletedAdvancedTutorial = settings?.advanced_tutorial_completed ?? true
   const isAdvancedMode = settings?.advanced_mode ?? false
-  const { startSession } = useEvaluationSession()
   const { nextHref, loading: nextLoading } = useNextPoliticianContext()
 
   const startHref = !nextLoading ? nextHref : undefined
@@ -168,7 +166,6 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
           size="large"
           fullWidth
           disabled={!startHref}
-          onClick={() => startSession()}
         >
           Start Evaluating
         </Button>

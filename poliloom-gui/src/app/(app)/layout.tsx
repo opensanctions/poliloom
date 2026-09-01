@@ -1,5 +1,4 @@
 import { SettingsProvider } from '@/contexts/SettingsContext'
-import { EvaluationSessionProvider } from '@/contexts/EvaluationSessionContext'
 import { EventStreamProvider } from '@/contexts/EventStreamContext'
 import { EvaluationCountProvider } from '@/contexts/EvaluationCountContext'
 import { NextPoliticianProvider } from '@/contexts/NextPoliticianContext'
@@ -27,23 +26,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         initialCountryQids={initialCountryQids}
       >
         <EventStreamProvider>
-          <EvaluationSessionProvider>
-            <EvaluationCountProvider initialCount={evaluationCount}>
-              <NextPoliticianProvider>
-                <Header
-                  left={<OmniBox />}
-                  right={
-                    <>
-                      <EvaluationCountButton />
-                      <ThemeToggle />
-                      <AuthButton />
-                    </>
-                  }
-                />
-                {children}
-              </NextPoliticianProvider>
-            </EvaluationCountProvider>
-          </EvaluationSessionProvider>
+          <EvaluationCountProvider initialCount={evaluationCount}>
+            <NextPoliticianProvider>
+              <Header
+                left={<OmniBox />}
+                right={
+                  <>
+                    <EvaluationCountButton />
+                    <ThemeToggle />
+                    <AuthButton />
+                  </>
+                }
+              />
+              {children}
+            </NextPoliticianProvider>
+          </EvaluationCountProvider>
         </EventStreamProvider>
       </FilterProvider>
     </SettingsProvider>

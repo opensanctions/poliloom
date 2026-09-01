@@ -93,9 +93,7 @@ describe('Home Page (Filter Selection)', () => {
     })
 
     expect(
-      screen.getByText(
-        'Pick your focus, then work through a batch of politicians at your own pace.',
-      ),
+      screen.getByText('Pick your focus, then work through politicians at your own pace.'),
     ).toBeInTheDocument()
     expect(screen.getByText('What languages can you read?')).toBeInTheDocument()
     expect(screen.getByText('Which countries are you interested in?')).toBeInTheDocument()
