@@ -55,11 +55,11 @@ pnpm test                        # Run tests
 ## Key Frontend Files
 
 - `poliloom-gui/src/app/(app)/politician/[qid]/` - Single politician evaluation view
-- `poliloom-gui/src/app/(app)/session/` - Session flow (enriching, unlocked, complete)
+- `poliloom-gui/src/app/(app)/session/` - Enriching waiting room (shown while AI gathers the next politician)
 - `poliloom-gui/src/components/evaluation/` - Evaluation UI (property display, source viewer, forms)
 - `poliloom-gui/src/components/entity/` - Entity components (MultiSelect filter picker, etc.)
 - `poliloom-gui/src/components/ui/` - Generic UI components (entity search, date picker, etc.)
-- `poliloom-gui/src/contexts/` - React contexts (EvaluationSession, EventStream, NextPolitician, etc.)
+- `poliloom-gui/src/contexts/` - React contexts (EventStream, NextPolitician, etc.)
 - `poliloom-gui/src/types/` - TypeScript definitions
 
 ## Data Pipeline
