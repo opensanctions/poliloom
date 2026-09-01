@@ -13,14 +13,9 @@ export const mockUseSearchParams = vi.fn()
 
 // Contexts
 export const mockUseNextPoliticianContext = vi.fn()
-export const mockUseEvaluationSession = vi.fn()
 export const mockUseSettings = vi.fn()
 export const mockUseFilters = vi.fn()
 
-// Shared action mocks (used in defaultEvaluationSession)
-export const mockSubmitAndAdvance = vi.fn()
-export const mockStartSession = vi.fn()
-export const mockEndSession = vi.fn()
 export const mockSettingsPatch = vi.fn().mockResolvedValue(undefined)
 export const mockSetLanguages = vi.fn()
 export const mockSetCountries = vi.fn()
@@ -56,10 +51,6 @@ vi.mock('@/contexts/NextPoliticianContext', () => ({
   useNextPoliticianContext: () => mockUseNextPoliticianContext(),
 }))
 
-vi.mock('@/contexts/EvaluationSessionContext', () => ({
-  useEvaluationSession: () => mockUseEvaluationSession(),
-}))
-
 vi.mock('@/contexts/SettingsContext', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/contexts/SettingsContext')>()
   return {
@@ -85,15 +76,6 @@ export const defaultNextPolitician = {
   loading: false,
 }
 
-export const defaultEvaluationSession = {
-  isSessionActive: false,
-  completedCount: 0,
-  sessionGoal: 5,
-  startSession: mockStartSession,
-  submitAndAdvance: mockSubmitAndAdvance,
-  endSession: mockEndSession,
-}
-
 export const defaultSettings: UserSettings = {
   advanced_mode: false,
   basic_tutorial_completed: true,
@@ -117,7 +99,6 @@ export const defaultFiltersContext = {
 
 beforeEach(() => {
   mockUseNextPoliticianContext.mockReturnValue(defaultNextPolitician)
-  mockUseEvaluationSession.mockReturnValue(defaultEvaluationSession)
   mockUseSettings.mockReturnValue(defaultSettingsContext)
   mockUseFilters.mockReturnValue(defaultFiltersContext)
   mockUseParams.mockReturnValue({})

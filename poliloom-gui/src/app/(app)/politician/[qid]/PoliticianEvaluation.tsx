@@ -9,7 +9,6 @@ import {
   PropertyActionItem,
   SourceResponse,
 } from '@/types'
-import { useEvaluationSession } from '@/contexts/EvaluationSessionContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useFilters } from '@/contexts/FilterContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
@@ -30,11 +29,8 @@ interface PoliticianEvaluationProps {
 
 export function PoliticianEvaluation({ politician: initialPolitician }: PoliticianEvaluationProps) {
   const router = useRouter()
-  const { isSessionActive, completedCount, sessionGoal, submitAndAdvance, endSession } =
-    useEvaluationSession()
-  const { settings, patch } = useSettings()
+  const { settings } = useSettings()
   const { languageQids } = useFilters()
-  const statsUnlocked = settings?.stats_unlocked ?? false
   const isAdvancedMode = settings?.advanced_mode ?? false
   const { nextHref, loading: nextLoading } = useNextPoliticianContext()
   const [politician, setPolitician] = useState<Politician>(initialPolitician)
@@ -100,21 +96,7 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
     }
 
     refetchPolitician()
-
-    if (isSessionActive) {
-      const { sessionComplete } = submitAndAdvance()
-      if (sessionComplete) {
-        endSession()
-        if (statsUnlocked) {
-          router.push('/session/complete')
-        } else {
-          patch({ stats_unlocked: true })
-          router.push('/session/unlocked')
-        }
-      } else {
-        router.push(nextHref)
-      }
-    }
+    router.push(nextHref)
   }
 
   const handleSkipPolitician = async () => {
@@ -140,17 +122,8 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
     const hasActions = actions.length > 0
     return (
       <div className="flex justify-between items-center">
-        {isSessionActive && (
-          <div className="text-base text-foreground">
-            Progress:{' '}
-            <strong>
-              {completedCount} / {sessionGoal}
-            </strong>{' '}
-            politicians evaluated
-          </div>
-        )}
         <div className="ml-auto">
-          {isSessionActive && !hasActions ? (
+          {!hasActions ? (
             <Button
               onClick={handleSkipPolitician}
               disabled={nextLoading || isSkipping}
@@ -161,14 +134,10 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
           ) : (
             <Button
               onClick={submit}
-              disabled={isSubmitting || !hasActions || (isSessionActive && nextLoading)}
+              disabled={isSubmitting || !hasActions || nextLoading}
               className="px-6 py-3"
             >
-              {isSubmitting
-                ? 'Submitting...'
-                : isSessionActive
-                  ? 'Submit Evaluations & Next'
-                  : 'Submit Evaluations'}
+              {isSubmitting ? 'Submitting...' : 'Submit Evaluations & Next'}
             </Button>
           )}
         </div>

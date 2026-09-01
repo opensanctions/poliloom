@@ -1,18 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, waitFor, render } from '@testing-library/react'
 import {
-  mockSubmitAndAdvance,
-  mockEndSession,
-  mockSettingsPatch,
   mockRouterPush,
   mockFetch,
   mockUseNextPoliticianContext,
-  mockUseEvaluationSession,
-  mockUseSettings,
   mockUseFilters,
   defaultNextPolitician,
-  defaultEvaluationSession,
-  defaultSettingsContext,
 } from '@/test/mocks'
 import { PoliticianEvaluation } from './PoliticianEvaluation'
 import type { SourceResponse, Politician } from '@/types'
@@ -173,7 +166,6 @@ const politicianWithConflicts: Politician = {
 describe('PoliticianEvaluation', () => {
   beforeEach(() => {
     CSS.highlights.clear()
-    mockUseEvaluationSession.mockReturnValue({ ...defaultEvaluationSession, isSessionActive: true })
     mockFetch.mockImplementation((_url, options) => {
       if (options?.method === 'PATCH') {
         return Promise.resolve({
@@ -231,13 +223,6 @@ describe('PoliticianEvaluation', () => {
     expect(rejectButton).toHaveAttribute('class', expect.stringContaining('bg-danger'))
   })
 
-  it('shows session progress in session mode', () => {
-    render(<PoliticianEvaluation politician={politician} />)
-
-    expect(screen.getByText(/Progress:/)).toBeInTheDocument()
-    expect(screen.getByText('0 / 5')).toBeInTheDocument()
-  })
-
   it('shows "Skip Politician" when no evaluations and "Submit Evaluations & Next" when evaluations exist', () => {
     render(<PoliticianEvaluation politician={politician} />)
 
@@ -251,9 +236,7 @@ describe('PoliticianEvaluation', () => {
     expect(screen.queryByText('Skip Politician')).not.toBeInTheDocument()
   })
 
-  it('submits evaluations via API and advances session', async () => {
-    mockSubmitAndAdvance.mockReturnValue({ sessionComplete: false })
-
+  it('submits evaluations via API and navigates to the next politician', async () => {
     render(<PoliticianEvaluation politician={politician} />)
 
     const acceptButtons = screen.getAllByText('✓ Accept')
@@ -269,7 +252,7 @@ describe('PoliticianEvaluation', () => {
           method: 'PATCH',
         }),
       )
-      expect(mockSubmitAndAdvance).toHaveBeenCalled()
+      expect(mockRouterPush).toHaveBeenCalledWith('/politician/Q12345')
     })
   })
 
@@ -280,7 +263,6 @@ describe('PoliticianEvaluation', () => {
       setLanguages: vi.fn(),
       setCountries: vi.fn(),
     })
-    mockSubmitAndAdvance.mockReturnValue({ sessionComplete: false })
 
     render(<PoliticianEvaluation politician={politician} />)
     fireEvent.click(screen.getAllByText('✓ Accept')[0])
@@ -290,45 +272,6 @@ describe('PoliticianEvaluation', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         '/api/politicians/Q987654?languages=Q1860&languages=Q188',
       )
-    })
-  })
-
-  it('ends session and redirects to /session/complete on session completion when stats unlocked', async () => {
-    mockSubmitAndAdvance.mockReturnValue({ sessionComplete: true })
-
-    render(<PoliticianEvaluation politician={politician} />)
-
-    const acceptButtons = screen.getAllByText('✓ Accept')
-    fireEvent.click(acceptButtons[0])
-
-    const submitButton = screen.getByText('Submit Evaluations & Next')
-    fireEvent.click(submitButton)
-
-    await waitFor(() => {
-      expect(mockEndSession).toHaveBeenCalled()
-      expect(mockRouterPush).toHaveBeenCalledWith('/session/complete')
-    })
-  })
-
-  it('ends session, unlocks stats, and redirects to /session/unlocked when stats not yet unlocked', async () => {
-    mockSubmitAndAdvance.mockReturnValue({ sessionComplete: true })
-    mockUseSettings.mockReturnValue({
-      ...defaultSettingsContext,
-      settings: { ...defaultSettingsContext.settings, stats_unlocked: false },
-    })
-
-    render(<PoliticianEvaluation politician={politician} />)
-
-    const acceptButtons = screen.getAllByText('✓ Accept')
-    fireEvent.click(acceptButtons[0])
-
-    const submitButton = screen.getByText('Submit Evaluations & Next')
-    fireEvent.click(submitButton)
-
-    await waitFor(() => {
-      expect(mockEndSession).toHaveBeenCalled()
-      expect(mockSettingsPatch).toHaveBeenCalledWith({ stats_unlocked: true })
-      expect(mockRouterPush).toHaveBeenCalledWith('/session/unlocked')
     })
   })
 
@@ -365,7 +308,6 @@ describe('PoliticianEvaluation - no next politician', () => {
       nextHref: '/session/enriching',
       politicianReady: false,
     })
-    mockUseEvaluationSession.mockReturnValue({ ...defaultEvaluationSession, isSessionActive: true })
     mockFetch.mockImplementation((_url, options) => {
       if (options?.method === 'PATCH') {
         return Promise.resolve({
@@ -381,8 +323,6 @@ describe('PoliticianEvaluation - no next politician', () => {
   })
 
   it('navigates to /session/enriching on submit when no next politician available', async () => {
-    mockSubmitAndAdvance.mockReturnValue({ sessionComplete: false })
-
     render(<PoliticianEvaluation politician={politician} />)
 
     const acceptButtons = screen.getAllByText('✓ Accept')
