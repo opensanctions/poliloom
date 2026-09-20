@@ -355,6 +355,31 @@ class TestDatePrecision:
         assert WikidataDate.more_precise_date(None, None) is None
 
 
+class TestToRestTimeContent:
+    """Test to_rest_time_content (REST statement value shape)."""
+
+    def test_rest_content_has_only_rest_fields(self):
+        wd = WikidataDate.from_date_string("2020-06-15")
+
+        assert wd.to_rest_time_content() == {
+            "time": "+2020-06-15T00:00:00Z",
+            "precision": 11,
+            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+        }
+
+    def test_wikidata_value_keeps_action_api_fields(self):
+        wd = WikidataDate.from_date_string("2020")
+
+        assert wd.to_wikidata_value() == {
+            "time": "+2020-00-00T00:00:00Z",
+            "timezone": 0,
+            "before": 0,
+            "after": 0,
+            "precision": 9,
+            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+        }
+
+
 class TestIsOverYearsAgo:
     """Test is_over_years_ago."""
 
