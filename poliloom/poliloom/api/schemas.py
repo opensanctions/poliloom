@@ -1,21 +1,16 @@
 """Pydantic schemas for API responses."""
 
 from datetime import datetime
-from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import (
     AliasChoices,
     BaseModel,
     ConfigDict,
-    Discriminator,
     Field,
-    Tag,
     field_serializer,
     field_validator,
 )
-
-from ..models import PropertyType
 
 
 class UUIDBaseModel(BaseModel):
@@ -62,42 +57,53 @@ class SourceResponse(UUIDBaseModel):
         return v
 
 
-class PropertyReferenceResponse(UUIDBaseModel):
-    """Schema for a property reference (evidence source)."""
+class TermMaps(BaseModel):
+    """Language-keyed term maps of a Wikidata entity."""
+
+    labels: dict[str, str]
+    descriptions: dict[str, str]
+    aliases: dict[str, list[str]]
+
+
+class StatementResponse(UUIDBaseModel):
+    """Cached Wikidata statement document shown as review context."""
+
+    id: UUID
+    document: dict
+    entity_terms: TermMaps | None = None  # Terms of the statement's value entity
+
+
+class ActionEvidenceResponse(UUIDBaseModel):
+    """Evidence linking an action to a source."""
 
     id: UUID
     source: SourceResponse
     supporting_quotes: list[str] | None = None
 
 
-class PropertyResponse(UUIDBaseModel):
-    """Unified property response."""
+class ActionResponse(UUIDBaseModel):
+    """Proposed Wikidata operation pending or undergoing review."""
 
     id: UUID
-    type: PropertyType
-    value: str | None = None
-    value_precision: int | None = None
-    entity_id: str | None = None
-    entity_name: str | None = None  # Add for frontend convenience
-    statement_id: str | None = None
-    qualifiers: dict[str, Any] | None = None
-    references: list[dict[str, Any]] | None = None
-    sources: list[PropertyReferenceResponse] = []
-
-    @field_serializer("type")
-    def serialize_property_type(self, value: PropertyType) -> str:
-        """Return enum value (Wikidata P... identifier) instead of name."""
-        return value.value if value else None
+    kind: str
+    statement_id: UUID | None = None  # Target statement for edits
+    payload: dict
+    entity_terms: TermMaps | None = None  # Terms of the action's value entity
+    evidence: list[ActionEvidenceResponse] = []
+    is_accepted: bool | None = None
+    applied_at: datetime | None = None
+    error: str | None = None
 
 
 class PoliticianResponse(UUIDBaseModel):
-    """Simplified politician response."""
+    """Politician with context statements and reviewable actions."""
 
     id: UUID
-    name: str
     wikidata_id: str | None = None
+    terms: TermMaps
     sources: list[SourceResponse] = []
-    properties: list[PropertyResponse]  # Single flat list
+    statements: list[StatementResponse] = []
+    actions: list[ActionResponse] = []
 
 
 class EnrichmentMetadata(BaseModel):
@@ -113,47 +119,22 @@ class NextPoliticianResponse(BaseModel):
     meta: EnrichmentMetadata
 
 
-class AcceptPropertyItem(BaseModel):
-    action: Literal["accept"]
+class ActionDecision(BaseModel):
+    """A single accept/discard decision on a pending action."""
+
     id: UUID
+    is_accepted: bool
 
 
-class RejectPropertyItem(BaseModel):
-    action: Literal["reject"]
-    id: UUID
+class PatchActionsRequest(BaseModel):
+    """Request body for PATCH /politicians/{qid}/actions."""
+
+    decisions: list[ActionDecision]
+    skips: list[UUID] = []  # Action IDs to skip for this user
 
 
-class SkipPropertyItem(BaseModel):
-    action: Literal["skip"]
-    id: UUID
-
-
-class CreatePropertyItem(BaseModel):
-    action: Literal["create"]
-    type: str
-    value: str | None = None
-    value_precision: int | None = None
-    entity_id: str | None = None
-    qualifiers: dict[str, Any] | None = None
-
-
-PropertyActionItem = Annotated[
-    Annotated[AcceptPropertyItem, Tag("accept")]
-    | Annotated[RejectPropertyItem, Tag("reject")]
-    | Annotated[SkipPropertyItem, Tag("skip")]
-    | Annotated[CreatePropertyItem, Tag("create")],
-    Discriminator("action"),
-]
-
-
-class PatchPropertiesRequest(BaseModel):
-    """Request body for PATCH /politicians/{qid}/properties."""
-
-    items: list[PropertyActionItem]
-
-
-class PatchPropertiesResponse(BaseModel):
-    """Response for property evaluation endpoints."""
+class PatchActionsResponse(BaseModel):
+    """Response for action decision endpoints."""
 
     success: bool
     message: str

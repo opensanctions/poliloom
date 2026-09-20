@@ -222,7 +222,7 @@ class TestAuthIntegration:
         assert client_no_db.get("/politicians/next").status_code == 401
         assert (
             client_no_db.patch(
-                "/politicians/Q123456/properties", json={"items": []}
+                "/politicians/Q123456/actions", json={"decisions": []}
             ).status_code
             == 401
         )
@@ -241,10 +241,10 @@ class TestAuthIntegration:
         assert "meta" in data
         assert "wikidata_id" in data
 
-        # Test patch properties endpoint with auth
+        # Test patch actions endpoint with auth
         response = client.patch(
-            f"/politicians/{sample_politician.wikidata_id}/properties",
-            json={"items": []},
+            f"/politicians/{sample_politician.wikidata_id}/actions",
+            json={"decisions": []},
             headers=mock_auth,
         )
         assert response.status_code == 200
