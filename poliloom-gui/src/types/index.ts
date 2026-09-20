@@ -42,31 +42,38 @@ export interface CreatePoliticianResponse {
   errors: string[]
 }
 
-export interface WikidataEntity {
+export interface LanguageResponse {
   wikidata_id: string
-  name: string
-}
-
-export interface SearchEntity extends WikidataEntity {
-  description?: string
-}
-
-export type SearchFn = (query: string) => Promise<SearchEntity[]>
-
-export interface UserSettings {
-  advanced_mode: boolean
-  basic_tutorial_completed: boolean
-  advanced_tutorial_completed: boolean
-}
-
-export interface LanguageResponse extends WikidataEntity {
+  terms: TermMaps
+  wikimedia_code: string | null
   iso_639_1?: string
   iso_639_3?: string
   sources_count: number
 }
 
-export interface CountryResponse extends WikidataEntity {
+export interface CountryResponse {
+  wikidata_id: string
+  terms: TermMaps
   citizenships_count: number
+}
+
+export interface SearchEntity {
+  wikidata_id: string
+  terms: TermMaps
+}
+
+export type SearchFn = (query: string) => Promise<SearchEntity[]>
+
+export interface PatchActionsResponse {
+  success: boolean
+  message: string
+  errors: string[]
+}
+
+export interface UserSettings {
+  advanced_mode: boolean
+  basic_tutorial_completed: boolean
+  advanced_tutorial_completed: boolean
 }
 
 export interface EvaluationTimeseriesPoint {
@@ -106,12 +113,12 @@ export interface EnrichmentCompleteEvent {
   countries: string[]
 }
 
-export interface EvaluationCountEvent {
-  type: 'evaluation_count'
+export interface DecisionCountEvent {
+  type: 'decision_count'
   total: number
 }
 
-export type SSEEvent = SourceStatusEvent | EnrichmentCompleteEvent | EvaluationCountEvent
+export type SSEEvent = SourceStatusEvent | EnrichmentCompleteEvent | DecisionCountEvent
 
 export type SSEEventType = SSEEvent['type']
 

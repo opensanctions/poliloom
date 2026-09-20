@@ -1,3 +1,7 @@
+import { RestSnak, RestStatement } from '@/types'
+
+type StatementReferences = RestStatement['references']
+
 function MetadataSectionButton({
   title,
   sectionKey,
@@ -11,7 +15,7 @@ function MetadataSectionButton({
 }) {
   return (
     <button
-      className="font-medium cursor-pointer flex items-center gap-1 text-danger-foreground hover:text-danger-foreground-hover"
+      className="font-medium cursor-pointer flex items-center gap-1 text-foreground-muted hover:text-foreground"
       onClick={() => onToggle(sectionKey)}
     >
       <span className={`transition-transform ${isOpen ? '' : '-rotate-90'}`}>▼</span>
@@ -26,13 +30,13 @@ export function WikidataMetadataButtons({
   openSection,
   onToggle,
 }: {
-  qualifiers?: Record<string, unknown>
-  references?: Array<Record<string, unknown>>
+  qualifiers: RestSnak[]
+  references: StatementReferences
   openSection: 'qualifiers' | 'references' | null
   onToggle: (section: 'qualifiers' | 'references') => void
 }) {
-  const hasQualifiers = qualifiers && Object.keys(qualifiers).length > 0
-  const hasReferences = references && references.length > 0
+  const hasQualifiers = qualifiers.length > 0
+  const hasReferences = references.length > 0
 
   if (!hasQualifiers && !hasReferences) {
     return null
@@ -56,7 +60,6 @@ export function WikidataMetadataButtons({
           onToggle={onToggle}
         />
       )}
-      {openSection === null && (hasQualifiers || hasReferences) && <span>⚠️</span>}
     </div>
   )
 }
@@ -66,19 +69,18 @@ export function WikidataMetadataPanel({
   references,
   openSection,
 }: {
-  qualifiers?: Record<string, unknown>
-  references?: Array<Record<string, unknown>>
+  qualifiers: RestSnak[]
+  references: StatementReferences
   openSection: 'qualifiers' | 'references' | null
 }) {
-  const hasQualifiers = qualifiers && Object.keys(qualifiers).length > 0
-  const hasReferences = references && references.length > 0
+  const hasQualifiers = qualifiers.length > 0
+  const hasReferences = references.length > 0
 
   if (openSection === null) return null
 
-  const renderPanel = (data: Record<string, unknown> | Array<Record<string, unknown>>) => (
-    <div className="relative p-2 rounded bg-danger-deep">
-      <div className="absolute top-2 right-2 text-white text-xs">Metadata will be lost ⚠️</div>
-      <pre className="text-white text-xs overflow-x-auto">
+  const renderPanel = (data: unknown) => (
+    <div className="relative p-2 rounded bg-surface-muted">
+      <pre className="text-foreground-secondary text-xs overflow-x-auto">
         <code>{JSON.stringify(data, null, 2)}</code>
       </pre>
     </div>
@@ -86,8 +88,8 @@ export function WikidataMetadataPanel({
 
   return (
     <>
-      {openSection === 'qualifiers' && hasQualifiers && renderPanel(qualifiers!)}
-      {openSection === 'references' && hasReferences && renderPanel(references!)}
+      {openSection === 'qualifiers' && hasQualifiers && renderPanel(qualifiers)}
+      {openSection === 'references' && hasReferences && renderPanel(references)}
     </>
   )
 }

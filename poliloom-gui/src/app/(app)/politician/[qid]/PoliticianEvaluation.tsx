@@ -2,18 +2,12 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  Politician,
-  PatchPropertiesRequest,
-  PatchPropertiesResponse,
-  PropertyActionItem,
-  SourceResponse,
-} from '@/types'
-import { useSettings } from '@/contexts/SettingsContext'
+import { PatchActionsResponse, Politician, SourceResponse } from '@/types'
 import { useFilters } from '@/contexts/FilterContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { useEventStream } from '@/contexts/EventStreamContext'
-import { computeSkipItems } from '@/lib/evaluation'
+import type { ReviewSubmitPayload } from '@/lib/actions'
+import { useUserLanguageCodes } from '@/hooks/useUserLanguageCodes'
 import { Button } from '@/components/ui/Button'
 import {
   EvaluationView,
@@ -29,16 +23,14 @@ interface PoliticianEvaluationProps {
 
 export function PoliticianEvaluation({ politician: initialPolitician }: PoliticianEvaluationProps) {
   const router = useRouter()
-  const { settings } = useSettings()
   const { languageQids } = useFilters()
-  const isAdvancedMode = settings?.advanced_mode ?? false
+  const userLanguageCodes = useUserLanguageCodes()
   const { nextHref, loading: nextLoading } = useNextPoliticianContext()
   const [politician, setPolitician] = useState<Politician>(initialPolitician)
   const [selection, setSelection] = useState<SourceSelection | null>(() =>
     findInitialSelection(initialPolitician, languageQids),
   )
   const pendingSourceIdsRef = useRef<Set<string>>(new Set())
-  const [isSkipping, setIsSkipping] = useState(false)
 
   const refetchPolitician = useCallback(async (): Promise<Politician | null> => {
     try {
@@ -75,69 +67,50 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
     [politician.id, refetchPolitician],
   )
 
-  const handleSubmit = async (actions: PropertyActionItem[]) => {
-    const requestData: PatchPropertiesRequest = {
-      items: [...actions, ...computeSkipItems(politician.properties, actions)],
-    }
-    const response = await fetch(`/api/politicians/${politician.wikidata_id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestData),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to submit evaluations: ${response.statusText}`)
-    }
-
-    const result: PatchPropertiesResponse = await response.json()
-    if (!result.success) {
-      console.error('Evaluation errors:', result.errors)
-      throw new Error(`Error submitting evaluations: ${result.message}`)
-    }
-
-    refetchPolitician()
-    router.push(nextHref)
-  }
-
-  const handleSkipPolitician = async () => {
-    setIsSkipping(true)
-    try {
+  const submit = useCallback(
+    async (payload: ReviewSubmitPayload) => {
       const response = await fetch(`/api/politicians/${politician.wikidata_id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: computeSkipItems(politician.properties, []) }),
+        body: JSON.stringify(payload),
       })
-      if (!response.ok) {
-        throw new Error(`Failed to skip politician: ${response.statusText}`)
-      }
-    } catch (error) {
-      console.error('Failed to skip politician:', error)
-    } finally {
-      setIsSkipping(false)
-      router.push(nextHref)
-    }
-  }
 
-  const footer = ({ actions, isSubmitting, submit }: FooterContext) => {
-    const hasActions = actions.length > 0
+      if (!response.ok) {
+        throw new Error(`Failed to submit decisions: ${response.statusText}`)
+      }
+
+      const result: PatchActionsResponse = await response.json()
+      if (!result.success) {
+        console.error('Decision errors:', result.errors)
+        throw new Error(`Error submitting decisions: ${result.message}`)
+      }
+
+      refetchPolitician()
+      router.push(nextHref)
+    },
+    [politician.wikidata_id, refetchPolitician, router, nextHref],
+  )
+
+  const footer = ({ decidedCount, isSubmitting, submit: submitDecisions }: FooterContext) => {
+    const hasDecisions = decidedCount > 0
     return (
       <div className="flex justify-between items-center">
         <div className="ml-auto">
-          {!hasActions ? (
+          {!hasDecisions ? (
             <Button
-              onClick={handleSkipPolitician}
-              disabled={nextLoading || isSkipping}
+              onClick={submitDecisions}
+              disabled={nextLoading || isSubmitting}
               className="px-6 py-3"
             >
-              {isSkipping ? 'Skipping...' : 'Skip Politician'}
+              {isSubmitting ? 'Skipping...' : 'Skip Politician'}
             </Button>
           ) : (
             <Button
-              onClick={submit}
-              disabled={isSubmitting || !hasActions || nextLoading}
+              onClick={submitDecisions}
+              disabled={isSubmitting || nextLoading}
               className="px-6 py-3"
             >
-              {isSubmitting ? 'Submitting...' : 'Submit Evaluations & Next'}
+              {isSubmitting ? 'Submitting...' : 'Submit Decisions & Next'}
             </Button>
           )}
         </div>
@@ -148,11 +121,11 @@ export function PoliticianEvaluation({ politician: initialPolitician }: Politici
   return (
     <EvaluationView
       politician={politician}
+      userLanguageCodes={userLanguageCodes}
       selection={selection}
       onSelectionChange={setSelection}
-      onSubmit={handleSubmit}
+      onSubmit={submit}
       footer={footer}
-      isAdvancedMode={isAdvancedMode}
       onAddSource={async (url) => {
         const response = await fetch(`/api/politicians/${politician.wikidata_id}`, {
           method: 'POST',

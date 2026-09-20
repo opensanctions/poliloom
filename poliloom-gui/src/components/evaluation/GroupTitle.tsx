@@ -1,17 +1,21 @@
-import { Property, PropertyType } from '@/types'
+import { TermMaps } from '@/types'
+import type { SectionType } from '@/lib/actions'
+import { best_label } from '@/lib/labels'
 import { EntityLink } from '@/components/ui/EntityLink'
 
-export function GroupTitle({ property }: { property: Property }) {
-  switch (property.type) {
-    case PropertyType.P569:
-      return <>Birth Date</>
-    case PropertyType.P570:
-      return <>Death Date</>
-    case PropertyType.P39:
-    case PropertyType.P19:
-    case PropertyType.P27:
-      return <EntityLink entityId={property.entity_id!} entityName={property.entity_name!} />
-    default:
-      return <>{property.entity_name || property.entity_id || 'Unknown Property'}</>
+interface GroupTitleProps {
+  sectionType: SectionType
+  /** Entity QID for entity sections, property id for date sections. */
+  groupKey: string
+  terms: TermMaps | null
+  userLanguageCodes: string[]
+}
+
+export function GroupTitle({ sectionType, groupKey, terms, userLanguageCodes }: GroupTitleProps) {
+  if (sectionType === 'date') {
+    return groupKey === 'P569' ? <>Birth Date</> : <>Death Date</>
   }
+  return (
+    <EntityLink entityId={groupKey} entityName={best_label(terms, userLanguageCodes, groupKey)} />
+  )
 }

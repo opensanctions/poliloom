@@ -1,7 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { StatementSource } from './StatementSource'
 import { vi } from 'vitest'
-import { SourceResponse, PropertyReference } from '@/types'
+import { ActionEvidence, SourceResponse } from '@/types'
 
 const mockOnShowSource = vi.fn()
 const mockOnHover = vi.fn()
@@ -15,23 +15,24 @@ const mockSource: SourceResponse = {
   language_qids: [],
 }
 
-const mockRef: PropertyReference = {
-  id: 'ref-1',
+const mockEvidence: ActionEvidence = {
+  id: 'ev-1',
   source: mockSource,
   supporting_quotes: ['test quote'],
 }
 
-const mockRefNoQuotes: PropertyReference = {
-  id: 'ref-2',
+const mockEvidenceNoQuotes: ActionEvidence = {
+  id: 'ev-2',
   source: mockSource,
+  supporting_quotes: null,
 }
 
 describe('StatementSource', () => {
   describe('View button behavior', () => {
-    it('renders View button when sources exist', () => {
+    it('renders View button when evidence exists', () => {
       render(
         <StatementSource
-          sources={[mockRef]}
+          evidence={[mockEvidence]}
           activeSourceId={null}
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
@@ -46,7 +47,7 @@ describe('StatementSource', () => {
     it('shows "Viewing" text when activeSourceId matches', () => {
       render(
         <StatementSource
-          sources={[mockRef]}
+          evidence={[mockEvidence]}
           activeSourceId="archived-1"
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
@@ -61,7 +62,7 @@ describe('StatementSource', () => {
     it('shows "View" text when activeSourceId does not match', () => {
       render(
         <StatementSource
-          sources={[mockRef]}
+          evidence={[mockEvidence]}
           activeSourceId="other-page"
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
@@ -73,10 +74,10 @@ describe('StatementSource', () => {
       expect(viewButton).not.toHaveTextContent('Viewing')
     })
 
-    it('calls onViewSource with ref when View button is clicked', () => {
+    it('calls onViewSource with the evidence source and quotes when View is clicked', () => {
       render(
         <StatementSource
-          sources={[mockRef]}
+          evidence={[mockEvidence]}
           activeSourceId={null}
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
@@ -87,13 +88,13 @@ describe('StatementSource', () => {
       fireEvent.click(viewButton)
 
       expect(mockOnShowSource).toHaveBeenCalledTimes(1)
-      expect(mockOnShowSource).toHaveBeenCalledWith(mockRef.source, mockRef.supporting_quotes)
+      expect(mockOnShowSource).toHaveBeenCalledWith(mockSource, mockEvidence.supporting_quotes)
     })
 
-    it('does not render when sources is empty', () => {
+    it('does not render when evidence is empty', () => {
       render(
         <StatementSource
-          sources={[]}
+          evidence={[]}
           activeSourceId={null}
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
@@ -106,7 +107,7 @@ describe('StatementSource', () => {
     it('applies active styling to button when activeSourceId matches', () => {
       render(
         <StatementSource
-          sources={[mockRef]}
+          evidence={[mockEvidence]}
           activeSourceId="archived-1"
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
@@ -120,15 +121,15 @@ describe('StatementSource', () => {
 
   describe('supporting quotes display', () => {
     it('renders supporting quotes when provided', () => {
-      const sourceWithQuotes: PropertyReference = {
-        id: 'ref-quotes',
+      const evidenceWithQuotes: ActionEvidence = {
+        id: 'ev-quotes',
         source: mockSource,
         supporting_quotes: ['first quote', 'second quote'],
       }
 
       render(
         <StatementSource
-          sources={[sourceWithQuotes]}
+          evidence={[evidenceWithQuotes]}
           activeSourceId={null}
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
@@ -139,10 +140,10 @@ describe('StatementSource', () => {
       expect(screen.getByText('"second quote"')).toBeInTheDocument()
     })
 
-    it('does not render quotes section when supportingQuotes is undefined', () => {
+    it('does not render quotes section when supporting_quotes is null', () => {
       render(
         <StatementSource
-          sources={[mockRefNoQuotes]}
+          evidence={[mockEvidenceNoQuotes]}
           activeSourceId={null}
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
@@ -153,16 +154,16 @@ describe('StatementSource', () => {
       expect(list).not.toBeInTheDocument()
     })
 
-    it('does not render quotes section when supportingQuotes is empty', () => {
-      const sourceEmptyQuotes: PropertyReference = {
-        id: 'ref-empty',
+    it('does not render quotes section when supporting_quotes is empty', () => {
+      const evidenceEmptyQuotes: ActionEvidence = {
+        id: 'ev-empty',
         source: mockSource,
         supporting_quotes: [],
       }
 
       render(
         <StatementSource
-          sources={[sourceEmptyQuotes]}
+          evidence={[evidenceEmptyQuotes]}
           activeSourceId={null}
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
@@ -178,7 +179,7 @@ describe('StatementSource', () => {
     it('calls onHover when mouse enters component', () => {
       const { container } = render(
         <StatementSource
-          sources={[mockRef]}
+          evidence={[mockEvidence]}
           activeSourceId={null}
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}
@@ -196,7 +197,7 @@ describe('StatementSource', () => {
     it('renders source URL as a link', () => {
       render(
         <StatementSource
-          sources={[mockRef]}
+          evidence={[mockEvidence]}
           activeSourceId={null}
           onViewSource={mockOnShowSource}
           onHover={mockOnHover}

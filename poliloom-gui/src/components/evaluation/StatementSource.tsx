@@ -1,33 +1,33 @@
-import { PropertyReference, SourceResponse } from '@/types'
+import { ActionEvidence, SourceResponse } from '@/types'
 import { SourceItem } from './SourceItem'
 
 interface StatementSourceProps {
-  sources: PropertyReference[]
+  evidence: ActionEvidence[]
   activeSourceId?: string | null
   onViewSource?: (source: SourceResponse, quotes?: string[]) => void
   onHover: () => void
 }
 
 export function StatementSource({
-  sources,
+  evidence,
   activeSourceId,
   onViewSource,
   onHover,
 }: StatementSourceProps) {
-  if (sources.length === 0) {
+  if (evidence.length === 0) {
     return null
   }
 
   return (
     <div className="space-y-2" onMouseEnter={onHover}>
-      {sources
+      {evidence
         .toSorted((a, b) => a.source.url.localeCompare(b.source.url))
         .map((ref) => (
           <SourceItem
             key={ref.id}
             page={ref.source}
             isActive={activeSourceId === ref.source.id}
-            onView={() => onViewSource?.(ref.source, ref.supporting_quotes)}
+            onView={() => onViewSource?.(ref.source, ref.supporting_quotes ?? undefined)}
             label="• View"
             activeLabel="• Viewing"
           >

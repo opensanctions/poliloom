@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, fireEvent, waitFor, render } from '@testing-library/react'
+import { screen, fireEvent, waitFor, render, within } from '@testing-library/react'
+import '@/test/mocks'
 import {
   mockRouterPush,
   mockFetch,
@@ -8,8 +9,38 @@ import {
   defaultNextPolitician,
 } from '@/test/mocks'
 import { PoliticianEvaluation } from './PoliticianEvaluation'
-import type { SourceResponse, Politician } from '@/types'
-import { PropertyType } from '@/types'
+import type {
+  Action,
+  ActionEvidence,
+  JsonPatchOperation,
+  Politician,
+  RestSnak,
+  RestStatement,
+  RestValue,
+  SourceResponse,
+  Statement,
+  TermMaps,
+} from '@/types'
+
+// --- Fixtures ---
+
+const terms = (labels: Record<string, string>): TermMaps => ({
+  labels,
+  descriptions: {},
+  aliases: {},
+})
+
+const timeContent = (time: string, precision = 11): RestValue => ({
+  type: 'value',
+  content: { time, precision, calendarmodel: 'http://www.wikidata.org/entity/Q1985727' },
+})
+
+const entityContent = (qid: string): RestValue => ({ type: 'value', content: qid })
+
+const startTimeQualifier = (time: string): RestSnak => ({
+  property: { id: 'P580' },
+  value: timeContent(time),
+})
 
 const testSource: SourceResponse = {
   id: 'archived-1',
@@ -20,236 +51,253 @@ const testSource: SourceResponse = {
   language_qids: [],
 }
 
+const testEvidence: ActionEvidence = {
+  id: 'ev-1',
+  source: testSource,
+  supporting_quotes: ['born on January 1, 1970'],
+}
+
+function createAction(
+  id: string,
+  propertyId: string,
+  value: RestValue,
+  options: {
+    qualifiers?: RestSnak[]
+    entityTerms?: TermMaps | null
+    evidence?: ActionEvidence[]
+  } = {},
+): Action {
+  return {
+    id,
+    kind: 'CREATE_STATEMENT',
+    statement_id: null,
+    payload: {
+      statement: {
+        rank: 'normal',
+        property: { id: propertyId },
+        value,
+        qualifiers: options.qualifiers ?? [],
+        references: [],
+      },
+    },
+    entity_terms: options.entityTerms ?? null,
+    evidence: options.evidence ?? [],
+    is_accepted: null,
+    applied_at: null,
+    error: null,
+  }
+}
+
+function editAction(
+  id: string,
+  statementId: string,
+  patch: JsonPatchOperation[],
+  options: { entityTerms?: TermMaps | null; evidence?: ActionEvidence[] } = {},
+): Action {
+  return {
+    id,
+    kind: 'EDIT_STATEMENT',
+    statement_id: statementId,
+    payload: { patch },
+    entity_terms: options.entityTerms ?? null,
+    evidence: options.evidence ?? [],
+    is_accepted: null,
+    applied_at: null,
+    error: null,
+  }
+}
+
+function makeStatement(
+  id: string,
+  propertyId: string,
+  value: RestValue,
+  options: { qualifiers?: RestSnak[]; entityTerms?: TermMaps | null } = {},
+): Statement {
+  const document: RestStatement = {
+    id,
+    rank: 'normal',
+    property: { id: propertyId },
+    value,
+    qualifiers: options.qualifiers ?? [],
+    references: [],
+  }
+  return { id, document, entity_terms: options.entityTerms ?? null }
+}
+
 const politician: Politician = {
   id: 'pol-1',
-  name: 'Test Politician',
   wikidata_id: 'Q987654',
+  terms: terms({ en: 'Test Politician' }),
   sources: [testSource],
-  properties: [
-    {
-      id: 'prop-1',
-      type: PropertyType.P569,
-      value: '+1970-01-01T00:00:00Z',
-      value_precision: 11,
-      statement_id: null,
-      sources: [
+  statements: [
+    makeStatement('stmt-1', 'P569', timeContent('+1970-01-01T00:00:00Z')),
+    makeStatement('stmt-2', 'P39', entityContent('Q555'), {
+      qualifiers: [startTimeQualifier('+2020-01-01T00:00:00Z')],
+      entityTerms: terms({ en: 'Mayor of Test City' }),
+    }),
+  ],
+  actions: [
+    createAction('action-1', 'P19', entityContent('Q123'), {
+      entityTerms: terms({ en: 'Test City' }),
+      evidence: [{ id: 'ev-2', source: testSource, supporting_quotes: ['was born in Test City'] }],
+    }),
+    createAction('action-2', 'P27', entityContent('Q142'), {
+      entityTerms: terms({ en: 'France' }),
+      evidence: [{ id: 'ev-3', source: testSource, supporting_quotes: ['French politician'] }],
+    }),
+    editAction(
+      'action-3',
+      'stmt-2',
+      [
+        { op: 'test', path: '/qualifiers/0', value: startTimeQualifier('+2020-01-01T00:00:00Z') },
         {
-          id: 'ref-1',
-          source: testSource,
-          supporting_quotes: ['born on January 1, 1970'],
+          op: 'replace',
+          path: '/qualifiers/0',
+          value: startTimeQualifier('+2021-01-01T00:00:00Z'),
         },
       ],
-    },
-    {
-      id: 'pos-1',
-      type: PropertyType.P39,
-      entity_id: 'Q555',
-      entity_name: 'Mayor of Test City',
-      statement_id: null,
-      qualifiers: {
-        P580: [{ datavalue: { value: { time: '+2020-01-01T00:00:00Z', precision: 11 } } }],
-        P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }],
-      },
-      sources: [
-        {
-          id: 'ref-2',
-          source: testSource,
-          supporting_quotes: ['served as mayor from 2020 to 2024'],
-        },
-      ],
-    },
-    {
-      id: 'birth-1',
-      type: PropertyType.P19,
-      entity_id: 'Q123',
-      entity_name: 'Test City',
-      statement_id: null,
-      sources: [
-        {
-          id: 'ref-3',
-          source: testSource,
-          supporting_quotes: ['was born in Test City'],
-        },
-      ],
-    },
+      { evidence: [{ id: 'ev-4', source: testSource, supporting_quotes: ['mayor since 2021'] }] },
+    ),
   ],
 }
 
-const politicianWithConflicts: Politician = {
-  id: 'pol-2',
-  name: 'Conflicted Politician',
-  wikidata_id: 'Q111222',
-  sources: [testSource],
-  properties: [
-    {
-      id: 'prop-c1',
-      type: PropertyType.P569,
-      value: '+1970-01-02T00:00:00Z',
-      value_precision: 11,
-      statement_id: null,
-      sources: [{ id: 'ref-c1', source: testSource, supporting_quotes: ['born January 2'] }],
-    },
-    {
-      id: 'prop-c2',
-      type: PropertyType.P27,
-      entity_id: 'Q142',
-      entity_name: 'France',
-      statement_id: null,
-      sources: [
-        {
-          id: 'ref-c2',
-          source: testSource,
-          supporting_quotes: ['French politician'],
-        },
-      ],
-    },
-    {
-      id: 'pos-c1',
-      type: PropertyType.P39,
-      entity_id: 'Q555',
-      entity_name: 'Mayor of Test City',
-      statement_id: null,
-      qualifiers: {
-        P580: [{ datavalue: { value: { time: '+2020-01-01T00:00:00Z', precision: 11 } } }],
-        P582: [{ datavalue: { value: { time: '+2024-01-01T00:00:00Z', precision: 11 } } }],
-      },
-      sources: [{ id: 'ref-c3', source: testSource, supporting_quotes: ['served as mayor'] }],
-    },
-    {
-      id: 'pos-c2',
-      type: PropertyType.P39,
-      entity_id: 'Q777',
-      entity_name: 'Council Member',
-      statement_id: null,
-      qualifiers: {
-        P580: [{ datavalue: { value: { time: '+2018-01-01T00:00:00Z', precision: 11 } } }],
-      },
-      sources: [
-        {
-          id: 'ref-c4',
-          source: testSource,
-          supporting_quotes: ['council member since 2018'],
-        },
-      ],
-    },
-    {
-      id: 'birth-c1',
-      type: PropertyType.P19,
-      entity_id: 'Q123',
-      entity_name: 'Test City',
-      statement_id: null,
-      sources: [
-        {
-          id: 'ref-c5',
-          source: testSource,
-          supporting_quotes: ['born in Test City'],
-        },
-      ],
-    },
-    {
-      id: 'birth-c2',
-      type: PropertyType.P19,
-      entity_id: 'Q999',
-      entity_name: 'New City',
-      statement_id: null,
-      sources: [
-        {
-          id: 'ref-c6',
-          source: testSource,
-          supporting_quotes: ['born in New City'],
-        },
-      ],
-    },
-  ],
+function mockApiResponse(body: unknown, ok = true) {
+  return Promise.resolve({ ok, json: async () => body } as Response)
+}
+
+function boxContaining(text: string): HTMLElement {
+  const box = screen.getByText(text).closest('div.bg-surface')
+  if (!box) throw new Error(`No box contains ${text}`)
+  return box as HTMLElement
 }
 
 describe('PoliticianEvaluation', () => {
   beforeEach(() => {
     CSS.highlights.clear()
-    mockFetch.mockImplementation((_url, options) => {
-      if (options?.method === 'PATCH') {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ success: true, message: 'OK', errors: [] }),
-        } as Response)
+    mockFetch.mockImplementation((url, options) => {
+      if (url === '/api/languages') {
+        return mockApiResponse([
+          {
+            wikidata_id: 'Q1860',
+            terms: terms({ en: 'English' }),
+            wikimedia_code: 'en',
+            sources_count: 1,
+          },
+        ])
       }
-      // GET requests (e.g. refetchPolitician) return the politician data
-      return Promise.resolve({
-        ok: true,
-        json: async () => politician,
-      } as Response)
+      if (options?.method === 'PATCH') {
+        return mockApiResponse({ success: true, message: 'OK', errors: [] })
+      }
+      return mockApiResponse(politician)
     })
   })
 
-  it('renders politician name and wikidata id', () => {
+  it('renders the politician name from terms and the wikidata id', () => {
     render(<PoliticianEvaluation politician={politician} />)
 
     expect(screen.getByText('Test Politician')).toBeInTheDocument()
     expect(screen.getByText('(Q987654)')).toBeInTheDocument()
   })
 
-  it('renders properties section with property details', () => {
+  it('renders statements as current Wikidata context', () => {
     render(<PoliticianEvaluation politician={politician} />)
 
     expect(screen.getByText('Properties')).toBeInTheDocument()
     expect(screen.getByText('Birth Date')).toBeInTheDocument()
     expect(screen.getByText('January 1, 1970')).toBeInTheDocument()
-    expect(screen.getByText('"born on January 1, 1970"')).toBeInTheDocument()
-  })
-
-  it('renders positions section with position details', () => {
-    render(<PoliticianEvaluation politician={politician} />)
-
     expect(screen.getByText('Political Positions')).toBeInTheDocument()
     expect(screen.getByText(/Mayor of Test City/)).toBeInTheDocument()
+    expect(screen.getAllByText('Existing data').length).toBe(2)
   })
 
-  it('renders birthplaces section with birthplace details', () => {
+  it('renders create and edit actions with evidence quotes', () => {
     render(<PoliticianEvaluation politician={politician} />)
 
     expect(screen.getByText('Birthplaces')).toBeInTheDocument()
+    expect(screen.getByText('Citizenships')).toBeInTheDocument()
+    expect(screen.getByText('"was born in Test City"')).toBeInTheDocument()
+    expect(screen.getByText('"French politician"')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        (_, element) =>
+          element?.textContent === 'Qualifier P580: January 1, 2020 → January 1, 2021',
+      ),
+    ).toBeInTheDocument()
   })
 
-  it('allows users to evaluate items by accepting or rejecting', () => {
+  it('allows users to decide actions by accepting or discarding', () => {
     render(<PoliticianEvaluation politician={politician} />)
 
     const acceptButton = screen.getAllByText('✓ Accept')[0]
-    const rejectButton = screen.getAllByText('× Reject')[0]
-
     fireEvent.click(acceptButton)
-    expect(acceptButton).toHaveAttribute('class', expect.stringContaining('bg-success'))
+    expect(acceptButton).toHaveAttribute('class', expect.stringContaining('bg-success '))
 
-    fireEvent.click(rejectButton)
-    expect(rejectButton).toHaveAttribute('class', expect.stringContaining('bg-danger'))
+    const discardButton = screen.getAllByText('× Discard')[0]
+    fireEvent.click(discardButton)
+    expect(discardButton).toHaveAttribute('class', expect.stringContaining('bg-danger '))
   })
 
-  it('shows "Skip Politician" when no evaluations and "Submit Evaluations & Next" when evaluations exist', () => {
+  it('shows "Skip Politician" when no decisions and "Submit Decisions & Next" when decisions exist', () => {
     render(<PoliticianEvaluation politician={politician} />)
 
     expect(screen.getByText('Skip Politician')).toBeInTheDocument()
-    expect(screen.queryByText('Submit Evaluations & Next')).not.toBeInTheDocument()
+    expect(screen.queryByText('Submit Decisions & Next')).not.toBeInTheDocument()
 
-    const acceptButton = screen.getAllByText('✓ Accept')[0]
-    fireEvent.click(acceptButton)
+    fireEvent.click(screen.getAllByText('✓ Accept')[0])
 
-    expect(screen.getByText('Submit Evaluations & Next')).toBeInTheDocument()
+    expect(screen.getByText('Submit Decisions & Next')).toBeInTheDocument()
     expect(screen.queryByText('Skip Politician')).not.toBeInTheDocument()
   })
 
-  it('submits evaluations via API and navigates to the next politician', async () => {
+  it('submits decisions via the actions endpoint and navigates to the next politician', async () => {
     render(<PoliticianEvaluation politician={politician} />)
 
-    const acceptButtons = screen.getAllByText('✓ Accept')
-    fireEvent.click(acceptButtons[0])
+    fireEvent.click(
+      within(boxContaining('"was born in Test City"')).getByRole('button', { name: /✓ Accept/ }),
+    )
+    fireEvent.click(
+      within(boxContaining('"French politician"')).getByRole('button', { name: /× Discard/ }),
+    )
 
-    const submitButton = screen.getByText('Submit Evaluations & Next')
-    fireEvent.click(submitButton)
+    fireEvent.click(screen.getByText('Submit Decisions & Next'))
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
         '/api/politicians/Q987654',
         expect.objectContaining({
           method: 'PATCH',
+        }),
+      )
+    })
+
+    const patchCall = mockFetch.mock.calls.find(
+      (call) => typeof call[0] === 'string' && call[0] === '/api/politicians/Q987654',
+    )!
+    expect(JSON.parse(patchCall[1]!.body as string)).toEqual({
+      decisions: [
+        { id: 'action-1', is_accepted: true },
+        { id: 'action-2', is_accepted: false },
+      ],
+      skips: ['action-3'],
+    })
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/politician/Q12345')
+  })
+
+  it('skips all undecided actions when skipping the politician', async () => {
+    render(<PoliticianEvaluation politician={politician} />)
+
+    fireEvent.click(screen.getByText('Skip Politician'))
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/politicians/Q987654',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({
+            decisions: [],
+            skips: ['action-1', 'action-2', 'action-3'],
+          }),
         }),
       )
       expect(mockRouterPush).toHaveBeenCalledWith('/politician/Q12345')
@@ -266,7 +314,7 @@ describe('PoliticianEvaluation', () => {
 
     render(<PoliticianEvaluation politician={politician} />)
     fireEvent.click(screen.getAllByText('✓ Accept')[0])
-    fireEvent.click(screen.getByText('Submit Evaluations & Next'))
+    fireEvent.click(screen.getByText('Submit Decisions & Next'))
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
@@ -275,29 +323,34 @@ describe('PoliticianEvaluation', () => {
     })
   })
 
-  describe('property grouping', () => {
-    it('groups properties correctly by type and entity', () => {
-      render(<PoliticianEvaluation politician={politicianWithConflicts} />)
-
-      expect(screen.getByText('Properties')).toBeInTheDocument()
-      expect(screen.getByText('Birth Date')).toBeInTheDocument()
-      expect(screen.getByText('Political Positions')).toBeInTheDocument()
-      expect(screen.getByText(/Mayor of Test City/)).toBeInTheDocument()
-      expect(screen.getByText(/Council Member/)).toBeInTheDocument()
-      expect(screen.getByText('Birthplaces')).toBeInTheDocument()
-      expect(screen.getByText('Citizenships')).toBeInTheDocument()
+  it('surfaces submission errors from the backend', async () => {
+    const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {})
+    mockFetch.mockImplementation((url, options) => {
+      if (url === '/api/languages') {
+        return mockApiResponse([
+          {
+            wikidata_id: 'Q1860',
+            terms: terms({ en: 'English' }),
+            wikimedia_code: 'en',
+            sources_count: 1,
+          },
+        ])
+      }
+      if (options?.method === 'PATCH') {
+        return mockApiResponse({ success: false, message: 'Action not claimed', errors: ['boom'] })
+      }
+      return mockApiResponse(politician)
     })
-  })
 
-  describe('source handling', () => {
-    it('provides source viewing for items with sources', () => {
-      render(<PoliticianEvaluation politician={politicianWithConflicts} />)
+    render(<PoliticianEvaluation politician={politician} />)
+    fireEvent.click(screen.getAllByText('✓ Accept')[0])
+    fireEvent.click(screen.getByText('Submit Decisions & Next'))
 
-      const viewingButtons = screen.getAllByText(/Viewing/)
-      expect(viewingButtons.length).toBeGreaterThan(0)
-
-      expect(screen.getByTitle('Source')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(alertMock).toHaveBeenCalledWith('Error submitting decisions: Action not claimed')
     })
+    expect(mockRouterPush).not.toHaveBeenCalled()
+    alertMock.mockRestore()
   })
 })
 
@@ -308,35 +361,36 @@ describe('PoliticianEvaluation - no next politician', () => {
       nextHref: '/session/enriching',
       politicianReady: false,
     })
-    mockFetch.mockImplementation((_url, options) => {
-      if (options?.method === 'PATCH') {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ success: true, message: 'OK', errors: [] }),
-        } as Response)
+    mockFetch.mockImplementation((url, options) => {
+      if (url === '/api/languages') {
+        return mockApiResponse([
+          {
+            wikidata_id: 'Q1860',
+            terms: terms({ en: 'English' }),
+            wikimedia_code: 'en',
+            sources_count: 1,
+          },
+        ])
       }
-      return Promise.resolve({
-        ok: true,
-        json: async () => politician,
-      } as Response)
+      if (options?.method === 'PATCH') {
+        return mockApiResponse({ success: true, message: 'OK', errors: [] })
+      }
+      return mockApiResponse(politician)
     })
   })
 
-  it('navigates to /session/enriching on submit when no next politician available', async () => {
+  it('navigates to /session/enriching on submit when no next politician is available', async () => {
     render(<PoliticianEvaluation politician={politician} />)
 
-    const acceptButtons = screen.getAllByText('✓ Accept')
-    fireEvent.click(acceptButtons[0])
-
-    const submitButton = screen.getByText('Submit Evaluations & Next')
-    fireEvent.click(submitButton)
+    fireEvent.click(screen.getAllByText('✓ Accept')[0])
+    fireEvent.click(screen.getByText('Submit Decisions & Next'))
 
     await waitFor(() => {
       expect(mockRouterPush).toHaveBeenCalledWith('/session/enriching')
     })
   })
 
-  it('skips displayed extracted properties before navigating when no next politician is available', async () => {
+  it('skips all pending actions when skipping with no next politician', async () => {
     render(<PoliticianEvaluation politician={politician} />)
 
     fireEvent.click(screen.getByText('Skip Politician'))
@@ -347,11 +401,8 @@ describe('PoliticianEvaluation - no next politician', () => {
         expect.objectContaining({
           method: 'PATCH',
           body: JSON.stringify({
-            items: [
-              { action: 'skip', id: 'prop-1' },
-              { action: 'skip', id: 'pos-1' },
-              { action: 'skip', id: 'birth-1' },
-            ],
+            decisions: [],
+            skips: ['action-1', 'action-2', 'action-3'],
           }),
         }),
       )

@@ -11,7 +11,7 @@ function wrapper({ children }: { children: React.ReactNode }) {
 
 describe('EventStreamContext', () => {
   it('opens EventSource when authenticated', () => {
-    renderHook(() => useEventStream('evaluation_count', vi.fn(), []), { wrapper })
+    renderHook(() => useEventStream('decision_count', vi.fn(), []), { wrapper })
 
     expect(EventSource).toHaveBeenCalledWith('/api/events')
   })
@@ -23,16 +23,16 @@ describe('EventStreamContext', () => {
       update: vi.fn(),
     })
 
-    renderHook(() => useEventStream('evaluation_count', vi.fn(), []), { wrapper })
+    renderHook(() => useEventStream('decision_count', vi.fn(), []), { wrapper })
 
     expect(EventSource).not.toHaveBeenCalled()
   })
 
   it('dispatches events to matching subscribers', () => {
     const handler = vi.fn()
-    renderHook(() => useEventStream('evaluation_count', handler, []), { wrapper })
+    renderHook(() => useEventStream('decision_count', handler, []), { wrapper })
 
-    const event: SSEEvent = { type: 'evaluation_count', total: 42 }
+    const event: SSEEvent = { type: 'decision_count', total: 42 }
     act(() => {
       mockEventSource.onmessage?.(new MessageEvent('message', { data: JSON.stringify(event) }))
     })
@@ -42,7 +42,7 @@ describe('EventStreamContext', () => {
 
   it('does not dispatch events to non-matching subscribers', () => {
     const handler = vi.fn()
-    renderHook(() => useEventStream('evaluation_count', handler, []), { wrapper })
+    renderHook(() => useEventStream('decision_count', handler, []), { wrapper })
 
     const event: SSEEvent = {
       type: 'enrichment_complete',
@@ -62,13 +62,13 @@ describe('EventStreamContext', () => {
 
     renderHook(
       () => {
-        useEventStream('evaluation_count', handler1, [])
-        useEventStream('evaluation_count', handler2, [])
+        useEventStream('decision_count', handler1, [])
+        useEventStream('decision_count', handler2, [])
       },
       { wrapper },
     )
 
-    const event: SSEEvent = { type: 'evaluation_count', total: 10 }
+    const event: SSEEvent = { type: 'decision_count', total: 10 }
     act(() => {
       mockEventSource.onmessage?.(new MessageEvent('message', { data: JSON.stringify(event) }))
     })
@@ -79,7 +79,7 @@ describe('EventStreamContext', () => {
 
   it('unsubscribes handler on unmount', () => {
     const handler = vi.fn()
-    const { unmount } = renderHook(() => useEventStream('evaluation_count', handler, []), {
+    const { unmount } = renderHook(() => useEventStream('decision_count', handler, []), {
       wrapper,
     })
 
@@ -87,12 +87,11 @@ describe('EventStreamContext', () => {
 
     // Mount a new provider+handler to get a fresh EventSource
     const handler2 = vi.fn()
-    const { unmount: unmount2 } = renderHook(
-      () => useEventStream('evaluation_count', handler2, []),
-      { wrapper },
-    )
+    const { unmount: unmount2 } = renderHook(() => useEventStream('decision_count', handler2, []), {
+      wrapper,
+    })
 
-    const event: SSEEvent = { type: 'evaluation_count', total: 5 }
+    const event: SSEEvent = { type: 'decision_count', total: 5 }
     act(() => {
       mockEventSource.onmessage?.(new MessageEvent('message', { data: JSON.stringify(event) }))
     })
@@ -104,7 +103,7 @@ describe('EventStreamContext', () => {
   })
 
   it('closes EventSource on unmount', () => {
-    const { unmount } = renderHook(() => useEventStream('evaluation_count', vi.fn(), []), {
+    const { unmount } = renderHook(() => useEventStream('decision_count', vi.fn(), []), {
       wrapper,
     })
 
@@ -115,7 +114,7 @@ describe('EventStreamContext', () => {
 
   it('ignores malformed events', () => {
     const handler = vi.fn()
-    renderHook(() => useEventStream('evaluation_count', handler, []), { wrapper })
+    renderHook(() => useEventStream('decision_count', handler, []), { wrapper })
 
     act(() => {
       mockEventSource.onmessage?.(new MessageEvent('message', { data: 'not json' }))

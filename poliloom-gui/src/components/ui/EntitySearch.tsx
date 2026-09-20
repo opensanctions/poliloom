@@ -4,6 +4,15 @@ import { useState, useRef, useEffect } from 'react'
 import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
 import { SearchEntity, SearchFn } from '@/types'
+import { best_label } from '@/lib/labels'
+
+function entityName(entity: SearchEntity): string {
+  return best_label(entity.terms, [], entity.wikidata_id)
+}
+
+function entityDescription(entity: SearchEntity): string | undefined {
+  return entity.terms.descriptions.en ?? Object.values(entity.terms.descriptions)[0]
+}
 
 class CreateItem {
   constructor(public name: string) {}
@@ -108,7 +117,7 @@ export function EntitySearch({
 
   function selectItem(item: DropdownItem) {
     if (item instanceof SelectItem) {
-      onSelect({ wikidata_id: item.entity.wikidata_id, name: item.entity.name })
+      onSelect({ wikidata_id: item.entity.wikidata_id, name: entityName(item.entity) })
     } else {
       onCreate!(item.name)
     }
@@ -188,9 +197,11 @@ export function EntitySearch({
                 </div>
               ) : (
                 <>
-                  <div className="text-foreground">{item.entity.name}</div>
+                  <div className="text-foreground">{entityName(item.entity)}</div>
                   <div className="text-foreground-muted text-sm">
-                    {item.entity.description && <span>{item.entity.description} · </span>}
+                    {entityDescription(item.entity) && (
+                      <span>{entityDescription(item.entity)} · </span>
+                    )}
                     {item.entity.wikidata_id}
                   </div>
                 </>
