@@ -10,6 +10,7 @@ from poliloom.models import (
     Politician,
     Position,
     Statement,
+    WikidataEntity,
     WikipediaLink,
 )
 from poliloom.wikidata.entity_processor import WikidataEntityProcessor
@@ -81,12 +82,14 @@ class TestWikidataPoliticianImporter:
             {
                 "wikidata_id": "Q1",
                 "name": "John Doe",
+                "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [],
                 "wikipedia_links": [],
             },
             {
                 "wikidata_id": "Q2",
                 "name": "Jane Smith",
+                "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [],
                 "wikipedia_links": [],
             },
@@ -100,12 +103,38 @@ class TestWikidataPoliticianImporter:
         wikidata_ids = {pol.wikidata_id for pol in inserted_politicians}
         assert wikidata_ids == {"Q1", "Q2"}
 
+    def test_insert_politicians_batch_populates_term_maps(self, db_session):
+        """Politician WikidataEntity rows carry the language-keyed term maps."""
+        terms = {
+            "labels": {"en": "John Doe", "mul": "John Doe"},
+            "descriptions": {"en": "politician"},
+            "aliases": {"en": ["Johnny Doe"]},
+        }
+        politicians = [
+            {
+                "wikidata_id": "Q1",
+                "name": "John Doe",
+                "terms": terms,
+                "statements": [],
+                "wikipedia_links": [],
+            }
+        ]
+
+        _insert_politicians_batch(politicians, db_session)
+
+        entity = db_session.query(WikidataEntity).filter_by(wikidata_id="Q1").one()
+        assert entity.labels == terms["labels"]
+        assert entity.descriptions == terms["descriptions"]
+        assert entity.aliases == terms["aliases"]
+        assert entity.resolved_label == "John Doe"
+
     def test_insert_politicians_batch_with_duplicates(self, db_session):
         """Test inserting politicians with some duplicates."""
         politicians = [
             {
                 "wikidata_id": "Q1",
                 "name": "John Doe",
+                "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [],
                 "wikipedia_links": [],
             }
@@ -119,6 +148,7 @@ class TestWikidataPoliticianImporter:
             {
                 "wikidata_id": "Q1",
                 "name": "John Doe Updated",
+                "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [],
                 "wikipedia_links": [],
             }
@@ -148,6 +178,7 @@ class TestWikidataPoliticianImporter:
             {
                 "wikidata_id": "Q1",
                 "name": "John Doe",
+                "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [
                     action_api_statement_to_rest(
                         _time_claim(
@@ -207,6 +238,7 @@ class TestWikidataPoliticianImporter:
             {
                 "wikidata_id": "Q1",
                 "name": "John Doe",
+                "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [
                     action_api_statement_to_rest(
                         _item_claim(
@@ -259,6 +291,7 @@ class TestWikidataPoliticianImporter:
             {
                 "wikidata_id": "Q1",
                 "name": "John Doe",
+                "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [
                     action_api_statement_to_rest(
                         _item_claim(
@@ -295,6 +328,7 @@ class TestWikidataPoliticianImporter:
             {
                 "wikidata_id": "Q1",
                 "name": "John Doe",
+                "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [
                     action_api_statement_to_rest(
                         _item_claim(
@@ -335,6 +369,7 @@ class TestWikidataPoliticianImporter:
             {
                 "wikidata_id": "Q1",
                 "name": "John Doe",
+                "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [
                     action_api_statement_to_rest(
                         _time_claim("P569", "Q1$BIRTH", "+1970-01-01T00:00:00Z")
@@ -384,6 +419,7 @@ class TestWikidataPoliticianImporter:
             {
                 "wikidata_id": "Q1",
                 "name": "John Doe",
+                "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [
                     action_api_statement_to_rest(
                         _item_claim("P27", "Q1$CITIZENSHIP", "Q30")
@@ -408,6 +444,7 @@ class TestWikidataPoliticianImporter:
             {
                 "wikidata_id": "Q1",
                 "name": "John Doe",
+                "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [action_api_statement_to_rest(updated_claim)],
                 "wikipedia_links": [],
             }
@@ -466,6 +503,7 @@ class TestWikidataPoliticianImporter:
             {
                 "wikidata_id": "Q1",
                 "name": "John Doe",
+                "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [action_api_statement_to_rest(claim)],
                 "wikipedia_links": [],
             }
@@ -502,6 +540,7 @@ class TestWikidataPoliticianImporter:
             {
                 "wikidata_id": "Q1",
                 "name": "John Doe",
+                "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [],
                 "wikipedia_links": [
                     {

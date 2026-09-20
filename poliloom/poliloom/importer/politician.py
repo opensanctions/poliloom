@@ -100,6 +100,7 @@ def _insert_politicians_batch(politicians: list[dict], session: Session) -> None
         {
             "wikidata_id": p["wikidata_id"],
             "name": p["name"],
+            **p["terms"],
         }
         for p in politicians
     ]
@@ -223,6 +224,7 @@ def _process_politicians_chunk(
                     "wikidata_id": wikidata_id,
                     "wikidata_id_numeric": wikidata_id_numeric,
                     "name": entity.get_entity_name() or wikidata_id,
+                    "terms": entity.get_terms(),
                     "labels": entity_labels if entity_labels else None,
                     "statements": [],
                     "wikipedia_links": [],
