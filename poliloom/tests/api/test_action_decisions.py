@@ -12,7 +12,7 @@ from poliloom.models import (
     ActionSkip,
     Politician,
 )
-from poliloom.sse import EvaluationCountEvent
+from poliloom.sse import DecisionCountEvent
 from poliloom.wikidata.statement import WikidataApiError
 
 
@@ -422,7 +422,7 @@ class TestEvaluationCountBroadcast:
 
         mock_notify.assert_called_once()
         event = mock_notify.call_args[0][0]
-        assert isinstance(event, EvaluationCountEvent)
+        assert isinstance(event, DecisionCountEvent)
         decided_count = (
             db_session.query(Action).filter(Action.is_accepted.isnot(None)).count()
         )

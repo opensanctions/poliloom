@@ -1,12 +1,75 @@
-"""Tests for the entities API endpoints (languages, countries, positions, locations)."""
+"""Tests for the entities API endpoints (languages, countries, entity search)."""
 
-from datetime import UTC
+from datetime import UTC, datetime
 
 import pytest
+
+from poliloom.models import Politician, Statement
+
+
+def set_terms(entity, *, labels=None, descriptions=None, aliases=None):
+    """Set language-keyed term maps on an entity's WikidataEntity."""
+    entity.wikidata_entity.labels = labels or {}
+    entity.wikidata_entity.descriptions = descriptions or {}
+    entity.wikidata_entity.aliases = aliases or {}
+
+
+def citizenship_statement(politician, country, statement_id):
+    """Build a live P27 citizenship statement for a politician."""
+    return Statement(
+        politician_id=politician.id,
+        document={
+            "id": statement_id,
+            "rank": "normal",
+            "property": {"id": "P27", "data_type": "wikibase-item"},
+            "value": {"type": "value", "content": country.wikidata_id},
+        },
+    )
 
 
 class TestGetLanguages:
     """Test the GET /languages endpoint."""
+
+    def test_languages_carry_term_maps(
+        self,
+        client,
+        mock_auth,
+        db_session,
+        sample_language,
+        sample_politician,
+        sample_wikipedia_project,
+        create_wikipedia_link,
+    ):
+        """Languages should return language-keyed term maps and codes."""
+        sample_language.wikimedia_code = "en"
+        sample_language.iso_639_3 = "eng"
+        set_terms(
+            sample_language,
+            labels={"en": "English", "sv": "engelska"},
+            descriptions={"en": "West Germanic language"},
+            aliases={"en": ["English language"]},
+        )
+        create_wikipedia_link(sample_politician, sample_wikipedia_project)
+        db_session.flush()
+
+        response = client.get("/languages", headers=mock_auth)
+        assert response.status_code == 200
+
+        languages = response.json()
+        english = next(lang for lang in languages if lang["wikidata_id"] == "Q1860")
+
+        assert english["terms"] == {
+            "labels": {"en": "English", "sv": "engelska"},
+            "descriptions": {"en": "West Germanic language"},
+            "aliases": {"en": ["English language"]},
+        }
+        assert english["wikimedia_code"] == "en"
+        assert english["iso_639_1"] == "en"
+        assert english["iso_639_3"] == "eng"
+        assert english["sources_count"] == 1
+        # Resolved names are gone; only term maps are exposed
+        assert "name" not in english
+        assert "description" not in english
 
     def test_languages_with_wikipedia_links(
         self,
@@ -23,9 +86,6 @@ class TestGetLanguages:
         db_session,
     ):
         """Languages should count Wikipedia links through WikipediaProject relations."""
-        # Create politicians with Wikipedia links in different languages
-        from poliloom.models import Politician
-
         politician2 = Politician.create_with_entity(
             db_session, "Q999888", "Second Politician"
         )
@@ -75,9 +135,6 @@ class TestGetLanguages:
         db_session,
     ):
         """Languages should be ordered by sources_count descending."""
-        # Create more German links than English
-        from poliloom.models import Politician
-
         politician2 = Politician.create_with_entity(
             db_session, "Q999888", "Second Politician"
         )
@@ -118,9 +175,6 @@ class TestGetLanguages:
         db_session,
     ):
         """Soft-deleted languages should not appear in results."""
-        from datetime import datetime
-
-        # Soft delete the language's WikidataEntity
         sample_language.wikidata_entity.deleted_at = datetime.now(UTC)
         db_session.flush()
 
@@ -141,29 +195,45 @@ class TestGetLanguages:
 class TestGetCountries:
     """Test the GET /countries endpoint."""
 
-    def test_countries_with_no_citizenships(self, client, mock_auth, sample_country):
-        """Countries with no citizenship properties should not appear in results."""
+    def test_countries_carry_term_maps(
+        self, client, mock_auth, db_session, sample_country, sample_politician
+    ):
+        """Countries should return language-keyed term maps."""
+        set_terms(
+            sample_country,
+            labels={"en": "United States", "sv": "USA"},
+            descriptions={"en": "country in North America"},
+            aliases={"en": ["USA", "America"]},
+        )
+        db_session.add(citizenship_statement(sample_politician, sample_country, "S1"))
+        db_session.flush()
+
         response = client.get("/countries", headers=mock_auth)
         assert response.status_code == 200
 
         countries = response.json()
-        # Should be empty since no countries have citizenships
-        assert len(countries) == 0
+        us = next(ctry for ctry in countries if ctry["wikidata_id"] == "Q30")
 
-    def test_countries_with_citizenships(
+        assert us["terms"] == {
+            "labels": {"en": "United States", "sv": "USA"},
+            "descriptions": {"en": "country in North America"},
+            "aliases": {"en": ["USA", "America"]},
+        }
+        assert us["citizenships_count"] == 1
+        # Resolved names are gone; only term maps are exposed
+        assert "name" not in us
+        assert "description" not in us
+
+    def test_countries_count_p27_statements(
         self,
         client,
         mock_auth,
+        db_session,
         sample_country,
         sample_germany_country,
         sample_france_country,
-        create_citizenship,
-        db_session,
     ):
-        """Countries should count citizenship properties."""
-        from poliloom.models import Politician
-
-        # Create politicians
+        """Countries should count live P27 citizenship statements."""
         politician1 = Politician.create_with_entity(
             db_session, "Q999888", "First Politician"
         )
@@ -175,17 +245,17 @@ class TestGetCountries:
         )
         db_session.flush()
 
-        # US: 3 citizenships
-        create_citizenship(politician1, sample_country)
-        create_citizenship(politician2, sample_country)
-        create_citizenship(politician3, sample_country)
+        # US: 3 statements
+        db_session.add(citizenship_statement(politician1, sample_country, "S1"))
+        db_session.add(citizenship_statement(politician2, sample_country, "S2"))
+        db_session.add(citizenship_statement(politician3, sample_country, "S3"))
 
-        # Germany: 2 citizenships
-        create_citizenship(politician1, sample_germany_country)
-        create_citizenship(politician2, sample_germany_country)
+        # Germany: 2 statements
+        db_session.add(citizenship_statement(politician1, sample_germany_country, "S4"))
+        db_session.add(citizenship_statement(politician2, sample_germany_country, "S5"))
 
-        # France: 1 citizenship
-        create_citizenship(politician3, sample_france_country)
+        # France: 1 statement
+        db_session.add(citizenship_statement(politician3, sample_france_country, "S6"))
 
         db_session.flush()
 
@@ -194,7 +264,6 @@ class TestGetCountries:
 
         countries = response.json()
 
-        # Verify counts
         country_counts = {
             ctry["wikidata_id"]: ctry["citizenships_count"] for ctry in countries
         }
@@ -203,18 +272,31 @@ class TestGetCountries:
         assert country_counts["Q183"] == 2  # Germany
         assert country_counts["Q142"] == 1  # France
 
+    def test_countries_ignore_deleted_statements(
+        self, client, mock_auth, db_session, sample_country, sample_politician
+    ):
+        """Soft-deleted P27 statements should not count as citizenships."""
+        statement = citizenship_statement(sample_politician, sample_country, "S1")
+        db_session.add(statement)
+        db_session.flush()
+        statement.deleted_at = datetime.now(UTC)
+        db_session.flush()
+
+        response = client.get("/countries", headers=mock_auth)
+        assert response.status_code == 200
+
+        countries = response.json()
+        assert not any(ctry["wikidata_id"] == "Q30" for ctry in countries)
+
     def test_countries_ordered_by_citizenship_count_desc(
         self,
         client,
         mock_auth,
+        db_session,
         sample_country,
         sample_germany_country,
-        create_citizenship,
-        db_session,
     ):
         """Countries should be ordered by citizenships_count descending."""
-        from poliloom.models import Politician
-
         politician1 = Politician.create_with_entity(
             db_session, "Q999888", "First Politician"
         )
@@ -226,13 +308,13 @@ class TestGetCountries:
         )
         db_session.flush()
 
-        # Germany: 3 citizenships
-        create_citizenship(politician1, sample_germany_country)
-        create_citizenship(politician2, sample_germany_country)
-        create_citizenship(politician3, sample_germany_country)
+        # Germany: 3 statements
+        db_session.add(citizenship_statement(politician1, sample_germany_country, "S1"))
+        db_session.add(citizenship_statement(politician2, sample_germany_country, "S2"))
+        db_session.add(citizenship_statement(politician3, sample_germany_country, "S3"))
 
-        # US: 1 citizenship
-        create_citizenship(politician1, sample_country)
+        # US: 1 statement
+        db_session.add(citizenship_statement(politician1, sample_country, "S4"))
 
         db_session.flush()
 
@@ -241,7 +323,6 @@ class TestGetCountries:
 
         countries = response.json()
 
-        # Find Germany and US in the results
         germany = next(ctry for ctry in countries if ctry["wikidata_id"] == "Q183")
         us = next(ctry for ctry in countries if ctry["wikidata_id"] == "Q30")
 
@@ -258,9 +339,6 @@ class TestGetCountries:
         db_session,
     ):
         """Soft-deleted countries should not appear in results."""
-        from datetime import datetime
-
-        # Soft delete the country's WikidataEntity
         sample_country.wikidata_entity.deleted_at = datetime.now(UTC)
         db_session.flush()
 
@@ -269,7 +347,6 @@ class TestGetCountries:
 
         countries = response.json()
 
-        # Sample country should not be in results
         assert not any(ctry["wikidata_id"] == "Q30" for ctry in countries)
 
     def test_countries_requires_authentication(self, client):
@@ -320,6 +397,43 @@ class TestEntitySearch:
         assert len(results) == 1
         assert results[0]["wikidata_id"] == "Q1"
 
+    def test_search_returns_term_maps(self, client, mock_auth, db_session):
+        """Results should carry language-keyed term maps, not resolved names."""
+        from poliloom.models import Position
+
+        position = Position.create_with_entity(
+            db_session,
+            "Q1",
+            "Mayor of Springfield",
+            labels=["Mayor of Springfield"],
+        )
+        db_session.flush()
+        set_terms(
+            position,
+            labels={"en": "Mayor of Springfield", "sv": "Borgmästare i Springfield"},
+            descriptions={"en": "mayoral position"},
+            aliases={"en": ["Springfield Mayor"]},
+        )
+        db_session.flush()
+
+        response = client.get(
+            "/entities/search?type=position&q=springfield", headers=mock_auth
+        )
+        assert response.status_code == 200
+
+        results = response.json()
+        assert len(results) == 1
+        result = results[0]
+        assert result["wikidata_id"] == "Q1"
+        assert result["terms"] == {
+            "labels": {"en": "Mayor of Springfield", "sv": "Borgmästare i Springfield"},
+            "descriptions": {"en": "mayoral position"},
+            "aliases": {"en": ["Springfield Mayor"]},
+        }
+        # Resolved names and rich descriptions are gone
+        assert "name" not in result
+        assert "description" not in result
+
     def test_unknown_type_returns_422(self, client, mock_auth):
         """Should return 422 for unknown entity type."""
         response = client.get("/entities/search?type=bogus&q=test", headers=mock_auth)
@@ -337,8 +451,6 @@ class TestEntitySearch:
 
     def test_filters_soft_deleted(self, client, mock_auth, db_session):
         """Should filter out soft-deleted entities from search results."""
-        from datetime import datetime
-
         from poliloom.models import Position
 
         Position.create_with_entity(

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from poliloom.database import get_engine
 from poliloom.sse import (
+    DecisionCountEvent,
     EnrichmentCompleteEvent,
     SourceStatusEvent,
     event_bus,
@@ -76,6 +77,13 @@ class TestSSE:
         assert payload["type"] == "enrichment_complete"
         assert payload["languages"] == ["Q1"]
 
+    def test_fanout_decision_count_event(self):
+        q1 = event_bus.subscribe("user1")
+        event_bus._fanout(asdict(DecisionCountEvent(total=7)))
+        payload = q1.get_nowait()
+        assert payload["type"] == "decision_count"
+        assert payload["total"] == 7
+
     def test_fanout_no_subscribers(self):
         """Should not raise when no subscribers exist."""
         event_bus._fanout(asdict(SourceStatusEvent(source_id="x", status="done")))
@@ -123,11 +131,15 @@ class TestSSEIntegration:
                 event_bus.notify(
                     EnrichmentCompleteEvent(languages=["Q1"], countries=["Q30"]), db
                 )
+                event_bus.notify(DecisionCountEvent(total=3), db)
                 db.commit()
 
             p1 = await asyncio.wait_for(queue.get(), timeout=2)
             p2 = await asyncio.wait_for(queue.get(), timeout=2)
-            types = {p1["type"], p2["type"]}
-            assert types == {"source_status", "enrichment_complete"}
+            p3 = await asyncio.wait_for(queue.get(), timeout=2)
+            types = {p1["type"], p2["type"], p3["type"]}
+            assert types == {"source_status", "enrichment_complete", "decision_count"}
+            decision = next(p for p in (p1, p2, p3) if p["type"] == "decision_count")
+            assert decision["total"] == 3
         finally:
             await event_bus.stop()

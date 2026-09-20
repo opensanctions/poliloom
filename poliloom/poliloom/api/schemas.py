@@ -166,8 +166,8 @@ class LanguageResponse(BaseModel):
     """Schema for language response."""
 
     wikidata_id: str
-    name: str
-    description: str | None = None
+    terms: TermMaps
+    wikimedia_code: str | None = None
     iso_639_1: str | None = None
     iso_639_3: str | None = None
     sources_count: int
@@ -179,8 +179,7 @@ class CountryResponse(BaseModel):
     """Schema for country response."""
 
     wikidata_id: str
-    name: str
-    description: str | None = None
+    terms: TermMaps
     citizenships_count: int
 
     model_config = ConfigDict(from_attributes=True)
@@ -190,8 +189,7 @@ class EntitySearchResponse(BaseModel):
     """Unified schema for entity search results."""
 
     wikidata_id: str
-    name: str
-    description: str | None = None
+    terms: TermMaps
 
     model_config = ConfigDict(from_attributes=True)
 

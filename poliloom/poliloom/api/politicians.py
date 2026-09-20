@@ -39,7 +39,7 @@ from ..scheduling import (
     has_enrichment_candidate,
     process_source_task,
 )
-from ..sse import EvaluationCountEvent, event_bus
+from ..sse import DecisionCountEvent, event_bus
 from ..wikidata.execution import apply_action
 from ..wikidata.statement import (
     WikidataApiError,
@@ -473,7 +473,7 @@ async def patch_actions(
             ).scalar()
             or 0
         )
-        event_bus.notify(EvaluationCountEvent(total=total), db)
+        event_bus.notify(DecisionCountEvent(total=total), db)
 
     db.commit()
 

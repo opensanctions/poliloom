@@ -44,10 +44,10 @@ class EnrichmentCompleteEvent(Event):
 
 
 @dataclass
-class EvaluationCountEvent(Event):
-    """Broadcast when evaluations are created, carrying the updated total."""
+class DecisionCountEvent(Event):
+    """Broadcast when actions are decided, carrying the updated decided total."""
 
-    type: str = field(init=False, default="evaluation_count")
+    type: str = field(init=False, default="decision_count")
     total: int = 0
 
 

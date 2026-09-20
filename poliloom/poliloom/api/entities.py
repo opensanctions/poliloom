@@ -4,7 +4,7 @@ from enum import Enum
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import and_, case, func, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
 from ..database import get_db_session
 from ..models import (
@@ -12,21 +12,32 @@ from ..models import (
     Language,
     Location,
     Position,
-    Property,
+    Statement,
     WikidataEntity,
     WikipediaLink,
     WikipediaProject,
 )
-from ..models.base import PropertyType, RelationType
+from ..models.base import RelationType
+from ..models.statement import active_citizenship_conditions
 from ..models.wikidata import WikidataRelation
 from .auth import User, get_current_user
 from .schemas import (
     CountryResponse,
     EntitySearchResponse,
     LanguageResponse,
+    TermMaps,
 )
 
 router = APIRouter()
+
+
+def _term_maps(entity: WikidataEntity) -> TermMaps:
+    """Build TermMaps from a WikidataEntity's language-keyed term columns."""
+    return TermMaps(
+        labels=entity.labels,
+        descriptions=entity.descriptions,
+        aliases=entity.aliases,
+    )
 
 
 # =============================================================================
@@ -47,7 +58,10 @@ async def get_languages(
     query = (
         select(
             Language.wikidata_id,
-            WikidataEntity.name,
+            WikidataEntity.labels,
+            WikidataEntity.descriptions,
+            WikidataEntity.aliases,
+            Language.wikimedia_code,
             Language.iso_639_1,
             Language.iso_639_3,
             func.count(WikipediaLink.id).label("sources_count"),
@@ -78,7 +92,10 @@ async def get_languages(
         .where(WikidataEntity.deleted_at.is_(None))
         .group_by(
             Language.wikidata_id,
-            WikidataEntity.name,
+            WikidataEntity.labels,
+            WikidataEntity.descriptions,
+            WikidataEntity.aliases,
+            Language.wikimedia_code,
             Language.iso_639_1,
             Language.iso_639_3,
         )
@@ -90,7 +107,12 @@ async def get_languages(
     return [
         LanguageResponse(
             wikidata_id=row.wikidata_id,
-            name=row.name,
+            terms=TermMaps(
+                labels=row.labels,
+                descriptions=row.descriptions,
+                aliases=row.aliases,
+            ),
+            wikimedia_code=row.wikimedia_code,
             iso_639_1=row.iso_639_1,
             iso_639_3=row.iso_639_3,
             sources_count=row.sources_count,
@@ -107,14 +129,17 @@ async def get_countries(
     """
     Retrieve all countries with citizenship counts for filter dropdowns.
 
-    Returns a flat list of countries ordered by number of citizenships.
+    The citizenship count is the number of live P27 citizenship statements
+    pointing at the country. Returns a flat list ordered by citizenship count.
     For searching countries, use /countries/search.
     """
     query = (
         select(
             Country.wikidata_id,
-            WikidataEntity.name,
-            func.count(Property.id).label("citizenships_count"),
+            WikidataEntity.labels,
+            WikidataEntity.descriptions,
+            WikidataEntity.aliases,
+            func.count(Statement.id).label("citizenships_count"),
         )
         .select_from(Country)
         .join(
@@ -122,16 +147,20 @@ async def get_countries(
             Country.wikidata_id == WikidataEntity.wikidata_id,
         )
         .join(
-            Property,
+            Statement,
             and_(
-                Property.entity_id == Country.wikidata_id,
-                Property.type == PropertyType.CITIZENSHIP,
-                Property.deleted_at.is_(None),
+                Statement.entity_id == Country.wikidata_id,
+                *active_citizenship_conditions(Statement),
             ),
         )
         .where(WikidataEntity.deleted_at.is_(None))
-        .group_by(Country.wikidata_id, WikidataEntity.name)
-        .order_by(func.count(Property.id).desc())
+        .group_by(
+            Country.wikidata_id,
+            WikidataEntity.labels,
+            WikidataEntity.descriptions,
+            WikidataEntity.aliases,
+        )
+        .order_by(func.count(Statement.id).desc())
     )
 
     results = db.execute(query).all()
@@ -139,7 +168,11 @@ async def get_countries(
     return [
         CountryResponse(
             wikidata_id=row.wikidata_id,
-            name=row.name,
+            terms=TermMaps(
+                labels=row.labels,
+                descriptions=row.descriptions,
+                aliases=row.aliases,
+            ),
             citizenships_count=row.citizenships_count,
         )
         for row in results
@@ -172,7 +205,7 @@ async def search_entities(
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Search entities by name/label."""
+    """Search entities by label or alias."""
     model_class = ENTITY_TYPE_MODELS[type]
 
     entity_ids = model_class.find_similar(q, limit=limit)
@@ -193,23 +226,13 @@ async def search_entities(
         .where(WikidataEntity.deleted_at.is_(None))
         .where(model_class.wikidata_id.in_(entity_ids))
         .order_by(ordering)
-        .options(
-            selectinload(model_class.wikidata_entity)
-            .selectinload(
-                WikidataEntity.parent_relations.and_(
-                    WikidataRelation.deleted_at.is_(None)
-                )
-            )
-            .selectinload(WikidataRelation.parent_entity)
-        )
     )
 
     entities = db.execute(query).scalars().all()
     return [
         EntitySearchResponse(
             wikidata_id=e.wikidata_id,
-            name=e.name,
-            description=e.description,
+            terms=_term_maps(e.wikidata_entity),
         )
         for e in entities
     ]
