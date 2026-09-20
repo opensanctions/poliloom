@@ -1,5 +1,6 @@
 """Tests for enrichment candidate selection and source creation."""
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -16,8 +17,30 @@ from poliloom.models import (
     Source,
     SourceError,
     SourceStatus,
+    Statement,
     WikidataRelation,
 )
+
+
+@pytest.fixture
+def create_citizenship(db_session):
+    """Factory to create live P27 citizenship statements for a politician."""
+
+    def _create_citizenship(politician, country):
+        statement = Statement(
+            politician_id=politician.id,
+            document={
+                "id": f"{politician.wikidata_id}$p27-{uuid.uuid4()}",
+                "rank": "normal",
+                "property": {"id": "P27", "data_type": "wikibase-item"},
+                "value": {"type": "value", "content": country.wikidata_id},
+            },
+        )
+        db_session.add(statement)
+        db_session.flush()
+        return statement
+
+    return _create_citizenship
 
 
 class TestPriorityWikipediaLinks:

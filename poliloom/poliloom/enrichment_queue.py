@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 from .models.base import RelationType
 from .models.entities import Language, WikipediaProject
 from .models.politician import Politician, WikipediaLink
-from .models.property import Property, active_citizenship_conditions
 from .models.source import PoliticianSource, Source
+from .models.statement import Statement, active_citizenship_conditions
 from .models.wikidata import WikidataRelation
 
 PRIORITY_WIKIPEDIA_LINK_LIMIT = 3
@@ -64,9 +64,9 @@ def _official_language_join_conditions(citizenship, relation):
 
 
 def _politicians_with_citizenship(countries):
-    """Select politicians with an active citizenship in ``countries``."""
-    return select(Property.politician_id).where(
-        *active_citizenship_conditions(Property, countries=countries)
+    """Select politicians with a live citizenship in ``countries``."""
+    return select(Statement.politician_id).where(
+        *active_citizenship_conditions(Statement, countries=countries)
     )
 
 
@@ -179,17 +179,17 @@ def _get_ranked_wikipedia_links_cte(
     # Pre-compute which (politician, language) pairs have a citizenship match
     # by joining citizenships with official languages
     # When countries is provided, scope to those countries for early filtering
-    citizenship_where = active_citizenship_conditions(Property, countries=countries)
+    citizenship_where = active_citizenship_conditions(Statement, countries=countries)
 
     citizenship_language_matches = (
         select(
-            Property.politician_id.label("politician_id"),
+            Statement.politician_id.label("politician_id"),
             WikidataRelation.parent_entity_id.label("language_id"),
         )
-        .select_from(Property)
+        .select_from(Statement)
         .join(
             WikidataRelation,
-            _official_language_join_conditions(Property, WikidataRelation),
+            _official_language_join_conditions(Statement, WikidataRelation),
         )
         .where(and_(*citizenship_where))
         .distinct()

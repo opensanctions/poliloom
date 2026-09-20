@@ -1,21 +1,22 @@
-"""Claim-based queries for the unevaluated politician review queue."""
+"""Claim-based queries for the pending-action review queue."""
 
 import os
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import and_, delete, exists, func, or_, select, update
+from sqlalchemy import delete, exists, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .models import (
+    Action,
+    ActionClaim,
+    ActionEvidence,
+    ActionSkip,
     Politician,
-    Property,
-    PropertyClaim,
-    PropertyReference,
-    PropertySkip,
     SourceLanguage,
+    Statement,
 )
-from .models.property import active_citizenship_conditions
+from .models.statement import active_citizenship_conditions
 
 
 def get_claim_ttl() -> timedelta:
@@ -27,80 +28,76 @@ def _claim_cutoff() -> datetime:
     return datetime.now(UTC) - get_claim_ttl()
 
 
-def language_visible(property_model, languages: list[str] | None):
-    """Return the shared property language-visibility SQL predicate."""
+def language_visible(action_model, languages: list[str] | None):
+    """Return the shared action language-visibility SQL predicate."""
     if languages is None:
         return True
 
-    has_reference = exists(
-        select(1).where(PropertyReference.property_id == property_model.id)
-    )
+    has_evidence = exists(select(1).where(ActionEvidence.action_id == action_model.id))
     has_requested_language = exists(
         select(1)
-        .select_from(PropertyReference)
+        .select_from(ActionEvidence)
         .join(
             SourceLanguage,
-            SourceLanguage.source_id == PropertyReference.source_id,
+            SourceLanguage.source_id == ActionEvidence.source_id,
         )
         .where(
-            PropertyReference.property_id == property_model.id,
+            ActionEvidence.action_id == action_model.id,
             SourceLanguage.language_id.in_(languages),
         )
     )
-    has_unknown_language_reference = exists(
+    has_unknown_language_evidence = exists(
         select(1).where(
-            PropertyReference.property_id == property_model.id,
+            ActionEvidence.action_id == action_model.id,
             ~exists(
-                select(1).where(SourceLanguage.source_id == PropertyReference.source_id)
+                select(1).where(SourceLanguage.source_id == ActionEvidence.source_id)
             ),
         )
     )
-    return or_(~has_reference, has_requested_language, has_unknown_language_reference)
+    return or_(~has_evidence, has_requested_language, has_unknown_language_evidence)
 
 
-def unevaluated(property_model=Property):
-    """Return the shared unevaluated-property SQL predicate."""
-    return and_(
-        property_model.deleted_at.is_(None), property_model.statement_id.is_(None)
-    )
+def pending(action_model=Action):
+    """Return the shared pending-action SQL predicate."""
+    return action_model.is_accepted.is_(None)
 
 
-def not_skipped(property_model, user_id: str):
-    """Return a predicate excluding properties skipped by ``user_id``."""
+def not_skipped(action_model, user_id: str):
+    """Return a predicate excluding actions skipped by ``user_id``."""
     return ~exists(
         select(1).where(
-            PropertySkip.property_id == property_model.id,
-            PropertySkip.user_id == user_id,
+            ActionSkip.action_id == action_model.id,
+            ActionSkip.user_id == user_id,
         )
     )
 
 
-def no_live_claim(property_model=Property, *, cutoff=None):
-    """Return a predicate excluding properties with any live claim."""
+def no_live_claim(action_model=Action, *, cutoff=None):
+    """Return a predicate excluding actions with any live claim."""
     cutoff = cutoff or _claim_cutoff()
     return ~exists(
         select(1).where(
-            PropertyClaim.property_id == property_model.id,
-            PropertyClaim.claimed_at > cutoff,
+            ActionClaim.action_id == action_model.id,
+            ActionClaim.claimed_at > cutoff,
         )
     )
 
 
-def available_to_user(property_model, user_id: str, *, cutoff=None):
-    """Return a predicate allowing unclaimed properties or this user's claims."""
+def available_to_user(action_model, user_id: str, *, cutoff=None):
+    """Return a predicate allowing unclaimed actions or this user's claims."""
     cutoff = cutoff or _claim_cutoff()
     return or_(
-        no_live_claim(property_model, cutoff=cutoff),
+        no_live_claim(action_model, cutoff=cutoff),
         exists(
             select(1).where(
-                PropertyClaim.property_id == property_model.id,
-                PropertyClaim.user_id == user_id,
+                ActionClaim.action_id == action_model.id,
+                ActionClaim.user_id == user_id,
             )
         ),
     )
 
 
-def _serveable_properties(
+def _serveable_actions(
     politician_id,
     languages: list[str] | None,
     *,
@@ -108,14 +105,14 @@ def _serveable_properties(
     cutoff=None,
 ):
     conditions = [
-        Property.politician_id == politician_id,
-        unevaluated(Property),
-        language_visible(Property, languages),
-        no_live_claim(Property, cutoff=cutoff),
+        Action.politician_id == politician_id,
+        pending(Action),
+        language_visible(Action, languages),
+        no_live_claim(Action, cutoff=cutoff),
     ]
     if user_id is not None:
-        conditions.append(not_skipped(Property, user_id))
-    return select(Property.id).where(*conditions)
+        conditions.append(not_skipped(Action, user_id))
+    return select(Action.id).where(*conditions)
 
 
 def _candidate_query(
@@ -127,9 +124,7 @@ def _candidate_query(
 ):
     query = Politician.query_base().where(
         exists(
-            _serveable_properties(
-                Politician.id, languages, user_id=user_id, cutoff=cutoff
-            )
+            _serveable_actions(Politician.id, languages, user_id=user_id, cutoff=cutoff)
         )
     )
     if countries:
@@ -137,7 +132,7 @@ def _candidate_query(
             exists(
                 select(1).where(
                     *active_citizenship_conditions(
-                        Property,
+                        Statement,
                         politician_id=Politician.id,
                         countries=countries,
                     )
@@ -148,15 +143,15 @@ def _candidate_query(
 
 
 def _prune_claims(db: Session, user_id: str, cutoff: datetime) -> None:
-    db.execute(delete(PropertyClaim).where(PropertyClaim.claimed_at <= cutoff))
+    db.execute(delete(ActionClaim).where(ActionClaim.claimed_at <= cutoff))
 
     recent_politicians = (
         db.execute(
-            select(Property.politician_id)
-            .join(PropertyClaim, PropertyClaim.property_id == Property.id)
-            .where(PropertyClaim.user_id == user_id)
-            .group_by(Property.politician_id)
-            .order_by(func.max(PropertyClaim.claimed_at).desc())
+            select(Action.politician_id)
+            .join(ActionClaim, ActionClaim.action_id == Action.id)
+            .where(ActionClaim.user_id == user_id)
+            .group_by(Action.politician_id)
+            .order_by(func.max(ActionClaim.claimed_at).desc())
             .limit(2)
         )
         .scalars()
@@ -165,12 +160,10 @@ def _prune_claims(db: Session, user_id: str, cutoff: datetime) -> None:
     if len(recent_politicians) < 2:
         return
     db.execute(
-        delete(PropertyClaim).where(
-            PropertyClaim.user_id == user_id,
-            PropertyClaim.property_id.in_(
-                select(Property.id).where(
-                    Property.politician_id.notin_(recent_politicians)
-                )
+        delete(ActionClaim).where(
+            ActionClaim.user_id == user_id,
+            ActionClaim.action_id.in_(
+                select(Action.id).where(Action.politician_id.notin_(recent_politicians))
             ),
         )
     )
@@ -202,21 +195,21 @@ def claim_next(
                 db.rollback()
                 continue
 
-            # Expired rows cannot retain the unique property_id slot.
-            db.execute(delete(PropertyClaim).where(PropertyClaim.claimed_at <= cutoff))
-            property_ids = db.scalars(
-                _serveable_properties(
+            # Expired rows cannot retain the unique action_id slot.
+            db.execute(delete(ActionClaim).where(ActionClaim.claimed_at <= cutoff))
+            action_ids = db.scalars(
+                _serveable_actions(
                     politician_id, languages, user_id=user_id, cutoff=cutoff
                 )
             ).all()
-            if not property_ids:
+            if not action_ids:
                 db.rollback()
                 continue
 
             db.add_all(
                 [
-                    PropertyClaim(property_id=property_id, user_id=user_id)
-                    for property_id in property_ids
+                    ActionClaim(action_id=action_id, user_id=user_id)
+                    for action_id in action_ids
                 ]
             )
             db.flush()
@@ -235,51 +228,48 @@ def claim_visible_properties(
     politician: Politician,
     languages: list[str],
 ) -> None:
-    """Claim all rendered unevaluated properties while its politician is locked."""
+    """Claim all rendered pending actions while its politician is locked."""
     cutoff = _claim_cutoff()
-    politician_property_ids = select(Property.id).where(
-        Property.politician_id == politician.id
+    politician_action_ids = select(Action.id).where(
+        Action.politician_id == politician.id
     )
     db.execute(
-        delete(PropertyClaim).where(
-            PropertyClaim.property_id.in_(politician_property_ids),
-            PropertyClaim.claimed_at <= cutoff,
+        delete(ActionClaim).where(
+            ActionClaim.action_id.in_(politician_action_ids),
+            ActionClaim.claimed_at <= cutoff,
         )
     )
     db.execute(
-        update(PropertyClaim)
+        update(ActionClaim)
         .where(
-            PropertyClaim.user_id == user_id,
-            PropertyClaim.property_id.in_(politician_property_ids),
+            ActionClaim.user_id == user_id,
+            ActionClaim.action_id.in_(politician_action_ids),
         )
         .values(claimed_at=func.now())
     )
-    claimed_ids = select(PropertyClaim.property_id)
-    property_ids = db.scalars(
-        select(Property.id).where(
-            Property.politician_id == politician.id,
-            unevaluated(Property),
-            language_visible(Property, languages),
-            not_skipped(Property, user_id),
-            Property.id.notin_(claimed_ids),
+    claimed_ids = select(ActionClaim.action_id)
+    action_ids = db.scalars(
+        select(Action.id).where(
+            Action.politician_id == politician.id,
+            pending(Action),
+            language_visible(Action, languages),
+            not_skipped(Action, user_id),
+            Action.id.notin_(claimed_ids),
         )
     ).all()
     db.add_all(
-        [
-            PropertyClaim(property_id=property_id, user_id=user_id)
-            for property_id in property_ids
-        ]
+        [ActionClaim(action_id=action_id, user_id=user_id) for action_id in action_ids]
     )
 
 
 def refresh_claims(db: Session, user_id: str, politician_id) -> None:
     """Refresh this user's claims for one politician."""
     db.execute(
-        update(PropertyClaim)
+        update(ActionClaim)
         .where(
-            PropertyClaim.user_id == user_id,
-            PropertyClaim.property_id.in_(
-                select(Property.id).where(Property.politician_id == politician_id)
+            ActionClaim.user_id == user_id,
+            ActionClaim.action_id.in_(
+                select(Action.id).where(Action.politician_id == politician_id)
             ),
         )
         .values(claimed_at=func.now())
@@ -291,7 +281,7 @@ def count_serveable(
     languages: list[str] | None,
     countries: list[str] | None = None,
 ) -> int:
-    """Count politicians with user-agnostic, currently serveable properties."""
+    """Count politicians with user-agnostic, currently serveable actions."""
     query = _candidate_query(languages, countries).with_only_columns(
         func.count(Politician.id)
     )

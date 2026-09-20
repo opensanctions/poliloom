@@ -81,3 +81,15 @@ class Statement(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
 
     # Relationships
     politician = relationship("Politician", back_populates="statements")
+
+
+def active_citizenship_conditions(citizenship, *, politician_id=None, countries=None):
+    """Return common live-citizenship predicates for a Statement table or alias."""
+    conditions = []
+    if politician_id is not None:
+        conditions.append(citizenship.politician_id == politician_id)
+    conditions.append(citizenship.property_id == "P27")
+    if countries:
+        conditions.append(citizenship.entity_id.in_(countries))
+    conditions.append(citizenship.deleted_at.is_(None))
+    return conditions
