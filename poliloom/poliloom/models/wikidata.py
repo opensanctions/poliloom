@@ -27,10 +27,11 @@ from sqlalchemy import (
 from sqlalchemy import (
     Enum as SQLEnum,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Session, declared_attr, relationship
 
 from poliloom import search
+from poliloom.wikidata.terms import resolve_label
 
 from .base import (
     Base,
@@ -491,7 +492,13 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     __table_args__ = (Index("idx_wikidata_entities_updated_at", "updated_at"),)
 
     # UpsertMixin configuration
-    _upsert_update_columns: ClassVar[list[str]] = ["name", "description"]
+    _upsert_update_columns: ClassVar[list[str]] = [
+        "name",
+        "description",
+        "labels",
+        "descriptions",
+        "aliases",
+    ]
 
     wikidata_id = Column(String, primary_key=True)  # Wikidata QID as primary key
     name = Column(
@@ -500,9 +507,18 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     description = Column(
         String, nullable=True
     )  # Entity description from Wikidata descriptions (can be None)
+    labels = Column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )  # {lang: label}
+    descriptions = Column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )  # {lang: description}
+    aliases = Column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )  # {lang: [alias]}
 
     # Relationships
-    labels = relationship(
+    label_records = relationship(
         "WikidataEntityLabel",
         back_populates="entity",
         cascade="all, delete-orphan",
@@ -524,6 +540,11 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     position = relationship("Position", back_populates="wikidata_entity")
     country = relationship("Country", back_populates="wikidata_entity")
     language = relationship("Language", back_populates="wikidata_entity")
+
+    @property
+    def resolved_label(self) -> str | None:
+        """Resolve a display label from the language-keyed labels map."""
+        return resolve_label(self.labels)
 
     @classmethod
     def cleanup_orphaned(cls, session: Session) -> int:
@@ -705,7 +726,7 @@ class WikidataEntityLabel(Base, TimestampMixin, UpsertMixin):
     label = Column(Text, nullable=False)
 
     # Relationships
-    entity = relationship("WikidataEntity", back_populates="labels")
+    entity = relationship("WikidataEntity", back_populates="label_records")
 
 
 class WikidataRelation(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
