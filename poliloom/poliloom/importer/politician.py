@@ -12,14 +12,15 @@ from ..models import (
     Location,
     Politician,
     Position,
-    Property,
     PropertyType,
+    Statement,
     WikidataEntity,
     WikidataEntityLabel,
     WikipediaLink,
     WikipediaProject,
 )
 from ..wikidata.entity_processor import WikidataEntityProcessor
+from ..wikidata.rest import action_api_statement_to_rest
 
 logger = logging.getLogger(__name__)
 
@@ -135,20 +136,17 @@ def _insert_politicians_batch(politicians: list[dict], session: Session) -> None
         returning_columns=[Politician.id, Politician.wikidata_id],
     )
 
-    # Process properties for each politician (order is guaranteed by PostgreSQL)
+    # Process statements for each politician (order is guaranteed by PostgreSQL)
     for row, politician_data in zip(politician_rows, politicians):
-        # Handle properties: all properties (birth/death dates, positions, citizenships, birthplaces) are stored in the unified Property model
-
-        # Add properties using batch UPSERT
-        property_batch = [
-            {"politician_id": row.id, **prop}
-            for prop in politician_data.get("properties", [])
+        # Store canonical REST statement documents for tracked claims
+        # (birth/death dates, positions, citizenships, birthplaces)
+        statement_batch = [
+            {"politician_id": row.id, "document": document}
+            for document in politician_data.get("statements", [])
         ]
 
-        if property_batch:
-            Property.upsert_batch(session, property_batch)
-
-        # All properties (positions, citizenships, birthplaces) are now handled above in the unified property_batch
+        if statement_batch:
+            Statement.upsert_batch(session, statement_batch)
 
         # Add Wikipedia links using batch UPSERT
         wikipedia_batch = [
@@ -226,41 +224,27 @@ def _process_politicians_chunk(
                     "wikidata_id_numeric": wikidata_id_numeric,
                     "name": entity.get_entity_name() or wikidata_id,
                     "labels": entity_labels if entity_labels else None,
-                    "properties": [],
+                    "statements": [],
                     "wikipedia_links": [],
                 }
 
-                # Extract properties (birth date, death date, etc.)
+                # Extract statements (birth date, death date, etc.) as canonical
+                # REST statement documents; the dump is trusted, so a malformed
+                # tracked claim fails the import
                 birth_claims = entity.get_truthy_claims(PropertyType.BIRTH_DATE.value)
                 for claim in birth_claims:
                     birth_info = entity.extract_date_from_claim(claim)
                     if birth_info:
-                        politician_data["properties"].append(
-                            {
-                                "type": PropertyType.BIRTH_DATE,
-                                "value": birth_info.time_string,
-                                "value_precision": birth_info.precision,
-                                "entity_id": None,
-                                "statement_id": claim["id"],
-                                "qualifiers_json": claim.get("qualifiers"),
-                                "references_json": claim.get("references"),
-                            }
+                        politician_data["statements"].append(
+                            action_api_statement_to_rest(claim)
                         )
 
                 death_claims = entity.get_truthy_claims(PropertyType.DEATH_DATE.value)
                 for claim in death_claims:
                     death_info = entity.extract_date_from_claim(claim)
                     if death_info:
-                        politician_data["properties"].append(
-                            {
-                                "type": PropertyType.DEATH_DATE,
-                                "value": death_info.time_string,
-                                "value_precision": death_info.precision,
-                                "entity_id": None,
-                                "statement_id": claim["id"],
-                                "qualifiers_json": claim.get("qualifiers"),
-                                "references_json": claim.get("references"),
-                            }
+                        politician_data["statements"].append(
+                            action_api_statement_to_rest(claim)
                         )
 
                 # Extract positions held - only include positions that exist in our database
@@ -277,16 +261,8 @@ def _process_politicians_chunk(
                         ):
                             continue
 
-                        politician_data["properties"].append(
-                            {
-                                "type": PropertyType.POSITION,
-                                "value": None,
-                                "value_precision": None,
-                                "entity_id": position_id,
-                                "statement_id": claim["id"],
-                                "qualifiers_json": claim.get("qualifiers"),
-                                "references_json": claim.get("references"),
-                            }
+                        politician_data["statements"].append(
+                            action_api_statement_to_rest(claim)
                         )
 
                 # Extract citizenships - only include countries that exist in our database
@@ -301,16 +277,8 @@ def _process_politicians_chunk(
                             shared_country_qids
                             and citizenship_id in shared_country_qids
                         ):
-                            politician_data["properties"].append(
-                                {
-                                    "type": PropertyType.CITIZENSHIP,
-                                    "value": None,
-                                    "value_precision": None,
-                                    "entity_id": citizenship_id,
-                                    "statement_id": claim["id"],
-                                    "qualifiers_json": claim.get("qualifiers"),
-                                    "references_json": claim.get("references"),
-                                }
+                            politician_data["statements"].append(
+                                action_api_statement_to_rest(claim)
                             )
 
                 # Extract birthplaces - include all locations that exist in our database
@@ -325,16 +293,8 @@ def _process_politicians_chunk(
                             shared_location_qids
                             and birthplace_id in shared_location_qids
                         ):
-                            politician_data["properties"].append(
-                                {
-                                    "type": PropertyType.BIRTHPLACE,
-                                    "value": None,
-                                    "value_precision": None,
-                                    "entity_id": birthplace_id,
-                                    "statement_id": claim["id"],
-                                    "qualifiers_json": claim.get("qualifiers"),
-                                    "references_json": claim.get("references"),
-                                }
+                            politician_data["statements"].append(
+                                action_api_statement_to_rest(claim)
                             )
 
                 # Extract Wikipedia links from sitelinks
