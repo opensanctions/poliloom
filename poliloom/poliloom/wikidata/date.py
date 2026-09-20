@@ -136,6 +136,19 @@ class WikidataDate:
             },
         }
 
+    def to_rest_time_content(self) -> dict[str, Any]:
+        """Convert this WikidataDate to the REST API time content shape.
+
+        Statement values in REST documents carry only time, precision, and
+        calendarmodel; to_wikidata_value() keeps timezone/before/after for
+        the Action API.
+        """
+        return {
+            "time": self.time_string,
+            "precision": self.precision,
+            "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+        }
+
     def to_display_string(self) -> str:
         """Format the date at its stored precision level.
 
