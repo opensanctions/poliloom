@@ -1,5 +1,8 @@
 """PoliLoom models package - organized by domain."""
 
+# Action domain
+from .action import Action, ActionClaim, ActionEvidence, ActionKind, ActionSkip
+
 # Base classes and utilities
 from .base import (
     Base,
@@ -34,6 +37,9 @@ from .source import (
     SourceStatus,
 )
 
+# Statement domain
+from .statement import Statement
+
 # User interaction
 from .user import Evaluation, PropertyClaim, PropertySkip, UserSettings
 
@@ -51,6 +57,12 @@ from .wikidata import (
 )
 
 __all__ = [
+    # Actions
+    "Action",
+    "ActionClaim",
+    "ActionEvidence",
+    "ActionKind",
+    "ActionSkip",
     # Base
     "Base",
     # Entities
@@ -83,6 +95,7 @@ __all__ = [
     "SourceError",
     "SourceLanguage",
     "SourceStatus",
+    "Statement",
     "TimestampMixin",
     "UpsertMixin",
     "UserSettings",
