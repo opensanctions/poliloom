@@ -1179,3 +1179,76 @@ class TestSearchIndexQuery:
         page1_ids = {r.wikidata_id for r in results_page1}
         page2_ids = {r.wikidata_id for r in results_page2}
         assert page1_ids.isdisjoint(page2_ids)
+
+
+class TestTermMaps:
+    """Test language-keyed labels/descriptions/aliases columns on WikidataEntity."""
+
+    def _insert_entity(self, db_session, values):
+        stmt = insert(WikidataEntity).values([values])
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+        db_session.flush()
+
+    def test_persists_and_round_trips_term_maps(self, db_session):
+        """Term maps persist as JSONB and round-trip through the database."""
+        self._insert_entity(
+            db_session,
+            {
+                "wikidata_id": "Q42",
+                "labels": {"mul": "Douglas Adams", "de": "Douglas Adams"},
+                "descriptions": {
+                    "en": "English writer",
+                    "de": "britischer Schriftsteller",
+                },
+                "aliases": {"en": ["Douglas Noel Adams"], "de": ["Adams", "DNA"]},
+            },
+        )
+
+        entity = db_session.query(WikidataEntity).filter_by(wikidata_id="Q42").one()
+
+        assert entity.labels == {"mul": "Douglas Adams", "de": "Douglas Adams"}
+        assert entity.descriptions == {
+            "en": "English writer",
+            "de": "britischer Schriftsteller",
+        }
+        assert entity.aliases == {"en": ["Douglas Noel Adams"], "de": ["Adams", "DNA"]}
+
+    def test_term_maps_default_to_empty(self, db_session):
+        """Omitting the term maps on insert stores empty maps."""
+        self._insert_entity(db_session, {"wikidata_id": "Q42"})
+
+        entity = db_session.query(WikidataEntity).filter_by(wikidata_id="Q42").one()
+
+        assert entity.labels == {}
+        assert entity.descriptions == {}
+        assert entity.aliases == {}
+
+    def test_resolved_label_prefers_mul_then_en(self, db_session):
+        """resolved_label resolves via the default mul → en chain."""
+        self._insert_entity(
+            db_session,
+            {
+                "wikidata_id": "Q42",
+                "labels": {"mul": "Douglas Adams", "en": "Doug Adams"},
+            },
+        )
+        self._insert_entity(
+            db_session,
+            {"wikidata_id": "Q43", "labels": {"en": "English only"}},
+        )
+        self._insert_entity(
+            db_session,
+            {"wikidata_id": "Q44", "labels": {"sv": "Svenska"}},
+        )
+        self._insert_entity(db_session, {"wikidata_id": "Q45"})
+
+        by_id = {
+            e.wikidata_id: e.resolved_label
+            for e in db_session.query(WikidataEntity).all()
+        }
+
+        assert by_id["Q42"] == "Douglas Adams"
+        assert by_id["Q43"] == "English only"
+        assert by_id["Q44"] == "Svenska"
+        assert by_id["Q45"] is None
