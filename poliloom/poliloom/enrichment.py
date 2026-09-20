@@ -172,14 +172,15 @@ async def extract_properties_generic(
         if existing_statements:
             analysis_focus = config.analysis_focus_template
 
+        politician_name = politician.wikidata_entity.resolved_label
         user_prompt = config.user_prompt_template.format(
-            politician_name=politician.name,
+            politician_name=politician_name,
             politician_context=politician_context,
             analysis_focus=analysis_focus,
             content=content,
         )
 
-        logger.debug(f"Extracting {config.property_types} for {politician.name}")
+        logger.debug(f"Extracting {config.property_types} for {politician_name}")
 
         response = await openai_client.responses.parse(
             model=os.getenv("OPENAI_MODEL", "gpt-5.4-mini"),
@@ -261,7 +262,7 @@ async def _map_single_item(
         candidate_entities = [
             {
                 "qid": entity.wikidata_id,
-                "name": entity.name,
+                "name": entity.wikidata_entity.resolved_label,
                 "description": entity.description,
             }
             for entity in similar_entities
@@ -304,7 +305,9 @@ async def _map_single_item(
                 supporting_quotes=free_item.supporting_quotes,
             )
 
-        logger.debug(f"Mapped '{free_item.name}' -> '{entity.name}' ({mapped_qid})")
+        logger.debug(
+            f"Mapped '{free_item.name}' -> '{entity.wikidata_entity.resolved_label}' ({mapped_qid})"
+        )
         return result
 
     except (MeilisearchError, SQLAlchemyError, OpenAIError) as e:
@@ -336,15 +339,17 @@ async def extract_two_stage_generic(
             openai_client, content, politician, config
         )
 
+        politician_name = politician.wikidata_entity.resolved_label
+
         if not free_form_results:
             logger.info(
-                f"No {config.entity_class.MAPPING_ENTITY_NAME}s extracted for {politician.name}"
+                f"No {config.entity_class.MAPPING_ENTITY_NAME}s extracted for {politician_name}"
             )
             return []
 
         extracted_names = [r.name for r in free_form_results]
         logger.info(
-            f"Stage 1: Extracted {len(free_form_results)} free-form {config.entity_class.MAPPING_ENTITY_NAME}s for {politician.name}: {extracted_names}"
+            f"Stage 1: Extracted {len(free_form_results)} free-form {config.entity_class.MAPPING_ENTITY_NAME}s for {politician_name}: {extracted_names}"
         )
 
         # Stage 2: Map to Wikidata entities in parallel
@@ -364,7 +369,7 @@ async def extract_two_stage_generic(
         mapped_results = [result for result in mapping_results if result is not None]
 
         logger.info(
-            f"Stage 2: Mapped {len(mapped_results)} of {len(free_form_results)} {config.entity_class.MAPPING_ENTITY_NAME}s for {politician.name}"
+            f"Stage 2: Mapped {len(mapped_results)} of {len(free_form_results)} {config.entity_class.MAPPING_ENTITY_NAME}s for {politician_name}"
         )
         return mapped_results
 
@@ -702,11 +707,12 @@ def store_extracted_data(
                 source,
                 quotes,
             )
+            politician_name = politician.wikidata_entity.resolved_label
             if action is None:
-                logger.info(f"No action needed for {label} for {politician.name}")
+                logger.info(f"No action needed for {label} for {politician_name}")
             else:
                 logger.info(
-                    f"Persisted {action.kind.value} action for {label} for {politician.name}"
+                    f"Persisted {action.kind.value} action for {label} for {politician_name}"
                 )
 
         return True

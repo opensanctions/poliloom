@@ -24,10 +24,10 @@ class TestQueryHierarchyDescendants:
         """Test querying all descendants in a hierarchy."""
         # Set up test hierarchy in database: Q1 -> Q2 -> Q3, Q1 -> Q4
         test_classes = [
-            {"wikidata_id": "Q1", "name": "Root"},
-            {"wikidata_id": "Q2", "name": "Child 1"},
-            {"wikidata_id": "Q3", "name": "Grandchild"},
-            {"wikidata_id": "Q4", "name": "Child 2"},
+            {"wikidata_id": "Q1"},
+            {"wikidata_id": "Q2"},
+            {"wikidata_id": "Q3"},
+            {"wikidata_id": "Q4"},
         ]
 
         test_relations = [
@@ -68,7 +68,7 @@ class TestQueryHierarchyDescendants:
     def test_query_hierarchy_descendants_single_node(self, db_session):
         """Test querying descendants for a single node with no children."""
         # Set up single node
-        test_classes = [{"wikidata_id": "Q1", "name": "Single Node"}]
+        test_classes = [{"wikidata_id": "Q1"}]
 
         stmt = insert(WikidataEntity).values(test_classes)
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
@@ -86,11 +86,11 @@ class TestQueryHierarchyDescendants:
         """Test querying descendants for a subtree in a larger hierarchy."""
         # Create larger hierarchy: Q1 -> {Q2, Q3}, Q2 -> {Q4, Q5}
         test_classes = [
-            {"wikidata_id": "Q1", "name": "Root"},
-            {"wikidata_id": "Q2", "name": "Branch"},
-            {"wikidata_id": "Q3", "name": "Leaf 1"},
-            {"wikidata_id": "Q4", "name": "Leaf 2"},
-            {"wikidata_id": "Q5", "name": "Leaf 3"},
+            {"wikidata_id": "Q1"},
+            {"wikidata_id": "Q2"},
+            {"wikidata_id": "Q3"},
+            {"wikidata_id": "Q4"},
+            {"wikidata_id": "Q5"},
         ]
 
         test_relations = [
@@ -139,9 +139,9 @@ class TestQueryHierarchyDescendants:
         """Test querying descendants with a specific relation type."""
         # Set up test hierarchy with different relation types
         test_classes = [
-            {"wikidata_id": "Q1", "name": "Root"},
-            {"wikidata_id": "Q2", "name": "Child"},
-            {"wikidata_id": "Q3", "name": "Instance"},
+            {"wikidata_id": "Q1"},
+            {"wikidata_id": "Q2"},
+            {"wikidata_id": "Q3"},
         ]
 
         test_relations = [
@@ -196,11 +196,11 @@ class TestQueryHierarchyDescendants:
         """Test querying descendants from multiple root nodes."""
         # Create two separate hierarchies: Q1 -> Q2, Q10 -> Q11 -> Q12
         test_classes = [
-            {"wikidata_id": "Q1", "name": "Root 1"},
-            {"wikidata_id": "Q2", "name": "Child of Root 1"},
-            {"wikidata_id": "Q10", "name": "Root 2"},
-            {"wikidata_id": "Q11", "name": "Child of Root 2"},
-            {"wikidata_id": "Q12", "name": "Grandchild of Root 2"},
+            {"wikidata_id": "Q1"},
+            {"wikidata_id": "Q2"},
+            {"wikidata_id": "Q10"},
+            {"wikidata_id": "Q11"},
+            {"wikidata_id": "Q12"},
         ]
 
         test_relations = [
@@ -242,10 +242,10 @@ class TestQueryHierarchyDescendants:
         # Diamond: Q1 -> Q2, Q1 -> Q3, Q2 -> Q4, Q3 -> Q4
         # Q4 is reachable via two paths
         test_classes = [
-            {"wikidata_id": "Q1", "name": "Root"},
-            {"wikidata_id": "Q2", "name": "Left Branch"},
-            {"wikidata_id": "Q3", "name": "Right Branch"},
-            {"wikidata_id": "Q4", "name": "Diamond Bottom"},
+            {"wikidata_id": "Q1"},
+            {"wikidata_id": "Q2"},
+            {"wikidata_id": "Q3"},
+            {"wikidata_id": "Q4"},
         ]
 
         test_relations = [
@@ -290,11 +290,11 @@ class TestQueryHierarchyDescendants:
         """Test querying ignored hierarchy descendants."""
         # Set up hierarchy: Q1 -> Q2 -> Q3, with Q10 -> Q11 as ignored branch
         test_classes = [
-            {"wikidata_id": "Q1", "name": "Root"},
-            {"wikidata_id": "Q2", "name": "Child"},
-            {"wikidata_id": "Q3", "name": "Grandchild"},
-            {"wikidata_id": "Q10", "name": "Ignored Root"},
-            {"wikidata_id": "Q11", "name": "Ignored Child"},
+            {"wikidata_id": "Q1"},
+            {"wikidata_id": "Q2"},
+            {"wikidata_id": "Q3"},
+            {"wikidata_id": "Q10"},
+            {"wikidata_id": "Q11"},
         ]
 
         test_relations = [
@@ -351,9 +351,9 @@ class TestCleanupOutsideHierarchy:
         from sqlalchemy.dialects.postgresql import insert
 
         # Create wikidata entities
-        entities = [{"wikidata_id": root_id, "name": f"Root {root_id}"}]
+        entities = [{"wikidata_id": root_id}]
         for child_id in child_ids:
-            entities.append({"wikidata_id": child_id, "name": f"Child {child_id}"})
+            entities.append({"wikidata_id": child_id})
 
         stmt = insert(WikidataEntity).values(entities)
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
@@ -385,9 +385,7 @@ class TestCleanupOutsideHierarchy:
         from poliloom.models import Position
 
         # Create wikidata entity for the position
-        stmt = insert(WikidataEntity).values(
-            [{"wikidata_id": position_id, "name": f"Position {position_id}"}]
-        )
+        stmt = insert(WikidataEntity).values([{"wikidata_id": position_id}])
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
 
@@ -418,9 +416,7 @@ class TestCleanupOutsideHierarchy:
         from poliloom.models import Position
 
         # Create wikidata entity
-        stmt = insert(WikidataEntity).values(
-            [{"wikidata_id": position_id, "name": f"Orphan Position {position_id}"}]
-        )
+        stmt = insert(WikidataEntity).values([{"wikidata_id": position_id}])
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
 
@@ -545,11 +541,11 @@ class TestCleanupOutsideHierarchy:
         assert len(remaining) == 1
         assert remaining[0][0] == "Q200"
 
-    def test_soft_deletes_properties_referencing_removed_entities(self, db_session):
-        """Test that properties referencing removed entities are soft-deleted."""
+    def test_soft_deletes_statements_referencing_removed_entities(self, db_session):
+        """Test that statements referencing removed entities are soft-deleted."""
         from sqlalchemy import text
 
-        from poliloom.models import Politician, Position, Property, PropertyType
+        from poliloom.models import Politician, Position, Statement
 
         # Create hierarchy
         self._create_hierarchy(db_session, "Q4164871", ["Q100"])
@@ -560,45 +556,51 @@ class TestCleanupOutsideHierarchy:
         # Create an orphan position
         self._create_orphan_position(db_session, "Q300")
 
-        # Create a politician to hold properties
+        # Create a politician to hold statements
         politician = Politician.create_with_entity(
-            db_session, "Q999", "Test Politician"
+            db_session, "Q999", {"labels": {"en": "Test Politician"}}
         )
         db_session.flush()
 
-        # Create properties referencing both positions
-        prop_valid = Property(
+        def position_statement(statement_id, entity_id):
+            return {
+                "id": statement_id,
+                "rank": "normal",
+                "property": {"id": "P39", "data_type": "wikibase-item"},
+                "value": {"type": "value", "content": entity_id},
+            }
+
+        # Create P39 statements referencing both positions
+        stmt_valid = Statement(
             politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id="Q200",
+            document=position_statement("Q999$p39-valid", "Q200"),
         )
-        prop_orphan = Property(
+        stmt_orphan = Statement(
             politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id="Q300",
+            document=position_statement("Q999$p39-orphan", "Q300"),
         )
-        db_session.add_all([prop_valid, prop_orphan])
+        db_session.add_all([stmt_valid, stmt_orphan])
         db_session.flush()
 
         # Run cleanup
         stats = Position.cleanup_outside_hierarchy(db_session)
 
-        # One property should be soft-deleted
-        assert stats["properties_deleted"] == 1
+        # One statement should be soft-deleted
+        assert stats["statements_deleted"] == 1
 
-        # Check that orphan property is soft-deleted
+        # Check that orphan statement is soft-deleted
         soft_deleted = db_session.execute(
             text(
-                "SELECT COUNT(*) FROM properties WHERE entity_id = 'Q300' AND deleted_at IS NOT NULL"
+                "SELECT COUNT(*) FROM statements WHERE entity_id = 'Q300' AND deleted_at IS NOT NULL"
             )
         ).scalar()
         assert soft_deleted == 1
 
-        # Valid property should not be deleted
-        valid_prop = db_session.execute(
-            text("SELECT deleted_at FROM properties WHERE entity_id = 'Q200'")
+        # Valid statement should not be deleted
+        valid_stmt = db_session.execute(
+            text("SELECT deleted_at FROM statements WHERE entity_id = 'Q200'")
         ).fetchone()
-        assert valid_prop[0] is None
+        assert valid_stmt[0] is None
 
     def test_no_hierarchy_config_returns_zero_removed(self, db_session):
         """Test that entity without hierarchy config returns zero removed."""
@@ -623,9 +625,7 @@ class TestCleanupOutsideHierarchy:
         self._create_hierarchy(db_session, "Q12737077", ["Q500"])
 
         # Create position that is instance of BOTH valid and ignored classes
-        stmt = insert(WikidataEntity).values(
-            [{"wikidata_id": "Q999", "name": "Position in both branches"}]
-        )
+        stmt = insert(WikidataEntity).values([{"wikidata_id": "Q999"}])
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
 
@@ -677,9 +677,7 @@ class TestCleanupOutsideHierarchy:
         self._create_hierarchy(db_session, "Q4164871", ["Q100"])
 
         # Make Q12737077 a child of Q100 (within valid hierarchy)
-        stmt = insert(WikidataEntity).values(
-            [{"wikidata_id": "Q12737077", "name": "Ignored Root (as child)"}]
-        )
+        stmt = insert(WikidataEntity).values([{"wikidata_id": "Q12737077"}])
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
 
@@ -773,8 +771,8 @@ class TestCleanupOutsideHierarchy:
 
         stmt = insert(WikidataEntity).values(
             [
-                {"wikidata_id": "Q501", "name": "Deep ignored 1"},
-                {"wikidata_id": "Q502", "name": "Deep ignored 2"},
+                {"wikidata_id": "Q501"},
+                {"wikidata_id": "Q502"},
             ]
         )
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
@@ -834,9 +832,7 @@ class TestCleanupOutsideHierarchy:
         self._create_hierarchy(db_session, "Q4164871", ["Q100"])
 
         # Create position with SUBCLASS_OF relation (not INSTANCE_OF)
-        stmt = insert(WikidataEntity).values(
-            [{"wikidata_id": "Q200", "name": "Position via subclass"}]
-        )
+        stmt = insert(WikidataEntity).values([{"wikidata_id": "Q200"}])
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
 
@@ -878,9 +874,9 @@ class TestCleanupOutsideHierarchySearchIndex:
     def _create_hierarchy(self, db_session, root_id, child_ids):
         """Helper to create a hierarchy with root and children."""
         # Create wikidata entities
-        entities = [{"wikidata_id": root_id, "name": f"Root {root_id}"}]
+        entities = [{"wikidata_id": root_id}]
         for child_id in child_ids:
-            entities.append({"wikidata_id": child_id, "name": f"Child {child_id}"})
+            entities.append({"wikidata_id": child_id})
 
         stmt = insert(WikidataEntity).values(entities)
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
@@ -910,9 +906,7 @@ class TestCleanupOutsideHierarchySearchIndex:
         from poliloom.models import Location
 
         # Create wikidata entity for the location
-        stmt = insert(WikidataEntity).values(
-            [{"wikidata_id": location_id, "name": f"Location {location_id}"}]
-        )
+        stmt = insert(WikidataEntity).values([{"wikidata_id": location_id}])
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
 
@@ -941,9 +935,7 @@ class TestCleanupOutsideHierarchySearchIndex:
         from poliloom.models import Location
 
         # Create wikidata entity
-        stmt = insert(WikidataEntity).values(
-            [{"wikidata_id": location_id, "name": f"Orphan Location {location_id}"}]
-        )
+        stmt = insert(WikidataEntity).values([{"wikidata_id": location_id}])
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
 
@@ -1016,15 +1008,12 @@ class TestSearchIndexQuery:
     # mirroring the shape the dump importer writes
     LANGUAGES = ("en", "de", "zh", "fr", "es", "ru")
 
-    def _create_entity_with_terms(
-        self, db_session, wikidata_id, name, labels=(), aliases=()
-    ):
+    def _create_entity_with_terms(self, db_session, wikidata_id, labels=(), aliases=()):
         """Create a WikidataEntity with label/alias values in its term maps."""
         stmt = insert(WikidataEntity).values(
             [
                 {
                     "wikidata_id": wikidata_id,
-                    "name": name,
                     "labels": dict(zip(self.LANGUAGES, labels)),
                     "aliases": {
                         lang: [alias] for lang, alias in zip(self.LANGUAGES, aliases)
@@ -1036,33 +1025,33 @@ class TestSearchIndexQuery:
         db_session.execute(stmt)
         db_session.flush()
 
-    def _create_location(self, db_session, wikidata_id, name, labels=(), aliases=()):
+    def _create_location(self, db_session, wikidata_id, labels=(), aliases=()):
         """Create a Location entity with term maps."""
         from poliloom.models import Location
 
-        self._create_entity_with_terms(db_session, wikidata_id, name, labels, aliases)
+        self._create_entity_with_terms(db_session, wikidata_id, labels, aliases)
 
         stmt = insert(Location.__table__).values([{"wikidata_id": wikidata_id}])
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
         db_session.flush()
 
-    def _create_country(self, db_session, wikidata_id, name, labels=(), aliases=()):
+    def _create_country(self, db_session, wikidata_id, labels=(), aliases=()):
         """Create a Country entity with term maps."""
         from poliloom.models import Country
 
-        self._create_entity_with_terms(db_session, wikidata_id, name, labels, aliases)
+        self._create_entity_with_terms(db_session, wikidata_id, labels, aliases)
 
         stmt = insert(Country.__table__).values([{"wikidata_id": wikidata_id}])
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
         db_session.flush()
 
-    def _create_position(self, db_session, wikidata_id, name, labels=(), aliases=()):
+    def _create_position(self, db_session, wikidata_id, labels=(), aliases=()):
         """Create a Position entity with term maps."""
         from poliloom.models import Position
 
-        self._create_entity_with_terms(db_session, wikidata_id, name, labels, aliases)
+        self._create_entity_with_terms(db_session, wikidata_id, labels, aliases)
 
         stmt = insert(Position.__table__).values([{"wikidata_id": wikidata_id}])
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
@@ -1071,9 +1060,7 @@ class TestSearchIndexQuery:
 
     def test_returns_entity_with_single_type(self, db_session):
         """Test query returns entity with single type."""
-        self._create_location(
-            db_session, "Q60", "New York City", labels=["New York", "New York City"]
-        )
+        self._create_location(db_session, "Q60", labels=["New York", "New York City"])
 
         query = WikidataEntity.search_index_query()
         results = db_session.execute(query).fetchall()
@@ -1087,11 +1074,7 @@ class TestSearchIndexQuery:
     def test_includes_alias_values_from_term_maps(self, db_session):
         """Test alias values feed the index alongside label values."""
         self._create_location(
-            db_session,
-            "Q60",
-            "New York City",
-            labels=["New York"],
-            aliases=["NYC", "Big Apple"],
+            db_session, "Q60", labels=["New York"], aliases=["NYC", "Big Apple"]
         )
 
         query = WikidataEntity.search_index_query()
@@ -1102,9 +1085,7 @@ class TestSearchIndexQuery:
 
     def test_returns_entity_with_only_aliases(self, db_session):
         """Test entity without labels but with aliases is indexed."""
-        self._create_location(
-            db_session, "Q84", "London", aliases=["London", "The Smoke"]
-        )
+        self._create_location(db_session, "Q84", aliases=["London", "The Smoke"])
 
         query = WikidataEntity.search_index_query()
         results = db_session.execute(query).fetchall()
@@ -1116,32 +1097,8 @@ class TestSearchIndexQuery:
     def test_deduplicates_values_across_labels_and_aliases(self, db_session):
         """Test a value appearing as both label and alias is indexed once."""
         self._create_location(
-            db_session,
-            "Q60",
-            "New York City",
-            labels=["New York"],
-            aliases=["New York"],
+            db_session, "Q60", labels=["New York"], aliases=["New York"]
         )
-
-        query = WikidataEntity.search_index_query()
-        results = db_session.execute(query).fetchall()
-
-        assert len(results) == 1
-        assert set(results[0].labels) == {"New York"}
-
-    def test_ignores_wikidata_entity_label_rows(self, db_session):
-        """Test terms come from the JSONB maps, not the label table."""
-        from poliloom.models import WikidataEntityLabel
-
-        self._create_location(db_session, "Q60", "New York City", labels=["New York"])
-
-        # Stale label-table row not present in the term maps
-        db_session.execute(
-            insert(WikidataEntityLabel).values(
-                [{"entity_id": "Q60", "label": "Stale Label"}]
-            )
-        )
-        db_session.flush()
 
         query = WikidataEntity.search_index_query()
         results = db_session.execute(query).fetchall()
@@ -1155,7 +1112,7 @@ class TestSearchIndexQuery:
 
         # Germany is both a Location and a Country
         self._create_entity_with_terms(
-            db_session, "Q183", "Germany", labels=["Germany", "Deutschland"]
+            db_session, "Q183", labels=["Germany", "Deutschland"]
         )
 
         # Add to both tables
@@ -1180,10 +1137,8 @@ class TestSearchIndexQuery:
 
     def test_returns_multiple_entities(self, db_session):
         """Test query returns multiple entities."""
-        self._create_location(db_session, "Q60", "New York City", labels=["NYC"])
-        self._create_position(
-            db_session, "Q30185", "Mayor", labels=["Mayor", "Bürgermeister"]
-        )
+        self._create_location(db_session, "Q60", labels=["NYC"])
+        self._create_position(db_session, "Q30185", labels=["Mayor", "Bürgermeister"])
 
         query = WikidataEntity.search_index_query()
         results = db_session.execute(query).fetchall()
@@ -1201,8 +1156,8 @@ class TestSearchIndexQuery:
         """Test query excludes soft-deleted entities."""
         from datetime import datetime
 
-        self._create_location(db_session, "Q60", "New York City", labels=["NYC"])
-        self._create_location(db_session, "Q84", "London", labels=["London"])
+        self._create_location(db_session, "Q60", labels=["NYC"])
+        self._create_location(db_session, "Q84", labels=["London"])
 
         # Soft-delete London
         db_session.execute(
@@ -1221,12 +1176,10 @@ class TestSearchIndexQuery:
     def test_excludes_entities_not_in_model_tables(self, db_session):
         """Test query only returns entities that exist in model tables."""
         # Create entity with terms but NOT in any model table
-        self._create_entity_with_terms(
-            db_session, "Q999", "Orphan Entity", labels=["Orphan"]
-        )
+        self._create_entity_with_terms(db_session, "Q999", labels=["Orphan"])
 
         # Create proper location
-        self._create_location(db_session, "Q60", "New York City", labels=["NYC"])
+        self._create_location(db_session, "Q60", labels=["NYC"])
 
         query = WikidataEntity.search_index_query()
         results = db_session.execute(query).fetchall()
@@ -1237,8 +1190,8 @@ class TestSearchIndexQuery:
 
     def test_excludes_entities_without_terms(self, db_session):
         """Test query only returns entities that have labels or aliases."""
-        self._create_location(db_session, "Q60", "New York City", labels=["NYC"])
-        self._create_location(db_session, "Q100", "No Terms")
+        self._create_location(db_session, "Q60", labels=["NYC"])
+        self._create_location(db_session, "Q100")
 
         query = WikidataEntity.search_index_query()
         results = db_session.execute(query).fetchall()
@@ -1250,9 +1203,7 @@ class TestSearchIndexQuery:
         """Test query supports pagination with offset and limit."""
         # Create multiple locations
         for i in range(5):
-            self._create_location(
-                db_session, f"Q{i}", f"Location {i}", labels=[f"Label {i}"]
-            )
+            self._create_location(db_session, f"Q{i}", labels=[f"Label {i}"])
 
         query = WikidataEntity.search_index_query()
 
@@ -1341,3 +1292,79 @@ class TestTermMaps:
         assert by_id["Q43"] == "English only"
         assert by_id["Q44"] == "Svenska"
         assert by_id["Q45"] is None
+
+
+class TestRichDescription:
+    """WikidataEntityMixin.description builds a rich description from term maps."""
+
+    def _add_entity(self, db_session, wikidata_id, labels=None, descriptions=None):
+        values = {"wikidata_id": wikidata_id}
+        if labels:
+            values["labels"] = labels
+        if descriptions:
+            values["descriptions"] = descriptions
+        stmt = insert(WikidataEntity).values([values])
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+        db_session.flush()
+
+    def _add_position(self, db_session, wikidata_id):
+        from poliloom.models import Position
+
+        stmt = insert(Position.__table__).values([{"wikidata_id": wikidata_id}])
+        stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
+        db_session.execute(stmt)
+        db_session.flush()
+
+    def _add_relation(self, db_session, parent_id, child_id, relation_type):
+        stmt = insert(WikidataRelation).values(
+            [
+                {
+                    "parent_entity_id": parent_id,
+                    "child_entity_id": child_id,
+                    "relation_type": relation_type,
+                    "statement_id": f"{child_id}${relation_type.value}-{parent_id}",
+                }
+            ]
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["statement_id"])
+        db_session.execute(stmt)
+        db_session.flush()
+
+    def test_description_from_term_maps_and_relations(self, db_session):
+        """Descriptions and parent names resolve from the term maps."""
+        from poliloom.models import Position
+
+        self._add_entity(
+            db_session,
+            "Q200",
+            labels={"mul": "Mayor"},
+            descriptions={"en": "head of a municipal government"},
+        )
+        self._add_position(db_session, "Q200")
+        self._add_entity(db_session, "Q31", labels={"mul": "political position"})
+        self._add_entity(db_session, "Q100", labels={"de": "Bürgeramt"})
+        self._add_entity(db_session, "Q84", labels={"en": "London"})
+        self._add_relation(db_session, "Q31", "Q200", RelationType.INSTANCE_OF)
+        self._add_relation(db_session, "Q100", "Q200", RelationType.SUBCLASS_OF)
+        self._add_relation(db_session, "Q84", "Q200", RelationType.LOCATED_IN)
+        db_session.flush()
+
+        position = db_session.get(Position, "Q200")
+
+        assert position.description == (
+            "head of a municipal government, political position, "
+            "subclass of Bürgeramt, located in London"
+        )
+
+    def test_description_without_terms_or_relations(self, db_session):
+        """Entities without terms or relations produce an empty description."""
+        from poliloom.models import Position
+
+        self._add_entity(db_session, "Q200")
+        self._add_position(db_session, "Q200")
+        db_session.flush()
+
+        position = db_session.get(Position, "Q200")
+
+        assert position.description == ""

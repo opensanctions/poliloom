@@ -3,6 +3,7 @@
 import logging
 import multiprocessing as mp
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import dump_reader
@@ -15,7 +16,6 @@ from ..models import (
     PropertyType,
     Statement,
     WikidataEntity,
-    WikidataEntityLabel,
     WikipediaLink,
     WikipediaProject,
 )
@@ -95,54 +95,44 @@ def _insert_politicians_batch(politicians: list[dict], session: Session) -> None
     if not politicians:
         return
 
-    # First, ensure WikidataEntity records exist for all politicians (without labels)
+    # First, ensure WikidataEntity records exist for all politicians
     wikidata_data = [
         {
             "wikidata_id": p["wikidata_id"],
-            "name": p["name"],
             **p["terms"],
         }
         for p in politicians
     ]
     WikidataEntity.upsert_batch(session, wikidata_data)
 
-    # Insert labels into separate table
-    label_data = []
-    for p in politicians:
-        labels = p.get("labels")
-        if labels:
-            for label in labels:
-                label_data.append(
-                    {
-                        "entity_id": p["wikidata_id"],
-                        "label": label,
-                    }
-                )
-
-    if label_data:
-        WikidataEntityLabel.upsert_batch(session, label_data)
-
-    # Use UpsertMixin for politicians with RETURNING to get IDs directly
+    # Upsert politicians, then map QIDs to politician IDs. Existing rows are
+    # not updated (their terms live on wikidata_entities), so RETURNING would
+    # skip them on re-import.
     politician_data = [
         {
             "wikidata_id": p["wikidata_id"],
             "wikidata_id_numeric": p.get("wikidata_id_numeric"),
-            "name": p["name"],
         }
         for p in politicians
     ]
-    politician_rows = Politician.upsert_batch(
-        session,
-        politician_data,
-        returning_columns=[Politician.id, Politician.wikidata_id],
-    )
+    Politician.upsert_batch(session, politician_data)
 
-    # Process statements for each politician (order is guaranteed by PostgreSQL)
-    for row, politician_data in zip(politician_rows, politicians):
+    ids_by_qid = {
+        wikidata_id: politician_id
+        for politician_id, wikidata_id in session.execute(
+            select(Politician.id, Politician.wikidata_id).where(
+                Politician.wikidata_id.in_([p["wikidata_id"] for p in politicians])
+            )
+        ).all()
+    }
+
+    # Process statements for each politician
+    for politician_data in politicians:
+        politician_id = ids_by_qid[politician_data["wikidata_id"]]
         # Store canonical REST statement documents for tracked claims
         # (birth/death dates, positions, citizenships, birthplaces)
         statement_batch = [
-            {"politician_id": row.id, "document": document}
+            {"politician_id": politician_id, "document": document}
             for document in politician_data.get("statements", [])
         ]
 
@@ -152,7 +142,7 @@ def _insert_politicians_batch(politicians: list[dict], session: Session) -> None
         # Add Wikipedia links using batch UPSERT
         wikipedia_batch = [
             {
-                "politician_id": row.id,
+                "politician_id": politician_id,
                 "url": wiki_link["url"],
                 "wikipedia_project_id": wiki_link["wikipedia_project_id"],
             }
@@ -215,17 +205,10 @@ def _process_politicians_chunk(
                     except ValueError:
                         pass
 
-                # Extract all labels for search functionality
-                entity_labels = (
-                    entity.get_all_labels()
-                )  # Get all unique labels across languages
-
                 politician_data = {
                     "wikidata_id": wikidata_id,
                     "wikidata_id_numeric": wikidata_id_numeric,
-                    "name": entity.get_entity_name() or wikidata_id,
                     "terms": entity.get_terms(),
-                    "labels": entity_labels if entity_labels else None,
                     "statements": [],
                     "wikipedia_links": [],
                 }

@@ -96,10 +96,6 @@ class TestDumpReader:
             # All entities should be valid WikidataEntity instances
             for entity in entities:
                 assert entity.get_wikidata_id()
-                assert (
-                    entity.get_entity_name() is not None
-                    or entity.get_entity_name() == ""
-                )
 
         finally:
             os.unlink(temp_file)

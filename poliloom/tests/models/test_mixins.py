@@ -10,6 +10,8 @@ from poliloom.models.base import (
 )
 from poliloom.models.wikidata import WikidataEntityMixin
 
+from ..conftest import make_terms
+
 
 # Test-only model for EntityCreationMixin testing
 class DummyEntity(
@@ -33,40 +35,34 @@ class TestEntityCreationMixin:
     def test_create_with_entity_basic(self, db_session):
         """Test basic entity creation with wikidata entity."""
         entity = DummyEntity.create_with_entity(
-            db_session, "Q123456", "Test Entity Name"
+            db_session, "Q123456", make_terms("Test Entity Name")
         )
         db_session.flush()
 
         assert entity.wikidata_id == "Q123456"
-        assert entity.name == "Test Entity Name"
         assert entity.wikidata_entity is not None
         assert entity.wikidata_entity.wikidata_id == "Q123456"
-        assert entity.wikidata_entity.name == "Test Entity Name"
+        assert entity.wikidata_entity.resolved_label == "Test Entity Name"
 
-    def test_create_with_entity_with_description(self, db_session):
-        """Test entity creation with description."""
-        entity = DummyEntity.create_with_entity(
-            db_session,
-            "Q123456",
-            "Test Entity",
-            description="A test description",
-        )
+    def test_create_with_entity_with_terms(self, db_session):
+        """Test entity creation with full term maps."""
+        terms = {
+            "labels": {"en": "Test Entity", "de": "Testentität"},
+            "descriptions": {"en": "A test description"},
+            "aliases": {"en": ["Test", "Tester"]},
+        }
+        entity = DummyEntity.create_with_entity(db_session, "Q123456", terms)
         db_session.flush()
 
-        assert entity.wikidata_entity.description == "A test description"
+        assert entity.wikidata_entity.labels == terms["labels"]
+        assert entity.wikidata_entity.descriptions == terms["descriptions"]
+        assert entity.wikidata_entity.aliases == terms["aliases"]
+        assert entity.wikidata_entity.resolved_label == "Test Entity"
 
-    def test_create_with_entity_with_labels(self, db_session):
-        """Test entity creation with labels."""
-        labels = ["Label 1", "Label 2", "Alias 1"]
-        entity = DummyEntity.create_with_entity(
-            db_session, "Q123456", "Test Entity", labels=labels
-        )
+    def test_create_with_entity_without_terms(self, db_session):
+        """Test entity creation with empty term maps."""
+        entity = DummyEntity.create_with_entity(db_session, "Q123456", make_terms())
         db_session.flush()
 
-        # Verify labels were created
-        label_records = entity.wikidata_entity.label_records
-        assert len(label_records) == 3
-        label_texts = [label.label for label in label_records]
-        assert "Label 1" in label_texts
-        assert "Label 2" in label_texts
-        assert "Alias 1" in label_texts
+        assert entity.wikidata_entity.labels == {}
+        assert entity.wikidata_entity.resolved_label is None

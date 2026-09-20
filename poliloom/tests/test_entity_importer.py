@@ -21,9 +21,6 @@ class TestWikidataEntityImporter:
         positions = [
             {
                 "wikidata_id": "Q1",
-                "name": "Position 1",
-                "description": "First position",
-                "labels": ["Position 1"],
                 "terms": {
                     "labels": {"en": "Position 1"},
                     "descriptions": {"en": "First position"},
@@ -32,9 +29,6 @@ class TestWikidataEntityImporter:
             },
             {
                 "wikidata_id": "Q2",
-                "name": "Position 2",
-                "description": "Second position",
-                "labels": ["Position 2"],
                 "terms": {
                     "labels": {"en": "Position 2", "de": "Amt 2"},
                     "descriptions": {},
@@ -80,8 +74,6 @@ class TestWikidataEntityImporter:
         initial_positions = [
             {
                 "wikidata_id": "Q1",
-                "name": "Position 1",
-                "description": "First position",
                 "terms": {
                     "labels": {"en": "Position 1"},
                     "descriptions": {"en": "First position"},
@@ -90,8 +82,6 @@ class TestWikidataEntityImporter:
             },
             {
                 "wikidata_id": "Q2",
-                "name": "Position 2",
-                "description": "Second position",
                 "terms": {
                     "labels": {"en": "Position 2"},
                     "descriptions": {"en": "Second position"},
@@ -108,8 +98,6 @@ class TestWikidataEntityImporter:
         positions_with_duplicates = [
             {
                 "wikidata_id": "Q1",
-                "name": "Position 1 Updated",
-                "description": "First position updated",
                 "terms": {
                     "labels": {"en": "Position 1 Updated", "de": "Amt 1"},
                     "descriptions": {"en": "First position updated"},
@@ -118,8 +106,6 @@ class TestWikidataEntityImporter:
             },  # Duplicate (should update)
             {
                 "wikidata_id": "Q2",
-                "name": "Position 2",
-                "description": "Second position",
                 "terms": {
                     "labels": {"en": "Position 2"},
                     "descriptions": {"en": "Second position"},
@@ -128,8 +114,6 @@ class TestWikidataEntityImporter:
             },  # Duplicate (no change)
             {
                 "wikidata_id": "Q3",
-                "name": "Position 3",
-                "description": "Third position",
                 "terms": {
                     "labels": {"en": "Position 3"},
                     "descriptions": {"en": "Third position"},
@@ -152,7 +136,7 @@ class TestWikidataEntityImporter:
         q1_position = (
             db_session.query(Position).filter(Position.wikidata_id == "Q1").first()
         )
-        assert q1_position.wikidata_entity.name == "Position 1 Updated"
+        assert q1_position.wikidata_entity.resolved_label == "Position 1 Updated"
         assert q1_position.wikidata_entity.labels == {
             "en": "Position 1 Updated",
             "de": "Amt 1",
@@ -178,8 +162,6 @@ class TestWikidataEntityImporter:
         locations = [
             {
                 "wikidata_id": "Q1",
-                "name": "Location 1",
-                "description": "First location",
                 "terms": {
                     "labels": {"en": "Location 1"},
                     "descriptions": {"en": "First location"},
@@ -188,8 +170,6 @@ class TestWikidataEntityImporter:
             },
             {
                 "wikidata_id": "Q2",
-                "name": "Location 2",
-                "description": "Second location",
                 "terms": {
                     "labels": {"en": "Location 2"},
                     "descriptions": {"en": "Second location"},
@@ -225,8 +205,6 @@ class TestWikidataEntityImporter:
         locations = [
             {
                 "wikidata_id": "Q1",
-                "name": "Location 1",
-                "description": "First location",
                 "terms": {
                     "labels": {"en": "Location 1"},
                     "descriptions": {"en": "First location"},
@@ -235,8 +213,6 @@ class TestWikidataEntityImporter:
             },
             {
                 "wikidata_id": "Q2",
-                "name": "Location 2",
-                "description": "Second location",
                 "terms": {
                     "labels": {"en": "Location 2"},
                     "descriptions": {"en": "Second location"},
@@ -245,8 +221,6 @@ class TestWikidataEntityImporter:
             },
             {
                 "wikidata_id": "Q3",
-                "name": "Location 3",
-                "description": "Third location",
                 "terms": {
                     "labels": {"en": "Location 3"},
                     "descriptions": {"en": "Third location"},
@@ -264,8 +238,6 @@ class TestWikidataEntityImporter:
         locations_with_duplicates = [
             {
                 "wikidata_id": "Q1",
-                "name": "Location 1 Updated",
-                "description": "First location updated",
                 "terms": {
                     "labels": {"en": "Location 1 Updated"},
                     "descriptions": {"en": "First location updated"},
@@ -274,8 +246,6 @@ class TestWikidataEntityImporter:
             },  # Duplicate
             {
                 "wikidata_id": "Q4",
-                "name": "Location 4",
-                "description": "Fourth location",
                 "terms": {
                     "labels": {"en": "Location 4"},
                     "descriptions": {"en": "Fourth location"},
@@ -308,8 +278,6 @@ class TestWikidataEntityImporter:
         countries = [
             {
                 "wikidata_id": "Q1",
-                "name": "Country 1",
-                "description": "First country",
                 "iso_code": "C1",
                 "terms": {
                     "labels": {"en": "Country 1"},
@@ -319,8 +287,6 @@ class TestWikidataEntityImporter:
             },
             {
                 "wikidata_id": "Q2",
-                "name": "Country 2",
-                "description": "Second country",
                 "iso_code": "C2",
                 "terms": {
                     "labels": {"en": "Country 2"},
@@ -344,7 +310,7 @@ class TestWikidataEntityImporter:
 
         # Verify specific country data
         country1 = db_session.query(Country).filter(Country.wikidata_id == "Q1").first()
-        assert country1.name == "Country 1"
+        assert country1.wikidata_entity.resolved_label == "Country 1"
         assert country1.iso_code == "C1"
         assert country1.wikidata_entity.labels == {"en": "Country 1"}
         assert country1.wikidata_entity.descriptions == {"en": "First country"}
@@ -355,8 +321,6 @@ class TestWikidataEntityImporter:
         countries = [
             {
                 "wikidata_id": "Q1",
-                "name": "Country 1",
-                "description": "First country",
                 "iso_code": "C1",
                 "terms": {
                     "labels": {"en": "Country 1"},
@@ -376,8 +340,6 @@ class TestWikidataEntityImporter:
         updated_countries = [
             {
                 "wikidata_id": "Q1",
-                "name": "Country 1 Updated",
-                "description": "First country updated",
                 "iso_code": "C1",
                 "terms": {
                     "labels": {"en": "Country 1 Updated"},
@@ -395,7 +357,7 @@ class TestWikidataEntityImporter:
         final_countries = db_session.query(Country).all()
         assert len(final_countries) == 1
         assert final_countries[0].wikidata_id == "Q1"
-        assert final_countries[0].name == "Country 1 Updated"
+        assert final_countries[0].wikidata_entity.resolved_label == "Country 1 Updated"
         assert final_countries[0].wikidata_entity.labels == {"en": "Country 1 Updated"}
         assert final_countries[0].wikidata_entity.aliases == {"en": ["C1"]}
 
@@ -404,8 +366,6 @@ class TestWikidataEntityImporter:
         languages = [
             {
                 "wikidata_id": "Q1",
-                "name": "English",
-                "description": "English language",
                 "iso_639_1": "en",
                 "iso_639_2": "eng",
                 "terms": {
@@ -416,8 +376,6 @@ class TestWikidataEntityImporter:
             },
             {
                 "wikidata_id": "Q2",
-                "name": "Spanish",
-                "description": "Spanish language",
                 "iso_639_1": "es",
                 "iso_639_2": "spa",
                 "terms": {
@@ -458,8 +416,6 @@ class TestWikidataEntityImporter:
         languages = [
             {
                 "wikidata_id": "Q1",
-                "name": "English",
-                "description": "English language",
                 "iso_639_1": "en",
                 "iso_639_2": "eng",
                 "terms": {
@@ -480,8 +436,6 @@ class TestWikidataEntityImporter:
         updated_languages = [
             {
                 "wikidata_id": "Q1",
-                "name": "English Language",
-                "description": "English language updated",
                 "iso_639_1": "en",
                 "iso_639_2": "eng",
                 "terms": {
@@ -500,7 +454,7 @@ class TestWikidataEntityImporter:
         final_languages = db_session.query(Language).all()
         assert len(final_languages) == 1
         assert final_languages[0].wikidata_id == "Q1"
-        assert final_languages[0].name == "English Language"
+        assert final_languages[0].wikidata_entity.resolved_label == "English Language"
         assert final_languages[0].iso_639_1 == "en"
         assert final_languages[0].wikidata_entity.labels == {"en": "English Language"}
         assert final_languages[0].wikidata_entity.aliases == {"en": ["Anglish"]}
@@ -511,8 +465,6 @@ class TestWikidataEntityImporter:
         wikipedia_projects = [
             {
                 "wikidata_id": "Q328",
-                "name": "English Wikipedia",
-                "description": "English edition of Wikipedia",
                 "terms": {
                     "labels": {"en": "English Wikipedia"},
                     "descriptions": {"en": "English edition of Wikipedia"},
@@ -521,8 +473,6 @@ class TestWikidataEntityImporter:
             },
             {
                 "wikidata_id": "Q200183",
-                "name": "Simple English Wikipedia",
-                "description": "Simple English edition of Wikipedia",
                 "terms": {
                     "labels": {"en": "Simple English Wikipedia"},
                     "descriptions": {"en": "Simple English edition of Wikipedia"},
@@ -551,7 +501,7 @@ class TestWikidataEntityImporter:
             .filter(WikipediaProject.wikidata_id == "Q328")
             .first()
         )
-        assert project1.name == "English Wikipedia"
+        assert project1.wikidata_entity.resolved_label == "English Wikipedia"
         assert project1.wikidata_entity.labels == {"en": "English Wikipedia"}
         assert project1.wikidata_entity.aliases == {"en": ["enwiki"]}
 
@@ -560,15 +510,13 @@ class TestWikidataEntityImporter:
             .filter(WikipediaProject.wikidata_id == "Q200183")
             .first()
         )
-        assert project2.name == "Simple English Wikipedia"
+        assert project2.wikidata_entity.resolved_label == "Simple English Wikipedia"
 
     def test_insert_wikipedia_projects_batch_with_duplicates_handling(self, db_session):
         """Test that Wikipedia projects batch uses ON CONFLICT DO NOTHING."""
         wikipedia_projects = [
             {
                 "wikidata_id": "Q328",
-                "name": "English Wikipedia",
-                "description": "English edition of Wikipedia",
                 "terms": {
                     "labels": {"en": "English Wikipedia"},
                     "descriptions": {"en": "English edition of Wikipedia"},
@@ -589,8 +537,6 @@ class TestWikidataEntityImporter:
         updated_projects = [
             {
                 "wikidata_id": "Q328",
-                "name": "English Wikipedia Updated",
-                "description": "English edition of Wikipedia updated",
                 "terms": {
                     "labels": {"en": "English Wikipedia Updated"},
                     "descriptions": {"en": "English edition of Wikipedia updated"},
@@ -609,8 +555,11 @@ class TestWikidataEntityImporter:
         final_projects = db_session.query(WikipediaProject).all()
         assert len(final_projects) == 1
         assert final_projects[0].wikidata_id == "Q328"
-        # Name and terms are updated because WikidataEntity has update columns
-        assert final_projects[0].name == "English Wikipedia Updated"
+        # Terms are updated because WikidataEntity has update columns
+        assert (
+            final_projects[0].wikidata_entity.resolved_label
+            == "English Wikipedia Updated"
+        )
         assert final_projects[0].wikidata_entity.labels == {
             "en": "English Wikipedia Updated"
         }

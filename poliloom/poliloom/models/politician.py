@@ -31,7 +31,6 @@ from .base import (
 from .statement import Statement
 from .wikidata import (
     WikidataEntity,
-    WikidataEntityLabel,
     WikidataEntityMixin,
 )
 
@@ -48,14 +47,13 @@ class Politician(
     __tablename__ = "politicians"
 
     _search_indexed = True
-    # UpsertMixin configuration
-    _upsert_update_columns: ClassVar[list[str]] = ["name"]
+    # UpsertMixin configuration: terms live on wikidata_entities
+    _upsert_update_columns: ClassVar[list[str]] = []
     _upsert_conflict_columns: ClassVar[list[str]] = ["wikidata_id"]
 
     id = Column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
-    name = Column(String, nullable=False)
     # Override wikidata_id from WikidataEntityMixin to not be primary key
     wikidata_id = Column(
         String, ForeignKey("wikidata_entities.wikidata_id"), unique=True, index=True
@@ -85,7 +83,7 @@ class Politician(
             XML formatted politician context string
         """
         context_data = {
-            "name": self.wikidata_entity.resolved_label or self.name,
+            "name": self.wikidata_entity.resolved_label or self.wikidata_id,
             "wikidata_id": self.wikidata_id,
         }
 
@@ -183,43 +181,9 @@ class Politician(
             .all()
         )
         return {
-            entity.wikidata_id: entity.resolved_label or entity.name
+            entity.wikidata_id: entity.resolved_label or entity.wikidata_id
             for entity in entities
         }
-
-    @classmethod
-    def create_with_entity(
-        cls,
-        session,
-        wikidata_id: str,
-        name: str,
-        labels: list[str] | None = None,
-        description: str | None = None,
-    ):
-        """Create a Politician with its associated WikidataEntity."""
-        # Use EntityCreationMixin pattern but override for Politician
-        # Create WikidataEntity first
-        wikidata_entity = WikidataEntity(
-            wikidata_id=wikidata_id,
-            name=name,
-            description=description,
-        )
-        session.add(wikidata_entity)
-
-        # Create WikidataEntityLabel records if labels provided
-        if labels:
-            for label in labels:
-                label_record = WikidataEntityLabel(
-                    entity_id=wikidata_id,
-                    label=label,
-                )
-                session.add(label_record)
-
-        # Create the politician instance
-        politician = cls(wikidata_id=wikidata_id, name=name)
-        session.add(politician)
-
-        return politician
 
     @classmethod
     def query_base(cls):
@@ -237,9 +201,6 @@ class Politician(
 
     # Relationships
     wikidata_entity = relationship("WikidataEntity", back_populates="politician")
-    properties = relationship(
-        "Property", back_populates="politician", cascade="all, delete-orphan"
-    )
     statements = relationship(
         "Statement", back_populates="politician", cascade="all, delete-orphan"
     )

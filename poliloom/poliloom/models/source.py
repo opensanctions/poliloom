@@ -138,7 +138,6 @@ class Source(Base, TimestampMixin):
         secondary="politician_sources",
         back_populates="sources",
     )
-    property_references = relationship("PropertyReference", back_populates="source")
     source_languages = relationship(
         "SourceLanguage",
         back_populates="source",

@@ -11,6 +11,8 @@ from poliloom.models import (
     Statement,
 )
 
+from ..conftest import make_terms
+
 
 def birth_date_create_payload(statement_id="Q123456$birth-new"):
     """Build a CREATE_STATEMENT payload for a birth-date statement."""
@@ -91,7 +93,7 @@ class TestDecisionCountEndpoint:
     def test_count_returns_decided_actions_only(self, client, db_session, mock_auth):
         """Count endpoint should count decided actions, not pending ones."""
         politician = Politician.create_with_entity(
-            db_session, "Q123", "Test Politician"
+            db_session, "Q123", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -147,7 +149,7 @@ class TestStatsTimeseries:
     def test_timeseries_counts_decisions_by_week(self, client, db_session, mock_auth):
         """Accepted and discarded actions in the current week are counted."""
         politician = Politician.create_with_entity(
-            db_session, "Q123", "Test Politician"
+            db_session, "Q123", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -175,7 +177,7 @@ class TestStatsTimeseries:
     def test_timeseries_separates_weeks(self, client, db_session, mock_auth):
         """Decisions from different weeks land in different buckets."""
         politician = Politician.create_with_entity(
-            db_session, "Q123", "Test Politician"
+            db_session, "Q123", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -210,7 +212,7 @@ class TestStatsTimeseries:
     def test_timeseries_ignores_pending_actions(self, client, db_session, mock_auth):
         """Pending actions are not decisions and must not appear."""
         politician = Politician.create_with_entity(
-            db_session, "Q123", "Test Politician"
+            db_session, "Q123", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -231,7 +233,7 @@ class TestStatsTimeseries:
     ):
         """Decisions older than the cooldown period are not counted."""
         politician = Politician.create_with_entity(
-            db_session, "Q123", "Test Politician"
+            db_session, "Q123", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -258,8 +260,8 @@ class TestStatsCountryCoverage:
 
     def test_coverage_groups_by_p27_statements(self, client, db_session, mock_auth):
         """Politicians are grouped by their live P27 citizenship statements."""
-        us = Country.create_with_entity(db_session, "Q30", "United States")
-        germany = Country.create_with_entity(db_session, "Q183", "Germany")
+        us = Country.create_with_entity(db_session, "Q30", make_terms("United States"))
+        germany = Country.create_with_entity(db_session, "Q183", make_terms("Germany"))
         db_session.flush()
         set_terms(
             us,
@@ -269,8 +271,12 @@ class TestStatsCountryCoverage:
         set_terms(germany, labels={"en": "Germany", "de": "Deutschland"})
         db_session.flush()
 
-        politician1 = Politician.create_with_entity(db_session, "Q1", "Dual Citizen")
-        politician2 = Politician.create_with_entity(db_session, "Q2", "American")
+        politician1 = Politician.create_with_entity(
+            db_session, "Q1", make_terms("Dual Citizen")
+        )
+        politician2 = Politician.create_with_entity(
+            db_session, "Q2", make_terms("American")
+        )
         db_session.flush()
 
         # politician1 is a citizen of both countries, politician2 only of the US
@@ -314,8 +320,10 @@ class TestStatsCountryCoverage:
 
     def test_coverage_without_citizenship_bucket(self, client, db_session, mock_auth):
         """Politicians without citizenship statements get a null-terms group."""
-        Country.create_with_entity(db_session, "Q30", "United States")
-        politician = Politician.create_with_entity(db_session, "Q1", "No Country")
+        Country.create_with_entity(db_session, "Q30", make_terms("United States"))
+        politician = Politician.create_with_entity(
+            db_session, "Q1", make_terms("No Country")
+        )
         db_session.flush()
 
         create_action(
@@ -336,8 +344,10 @@ class TestStatsCountryCoverage:
 
     def test_coverage_ignores_deleted_statements(self, client, db_session, mock_auth):
         """Soft-deleted citizenship statements count as no citizenship."""
-        Country.create_with_entity(db_session, "Q30", "United States")
-        politician = Politician.create_with_entity(db_session, "Q1", "Ex Citizen")
+        Country.create_with_entity(db_session, "Q30", make_terms("United States"))
+        politician = Politician.create_with_entity(
+            db_session, "Q1", make_terms("Ex Citizen")
+        )
         db_session.flush()
 
         statement = create_citizenship(db_session, politician, "Q30", "Q1$P27-1")
@@ -358,8 +368,10 @@ class TestStatsCountryCoverage:
         self, client, db_session, mock_auth
     ):
         """Only P27 statements group politicians; P39 statements do not."""
-        Country.create_with_entity(db_session, "Q30", "United States")
-        politician = Politician.create_with_entity(db_session, "Q1", "Official")
+        Country.create_with_entity(db_session, "Q30", make_terms("United States"))
+        politician = Politician.create_with_entity(
+            db_session, "Q1", make_terms("Official")
+        )
         db_session.flush()
 
         db_session.add(
@@ -385,8 +397,10 @@ class TestStatsCountryCoverage:
 
     def test_coverage_decided_within_cooldown(self, client, db_session, mock_auth):
         """Politicians whose decisions predate the cooldown are not decided."""
-        Country.create_with_entity(db_session, "Q30", "United States")
-        politician = Politician.create_with_entity(db_session, "Q1", "Old Decision")
+        Country.create_with_entity(db_session, "Q30", make_terms("United States"))
+        politician = Politician.create_with_entity(
+            db_session, "Q1", make_terms("Old Decision")
+        )
         db_session.flush()
 
         create_citizenship(db_session, politician, "Q30", "Q1$P27-1")
@@ -409,8 +423,10 @@ class TestStatsCountryCoverage:
 
     def test_coverage_enriched_within_cooldown(self, client, db_session, mock_auth):
         """Only sources fetched within the cooldown count as enriched."""
-        Country.create_with_entity(db_session, "Q30", "United States")
-        politician = Politician.create_with_entity(db_session, "Q1", "Enriched")
+        Country.create_with_entity(db_session, "Q30", make_terms("United States"))
+        politician = Politician.create_with_entity(
+            db_session, "Q1", make_terms("Enriched")
+        )
         db_session.flush()
 
         create_citizenship(db_session, politician, "Q30", "Q1$P27-1")
@@ -431,8 +447,10 @@ class TestStatsCountryCoverage:
 
     def test_coverage_enriched_recent_source(self, client, db_session, mock_auth):
         """A source fetched within the cooldown counts as enriched."""
-        Country.create_with_entity(db_session, "Q30", "United States")
-        politician = Politician.create_with_entity(db_session, "Q1", "Enriched")
+        Country.create_with_entity(db_session, "Q30", make_terms("United States"))
+        politician = Politician.create_with_entity(
+            db_session, "Q1", make_terms("Enriched")
+        )
         db_session.flush()
 
         create_citizenship(db_session, politician, "Q30", "Q1$P27-1")

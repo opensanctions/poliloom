@@ -16,6 +16,8 @@ from poliloom.models import (
     Statement,
 )
 
+from ..conftest import make_terms
+
 
 def statement_document(
     statement_id, property_id, content=None, data_type="wikibase-item"
@@ -654,12 +656,9 @@ class TestSearchPoliticiansEndpoint:
         politician = Politician.create_with_entity(
             db_session,
             "Q999888",
-            "Unique Search Test Name",
-            labels=["Unique Search Test Name"],
+            make_terms("Unique Search Test Name"),
         )
         db_session.add(politician)
-        db_session.flush()
-        politician.wikidata_entity.labels = {"en": "Unique Search Test Name"}
         db_session.flush()
 
         create_statement(politician, birth_date_statement("Q999888$birth-1"))

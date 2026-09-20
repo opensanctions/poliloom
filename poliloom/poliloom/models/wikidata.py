@@ -10,7 +10,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     String,
-    Text,
     and_,
     cast,
     delete,
@@ -41,8 +40,7 @@ from .base import (
     TimestampMixin,
     UpsertMixin,
 )
-from .property import Property
-from .user import Evaluation
+from .statement import Statement
 
 
 class WikidataEntityMixin:
@@ -61,19 +59,17 @@ class WikidataEntityMixin:
         return relationship("WikidataEntity", lazy="joined")
 
     @property
-    def name(self) -> str:
-        """Get the name from the associated WikidataEntity."""
-        return self.wikidata_entity.name
-
-    @property
     def description(self) -> str:
         """Build rich description from WikidataRelations dynamically.
+
+        Resolves the entity's own description and its relation parents' names
+        from the language-keyed term maps.
 
         Returns:
             Rich description string built from relations
         """
 
-        if not hasattr(self, "wikidata_entity") or not self.wikidata_entity:
+        if not self.wikidata_entity:
             return ""
 
         # Use preloaded relations instead of querying database
@@ -82,16 +78,17 @@ class WikidataEntityMixin:
         # Group relations by type using defaultdict
         relations_by_type = defaultdict(list)
         for relation in relations:
-            if relation.parent_entity and relation.parent_entity.name:
-                relations_by_type[relation.relation_type].append(
-                    relation.parent_entity.name
-                )
+            parent = relation.parent_entity
+            parent_label = parent.resolved_label if parent else None
+            if parent_label:
+                relations_by_type[relation.relation_type].append(parent_label)
 
         description_parts = []
 
         # Add Wikidata description if available
-        if self.wikidata_entity.description:
-            description_parts.append(self.wikidata_entity.description)
+        entity_description = resolve_label(self.wikidata_entity.descriptions)
+        if entity_description:
+            description_parts.append(entity_description)
 
         # Build description based on available relations
         if relations_by_type[RelationType.INSTANCE_OF]:
@@ -351,23 +348,19 @@ class WikidataEntityMixin:
         Returns:
             Dict with preview statistics:
             - 'entities_removed': Number of entity records that would be deleted
-            - 'properties_deleted': Number of properties that would be soft-deleted
-            - 'properties_total': Total properties of this type
-            - 'properties_extracted': Properties that were extracted (no statement_id)
-            - 'properties_evaluated': Properties with evaluations
+            - 'statements_deleted': Number of statements that would be soft-deleted
+            - 'statements_total': Total statements of this property type
             - 'total_entities': Total entities before cleanup
         """
         root_ids = cls._hierarchy_roots
         ignore_ids = cls._hierarchy_ignore or []
-        prop_type = getattr(cls, "_cleanup_property_type", None)
+        property_id = getattr(cls, "_cleanup_property_type", None)
         total = session.execute(select(func.count()).select_from(cls)).scalar()
 
         stats = {
             "entities_removed": 0,
-            "properties_deleted": 0,
-            "properties_total": 0,
-            "properties_extracted": 0,
-            "properties_evaluated": 0,
+            "statements_deleted": 0,
+            "statements_total": 0,
             "total_entities": total,
         }
 
@@ -384,39 +377,29 @@ class WikidataEntityMixin:
         if stats["entities_removed"] == 0:
             return stats
 
-        if prop_type:
-            props_to_delete = (
-                select(
-                    func.count().label("total"),
-                    func.count()
-                    .filter(Property.statement_id.is_(None))
-                    .label("extracted"),
-                    func.count(Evaluation.property_id.distinct())
-                    .filter(Property.statement_id.is_(None))
-                    .label("evaluated"),
-                )
-                .select_from(Property)
-                .outerjoin(Evaluation, Evaluation.property_id == Property.id)
+        if property_id:
+            stats["statements_deleted"] = session.execute(
+                select(func.count())
+                .select_from(Statement)
                 .where(
                     and_(
-                        Property.entity_id.in_(select(outside_subquery)),
-                        Property.type == prop_type,
-                        Property.deleted_at.is_(None),
+                        Statement.entity_id.in_(select(outside_subquery)),
+                        Statement.property_id == property_id,
+                        Statement.deleted_at.is_(None),
                     )
                 )
-            )
-            prop_stats = session.execute(props_to_delete).fetchone()
-
-            all_props_count = session.execute(
-                select(func.count())
-                .select_from(Property)
-                .where(and_(Property.type == prop_type, Property.deleted_at.is_(None)))
             ).scalar()
 
-            stats["properties_deleted"] = prop_stats.total
-            stats["properties_total"] = all_props_count
-            stats["properties_extracted"] = prop_stats.extracted
-            stats["properties_evaluated"] = prop_stats.evaluated
+            stats["statements_total"] = session.execute(
+                select(func.count())
+                .select_from(Statement)
+                .where(
+                    and_(
+                        Statement.property_id == property_id,
+                        Statement.deleted_at.is_(None),
+                    )
+                )
+            ).scalar()
 
         return stats
 
@@ -427,23 +410,23 @@ class WikidataEntityMixin:
     ) -> dict[str, int]:
         """Remove entities outside the configured hierarchy.
 
-        Soft-deletes properties referencing these entities (if applicable),
+        Soft-deletes statements referencing these entities (if applicable),
         then hard-deletes the entity records and removes them from search index.
 
         Returns:
             Dict with cleanup statistics:
             - 'entities_removed': Number of entity records deleted
-            - 'properties_deleted': Number of properties soft-deleted
+            - 'statements_deleted': Number of statements soft-deleted
             - 'total_entities': Total entities before cleanup
         """
         root_ids = cls._hierarchy_roots
         ignore_ids = cls._hierarchy_ignore or []
-        prop_type = getattr(cls, "_cleanup_property_type", None)
+        property_id = getattr(cls, "_cleanup_property_type", None)
         total = session.execute(select(func.count()).select_from(cls)).scalar()
 
         stats = {
             "entities_removed": 0,
-            "properties_deleted": 0,
+            "statements_deleted": 0,
             "total_entities": total,
         }
 
@@ -454,20 +437,20 @@ class WikidataEntityMixin:
             root_ids, ignore_ids or None
         )
 
-        # Soft-delete properties if this entity type has associated properties
-        if prop_type:
-            props_deleted = session.execute(
-                update(Property)
+        # Soft-delete statements if this entity type has associated statements
+        if property_id:
+            statements_deleted = session.execute(
+                update(Statement)
                 .where(
                     and_(
-                        Property.entity_id.in_(select(outside_subquery)),
-                        Property.type == prop_type,
-                        Property.deleted_at.is_(None),
+                        Statement.entity_id.in_(select(outside_subquery)),
+                        Statement.property_id == property_id,
+                        Statement.deleted_at.is_(None),
                     )
                 )
                 .values(deleted_at=func.now())
             ).rowcount
-            stats["properties_deleted"] = props_deleted
+            stats["statements_deleted"] = statements_deleted
 
         # Hard-delete entity records and get deleted IDs via RETURNING
         delete_stmt = (
@@ -494,20 +477,12 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
 
     # UpsertMixin configuration
     _upsert_update_columns: ClassVar[list[str]] = [
-        "name",
-        "description",
         "labels",
         "descriptions",
         "aliases",
     ]
 
     wikidata_id = Column(String, primary_key=True)  # Wikidata QID as primary key
-    name = Column(
-        String, nullable=True
-    )  # Entity name from Wikidata labels (can be None)
-    description = Column(
-        String, nullable=True
-    )  # Entity description from Wikidata descriptions (can be None)
     labels = Column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )  # {lang: label}
@@ -519,11 +494,6 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
     )  # {lang: [alias]}
 
     # Relationships
-    label_records = relationship(
-        "WikidataEntityLabel",
-        back_populates="entity",
-        cascade="all, delete-orphan",
-    )
     parent_relations = relationship(
         "WikidataRelation",
         foreign_keys="WikidataRelation.child_entity_id",
@@ -549,12 +519,12 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
 
     @classmethod
     def cleanup_orphaned(cls, session: Session) -> int:
-        """Hard-delete wikidata_entities not referenced by any entity table or property.
+        """Hard-delete wikidata_entities not referenced by any entity table or statement.
 
         Removes WikidataEntity records that are no longer needed because:
         - No politician, position, location, country, language, or wikipedia_project references them
         - No source_languages references them as language_id
-        - No property references them as entity_id
+        - No statement references them as entity_id
         - No relation references them as parent of a kept entity
 
         Args:
@@ -595,12 +565,12 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             )
         )
 
-        # Keep entities referenced by properties
+        # Keep entities referenced by statements
         session.execute(
             text("""
             INSERT INTO entities_to_keep
             SELECT DISTINCT entity_id
-            FROM properties
+            FROM statements
             WHERE entity_id IS NOT NULL
         """)
         )
@@ -729,40 +699,6 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             .where(cls.deleted_at.is_(None))
             .group_by(entity_unions.c.wikidata_id)
         )
-
-
-class WikidataEntityLabel(Base, TimestampMixin, UpsertMixin):
-    """Normalized label storage for wikidata entities."""
-
-    __tablename__ = "wikidata_entity_labels"
-    __table_args__ = (
-        Index(
-            "uq_wikidata_entity_labels_entity_label",
-            "entity_id",
-            "label",
-            unique=True,
-        ),
-        Index("idx_wikidata_entity_labels_entity_id", "entity_id"),
-    )
-
-    # UpsertMixin configuration
-    _upsert_conflict_columns: ClassVar[list[str]] = ["entity_id", "label"]
-    _upsert_update_columns: ClassVar[
-        list[str]
-    ] = []  # No updates needed - labels are immutable
-
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
-    )
-    entity_id = Column(
-        String,
-        ForeignKey("wikidata_entities.wikidata_id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    label = Column(Text, nullable=False)
-
-    # Relationships
-    entity = relationship("WikidataEntity", back_populates="label_records")
 
 
 class WikidataRelation(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
@@ -1067,7 +1003,7 @@ class CurrentImportStatement(Base):
         )
 
         return {
-            "properties_marked_deleted": statements_deleted_result.rowcount,
+            "statements_marked_deleted": statements_deleted_result.rowcount,
             "relations_marked_deleted": relations_deleted_result.rowcount,
         }
 

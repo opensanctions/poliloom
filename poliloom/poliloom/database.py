@@ -80,12 +80,9 @@ def create_timestamp_triggers(engine: Engine):
         tables_with_updated_at = [
             "sources",
             "countries",
-            "evaluations",
             "locations",
             "politicians",
             "positions",
-            "properties",
-            "property_references",
             "wikidata_dumps",
             "wikidata_entities",
             "wikidata_relations",
@@ -188,16 +185,6 @@ def create_import_tracking_triggers(engine: Engine):
         )
 
         # Create triggers for statement tracking (replace if exists)
-        conn.execute(
-            text(
-                """
-            CREATE OR REPLACE TRIGGER track_property_access
-            AFTER INSERT OR UPDATE ON properties
-            FOR EACH ROW EXECUTE FUNCTION track_statement_access();
-        """
-            )
-        )
-
         conn.execute(
             text(
                 """

@@ -42,8 +42,8 @@ class Country(
     ]
     _hierarchy_ignore: ClassVar[list[str]] = []
 
-    # Cleanup configuration: property type to soft-delete when cleaning hierarchy
-    _cleanup_property_type = "CITIZENSHIP"
+    # Cleanup configuration: property ID whose statements are soft-deleted when cleaning hierarchy
+    _cleanup_property_type = "P27"
 
     iso_code = Column(String, index=True)  # ISO 3166-1 alpha-2 code
 
@@ -249,8 +249,8 @@ class Location(
     ]
     _hierarchy_ignore: ClassVar[list[str]] = []
 
-    # Cleanup configuration: property type to soft-delete when cleaning hierarchy
-    _cleanup_property_type = "BIRTHPLACE"
+    # Cleanup configuration: property ID whose statements are soft-deleted when cleaning hierarchy
+    _cleanup_property_type = "P19"
 
     # Mapping configuration for two-stage extraction
     MAPPING_ENTITY_NAME = "location"
@@ -307,8 +307,8 @@ class Position(
         "Q4504549",  # religious figure
     ]
 
-    # Cleanup configuration: property type to soft-delete when cleaning hierarchy
-    _cleanup_property_type = "POSITION"
+    # Cleanup configuration: property ID whose statements are soft-deleted when cleaning hierarchy
+    _cleanup_property_type = "P39"
 
     # Mapping configuration for two-stage extraction
     MAPPING_ENTITY_NAME = "position"

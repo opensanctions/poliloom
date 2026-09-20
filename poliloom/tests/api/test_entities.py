@@ -6,6 +6,8 @@ import pytest
 
 from poliloom.models import Politician, Statement
 
+from ..conftest import make_terms
+
 
 def set_terms(entity, *, labels=None, descriptions=None, aliases=None):
     """Set language-keyed term maps on an entity's WikidataEntity."""
@@ -87,10 +89,10 @@ class TestGetLanguages:
     ):
         """Languages should count Wikipedia links through WikipediaProject relations."""
         politician2 = Politician.create_with_entity(
-            db_session, "Q999888", "Second Politician"
+            db_session, "Q999888", make_terms("Second Politician")
         )
         politician3 = Politician.create_with_entity(
-            db_session, "Q999777", "Third Politician"
+            db_session, "Q999777", make_terms("Third Politician")
         )
         db_session.flush()
 
@@ -136,10 +138,10 @@ class TestGetLanguages:
     ):
         """Languages should be ordered by sources_count descending."""
         politician2 = Politician.create_with_entity(
-            db_session, "Q999888", "Second Politician"
+            db_session, "Q999888", make_terms("Second Politician")
         )
         politician3 = Politician.create_with_entity(
-            db_session, "Q999777", "Third Politician"
+            db_session, "Q999777", make_terms("Third Politician")
         )
         db_session.flush()
 
@@ -235,13 +237,13 @@ class TestGetCountries:
     ):
         """Countries should count live P27 citizenship statements."""
         politician1 = Politician.create_with_entity(
-            db_session, "Q999888", "First Politician"
+            db_session, "Q999888", make_terms("First Politician")
         )
         politician2 = Politician.create_with_entity(
-            db_session, "Q999777", "Second Politician"
+            db_session, "Q999777", make_terms("Second Politician")
         )
         politician3 = Politician.create_with_entity(
-            db_session, "Q999666", "Third Politician"
+            db_session, "Q999666", make_terms("Third Politician")
         )
         db_session.flush()
 
@@ -298,13 +300,13 @@ class TestGetCountries:
     ):
         """Countries should be ordered by citizenships_count descending."""
         politician1 = Politician.create_with_entity(
-            db_session, "Q999888", "First Politician"
+            db_session, "Q999888", make_terms("First Politician")
         )
         politician2 = Politician.create_with_entity(
-            db_session, "Q999777", "Second Politician"
+            db_session, "Q999777", make_terms("Second Politician")
         )
         politician3 = Politician.create_with_entity(
-            db_session, "Q999666", "Third Politician"
+            db_session, "Q999666", make_terms("Third Politician")
         )
         db_session.flush()
 
@@ -384,7 +386,7 @@ class TestEntitySearch:
 
         model_class = getattr(models, model_name)
         for i, name in enumerate(names):
-            model_class.create_with_entity(db_session, f"Q{i + 1}", name, labels=[name])
+            model_class.create_with_entity(db_session, f"Q{i + 1}", make_terms(name))
         db_session.flush()
 
         response = client.get(
@@ -404,8 +406,7 @@ class TestEntitySearch:
         position = Position.create_with_entity(
             db_session,
             "Q1",
-            "Mayor of Springfield",
-            labels=["Mayor of Springfield"],
+            make_terms("Mayor of Springfield"),
         )
         db_session.flush()
         set_terms(
@@ -453,11 +454,9 @@ class TestEntitySearch:
         """Should filter out soft-deleted entities from search results."""
         from poliloom.models import Position
 
-        Position.create_with_entity(
-            db_session, "Q1", "Active Position", labels=["Active Position"]
-        )
+        Position.create_with_entity(db_session, "Q1", make_terms("Active Position"))
         pos2 = Position.create_with_entity(
-            db_session, "Q2", "Deleted Position", labels=["Deleted Position"]
+            db_session, "Q2", make_terms("Deleted Position")
         )
         db_session.flush()
 
@@ -479,7 +478,7 @@ class TestEntitySearch:
 
         for i in range(5):
             Position.create_with_entity(
-                db_session, f"Q{i}", f"Test Position {i}", labels=[f"Test Position {i}"]
+                db_session, f"Q{i}", make_terms(f"Test Position {i}")
             )
         db_session.flush()
 

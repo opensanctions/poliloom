@@ -8,7 +8,6 @@ from .base import (
     Base,
     EntityCreationMixin,
     LanguageCodeMixin,
-    PropertyComparisonResult,
     PropertyType,
     RelationType,
     SoftDeleteMixin,
@@ -25,9 +24,6 @@ from .politician import (
     WikipediaLink,
 )
 
-# Property domain
-from .property import Property, PropertyReference
-
 # Sources
 from .source import (
     PoliticianSource,
@@ -41,7 +37,7 @@ from .source import (
 from .statement import Statement
 
 # User interaction
-from .user import Evaluation, PropertyClaim, PropertySkip, UserSettings
+from .user import UserSettings
 
 # Wikidata infrastructure
 from .wikidata import (
@@ -51,7 +47,6 @@ from .wikidata import (
     DownloadInProgressError,
     WikidataDump,
     WikidataEntity,
-    WikidataEntityLabel,
     WikidataEntityMixin,
     WikidataRelation,
 )
@@ -74,7 +69,6 @@ __all__ = [
     "DownloadInProgressError",
     "EntityCreationMixin",
     # User
-    "Evaluation",
     "Language",
     "LanguageCodeMixin",
     "Location",
@@ -82,11 +76,6 @@ __all__ = [
     "Politician",
     "PoliticianSource",
     "Position",
-    "Property",
-    "PropertyClaim",
-    "PropertyComparisonResult",
-    "PropertyReference",
-    "PropertySkip",
     "PropertyType",
     "RelationType",
     "SoftDeleteMixin",
@@ -101,7 +90,6 @@ __all__ = [
     "UserSettings",
     "WikidataDump",
     "WikidataEntity",
-    "WikidataEntityLabel",
     "WikidataEntityMixin",
     "WikidataRelation",
     "WikipediaLink",

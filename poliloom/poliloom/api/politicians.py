@@ -169,7 +169,7 @@ async def create_politician(
     errors = []
     jwt_token = current_user.jwt_token
 
-    # 1. Create the Wikidata entity
+    # 1. Create the Wikidata entity (labels/descriptions are sent as en+mul/en)
     try:
         wikidata_id = await create_entity(request.name, jwt_token=jwt_token)
     except (WikidataApiError, httpx2.HTTPError, ValueError) as e:
@@ -189,8 +189,13 @@ async def create_politician(
         except (WikidataApiError, httpx2.HTTPError, ValueError) as e:
             errors.append(f"Failed to add {prop_id} statement: {e!s}")
 
-    # 3. Create the Politician row in the local DB
-    politician = Politician(name=request.name, wikidata_id=wikidata_id)
+    # 3. Create the local WikidataEntity and Politician rows
+    wikidata_entity = WikidataEntity(
+        wikidata_id=wikidata_id,
+        labels={"en": request.name, "mul": request.name},
+    )
+    politician = Politician(wikidata_id=wikidata_id)
+    db.add(wikidata_entity)
     db.add(politician)
     try:
         db.commit()

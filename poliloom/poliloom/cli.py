@@ -19,17 +19,17 @@ from poliloom.importer.hierarchy import import_hierarchy_trees
 from poliloom.importer.politician import import_politicians
 from poliloom.logging import setup_logging
 from poliloom.models import (
+    Action,
+    ActionEvidence,
     Country,
     CurrentImportEntity,
     CurrentImportStatement,
     DownloadAlreadyCompleteError,
     DownloadInProgressError,
-    Evaluation,
     Language,
     Location,
     Politician,
     Position,
-    Property,
     Source,
     WikidataDump,
     WikidataEntity,
@@ -572,7 +572,7 @@ def garbage_collect():
                 session, previous_dump.last_modified
             )
             click.echo(
-                f"  • Soft-deleted {statement_counts['properties_marked_deleted']} properties"
+                f"  • Soft-deleted {statement_counts['statements_marked_deleted']} statements"
             )
             click.echo(
                 f"  • Soft-deleted {statement_counts['relations_marked_deleted']} relations"
@@ -580,7 +580,7 @@ def garbage_collect():
 
             total_deleted = (
                 deleted_entity_count
-                + statement_counts["properties_marked_deleted"]
+                + statement_counts["statements_marked_deleted"]
                 + statement_counts["relations_marked_deleted"]
             )
 
@@ -625,7 +625,7 @@ def clean_entities(dry_run):
 
     Steps performed:
     1. Identify entities outside current hierarchy
-    2. Soft-delete properties referencing removed entities (POSITION, BIRTHPLACE, CITIZENSHIP)
+    2. Soft-delete statements referencing removed entities (P39, P19, P27)
     3. Hard-delete entity records from specialized tables
     4. Hard-delete wikidata_entities only referenced by removed entities
     """
@@ -633,7 +633,7 @@ def clean_entities(dry_run):
         click.echo("🔍 DRY RUN MODE - No changes will be made")
     else:
         click.echo(
-            "⚠️  This will soft-delete properties and hard-delete entity records outside the current hierarchy"
+            "⚠️  This will soft-delete statements and hard-delete entity records outside the current hierarchy"
         )
         if not click.confirm("Do you want to continue?"):
             click.echo("Aborted.")
@@ -654,7 +654,7 @@ def clean_entities(dry_run):
 
                 total = stats["total_entities"]
                 removed = stats["entities_removed"]
-                props = stats["properties_deleted"]
+                statements = stats["statements_deleted"]
                 pct = (removed / total * 100) if total else 0
 
                 click.echo(f"  • Found {removed}/{total} {name} to remove ({pct:.1f}%)")
@@ -662,22 +662,22 @@ def clean_entities(dry_run):
                 if removed > 0:
                     any_removed = True
                     if dry_run:
-                        if props:
-                            props_total = stats["properties_total"]
-                            props_extracted = stats["properties_extracted"]
-                            props_evaluated = stats["properties_evaluated"]
-                            pct_props = (
-                                (props / props_total * 100) if props_total else 0
+                        if statements:
+                            statements_total = stats["statements_total"]
+                            pct_statements = (
+                                (statements / statements_total * 100)
+                                if statements_total
+                                else 0
                             )
                             click.echo(
-                                f"  • [DRY RUN] Would soft-delete {props}/{props_total} properties ({pct_props:.1f}%) - {props_extracted} extracted, {props_evaluated} with evaluations"
+                                f"  • [DRY RUN] Would soft-delete {statements}/{statements_total} statements ({pct_statements:.1f}%)"
                             )
                         click.echo(
                             f"  • [DRY RUN] Would hard-delete {removed} {name} records"
                         )
                     else:
-                        if props:
-                            click.echo(f"    → Soft-deleted {props} properties")
+                        if statements:
+                            click.echo(f"    → Soft-deleted {statements} statements")
                         click.echo(f"    → Hard-deleted {removed} {name} records")
 
             # Clean orphaned wikidata_entities
@@ -705,19 +705,17 @@ def clean_entities(dry_run):
             raise SystemExit(1)
 
 
-@main.command("clean-properties")
+@main.command("clean-actions")
 @click.option(
     "--dry-run",
     is_flag=True,
     help="Preview what would be deleted without making changes",
 )
-def clean_properties(dry_run):
-    """Delete all unevaluated extracted properties.
+def clean_actions(dry_run):
+    """Delete all pending review actions.
 
-    This command removes properties that:
-    - Were extracted from web sources (source_id IS NOT NULL)
-    - Have not been evaluated/pushed to Wikidata (statement_id IS NULL)
-    - Are not already soft-deleted (deleted_at IS NULL)
+    This command removes actions that:
+    - Have not been decided yet (is_accepted IS NULL)
 
     This is useful for clearing extracted data that needs to be re-extracted
     with different extraction parameters or when changing enrichment strategies.
@@ -725,47 +723,30 @@ def clean_properties(dry_run):
     if dry_run:
         click.echo("🔍 DRY RUN MODE - No changes will be made")
     else:
-        click.echo(
-            "⚠️  This will permanently delete all unevaluated extracted properties"
-        )
+        click.echo("⚠️  This will permanently delete all pending review actions")
         if not click.confirm("Do you want to continue?"):
             click.echo("Aborted.")
             return
 
     with Session(get_engine()) as session:
         try:
-            # NOT EXISTS check for evaluations
-            has_evaluation = exists().where(Evaluation.property_id == Property.id)
+            pending_filter = Action.is_accepted.is_(None)
 
-            # Count unevaluated extracted properties without evaluations
-            count_query = (
-                session.query(Property)
-                .filter(
-                    Property.statement_id.is_(None),  # Extracted (not on Wikidata)
-                    Property.deleted_at.is_(None),  # Not already deleted
-                    ~has_evaluation,  # No evaluations attached
-                )
-                .count()
-            )
+            # Count pending actions
+            count_query = session.query(Action).filter(pending_filter).count()
 
             if count_query == 0:
-                click.echo("✅ No unevaluated extracted properties found")
+                click.echo("✅ No pending actions found")
                 return
 
-            click.echo(f"Found {count_query} unevaluated extracted properties")
+            click.echo(f"Found {count_query} pending actions")
 
             if dry_run:
-                click.echo(
-                    f"  • [DRY RUN] Would delete {count_query} unevaluated extracted properties"
-                )
+                click.echo(f"  • [DRY RUN] Would delete {count_query} pending actions")
                 # Count affected politicians
                 affected_politicians = (
-                    session.query(Property.politician_id)
-                    .filter(
-                        Property.statement_id.is_(None),
-                        Property.deleted_at.is_(None),
-                        ~has_evaluation,
-                    )
+                    session.query(Action.politician_id)
+                    .filter(pending_filter)
                     .distinct()
                     .count()
                 )
@@ -773,32 +754,25 @@ def clean_properties(dry_run):
                     f"  • [DRY RUN] Would remove unreferenced Wikipedia sources for {affected_politicians} politicians"
                 )
             else:
-                # Get affected politician IDs before deleting properties
+                # Get affected politician IDs before deleting actions
                 affected_politician_ids = [
                     row[0]
-                    for row in session.query(Property.politician_id)
-                    .filter(
-                        Property.statement_id.is_(None),
-                        Property.deleted_at.is_(None),
-                        ~has_evaluation,
-                    )
+                    for row in session.query(Action.politician_id)
+                    .filter(pending_filter)
                     .distinct()
                     .all()
                 ]
 
-                # Delete properties without evaluations
+                # Delete pending actions
                 deleted_count = (
-                    session.query(Property)
-                    .filter(
-                        Property.statement_id.is_(None),  # Extracted (not on Wikidata)
-                        Property.deleted_at.is_(None),  # Not already deleted
-                        ~has_evaluation,  # No evaluations attached
-                    )
+                    session.query(Action)
+                    .filter(pending_filter)
                     .delete(synchronize_session=False)
                 )
 
                 # Remove only Wikipedia sources no longer used as provenance. ORM
                 # deletion cleans source_languages; the politician_sources FK cascades.
+                has_evidence = exists().where(ActionEvidence.source_id == Source.id)
                 sources_to_delete = (
                     session.query(Source)
                     .filter(
@@ -806,7 +780,7 @@ def clean_properties(dry_run):
                         Source.politicians.any(
                             Politician.id.in_(affected_politician_ids)
                         ),
-                        ~Source.property_references.any(),
+                        ~has_evidence,
                     )
                     .all()
                 )
@@ -814,9 +788,7 @@ def clean_properties(dry_run):
                     session.delete(source)
 
                 session.commit()
-                click.echo(
-                    f"✅ Successfully deleted {deleted_count} unevaluated extracted properties"
-                )
+                click.echo(f"✅ Successfully deleted {deleted_count} pending actions")
                 click.echo(
                     f"✅ Deleted {len(sources_to_delete)} unreferenced Wikipedia sources"
                 )

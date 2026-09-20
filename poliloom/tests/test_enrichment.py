@@ -31,6 +31,8 @@ from poliloom.models import (
 )
 from poliloom.wikidata.date import WikidataDate
 
+from .conftest import make_terms
+
 
 class TestEnrichment:
     """Test enrichment module functionality."""
@@ -121,8 +123,7 @@ class TestEnrichment:
         Position.create_with_entity(
             db_session,
             "Q30185",
-            "Mayor of Springfield",
-            labels=["Mayor", "Mayor of Springfield"],
+            make_terms("Mayor of Springfield", aliases=["Mayor"]),
         )
         db_session.flush()
 
@@ -205,8 +206,7 @@ class TestEnrichment:
         Location.create_with_entity(
             db_session,
             "Q28513",
-            "Springfield, Illinois",
-            labels=["Springfield, Illinois", "Springfield"],
+            make_terms("Springfield, Illinois", aliases=["Springfield"]),
         )
         db_session.flush()
 

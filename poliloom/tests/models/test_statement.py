@@ -23,9 +23,9 @@ def rest_document(statement_id, property_id, content=None, data_type="wikibase-i
 def statement_entities(db_session):
     """Create WikidataEntity rows backing generated entity_id foreign keys."""
     entities = [
-        WikidataEntity(wikidata_id="Q28513", name="Test Location"),
-        WikidataEntity(wikidata_id="Q30", name="United States"),
-        WikidataEntity(wikidata_id="Q30185", name="Test Position"),
+        WikidataEntity(wikidata_id="Q28513"),
+        WikidataEntity(wikidata_id="Q30"),
+        WikidataEntity(wikidata_id="Q30185"),
     ]
     db_session.add_all(entities)
     db_session.flush()

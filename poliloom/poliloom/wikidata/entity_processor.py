@@ -25,58 +25,6 @@ class WikidataEntityProcessor:
         """Get the Wikidata entity ID (QID)."""
         return self._entity_id
 
-    def get_entity_name(self) -> str | None:
-        """Extract the primary name from the entity's labels.
-
-        Returns:
-            Primary name string, preferring multilingual, then English, or None if no labels exist
-        """
-        # Try multilingual (mul) first - most universally appropriate
-        if "mul" in self._labels:
-            return self._labels["mul"]["value"]
-
-        # Try English as second choice
-        if "en" in self._labels:
-            return self._labels["en"]["value"]
-
-        # Fallback to any available language
-        if self._labels:
-            return next(iter(self._labels.values()))["value"]
-
-        return None
-
-    def get_entity_description(self) -> str | None:
-        """Extract the primary description from the entity's descriptions.
-
-        Returns:
-            Primary description string, preferring multilingual, then English, or None if no descriptions exist
-        """
-        # Try multilingual (mul) first - most universally appropriate
-        if "mul" in self._descriptions:
-            return self._descriptions["mul"]["value"]
-
-        # Try English as second choice
-        if "en" in self._descriptions:
-            return self._descriptions["en"]["value"]
-
-        # Fallback to any available language
-        if self._descriptions:
-            return next(iter(self._descriptions.values()))["value"]
-
-        return None
-
-    def get_all_labels(self) -> list[str]:
-        """Extract all unique label values across all languages.
-
-        Returns:
-            List of unique label strings
-        """
-        unique_labels = set()
-        for label_data in self._labels.values():
-            if "value" in label_data:
-                unique_labels.add(label_data["value"])
-        return list(unique_labels)
-
     def get_terms(self) -> dict:
         """Return {"labels": {lang: value}, "descriptions": {lang: value}, "aliases": {lang: [value]}} simplified from the dump's verbose term shape."""
         return {

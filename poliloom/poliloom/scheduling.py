@@ -14,10 +14,8 @@ from .database import get_engine
 from .enrichment_queue import create_enrichment_sources, enrichment_candidates_query
 from .models import (
     Politician,
-    Property,
     Source,
-    WikidataEntity,
-    WikidataRelation,
+    Statement,
 )
 from .review_queue import count_serveable
 from .sse import EnrichmentCompleteEvent, event_bus
@@ -81,7 +79,8 @@ def schedule_enrichment(
             return None
 
         logger.info(
-            f"Processing {len(sources)} Wikipedia sources for {politician.name}: "
+            f"Processing {len(sources)} Wikipedia sources for "
+            f"{politician.wikidata_entity.resolved_label}: "
             f"{[f'{s.wikipedia_project_id} ({s.url})' for s in sources]}"
         )
 
@@ -122,14 +121,9 @@ async def process_source_task(source_id, politician_id) -> int:
             .where(Politician.id == politician_id)
             .options(
                 selectinload(Politician.wikidata_entity),
-                selectinload(Politician.properties.and_(Property.deleted_at.is_(None)))
-                .selectinload(Property.entity)
-                .selectinload(
-                    WikidataEntity.parent_relations.and_(
-                        WikidataRelation.deleted_at.is_(None)
-                    )
-                )
-                .selectinload(WikidataRelation.parent_entity),
+                selectinload(
+                    Politician.statements.and_(Statement.deleted_at.is_(None))
+                ),
             )
         ).scalar_one()
 
