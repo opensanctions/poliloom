@@ -1038,14 +1038,13 @@ class CurrentImportStatement(Base):
         Returns:
             dict: Counts of statements that were soft-deleted
         """
-        # Only delete properties if: NOT in current dump AND older than previous dump
-        properties_deleted_result = session.execute(
+        # Only delete statements if: NOT in current dump AND older than previous dump
+        statements_deleted_result = session.execute(
             text(
                 """
-            UPDATE properties
+            UPDATE statements
             SET deleted_at = NOW()
-            WHERE statement_id IS NOT NULL
-            AND statement_id NOT IN (SELECT statement_id FROM current_import_statements)
+            WHERE wikidata_statement_id NOT IN (SELECT statement_id FROM current_import_statements)
             AND updated_at <= :previous_dump_timestamp
             AND deleted_at IS NULL
         """
@@ -1068,7 +1067,7 @@ class CurrentImportStatement(Base):
         )
 
         return {
-            "properties_marked_deleted": properties_deleted_result.rowcount,
+            "properties_marked_deleted": statements_deleted_result.rowcount,
             "relations_marked_deleted": relations_deleted_result.rowcount,
         }
 

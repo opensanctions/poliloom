@@ -90,6 +90,11 @@ def create_timestamp_triggers(engine: Engine):
             "wikidata_entities",
             "wikidata_relations",
             "wikipedia_links",
+            "statements",
+            "actions",
+            "action_evidence",
+            "action_claims",
+            "action_skips",
         ]
 
         # Create updated_at triggers for each table (replace if exists)
@@ -152,6 +157,25 @@ def create_import_tracking_triggers(engine: Engine):
             )
         )
 
+        conn.execute(
+            text(
+                """
+            -- Function to track statement document access during imports,
+            -- keyed on the generated wikidata_statement_id column
+            CREATE OR REPLACE FUNCTION track_statement_document_access()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                INSERT INTO current_import_statements (statement_id)
+                VALUES (NEW.wikidata_statement_id)
+                ON CONFLICT (statement_id) DO NOTHING;
+
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+        """
+            )
+        )
+
         # Create triggers for entity tracking (replace if exists)
         conn.execute(
             text(
@@ -180,6 +204,16 @@ def create_import_tracking_triggers(engine: Engine):
             CREATE OR REPLACE TRIGGER track_relation_access
             AFTER INSERT OR UPDATE ON wikidata_relations
             FOR EACH ROW EXECUTE FUNCTION track_statement_access();
+        """
+            )
+        )
+
+        conn.execute(
+            text(
+                """
+            CREATE OR REPLACE TRIGGER track_statement_access
+            AFTER INSERT OR UPDATE ON statements
+            FOR EACH ROW EXECUTE FUNCTION track_statement_document_access();
         """
             )
         )
