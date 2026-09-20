@@ -1,32 +1,37 @@
 """Politicians API endpoints."""
 
 import asyncio
+from datetime import UTC, datetime
 
 import httpx2
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, case, exists, func, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db_session
 from ..enrichment_queue import create_enrichment_sources
 from ..models import (
-    Evaluation,
+    Action,
+    ActionClaim,
+    ActionEvidence,
+    ActionSkip,
     Politician,
-    Property,
-    PropertyReference,
-    PropertySkip,
-    PropertyType,
     Source,
     SourceLanguage,
+    Statement,
+    WikidataEntity,
 )
 from ..review_queue import (
     available_to_user,
     claim_next,
     claim_visible_properties,
     count_serveable,
+    get_claim_ttl,
     language_visible,
     not_skipped,
+    pending,
     refresh_claims,
 )
 from ..scheduling import (
@@ -35,90 +40,112 @@ from ..scheduling import (
     process_source_task,
 )
 from ..sse import EvaluationCountEvent, event_bus
+from ..wikidata.execution import apply_action
 from ..wikidata.statement import (
     WikidataApiError,
     create_entity,
     create_statement,
-    push_evaluation,
 )
 from .auth import User, get_current_user
 from .schemas import (
-    AcceptPropertyItem,
+    ActionEvidenceResponse,
+    ActionResponse,
     CreatePoliticianRequest,
     CreatePoliticianResponse,
-    CreatePropertyItem,
     CreateSourceRequest,
     EnrichmentMetadata,
     NextPoliticianResponse,
-    PatchPropertiesRequest,
-    PatchPropertiesResponse,
+    PatchActionsRequest,
+    PatchActionsResponse,
     PoliticianResponse,
-    PropertyReferenceResponse,
-    PropertyResponse,
-    RejectPropertyItem,
-    SkipPropertyItem,
     SourceResponse,
+    StatementResponse,
+    TermMaps,
 )
 
 router = APIRouter()
 
-# Map frontend property type strings (Wikidata P-IDs) to backend enum
-PROPERTY_TYPE_MAP = {
-    "P569": PropertyType.BIRTH_DATE,
-    "P570": PropertyType.DEATH_DATE,
-    "P19": PropertyType.BIRTHPLACE,
-    "P39": PropertyType.POSITION,
-    "P27": PropertyType.CITIZENSHIP,
-}
-
 # =============================================================================
-# Helper function to build property responses
+# Helper function to build politician responses
 # =============================================================================
 
 
-def build_politician_response(politician) -> PoliticianResponse:
-    """Build PoliticianResponse from a politician entity."""
+def _term_maps(entity: WikidataEntity) -> TermMaps:
+    """Build TermMaps from a WikidataEntity's language-keyed term columns."""
+    return TermMaps(
+        labels=entity.labels,
+        descriptions=entity.descriptions,
+        aliases=entity.aliases,
+    )
 
-    property_responses = []
-    for prop in politician.properties:
-        entity_name = None
-        if prop.entity and prop.entity_id:
-            entity_name = prop.entity.name
 
-        refs = []
-        for ref in prop.property_references:
-            source = ref.source
-            if not source:
-                continue
-            refs.append(
-                PropertyReferenceResponse(
-                    id=ref.id,
-                    source=SourceResponse.model_validate(source),
-                    supporting_quotes=ref.supporting_quotes,
-                )
-            )
+def build_politician_response(
+    politician: Politician, db: Session
+) -> PoliticianResponse:
+    """Build PoliticianResponse with context statements and reviewable actions."""
 
-        property_responses.append(
-            PropertyResponse(
-                id=prop.id,
-                type=prop.type,
-                value=prop.value,
-                value_precision=prop.value_precision,
-                entity_id=prop.entity_id,
-                entity_name=entity_name,
-                statement_id=prop.statement_id,
-                qualifiers=prop.qualifiers_json,
-                references=prop.references_json,
-                sources=refs,
-            )
+    entity_ids = {
+        entity_id
+        for entity_id in (
+            *(statement.entity_id for statement in politician.statements),
+            *(action.entity_id for action in politician.actions),
         )
+        if entity_id is not None
+    }
+    entities_by_id = (
+        {
+            entity.wikidata_id: entity
+            for entity in db.execute(
+                select(WikidataEntity).where(WikidataEntity.wikidata_id.in_(entity_ids))
+            ).scalars()
+        }
+        if entity_ids
+        else {}
+    )
+
+    def entity_terms(entity_id: str | None) -> TermMaps | None:
+        if entity_id is None:
+            return None
+        return _term_maps(entities_by_id[entity_id])
+
+    statements = [
+        StatementResponse(
+            id=statement.id,
+            document=statement.document,
+            entity_terms=entity_terms(statement.entity_id),
+        )
+        for statement in politician.statements
+    ]
+
+    actions = [
+        ActionResponse(
+            id=action.id,
+            kind=action.kind,
+            statement_id=action.statement_id,
+            payload=action.payload,
+            entity_terms=entity_terms(action.entity_id),
+            evidence=[
+                ActionEvidenceResponse(
+                    id=evidence.id,
+                    source=SourceResponse.model_validate(evidence.source),
+                    supporting_quotes=evidence.supporting_quotes,
+                )
+                for evidence in action.evidence
+            ],
+            is_accepted=action.is_accepted,
+            applied_at=action.applied_at,
+            error=action.error,
+        )
+        for action in politician.actions
+    ]
 
     return PoliticianResponse(
         id=politician.id,
-        name=politician.name,
         wikidata_id=politician.wikidata_id,
+        terms=_term_maps(politician.wikidata_entity),
         sources=[SourceResponse.model_validate(s) for s in politician.sources],
-        properties=property_responses,
+        statements=statements,
+        actions=actions,
     )
 
 
@@ -191,7 +218,7 @@ async def get_next_politician(
 ):
     """Claim and return the next deterministic review candidate.
 
-    Serving creates per-property claims immediately. Background enrichment only
+    Serving creates per-action claims immediately. Background enrichment only
     maintains a floor of one additional serveable politician for these filters.
     """
     country_filter = countries or None
@@ -227,9 +254,10 @@ async def search_politicians(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Search politicians by name/label.
+    Search politicians by label.
 
-    Returns matching politicians ranked by relevance with their properties.
+    Returns matching politicians ranked by relevance with their context
+    statements and pending reviewable actions.
     """
     entity_ids = Politician.find_similar(q, limit=limit)
     if not entity_ids:
@@ -241,25 +269,28 @@ async def search_politicians(
         value=Politician.wikidata_id,
     )
 
+    user_id = str(current_user.user_id)
+    action_filter = and_(
+        pending(Action),
+        not_skipped(Action, user_id),
+        available_to_user(Action, user_id),
+    )
+
     query = (
         Politician.query_base()
         .where(Politician.wikidata_id.in_(entity_ids))
         .order_by(ordering)
         .options(
-            selectinload(
-                Politician.properties.and_(Property.deleted_at.is_(None))
-            ).options(
-                selectinload(Property.entity),
-                selectinload(Property.property_references).selectinload(
-                    PropertyReference.source
-                ),
+            selectinload(Politician.statements.and_(Statement.deleted_at.is_(None))),
+            selectinload(Politician.actions.and_(action_filter)).options(
+                selectinload(Action.evidence).selectinload(ActionEvidence.source),
             ),
         )
     )
 
     politicians = db.execute(query).scalars().all()
 
-    return [build_politician_response(politician) for politician in politicians]
+    return [build_politician_response(politician, db) for politician in politicians]
 
 
 @router.get("/{qid}", response_model=PoliticianResponse)
@@ -267,28 +298,26 @@ async def get_politician(
     qid: str,
     languages: list[str] = Query(
         ...,
-        description="Filter properties by language QIDs",
+        description="Filter actions by language QIDs",
     ),
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Fetch a single politician by Wikidata QID with all non-deleted properties.
+    Fetch a single politician by Wikidata QID.
 
-    Creates sources for unclaimed Wikipedia projects matching the requested
-    languages, scheduling their background processing.
+    All non-deleted statements are returned as review context; actions are the
+    pending ones visible to this user (language-visible, not skipped, and
+    unclaimed or claimed by them). Creates sources for unclaimed Wikipedia
+    projects matching the requested languages, scheduling their background
+    processing.
     """
     user_id = str(current_user.user_id)
-    property_filter = and_(
-        Property.deleted_at.is_(None),
-        or_(
-            Property.statement_id.isnot(None),
-            and_(
-                language_visible(Property, languages),
-                not_skipped(Property, user_id),
-                available_to_user(Property, user_id),
-            ),
-        ),
+    action_filter = and_(
+        pending(Action),
+        language_visible(Action, languages),
+        not_skipped(Action, user_id),
+        available_to_user(Action, user_id),
     )
     source_filter = or_(
         exists(
@@ -303,10 +332,10 @@ async def get_politician(
         Politician.query_base()
         .where(Politician.wikidata_id == qid)
         .options(
-            selectinload(Politician.properties.and_(property_filter)).options(
-                selectinload(Property.entity),
-                selectinload(Property.property_references)
-                .selectinload(PropertyReference.source)
+            selectinload(Politician.statements.and_(Statement.deleted_at.is_(None))),
+            selectinload(Politician.actions.and_(action_filter)).options(
+                selectinload(Action.evidence)
+                .selectinload(ActionEvidence.source)
                 .selectinload(Source.source_languages),
             ),
             selectinload(Politician.sources.and_(source_filter)).selectinload(
@@ -325,7 +354,7 @@ async def get_politician(
     claim_visible_properties(db, user_id, politician, languages)
     new_sources = create_enrichment_sources(politician, db, languages=languages)
 
-    response = build_politician_response(politician)
+    response = build_politician_response(politician, db)
 
     db.commit()
     for source in new_sources:
@@ -334,168 +363,22 @@ async def get_politician(
     return response
 
 
-async def process_property_actions(
-    items_by_politician: dict[str, list],
-    db: Session,
-    current_user: User,
-) -> PatchPropertiesResponse:
-    """Shared evaluation logic for both politician and source endpoints.
-
-    Args:
-        items_by_politician: Property actions keyed by politician ID (UUID).
-            Accept/reject items only need the property ID (politician key is
-            for grouping only). Create items use the key to look up the politician.
-    """
-    errors = []
-    all_evaluations = []
-
-    # Batch-load all politicians needed for create actions
-    from uuid import UUID as _UUID
-
-    all_ids = set(items_by_politician.keys())
-    politicians_by_id = {}
-    if all_ids:
-        uuid_ids = [_UUID(pid) for pid in all_ids]
-        results = (
-            db.execute(select(Politician).where(Politician.id.in_(uuid_ids)))
-            .scalars()
-            .all()
-        )
-        politicians_by_id = {str(p.id): p for p in results}
-
-    for politician_id, items in items_by_politician.items():
-        for item in items:
-            try:
-                match item:
-                    case AcceptPropertyItem() | RejectPropertyItem():
-                        property_entity = db.get(Property, item.id)
-                        if not property_entity:
-                            errors.append(f"Property {item.id} not found")
-                            continue
-
-                        evaluation = Evaluation(
-                            user_id=str(current_user.user_id),
-                            is_accepted=isinstance(item, AcceptPropertyItem),
-                            property_id=item.id,
-                        )
-                        db.add(evaluation)
-                        all_evaluations.append(evaluation)
-
-                    case SkipPropertyItem():
-                        property_entity = db.get(Property, item.id)
-                        if not property_entity:
-                            errors.append(f"Property {item.id} not found")
-                            continue
-                        if (
-                            property_entity.statement_id is not None
-                            or property_entity.deleted_at is not None
-                        ):
-                            continue
-                        already_skipped = db.scalar(
-                            select(PropertySkip.id).where(
-                                PropertySkip.user_id == str(current_user.user_id),
-                                PropertySkip.property_id == item.id,
-                            )
-                        )
-                        if not already_skipped:
-                            db.add(
-                                PropertySkip(
-                                    user_id=str(current_user.user_id),
-                                    property_id=item.id,
-                                )
-                            )
-
-                    case CreatePropertyItem():
-                        prop_type = PROPERTY_TYPE_MAP.get(item.type)
-                        if not prop_type:
-                            errors.append(f"Unknown property type: {item.type}")
-                            continue
-
-                        politician = politicians_by_id.get(politician_id)
-                        if not politician:
-                            errors.append(f"Politician {politician_id} not found")
-                            continue
-
-                        new_property = Property(
-                            politician_id=politician.id,
-                            type=prop_type,
-                            value=item.value,
-                            value_precision=item.value_precision,
-                            entity_id=item.entity_id,
-                            qualifiers_json=item.qualifiers,
-                        )
-                        db.add(new_property)
-                        db.flush()
-
-                        evaluation = Evaluation(
-                            user_id=str(current_user.user_id),
-                            is_accepted=True,
-                            property_id=new_property.id,
-                        )
-                        db.add(evaluation)
-                        all_evaluations.append(evaluation)
-
-            except (SQLAlchemyError, ValueError, TypeError, KeyError) as e:
-                item_desc = str(
-                    getattr(item, "id", None) or f"new {getattr(item, 'type', '?')}"
-                )
-                errors.append(f"Error processing item {item_desc}: {e!s}")
-                continue
-
-    # Broadcast updated evaluation count
-    if all_evaluations:
-        total = db.execute(select(func.count()).select_from(Evaluation)).scalar() or 0
-        event_bus.notify(EvaluationCountEvent(total=total), db)
-
-    db.commit()
-
-    # Push evaluations to Wikidata (don't rollback local changes on failure)
-    wikidata_errors = []
-
-    for evaluation in all_evaluations:
-        try:
-            success = await push_evaluation(evaluation, current_user.jwt_token, db)
-            if not success:
-                wikidata_errors.append(
-                    f"Failed to process evaluation {evaluation.id} in Wikidata"
-                )
-        except (
-            SQLAlchemyError,
-            WikidataApiError,
-            httpx2.HTTPError,
-            ValueError,
-            KeyError,
-        ) as e:
-            wikidata_errors.append(
-                f"Error processing evaluation {evaluation.id} in Wikidata: {e!s}"
-            )
-
-    if wikidata_errors:
-        errors.extend(wikidata_errors)
-
-    return PatchPropertiesResponse(
-        success=True,
-        message=f"Successfully processed {len(all_evaluations)} items"
-        + (f" ({len(wikidata_errors)} Wikidata errors)" if wikidata_errors else ""),
-        errors=errors,
-    )
-
-
-@router.patch("/{qid}/properties", response_model=PatchPropertiesResponse)
-async def patch_properties(
+@router.patch("/{qid}/actions", response_model=PatchActionsResponse)
+async def patch_actions(
     qid: str,
-    request: PatchPropertiesRequest,
+    request: PatchActionsRequest,
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Accept, reject, or create properties for a politician.
+    Record review decisions and skips for a politician's pending actions.
 
-    Each item must specify an explicit `action`:
-    - `accept` / `reject`: evaluate an existing property (requires `id`)
-    - `create`: add a new property (requires `type` + value/entity fields)
+    Each decision requires a live claim by the current user; accepted actions
+    are applied to Wikidata synchronously once the decisions are committed.
+    Skips hide a pending action for the current user without deciding it.
     """
-    # Verify politician exists
+    errors = []
+
     politician = (
         db.execute(select(Politician).where(Politician.wikidata_id == qid))
         .scalars()
@@ -507,9 +390,119 @@ async def patch_properties(
             detail=f"Politician with QID {qid} not found",
         )
 
-    refresh_claims(db, str(current_user.user_id), politician.id)
-    return await process_property_actions(
-        {str(politician.id): request.items}, db, current_user
+    user_id = str(current_user.user_id)
+    refresh_claims(db, user_id, politician.id)
+    cutoff = datetime.now(UTC) - get_claim_ttl()
+
+    decided_actions = []
+    accepted_actions = []
+    processed_count = 0
+
+    for decision in request.decisions:
+        try:
+            action = db.execute(
+                select(Action).where(Action.id == decision.id).with_for_update()
+            ).scalar_one_or_none()
+            if action is None:
+                errors.append(f"Action {decision.id} not found")
+                continue
+            if action.politician_id != politician.id:
+                errors.append(
+                    f"Action {decision.id} does not belong to politician {qid}"
+                )
+                continue
+            if action.is_accepted is not None:
+                errors.append(f"Action {decision.id} is not pending")
+                continue
+            live_claim = db.scalar(
+                select(ActionClaim.id).where(
+                    ActionClaim.action_id == action.id,
+                    ActionClaim.user_id == user_id,
+                    ActionClaim.claimed_at > cutoff,
+                )
+            )
+            if live_claim is None:
+                errors.append(f"Action {decision.id} is not claimed by user {user_id}")
+                continue
+
+            action.is_accepted = decision.is_accepted
+            action.decided_by_user_id = user_id
+            action.decided_at = datetime.now(UTC)
+            decided_actions.append(action)
+            processed_count += 1
+            if decision.is_accepted:
+                accepted_actions.append(action)
+
+        except SQLAlchemyError as e:
+            errors.append(f"Error processing decision {decision.id}: {e!s}")
+            continue
+
+    for skip_id in request.skips:
+        try:
+            action = db.execute(
+                select(Action).where(Action.id == skip_id).with_for_update()
+            ).scalar_one_or_none()
+            if action is None:
+                errors.append(f"Action {skip_id} not found")
+                continue
+            if action.politician_id != politician.id:
+                errors.append(f"Action {skip_id} does not belong to politician {qid}")
+                continue
+            if action.is_accepted is not None:
+                errors.append(f"Action {skip_id} is not pending")
+                continue
+
+            db.execute(
+                pg_insert(ActionSkip)
+                .values(user_id=user_id, action_id=skip_id)
+                .on_conflict_do_nothing(index_elements=["user_id", "action_id"])
+            )
+            processed_count += 1
+
+        except SQLAlchemyError as e:
+            errors.append(f"Error processing skip {skip_id}: {e!s}")
+            continue
+
+    # Broadcast updated decided-action count
+    if decided_actions:
+        total = (
+            db.execute(
+                select(func.count())
+                .select_from(Action)
+                .where(Action.is_accepted.isnot(None))
+            ).scalar()
+            or 0
+        )
+        event_bus.notify(EvaluationCountEvent(total=total), db)
+
+    db.commit()
+
+    # Apply accepted actions to Wikidata (don't rollback decisions on failure)
+    apply_errors = []
+    for action in accepted_actions:
+        try:
+            success = await apply_action(db, action, current_user.jwt_token)
+        except (
+            SQLAlchemyError,
+            WikidataApiError,
+            httpx2.HTTPError,
+            ValueError,
+            KeyError,
+        ) as e:
+            apply_errors.append(f"Error applying action {action.id}: {e!s}")
+            continue
+        if not success:
+            apply_errors.append(
+                f"Failed to apply action {action.id}"
+                + (f": {action.error}" if action.error else "")
+            )
+    errors.extend(apply_errors)
+
+    return PatchActionsResponse(
+        success=True,
+        message=f"Successfully processed {processed_count} items"
+        + (f" ({len(apply_errors)} apply errors)" if apply_errors else ""),
+        errors=errors,
     )
 
 
