@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button'
 import { SpinningCounter } from '@/components/ui/SpinningCounter'
 import { useDecisionCount } from '@/contexts/DecisionCountContext'
 
-export function EvaluationCountButton() {
+export function DecisionCountButton() {
   const { decisionCount } = useDecisionCount()
 
   return (

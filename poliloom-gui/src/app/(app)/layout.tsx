@@ -5,16 +5,16 @@ import { NextPoliticianProvider } from '@/contexts/NextPoliticianContext'
 import { FilterProvider } from '@/contexts/FilterContext'
 import { Header } from '@/components/layout/Header'
 import { OmniBox } from '@/components/layout/OmniBox'
-import { EvaluationCountButton } from '@/components/layout/EvaluationCountButton'
+import { DecisionCountButton } from '@/components/layout/DecisionCountButton'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { AuthButton } from '@/components/layout/AuthButton'
-import { getSettings, getEvaluationCount } from '@/lib/api-auth'
+import { getSettings, getDecisionCount } from '@/lib/api-auth'
 import { resolveLanguageQids, getFilterCountryQids } from '@/lib/filters'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const [settings, evaluationCount, initialLanguageQids, initialCountryQids] = await Promise.all([
+  const [settings, decisionCount, initialLanguageQids, initialCountryQids] = await Promise.all([
     getSettings(),
-    getEvaluationCount(),
+    getDecisionCount(),
     resolveLanguageQids(),
     getFilterCountryQids(),
   ])
@@ -26,13 +26,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         initialCountryQids={initialCountryQids}
       >
         <EventStreamProvider>
-          <DecisionCountProvider initialCount={evaluationCount}>
+          <DecisionCountProvider initialCount={decisionCount}>
             <NextPoliticianProvider>
               <Header
                 left={<OmniBox />}
                 right={
                   <>
-                    <EvaluationCountButton />
+                    <DecisionCountButton />
                     <ThemeToggle />
                     <AuthButton />
                   </>

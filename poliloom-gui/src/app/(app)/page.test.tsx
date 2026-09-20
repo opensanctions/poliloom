@@ -114,7 +114,7 @@ describe('Home Page (Filter Selection)', () => {
     })
   })
 
-  it('shows Begin Evaluation Session button when basic tutorial completed in basic mode', async () => {
+  it('shows Begin Review Session button when basic tutorial completed in basic mode', async () => {
     mockUseSettings.mockReturnValue({
       ...defaultSettingsContext,
       settings: {
@@ -151,7 +151,7 @@ describe('Home Page (Filter Selection)', () => {
     })
   })
 
-  it('shows Begin Evaluation Session button when both tutorials completed in advanced mode', async () => {
+  it('shows Begin Review Session button when both tutorials completed in advanced mode', async () => {
     mockUseSettings.mockReturnValue({
       ...defaultSettingsContext,
       settings: { ...defaultSettings, advanced_mode: true },

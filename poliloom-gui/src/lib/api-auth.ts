@@ -88,7 +88,7 @@ export const getSettings = cache(async (): Promise<UserSettings> => {
   return res.json()
 })
 
-export const getEvaluationCount = cache(async (): Promise<number> => {
+export const getDecisionCount = cache(async (): Promise<number> => {
   const res = await fetchWithAuth(`${process.env.API_BASE_URL}/stats/count`, { cache: 'no-store' })
   if (!res.ok) throw new Error(`Failed to fetch /stats/count: ${res.status}`)
   const data: { total: number } = await res.json()

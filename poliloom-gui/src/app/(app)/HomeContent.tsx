@@ -10,6 +10,8 @@ import { useSettings } from '@/contexts/SettingsContext'
 import { useFilters } from '@/contexts/FilterContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
 import { CountryResponse, LanguageResponse } from '@/types'
+import { best_label } from '@/lib/labels'
+import { useUserLanguageCodes } from '@/hooks/useUserLanguageCodes'
 
 interface CtaState {
   href?: string
@@ -31,6 +33,7 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
     allCaughtUp,
     loading: loadingNext,
   } = useNextPoliticianContext()
+  const userLanguageCodes = useUserLanguageCodes()
 
   // Default tutorial completion to true when unauthenticated so we don't flash
   // a "Start Tutorial" CTA before redirect.
@@ -51,13 +54,13 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
 
   const languageOptions: MultiSelectOption[] = languages.map((lang) => ({
     value: lang.wikidata_id,
-    label: lang.name,
+    label: best_label(lang.terms, userLanguageCodes, lang.wikidata_id),
     count: lang.sources_count,
   }))
 
   const countryOptions: MultiSelectOption[] = countries.map((country) => ({
     value: country.wikidata_id,
-    label: country.name,
+    label: best_label(country.terms, userLanguageCodes, country.wikidata_id),
     count: country.citizenships_count,
   }))
 
@@ -102,18 +105,13 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
               </h3>
               <p className="text-foreground-tertiary">
                 {allCaughtUp
-                  ? 'No more politicians to evaluate for your current filters. Try different filters to continue contributing.'
+                  ? 'No more politicians to review for your current filters. Try different filters to continue contributing.'
                   : !politicianReady && !loadingNext
                     ? "Our AI is reading Wikipedia so you don't have to. Hang tight!"
-                    : 'Your filters are set. Begin evaluating politicians that match your criteria.'}
+                    : 'Your filters are set. Begin reviewing politicians that match your criteria.'}
               </p>
             </div>
-            <Button
-              href={cta.href}
-              disabled={cta.disabled}
-              size="xlarge"
-              className="shrink-0"
-            >
+            <Button href={cta.href} disabled={cta.disabled} size="xlarge" className="shrink-0">
               {cta.text}
             </Button>
           </div>
@@ -128,7 +126,7 @@ export function HomeContent({ languages, countries }: HomeContentProps) {
               <span>
                 Advanced mode{' '}
                 <span className="text-foreground-subtle">
-                  — enables creating new and deprecating existing Wikidata statements
+                  — unlocks an additional tutorial covering proposed edits to existing statements
                 </span>
               </span>
             </label>

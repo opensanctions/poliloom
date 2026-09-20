@@ -348,7 +348,7 @@ describe('EvaluationView', () => {
       // The active source is source1, so only action-1's controls are live.
       expect(screen.getAllByRole('button', { name: /✓ Accept/ }).length).toBe(1)
       expect(screen.getAllByRole('button', { name: /× Discard/ }).length).toBe(1)
-      expect(screen.getAllByText('View source to evaluate').length).toBe(2)
+      expect(screen.getAllByText('View source to decide').length).toBe(2)
     })
 
     it('renders entity group titles with the best label in the user language', () => {
@@ -468,13 +468,13 @@ describe('EvaluationView', () => {
       )
 
       // Source 1 is active; the two source-1 actions are live, the source-3 one is not.
-      expect(screen.getAllByText('View source to evaluate').length).toBe(1)
+      expect(screen.getAllByText('View source to decide').length).toBe(1)
       expect(screen.getAllByRole('button', { name: /✓ Accept/ }).length).toBe(2)
 
       const viewButtons = screen.getAllByRole('button', { name: /• View|• Viewing/ })
       fireEvent.click(viewButtons[2])
 
-      expect(screen.getAllByText('View source to evaluate').length).toBe(2)
+      expect(screen.getAllByText('View source to decide').length).toBe(2)
       expect(screen.getAllByRole('button', { name: /✓ Accept/ }).length).toBe(1)
     })
 

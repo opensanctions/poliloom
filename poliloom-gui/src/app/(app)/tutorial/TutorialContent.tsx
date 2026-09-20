@@ -14,7 +14,7 @@ import {
 import { PoliticianHeader } from '@/components/evaluation/PoliticianHeader'
 import { SourceViewer } from '@/components/evaluation/SourceViewer'
 import { GroupTitle } from '@/components/evaluation/GroupTitle'
-import { PropertyDisplay } from '@/components/evaluation/PropertyDisplay'
+import { StatementItemView } from '@/components/evaluation/StatementItemView'
 import { SourcesSection } from '@/components/evaluation/SourcesSection'
 import { TutorialActions } from './_components/TutorialActions'
 import { TutorialFooter } from './_components/TutorialFooter'
@@ -22,88 +22,63 @@ import { SuccessFeedback } from './_components/SuccessFeedback'
 import { ErrorFeedback } from './_components/ErrorFeedback'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useNextPoliticianContext } from '@/contexts/NextPoliticianContext'
-import { PropertyActionItem, CreatePropertyItem } from '@/types'
-import { actionToEvaluation, groupPropertiesIntoSections } from '@/lib/evaluation'
+import { useUserLanguageCodes } from '@/hooks/useUserLanguageCodes'
+import { best_label } from '@/lib/labels'
+import {
+  groupStatementsIntoSections,
+  type ReviewSubmitPayload,
+  type StatementItem,
+} from '@/lib/actions'
 import {
   TutorialStep,
-  TutorialEvaluationStep,
-  tutorialEvaluationSteps,
+  TutorialReviewStep,
+  tutorialReviewSteps,
   tutorialSources,
   extractedDataPolitician,
 } from './tutorialData'
 export { TutorialStep }
 
-interface EvaluationResult {
+interface CheckResult {
   isCorrect: boolean
   mistakes: string[]
 }
 
-/** Check whether the user has done enough to submit (required evaluations + creates). */
-function isStepComplete(actions: PropertyActionItem[], stepData: TutorialEvaluationStep): boolean {
-  const requiredProps = stepData.politician.properties.filter(
-    (p) => p.expectedEvaluation !== undefined && (p.required ?? true),
-  )
-  const hasEvals = requiredProps.every((p) =>
-    actions.some((a) => a.action !== 'create' && a.id === p.id),
-  )
-  const hasCreates =
-    !stepData.expectedCreates ||
-    stepData.expectedCreates.every((c) =>
-      actions.some((a) => a.action === 'create' && a.type === c.type),
-    )
-  return hasEvals && hasCreates
-}
-
-/** Validate all actions against expected evaluations and creates. */
-function checkStep(
-  actions: PropertyActionItem[],
-  stepData: TutorialEvaluationStep,
-): EvaluationResult {
+/** Validate the submitted decisions against the expected ones for the step. */
+function checkStep(payload: ReviewSubmitPayload, stepData: TutorialReviewStep): CheckResult {
   const mistakes: string[] = []
 
-  for (const prop of stepData.politician.properties) {
-    if (prop.expectedEvaluation === undefined) continue
-    const actual = actionToEvaluation(actions, prop.id)
-    // No action on an expected-true property means "keep", which is correct
-    if (prop.expectedEvaluation === true && actual === undefined) continue
-    if (actual !== prop.expectedEvaluation) mistakes.push(prop.id)
-  }
-
-  if (stepData.expectedCreates) {
-    for (const create of stepData.expectedCreates) {
-      const action = actions.find(
-        (a): a is CreatePropertyItem => a.action === 'create' && a.type === create.type,
-      )
-      if (!action) {
-        mistakes.push('no-create')
-      } else if (action.entity_id !== create.entity_id) {
-        mistakes.push('wrong-entity')
-      }
-    }
+  for (const action of stepData.politician.actions) {
+    const expected = stepData.expectedDecisions[action.id]
+    if (expected === undefined) continue
+    const decision = payload.decisions.find((d) => d.id === action.id)?.is_accepted ?? null
+    if (decision !== expected) mistakes.push(action.id)
   }
 
   return { isCorrect: mistakes.length === 0, mistakes }
 }
 
-function TutorialEvaluationStepView({
-  evalStep,
+function TutorialReviewStepView({
+  reviewStep,
+  onSubmit,
   footer,
 }: {
-  evalStep: TutorialEvaluationStep
+  reviewStep: TutorialReviewStep
+  onSubmit: (payload: ReviewSubmitPayload) => Promise<void>
   footer: (context: FooterContext) => React.ReactNode
 }) {
   const [selection, setSelection] = useState<SourceSelection | null>(() =>
-    findInitialSelection(evalStep.politician, []),
+    findInitialSelection(reviewStep.politician, []),
   )
+  const userLanguageCodes = useUserLanguageCodes()
   return (
     <EvaluationView
-      politician={evalStep.politician}
+      politician={reviewStep.politician}
+      userLanguageCodes={userLanguageCodes}
       selection={selection}
       onSelectionChange={setSelection}
+      onSubmit={onSubmit}
       footer={footer}
       sourcesApiPath="/api/tutorial-pages"
-      isAdvancedMode={evalStep.isAdvancedMode}
-      entitySearches={evalStep.entitySearches}
     />
   )
 }
@@ -124,6 +99,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   const hasCompletedAdvancedTutorial = settings?.advanced_tutorial_completed ?? true
   const isAdvancedMode = settings?.advanced_mode ?? false
   const { nextHref, loading: nextLoading } = useNextPoliticianContext()
+  const userLanguageCodes = useUserLanguageCodes()
 
   const startHref = !nextLoading ? nextHref : undefined
 
@@ -136,7 +112,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
 
   const [step, setStep] = useState(getStartingStep)
 
-  const [checkResult, setCheckResult] = useState<EvaluationResult | null>(null)
+  const [checkResult, setCheckResult] = useState<CheckResult | null>(null)
 
   const advance = () => {
     const nextStep = step + 1
@@ -159,15 +135,10 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     return (
       <CenteredCard emoji="🎉" title="Tutorial Complete!">
         <p className="mb-8">
-          You&apos;re all set! You now have everything you need to start verifying politician data.
+          You&apos;re all set! You now have everything you need to start reviewing politician data.
         </p>
-        <Button
-          href={startHref}
-          size="large"
-          fullWidth
-          disabled={!startHref}
-        >
-          Start Evaluating
+        <Button href={startHref} size="large" fullWidth disabled={!startHref}>
+          Start Reviewing
         </Button>
       </CenteredCard>
     )
@@ -190,11 +161,11 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <CenteredCard emoji="🤖" title="Why Your Help Matters">
         <div className="mb-8 space-y-4">
           <p>
-            We&apos;ll show you a politician, their source documents, and data that AI extracted
+            We&apos;ll show you a politician, their source documents, and statements the AI proposed
             from those sources.
           </p>
           <p>
-            Your role is to check whether what the AI extracted actually matches what&apos;s written
+            Your role is to check whether what the AI proposed actually matches what&apos;s written
             in the source document.
           </p>
         </div>
@@ -223,20 +194,23 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === TutorialStep.SourcesAndAddSource) {
+  if (step === TutorialStep.LinkedSources) {
     return (
       <TwoPanel
         left={
           <div className="overflow-y-auto p-6 h-full flex flex-col gap-8">
             <PoliticianHeader
-              name={extractedDataPolitician.name}
+              name={best_label(
+                extractedDataPolitician.terms,
+                userLanguageCodes,
+                extractedDataPolitician.wikidata_id ?? extractedDataPolitician.id,
+              )}
               wikidataId={extractedDataPolitician.wikidata_id ?? undefined}
             />
             <SourcesSection
               sources={[tutorialSources.page1]}
               activeSourceId={null}
               onViewSource={() => {}}
-              onAddSource={async () => {}}
             />
           </div>
         }
@@ -245,11 +219,11 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
             <div className="mb-8 space-y-4">
               <p>
                 On the left you&apos;ll see what sources we have for each politician. We find and
-                archive these automatically, but you can add your own too.
+                archive these automatically.
               </p>
               <p>
-                Just paste a URL — we&apos;ll do our best to archive the page and extract data from
-                it.
+                Each proposal you review cites the source it came from, so you always know where a
+                piece of data originated.
               </p>
             </div>
             <TutorialActions skipHref={startHref} buttonText="Next" onNext={advance} />
@@ -260,60 +234,80 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
   }
 
   if (step === TutorialStep.ExtractedData) {
+    const sections = groupStatementsIntoSections(
+      extractedDataPolitician.statements,
+      extractedDataPolitician.actions,
+    )
     return (
       <TwoPanel
         left={
           <div className="overflow-y-auto p-6 h-full flex flex-col gap-8">
             <PoliticianHeader
-              name={extractedDataPolitician.name}
+              name={best_label(
+                extractedDataPolitician.terms,
+                userLanguageCodes,
+                extractedDataPolitician.wikidata_id ?? extractedDataPolitician.id,
+              )}
               wikidataId={extractedDataPolitician.wikidata_id ?? undefined}
             />
             <SourcesSection
               sources={extractedDataPolitician.sources}
               activeSourceId={null}
               onViewSource={() => {}}
-              onAddSource={async () => {}}
             />
-            {groupPropertiesIntoSections(extractedDataPolitician.properties).map((section) => (
+            {sections.map((section) => (
               <div key={section.title}>
                 <h2 className="text-xl font-semibold text-foreground mb-4">{section.title}</h2>
                 <div className="space-y-4">
-                  {section.groups.map((group) => (
-                    <HeaderedBox
-                      key={group.key}
-                      title={<GroupTitle property={group.properties[0]} />}
-                    >
-                      <div className="space-y-3">
-                        {group.properties.map((property, index) => (
-                          <Fragment key={property.id}>
-                            {index > 0 && <hr className="border-border-muted my-3" />}
-                            <PropertyDisplay
-                              property={property}
-                              onAction={() => {}}
-                              onViewSource={() => {}}
-                              onHover={() => {}}
-                              activeSourceId={null}
-                              shouldAutoOpen={true}
-                            />
-                          </Fragment>
-                        ))}
-                      </div>
-                    </HeaderedBox>
-                  ))}
+                  {section.groups.map((group) => {
+                    const first = group.items[0]
+                    const terms =
+                      first.statement?.entity_terms ?? first.createAction?.entity_terms ?? null
+                    return (
+                      <HeaderedBox
+                        key={group.key}
+                        title={
+                          <GroupTitle
+                            sectionType={section.sectionType}
+                            groupKey={group.key}
+                            terms={terms}
+                            userLanguageCodes={userLanguageCodes}
+                          />
+                        }
+                      >
+                        <div className="space-y-3">
+                          {group.items.map((item, index) => (
+                            <Fragment key={statementItemKey(item)}>
+                              {index > 0 && <hr className="border-border-muted my-3" />}
+                              <StatementItemView
+                                item={item}
+                                decisions={{}}
+                                onDecision={() => {}}
+                                onViewSource={() => {}}
+                                onHover={() => {}}
+                                activeSourceId={null}
+                                userLanguageCodes={userLanguageCodes}
+                              />
+                            </Fragment>
+                          ))}
+                        </div>
+                      </HeaderedBox>
+                    )
+                  })}
                 </div>
               </div>
             ))}
           </div>
         }
         right={
-          <CenteredCard emoji="🗂️" title="Extracted Data">
+          <CenteredCard emoji="🗂️" title="Statements & Proposals">
             <div className="mb-8 space-y-4">
               <p>
-                Below the sources is data automatically extracted from those documents, alongside
-                what Wikidata already has.
+                Below the sources you&apos;ll see what Wikidata already states about the politician,
+                and the changes the AI proposed from the documents.
               </p>
               <p>
-                Each new item includes the source text used as evidence, and a link to view the full
+                Each proposal includes the source text used as evidence, and a link to view the full
                 document.
               </p>
             </div>
@@ -328,22 +322,22 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     return (
       <CenteredCard emoji="🎯" title="Give It a Try">
         <p className="mb-8">
-          Compare the extracted data to the source. If they match, accept. If they don&apos;t,
-          reject.
+          Compare each proposal to the source. If it matches, accept it. If it doesn&apos;t, discard
+          it.
         </p>
         <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
     )
   }
 
-  // Interactive evaluation steps — all share the same structure
-  const evalStep = tutorialEvaluationSteps[step]
-  if (evalStep) {
+  // Interactive review steps — all share the same structure
+  const reviewStep = tutorialReviewSteps[step]
+  if (reviewStep) {
     if (checkResult?.isCorrect) {
       return (
         <SuccessFeedback
-          title={evalStep.success.title}
-          message={evalStep.success.message}
+          title={reviewStep.success.title}
+          message={reviewStep.success.message}
           onNext={advance}
         />
       )
@@ -351,23 +345,24 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     if (checkResult) {
       return (
         <ErrorFeedback
-          title={evalStep.error.title}
-          message={evalStep.error.message}
-          hint={evalStep.error.hint}
+          title={reviewStep.error.title}
+          message={reviewStep.error.message}
+          hint={reviewStep.error.hint}
           onRetry={() => setCheckResult(null)}
         />
       )
     }
     return (
-      <TutorialEvaluationStepView
-        key={evalStep.politician.id}
-        evalStep={evalStep}
-        footer={({ actions }) => (
+      <TutorialReviewStepView
+        key={reviewStep.politician.id}
+        reviewStep={reviewStep}
+        onSubmit={async (payload) => setCheckResult(checkStep(payload, reviewStep))}
+        footer={({ decidedCount, submit }) => (
           <TutorialFooter
             skipHref={startHref}
-            isComplete={isStepComplete(actions, evalStep)}
-            onSubmit={() => setCheckResult(checkStep(actions, evalStep))}
-            onBack={() => setStep(evalStep.backStep)}
+            isComplete={decidedCount === reviewStep.politician.actions.length}
+            onSubmit={submit}
+            onBack={() => setStep(reviewStep.backStep)}
           />
         )}
       />
@@ -379,7 +374,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <CenteredCard emoji="📚" title="Multiple Sources">
         <p className="mb-8">
           Sometimes information comes from different source documents. Next, try switching between
-          these to evaluate all statements.
+          these to review all proposals.
         </p>
         <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
@@ -391,7 +386,7 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <CenteredCard emoji="🎯" title="Specific Over Generic">
         <p className="mb-8">
           Specific data is better than generic data. If a more specific version already exists,
-          reject the generic extraction.
+          discard the generic proposal.
         </p>
         <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
@@ -403,12 +398,12 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <CenteredCard emoji="💡" title="Key Takeaways">
         <div className="mb-8 space-y-4">
           <p>
-            Accept data that matches the source. Reject data that doesn&apos;t match or is less
-            specific than what we already have.
+            Accept proposals that match the source. Discard proposals that don&apos;t match or are
+            less specific than what we already have.
           </p>
           <p>
             Not sure about something? That&apos;s completely fine — just skip it. You&apos;re never
-            required to decide on every item.
+            required to decide on every proposal.
           </p>
         </div>
         <TutorialActions skipHref={startHref} buttonText="Got It!" onNext={advance} />
@@ -422,12 +417,13 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <CenteredCard emoji="⚡" title="Advanced Mode Tutorial">
         <div className="mb-8 space-y-4">
           <p>
-            Welcome to advanced mode! You now have the power to add new data and deprecate existing
-            data.
+            Welcome to advanced mode! Here you&apos;ll also review proposed edits to statements
+            Wikidata already has.
           </p>
           <p>
-            This lets you fill in gaps in the extracted data and replace generic data with more
-            specific information.
+            Edits can make a value more precise, complete a missing timeframe, or add a reference —
+            and you decide them the same way: accept the ones the source supports, discard the ones
+            it doesn&apos;t.
           </p>
         </div>
         <TutorialActions skipHref={startHref} buttonText="Let's Advance" onNext={advance} />
@@ -435,47 +431,41 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
     )
   }
 
-  if (step === TutorialStep.AddingNewData) {
+  if (step === TutorialStep.RefiningValues) {
     return (
-      <CenteredCard emoji="🫥" title="Adding New Data">
+      <CenteredCard emoji="🎯" title="Refining Values">
         <p className="mb-8">
-          Sometimes a source implies data that wasn&apos;t automatically extracted. Next, try adding
-          the missing data yourself.
+          Sometimes a source pins down a value more precisely than Wikidata does — a full birth date
+          instead of just a year. Next, decide whether such a refinement is supported.
         </p>
         <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
     )
   }
 
-  if (step === TutorialStep.ReplacingGenericData) {
+  if (step === TutorialStep.CompletingTimeframes) {
     return (
-      <CenteredCard emoji="🔄" title="Replacing Generic Data">
+      <CenteredCard emoji="📅" title="Completing Timeframes">
         <div className="mb-8 space-y-4">
           <p>
-            Sometimes existing data is to generic and could be replaced with something more
-            specific.
+            Political positions can gain a missing start date — or carry a wrong one. Proposed edits
+            show you exactly what would change.
           </p>
-          <p>
-            In these cases, you can deprecate the existing data and accept the more specific
-            extraction.
-          </p>
+          <p>Check each proposed timeframe against its evidence before deciding.</p>
         </div>
         <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
       </CenteredCard>
     )
   }
 
-  if (step === TutorialStep.DataWithMetadata) {
+  if (step === TutorialStep.AddingReferences) {
     return (
-      <CenteredCard emoji="⚠️" title="Data With Metadata">
+      <CenteredCard emoji="📚" title="Adding References">
         <div className="mb-8 space-y-4">
+          <p>Statements without sources can gain references from the documents we archive.</p>
           <p>
-            Some existing Wikidata statements have valuable metadata: references (sources) and
-            qualifiers (like start/end dates).
-          </p>
-          <p>
-            When you deprecate such data, this metadata is lost. Sometimes it&apos;s better to add
-            your new data via PoliLoom, then manually edit Wikidata to preserve the metadata.
+            But only accept a reference when its evidence truly backs the statement — quotes about
+            something else don&apos;t count.
           </p>
         </div>
         <TutorialActions skipHref={startHref} buttonText="Let's do it" onNext={advance} />
@@ -488,16 +478,20 @@ export function TutorialContent({ initialStep }: TutorialContentProps) {
       <CenteredCard emoji="💡" title="Key Takeaways">
         <div className="mb-8 space-y-4">
           <p>
-            Fill in data the AI missed, and deprecate generic or incorrect data when you have
-            something more specific.
+            Refine what&apos;s imprecise, complete what&apos;s missing — and always check the
+            evidence before accepting an edit.
           </p>
           <p>
-            Be careful deprecating data that has references or qualifiers — that metadata is
-            valuable. When in doubt, add your data and edit Wikidata manually to preserve it.
+            When a quote doesn&apos;t actually support the statement, discard the proposal. Someone
+            else can always pick it up later.
           </p>
         </div>
         <TutorialActions skipHref={startHref} buttonText="Got It!" onNext={advance} />
       </CenteredCard>
     )
   }
+}
+
+function statementItemKey(item: StatementItem): string {
+  return item.statement ? item.statement.id : item.createAction.id
 }

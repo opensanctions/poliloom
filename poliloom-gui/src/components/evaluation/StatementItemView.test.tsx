@@ -282,7 +282,7 @@ describe('StatementItemView - create actions', () => {
       />,
     )
 
-    expect(screen.getByText('View source to evaluate')).toBeInTheDocument()
+    expect(screen.getByText('View source to decide')).toBeInTheDocument()
   })
 
   it('shows decision buttons without evidence', () => {
