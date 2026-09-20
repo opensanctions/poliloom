@@ -8,6 +8,7 @@ from poliloom.models import (
     Language,
     Location,
     Position,
+    WikidataEntity,
     WikipediaProject,
 )
 
@@ -22,11 +23,23 @@ class TestWikidataEntityImporter:
                 "wikidata_id": "Q1",
                 "name": "Position 1",
                 "description": "First position",
+                "labels": ["Position 1"],
+                "terms": {
+                    "labels": {"en": "Position 1"},
+                    "descriptions": {"en": "First position"},
+                    "aliases": {"en": ["Pos 1"]},
+                },
             },
             {
                 "wikidata_id": "Q2",
                 "name": "Position 2",
                 "description": "Second position",
+                "labels": ["Position 2"],
+                "terms": {
+                    "labels": {"en": "Position 2", "de": "Amt 2"},
+                    "descriptions": {},
+                    "aliases": {},
+                },
             },
         ]
 
@@ -42,6 +55,25 @@ class TestWikidataEntityImporter:
         wikidata_ids = {pos.wikidata_id for pos in inserted_positions}
         assert wikidata_ids == {"Q1", "Q2"}
 
+        # Verify term maps were imported onto the WikidataEntity records
+        q1_entity = (
+            db_session.query(WikidataEntity)
+            .filter(WikidataEntity.wikidata_id == "Q1")
+            .one()
+        )
+        assert q1_entity.labels == {"en": "Position 1"}
+        assert q1_entity.descriptions == {"en": "First position"}
+        assert q1_entity.aliases == {"en": ["Pos 1"]}
+
+        q2_entity = (
+            db_session.query(WikidataEntity)
+            .filter(WikidataEntity.wikidata_id == "Q2")
+            .one()
+        )
+        assert q2_entity.labels == {"en": "Position 2", "de": "Amt 2"}
+        assert q2_entity.descriptions == {}
+        assert q2_entity.aliases == {}
+
     def test_insert_positions_batch_with_duplicates(self, db_session):
         """Test inserting positions with some duplicates."""
         # Insert initial batch
@@ -50,11 +82,21 @@ class TestWikidataEntityImporter:
                 "wikidata_id": "Q1",
                 "name": "Position 1",
                 "description": "First position",
+                "terms": {
+                    "labels": {"en": "Position 1"},
+                    "descriptions": {"en": "First position"},
+                    "aliases": {"en": ["Pos 1"]},
+                },
             },
             {
                 "wikidata_id": "Q2",
                 "name": "Position 2",
                 "description": "Second position",
+                "terms": {
+                    "labels": {"en": "Position 2"},
+                    "descriptions": {"en": "Second position"},
+                    "aliases": {},
+                },
             },
         ]
         collection = EntityCollection(model_class=Position, shared_classes=frozenset())
@@ -68,16 +110,31 @@ class TestWikidataEntityImporter:
                 "wikidata_id": "Q1",
                 "name": "Position 1 Updated",
                 "description": "First position updated",
+                "terms": {
+                    "labels": {"en": "Position 1 Updated", "de": "Amt 1"},
+                    "descriptions": {"en": "First position updated"},
+                    "aliases": {"de": ["Amt 1"]},
+                },
             },  # Duplicate (should update)
             {
                 "wikidata_id": "Q2",
                 "name": "Position 2",
                 "description": "Second position",
+                "terms": {
+                    "labels": {"en": "Position 2"},
+                    "descriptions": {"en": "Second position"},
+                    "aliases": {},
+                },
             },  # Duplicate (no change)
             {
                 "wikidata_id": "Q3",
                 "name": "Position 3",
                 "description": "Third position",
+                "terms": {
+                    "labels": {"en": "Position 3"},
+                    "descriptions": {"en": "Third position"},
+                    "aliases": {},
+                },
             },  # New
         ]
         collection = EntityCollection(model_class=Position, shared_classes=frozenset())
@@ -96,6 +153,14 @@ class TestWikidataEntityImporter:
             db_session.query(Position).filter(Position.wikidata_id == "Q1").first()
         )
         assert q1_position.wikidata_entity.name == "Position 1 Updated"
+        assert q1_position.wikidata_entity.labels == {
+            "en": "Position 1 Updated",
+            "de": "Amt 1",
+        }
+        assert q1_position.wikidata_entity.descriptions == {
+            "en": "First position updated"
+        }
+        assert q1_position.wikidata_entity.aliases == {"de": ["Amt 1"]}
 
     def test_insert_positions_batch_empty(self, db_session):
         """Test inserting empty batch of positions."""
@@ -115,11 +180,21 @@ class TestWikidataEntityImporter:
                 "wikidata_id": "Q1",
                 "name": "Location 1",
                 "description": "First location",
+                "terms": {
+                    "labels": {"en": "Location 1"},
+                    "descriptions": {"en": "First location"},
+                    "aliases": {"en": ["Loc 1"]},
+                },
             },
             {
                 "wikidata_id": "Q2",
                 "name": "Location 2",
                 "description": "Second location",
+                "terms": {
+                    "labels": {"en": "Location 2"},
+                    "descriptions": {"en": "Second location"},
+                    "aliases": {},
+                },
             },
         ]
 
@@ -135,6 +210,16 @@ class TestWikidataEntityImporter:
         wikidata_ids = {loc.wikidata_id for loc in inserted_locations}
         assert wikidata_ids == {"Q1", "Q2"}
 
+        # Verify term maps were imported onto the WikidataEntity records
+        q1_entity = (
+            db_session.query(WikidataEntity)
+            .filter(WikidataEntity.wikidata_id == "Q1")
+            .one()
+        )
+        assert q1_entity.labels == {"en": "Location 1"}
+        assert q1_entity.descriptions == {"en": "First location"}
+        assert q1_entity.aliases == {"en": ["Loc 1"]}
+
     def test_insert_locations_batch_with_duplicates(self, db_session):
         """Test inserting locations with some duplicates."""
         locations = [
@@ -142,16 +227,31 @@ class TestWikidataEntityImporter:
                 "wikidata_id": "Q1",
                 "name": "Location 1",
                 "description": "First location",
+                "terms": {
+                    "labels": {"en": "Location 1"},
+                    "descriptions": {"en": "First location"},
+                    "aliases": {},
+                },
             },
             {
                 "wikidata_id": "Q2",
                 "name": "Location 2",
                 "description": "Second location",
+                "terms": {
+                    "labels": {"en": "Location 2"},
+                    "descriptions": {"en": "Second location"},
+                    "aliases": {},
+                },
             },
             {
                 "wikidata_id": "Q3",
                 "name": "Location 3",
                 "description": "Third location",
+                "terms": {
+                    "labels": {"en": "Location 3"},
+                    "descriptions": {"en": "Third location"},
+                    "aliases": {},
+                },
             },
         ]
 
@@ -166,11 +266,21 @@ class TestWikidataEntityImporter:
                 "wikidata_id": "Q1",
                 "name": "Location 1 Updated",
                 "description": "First location updated",
+                "terms": {
+                    "labels": {"en": "Location 1 Updated"},
+                    "descriptions": {"en": "First location updated"},
+                    "aliases": {"en": ["Loc 1"]},
+                },
             },  # Duplicate
             {
                 "wikidata_id": "Q4",
                 "name": "Location 4",
                 "description": "Fourth location",
+                "terms": {
+                    "labels": {"en": "Location 4"},
+                    "descriptions": {"en": "Fourth location"},
+                    "aliases": {},
+                },
             },  # New
         ]
         collection = EntityCollection(model_class=Location, shared_classes=frozenset())
@@ -184,6 +294,15 @@ class TestWikidataEntityImporter:
         wikidata_ids = {loc.wikidata_id for loc in all_locations}
         assert wikidata_ids == {"Q1", "Q2", "Q3", "Q4"}
 
+        # Verify Q1 term maps were updated
+        q1_entity = (
+            db_session.query(WikidataEntity)
+            .filter(WikidataEntity.wikidata_id == "Q1")
+            .one()
+        )
+        assert q1_entity.labels == {"en": "Location 1 Updated"}
+        assert q1_entity.aliases == {"en": ["Loc 1"]}
+
     def test_insert_countries_batch(self, db_session):
         """Test inserting a batch of countries."""
         countries = [
@@ -192,12 +311,22 @@ class TestWikidataEntityImporter:
                 "name": "Country 1",
                 "description": "First country",
                 "iso_code": "C1",
+                "terms": {
+                    "labels": {"en": "Country 1"},
+                    "descriptions": {"en": "First country"},
+                    "aliases": {"en": ["C1 land"]},
+                },
             },
             {
                 "wikidata_id": "Q2",
                 "name": "Country 2",
                 "description": "Second country",
                 "iso_code": "C2",
+                "terms": {
+                    "labels": {"en": "Country 2"},
+                    "descriptions": {"en": "Second country"},
+                    "aliases": {},
+                },
             },
         ]
 
@@ -217,6 +346,9 @@ class TestWikidataEntityImporter:
         country1 = db_session.query(Country).filter(Country.wikidata_id == "Q1").first()
         assert country1.name == "Country 1"
         assert country1.iso_code == "C1"
+        assert country1.wikidata_entity.labels == {"en": "Country 1"}
+        assert country1.wikidata_entity.descriptions == {"en": "First country"}
+        assert country1.wikidata_entity.aliases == {"en": ["C1 land"]}
 
     def test_insert_countries_batch_with_duplicates_handling(self, db_session):
         """Test that countries batch uses ON CONFLICT DO UPDATE."""
@@ -226,6 +358,11 @@ class TestWikidataEntityImporter:
                 "name": "Country 1",
                 "description": "First country",
                 "iso_code": "C1",
+                "terms": {
+                    "labels": {"en": "Country 1"},
+                    "descriptions": {"en": "First country"},
+                    "aliases": {},
+                },
             },
         ]
 
@@ -242,6 +379,11 @@ class TestWikidataEntityImporter:
                 "name": "Country 1 Updated",
                 "description": "First country updated",
                 "iso_code": "C1",
+                "terms": {
+                    "labels": {"en": "Country 1 Updated"},
+                    "descriptions": {"en": "First country updated"},
+                    "aliases": {"en": ["C1"]},
+                },
             },
         ]
         collection = EntityCollection(model_class=Country, shared_classes=frozenset())
@@ -249,11 +391,13 @@ class TestWikidataEntityImporter:
             collection.add_entity(country)
         collection.insert(db_session)
 
-        # Should still have only one country but with updated name
+        # Should still have only one country but with updated data
         final_countries = db_session.query(Country).all()
         assert len(final_countries) == 1
         assert final_countries[0].wikidata_id == "Q1"
         assert final_countries[0].name == "Country 1 Updated"
+        assert final_countries[0].wikidata_entity.labels == {"en": "Country 1 Updated"}
+        assert final_countries[0].wikidata_entity.aliases == {"en": ["C1"]}
 
     def test_insert_languages_batch(self, db_session):
         """Test inserting a batch of languages."""
@@ -264,6 +408,11 @@ class TestWikidataEntityImporter:
                 "description": "English language",
                 "iso_639_1": "en",
                 "iso_639_2": "eng",
+                "terms": {
+                    "labels": {"en": "English"},
+                    "descriptions": {"en": "English language"},
+                    "aliases": {"en": ["Anglish"]},
+                },
             },
             {
                 "wikidata_id": "Q2",
@@ -271,6 +420,11 @@ class TestWikidataEntityImporter:
                 "description": "Spanish language",
                 "iso_639_1": "es",
                 "iso_639_2": "spa",
+                "terms": {
+                    "labels": {"en": "Spanish", "es": "español"},
+                    "descriptions": {"en": "Spanish language"},
+                    "aliases": {},
+                },
             },
         ]
 
@@ -289,6 +443,16 @@ class TestWikidataEntityImporter:
         assert iso_639_1s == {"en", "es"}
         assert iso_639_2s == {"eng", "spa"}
 
+        # Verify term maps were imported onto the WikidataEntity records
+        q2_entity = (
+            db_session.query(WikidataEntity)
+            .filter(WikidataEntity.wikidata_id == "Q2")
+            .one()
+        )
+        assert q2_entity.labels == {"en": "Spanish", "es": "español"}
+        assert q2_entity.descriptions == {"en": "Spanish language"}
+        assert q2_entity.aliases == {}
+
     def test_insert_languages_batch_with_duplicates_handling(self, db_session):
         """Test that languages batch uses ON CONFLICT DO UPDATE."""
         languages = [
@@ -298,6 +462,11 @@ class TestWikidataEntityImporter:
                 "description": "English language",
                 "iso_639_1": "en",
                 "iso_639_2": "eng",
+                "terms": {
+                    "labels": {"en": "English"},
+                    "descriptions": {"en": "English language"},
+                    "aliases": {},
+                },
             },
         ]
 
@@ -315,6 +484,11 @@ class TestWikidataEntityImporter:
                 "description": "English language updated",
                 "iso_639_1": "en",
                 "iso_639_2": "eng",
+                "terms": {
+                    "labels": {"en": "English Language"},
+                    "descriptions": {"en": "English language updated"},
+                    "aliases": {"en": ["Anglish"]},
+                },
             },
         ]
         collection = EntityCollection(model_class=Language, shared_classes=frozenset())
@@ -322,12 +496,14 @@ class TestWikidataEntityImporter:
             collection.add_entity(lang)
         collection.insert(db_session)
 
-        # Should still have only one language but with updated name
+        # Should still have only one language but with updated data
         final_languages = db_session.query(Language).all()
         assert len(final_languages) == 1
         assert final_languages[0].wikidata_id == "Q1"
         assert final_languages[0].name == "English Language"
         assert final_languages[0].iso_639_1 == "en"
+        assert final_languages[0].wikidata_entity.labels == {"en": "English Language"}
+        assert final_languages[0].wikidata_entity.aliases == {"en": ["Anglish"]}
 
     def test_insert_wikipedia_projects_batch(self, db_session, sample_language):
         """Test inserting a batch of Wikipedia projects."""
@@ -337,11 +513,21 @@ class TestWikidataEntityImporter:
                 "wikidata_id": "Q328",
                 "name": "English Wikipedia",
                 "description": "English edition of Wikipedia",
+                "terms": {
+                    "labels": {"en": "English Wikipedia"},
+                    "descriptions": {"en": "English edition of Wikipedia"},
+                    "aliases": {"en": ["enwiki"]},
+                },
             },
             {
                 "wikidata_id": "Q200183",
                 "name": "Simple English Wikipedia",
                 "description": "Simple English edition of Wikipedia",
+                "terms": {
+                    "labels": {"en": "Simple English Wikipedia"},
+                    "descriptions": {"en": "Simple English edition of Wikipedia"},
+                    "aliases": {},
+                },
             },
         ]
 
@@ -366,6 +552,8 @@ class TestWikidataEntityImporter:
             .first()
         )
         assert project1.name == "English Wikipedia"
+        assert project1.wikidata_entity.labels == {"en": "English Wikipedia"}
+        assert project1.wikidata_entity.aliases == {"en": ["enwiki"]}
 
         project2 = (
             db_session.query(WikipediaProject)
@@ -381,6 +569,11 @@ class TestWikidataEntityImporter:
                 "wikidata_id": "Q328",
                 "name": "English Wikipedia",
                 "description": "English edition of Wikipedia",
+                "terms": {
+                    "labels": {"en": "English Wikipedia"},
+                    "descriptions": {"en": "English edition of Wikipedia"},
+                    "aliases": {},
+                },
             },
         ]
 
@@ -398,6 +591,11 @@ class TestWikidataEntityImporter:
                 "wikidata_id": "Q328",
                 "name": "English Wikipedia Updated",
                 "description": "English edition of Wikipedia updated",
+                "terms": {
+                    "labels": {"en": "English Wikipedia Updated"},
+                    "descriptions": {"en": "English edition of Wikipedia updated"},
+                    "aliases": {"en": ["enwiki"]},
+                },
             },
         ]
         collection = EntityCollection(
@@ -407,12 +605,16 @@ class TestWikidataEntityImporter:
             collection.add_entity(project)
         collection.insert(db_session)
 
-        # Should still have only one project, but WikidataEntity name/description are updated
+        # Should still have only one project, but WikidataEntity data is updated
         final_projects = db_session.query(WikipediaProject).all()
         assert len(final_projects) == 1
         assert final_projects[0].wikidata_id == "Q328"
-        # Name is updated because WikidataEntity has update columns for name/description
+        # Name and terms are updated because WikidataEntity has update columns
         assert final_projects[0].name == "English Wikipedia Updated"
+        assert final_projects[0].wikidata_entity.labels == {
+            "en": "English Wikipedia Updated"
+        }
+        assert final_projects[0].wikidata_entity.aliases == {"en": ["enwiki"]}
 
 
 class TestWikipediaProjectFiltering:

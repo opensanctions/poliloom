@@ -112,6 +112,7 @@ def _process_second_pass_chunk(
                 {
                     "wikidata_id": entity_id,
                     "name": name,
+                    **entity.get_terms(),
                 }
             )
 

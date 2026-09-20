@@ -9,24 +9,57 @@ class TestWikidataHierarchyImporter:
     def test_upsert_wikidata_entities_batch(self, db_session):
         """Test upserting a batch of WikidataEntity records."""
         entities = [
-            {"wikidata_id": "Q1", "name": "Entity 1"},
-            {"wikidata_id": "Q2", "name": "Entity 2"},
+            {
+                "wikidata_id": "Q1",
+                "name": "Entity 1",
+                "labels": {"en": "Entity 1"},
+                "descriptions": {"en": "First entity"},
+                "aliases": {"en": ["E1"]},
+            },
+            {
+                "wikidata_id": "Q2",
+                "name": "Entity 2",
+                "labels": {"en": "Entity 2"},
+                "descriptions": {},
+                "aliases": {},
+            },
         ]
 
         WikidataEntity.upsert_batch(db_session, entities)
 
-        # Verify entities were inserted
+        # Verify entities were inserted with their term maps
         inserted_entities = db_session.query(WikidataEntity).all()
         assert len(inserted_entities) == 2
         wikidata_ids = {e.wikidata_id for e in inserted_entities}
         assert wikidata_ids == {"Q1", "Q2"}
 
+        q1_entity = (
+            db_session.query(WikidataEntity)
+            .filter(WikidataEntity.wikidata_id == "Q1")
+            .one()
+        )
+        assert q1_entity.labels == {"en": "Entity 1"}
+        assert q1_entity.descriptions == {"en": "First entity"}
+        assert q1_entity.aliases == {"en": ["E1"]}
+
     def test_upsert_wikidata_entities_batch_with_duplicates(self, db_session):
         """Test upserting WikidataEntity batch with duplicates."""
         # Insert initial batch
         initial_entities = [
-            {"wikidata_id": "Q1", "name": "Entity 1"},
-            {"wikidata_id": "Q2", "name": "Entity 2"},
+            {
+                "wikidata_id": "Q1",
+                "name": "Entity 1",
+                "labels": {"en": "Entity 1"},
+                "descriptions": {"en": "First entity"},
+                "aliases": {"en": ["E1"]},
+            },
+            {
+                "wikidata_id": "Q2",
+                "name": "Entity 2",
+                "labels": {"en": "Entity 2"},
+                "descriptions": {},
+                "aliases": {},
+            },
         ]
         WikidataEntity.upsert_batch(db_session, initial_entities)
 
@@ -35,8 +68,17 @@ class TestWikidataHierarchyImporter:
             {
                 "wikidata_id": "Q1",
                 "name": "Entity 1 Updated",
+                "labels": {"en": "Entity 1 Updated", "de": "Entität 1"},
+                "descriptions": {"en": "First entity updated"},
+                "aliases": {"de": ["E1"]},
             },  # Duplicate (should update)
-            {"wikidata_id": "Q3", "name": "Entity 3"},  # New
+            {
+                "wikidata_id": "Q3",
+                "name": "Entity 3",
+                "labels": {"en": "Entity 3"},
+                "descriptions": {},
+                "aliases": {},
+            },  # New
         ]
         WikidataEntity.upsert_batch(db_session, entities_with_duplicates)
 
@@ -50,9 +92,12 @@ class TestWikidataHierarchyImporter:
         q1_entity = (
             db_session.query(WikidataEntity)
             .filter(WikidataEntity.wikidata_id == "Q1")
-            .first()
+            .one()
         )
         assert q1_entity.name == "Entity 1 Updated"
+        assert q1_entity.labels == {"en": "Entity 1 Updated", "de": "Entität 1"}
+        assert q1_entity.descriptions == {"en": "First entity updated"}
+        assert q1_entity.aliases == {"de": ["E1"]}
 
     def test_upsert_wikidata_entities_batch_empty(self, db_session):
         """Test upserting empty batch of WikidataEntity records."""

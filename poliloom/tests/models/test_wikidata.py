@@ -1012,52 +1012,57 @@ class TestCleanupOutsideHierarchySearchIndex:
 class TestSearchIndexQuery:
     """Test WikidataEntity.search_index_query functionality."""
 
-    def _create_entity_with_labels(self, db_session, wikidata_id, name, labels):
-        """Helper to create a WikidataEntity with labels."""
-        from poliloom.models import WikidataEntityLabel
+    # Languages used to spread term values across per-language keys,
+    # mirroring the shape the dump importer writes
+    LANGUAGES = ("en", "de", "zh", "fr", "es", "ru")
 
+    def _create_entity_with_terms(
+        self, db_session, wikidata_id, name, labels=(), aliases=()
+    ):
+        """Create a WikidataEntity with label/alias values in its term maps."""
         stmt = insert(WikidataEntity).values(
-            [{"wikidata_id": wikidata_id, "name": name}]
+            [
+                {
+                    "wikidata_id": wikidata_id,
+                    "name": name,
+                    "labels": dict(zip(self.LANGUAGES, labels)),
+                    "aliases": {
+                        lang: [alias] for lang, alias in zip(self.LANGUAGES, aliases)
+                    },
+                }
+            ]
         )
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
-
-        for label in labels:
-            stmt = insert(WikidataEntityLabel).values(
-                [{"entity_id": wikidata_id, "label": label}]
-            )
-            stmt = stmt.on_conflict_do_nothing(index_elements=["entity_id", "label"])
-            db_session.execute(stmt)
-
         db_session.flush()
 
-    def _create_location(self, db_session, wikidata_id, name, labels):
-        """Helper to create a Location entity with labels."""
+    def _create_location(self, db_session, wikidata_id, name, labels=(), aliases=()):
+        """Create a Location entity with term maps."""
         from poliloom.models import Location
 
-        self._create_entity_with_labels(db_session, wikidata_id, name, labels)
+        self._create_entity_with_terms(db_session, wikidata_id, name, labels, aliases)
 
         stmt = insert(Location.__table__).values([{"wikidata_id": wikidata_id}])
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
         db_session.flush()
 
-    def _create_country(self, db_session, wikidata_id, name, labels):
-        """Helper to create a Country entity with labels."""
+    def _create_country(self, db_session, wikidata_id, name, labels=(), aliases=()):
+        """Create a Country entity with term maps."""
         from poliloom.models import Country
 
-        self._create_entity_with_labels(db_session, wikidata_id, name, labels)
+        self._create_entity_with_terms(db_session, wikidata_id, name, labels, aliases)
 
         stmt = insert(Country.__table__).values([{"wikidata_id": wikidata_id}])
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
         db_session.execute(stmt)
         db_session.flush()
 
-    def _create_position(self, db_session, wikidata_id, name, labels):
-        """Helper to create a Position entity with labels."""
+    def _create_position(self, db_session, wikidata_id, name, labels=(), aliases=()):
+        """Create a Position entity with term maps."""
         from poliloom.models import Position
 
-        self._create_entity_with_labels(db_session, wikidata_id, name, labels)
+        self._create_entity_with_terms(db_session, wikidata_id, name, labels, aliases)
 
         stmt = insert(Position.__table__).values([{"wikidata_id": wikidata_id}])
         stmt = stmt.on_conflict_do_nothing(index_elements=["wikidata_id"])
@@ -1066,7 +1071,9 @@ class TestSearchIndexQuery:
 
     def test_returns_entity_with_single_type(self, db_session):
         """Test query returns entity with single type."""
-        self._create_location(db_session, "Q60", "New York City", ["New York", "NYC"])
+        self._create_location(
+            db_session, "Q60", "New York City", labels=["New York", "New York City"]
+        )
 
         query = WikidataEntity.search_index_query()
         results = db_session.execute(query).fetchall()
@@ -1075,15 +1082,80 @@ class TestSearchIndexQuery:
         row = results[0]
         assert row.wikidata_id == "Q60"
         assert "Location" in row.types
-        assert set(row.labels) == {"New York", "NYC"}
+        assert set(row.labels) == {"New York", "New York City"}
+
+    def test_includes_alias_values_from_term_maps(self, db_session):
+        """Test alias values feed the index alongside label values."""
+        self._create_location(
+            db_session,
+            "Q60",
+            "New York City",
+            labels=["New York"],
+            aliases=["NYC", "Big Apple"],
+        )
+
+        query = WikidataEntity.search_index_query()
+        results = db_session.execute(query).fetchall()
+
+        assert len(results) == 1
+        assert set(results[0].labels) == {"New York", "NYC", "Big Apple"}
+
+    def test_returns_entity_with_only_aliases(self, db_session):
+        """Test entity without labels but with aliases is indexed."""
+        self._create_location(
+            db_session, "Q84", "London", aliases=["London", "The Smoke"]
+        )
+
+        query = WikidataEntity.search_index_query()
+        results = db_session.execute(query).fetchall()
+
+        assert len(results) == 1
+        assert results[0].wikidata_id == "Q84"
+        assert set(results[0].labels) == {"London", "The Smoke"}
+
+    def test_deduplicates_values_across_labels_and_aliases(self, db_session):
+        """Test a value appearing as both label and alias is indexed once."""
+        self._create_location(
+            db_session,
+            "Q60",
+            "New York City",
+            labels=["New York"],
+            aliases=["New York"],
+        )
+
+        query = WikidataEntity.search_index_query()
+        results = db_session.execute(query).fetchall()
+
+        assert len(results) == 1
+        assert set(results[0].labels) == {"New York"}
+
+    def test_ignores_wikidata_entity_label_rows(self, db_session):
+        """Test terms come from the JSONB maps, not the label table."""
+        from poliloom.models import WikidataEntityLabel
+
+        self._create_location(db_session, "Q60", "New York City", labels=["New York"])
+
+        # Stale label-table row not present in the term maps
+        db_session.execute(
+            insert(WikidataEntityLabel).values(
+                [{"entity_id": "Q60", "label": "Stale Label"}]
+            )
+        )
+        db_session.flush()
+
+        query = WikidataEntity.search_index_query()
+        results = db_session.execute(query).fetchall()
+
+        assert len(results) == 1
+        assert set(results[0].labels) == {"New York"}
 
     def test_returns_entity_with_multiple_types(self, db_session):
         """Test query aggregates multiple types for same entity."""
         from poliloom.models import Country, Location
 
         # Germany is both a Location and a Country
-        self._create_entity_with_labels(
-            db_session, "Q183", "Germany", ["Germany", "Deutschland"]
+        self._create_entity_with_terms(
+            db_session, "Q183", "Germany", labels=["Germany", "Deutschland"]
         )
 
         # Add to both tables
@@ -1108,8 +1180,10 @@ class TestSearchIndexQuery:
 
     def test_returns_multiple_entities(self, db_session):
         """Test query returns multiple entities."""
-        self._create_location(db_session, "Q60", "New York City", ["NYC"])
-        self._create_position(db_session, "Q30185", "Mayor", ["Mayor", "Bürgermeister"])
+        self._create_location(db_session, "Q60", "New York City", labels=["NYC"])
+        self._create_position(
+            db_session, "Q30185", "Mayor", labels=["Mayor", "Bürgermeister"]
+        )
 
         query = WikidataEntity.search_index_query()
         results = db_session.execute(query).fetchall()
@@ -1127,8 +1201,8 @@ class TestSearchIndexQuery:
         """Test query excludes soft-deleted entities."""
         from datetime import datetime
 
-        self._create_location(db_session, "Q60", "New York City", ["NYC"])
-        self._create_location(db_session, "Q84", "London", ["London"])
+        self._create_location(db_session, "Q60", "New York City", labels=["NYC"])
+        self._create_location(db_session, "Q84", "London", labels=["London"])
 
         # Soft-delete London
         db_session.execute(
@@ -1146,11 +1220,13 @@ class TestSearchIndexQuery:
 
     def test_excludes_entities_not_in_model_tables(self, db_session):
         """Test query only returns entities that exist in model tables."""
-        # Create entity with labels but NOT in any model table
-        self._create_entity_with_labels(db_session, "Q999", "Orphan Entity", ["Orphan"])
+        # Create entity with terms but NOT in any model table
+        self._create_entity_with_terms(
+            db_session, "Q999", "Orphan Entity", labels=["Orphan"]
+        )
 
         # Create proper location
-        self._create_location(db_session, "Q60", "New York City", ["NYC"])
+        self._create_location(db_session, "Q60", "New York City", labels=["NYC"])
 
         query = WikidataEntity.search_index_query()
         results = db_session.execute(query).fetchall()
@@ -1159,11 +1235,24 @@ class TestSearchIndexQuery:
         assert len(results) == 1
         assert results[0].wikidata_id == "Q60"
 
+    def test_excludes_entities_without_terms(self, db_session):
+        """Test query only returns entities that have labels or aliases."""
+        self._create_location(db_session, "Q60", "New York City", labels=["NYC"])
+        self._create_location(db_session, "Q100", "No Terms")
+
+        query = WikidataEntity.search_index_query()
+        results = db_session.execute(query).fetchall()
+
+        assert len(results) == 1
+        assert results[0].wikidata_id == "Q60"
+
     def test_pagination_with_offset_and_limit(self, db_session):
         """Test query supports pagination with offset and limit."""
         # Create multiple locations
         for i in range(5):
-            self._create_location(db_session, f"Q{i}", f"Location {i}", [f"Label {i}"])
+            self._create_location(
+                db_session, f"Q{i}", f"Location {i}", labels=[f"Label {i}"]
+            )
 
         query = WikidataEntity.search_index_query()
 
