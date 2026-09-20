@@ -1,22 +1,9 @@
-import { Input } from '@/components/ui/Input'
-
 interface PoliticianHeaderProps {
   name: string
   wikidataId?: string
-  onNameChange?: (name: string) => void
 }
 
-export function PoliticianHeader({ name, wikidataId, onNameChange }: PoliticianHeaderProps) {
-  if (onNameChange) {
-    return (
-      <Input
-        value={name}
-        onChange={(e) => onNameChange(e.target.value)}
-        placeholder="Politician name"
-      />
-    )
-  }
-
+export function PoliticianHeader({ name, wikidataId }: PoliticianHeaderProps) {
   return (
     <h1 className="text-2xl font-bold text-foreground">
       {wikidataId ? (

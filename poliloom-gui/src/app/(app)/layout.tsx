@@ -1,6 +1,6 @@
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { EventStreamProvider } from '@/contexts/EventStreamContext'
-import { EvaluationCountProvider } from '@/contexts/EvaluationCountContext'
+import { DecisionCountProvider } from '@/contexts/DecisionCountContext'
 import { NextPoliticianProvider } from '@/contexts/NextPoliticianContext'
 import { FilterProvider } from '@/contexts/FilterContext'
 import { Header } from '@/components/layout/Header'
@@ -26,7 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         initialCountryQids={initialCountryQids}
       >
         <EventStreamProvider>
-          <EvaluationCountProvider initialCount={evaluationCount}>
+          <DecisionCountProvider initialCount={evaluationCount}>
             <NextPoliticianProvider>
               <Header
                 left={<OmniBox />}
@@ -40,7 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               />
               {children}
             </NextPoliticianProvider>
-          </EvaluationCountProvider>
+          </DecisionCountProvider>
         </EventStreamProvider>
       </FilterProvider>
     </SettingsProvider>

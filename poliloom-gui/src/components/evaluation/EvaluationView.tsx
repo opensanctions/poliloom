@@ -1,34 +1,25 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect, useCallback, ReactNode, Fragment } from 'react'
+import { Politician, SourceResponse } from '@/types'
+import type { Action } from '@/types'
 import {
-  Politician,
-  Property,
-  PropertyType,
-  EntityPropertyType,
-  PropertyActionItem,
-  CreatePropertyItem,
-  SourceResponse,
-  SearchFn,
-} from '@/types'
-import {
-  actionToEvaluation,
-  applyAction,
-  createPropertyFromAction,
-  groupPropertiesIntoSections,
-  getAddLabel,
-  SectionType,
-} from '@/lib/evaluation'
+  applyDecision,
+  computeSubmitPayload,
+  effectiveDecision,
+  groupStatementsIntoSections,
+  type LocalDecisions,
+  type ReviewSubmitPayload,
+  type StatementItem,
+} from '@/lib/actions'
+import { best_label } from '@/lib/labels'
 import { useIframeAutoHighlight } from '@/hooks/useIframeHighlighting'
 import { highlightTextInScope } from '@/lib/textHighlighter'
 import { TwoPanel } from '@/components/layout/TwoPanel'
 import { CenteredCard } from '@/components/ui/CenteredCard'
 import { HeaderedBox } from '@/components/ui/HeaderedBox'
-import { Button } from '@/components/ui/Button'
 import { GroupTitle } from './GroupTitle'
-import { PropertyDisplay } from './PropertyDisplay'
-import { AddDatePropertyForm } from './AddDatePropertyForm'
-import { AddEntityPropertyForm } from './AddEntityPropertyForm'
+import { StatementItemView } from './StatementItemView'
 import { PoliticianHeader } from './PoliticianHeader'
 import { SourceViewer } from './SourceViewer'
 import { SourcesSection } from './SourcesSection'
@@ -42,25 +33,29 @@ export function findInitialSelection(
   politician: Politician,
   languageQids: string[],
 ): SourceSelection | null {
+  const withEvidence = politician.actions.filter((action) => action.evidence.length > 0)
+
   if (languageQids.length > 0) {
     const langSet = new Set(languageQids)
-    const prop = politician.properties.find(
-      (p) =>
-        !p.statement_id &&
-        p.sources.length > 0 &&
-        p.sources[0].source &&
-        p.sources[0].source.language_qids.some((qid) => langSet.has(qid)),
+    const matching = withEvidence.find((action) =>
+      action.evidence.some((evidence) =>
+        evidence.source.language_qids.some((qid) => langSet.has(qid)),
+      ),
     )
-    if (prop) {
-      const ref = prop.sources[0]
-      return { source: ref.source, quotes: ref.supporting_quotes ?? null }
+    if (matching) {
+      const evidence = matching.evidence.find((e) =>
+        e.source.language_qids.some((qid) => langSet.has(qid)),
+      )!
+      return { source: evidence.source, quotes: evidence.supporting_quotes ?? null }
     }
   }
 
-  const prop = politician.properties.find((p) => p.sources.length > 0 && !p.statement_id)
-  if (prop) {
-    const ref = prop.sources[0]
-    if (ref.source) return { source: ref.source, quotes: ref.supporting_quotes ?? null }
+  const first = withEvidence[0]
+  if (first) {
+    return {
+      source: first.evidence[0].source,
+      quotes: first.evidence[0].supporting_quotes ?? null,
+    }
   }
   return null
 }
@@ -72,10 +67,10 @@ export function findSelectionForSource(
   const source = politician.sources.find((s) => s.id === sourceId)
   if (!source) return null
 
-  for (const prop of politician.properties) {
-    const ref = prop.sources.find((r) => r.source.id === sourceId)
-    if (ref) {
-      return { source, quotes: ref.supporting_quotes ?? null }
+  for (const action of politician.actions) {
+    const evidence = action.evidence.find((e) => e.source.id === sourceId)
+    if (evidence) {
+      return { source, quotes: evidence.supporting_quotes ?? null }
     }
   }
 
@@ -83,49 +78,43 @@ export function findSelectionForSource(
 }
 
 export interface FooterContext {
-  actions: PropertyActionItem[]
+  decidedCount: number
   isSubmitting: boolean
   submit: () => void
 }
 
 interface EvaluationViewProps {
   politician: Politician
+  userLanguageCodes: string[]
   selection: SourceSelection | null
   onSelectionChange: (selection: SourceSelection | null) => void
-  onSubmit?: (actions: PropertyActionItem[]) => Promise<void>
+  onSubmit?: (payload: ReviewSubmitPayload) => Promise<void>
   footer: (context: FooterContext) => ReactNode
   sourcesApiPath?: string
-  onNameChange?: (name: string) => void
   onAddSource?: (url: string) => Promise<void>
-  isAdvancedMode?: boolean
-  entitySearches?: Record<EntityPropertyType, SearchFn>
 }
 
 export function EvaluationView({
   politician,
+  userLanguageCodes,
   selection,
   onSelectionChange,
   onSubmit,
   footer,
   sourcesApiPath = '/api/sources',
-  onNameChange,
   onAddSource,
-  isAdvancedMode = false,
-  entitySearches,
 }: EvaluationViewProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [actions, setActions] = useState<PropertyActionItem[]>([])
+  const [decisions, setDecisions] = useState<LocalDecisions>({})
 
-  const displayProperties = useMemo<Property[]>(() => {
-    const originals = politician.properties.map((p) => ({
-      ...p,
-      evaluation: actionToEvaluation(actions, p.id!),
-    }))
-    const added = actions
-      .filter((a): a is CreatePropertyItem => a.action === 'create')
-      .map((a) => createPropertyFromAction(a))
-    return [...originals, ...added]
-  }, [politician, actions])
+  const sections = useMemo(
+    () => groupStatementsIntoSections(politician.statements, politician.actions),
+    [politician.statements, politician.actions],
+  )
+
+  const decidedCount = politician.actions.filter(
+    (action) => effectiveDecision(action, decisions) !== null,
+  ).length
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const propertiesRef = useRef<HTMLDivElement | null>(null)
@@ -145,25 +134,25 @@ export function EvaluationView({
     }
   }, [quotes, isIframeLoaded, highlightText])
 
-  const handleAction = (id: string, action: 'accept' | 'reject') => {
-    setActions((prev) => applyAction(prev, id, action))
-  }
+  const handleDecision = useCallback((action: Action, isAccepted: boolean) => {
+    setDecisions((prev) => applyDecision(action, prev, isAccepted))
+  }, [])
 
   const submit = useCallback(async () => {
     if (!onSubmit) return
     setIsSubmitting(true)
     try {
-      await onSubmit(actions)
-      setActions([])
+      await onSubmit(computeSubmitPayload(politician.actions, decisions))
+      setDecisions({})
     } catch (error) {
       console.error('Submission failed:', error)
       alert(
-        error instanceof Error ? error.message : 'Error submitting evaluations. Please try again.',
+        error instanceof Error ? error.message : 'Error submitting decisions. Please try again.',
       )
     } finally {
       setIsSubmitting(false)
     }
-  }, [onSubmit, actions])
+  }, [onSubmit, politician.actions, decisions])
 
   const handleViewSource = useCallback(
     (source: SourceResponse, quotes?: string[]) => {
@@ -172,53 +161,31 @@ export function EvaluationView({
     [onSelectionChange],
   )
 
-  const handlePropertyHover = (property: Property) => {
+  const handleItemHover = (item: StatementItem) => {
     if (!selection) return
-    const matchingRef = property.sources.find((s) => selection.source.id === s.source.id)
-    if (!matchingRef?.supporting_quotes?.length) return
-    onSelectionChange({ ...selection, quotes: matchingRef.supporting_quotes })
+    const actions = item.createAction ? [item.createAction] : item.editActions
+    const matching = actions
+      .flatMap((action) => action.evidence)
+      .find((evidence) => evidence.source.id === selection.source.id)
+    if (!matching?.supporting_quotes?.length) return
+    onSelectionChange({ ...selection, quotes: matching.supporting_quotes })
   }
 
   const activeSourceId = selection?.source.id ?? null
 
-  const [addingSection, setAddingSection] = useState<SectionType | null>(null)
-
-  const handleAdd = (item: CreatePropertyItem) => {
-    setActions((prev) => [...prev, item])
-    setAddingSection(null)
-  }
-
-  function renderAddForm(sectionType: SectionType) {
-    const onCancel = () => setAddingSection(null)
-    switch (sectionType) {
-      case 'date':
-        return <AddDatePropertyForm onAdd={handleAdd} onCancel={onCancel} />
-      case PropertyType.P39:
-      case PropertyType.P19:
-      case PropertyType.P27:
-        return (
-          <AddEntityPropertyForm
-            type={sectionType}
-            onAdd={handleAdd}
-            onCancel={onCancel}
-            onSearch={entitySearches?.[sectionType]}
-          />
-        )
-    }
-  }
-
-  const sections = groupPropertiesIntoSections(displayProperties, {
-    showEmptySections: isAdvancedMode,
-  })
+  const politicianName = best_label(
+    politician.terms,
+    userLanguageCodes,
+    politician.wikidata_id ?? politician.id,
+  )
 
   const leftPanel = (
     <div className="grid grid-rows-[1fr_auto] h-full">
       <div className="overflow-y-auto min-h-0 p-6" ref={propertiesRef}>
         <div className="flex flex-col gap-8">
           <PoliticianHeader
-            name={politician.name}
+            name={politicianName}
             wikidataId={politician.wikidata_id ?? undefined}
-            onNameChange={onNameChange}
           />
 
           <SourcesSection
@@ -232,59 +199,51 @@ export function EvaluationView({
             <div key={section.title}>
               <h2 className="text-xl font-semibold text-foreground mb-4">{section.title}</h2>
               <div className="space-y-4">
-                {section.groups.map((group) => (
-                  <HeaderedBox
-                    key={group.key}
-                    title={<GroupTitle property={group.properties[0]} />}
-                    onHover={() => {
-                      const firstWithSource = group.properties.find(
-                        (p) => p.sources.length > 0 && !p.statement_id,
-                      )
-                      if (firstWithSource) {
-                        handlePropertyHover(firstWithSource)
+                {section.groups.map((group) => {
+                  const first = group.items[0]
+                  const terms =
+                    first.statement?.entity_terms ?? first.createAction?.entity_terms ?? null
+                  return (
+                    <HeaderedBox
+                      key={group.key}
+                      title={
+                        <GroupTitle
+                          sectionType={section.sectionType}
+                          groupKey={group.key}
+                          terms={terms}
+                          userLanguageCodes={userLanguageCodes}
+                        />
                       }
-                    }}
-                  >
-                    <div className="space-y-3">
-                      {group.properties.map((property, index) => (
-                        <Fragment key={property.id}>
-                          {index > 0 && <hr className="border-border-muted my-3" />}
-                          <PropertyDisplay
-                            property={property}
-                            onAction={handleAction}
-                            onViewSource={handleViewSource}
-                            onHover={handlePropertyHover}
-                            activeSourceId={activeSourceId}
-                            shouldAutoOpen={true}
-                            showExistingStatementActions={isAdvancedMode}
-                          />
-                        </Fragment>
-                      ))}
-                    </div>
-                  </HeaderedBox>
-                ))}
-              </div>
-              {isAdvancedMode && (
-                <div className="mt-4">
-                  {addingSection === section.sectionType ? (
-                    renderAddForm(section.sectionType)
-                  ) : (
-                    <Button
-                      variant="secondary"
-                      size="small"
-                      onClick={() => setAddingSection(section.sectionType)}
+                      onHover={() => handleItemHover(first)}
                     >
-                      {getAddLabel(section.sectionType)}
-                    </Button>
-                  )}
-                </div>
-              )}
+                      <div className="space-y-3">
+                        {group.items.map((item, index) => (
+                          <Fragment key={itemKey(item)}>
+                            {index > 0 && <hr className="border-border-muted my-3" />}
+                            <StatementItemView
+                              item={item}
+                              decisions={decisions}
+                              onDecision={handleDecision}
+                              onViewSource={handleViewSource}
+                              onHover={handleItemHover}
+                              activeSourceId={activeSourceId}
+                              userLanguageCodes={userLanguageCodes}
+                            />
+                          </Fragment>
+                        ))}
+                      </div>
+                    </HeaderedBox>
+                  )
+                })}
+              </div>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="p-6 border-t border-border">{footer({ actions, isSubmitting, submit })}</div>
+      <div className="p-6 border-t border-border">
+        {footer({ decidedCount, isSubmitting, submit })}
+      </div>
     </div>
   )
 
@@ -302,4 +261,8 @@ export function EvaluationView({
   )
 
   return <TwoPanel left={leftPanel} right={rightPanel} />
+}
+
+function itemKey(item: StatementItem): string {
+  return item.statement ? item.statement.id : item.createAction.id
 }

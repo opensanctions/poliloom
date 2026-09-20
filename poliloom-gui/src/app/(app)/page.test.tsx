@@ -70,7 +70,14 @@ describe('Home Page (Filter Selection)', () => {
 
     render(
       <HomeContent
-        languages={[{ wikidata_id: 'Q1860', name: 'English', sources_count: 10 }]}
+        languages={[
+          {
+            wikidata_id: 'Q1860',
+            terms: { labels: { en: 'English' }, descriptions: {}, aliases: {} },
+            wikimedia_code: 'en',
+            sources_count: 10,
+          },
+        ]}
         countries={[]}
       />,
     )
