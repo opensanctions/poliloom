@@ -1,4 +1,6 @@
-export interface ParsedWikidataDate {
+import type { RestTimeValue, RestValue } from '@/types'
+
+export interface ParsedTime {
   display: string
   year: number | null
   month: number | null
@@ -7,16 +9,33 @@ export interface ParsedWikidataDate {
 }
 
 /**
- * Parses Wikidata date strings and returns a human-readable display string
- * along with parsed date components.
- *
- * @param dateString - Wikidata date string (e.g., "+2015-00-00T00:00:00Z")
- * @param precision - Precision level (9=year, 10=month, 11=day)
- * @returns Parsed date with display string and components
+ * Extracts the time content from a REST value.
+ * Returns null for somevalue/novalue snaks and non-time content.
  */
-export function parseWikidataDate(dateString: string, precision: number): ParsedWikidataDate {
+export function timeValue(value: RestValue): RestTimeValue | null {
+  if (value.type !== 'value') return null
+  const content = value.content
+  if (
+    typeof content === 'object' &&
+    content !== null &&
+    typeof (content as Record<string, unknown>).time === 'string' &&
+    typeof (content as Record<string, unknown>).precision === 'number'
+  ) {
+    return content as RestTimeValue
+  }
+  return null
+}
+
+/**
+ * Parses a REST time value into a precision-aware display string
+ * plus parsed date components.
+ *
+ * @param value - REST time value (e.g., time "+2015-00-00T00:00:00Z")
+ * @returns Parsed time with display string and components
+ */
+export function parseTimeValue(value: RestTimeValue): ParsedTime {
   // Remove the leading '+' and 'T00:00:00Z' suffix
-  const cleanDate = dateString.replace(/^\+/, '').replace(/T00:00:00Z$/, '')
+  const cleanDate = value.time.replace(/^\+/, '').replace(/T00:00:00Z$/, '')
   const [yearStr, monthStr, dayStr] = cleanDate.split('-')
 
   const year = parseInt(yearStr, 10)
@@ -25,13 +44,13 @@ export function parseWikidataDate(dateString: string, precision: number): Parsed
 
   let display: string
 
-  if (precision >= 11 && month && day) {
+  if (value.precision >= 11 && month && day) {
     display = new Date(year, month - 1, day).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
     })
-  } else if (precision >= 10 && month) {
+  } else if (value.precision >= 10 && month) {
     display = new Date(year, month - 1).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -45,6 +64,6 @@ export function parseWikidataDate(dateString: string, precision: number): Parsed
     year,
     month,
     day,
-    precision,
+    precision: value.precision,
   }
 }

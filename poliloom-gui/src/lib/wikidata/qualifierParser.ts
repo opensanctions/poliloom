@@ -1,24 +1,23 @@
-import { parseWikidataDate, ParsedWikidataDate } from './dateParser'
+import type { RestSnak } from '@/types'
+import { parseTimeValue, timeValue, type ParsedTime } from './dateParser'
 
-export interface ParsedPositionDates {
-  startDate: ParsedWikidataDate | null
-  endDate: ParsedWikidataDate | null
-}
-
-interface WikidataSnak {
-  datavalue?: {
-    value?: {
-      time?: string
-      precision?: number
-    }
-  }
+export interface Timeframe {
+  start: ParsedTime | null
+  end: ParsedTime | null
 }
 
 /**
- * Compares two parsed dates for sorting purposes.
+ * Returns the qualifiers with the given property id.
+ */
+export function findQualifiers(qualifiers: RestSnak[], propertyId: string): RestSnak[] {
+  return qualifiers.filter((snak) => snak.property.id === propertyId)
+}
+
+/**
+ * Compares two parsed times for sorting purposes.
  * Returns negative if a < b, positive if a > b, 0 if equal.
  */
-export function compareDates(a: ParsedWikidataDate, b: ParsedWikidataDate): number {
+export function compareTimes(a: ParsedTime, b: ParsedTime): number {
   if (a.year !== b.year) return (a.year ?? 0) - (b.year ?? 0)
   if (a.month !== b.month) return (a.month ?? 0) - (b.month ?? 0)
   if (a.day !== b.day) return (a.day ?? 0) - (b.day ?? 0)
@@ -26,104 +25,71 @@ export function compareDates(a: ParsedWikidataDate, b: ParsedWikidataDate): numb
 }
 
 /**
- * Selects the best date from multiple qualifier values.
+ * Selects the best time from multiple qualifier snaks.
  *
- * Some positions have multiple P580/P582 values (e.g., Q547153 held "delegate" across 9 terms).
- * Wikidata recommends a single "best" value marked with preferred rank, so we select one
- * representative date rather than displaying all values.
+ * Some positions have multiple P580/P582 values (e.g., Q547153 held "delegate"
+ * across 9 terms). Wikidata recommends a single "best" value marked with
+ * preferred rank, so we select one representative date rather than displaying
+ * all values.
  *
- * Strategy: prefer most precise date (precision 11 > 10 > 9), then earliest for start dates
- * or latest for end dates.
- *
- * @param snaks - Array of qualifier snaks
- * @param preferLatest - If true, prefer later dates when precision is equal (for end dates)
+ * Strategy: prefer the most precise date (precision 11 > 10 > 9), then the
+ * earliest for start dates or the latest for end dates.
  */
-function selectBestDate(
-  snaks: WikidataSnak[],
-  preferLatest: boolean = false,
-): ParsedWikidataDate | null {
-  const parsedDates: ParsedWikidataDate[] = []
+function selectBestTime(snaks: RestSnak[], preferLatest: boolean): ParsedTime | null {
+  const parsedTimes: ParsedTime[] = []
 
   for (const snak of snaks) {
-    if (snak.datavalue?.value?.time && snak.datavalue?.value?.precision) {
-      parsedDates.push(parseWikidataDate(snak.datavalue.value.time, snak.datavalue.value.precision))
-    }
+    const time = timeValue(snak.value)
+    if (time) parsedTimes.push(parseTimeValue(time))
   }
 
-  if (parsedDates.length === 0) return null
-  if (parsedDates.length === 1) return parsedDates[0]
+  if (parsedTimes.length === 0) return null
+  if (parsedTimes.length === 1) return parsedTimes[0]
 
-  // Sort by precision (descending - higher is more precise), then by date
-  parsedDates.sort((a, b) => {
-    // First compare by precision (higher precision wins)
+  // Sort by precision (descending - higher is more precise), then by time
+  parsedTimes.sort((a, b) => {
     if (a.precision !== b.precision) {
       return b.precision - a.precision
     }
-    // If same precision, compare by date value
-    const dateComparison = compareDates(a, b)
-    return preferLatest ? -dateComparison : dateComparison
+    const timeComparison = compareTimes(a, b)
+    return preferLatest ? -timeComparison : timeComparison
   })
 
-  return parsedDates[0]
+  return parsedTimes[0]
 }
 
 /**
- * Extracts position start and end dates from Wikidata qualifiers.
- * When multiple dates exist for P580 or P582, selects the best date using:
- * - Most precise date (day > month > year)
- * - For P580 (start): earliest date when precision is equal
- * - For P582 (end): latest date when precision is equal
- *
- * @param qualifiers - Record containing qualifier data with P580 (start) and P582 (end) properties
- * @returns Parsed start and end dates, or null if not found
+ * Extracts a statement timeframe from REST qualifiers: P580 (start time) and
+ * P582 (end time). When multiple values exist for either, selects the best
+ * one: most precise first, then earliest for starts and latest for ends.
  */
-export function parsePositionQualifiers(qualifiers: Record<string, unknown>): ParsedPositionDates {
-  let startDate: ParsedWikidataDate | null = null
-  let endDate: ParsedWikidataDate | null = null
-
-  // Extract P580 (start date) - prefer most precise, then earliest
-  if (qualifiers.P580) {
-    const startQualifier = qualifiers.P580
-    if (Array.isArray(startQualifier) && startQualifier.length > 0) {
-      startDate = selectBestDate(startQualifier as WikidataSnak[], false)
-    }
+export function parseTimeframe(qualifiers: RestSnak[]): Timeframe {
+  return {
+    start: selectBestTime(findQualifiers(qualifiers, 'P580'), false),
+    end: selectBestTime(findQualifiers(qualifiers, 'P582'), true),
   }
-
-  // Extract P582 (end date) - prefer most precise, then latest
-  if (qualifiers.P582) {
-    const endQualifier = qualifiers.P582
-    if (Array.isArray(endQualifier) && endQualifier.length > 0) {
-      endDate = selectBestDate(endQualifier as WikidataSnak[], true)
-    }
-  }
-
-  return { startDate, endDate }
 }
 
 /**
- * Formats position dates for display
+ * Formats a timeframe for display.
  *
- * @param dates - Parsed position dates
+ * @param timeframe - Parsed timeframe
  * @returns Human-readable date range string
  */
-export function formatPositionDates(dates: ParsedPositionDates): string {
-  const { startDate, endDate } = dates
+export function formatTimeframe(timeframe: Timeframe): string {
+  const { start, end } = timeframe
 
-  if (!startDate && !endDate) {
+  if (!start && !end) {
     return 'dates not specified'
   }
 
-  if (startDate && endDate) {
-    return `${startDate.display} – ${endDate.display}`
+  if (start && end) {
+    return `${start.display} – ${end.display}`
   }
 
-  if (startDate) {
-    return `${startDate.display} – present`
+  if (start) {
+    return `${start.display} – present`
   }
 
-  if (endDate) {
-    return `until ${endDate.display}`
-  }
-
-  return ''
+  return `until ${end!.display}`
 }
