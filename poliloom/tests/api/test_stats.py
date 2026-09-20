@@ -50,6 +50,13 @@ def citizenship_document(statement_id, country_qid):
     }
 
 
+def set_terms(entity, *, labels=None, descriptions=None, aliases=None):
+    """Set language-keyed term maps on an entity's WikidataEntity."""
+    entity.wikidata_entity.labels = labels or {}
+    entity.wikidata_entity.descriptions = descriptions or {}
+    entity.wikidata_entity.aliases = aliases or {}
+
+
 def create_citizenship(db_session, politician, country_qid, statement_id):
     """Create a live P27 citizenship statement for a politician."""
     statement = Statement(
@@ -251,8 +258,15 @@ class TestStatsCountryCoverage:
 
     def test_coverage_groups_by_p27_statements(self, client, db_session, mock_auth):
         """Politicians are grouped by their live P27 citizenship statements."""
-        Country.create_with_entity(db_session, "Q30", "United States")
-        Country.create_with_entity(db_session, "Q183", "Germany")
+        us = Country.create_with_entity(db_session, "Q30", "United States")
+        germany = Country.create_with_entity(db_session, "Q183", "Germany")
+        db_session.flush()
+        set_terms(
+            us,
+            labels={"en": "United States"},
+            descriptions={"en": "country in North America"},
+        )
+        set_terms(germany, labels={"en": "Germany", "de": "Deutschland"})
         db_session.flush()
 
         politician1 = Politician.create_with_entity(db_session, "Q1", "Dual Citizen")
@@ -278,18 +292,28 @@ class TestStatsCountryCoverage:
         }
         assert set(coverage) == {"Q30", "Q183"}
 
-        us = coverage["Q30"]
-        assert us["name"] == "United States"
-        assert us["total_count"] == 2
-        assert us["decided_count"] == 1
+        us_entry = coverage["Q30"]
+        assert us_entry["terms"] == {
+            "labels": {"en": "United States"},
+            "descriptions": {"en": "country in North America"},
+            "aliases": {},
+        }
+        assert us_entry["total_count"] == 2
+        assert us_entry["decided_count"] == 1
 
-        germany = coverage["Q183"]
-        assert germany["name"] == "Germany"
-        assert germany["total_count"] == 1
-        assert germany["decided_count"] == 1
+        germany_entry = coverage["Q183"]
+        assert germany_entry["terms"]["labels"] == {
+            "en": "Germany",
+            "de": "Deutschland",
+        }
+        assert germany_entry["total_count"] == 1
+        assert germany_entry["decided_count"] == 1
+
+        # Resolved names are gone; only term maps are exposed
+        assert "name" not in us_entry
 
     def test_coverage_without_citizenship_bucket(self, client, db_session, mock_auth):
-        """Politicians without citizenship statements get a no-citizenship group."""
+        """Politicians without citizenship statements get a null-terms group."""
         Country.create_with_entity(db_session, "Q30", "United States")
         politician = Politician.create_with_entity(db_session, "Q1", "No Country")
         db_session.flush()
@@ -306,7 +330,7 @@ class TestStatsCountryCoverage:
         assert len(coverage) == 1
         entry = coverage[0]
         assert entry["wikidata_id"] is None
-        assert entry["name"] == "No citizenship"
+        assert entry["terms"] is None
         assert entry["total_count"] == 1
         assert entry["decided_count"] == 1
 
@@ -327,7 +351,7 @@ class TestStatsCountryCoverage:
         coverage = response.json()["country_coverage"]
         assert len(coverage) == 1
         assert coverage[0]["wikidata_id"] is None
-        assert coverage[0]["name"] == "No citizenship"
+        assert coverage[0]["terms"] is None
         assert coverage[0]["total_count"] == 1
 
     def test_coverage_ignores_non_citizenship_statements(
@@ -357,7 +381,7 @@ class TestStatsCountryCoverage:
         coverage = response.json()["country_coverage"]
         assert len(coverage) == 1
         assert coverage[0]["wikidata_id"] is None
-        assert coverage[0]["name"] == "No citizenship"
+        assert coverage[0]["terms"] is None
 
     def test_coverage_decided_within_cooldown(self, client, db_session, mock_auth):
         """Politicians whose decisions predate the cooldown are not decided."""

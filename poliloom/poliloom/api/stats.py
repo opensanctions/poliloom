@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import and_, case, exists, func, literal, literal_column, select
+from sqlalchemy import and_, case, exists, func, literal_column, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db_session
@@ -17,6 +17,7 @@ from ..models.source import PoliticianSource, Source
 from ..models.statement import Statement, active_citizenship_conditions
 from ..models.wikidata import WikidataEntity
 from .auth import User, get_current_user
+from .schemas import TermMaps
 
 router = APIRouter()
 
@@ -58,7 +59,7 @@ class CountryCoverage(BaseModel):
     """Coverage statistics for a country or politicians without citizenship."""
 
     wikidata_id: str | None  # None for politicians without citizenship
-    name: str
+    terms: TermMaps | None  # None for politicians without citizenship
     decided_count: int  # Politicians with actions decided within cooldown period
     enriched_count: int  # Politicians enriched within cooldown period
     total_count: int  # Total politicians (all, regardless of enrichment)
@@ -84,7 +85,7 @@ async def get_stats(
     - decisions_timeseries: Weekly counts of accepted/discarded actions
       (keyed by decided_at) for the cooldown period
     - country_coverage: Politicians grouped by live P27 citizenship statements,
-      plus politicians without citizenship
+      plus a null-terms bucket for politicians without citizenship
     - cooldown_days: The current cooldown period setting in days
     """
     cooldown_days = get_enrichment_cooldown_days()
@@ -173,9 +174,9 @@ async def get_stats(
     coverage_query = (
         select(
             Statement.entity_id.label("wikidata_id"),
-            func.coalesce(country_entity.c.name, literal("No citizenship")).label(
-                "name"
-            ),
+            country_entity.c.labels,
+            country_entity.c.descriptions,
+            country_entity.c.aliases,
             func.count(func.distinct(Politician.id)).label("total_count"),
             func.count(func.distinct(case((enriched_recently, Politician.id)))).label(
                 "enriched_count"
@@ -207,7 +208,7 @@ async def get_stats(
                 *active_citizenship_conditions(Statement, politician_id=Politician.id),
             ),
         )
-        # LEFT JOIN to get country name (NULL when citizenship is absent)
+        # LEFT JOIN to get country terms (NULL when citizenship is absent)
         .outerjoin(
             country_entity,
             and_(
@@ -220,7 +221,12 @@ async def get_stats(
             decided_politicians_cte,
             decided_politicians_cte.c.politician_id == Politician.id,
         )
-        .group_by(Statement.entity_id, country_entity.c.name)
+        .group_by(
+            Statement.entity_id,
+            country_entity.c.labels,
+            country_entity.c.descriptions,
+            country_entity.c.aliases,
+        )
         .order_by(func.count(func.distinct(Politician.id)).desc())
     )
 
@@ -229,7 +235,15 @@ async def get_stats(
     country_coverage = [
         CountryCoverage(
             wikidata_id=row.wikidata_id,
-            name=row.name,
+            terms=(
+                TermMaps(
+                    labels=row.labels,
+                    descriptions=row.descriptions,
+                    aliases=row.aliases,
+                )
+                if row.labels is not None
+                else None
+            ),
             decided_count=int(row.decided_count or 0),
             enriched_count=int(row.enriched_count or 0),
             total_count=int(row.total_count or 0),
