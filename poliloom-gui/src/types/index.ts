@@ -201,3 +201,5 @@ export type SSEEvent = SourceStatusEvent | EnrichmentCompleteEvent | EvaluationC
 export type SSEEventType = SSEEvent['type']
 
 export type SSEEventByType<T extends SSEEventType> = Extract<SSEEvent, { type: T }>
+
+export * from './wikibase'
