@@ -356,6 +356,76 @@ class TestWikidataEntityProcessor:
 
         assert entity.get_instance_of_ids() == {"Q5", "Q515"}
 
+    def test_get_terms_labels_and_descriptions_multiple_languages(self):
+        """Test get_terms simplifies labels and descriptions across languages."""
+        entity = WikidataEntityProcessor(
+            {
+                "id": "Q42",
+                "labels": {
+                    "en": {"language": "en", "value": "Douglas Adams"},
+                    "fr": {"language": "fr", "value": "Douglas Adams"},
+                    "de": {"language": "de", "value": "Douglas Adams"},
+                },
+                "descriptions": {
+                    "en": {
+                        "language": "en",
+                        "value": "English writer and humorist",
+                    },
+                    "fr": {
+                        "language": "fr",
+                        "value": "écrivain anglais de science-fiction",
+                    },
+                },
+            }
+        )
+
+        terms = entity.get_terms()
+
+        assert terms["labels"] == {
+            "en": "Douglas Adams",
+            "fr": "Douglas Adams",
+            "de": "Douglas Adams",
+        }
+        assert terms["descriptions"] == {
+            "en": "English writer and humorist",
+            "fr": "écrivain anglais de science-fiction",
+        }
+        assert terms["aliases"] == {}
+
+    def test_get_terms_aliases_grouped_per_language(self):
+        """Test get_terms groups alias values per language."""
+        entity = WikidataEntityProcessor(
+            {
+                "id": "Q42",
+                "aliases": {
+                    "en": [
+                        {"language": "en", "value": "Douglas Noel Adams"},
+                        {"language": "en", "value": "Douglas N. Adams"},
+                    ],
+                    "fr": [{"language": "fr", "value": "Douglas Noël Adams"}],
+                },
+            }
+        )
+
+        terms = entity.get_terms()
+
+        assert terms["labels"] == {}
+        assert terms["descriptions"] == {}
+        assert terms["aliases"] == {
+            "en": ["Douglas Noel Adams", "Douglas N. Adams"],
+            "fr": ["Douglas Noël Adams"],
+        }
+
+    def test_get_terms_missing_sections(self):
+        """Test get_terms returns empty dicts for absent term sections."""
+        entity = WikidataEntityProcessor({"id": "Q123", "claims": {}})
+
+        assert entity.get_terms() == {
+            "labels": {},
+            "descriptions": {},
+            "aliases": {},
+        }
+
     def test_get_subclass_of_ids(self):
         """Test getting subclass-of (P279) IDs."""
         entity = WikidataEntityProcessor(
