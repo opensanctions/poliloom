@@ -199,6 +199,12 @@ class Politician(
     properties = relationship(
         "Property", back_populates="politician", cascade="all, delete-orphan"
     )
+    statements = relationship(
+        "Statement", back_populates="politician", cascade="all, delete-orphan"
+    )
+    actions = relationship(
+        "Action", back_populates="politician", cascade="all, delete-orphan"
+    )
     wikipedia_links = relationship(
         "WikipediaLink", back_populates="politician", cascade="all, delete-orphan"
     )
