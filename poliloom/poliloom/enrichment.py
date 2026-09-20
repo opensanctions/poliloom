@@ -19,40 +19,17 @@ from .models import (
     Location,
     Politician,
     Position,
-    Property,
-    PropertyReference,
     PropertyType,
     Source,
+    Statement,
     WikidataEntity,
     WikidataRelation,
 )
+from .planner import persist_decision, plan
 from .wikidata.date import WikidataDate
+from .wikidata.document import statement_property_id
 
 logger = logging.getLogger(__name__)
-
-
-def create_qualifiers_json_for_position(
-    start_date: str | None = None, end_date: str | None = None
-) -> dict | None:
-    """Create qualifiers_json for a position with start and end dates using WikidataDate."""
-    if not start_date and not end_date:
-        return None
-
-    qualifiers_json = {}
-
-    # Add start date (P580)
-    if start_date:
-        wikidata_date = WikidataDate.from_date_string(start_date)
-        if wikidata_date:
-            qualifiers_json["P580"] = [wikidata_date.to_wikidata_qualifier()]
-
-    # Add end date (P582)
-    if end_date:
-        wikidata_date = WikidataDate.from_date_string(end_date)
-        if wikidata_date:
-            qualifiers_json["P582"] = [wikidata_date.to_wikidata_qualifier()]
-
-    return qualifiers_json if qualifiers_json else None
 
 
 class QuotedExtraction(BaseModel):
@@ -188,11 +165,11 @@ async def extract_properties_generic(
             focus_property_types=config.property_types,
         )
 
-        # Build analysis focus if politician has existing properties
+        # Build analysis focus if politician has existing statements of these types
         analysis_focus = ""
-        existing_properties = politician.get_properties_by_types(config.property_types)
+        existing_statements = politician.get_statements_by_types(config.property_types)
 
-        if existing_properties:
+        if existing_statements:
             analysis_focus = config.analysis_focus_template
 
         user_prompt = config.user_prompt_template.format(
@@ -595,6 +572,47 @@ async def extract_and_store(
     )
 
 
+def _date_candidate(property_id: str, date: WikidataDate) -> dict:
+    """REST candidate statement for a birth/death date extraction."""
+    return {
+        "property": {"id": property_id},
+        "value": {"type": "value", "content": date.to_rest_time_content()},
+    }
+
+
+def _entity_candidate(property_id: str, entity_id: str) -> dict:
+    """REST candidate statement for an entity-valued extraction."""
+    return {
+        "property": {"id": property_id},
+        "value": {"type": "value", "content": entity_id},
+    }
+
+
+def _position_candidate(
+    entity_id: str, start_date: str | None, end_date: str | None
+) -> dict:
+    """REST candidate statement for a position extraction with its timeframe."""
+    candidate = _entity_candidate(PropertyType.POSITION.value, entity_id)
+    qualifiers = []
+    for qualifier_id, date_string in (("P580", start_date), ("P582", end_date)):
+        if not date_string:
+            continue
+        wikidata_date = WikidataDate.from_date_string(date_string)
+        if wikidata_date:
+            qualifiers.append(
+                {
+                    "property": {"id": qualifier_id},
+                    "value": {
+                        "type": "value",
+                        "content": wikidata_date.to_rest_time_content(),
+                    },
+                }
+            )
+    if qualifiers:
+        candidate["qualifiers"] = qualifiers
+    return candidate
+
+
 def store_extracted_data(
     db: Session,
     politician: Politician,
@@ -604,95 +622,91 @@ def store_extracted_data(
     birthplaces: list[ExtractedBirthplace] | None,
     citizenships: list[ExtractedCitizenship] | None,
 ) -> bool:
-    """Store extracted data in the database."""
+    """Turn extracted data into persisted Actions for review.
+
+    Each extraction becomes a REST candidate statement planned against the
+    politician's cached statements; the resulting decision is persisted as
+    a pending Action carrying the source as evidence.
+    """
     try:
-        # Build (property_kwargs, find_kwargs, quotes, label) for each extracted item
-        items = []
+        # Build (candidate, quotes, label) for each extracted item
+        items: list[tuple[dict, list[str], str]] = []
 
         for p in properties or []:
-            wd = WikidataDate.from_date_string(p.value)
-            if wd is None:
+            wikidata_date = WikidataDate.from_date_string(p.value)
+            if wikidata_date is None:
                 raise ValueError(f"Unparseable date value from LLM: {p.value!r}")
-            kwargs = {
-                "type": p.type,
-                "value": wd.time_string,
-                "value_precision": wd.precision,
-            }
-            items.append((kwargs, p.supporting_quotes, f"{p.type} = '{p.value}'"))
+            items.append(
+                (
+                    _date_candidate(p.type.value, wikidata_date),
+                    p.supporting_quotes,
+                    f"{p.type} = '{p.value}'",
+                )
+            )
 
         for pos in positions or []:
-            qualifiers_json = create_qualifiers_json_for_position(
-                pos.start_date, pos.end_date
+            items.append(
+                (
+                    _position_candidate(pos.wikidata_id, pos.start_date, pos.end_date),
+                    pos.supporting_quotes,
+                    f"position {pos.wikidata_id}",
+                )
             )
-            kwargs = {
-                "type": PropertyType.POSITION,
-                "entity_id": pos.wikidata_id,
-                "qualifiers_json": qualifiers_json,
-            }
-            items.append((kwargs, pos.supporting_quotes, f"position {pos.wikidata_id}"))
 
         for bp in birthplaces or []:
-            kwargs = {"type": PropertyType.BIRTHPLACE, "entity_id": bp.wikidata_id}
-            items.append((kwargs, bp.supporting_quotes, f"birthplace {bp.wikidata_id}"))
+            items.append(
+                (
+                    _entity_candidate(PropertyType.BIRTHPLACE.value, bp.wikidata_id),
+                    bp.supporting_quotes,
+                    f"birthplace {bp.wikidata_id}",
+                )
+            )
 
         for cit in citizenships or []:
-            kwargs = {"type": PropertyType.CITIZENSHIP, "entity_id": cit.wikidata_id}
             items.append(
-                (kwargs, cit.supporting_quotes, f"citizenship {cit.wikidata_id}")
+                (
+                    _entity_candidate(PropertyType.CITIZENSHIP.value, cit.wikidata_id),
+                    cit.supporting_quotes,
+                    f"citizenship {cit.wikidata_id}",
+                )
             )
 
-        for kwargs, quotes, label in items:
-            # Query existing properties once for both matching and subsumption
-            property_type = kwargs["type"]
-            query = db.query(Property).filter(
-                Property.politician_id == politician.id,
-                Property.type == property_type,
-                Property.deleted_at.is_(None),
+        statements = (
+            db.query(Statement)
+            .filter(
+                Statement.politician_id == politician.id,
+                Statement.deleted_at.is_(None),
             )
-            if property_type not in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]:
-                query = query.filter(Property.entity_id == kwargs.get("entity_id"))
-            existing_properties = query.all()
+            .order_by(Statement.wikidata_statement_id)
+            .all()
+        )
+        reference = {"parts": source.create_references_json()}
 
-            prop = Property.find_matching(
-                existing_properties,
-                property_type=property_type,
-                politician_id=politician.id,
-                **{k: v for k, v in kwargs.items() if k != "type"},
+        for candidate, quotes, label in items:
+            property_id = statement_property_id(candidate)
+            same_property_statements = [
+                statement
+                for statement in statements
+                if statement_property_id(statement.document) == property_id
+            ]
+            decision = plan(
+                candidate,
+                [statement.document for statement in same_property_statements],
+                reference,
             )
-            if prop:
+            action = persist_decision(
+                db,
+                politician,
+                decision,
+                same_property_statements,
+                source,
+                quotes,
+            )
+            if action is None:
+                logger.info(f"No action needed for {label} for {politician.name}")
+            else:
                 logger.info(
-                    f"Added reference to existing {label} for {politician.name}"
-                )
-            elif (
-                property_type == PropertyType.POSITION
-                and kwargs.get("entity_id")
-                and Property.is_timeframe_subsumed(
-                    existing_properties,
-                    kwargs.get("qualifiers_json"),
-                )
-            ):
-                logger.info(f"Skipping subsumed {label} for {politician.name}")
-                continue
-            else:
-                prop = Property(politician_id=politician.id, **kwargs)
-                db.add(prop)
-                db.flush()
-                logger.info(f"Added new {label} for {politician.name}")
-
-            existing_ref = (
-                db.query(PropertyReference)
-                .filter_by(property_id=prop.id, source_id=source.id)
-                .first()
-            )
-            if existing_ref:
-                existing_ref.supporting_quotes = list(
-                    set((existing_ref.supporting_quotes or []) + quotes)
-                )
-            else:
-                db.add(
-                    PropertyReference(
-                        property=prop, source=source, supporting_quotes=quotes
-                    )
+                    f"Persisted {action.kind.value} action for {label} for {politician.name}"
                 )
 
         return True

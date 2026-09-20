@@ -9,6 +9,9 @@ documents and decides the single logical change to persist, if any:
   (payloads.append_qualifier_patch / refine_qualifier_patch /
   refine_value_patch / append_reference_patch)
 
+``persist_decision`` turns a planned Decision into a persisted Action with
+source evidence, deduplicating against pending Actions.
+
 Every rule below operates only on documents of the candidate's property.
 """
 
@@ -16,7 +19,10 @@ import json
 from dataclasses import dataclass
 from typing import Literal
 
+from sqlalchemy.orm import Session
+
 from .comparison import StatementComparison, compare_statement, is_timeframe_subsumed
+from .models import Action, ActionEvidence, ActionKind, Politician, Source, Statement
 from .payloads import (
     append_qualifier_patch,
     append_reference_patch,
@@ -120,6 +126,103 @@ def plan(
         return _plan_entity(candidate, same_property_documents, reference)
 
     raise ValueError(f"Unsupported property in planning: {property_id}")
+
+
+def persist_decision(
+    db: Session,
+    politician: Politician,
+    decision: Decision | None,
+    existing_statements: list[Statement],
+    source: Source,
+    supporting_quotes: list[str],
+) -> Action | None:
+    """Persist a planned Decision as a pending Action with evidence.
+
+    ``existing_statements`` must be the same property-filtered,
+    order-preserved list of Statement objects whose documents were passed
+    to ``plan()``; a decision's ``target_index`` indexes into it.
+
+    A pending Action (``is_accepted IS NULL``) on the same politician with
+    the same kind, statement_id, and equal canonicalized payload is not
+    duplicated: the source is attached as further evidence on it instead
+    (quotes merged by union when the source is already attached). Decided
+    actions are immutable and never deduplication targets.
+
+    Returns the Action the evidence was attached to, or None when the
+    decision is None (nothing to persist).
+    """
+    if decision is None:
+        return None
+
+    kind = _action_kind(decision.kind)
+    statement_id = None
+    if decision.kind == "edit":
+        statement_id = existing_statements[decision.target_index].id
+
+    payload_json = json.dumps(decision.payload, sort_keys=True)
+    statement_filter = (
+        Action.statement_id.is_(None)
+        if statement_id is None
+        else Action.statement_id == statement_id
+    )
+    pending_actions = (
+        db.query(Action)
+        .filter(
+            Action.politician_id == politician.id,
+            Action.kind == kind,
+            Action.is_accepted.is_(None),
+            statement_filter,
+        )
+        .all()
+    )
+    for action in pending_actions:
+        if json.dumps(action.payload, sort_keys=True) != payload_json:
+            continue
+        _attach_evidence(db, action, source, supporting_quotes)
+        return action
+
+    action = Action(
+        politician_id=politician.id,
+        kind=kind,
+        payload=decision.payload,
+        statement_id=statement_id,
+    )
+    db.add(action)
+    db.add(
+        ActionEvidence(
+            action=action, source=source, supporting_quotes=supporting_quotes
+        )
+    )
+    db.flush()
+    return action
+
+
+def _action_kind(kind: str) -> ActionKind:
+    """Map a Decision kind to its ActionKind."""
+    if kind == "create":
+        return ActionKind.CREATE_STATEMENT
+    return ActionKind.EDIT_STATEMENT
+
+
+def _attach_evidence(
+    db: Session, action: Action, source: Source, supporting_quotes: list[str]
+) -> None:
+    """Attach the source as evidence, merging quotes when already attached."""
+    evidence = (
+        db.query(ActionEvidence)
+        .filter_by(action_id=action.id, source_id=source.id)
+        .first()
+    )
+    if evidence:
+        evidence.supporting_quotes = list(
+            set((evidence.supporting_quotes or []) + supporting_quotes)
+        )
+    else:
+        db.add(
+            ActionEvidence(
+                action=action, source=source, supporting_quotes=supporting_quotes
+            )
+        )
 
 
 def _plan_date(

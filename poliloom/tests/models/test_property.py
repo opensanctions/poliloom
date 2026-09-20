@@ -1,11 +1,33 @@
 """Tests for the Property model."""
 
-from poliloom.enrichment import create_qualifiers_json_for_position
 from poliloom.models import (
     Property,
     PropertyComparisonResult,
     PropertyType,
 )
+from poliloom.wikidata.date import WikidataDate
+
+
+def create_qualifiers_json_for_position(
+    start_date: str | None = None, end_date: str | None = None
+) -> dict | None:
+    """Build old-model qualifiers_json for a position with start and end dates."""
+    if not start_date and not end_date:
+        return None
+
+    qualifiers_json = {}
+
+    if start_date:
+        wikidata_date = WikidataDate.from_date_string(start_date)
+        if wikidata_date:
+            qualifiers_json["P580"] = [wikidata_date.to_wikidata_qualifier()]
+
+    if end_date:
+        wikidata_date = WikidataDate.from_date_string(end_date)
+        if wikidata_date:
+            qualifiers_json["P582"] = [wikidata_date.to_wikidata_qualifier()]
+
+    return qualifiers_json if qualifiers_json else None
 
 
 class TestPropertyFindMatching:
