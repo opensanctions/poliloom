@@ -11,14 +11,12 @@ class TestWikidataHierarchyImporter:
         entities = [
             {
                 "wikidata_id": "Q1",
-                "name": "Entity 1",
                 "labels": {"en": "Entity 1"},
                 "descriptions": {"en": "First entity"},
                 "aliases": {"en": ["E1"]},
             },
             {
                 "wikidata_id": "Q2",
-                "name": "Entity 2",
                 "labels": {"en": "Entity 2"},
                 "descriptions": {},
                 "aliases": {},
@@ -48,14 +46,12 @@ class TestWikidataHierarchyImporter:
         initial_entities = [
             {
                 "wikidata_id": "Q1",
-                "name": "Entity 1",
                 "labels": {"en": "Entity 1"},
                 "descriptions": {"en": "First entity"},
                 "aliases": {"en": ["E1"]},
             },
             {
                 "wikidata_id": "Q2",
-                "name": "Entity 2",
                 "labels": {"en": "Entity 2"},
                 "descriptions": {},
                 "aliases": {},
@@ -67,14 +63,12 @@ class TestWikidataHierarchyImporter:
         entities_with_duplicates = [
             {
                 "wikidata_id": "Q1",
-                "name": "Entity 1 Updated",
                 "labels": {"en": "Entity 1 Updated", "de": "Entität 1"},
                 "descriptions": {"en": "First entity updated"},
                 "aliases": {"de": ["E1"]},
             },  # Duplicate (should update)
             {
                 "wikidata_id": "Q3",
-                "name": "Entity 3",
                 "labels": {"en": "Entity 3"},
                 "descriptions": {},
                 "aliases": {},
@@ -94,7 +88,7 @@ class TestWikidataHierarchyImporter:
             .filter(WikidataEntity.wikidata_id == "Q1")
             .one()
         )
-        assert q1_entity.name == "Entity 1 Updated"
+        assert q1_entity.resolved_label == "Entity 1 Updated"
         assert q1_entity.labels == {"en": "Entity 1 Updated", "de": "Entität 1"}
         assert q1_entity.descriptions == {"en": "First entity updated"}
         assert q1_entity.aliases == {"de": ["E1"]}
@@ -111,8 +105,8 @@ class TestWikidataHierarchyImporter:
     def test_upsert_wikidata_relations_batch(self, db_session):
         """Test upserting a batch of WikidataRelation records."""
         # Create parent entities first
-        parent_entity = WikidataEntity(wikidata_id="Q1", name="Parent Entity")
-        child_entity = WikidataEntity(wikidata_id="Q2", name="Child Entity")
+        parent_entity = WikidataEntity(wikidata_id="Q1")
+        child_entity = WikidataEntity(wikidata_id="Q2")
         db_session.add_all([parent_entity, child_entity])
         db_session.flush()
 
@@ -136,9 +130,9 @@ class TestWikidataHierarchyImporter:
     def test_upsert_wikidata_relations_batch_with_duplicates(self, db_session):
         """Test upserting WikidataRelation batch with duplicates."""
         # Create parent entities
-        parent_entity = WikidataEntity(wikidata_id="Q1", name="Parent Entity")
-        child1_entity = WikidataEntity(wikidata_id="Q2", name="Child Entity 1")
-        child2_entity = WikidataEntity(wikidata_id="Q3", name="Child Entity 2")
+        parent_entity = WikidataEntity(wikidata_id="Q1")
+        child1_entity = WikidataEntity(wikidata_id="Q2")
+        child2_entity = WikidataEntity(wikidata_id="Q3")
         db_session.add_all([parent_entity, child1_entity, child2_entity])
         db_session.flush()
 

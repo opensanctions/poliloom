@@ -76,7 +76,7 @@ def _process_second_pass_chunk(
 ) -> int:
     """
     Second pass: Process entities that are in the target set.
-    Updates names and inserts all relations.
+    Updates term maps and inserts all relations.
     """
     # Create a fresh engine for this worker process
     engine = create_engine(pool_size=2, max_overflow=3)
@@ -106,12 +106,10 @@ def _process_second_pass_chunk(
 
             processed_count += 1
 
-            # Extract name for update
-            name = entity.get_entity_name()
+            # Extract terms for update
             wikidata_entities.append(
                 {
                     "wikidata_id": entity_id,
-                    "name": name,
                     **entity.get_terms(),
                 }
             )
@@ -170,7 +168,7 @@ def import_hierarchy_trees(
 
     Uses a two-pass approach:
     1. First pass: Collect all parent IDs and entities with P279 relations
-    2. Second pass: Process all collected entities - update names and insert relations
+    2. Second pass: Process all collected entities - update term maps and insert relations
 
     Args:
         dump_file_path: Path to the Wikidata JSON dump file
@@ -237,11 +235,11 @@ def import_hierarchy_trees(
     logger.info(f"Total target entities for second pass: {len(target_qids)}")
 
     # Insert initial WikidataEntity records for new parent entities
-    # (without names, will be updated in second pass)
+    # (without terms, will be updated in second pass)
     new_entities = all_parent_ids - existing_qids
     if new_entities:
         logger.info(f"Inserting {len(new_entities)} new WikidataEntity records...")
-        entity_data = [{"wikidata_id": qid, "name": None} for qid in new_entities]
+        entity_data = [{"wikidata_id": qid} for qid in new_entities]
 
         batch_size_inserts = 10000
         for i in range(0, len(entity_data), batch_size_inserts):
@@ -254,7 +252,7 @@ def import_hierarchy_trees(
             )
 
     # ========== SECOND PASS: Update names and insert relations ==========
-    logger.info("Starting second pass: updating names and inserting relations...")
+    logger.info("Starting second pass: updating terms and inserting relations...")
 
     # Set global BEFORE creating Pool so workers inherit via fork copy-on-write
     global shared_target_qids

@@ -17,7 +17,11 @@ class TestWikidataEntityProcessor:
         entity = WikidataEntityProcessor(entity_data)
 
         assert entity.get_wikidata_id() == "Q123"
-        assert entity.get_entity_name() == "Test Entity"
+        assert entity.get_terms() == {
+            "labels": {"en": "Test Entity"},
+            "descriptions": {},
+            "aliases": {},
+        }
 
     def test_truthy_claims_filtering(self):
         """Test truthy claims filtering with rank precedence."""
@@ -206,36 +210,6 @@ class TestWikidataEntityProcessor:
         assert date_info.time_string == "-1000-00-00T00:00:00Z"
         assert date_info.precision == 6
         assert date_info.is_bce
-
-    def test_entity_name_fallback(self):
-        """Test entity name extraction with language fallback."""
-        # English preferred
-        entity_data = {
-            "id": "Q137",
-            "labels": {
-                "en": {"value": "English Name"},
-                "fr": {"value": "Nom Français"},
-            },
-        }
-        entity = WikidataEntityProcessor(entity_data)
-        assert entity.get_entity_name() == "English Name"
-
-        # No English, fallback to any available
-        entity_data = {
-            "id": "Q138",
-            "labels": {
-                "fr": {"value": "Nom Français"},
-                "de": {"value": "Deutscher Name"},
-            },
-        }
-        entity = WikidataEntityProcessor(entity_data)
-        name = entity.get_entity_name()
-        assert name in ["Nom Français", "Deutscher Name"]  # Could be either
-
-        # No labels
-        entity_data = {"id": "Q139", "labels": {}}
-        entity = WikidataEntityProcessor(entity_data)
-        assert entity.get_entity_name() is None
 
     def test_collect_parent_ids(self):
         """Test collecting parent IDs across all relation types."""

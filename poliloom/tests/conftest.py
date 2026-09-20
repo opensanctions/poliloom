@@ -1,6 +1,7 @@
 """Test configuration and fixtures for PoliLoom tests."""
 
 import hashlib
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -23,40 +24,55 @@ from poliloom.models import (
     Location,
     Politician,
     Position,
-    PropertyReference,
     Source,
     SourceLanguage,
+    Statement,
+    WikidataEntity,
     WikipediaLink,
 )
 
 
+def make_terms(name: str | None = None, aliases: list[str] | None = None) -> dict:
+    """Build term maps shaped like the importer's get_terms() output."""
+    return {
+        "labels": {"en": name} if name else {},
+        "descriptions": {},
+        "aliases": {"en": aliases} if aliases else {},
+    }
+
+
 @pytest.fixture(autouse=True)
 def mock_find_similar(db_session):
-    """Mock find_similar on all searchable models to use label-based search.
+    """Mock find_similar on all searchable models to use term-based search.
 
     This avoids needing Meilisearch in tests.
     Applied automatically to all tests.
     """
-    from poliloom.models import WikidataEntityLabel
 
     def make_mock_find_similar(model_class):
-        """Create a mock find_similar that searches by labels."""
+        """Create a mock find_similar that searches label and alias values."""
 
         @classmethod
         def mock_find_similar(cls, query, limit=100):
             query_lower = query.lower()
-            results = (
-                db_session.query(WikidataEntityLabel.entity_id)
+            entities = (
+                db_session.query(model_class)
                 .join(
-                    model_class,
-                    WikidataEntityLabel.entity_id == model_class.wikidata_id,
+                    WikidataEntity,
+                    model_class.wikidata_id == WikidataEntity.wikidata_id,
                 )
-                .filter(WikidataEntityLabel.label.ilike(f"%{query_lower}%"))
-                .distinct()
-                .limit(limit)
+                .filter(WikidataEntity.deleted_at.is_(None))
                 .all()
             )
-            return [r[0] for r in results]
+            matches = []
+            for entity in entities:
+                terms = entity.wikidata_entity
+                values = list(terms.labels.values())
+                for language_aliases in terms.aliases.values():
+                    values.extend(language_aliases)
+                if any(query_lower in value.lower() for value in values):
+                    matches.append(entity.wikidata_id)
+            return matches[:limit]
 
         return mock_find_similar
 
@@ -156,8 +172,7 @@ def sample_politician(db_session):
     politician = Politician.create_with_entity(
         db_session,
         "Q123456",
-        "Test Politician",
-        labels=["Test Politician", "John Doe", "Test Person"],
+        make_terms("Test Politician", aliases=["John Doe", "Test Person"]),
     )
     db_session.flush()
     return politician
@@ -166,19 +181,20 @@ def sample_politician(db_session):
 @pytest.fixture
 def sample_position(db_session):
     """Return a created position entity."""
-    position = Position.create_with_entity(db_session, "Q30185", "Test Position")
+    position = Position.create_with_entity(
+        db_session, "Q30185", make_terms("Test Position")
+    )
     db_session.flush()
     return position
 
 
 @pytest.fixture
 def sample_location(db_session):
-    """Return a created location entity with labels for fuzzy search."""
+    """Return a created location entity with aliases for fuzzy search."""
     location = Location.create_with_entity(
         db_session,
         "Q28513",
-        "Test Location",
-        labels=["Test Location", "Test Loc"],
+        make_terms("Test Location", aliases=["Test Loc"]),
     )
     db_session.flush()
     return location
@@ -187,7 +203,7 @@ def sample_location(db_session):
 @pytest.fixture
 def sample_country(db_session):
     """Return a created country entity."""
-    country = Country.create_with_entity(db_session, "Q30", "United States")
+    country = Country.create_with_entity(db_session, "Q30", make_terms("United States"))
     country.iso_code = "US"
     db_session.flush()
     return country
@@ -196,7 +212,7 @@ def sample_country(db_session):
 @pytest.fixture
 def sample_germany_country(db_session):
     """Return a created Germany country entity."""
-    country = Country.create_with_entity(db_session, "Q183", "Germany")
+    country = Country.create_with_entity(db_session, "Q183", make_terms("Germany"))
     country.iso_code = "DE"
     db_session.flush()
     return country
@@ -205,7 +221,7 @@ def sample_germany_country(db_session):
 @pytest.fixture
 def sample_france_country(db_session):
     """Return a created France country entity."""
-    country = Country.create_with_entity(db_session, "Q142", "France")
+    country = Country.create_with_entity(db_session, "Q142", make_terms("France"))
     country.iso_code = "FR"
     db_session.flush()
     return country
@@ -214,7 +230,7 @@ def sample_france_country(db_session):
 @pytest.fixture
 def sample_argentina_country(db_session):
     """Return a created Argentina country entity."""
-    country = Country.create_with_entity(db_session, "Q414", "Argentina")
+    country = Country.create_with_entity(db_session, "Q414", make_terms("Argentina"))
     country.iso_code = "AR"
     db_session.flush()
     return country
@@ -223,7 +239,7 @@ def sample_argentina_country(db_session):
 @pytest.fixture
 def sample_spain_country(db_session):
     """Return a created Spain country entity."""
-    country = Country.create_with_entity(db_session, "Q29", "Spain")
+    country = Country.create_with_entity(db_session, "Q29", make_terms("Spain"))
     country.iso_code = "ES"
     db_session.flush()
     return country
@@ -232,7 +248,7 @@ def sample_spain_country(db_session):
 @pytest.fixture
 def sample_language(db_session):
     """Return a created language entity."""
-    language = Language.create_with_entity(db_session, "Q1860", "English")
+    language = Language.create_with_entity(db_session, "Q1860", make_terms("English"))
     language.iso_639_1 = "en"
     language.iso_639_2 = "eng"
     db_session.flush()
@@ -242,7 +258,7 @@ def sample_language(db_session):
 @pytest.fixture
 def sample_german_language(db_session):
     """Return a created German language entity."""
-    language = Language.create_with_entity(db_session, "Q188", "German")
+    language = Language.create_with_entity(db_session, "Q188", make_terms("German"))
     language.iso_639_1 = "de"
     language.iso_639_2 = "deu"
     db_session.flush()
@@ -252,7 +268,7 @@ def sample_german_language(db_session):
 @pytest.fixture
 def sample_french_language(db_session):
     """Return a created French language entity."""
-    language = Language.create_with_entity(db_session, "Q150", "French")
+    language = Language.create_with_entity(db_session, "Q150", make_terms("French"))
     language.iso_639_1 = "fr"
     language.iso_639_2 = "fra"
     db_session.flush()
@@ -317,7 +333,9 @@ def sample_wikipedia_project(db_session, sample_language):
     """Return a created English Wikipedia project entity with LANGUAGE_OF_WORK relation."""
     from poliloom.models import RelationType, WikidataRelation, WikipediaProject
 
-    wp = WikipediaProject.create_with_entity(db_session, "Q328", "English Wikipedia")
+    wp = WikipediaProject.create_with_entity(
+        db_session, "Q328", make_terms("English Wikipedia")
+    )
     wp.official_website = "https://en.wikipedia.org"
 
     # Create LANGUAGE_OF_WORK relation
@@ -337,7 +355,9 @@ def sample_german_wikipedia_project(db_session, sample_german_language):
     """Return a created German Wikipedia project entity with LANGUAGE_OF_WORK relation."""
     from poliloom.models import RelationType, WikidataRelation, WikipediaProject
 
-    wp = WikipediaProject.create_with_entity(db_session, "Q48183", "German Wikipedia")
+    wp = WikipediaProject.create_with_entity(
+        db_session, "Q48183", make_terms("German Wikipedia")
+    )
     wp.official_website = "https://de.wikipedia.org"
 
     # Create LANGUAGE_OF_WORK relation
@@ -357,7 +377,9 @@ def sample_french_wikipedia_project(db_session, sample_french_language):
     """Return a created French Wikipedia project entity with LANGUAGE_OF_WORK relation."""
     from poliloom.models import RelationType, WikidataRelation, WikipediaProject
 
-    wp = WikipediaProject.create_with_entity(db_session, "Q8447", "French Wikipedia")
+    wp = WikipediaProject.create_with_entity(
+        db_session, "Q8447", make_terms("French Wikipedia")
+    )
     wp.official_website = "https://fr.wikipedia.org"
 
     # Create LANGUAGE_OF_WORK relation
@@ -375,7 +397,7 @@ def sample_french_wikipedia_project(db_session, sample_french_language):
 @pytest.fixture
 def sample_spanish_language(db_session):
     """Return a created Spanish language entity."""
-    language = Language.create_with_entity(db_session, "Q1321", "Spanish")
+    language = Language.create_with_entity(db_session, "Q1321", make_terms("Spanish"))
     language.iso_639_1 = "es"
     language.iso_639_2 = "spa"
     db_session.flush()
@@ -387,7 +409,9 @@ def sample_spanish_wikipedia_project(db_session, sample_spanish_language):
     """Return a created Spanish Wikipedia project entity with LANGUAGE_OF_WORK relation."""
     from poliloom.models import RelationType, WikidataRelation, WikipediaProject
 
-    wp = WikipediaProject.create_with_entity(db_session, "Q8449", "Spanish Wikipedia")
+    wp = WikipediaProject.create_with_entity(
+        db_session, "Q8449", make_terms("Spanish Wikipedia")
+    )
     wp.official_website = "https://es.wikipedia.org"
 
     # Create LANGUAGE_OF_WORK relation
@@ -418,7 +442,9 @@ def create_wikipedia_link(db_session):
             article_title: Optional article title (defaults to politician name with underscores)
         """
         if article_title is None:
-            article_title = politician.name.replace(" ", "_")
+            article_title = (politician.wikidata_entity.resolved_label or "").replace(
+                " ", "_"
+            )
 
         # Extract domain from official_website (e.g., "https://en.wikipedia.org")
         domain = wikipedia_project.official_website
@@ -450,318 +476,32 @@ def sample_wikipedia_link(db_session, sample_politician, sample_wikipedia_projec
 
 @pytest.fixture
 def create_citizenship(db_session):
-    """Factory fixture to create citizenship properties easily.
+    """Factory to create live P27 citizenship statements."""
 
-    Returns a function that creates a citizenship Property given a politician and country.
-    """
-    from poliloom.models import Property, PropertyType
-
-    def _create_citizenship(politician, country, source=None):
-        """Create a citizenship property for a politician.
+    def _create_citizenship(politician, country):
+        """Create a citizenship statement for a politician.
 
         Args:
             politician: Politician instance
             country: Country instance
-            source: Optional Source instance (creates a PropertyReference)
 
         Returns:
-            Created Property instance
+            Created Statement instance
         """
-        prop = Property(
+        statement = Statement(
             politician_id=politician.id,
-            type=PropertyType.CITIZENSHIP,
-            entity_id=country.wikidata_id,
+            document={
+                "id": f"{politician.wikidata_id}$p27-{uuid.uuid4()}",
+                "rank": "normal",
+                "property": {"id": "P27", "data_type": "wikibase-item"},
+                "value": {"type": "value", "content": country.wikidata_id},
+            },
         )
-        db_session.add(prop)
+        db_session.add(statement)
         db_session.flush()
-        if source:
-            ref = PropertyReference(
-                property_id=prop.id,
-                source_id=source.id,
-            )
-            db_session.add(ref)
-        return prop
+        return statement
 
     return _create_citizenship
-
-
-@pytest.fixture
-def create_birth_date(db_session):
-    """Factory fixture to create birth date properties easily.
-
-    Returns a function that creates a BIRTH_DATE Property given a politician and value.
-    """
-    from poliloom.models import Property, PropertyType
-
-    def _create_birth_date(
-        politician,
-        value="1980-01-01",
-        source=None,
-        statement_id=None,
-        supporting_quotes=None,
-    ):
-        """Create a birth date property for a politician.
-
-        Args:
-            politician: Politician instance
-            value: Date string (default: "1980-01-01")
-            source: Optional Source instance (creates a PropertyReference)
-            statement_id: Optional statement ID (makes it "from Wikidata")
-            supporting_quotes: Optional list of supporting quotes
-
-        Returns:
-            Created Property instance
-        """
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTH_DATE,
-            value=value,
-            value_precision=11,
-            statement_id=statement_id,
-        )
-        db_session.add(prop)
-        db_session.flush()
-        if source:
-            ref = PropertyReference(
-                property_id=prop.id,
-                source_id=source.id,
-                supporting_quotes=supporting_quotes,
-            )
-            db_session.add(ref)
-        return prop
-
-    return _create_birth_date
-
-
-@pytest.fixture
-def create_death_date(db_session):
-    """Factory fixture to create death date properties easily.
-
-    Returns a function that creates a DEATH_DATE Property given a politician and value.
-    """
-    from poliloom.models import Property, PropertyType
-
-    def _create_death_date(
-        politician,
-        value="2020-01-01",
-        source=None,
-        statement_id=None,
-        supporting_quotes=None,
-    ):
-        """Create a death date property for a politician.
-
-        Args:
-            politician: Politician instance
-            value: Date string (default: "2020-01-01")
-            source: Optional Source instance (creates a PropertyReference)
-            statement_id: Optional statement ID (makes it "from Wikidata")
-            supporting_quotes: Optional list of supporting quotes
-
-        Returns:
-            Created Property instance
-        """
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.DEATH_DATE,
-            value=value,
-            value_precision=11,
-            statement_id=statement_id,
-        )
-        db_session.add(prop)
-        db_session.flush()
-        if source:
-            ref = PropertyReference(
-                property_id=prop.id,
-                source_id=source.id,
-                supporting_quotes=supporting_quotes,
-            )
-            db_session.add(ref)
-        return prop
-
-    return _create_death_date
-
-
-@pytest.fixture
-def create_position(db_session):
-    """Factory fixture to create position properties easily.
-
-    Returns a function that creates a POSITION Property given a politician and position.
-    """
-    from poliloom.models import Property, PropertyType
-
-    def _create_position(
-        politician,
-        position,
-        source=None,
-        qualifiers_json=None,
-        statement_id=None,
-        supporting_quotes=None,
-    ):
-        """Create a position property for a politician.
-
-        Args:
-            politician: Politician instance
-            position: Position instance
-            source: Optional Source instance (creates a PropertyReference)
-            qualifiers_json: Optional qualifiers dict (e.g., P580/P582 for dates)
-            statement_id: Optional statement ID (makes it "from Wikidata")
-            supporting_quotes: Optional list of supporting quotes
-
-        Returns:
-            Created Property instance
-        """
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.POSITION,
-            entity_id=position.wikidata_id,
-            qualifiers_json=qualifiers_json,
-            statement_id=statement_id,
-        )
-        db_session.add(prop)
-        db_session.flush()
-        if source:
-            ref = PropertyReference(
-                property_id=prop.id,
-                source_id=source.id,
-                supporting_quotes=supporting_quotes,
-            )
-            db_session.add(ref)
-        return prop
-
-    return _create_position
-
-
-@pytest.fixture
-def create_birthplace(db_session):
-    """Factory fixture to create birthplace properties easily.
-
-    Returns a function that creates a BIRTHPLACE Property given a politician and location.
-    """
-    from poliloom.models import Property, PropertyType
-
-    def _create_birthplace(
-        politician,
-        location,
-        source=None,
-        statement_id=None,
-        supporting_quotes=None,
-    ):
-        """Create a birthplace property for a politician.
-
-        Args:
-            politician: Politician instance
-            location: Location instance
-            source: Optional Source instance (creates a PropertyReference)
-            statement_id: Optional statement ID (makes it "from Wikidata")
-            supporting_quotes: Optional list of supporting quotes
-
-        Returns:
-            Created Property instance
-        """
-        prop = Property(
-            politician_id=politician.id,
-            type=PropertyType.BIRTHPLACE,
-            entity_id=location.wikidata_id,
-            statement_id=statement_id,
-        )
-        db_session.add(prop)
-        db_session.flush()
-        if source:
-            ref = PropertyReference(
-                property_id=prop.id,
-                source_id=source.id,
-                supporting_quotes=supporting_quotes,
-            )
-            db_session.add(ref)
-        return prop
-
-    return _create_birthplace
-
-
-@pytest.fixture
-def politician_with_unevaluated_data(
-    db_session, sample_politician, sample_position, sample_location
-):
-    """Create a politician with various types of unevaluated extracted data.
-
-    This fixture creates a politician with:
-    - Extracted (unevaluated) properties: birth date, position, birthplace
-    - Wikidata properties: death date, position, birthplace
-
-    Returns:
-        The politician with properties attached
-    """
-    from poliloom.models import Property, PropertyType
-    from poliloom.wikidata.date import WikidataDate
-
-    politician = sample_politician
-    position = sample_position
-    location = sample_location
-
-    # Add extracted (unevaluated) data
-    extracted_birth = Property(
-        politician_id=politician.id,
-        type=PropertyType.BIRTH_DATE,
-        value="1970-01-15",
-        value_precision=11,
-    )
-
-    extracted_position = Property(
-        politician_id=politician.id,
-        type=PropertyType.POSITION,
-        entity_id=position.wikidata_id,
-        qualifiers_json={
-            "P580": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()],
-            "P582": [WikidataDate.from_date_string("2024").to_wikidata_qualifier()],
-        },
-    )
-
-    extracted_birthplace = Property(
-        politician_id=politician.id,
-        type=PropertyType.BIRTHPLACE,
-        entity_id=location.wikidata_id,
-    )
-
-    # Add Wikidata (non-extracted) data — has statement_id
-    wikidata_death = Property(
-        politician_id=politician.id,
-        type=PropertyType.DEATH_DATE,
-        value="2024-01-01",
-        value_precision=11,
-        statement_id="Q123456$death-1",
-    )
-
-    wikidata_position = Property(
-        politician_id=politician.id,
-        type=PropertyType.POSITION,
-        entity_id=position.wikidata_id,
-        statement_id="Q123456$position-1",
-        qualifiers_json={
-            "P580": [WikidataDate.from_date_string("2018").to_wikidata_qualifier()],
-            "P582": [WikidataDate.from_date_string("2020").to_wikidata_qualifier()],
-        },
-    )
-
-    wikidata_birthplace = Property(
-        politician_id=politician.id,
-        type=PropertyType.BIRTHPLACE,
-        entity_id=location.wikidata_id,
-        statement_id="Q123456$birthplace-1",
-    )
-
-    db_session.add_all(
-        [
-            extracted_birth,
-            extracted_position,
-            extracted_birthplace,
-            wikidata_death,
-            wikidata_position,
-            wikidata_birthplace,
-        ]
-    )
-    db_session.flush()
-
-    return politician
 
 
 # API Test Fixtures
@@ -818,7 +558,7 @@ def mock_wikidata_api():
     This fixture automatically mocks all Wikidata API interactions
     to avoid real API calls during testing. Applied to all tests automatically.
 
-    Mocks functions in poliloom.wikidata.statement (used by push_evaluation).
+    Mocks functions in poliloom.wikidata.statement to avoid real API calls.
     """
     import uuid
 
@@ -833,19 +573,11 @@ def mock_wikidata_api():
         statement_uuid = str(uuid.uuid4())
         return f"{entity_id}${statement_uuid}"
 
-    async def mock_deprecate_statement_fn(entity_id, statement_id, *args, **kwargs):
-        # Deprecate doesn't return anything, just succeeds
-        return None
-
     with (
         patch(
             "poliloom.wikidata.statement.create_statement",
             side_effect=mock_create_statement_fn,
         ) as mock_create_statement,
-        patch(
-            "poliloom.wikidata.statement.deprecate_statement",
-            side_effect=mock_deprecate_statement_fn,
-        ) as mock_deprecate_statement,
         patch(
             "poliloom.wikidata.statement.create_entity",
             side_effect=mock_create_entity_fn,
@@ -854,5 +586,4 @@ def mock_wikidata_api():
         yield {
             "create_entity": mock_create_entity,
             "create_statement": mock_create_statement,
-            "deprecate_statement": mock_deprecate_statement,
         }

@@ -21,15 +21,6 @@ class PropertyType(str, Enum):
     CITIZENSHIP = "P27"
 
 
-class PropertyComparisonResult(Enum):
-    """Result of comparing two properties for matching and precision."""
-
-    NO_MATCH = "no_match"  # Properties represent different facts
-    SELF_MORE_PRECISE = "self"  # Self property is more precise
-    OTHER_MORE_PRECISE = "other"  # Other property is more precise
-    EQUAL = "equal"  # Same precision (or both lack precision data)
-
-
 class RelationType(str, Enum):
     """Enumeration of Wikidata relation types."""
 
@@ -131,43 +122,24 @@ class EntityCreationMixin:
         cls,
         session,
         wikidata_id: str,
-        name: str,
-        labels: list[str] | None = None,
-        description: str | None = None,
+        terms: dict,
     ):
         """Create an entity with its associated WikidataEntity.
 
         Args:
             session: Database session
             wikidata_id: Wikidata ID for the entity
-            name: Name of the entity
-            labels: Optional list of labels/aliases for the entity
-            description: Optional description for the entity
+            terms: Label/description/alias maps for the WikidataEntity
 
         Returns:
             The created entity instance (other properties can be set after creation)
         """
         # Import here to avoid circular dependency
-        from .wikidata import WikidataEntity, WikidataEntityLabel
+        from .wikidata import WikidataEntity
 
-        # Create WikidataEntity first (without labels - they're in separate table now)
-        wikidata_entity = WikidataEntity(
-            wikidata_id=wikidata_id,
-            name=name,
-            description=description,
-        )
+        wikidata_entity = WikidataEntity(wikidata_id=wikidata_id, **terms)
         session.add(wikidata_entity)
 
-        # Create WikidataEntityLabel records if labels provided
-        if labels:
-            for label in labels:
-                label_record = WikidataEntityLabel(
-                    entity_id=wikidata_id,
-                    label=label,
-                )
-                session.add(label_record)
-
-        # Create the entity instance
         entity = cls(wikidata_id=wikidata_id)
         session.add(entity)
 

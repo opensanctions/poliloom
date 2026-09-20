@@ -21,6 +21,8 @@ from poliloom.models import (
     WikidataRelation,
 )
 
+from .conftest import make_terms
+
 
 @pytest.fixture
 def create_citizenship(db_session):
@@ -93,13 +95,15 @@ class TestPriorityWikipediaLinks:
 
         # Create Wikipedia links for both German and English
         # Add more German wikipedia links globally to make it "popular"
-        Politician.create_with_entity(db_session, "Q999", "Other Politician")
+        Politician.create_with_entity(
+            db_session, "Q999", make_terms("Other Politician")
+        )
         db_session.flush()
 
         # Create multiple German links to simulate popularity
         for i in range(5):  # Make German popular
             dummy_politician = Politician.create_with_entity(
-                db_session, f"Q{1000 + i}", f"Dummy {i}"
+                db_session, f"Q{1000 + i}", make_terms(f"Dummy {i}")
             )
             db_session.flush()
             create_wikipedia_link(
@@ -149,7 +153,7 @@ class TestPriorityWikipediaLinks:
                 dummy_politician = Politician.create_with_entity(
                     db_session,
                     qid,
-                    f"Dummy {iso_code} {i}",
+                    make_terms(f"Dummy {iso_code} {i}"),
                 )
                 db_session.flush()
                 create_wikipedia_link(
@@ -716,7 +720,9 @@ class TestEnrichmentCandidatesQuery:
             # Each has one project link, so it does not affect priority ranking.
             for i in range(popularity):
                 dummy = Politician.create_with_entity(
-                    db_session, f"Q{base_qid + i}", f"Dummy {lang.iso_639_1} {i}"
+                    db_session,
+                    f"Q{base_qid + i}",
+                    make_terms(f"Dummy {lang.iso_639_1} {i}"),
                 )
                 db_session.flush()
                 create_wikipedia_link(dummy, wp)

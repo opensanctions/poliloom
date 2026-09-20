@@ -15,6 +15,8 @@ from poliloom.models import (
 from poliloom.sse import DecisionCountEvent
 from poliloom.wikidata.statement import WikidataApiError
 
+from ..conftest import make_terms
+
 
 def birth_date_create_payload(statement_id="Q123456$birth-new"):
     """Build a CREATE_STATEMENT payload for a birth-date statement."""
@@ -238,7 +240,9 @@ class TestDecisionValidation:
     def test_action_of_other_politician_rejected(
         self, mock_apply, client, mock_auth, db_session, sample_politician
     ):
-        other = Politician.create_with_entity(db_session, "Q777777", "Other Politician")
+        other = Politician.create_with_entity(
+            db_session, "Q777777", make_terms("Other Politician")
+        )
         db_session.add(other)
         db_session.flush()
         action = Action(
@@ -369,7 +373,9 @@ class TestSkips:
     def test_skip_action_of_other_politician_rejected(
         self, client, mock_auth, db_session, sample_politician
     ):
-        other = Politician.create_with_entity(db_session, "Q777777", "Other Politician")
+        other = Politician.create_with_entity(
+            db_session, "Q777777", make_terms("Other Politician")
+        )
         db_session.add(other)
         db_session.flush()
         action = Action(

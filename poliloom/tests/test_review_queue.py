@@ -16,6 +16,8 @@ from poliloom.models import (
 )
 from poliloom.review_queue import claim_next, count_serveable
 
+from .conftest import make_terms
+
 
 def birth_date_payload():
     """Build a CREATE_STATEMENT payload for a birth-date statement."""
@@ -179,7 +181,7 @@ class TestReviewQueue:
         politicians = []
         for number in (7001, 7002, 7003):
             politician = Politician.create_with_entity(
-                db_session, f"Q{number}", f"Politician {number}"
+                db_session, f"Q{number}", make_terms(f"Politician {number}")
             )
             db_session.add(politician)
             db_session.flush()

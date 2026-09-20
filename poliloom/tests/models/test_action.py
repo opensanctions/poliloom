@@ -30,7 +30,7 @@ def statement_body(property_id, content=None, data_type="wikibase-item"):
 @pytest.fixture
 def position_entity(db_session):
     """Create the WikidataEntity backing generated entity_id foreign keys."""
-    entity = WikidataEntity(wikidata_id="Q30185", name="Test Position")
+    entity = WikidataEntity(wikidata_id="Q30185")
     db_session.add(entity)
     db_session.flush()
     return entity

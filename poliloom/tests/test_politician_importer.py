@@ -16,6 +16,8 @@ from poliloom.models import (
 from poliloom.wikidata.entity_processor import WikidataEntityProcessor
 from poliloom.wikidata.rest import action_api_statement_to_rest
 
+from .conftest import make_terms
+
 _CALENDAR_MODEL = "http://www.wikidata.org/entity/Q1985727"
 
 
@@ -81,14 +83,12 @@ class TestWikidataPoliticianImporter:
         politicians = [
             {
                 "wikidata_id": "Q1",
-                "name": "John Doe",
                 "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [],
                 "wikipedia_links": [],
             },
             {
                 "wikidata_id": "Q2",
-                "name": "Jane Smith",
                 "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [],
                 "wikipedia_links": [],
@@ -113,7 +113,6 @@ class TestWikidataPoliticianImporter:
         politicians = [
             {
                 "wikidata_id": "Q1",
-                "name": "John Doe",
                 "terms": terms,
                 "statements": [],
                 "wikipedia_links": [],
@@ -133,7 +132,6 @@ class TestWikidataPoliticianImporter:
         politicians = [
             {
                 "wikidata_id": "Q1",
-                "name": "John Doe",
                 "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [],
                 "wikipedia_links": [],
@@ -143,12 +141,15 @@ class TestWikidataPoliticianImporter:
         # Insert first batch
         _insert_politicians_batch(politicians, db_session)
 
-        # Insert again with updated name - should update
+        # Insert again with updated terms - should update
         updated_politicians = [
             {
                 "wikidata_id": "Q1",
-                "name": "John Doe Updated",
-                "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
+                "terms": {
+                    "labels": {"en": "John Doe Updated"},
+                    "descriptions": {},
+                    "aliases": {},
+                },
                 "statements": [],
                 "wikipedia_links": [],
             }
@@ -159,7 +160,7 @@ class TestWikidataPoliticianImporter:
         final_politicians = db_session.query(Politician).all()
         assert len(final_politicians) == 1
         assert final_politicians[0].wikidata_id == "Q1"
-        assert final_politicians[0].name == "John Doe Updated"
+        assert final_politicians[0].wikidata_entity.resolved_label == "John Doe Updated"
 
     def test_insert_politicians_batch_empty(self, db_session):
         """Test inserting empty batch of politicians."""
@@ -177,8 +178,11 @@ class TestWikidataPoliticianImporter:
         politicians = [
             {
                 "wikidata_id": "Q1",
-                "name": "John Doe",
-                "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
+                "terms": {
+                    "labels": {"en": "John Doe"},
+                    "descriptions": {},
+                    "aliases": {},
+                },
                 "statements": [
                     action_api_statement_to_rest(
                         _time_claim(
@@ -199,7 +203,7 @@ class TestWikidataPoliticianImporter:
             db_session.query(Politician).filter(Politician.wikidata_id == "Q1").first()
         )
         assert politician is not None
-        assert politician.name == "John Doe"
+        assert politician.wikidata_entity.resolved_label == "John Doe"
 
         statements = (
             db_session.query(Statement)
@@ -231,13 +235,12 @@ class TestWikidataPoliticianImporter:
     def test_import_position(self, db_session):
         """Test importing a position statement from a Wikidata claim."""
         # Create position first (statement entity_id references it)
-        Position.create_with_entity(db_session, "Q30185", "Mayor")
+        Position.create_with_entity(db_session, "Q30185", make_terms("Mayor"))
         db_session.flush()
 
         politicians = [
             {
                 "wikidata_id": "Q1",
-                "name": "John Doe",
                 "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [
                     action_api_statement_to_rest(
@@ -284,13 +287,12 @@ class TestWikidataPoliticianImporter:
     def test_import_birthplace(self, db_session):
         """Test importing a birthplace statement from a Wikidata claim."""
         # Create location first (statement entity_id references it)
-        Location.create_with_entity(db_session, "Q60", "New York City")
+        Location.create_with_entity(db_session, "Q60", make_terms("New York City"))
         db_session.flush()
 
         politicians = [
             {
                 "wikidata_id": "Q1",
-                "name": "John Doe",
                 "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [
                     action_api_statement_to_rest(
@@ -327,7 +329,6 @@ class TestWikidataPoliticianImporter:
         politicians = [
             {
                 "wikidata_id": "Q1",
-                "name": "John Doe",
                 "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [
                     action_api_statement_to_rest(
@@ -362,13 +363,12 @@ class TestWikidataPoliticianImporter:
     def test_import_all_property_types(self, db_session, sample_country):
         """Test importing statements for all tracked property types."""
         # Create required entities
-        Position.create_with_entity(db_session, "Q30185", "Mayor")
-        Location.create_with_entity(db_session, "Q60", "New York City")
+        Position.create_with_entity(db_session, "Q30185", make_terms("Mayor"))
+        Location.create_with_entity(db_session, "Q60", make_terms("New York City"))
 
         politicians = [
             {
                 "wikidata_id": "Q1",
-                "name": "John Doe",
                 "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [
                     action_api_statement_to_rest(
@@ -418,7 +418,6 @@ class TestWikidataPoliticianImporter:
         first_politicians = [
             {
                 "wikidata_id": "Q1",
-                "name": "John Doe",
                 "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [
                     action_api_statement_to_rest(
@@ -443,7 +442,6 @@ class TestWikidataPoliticianImporter:
         updated_politicians = [
             {
                 "wikidata_id": "Q1",
-                "name": "John Doe",
                 "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [action_api_statement_to_rest(updated_claim)],
                 "wikipedia_links": [],
@@ -476,7 +474,7 @@ class TestWikidataPoliticianImporter:
     def test_statement_metadata_preserved(self, db_session):
         """Test that rank, qualifiers, and references are kept in the document."""
         claim = _item_claim("P39", "Q1$TEST_STATEMENT", "Q30185")
-        Position.create_with_entity(db_session, "Q30185", "Mayor")
+        Position.create_with_entity(db_session, "Q30185", make_terms("Mayor"))
         db_session.flush()
 
         claim["references"] = [
@@ -502,7 +500,6 @@ class TestWikidataPoliticianImporter:
         politicians = [
             {
                 "wikidata_id": "Q1",
-                "name": "John Doe",
                 "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [action_api_statement_to_rest(claim)],
                 "wikipedia_links": [],
@@ -539,7 +536,6 @@ class TestWikidataPoliticianImporter:
         politicians = [
             {
                 "wikidata_id": "Q1",
-                "name": "John Doe",
                 "terms": {"labels": {}, "descriptions": {}, "aliases": {}},
                 "statements": [],
                 "wikipedia_links": [

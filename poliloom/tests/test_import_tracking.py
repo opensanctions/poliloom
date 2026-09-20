@@ -19,6 +19,8 @@ from poliloom.models import (
     WikidataRelation,
 )
 
+from .conftest import make_terms
+
 
 def _statement_document(statement_id, property_id="P569"):
     """Minimal REST statement document for a time-valued statement."""
@@ -106,7 +108,7 @@ class TestEntityTracking:
         # Clear tracking table first
 
         # Insert a new entity
-        entity = WikidataEntity(wikidata_id="Q12345", name="Test Entity")
+        entity = WikidataEntity(wikidata_id="Q12345")
         db_session.add(entity)
         db_session.flush()
 
@@ -122,14 +124,14 @@ class TestEntityTracking:
         # Clear tracking table first
 
         # Insert entity first (this will be tracked but we'll clear it)
-        entity = WikidataEntity(wikidata_id="Q67890", name="Original Name")
+        entity = WikidataEntity(wikidata_id="Q67890")
         db_session.add(entity)
         db_session.flush()
 
         # Clear tracking to test update separately
 
         # Update the entity
-        entity.name = "Updated Name"
+        entity.labels = {"en": "Updated Name"}
         db_session.flush()
 
         # Check that update was tracked
@@ -145,9 +147,9 @@ class TestEntityTracking:
 
         # Insert multiple entities
         entities = [
-            WikidataEntity(wikidata_id="Q111", name="Entity 1"),
-            WikidataEntity(wikidata_id="Q222", name="Entity 2"),
-            WikidataEntity(wikidata_id="Q333", name="Entity 3"),
+            WikidataEntity(wikidata_id="Q111"),
+            WikidataEntity(wikidata_id="Q222"),
+            WikidataEntity(wikidata_id="Q333"),
         ]
         for entity in entities:
             db_session.add(entity)
@@ -165,14 +167,14 @@ class TestEntityTracking:
         # Clear tracking table first
 
         # Insert same entity multiple times
-        entity = WikidataEntity(wikidata_id="Q555", name="Duplicate Entity")
+        entity = WikidataEntity(wikidata_id="Q555")
         db_session.add(entity)
         db_session.flush()
 
         # Update it multiple times
-        entity.name = "Updated Once"
+        entity.labels = {"en": "Updated Once"}
         db_session.flush()
-        entity.name = "Updated Twice"
+        entity.labels = {"en": "Updated Twice"}
         db_session.flush()
 
         # Should only have one tracking record
@@ -188,7 +190,7 @@ class TestStatementTracking:
     def test_statement_tracking_on_insert(self, db_session: Session):
         """Test that inserted statements are tracked by generated statement id."""
         politician = Politician.create_with_entity(
-            db_session, "Q999", "Test Politician"
+            db_session, "Q999", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -206,7 +208,7 @@ class TestStatementTracking:
     def test_statement_tracking_on_update(self, db_session: Session):
         """Test that updating a statement document is tracked."""
         politician = Politician.create_with_entity(
-            db_session, "Q998", "Test Politician"
+            db_session, "Q998", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -232,7 +234,7 @@ class TestStatementTracking:
     def test_statement_tracking_via_upsert_batch(self, db_session: Session):
         """Test that the importer's upsert path tracks statements once."""
         politician = Politician.create_with_entity(
-            db_session, "Q997", "Test Politician"
+            db_session, "Q997", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -267,8 +269,8 @@ class TestStatementTracking:
         # Clear tracking table first
 
         # Create entities first
-        parent = WikidataEntity(wikidata_id="Q111", name="Parent Entity")
-        child = WikidataEntity(wikidata_id="Q222", name="Child Entity")
+        parent = WikidataEntity(wikidata_id="Q111")
+        child = WikidataEntity(wikidata_id="Q222")
         db_session.add(parent)
         db_session.add(child)
         db_session.flush()
@@ -295,8 +297,8 @@ class TestStatementTracking:
     def test_relation_tracking_on_update(self, db_session: Session):
         """Test that updating relations are tracked."""
         # Create entities first
-        parent = WikidataEntity(wikidata_id="Q333", name="Parent Entity")
-        child = WikidataEntity(wikidata_id="Q444", name="Child Entity")
+        parent = WikidataEntity(wikidata_id="Q333")
+        child = WikidataEntity(wikidata_id="Q444")
         db_session.add(parent)
         db_session.add(child)
         db_session.flush()
@@ -330,9 +332,9 @@ class TestStatementTracking:
     def test_multiple_statements_tracked(self, db_session: Session):
         """Test that multiple statements and relations are tracked correctly."""
         politician = Politician.create_with_entity(
-            db_session, "Q777", "Test Politician"
+            db_session, "Q777", make_terms("Test Politician")
         )
-        child = WikidataEntity(wikidata_id="Q888", name="Child Entity")
+        child = WikidataEntity(wikidata_id="Q888")
         db_session.add(child)
         db_session.flush()
 
@@ -396,11 +398,11 @@ class TestCleanupFunctionality:
 
         db_session.execute(
             text("""
-                INSERT INTO wikidata_entities (wikidata_id, name, created_at, updated_at)
+                INSERT INTO wikidata_entities (wikidata_id, created_at, updated_at)
                 VALUES
-                ('Q100', 'Keep Entity', :old_timestamp, :old_timestamp),
-                ('Q200', 'Delete Entity', :old_timestamp, :old_timestamp),
-                ('Q300', 'Another Delete Entity', :old_timestamp, :old_timestamp)
+                ('Q100', :old_timestamp, :old_timestamp),
+                ('Q200', :old_timestamp, :old_timestamp),
+                ('Q300', :old_timestamp, :old_timestamp)
             """),
             {"old_timestamp": old_timestamp_naive},
         )
@@ -412,9 +414,7 @@ class TestCleanupFunctionality:
 
         # Simulate that only entity1 was seen during current import
         # Use upsert to trigger the tracking mechanism
-        entity1_data = [
-            {"wikidata_id": "Q100", "name": "Keep Entity", "description": "Updated"}
-        ]
+        entity1_data = [{"wikidata_id": "Q100", "labels": {"en": "Keep Entity"}}]
         WikidataEntity.upsert_batch(db_session, entity1_data)
         db_session.flush()
 
@@ -454,8 +454,8 @@ class TestCleanupFunctionality:
     def test_cleanup_with_very_old_cutoff_deletes_nothing(self, db_session: Session):
         """Test that cleanup with very old cutoff timestamp deletes nothing."""
         # Create some entities
-        entity1 = WikidataEntity(wikidata_id="Q100", name="Entity 1")
-        entity2 = WikidataEntity(wikidata_id="Q200", name="Entity 2")
+        entity1 = WikidataEntity(wikidata_id="Q100")
+        entity2 = WikidataEntity(wikidata_id="Q200")
         db_session.add(entity1)
         db_session.add(entity2)
         db_session.flush()
@@ -492,8 +492,8 @@ class TestCleanupFunctionality:
     ):
         """Test that cleanup_missing deletes removed entities from the search index."""
         # Create entities with old timestamps
-        entity1 = WikidataEntity(wikidata_id="Q100", name="Entity 1")
-        entity2 = WikidataEntity(wikidata_id="Q200", name="Entity 2")
+        entity1 = WikidataEntity(wikidata_id="Q100")
+        entity2 = WikidataEntity(wikidata_id="Q200")
         db_session.add_all([entity1, entity2])
         db_session.flush()
 
@@ -525,7 +525,7 @@ class TestCleanupFunctionality:
     ):
         """Test that delete_documents is not called when no entities are deleted."""
         # Create entities with recent timestamps
-        entity1 = WikidataEntity(wikidata_id="Q100", name="Entity 1")
+        entity1 = WikidataEntity(wikidata_id="Q100")
         db_session.add(entity1)
         db_session.flush()
 
@@ -569,12 +569,12 @@ class TestCleanupFunctionality:
         db_session.flush()
 
         politician = Politician.create_with_entity(
-            db_session, "Q600", "Test Politician"
+            db_session, "Q600", make_terms("Test Politician")
         )
         db_session.flush()
 
-        parent = WikidataEntity(wikidata_id="Q601", name="Parent Entity")
-        child = WikidataEntity(wikidata_id="Q602", name="Child Entity")
+        parent = WikidataEntity(wikidata_id="Q601")
+        child = WikidataEntity(wikidata_id="Q602")
         db_session.add(parent)
         db_session.add(child)
         db_session.flush()
@@ -617,7 +617,7 @@ class TestCleanupFunctionality:
         db_session.flush()
 
         # The old untracked statement and relation are soft-deleted
-        assert result["properties_marked_deleted"] == 1
+        assert result["statements_marked_deleted"] == 1
         assert result["relations_marked_deleted"] == 1
 
         delete_me = (
@@ -651,7 +651,7 @@ class TestCleanupFunctionality:
     ):
         """Test that statement cleanup with very old cutoff timestamp deletes nothing."""
         politician = Politician.create_with_entity(
-            db_session, "Q601", "Test Politician"
+            db_session, "Q601", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -667,7 +667,7 @@ class TestCleanupFunctionality:
         db_session.flush()
 
         # Should delete nothing since statements are newer than cutoff
-        assert result["properties_marked_deleted"] == 0
+        assert result["statements_marked_deleted"] == 0
         assert result["relations_marked_deleted"] == 0
 
         # Verify no statements were deleted
@@ -681,7 +681,7 @@ class TestCleanupFunctionality:
     def test_already_soft_deleted_statements_not_affected(self, db_session: Session):
         """Test that already soft-deleted statements are not counted in cleanup."""
         politician = Politician.create_with_entity(
-            db_session, "Q602", "Test Politician"
+            db_session, "Q602", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -699,17 +699,17 @@ class TestCleanupFunctionality:
         db_session.flush()
 
         # Should report 0 deletions since the statement was already soft-deleted
-        assert result["properties_marked_deleted"] == 0
+        assert result["statements_marked_deleted"] == 0
 
     def test_clear_tracking_tables(self, db_session: Session):
         """Test that individual tracking tables are cleared properly."""
         # Create entities and statements (triggers will automatically track them)
-        entity = WikidataEntity(wikidata_id="Q123", name="Test Entity")
+        entity = WikidataEntity(wikidata_id="Q123")
         db_session.add(entity)
         db_session.flush()
 
         politician = Politician.create_with_entity(
-            db_session, "Q456", "Test Politician"
+            db_session, "Q456", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -733,7 +733,7 @@ class TestCleanupFunctionality:
     def test_already_soft_deleted_entities_not_affected(self, db_session: Session):
         """Test that already soft-deleted entities are not counted in cleanup."""
         # Create entity and immediately soft-delete it
-        entity = WikidataEntity(wikidata_id="Q999", name="Already Deleted")
+        entity = WikidataEntity(wikidata_id="Q999")
         db_session.add(entity)
         db_session.flush()
 
@@ -770,10 +770,10 @@ class TestIntegrationWorkflow:
         db_session.execute(
             text(
                 """
-                INSERT INTO wikidata_entities (wikidata_id, name, created_at, updated_at)
+                INSERT INTO wikidata_entities (wikidata_id, created_at, updated_at)
                 VALUES
-                ('Q_old', 'Old Entity', :old_timestamp, :old_timestamp),
-                ('Q_keep', 'Keep Entity', :old_timestamp, :old_timestamp)
+                ('Q_old', :old_timestamp, :old_timestamp),
+                ('Q_keep', :old_timestamp, :old_timestamp)
             """
             ),
             {"old_timestamp": old_timestamp_naive},
@@ -781,7 +781,7 @@ class TestIntegrationWorkflow:
         db_session.flush()
 
         politician = Politician.create_with_entity(
-            db_session, "Q_pol", "Test Politician"
+            db_session, "Q_pol", make_terms("Test Politician")
         )
         db_session.flush()
 
@@ -804,10 +804,10 @@ class TestIntegrationWorkflow:
         keep_entity = (
             db_session.query(WikidataEntity).filter_by(wikidata_id="Q_keep").one()
         )
-        keep_entity.description = "Updated during import"
+        keep_entity.labels = {"en": "Keep Entity (updated)"}
         db_session.flush()
 
-        politician.wikidata_entity.description = "Updated politician during import"
+        politician.wikidata_entity.labels = {"en": "Test Politician (updated)"}
         db_session.flush()
 
         Statement.upsert_batch(
@@ -849,7 +849,7 @@ class TestIntegrationWorkflow:
 
         # Q_pol$old_stmt was not seen in the current import and predates the
         # first dump; the re-imported and newly imported statements survive
-        assert statement_results["properties_marked_deleted"] == 1
+        assert statement_results["statements_marked_deleted"] == 1
         assert statement_results["relations_marked_deleted"] == 0
 
         old_entity_fresh = (
@@ -913,7 +913,9 @@ class TestIntegrationWorkflow:
 
         # Create a politician
         politician = Politician.create_with_entity(
-            db_session, "Q_politician_in_dump", "Politician with Statement in Dump"
+            db_session,
+            "Q_politician_in_dump",
+            make_terms("Politician with Statement in Dump"),
         )
         db_session.flush()
 
@@ -937,7 +939,7 @@ class TestIntegrationWorkflow:
 
         assert fresh_statement is not None
         assert fresh_statement.deleted_at is None  # Should NOT be soft-deleted
-        assert results["properties_marked_deleted"] == 0  # No deletions should occur
+        assert results["statements_marked_deleted"] == 0  # No deletions should occur
 
         # With two-dump validation, we only delete items missing from current dump
         # AND older than previous dump, so statements in current dump are safe

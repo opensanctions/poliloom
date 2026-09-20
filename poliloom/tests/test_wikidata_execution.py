@@ -60,7 +60,7 @@ def mock_api_response(status_code, body=None):
 @pytest.fixture
 def position_entity(db_session):
     """Create the WikidataEntity backing generated entity_id foreign keys."""
-    db_session.add(WikidataEntity(wikidata_id="Q30185", name="Test Position"))
+    db_session.add(WikidataEntity(wikidata_id="Q30185"))
     db_session.flush()
 
 

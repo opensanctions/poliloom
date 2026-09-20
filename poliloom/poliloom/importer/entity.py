@@ -14,7 +14,6 @@ from ..models import (
     Location,
     Position,
     WikidataEntity,
-    WikidataEntityLabel,
     WikidataRelation,
     WikipediaProject,
 )
@@ -64,8 +63,6 @@ class EntityCollection:
         entity_data = [
             {
                 "wikidata_id": entity["wikidata_id"],
-                "name": entity["name"],
-                "description": entity["description"],
                 **entity["terms"],
             }
             for entity in self.entities
@@ -73,28 +70,9 @@ class EntityCollection:
 
         WikidataEntity.upsert_batch(session, entity_data)
 
-        # Insert labels into separate table
-        label_data = []
-        for entity in self.entities:
-            labels = entity.get("labels")
-            if labels:
-                for label in labels:
-                    label_data.append(
-                        {
-                            "entity_id": entity["wikidata_id"],
-                            "label": label,
-                        }
-                    )
-
-        if label_data:
-            WikidataEntityLabel.upsert_batch(session, label_data)
-
         # Insert entities referencing the WikidataEntity records
         # Remove keys stored on WikidataEntity since the model upserts reject them
         for entity in self.entities:
-            entity.pop("name", None)
-            entity.pop("description", None)
-            entity.pop("labels", None)
             entity.pop("terms", None)
 
         self.model_class.upsert_batch(session, self.entities)
@@ -168,20 +146,13 @@ def _process_supporting_entities_chunk(
                 continue
 
             # Create shared entity data
-            entity_name = entity.get_entity_name()
-            if not entity_name:
-                continue  # Skip entities without names - needed for search indexing
+            terms = entity.get_terms()
+            if not terms["labels"]:
+                continue  # Skip entities without labels - needed for search indexing
 
-            entity_description = entity.get_entity_description()
-            entity_labels = (
-                entity.get_all_labels()
-            )  # Get all unique labels across languages
             entity_data = {
                 "wikidata_id": entity_id,
-                "name": entity_name,
-                "description": entity_description,
-                "labels": entity_labels if entity_labels else None,
-                "terms": entity.get_terms(),
+                "terms": terms,
             }
 
             # Check entity type and add type-specific fields

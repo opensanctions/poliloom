@@ -10,6 +10,8 @@ from poliloom.models import (
     WikidataRelation,
 )
 
+from ..conftest import make_terms
+
 
 class TestSource:
     """Test cases for the Source model."""
@@ -243,7 +245,7 @@ class TestSource:
         from poliloom.models import Politician
 
         second_politician = Politician.create_with_entity(
-            db_session, "Q999999", "Second Politician"
+            db_session, "Q999999", make_terms("Second Politician")
         )
         db_session.flush()
 
