@@ -13,8 +13,14 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import object_session, relationship
 
+from ..wikidata.document import (
+    format_timeframe,
+    statement_entity_id,
+    statement_property_id,
+    statement_time_value,
+)
 from .base import (
     Base,
     EntityCreationMixin,
@@ -22,7 +28,7 @@ from .base import (
     TimestampMixin,
     UpsertMixin,
 )
-from .property import Property
+from .statement import Statement
 from .wikidata import (
     WikidataEntity,
     WikidataEntityLabel,
@@ -56,87 +62,97 @@ class Politician(
     )
     wikidata_id_numeric = Column(Integer, nullable=True, index=True)
 
-    def get_properties_by_types(
+    def get_statements_by_types(
         self, property_types: list[PropertyType]
-    ) -> list["Property"]:
-        """Get all properties of the specified types."""
-        return [prop for prop in self.properties if prop.type in property_types]
+    ) -> list["Statement"]:
+        """Get all non-deleted statements of the specified property types."""
+        property_ids = {property_type.value for property_type in property_types}
+        return [
+            statement
+            for statement in self.statements
+            if statement.deleted_at is None
+            and statement_property_id(statement.document) in property_ids
+        ]
 
     def to_xml_context(self, focus_property_types=None) -> str:
         """Build comprehensive politician context as XML structure for LLM prompts.
 
         Args:
             focus_property_types: Optional list of PropertyType values to include in context.
-                                If None, includes all available properties.
+                                If None, includes all available statements.
 
         Returns:
             XML formatted politician context string
         """
         context_data = {
-            "name": self.name,
+            "name": self.wikidata_entity.resolved_label or self.name,
             "wikidata_id": self.wikidata_id,
         }
 
-        # Add existing Wikidata properties based on focus or all available
-        if self.properties:
-            # Filter focus types if specified
-            relevant_types = (
-                focus_property_types
-                if focus_property_types
-                else [
-                    PropertyType.BIRTH_DATE,
-                    PropertyType.DEATH_DATE,
-                    PropertyType.POSITION,
-                    PropertyType.BIRTHPLACE,
-                    PropertyType.CITIZENSHIP,
-                ]
-            )
+        relevant_types = (
+            focus_property_types
+            if focus_property_types
+            else [
+                PropertyType.BIRTH_DATE,
+                PropertyType.DEATH_DATE,
+                PropertyType.POSITION,
+                PropertyType.BIRTHPLACE,
+                PropertyType.CITIZENSHIP,
+            ]
+        )
 
-            # Add date properties section
-            if any(
-                t in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]
-                for t in relevant_types
-            ):
-                date_properties = self.get_properties_by_types(
-                    [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]
-                )
-                date_items = [
-                    f"{prop.type.value}: {prop.value}" for prop in date_properties
-                ]
-                if date_items:
-                    context_data["existing_wikidata"] = date_items
+        statements = self.get_statements_by_types(relevant_types)
+        display_names = self._statement_entity_display_names(statements)
 
-            # Add positions section
-            if PropertyType.POSITION in relevant_types:
-                position_properties = self.get_properties_by_types(
-                    [PropertyType.POSITION]
-                )
-                position_items = [
-                    f"{prop.entity.name}{prop.format_timeframe()}"
-                    for prop in position_properties
-                ]
-                if position_items:
-                    context_data["existing_wikidata_positions"] = position_items
+        def by_property(*property_ids: str) -> list["Statement"]:
+            return [
+                statement
+                for statement in statements
+                if statement_property_id(statement.document) in property_ids
+            ]
 
-            # Add birthplaces section
-            if PropertyType.BIRTHPLACE in relevant_types:
-                birthplace_properties = self.get_properties_by_types(
-                    [PropertyType.BIRTHPLACE]
+        # Add date statements section
+        if any(
+            t in [PropertyType.BIRTH_DATE, PropertyType.DEATH_DATE]
+            for t in relevant_types
+        ):
+            date_items = [
+                f"{statement_property_id(statement.document)}: "
+                f"{statement_time_value(statement.document).to_display_string()}"
+                for statement in by_property(
+                    PropertyType.BIRTH_DATE.value, PropertyType.DEATH_DATE.value
                 )
-                birthplace_items = [prop.entity.name for prop in birthplace_properties]
-                if birthplace_items:
-                    context_data["existing_wikidata_birthplaces"] = birthplace_items
+            ]
+            if date_items:
+                context_data["existing_wikidata"] = date_items
 
-            # Add citizenships section
-            if PropertyType.CITIZENSHIP in relevant_types:
-                citizenship_properties = self.get_properties_by_types(
-                    [PropertyType.CITIZENSHIP]
-                )
-                citizenship_items = [
-                    prop.entity.name for prop in citizenship_properties
-                ]
-                if citizenship_items:
-                    context_data["existing_wikidata_citizenships"] = citizenship_items
+        # Add positions section
+        if PropertyType.POSITION in relevant_types:
+            position_items = [
+                f"{display_names[statement_entity_id(statement.document)]}"
+                f"{format_timeframe(statement.document)}"
+                for statement in by_property(PropertyType.POSITION.value)
+            ]
+            if position_items:
+                context_data["existing_wikidata_positions"] = position_items
+
+        # Add birthplaces section
+        if PropertyType.BIRTHPLACE in relevant_types:
+            birthplace_items = [
+                display_names[statement_entity_id(statement.document)]
+                for statement in by_property(PropertyType.BIRTHPLACE.value)
+            ]
+            if birthplace_items:
+                context_data["existing_wikidata_birthplaces"] = birthplace_items
+
+        # Add citizenships section
+        if PropertyType.CITIZENSHIP in relevant_types:
+            citizenship_items = [
+                display_names[statement_entity_id(statement.document)]
+                for statement in by_property(PropertyType.CITIZENSHIP.value)
+            ]
+            if citizenship_items:
+                context_data["existing_wikidata_citizenships"] = citizenship_items
 
         xml_bytes = dicttoxml(
             context_data,
@@ -145,6 +161,31 @@ class Politician(
             xml_declaration=False,
         )
         return xml_bytes.decode("utf-8")
+
+    def _statement_entity_display_names(
+        self, statements: list["Statement"]
+    ) -> dict[str, str]:
+        """Display names of the entities pointed to by entity-valued statements."""
+        entity_ids = {
+            entity_id
+            for entity_id in (
+                statement_entity_id(statement.document) for statement in statements
+            )
+            if entity_id is not None
+        }
+        if not entity_ids:
+            return {}
+
+        entities = (
+            object_session(self)
+            .query(WikidataEntity)
+            .filter(WikidataEntity.wikidata_id.in_(entity_ids))
+            .all()
+        )
+        return {
+            entity.wikidata_id: entity.resolved_label or entity.name
+            for entity in entities
+        }
 
     @classmethod
     def create_with_entity(

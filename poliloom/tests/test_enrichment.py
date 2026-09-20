@@ -10,7 +10,6 @@ from poliloom.enrichment import (
     BIRTHPLACES_CONFIG,
     DATES_CONFIG,
     POSITIONS_CONFIG,
-    ExtractedBirthplace,
     ExtractedCitizenship,
     ExtractedPosition,
     ExtractedProperty,
@@ -24,11 +23,13 @@ from poliloom.enrichment import (
     store_extracted_data,
 )
 from poliloom.models import (
+    Action,
+    ActionKind,
     Location,
     Position,
-    Property,
-    PropertyReference,
+    Statement,
 )
+from poliloom.wikidata.date import WikidataDate
 
 
 class TestEnrichment:
@@ -249,20 +250,57 @@ class TestEnrichment:
         assert len(birthplaces) == 1
         assert birthplaces[0].wikidata_id == "Q28513"
 
-    def test_store_extracted_data_properties(
-        self,
-        db_session,
-        sample_source,
-        sample_country,
-        sample_politician,
-        sample_wikipedia_link,
-        create_citizenship,
-    ):
-        """Test storing extracted properties."""
-        # Add citizenship as Property (Wikipedia link already created by fixture)
-        create_citizenship(sample_politician, sample_country)
-        db_session.flush()
 
+def time_content(date_string: str) -> dict:
+    """REST time content for a YYYY[-MM[-DD]] string."""
+    return WikidataDate.from_date_string(date_string).to_rest_time_content()
+
+
+def time_qualifier(property_id: str, date_string: str) -> dict:
+    """A REST time qualifier (e.g. P580/P582) for a date string."""
+    return {
+        "property": {"id": property_id, "data_type": "time"},
+        "value": {"type": "value", "content": time_content(date_string)},
+    }
+
+
+def rest_statement(
+    statement_id: str,
+    property_id: str,
+    content,
+    data_type: str = "time",
+    qualifiers: list[dict] | None = None,
+    references: list[dict] | None = None,
+) -> dict:
+    """Build a cached REST statement document."""
+    document = {
+        "id": statement_id,
+        "rank": "normal",
+        "property": {"id": property_id, "data_type": data_type},
+        "value": {"type": "value", "content": content},
+    }
+    if qualifiers is not None:
+        document["qualifiers"] = qualifiers
+    if references is not None:
+        document["references"] = references
+    return document
+
+
+def add_statement(db_session, politician, document) -> Statement:
+    """Insert a cached statement for a politician."""
+    statement = Statement(politician_id=politician.id, document=document)
+    db_session.add(statement)
+    db_session.flush()
+    return statement
+
+
+class TestStoreExtractedData:
+    """store_extracted_data persists decisions as Actions."""
+
+    def test_create_persisted_with_references(
+        self, db_session, sample_politician, sample_source
+    ):
+        """A new date extraction becomes a CREATE_STATEMENT action referencing the source."""
         properties = [
             ExtractedProperty(
                 type=PropertyType.BIRTH_DATE,
@@ -272,50 +310,37 @@ class TestEnrichment:
         ]
 
         success = store_extracted_data(
-            db_session,
-            sample_politician,
-            sample_source,
-            properties,
-            None,  # positions
-            None,  # birthplaces
-            None,  # citizenships
+            db_session, sample_politician, sample_source, properties, None, None, None
         )
 
         assert success is True
 
-        # Verify property was stored
-        property_obj = (
-            db_session.query(Property)
-            .filter_by(politician_id=sample_politician.id, type=PropertyType.BIRTH_DATE)
-            .first()
-        )
-        assert property_obj is not None
-        assert property_obj.value == "+1970-01-15T00:00:00Z"
-        assert property_obj.value_precision == 11  # Day precision
-        # Verify PropertyReference was created linking to source
-        ref = (
-            db_session.query(PropertyReference)
-            .filter_by(property_id=property_obj.id)
-            .first()
-        )
-        assert ref is not None
-        assert ref.source_id == sample_source.id
+        actions = db_session.query(Action).all()
+        assert len(actions) == 1
+        action = actions[0]
+        assert action.kind == ActionKind.CREATE_STATEMENT
+        assert action.politician_id == sample_politician.id
+        assert action.statement_id is None
 
-    def test_store_extracted_data_positions(
-        self,
-        db_session,
-        sample_source,
-        sample_country,
-        sample_politician,
-        sample_position,
-        sample_wikipedia_link,
-        create_citizenship,
+        statement = action.payload["statement"]
+        assert statement["property"] == {"id": "P569"}
+        assert statement["value"] == {
+            "type": "value",
+            "content": time_content("1970-01-15"),
+        }
+        assert statement["rank"] == "normal"
+        assert statement["references"] == [
+            {"parts": sample_source.create_references_json()}
+        ]
+
+        assert len(action.evidence) == 1
+        assert action.evidence[0].source_id == sample_source.id
+        assert action.evidence[0].supporting_quotes == ["born January 15, 1970"]
+
+    def test_position_create_carries_timeframe_qualifiers(
+        self, db_session, sample_politician, sample_source, sample_position
     ):
-        """Test storing extracted positions."""
-        # Add citizenship as Property (Wikipedia link created by sample_wikipedia_link fixture)
-        create_citizenship(sample_politician, sample_country)
-        db_session.flush()
-
+        """A position extraction carries its P580/P582 timeframe as REST qualifiers."""
         positions = [
             ExtractedPosition(
                 wikidata_id="Q30185",
@@ -326,241 +351,154 @@ class TestEnrichment:
         ]
 
         success = store_extracted_data(
-            db_session,
-            sample_politician,
-            sample_source,
-            None,  # properties
-            positions,
-            None,  # birthplaces
-            None,  # citizenships
+            db_session, sample_politician, sample_source, None, positions, None, None
         )
 
         assert success is True
 
-        # Verify position was stored as Property
-        position_property = (
-            db_session.query(Property)
-            .filter_by(
-                politician_id=sample_politician.id,
-                type=PropertyType.POSITION,
-                entity_id=sample_position.wikidata_id,
-            )
-            .first()
-        )
-        assert position_property is not None
-        assert position_property.qualifiers_json is not None
-        assert "P580" in position_property.qualifiers_json  # start time
-        assert "P582" in position_property.qualifiers_json  # end time
+        actions = db_session.query(Action).all()
+        assert len(actions) == 1
+        statement = actions[0].payload["statement"]
+        assert statement["property"] == {"id": "P39"}
+        assert statement["value"] == {"type": "value", "content": "Q30185"}
+        assert statement["qualifiers"] == [
+            {
+                "property": {"id": "P580"},
+                "value": {"type": "value", "content": time_content("2020")},
+            },
+            {
+                "property": {"id": "P582"},
+                "value": {"type": "value", "content": time_content("2024")},
+            },
+        ]
 
-    def test_store_extracted_data_birthplaces(
-        self,
-        db_session,
-        sample_location,
-        sample_source,
-        sample_country,
-        sample_politician,
-        create_citizenship,
+    def test_edit_persisted_against_target(
+        self, db_session, sample_politician, sample_source
     ):
-        """Test storing extracted birthplaces."""
-        # Add citizenship as Property
-        create_citizenship(sample_politician, sample_country)
-        db_session.flush()
+        """A more precise date becomes an EDIT_STATEMENT action on the cached statement."""
+        statement = add_statement(
+            db_session,
+            sample_politician,
+            rest_statement("Q123456$birth-1", "P569", time_content("1950")),
+        )
 
-        birthplaces = [
-            ExtractedBirthplace(
-                wikidata_id="Q28513", supporting_quotes=["born in Springfield"]
+        properties = [
+            ExtractedProperty(
+                type=PropertyType.BIRTH_DATE,
+                value="1950-05-15",
+                supporting_quotes=["born May 15, 1950"],
             )
         ]
 
         success = store_extracted_data(
-            db_session,
-            sample_politician,
-            sample_source,
-            None,  # properties
-            None,  # positions
-            birthplaces,
-            None,  # citizenships
+            db_session, sample_politician, sample_source, properties, None, None, None
         )
 
         assert success is True
 
-        # Verify birthplace was stored as Property
-        birthplace_property = (
-            db_session.query(Property)
-            .filter_by(
-                politician_id=sample_politician.id,
-                type=PropertyType.BIRTHPLACE,
-                entity_id=sample_location.wikidata_id,
-            )
-            .first()
-        )
-        assert birthplace_property is not None
-        # Verify PropertyReference was created linking to source
-        ref = (
-            db_session.query(PropertyReference)
-            .filter_by(property_id=birthplace_property.id)
-            .first()
-        )
-        assert ref is not None
-        assert ref.source_id == sample_source.id
+        actions = db_session.query(Action).all()
+        assert len(actions) == 1
+        action = actions[0]
+        assert action.kind == ActionKind.EDIT_STATEMENT
+        assert action.statement_id == statement.id
 
-    def test_store_extracted_data_existing_match_adds_reference(
-        self,
-        db_session,
-        sample_source,
-        sample_country,
-        sample_politician,
-        sample_wikipedia_link,
-        create_citizenship,
-        create_source,
-        create_birth_date,
+        old_value = {"type": "value", "content": time_content("1950")}
+        new_value = {"type": "value", "content": time_content("1950-05-15")}
+        assert action.payload["patch"] == [
+            {"op": "test", "path": "/value", "value": old_value},
+            {"op": "replace", "path": "/value", "value": new_value},
+        ]
+
+        assert len(action.evidence) == 1
+        assert action.evidence[0].source_id == sample_source.id
+
+    def test_equivalent_with_reference_present_creates_nothing(
+        self, db_session, sample_politician, sample_source
     ):
-        """Test that store_extracted_data adds a reference to an existing matching property."""
-        create_citizenship(sample_politician, sample_country)
-
-        # Create an existing birth date property from a first source
-        existing_prop = create_birth_date(
+        """An equivalent statement already carrying the source reference yields no action."""
+        url_part = {
+            "property": {"id": "P854", "data_type": "url"},
+            "value": {"type": "value", "content": sample_source.url},
+        }
+        add_statement(
+            db_session,
             sample_politician,
-            value="+1970-01-15T00:00:00Z",
-            source=sample_source,
-            supporting_quotes=["born January 15, 1970"],
+            rest_statement(
+                "Q123456$birth-1",
+                "P569",
+                time_content("1970-01-15"),
+                references=[{"hash": "0" * 40, "parts": [url_part]}],
+            ),
         )
-        db_session.flush()
 
-        # Create a second source
-        second_source = create_source(url="https://example.com/other-article")
-
-        # Extract the same birth date from the second source
         properties = [
             ExtractedProperty(
                 type=PropertyType.BIRTH_DATE,
                 value="1970-01-15",
-                supporting_quotes=["He was born on 15 January 1970"],
+                supporting_quotes=["born January 15, 1970"],
             )
         ]
 
         success = store_extracted_data(
-            db_session,
-            sample_politician,
-            second_source,
-            properties,
-            None,
-            None,
-            None,
+            db_session, sample_politician, sample_source, properties, None, None, None
         )
 
         assert success is True
+        assert db_session.query(Action).count() == 0
 
-        # Should NOT create a new property — still just the one
-        all_birth_dates = (
-            db_session.query(Property)
-            .filter_by(politician_id=sample_politician.id, type=PropertyType.BIRTH_DATE)
-            .all()
-        )
-        assert len(all_birth_dates) == 1
-        assert all_birth_dates[0].id == existing_prop.id
-
-        # Should have two references: one from each source
-        refs = (
-            db_session.query(PropertyReference)
-            .filter_by(property_id=existing_prop.id)
-            .all()
-        )
-        assert len(refs) == 2
-        source_ids = {ref.source_id for ref in refs}
-        assert sample_source.id in source_ids
-        assert second_source.id in source_ids
-
-    def test_store_extracted_data_existing_position_adds_reference(
-        self,
-        db_session,
-        sample_source,
-        sample_country,
-        sample_politician,
-        sample_position,
-        sample_wikipedia_link,
-        create_citizenship,
-        create_source,
-        create_position,
+    def test_subsumed_position_span_creates_nothing(
+        self, db_session, sample_politician, sample_source, sample_position
     ):
-        """Test that store_extracted_data adds a reference to an existing matching position."""
-        create_citizenship(sample_politician, sample_country)
-
-        qualifiers = {
-            "P580": [
-                {
-                    "datavalue": {
-                        "value": {"time": "+2020-00-00T00:00:00Z", "precision": 9}
-                    }
-                }
-            ],
-            "P582": [
-                {
-                    "datavalue": {
-                        "value": {"time": "+2024-00-00T00:00:00Z", "precision": 9}
-                    }
-                }
-            ],
-        }
-        existing_prop = create_position(
+        """A span covered by consecutive existing terms yields no action."""
+        add_statement(
+            db_session,
             sample_politician,
-            sample_position,
-            source=sample_source,
-            qualifiers_json=qualifiers,
+            rest_statement(
+                "Q123456$p39-1",
+                "P39",
+                "Q30185",
+                data_type="wikibase-item",
+                qualifiers=[
+                    time_qualifier("P580", "2018"),
+                    time_qualifier("P582", "2020"),
+                ],
+            ),
         )
-        db_session.flush()
-
-        second_source = create_source(url="https://example.com/other-article")
+        add_statement(
+            db_session,
+            sample_politician,
+            rest_statement(
+                "Q123456$p39-2",
+                "P39",
+                "Q30185",
+                data_type="wikibase-item",
+                qualifiers=[
+                    time_qualifier("P580", "2020"),
+                    time_qualifier("P582", "2024"),
+                ],
+            ),
+        )
 
         positions = [
             ExtractedPosition(
                 wikidata_id="Q30185",
-                start_date="2020",
+                start_date="2018",
                 end_date="2024",
-                supporting_quotes=["served as Mayor from 2020 to 2024"],
+                supporting_quotes=["served from 2018 to 2024"],
             )
         ]
 
         success = store_extracted_data(
-            db_session,
-            sample_politician,
-            second_source,
-            None,
-            positions,
-            None,
-            None,
+            db_session, sample_politician, sample_source, None, positions, None, None
         )
 
         assert success is True
+        assert db_session.query(Action).count() == 0
 
-        # Should NOT create a new property
-        all_positions = (
-            db_session.query(Property)
-            .filter_by(
-                politician_id=sample_politician.id,
-                type=PropertyType.POSITION,
-                entity_id=sample_position.wikidata_id,
-            )
-            .all()
-        )
-        assert len(all_positions) == 1
-
-        # Should have two references
-        refs = (
-            db_session.query(PropertyReference)
-            .filter_by(property_id=existing_prop.id)
-            .all()
-        )
-        assert len(refs) == 2
-
-    def test_duplicate_citizenships_merge_quotes(
-        self,
-        db_session,
-        sample_politician,
-        sample_source,
-        sample_country,
+    def test_duplicate_extractions_merge_into_one_action(
+        self, db_session, sample_politician, sample_source, sample_country
     ):
-        """Test that duplicate citizenships from same source merge quotes."""
+        """Duplicate extractions in one run dedup onto one action with merged quotes."""
         citizenships = [
             ExtractedCitizenship(
                 wikidata_id=sample_country.wikidata_id,
@@ -584,34 +522,107 @@ class TestEnrichment:
 
         assert success is True
 
-        props = (
-            db_session.query(Property)
-            .filter_by(
-                politician_id=sample_politician.id,
-                type=PropertyType.CITIZENSHIP,
-                entity_id=sample_country.wikidata_id,
-            )
-            .all()
-        )
-        assert len(props) == 1
+        actions = db_session.query(Action).all()
+        assert len(actions) == 1
 
-        refs = (
-            db_session.query(PropertyReference)
-            .filter_by(property_id=props[0].id, source_id=sample_source.id)
-            .all()
+        evidence = actions[0].evidence
+        assert len(evidence) == 1
+        assert evidence[0].source_id == sample_source.id
+        assert set(evidence[0].supporting_quotes) == {
+            "is an American politician",
+            "a United States senator",
+        }
+
+    def test_pending_action_dedup_across_sources(
+        self, db_session, sample_politician, sample_source, create_source
+    ):
+        """The same source-independent decision from a second source dedups onto
+        the pending action and attaches the new source as evidence."""
+        add_statement(
+            db_session,
+            sample_politician,
+            rest_statement("Q123456$birth-1", "P569", time_content("1950")),
         )
-        assert len(refs) == 1
-        assert "is an American politician" in refs[0].supporting_quotes
-        assert "a United States senator" in refs[0].supporting_quotes
+        second_source = create_source(url="https://example.com/other-article")
+        properties = [
+            ExtractedProperty(
+                type=PropertyType.BIRTH_DATE,
+                value="1950-05-15",
+                supporting_quotes=["born May 15, 1950"],
+            )
+        ]
+
+        assert store_extracted_data(
+            db_session, sample_politician, sample_source, properties, None, None, None
+        )
+        assert store_extracted_data(
+            db_session,
+            sample_politician,
+            second_source,
+            properties,
+            None,
+            None,
+            None,
+        )
+
+        actions = db_session.query(Action).all()
+        assert len(actions) == 1
+
+        evidence = actions[0].evidence
+        assert {row.source_id for row in evidence} == {
+            sample_source.id,
+            second_source.id,
+        }
+
+    def test_decided_action_is_not_dedup_target(
+        self, db_session, sample_politician, sample_source, create_source
+    ):
+        """Decided actions are immutable: an identical new decision creates a
+        new pending action."""
+        add_statement(
+            db_session,
+            sample_politician,
+            rest_statement("Q123456$birth-1", "P569", time_content("1950")),
+        )
+        properties = [
+            ExtractedProperty(
+                type=PropertyType.BIRTH_DATE,
+                value="1950-05-15",
+                supporting_quotes=["born May 15, 1950"],
+            )
+        ]
+
+        assert store_extracted_data(
+            db_session, sample_politician, sample_source, properties, None, None, None
+        )
+        decided = db_session.query(Action).one()
+        decided.is_accepted = True
+        db_session.flush()
+
+        second_source = create_source(url="https://example.com/other-article")
+        assert store_extracted_data(
+            db_session,
+            sample_politician,
+            second_source,
+            properties,
+            None,
+            None,
+            None,
+        )
+
+        actions = db_session.query(Action).all()
+        assert len(actions) == 2
+        pending = [action for action in actions if action.is_accepted is None]
+        assert len(pending) == 1
+        assert pending[0].evidence[0].source_id == second_source.id
 
     def test_store_extracted_data_error_handling(
         self,
         db_session,
         sample_source,
-        sample_country,
         sample_politician,
     ):
-        """Test error handling in store_extracted_data."""
+        """Database errors during persistence surface as a False return."""
 
         properties = [
             ExtractedProperty(
@@ -632,7 +643,7 @@ class TestEnrichment:
                 properties,
                 None,
                 None,
-                None,  # citizenships
+                None,
             )
 
         assert success is False
