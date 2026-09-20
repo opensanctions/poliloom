@@ -18,6 +18,7 @@ class WikidataEntityProcessor:
         self._claims = raw_data.get("claims", {})
         self._labels = raw_data.get("labels", {})
         self._descriptions = raw_data.get("descriptions", {})
+        self._aliases = raw_data.get("aliases", {})
         self._sitelinks = raw_data.get("sitelinks", {})
 
     def get_wikidata_id(self) -> str:
@@ -75,6 +76,19 @@ class WikidataEntityProcessor:
             if "value" in label_data:
                 unique_labels.add(label_data["value"])
         return list(unique_labels)
+
+    def get_terms(self) -> dict:
+        """Return {"labels": {lang: value}, "descriptions": {lang: value}, "aliases": {lang: [value]}} simplified from the dump's verbose term shape."""
+        return {
+            "labels": {lang: term["value"] for lang, term in self._labels.items()},
+            "descriptions": {
+                lang: term["value"] for lang, term in self._descriptions.items()
+            },
+            "aliases": {
+                lang: [alias["value"] for alias in aliases]
+                for lang, aliases in self._aliases.items()
+            },
+        }
 
     @property
     def sitelinks(self) -> dict[str, Any]:
