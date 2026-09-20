@@ -1,3 +1,5 @@
+import type { Action, Statement, TermMaps } from './wikibase'
+
 export type SourceStatus = 'processing' | 'done'
 
 export interface SourceResponse {
@@ -11,61 +13,13 @@ export interface SourceResponse {
   language_qids: string[]
 }
 
-export enum PropertyType {
-  P569 = 'P569', // Birth Date
-  P570 = 'P570', // Death Date
-  P19 = 'P19', // Birthplace
-  P39 = 'P39', // Position
-  P27 = 'P27', // Citizenship
-}
-
-export type EntityPropertyType = PropertyType.P19 | PropertyType.P27 | PropertyType.P39
-
-// Qualifier types for Wikidata date values
-export interface WikidataDateValue {
-  time: string
-  precision: number
-}
-
-export interface WikidataQualifierValue {
-  datavalue?: {
-    value?: WikidataDateValue
-  }
-}
-
-export interface PropertyQualifiers {
-  P580?: WikidataQualifierValue[] // Start date
-  P582?: WikidataQualifierValue[] // End date
-  [key: string]: WikidataQualifierValue[] | undefined
-}
-
-export interface PropertyReference {
-  id: string
-  source: SourceResponse
-  supporting_quotes?: string[]
-}
-
-export interface Property {
-  id: string
-  type: PropertyType
-  value?: string
-  value_precision?: number
-  entity_id?: string
-  entity_name?: string
-  statement_id?: string | null
-  qualifiers?: PropertyQualifiers
-  references?: Array<Record<string, unknown>>
-  sources: PropertyReference[]
-  userAdded?: boolean // true for properties manually added by user on the client
-  evaluation?: boolean // undefined = not evaluated, true = accepted, false = rejected (derived from action list)
-}
-
 export interface Politician {
   id: string
-  name: string
   wikidata_id: string | null
+  terms: TermMaps
   sources: SourceResponse[]
-  properties: Property[]
+  statements: Statement[]
+  actions: Action[]
 }
 
 export interface EnrichmentMetadata {
@@ -75,45 +29,6 @@ export interface EnrichmentMetadata {
 export interface NextPoliticianResponse {
   wikidata_id: string | null
   meta: EnrichmentMetadata
-}
-
-export interface AcceptPropertyItem {
-  action: 'accept'
-  id: string
-}
-
-export interface RejectPropertyItem {
-  action: 'reject'
-  id: string
-}
-
-export interface SkipPropertyItem {
-  action: 'skip'
-  id: string
-}
-
-export interface CreatePropertyItem {
-  action: 'create'
-  id: string // Temporary client-side ID (ignored by backend)
-  type: string
-  value?: string
-  value_precision?: number
-  entity_id?: string
-  entity_name?: string
-  qualifiers?: PropertyQualifiers
-}
-
-export type PropertyActionItem =
-  AcceptPropertyItem | RejectPropertyItem | SkipPropertyItem | CreatePropertyItem
-
-export interface PatchPropertiesRequest {
-  items: PropertyActionItem[]
-}
-
-export interface PatchPropertiesResponse {
-  success: boolean
-  message: string
-  errors: string[]
 }
 
 export interface CreatePoliticianRequest {
