@@ -21,6 +21,7 @@ from sqlalchemy import (
     or_,
     select,
     text,
+    true,
     union_all,
     update,
 )
@@ -654,7 +655,9 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
         """Build query for search index documents.
 
         Creates a query that returns all searchable entities with their
-        aggregated types and labels. Only includes non-deleted entities.
+        aggregated types and search terms. Label and alias values from the
+        JSONB term maps both feed search (aliases are never display names).
+        Only includes non-deleted entities.
 
         Returns:
             SQLAlchemy select query with columns: wikidata_id, types, labels
@@ -672,23 +675,56 @@ class WikidataEntity(Base, TimestampMixin, SoftDeleteMixin, UpsertMixin):
             ]
         ).subquery("entity_types")
 
-        # Main query: aggregate types and labels per entity
+        # One row per label value across languages
+        label_terms = (
+            func.jsonb_each_text(cls.labels).table_valued("key", "value").lateral()
+        )
+        label_values = (
+            select(
+                cls.wikidata_id.label("wikidata_id"),
+                label_terms.c.value.label("value"),
+            )
+            .select_from(cls)
+            .join(label_terms, true())
+        )
+
+        # One row per alias value across languages
+        alias_lang_terms = (
+            func.jsonb_each(cls.aliases).table_valued("key", "value").lateral()
+        )
+        alias_terms = (
+            func.jsonb_array_elements_text(alias_lang_terms.c.value)
+            .table_valued("value")
+            .lateral()
+        )
+        alias_values = (
+            select(
+                cls.wikidata_id.label("wikidata_id"),
+                alias_terms.c.value.label("value"),
+            )
+            .select_from(cls)
+            .join(alias_lang_terms, true())
+            .join(alias_terms, true())
+        )
+
+        # Combined search terms per entity
+        term_values = label_values.union_all(alias_values).subquery("term_values")
+
+        # Main query: aggregate types and terms per entity
         return (
             select(
                 entity_unions.c.wikidata_id,
                 func.array_agg(func.distinct(entity_unions.c.type)).label("types"),
-                func.array_agg(func.distinct(WikidataEntityLabel.label)).label(
-                    "labels"
-                ),
+                func.array_agg(func.distinct(term_values.c.value)).label("labels"),
             )
             .select_from(entity_unions)
             .join(
-                WikidataEntityLabel,
-                entity_unions.c.wikidata_id == WikidataEntityLabel.entity_id,
-            )
-            .join(
                 cls,
                 entity_unions.c.wikidata_id == cls.wikidata_id,
+            )
+            .join(
+                term_values,
+                term_values.c.wikidata_id == entity_unions.c.wikidata_id,
             )
             .where(cls.deleted_at.is_(None))
             .group_by(entity_unions.c.wikidata_id)

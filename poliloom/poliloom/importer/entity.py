@@ -60,12 +60,13 @@ class EntityCollection:
         if not self.has_entities():
             return
 
-        # Insert WikidataEntity records first (without labels)
+        # Insert WikidataEntity records first
         entity_data = [
             {
                 "wikidata_id": entity["wikidata_id"],
                 "name": entity["name"],
                 "description": entity["description"],
+                **entity["terms"],
             }
             for entity in self.entities
         ]
@@ -89,11 +90,12 @@ class EntityCollection:
             WikidataEntityLabel.upsert_batch(session, label_data)
 
         # Insert entities referencing the WikidataEntity records
-        # Remove 'name', 'description', and 'labels' keys since they're now stored separately
+        # Remove keys stored on WikidataEntity since the model upserts reject them
         for entity in self.entities:
             entity.pop("name", None)
             entity.pop("description", None)
             entity.pop("labels", None)
+            entity.pop("terms", None)
 
         self.model_class.upsert_batch(session, self.entities)
 
@@ -179,6 +181,7 @@ def _process_supporting_entities_chunk(
                 "name": entity_name,
                 "description": entity_description,
                 "labels": entity_labels if entity_labels else None,
+                "terms": entity.get_terms(),
             }
 
             # Check entity type and add type-specific fields
