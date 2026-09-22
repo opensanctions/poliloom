@@ -228,7 +228,6 @@ def _copy_property_data(conn) -> None:
     counts = {
         "statements": 0,
         "creates_pending_proposals": 0,
-        "creates_pending_tombstoned_accepted": 0,
         "creates_discarded": 0,
         "creates_applied_linked": 0,
         "creates_applied_unlinked": 0,
@@ -236,6 +235,7 @@ def _copy_property_data(conn) -> None:
         "edits_applied": 0,
         "evidence": 0,
         "dropped_props_no_eval_proposals": 0,
+        "dropped_props_failed_push_proposals": 0,
         "dropped_props_conflicting": 0,
         "dropped_props_tombstoned_import": 0,
         "dropped_refs_tombstoned": 0,
@@ -245,6 +245,7 @@ def _copy_property_data(conn) -> None:
         "eval_rejects_statement_backed": 0,
         "eval_noop_reaccepts": 0,
         "eval_on_retained_proposals": 0,
+        "eval_on_dropped_proposals": 0,
         "eval_on_dropped_conflicting": 0,
         "eval_superseded_discarded": 0,
     }
@@ -430,12 +431,11 @@ def _copy_property_data(conn) -> None:
                 counts["dropped_props_no_eval_proposals"] += 1
                 counts["dropped_refs_proposals"] += len(refs)
             elif latest_eval["is_accepted"]:
-                # Bulk-cleanup collateral: kept as a pending create.
-                queue_create(
-                    row, refs, is_accepted=None, decided=None, statement_id=None
-                )
-                counts["creates_pending_tombstoned_accepted"] += 1
-                counts["eval_on_retained_proposals"] += len(evals)
+                # Failed push: the accept never produced a statement, so the
+                # soft-deleted proposal is dropped entirely.
+                counts["dropped_props_failed_push_proposals"] += 1
+                counts["dropped_refs_proposals"] += len(refs)
+                counts["eval_on_dropped_proposals"] += len(evals)
             else:
                 queue_create(
                     row,
@@ -472,13 +472,12 @@ def _report_counts(totals: dict, counts: dict) -> None:
     """Log per-class counts so every old row is accounted for."""
     logger.info(
         "Data copy: %d properties -> %d statements; create actions: "
-        "%d pending (live proposals), %d pending (tombstoned accepted), "
-        "%d discarded, %d applied (statement linked), %d applied (unlinked); "
-        "edit actions: %d pending, %d applied; %d evidence rows",
+        "%d pending (live proposals), %d discarded, %d applied (statement "
+        "linked), %d applied (unlinked); edit actions: %d pending, %d applied; "
+        "%d evidence rows",
         totals["properties"],
         counts["statements"],
         counts["creates_pending_proposals"],
-        counts["creates_pending_tombstoned_accepted"],
         counts["creates_discarded"],
         counts["creates_applied_linked"],
         counts["creates_applied_unlinked"],
@@ -487,10 +486,12 @@ def _report_counts(totals: dict, counts: dict) -> None:
         counts["evidence"],
     )
     logger.info(
-        "Data copy drops: %d no-eval proposals, %d conflicting, "
-        "%d tombstoned import-created properties; %d references on "
-        "tombstoned statement-backed, %d on dropped proposals",
+        "Data copy drops: %d no-eval proposals, %d failed-push proposals, "
+        "%d conflicting, %d tombstoned import-created properties; "
+        "%d references on tombstoned statement-backed, %d on dropped "
+        "proposals",
         counts["dropped_props_no_eval_proposals"],
+        counts["dropped_props_failed_push_proposals"],
         counts["dropped_props_conflicting"],
         counts["dropped_props_tombstoned_import"],
         counts["dropped_refs_tombstoned"],
@@ -499,14 +500,16 @@ def _report_counts(totals: dict, counts: dict) -> None:
     logger.info(
         "Data copy evaluations: %d total -> %d mapped to applied creates, "
         "%d mapped to discarded creates, %d rejects on statement-backed "
-        "dropped, %d no-op re-accepts dropped, %d on retained proposals, "
-        "%d on dropped conflicting, %d superseded on discarded",
+        "dropped, %d no-op re-accepts dropped, %d on retained (live) "
+        "proposals, %d on dropped proposals, %d on dropped conflicting, "
+        "%d superseded on discarded",
         totals["evaluations"],
         counts["eval_mapped_applied"],
         counts["eval_mapped_discarded"],
         counts["eval_rejects_statement_backed"],
         counts["eval_noop_reaccepts"],
         counts["eval_on_retained_proposals"],
+        counts["eval_on_dropped_proposals"],
         counts["eval_on_dropped_conflicting"],
         counts["eval_superseded_discarded"],
     )
@@ -567,7 +570,6 @@ def _assert_invariants(conn, totals: dict, counts: dict, samples: dict) -> None:
         counts[key]
         for key in (
             "creates_pending_proposals",
-            "creates_pending_tombstoned_accepted",
             "creates_discarded",
             "creates_applied_linked",
             "creates_applied_unlinked",
@@ -577,6 +579,7 @@ def _assert_invariants(conn, totals: dict, counts: dict, samples: dict) -> None:
         counts[key]
         for key in (
             "dropped_props_no_eval_proposals",
+            "dropped_props_failed_push_proposals",
             "dropped_props_conflicting",
             "dropped_props_tombstoned_import",
         )
@@ -600,6 +603,7 @@ def _assert_invariants(conn, totals: dict, counts: dict, samples: dict) -> None:
         + counts["eval_rejects_statement_backed"]
         + counts["eval_noop_reaccepts"]
         + counts["eval_on_retained_proposals"]
+        + counts["eval_on_dropped_proposals"]
         + counts["eval_on_dropped_conflicting"]
         + counts["eval_superseded_discarded"],
         "evaluations not fully accounted",
