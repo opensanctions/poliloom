@@ -45,6 +45,9 @@ class Action(Base, TimestampMixin):
             "politician_id",
             postgresql_where=text("is_accepted IS NULL"),
         ),
+        # FK cascade path for entity hard-deletes (dump GC and the
+        # soft-delete drop migration)
+        Index("ix_actions_entity_id", "entity_id"),
     )
 
     id = Column(
