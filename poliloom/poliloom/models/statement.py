@@ -41,6 +41,10 @@ class Statement(Base, TimestampMixin, UpsertMixin):
             "property_id",
             "entity_id",
         ),
+        # FK cascade path for entity hard-deletes (dump GC and the
+        # soft-delete drop migration); entity_id is only the third column of
+        # the composite index above, which cannot serve it.
+        Index("ix_statements_entity_id", "entity_id"),
         Index("idx_statements_updated_at", "updated_at"),
     )
 

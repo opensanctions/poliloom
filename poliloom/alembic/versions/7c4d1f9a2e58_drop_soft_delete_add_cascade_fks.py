@@ -113,6 +113,12 @@ def upgrade() -> None:
     """Redefine FKs, hard-delete tombstoned rows, drop deleted_at columns."""
     _recreate_fks(None)
 
+    # The entity deletes cascade through statements/actions entity_id; without
+    # an index each of the tombstoned entities seq-scans both tables (hours on
+    # production volume). Runtime entity hard-deletes need the same paths.
+    op.create_index("ix_statements_entity_id", "statements", ["entity_id"])
+    op.create_index("ix_actions_entity_id", "actions", ["entity_id"])
+
     # Defensive cleanup: on a fresh-cutover DB these are empty, on a dev DB
     # they remove whatever was still tombstoned. Pending edit actions die with
     # their target statement; decided actions keep their payload (statement_id
@@ -165,3 +171,6 @@ def downgrade() -> None:
     op.create_index("ix_statements_deleted_at", "statements", ["deleted_at"])
 
     _recreate_fks("NO ACTION")
+
+    op.drop_index("ix_actions_entity_id", table_name="actions")
+    op.drop_index("ix_statements_entity_id", table_name="statements")
